@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+coverage/
+lab-output/
+*.log
+__pycache__/
+*.pyc
