@@ -8,6 +8,8 @@ Tests:
 - `npm run test:report`
 - `npm run test:screenshot`
 - `npm run test:evaluation`
+- `npm run test:gallery`
+- `npm run test:demo`
 - `npm run test:integration`
 - `npm run test:e2e`
 - `npm --prefix benchmarks/projects/todo-ts test`
@@ -48,4 +50,21 @@ Expected output files:
 - `commands/*.stderr.txt`
 - `commands/*.telemetry.json`
 
-Future commands will be added later as gallery workflows and provider telemetry are implemented.
+Run the full lab demo:
+- `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
+- `--cases`: path to the lab demo case list JSON
+- `--kit-command`: external my-dev-kit command string
+- `--out`: output directory for the complete demo artifacts
+- `--require-kit`: fail if my-dev-kit is unavailable or errors
+- `--no-screenshot`: skip PNG capture and write JSON and HTML only
+- `--skip-benchmark-validation`: skip benchmark verification and record a warning
+
+Expected output files:
+- `token-savings-summary.json`
+- `token-savings-runs.json`
+- `token-savings-report.html`
+- `token-savings-report.png` when screenshot capture succeeds
+- `gallery-manifest.json`
+- `commands/*.stdout.txt`
+- `commands/*.stderr.txt`
+- `commands/*.telemetry.json`

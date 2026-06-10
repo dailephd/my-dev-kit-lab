@@ -81,3 +81,38 @@ Expected outputs:
 
 Skipped behavior:
 - if the configured my-dev-kit command is unavailable and `--require-kit` is not passed, the run succeeds with skipped warnings and still writes JSON and HTML artifacts
+
+## Workflow 4: Lab Demo And Gallery Workflow
+
+Purpose:
+- run the Milestone 1 MVP end to end
+- validate benchmarks before evaluation
+- generate token-savings artifacts
+- capture optional report screenshots
+- write a gallery manifest for tutorial and gallery consumers
+
+Command:
+- `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
+
+Expected outputs:
+- `token-savings-summary.json`
+- `token-savings-runs.json`
+- `token-savings-report.html`
+- `token-savings-report.png` when screenshot capture succeeds
+- `gallery-manifest.json`
+- `commands/*.stdout.txt`
+- `commands/*.stderr.txt`
+- `commands/*.telemetry.json`
+
+Failure and skip behavior:
+- benchmark validation runs by default and fails the workflow when contracts or project structure are broken
+- `--skip-benchmark-validation` skips that step and records a warning
+- screenshot capture is attempted by default and skips gracefully when Playwright or the browser runtime is unavailable
+- missing or failing my-dev-kit does not fail the workflow unless `--require-kit` is passed
+
+Workflow relationship:
+- benchmark validation proves the fixture suite is intact
+- token evaluation produces the structured JSON artifacts
+- report rendering converts those results into HTML
+- screenshot capture turns the HTML report into a shareable PNG when available
+- gallery manifest records how those artifacts fit together

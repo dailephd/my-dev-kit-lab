@@ -19,5 +19,6 @@ MVP scope for Milestone 1 is intentionally narrow:
 - raw full-file context baseline
 - external my-dev-kit retrieval measurement
 - estimated token/context comparison artifacts
+- tutorial and gallery orchestration over those existing layers
 
-Telemetry, adapters, and gallery output remain future work.
+Provider telemetry, semantic quality judging, and benchmark generation remain future work.

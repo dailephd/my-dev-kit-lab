@@ -7,3 +7,4 @@ export function describeLab(): string {
 export * from "./report/index.js";
 export * from "./screenshot/index.js";
 export * from "./evaluation/index.js";
+export * from "./gallery/index.js";

@@ -13,7 +13,12 @@ Implemented now:
 - raw full-file baseline
 - my-dev-kit retrieval runner as external subprocess integration
 - report and screenshot layer reuse for evaluation artifacts
+- lab demo workflow
+- gallery manifest
+- tutorial documentation
+- Milestone 1 MVP
 
 Not implemented yet:
 - provider telemetry
-- gallery workflow
+- semantic quality judging
+- benchmark generation

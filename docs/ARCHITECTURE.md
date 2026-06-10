@@ -8,6 +8,7 @@ Repository layers:
 - `src/screenshot/`: optional PNG capture from generated local HTML reports
 - `src/core/`: shared utilities for token counting, safe paths, file glob collection, and measured subprocess execution
 - `src/evaluation/`: raw baseline, my-dev-kit retrieval, token comparison, and artifact generation
+- `src/gallery/`: gallery manifest types and writer
 - `src/commands/`: reusable command implementations
 - `src/`: reusable lab runtime code and exports
 - `scripts/`: command entrypoints and verification helpers
@@ -39,9 +40,23 @@ This layer writes structured JSON artifacts and feeds the results into the exist
 
 my-dev-kit is called externally, not imported. This keeps my-dev-kit-lab decoupled from my-dev-kit internals and allows configurable commands such as `my-dev-kit`, `npx @dailephd/my-dev-kit`, or `node ../my-dev-kit-v1/dist/cli.js`.
 
+Gallery layer:
+
+The gallery layer packages evaluation outputs into a portable manifest that can drive README examples, GitHub evidence, tutorial references, later portfolio templates, and future gallery surfaces without changing the underlying evaluator.
+
+Lab-demo orchestration layer:
+
+The lab-demo command is an orchestrator over the existing Milestone 1 pieces. It validates benchmarks, runs token-savings evaluation, reuses the existing report and screenshot layers, and writes a gallery manifest.
+
+Final Milestone 1 data flow:
+
+`benchmark validation -> token-savings evaluation -> report JSON -> report HTML -> optional screenshot PNG -> gallery manifest -> tutorial documentation`
+
+Gallery output is generated from evaluation artifacts. Screenshots remain presentation artifacts derived from the generated HTML report, not the evaluation source of truth.
+
 Future provider telemetry layer:
 
-Provider telemetry and adapter-specific metadata belong in a later layer that records run details without changing benchmark semantics. This is not part of Prompt 3.
+Provider telemetry and adapter-specific metadata belong in a later layer that records run details without changing benchmark semantics. This is not part of Milestone 1.
 
 Boundary between my-dev-kit and my-dev-kit-lab:
 

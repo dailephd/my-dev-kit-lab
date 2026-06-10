@@ -1,10 +1,10 @@
 # my-dev-kit-lab
 
-my-dev-kit-lab is the evidence, benchmark, screenshot, and evaluation companion for my-dev-kit. It exists to host deterministic benchmark projects, validation workflows, and later report-oriented lab runs that measure how my-dev-kit retrieval compares with raw full-file context.
+my-dev-kit-lab is the evidence, benchmark, screenshot, evaluation, and tutorial/gallery companion for my-dev-kit. It exists to host deterministic benchmark projects, validation workflows, reproducible report artifacts, and the Milestone 1 MVP demo flow that measures how my-dev-kit retrieval compares with raw full-file context.
 
 my-dev-kit is the indexing and retrieval engine. my-dev-kit-lab is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
 
-Current status: Milestone 1 Prompts 1, 2, and 3 are implemented. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, report artifact generation, optional report screenshot capture, and token/context comparison against external my-dev-kit retrieval commands.
+Current status: Milestone 1 is implemented. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, report artifact generation, optional report screenshot capture, token/context comparison against external my-dev-kit retrieval commands, and the all-in-one demo gallery workflow.
 
 Planned Milestone 1 features:
 - Prompt 1: project foundation, branch workflow, benchmark projects, and benchmark validation
@@ -19,6 +19,7 @@ Quick commands:
 - `npm run test:benchmarks`
 - `npm run capture-demo-report -- --input examples/demo-report-input.json --out lab-output/demo-report`
 - `npm run evaluate-token-savings -- --cases examples/token-savings-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/token-savings`
+- `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
 - `npm run verify`
 
 Benchmark projects:
@@ -32,7 +33,8 @@ They exist to provide the same small Todo Core behavior in different language la
 Not implemented yet:
 - provider telemetry
 - Codex or Claude adapters
-- gallery workflow
+- semantic quality judging
+- benchmark project generation
 
 Install:
 - `npm install`
@@ -43,6 +45,8 @@ Run tests:
 - `npm run test:report`
 - `npm run test:screenshot`
 - `npm run test:evaluation`
+- `npm run test:gallery`
+- `npm run test:demo`
 - `npm run test:integration`
 - `npm run test:e2e`
 - `python -m unittest discover benchmarks/projects/todo-python/tests`
@@ -83,3 +87,29 @@ Expected outputs:
 - `lab-output/token-savings/commands/*.telemetry.json`
 
 Token counts are estimated only. This workflow uses `estimated_chars_div_4`, which means `Math.ceil(characterCount / 4)`. It is a static context-size comparison, not provider billing telemetry. Provider telemetry remains future work.
+
+## Quick demo
+
+Run:
+- `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
+
+This is the Milestone 1 MVP workflow:
+- benchmark projects
+- token comparison
+- report
+- screenshot
+- gallery manifest
+
+Expected outputs:
+- `lab-output/demo-gallery/token-savings-summary.json`
+- `lab-output/demo-gallery/token-savings-runs.json`
+- `lab-output/demo-gallery/token-savings-report.html`
+- `lab-output/demo-gallery/token-savings-report.png` when screenshot capture succeeds
+- `lab-output/demo-gallery/gallery-manifest.json`
+- `lab-output/demo-gallery/commands/*`
+
+See:
+- `docs/TUTORIAL.md`
+- `docs/GALLERY.md`
+
+Token-savings evaluation is implemented in the MVP. Provider telemetry is still future work.
