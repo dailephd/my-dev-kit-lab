@@ -3,7 +3,8 @@ dist/
 build/
 coverage/
 .vitest/
-lab-output/
+lab-output/*
+!lab-output/.gitkeep
 *.log
 __pycache__/
 *.pyc

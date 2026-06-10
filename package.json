@@ -8,11 +8,16 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:benchmarks": "vitest run tests/benchmarks tests/scripts",
+    "test:report": "vitest run tests/report tests/commands",
+    "test:screenshot": "vitest run tests/screenshot",
+    "test:e2e": "vitest run tests/e2e",
+    "capture-demo-report": "tsx scripts/capture-demo-report.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
-    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run verify:benchmarks"
+    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:e2e && npm run verify:benchmarks"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "playwright": "^1.54.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

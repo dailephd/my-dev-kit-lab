@@ -14,5 +14,7 @@ MVP scope for Milestone 1 is intentionally narrow:
 - deterministic benchmark projects
 - benchmark contracts
 - validation tests and scripts
+- deterministic report generation
+- optional screenshot capture from local reports
 
-Anything related to screenshots, token savings, telemetry, adapters, or gallery output is future work.
+Token savings, telemetry, adapters, and gallery output remain future work.

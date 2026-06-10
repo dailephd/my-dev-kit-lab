@@ -1,0 +1,78 @@
+{
+  "reportId": "demo-report",
+  "title": "Benchmark Validation Demo Report",
+  "projectName": "my-dev-kit-lab",
+  "benchmarkProject": "todo-ts",
+  "workflowName": "benchmark validation demo",
+  "generatedAt": "2026-06-10T15:00:00.000Z",
+  "summary": "Deterministic sample report for Prompt 2 report rendering and screenshot capture. This report does not claim token-savings evaluation.",
+  "steps": [
+    {
+      "id": "load-contracts",
+      "label": "Load benchmark contracts",
+      "command": "npm run verify:benchmarks",
+      "status": "pass",
+      "durationMs": 42,
+      "notes": "Validated benchmark contract structure."
+    },
+    {
+      "id": "run-project-tests",
+      "label": "Run benchmark project tests",
+      "command": "npm run test:benchmarks",
+      "status": "pass",
+      "durationMs": 118,
+      "notes": "Todo benchmark behavior stayed aligned."
+    },
+    {
+      "id": "prepare-report",
+      "label": "Prepare report artifacts",
+      "command": "npm run capture-demo-report",
+      "status": "pass",
+      "durationMs": 35,
+      "notes": "No token-savings metrics are reported in this demo."
+    }
+  ],
+  "metrics": [
+    {
+      "id": "benchmark-project-count",
+      "label": "Benchmark projects",
+      "value": 4,
+      "interpretation": "Prompt 1 benchmark suite is available."
+    },
+    {
+      "id": "step-count",
+      "label": "Workflow steps",
+      "value": 3,
+      "interpretation": "Demo workflow uses a small deterministic sequence."
+    },
+    {
+      "id": "warning-count",
+      "label": "Warnings",
+      "value": 1,
+      "interpretation": "This demo explicitly notes that token comparison is not implemented yet."
+    },
+    {
+      "id": "artifact-count",
+      "label": "Artifacts declared",
+      "value": 2,
+      "interpretation": "JSON and HTML are always expected before optional PNG capture."
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "report-json",
+      "label": "Demo report JSON",
+      "path": "lab-output/demo-report/demo-report.json",
+      "kind": "json"
+    },
+    {
+      "id": "report-html",
+      "label": "Demo report HTML",
+      "path": "lab-output/demo-report/demo-report.html",
+      "kind": "html"
+    }
+  ],
+  "warnings": [
+    "Token-savings evaluation is not implemented in Prompt 2."
+  ]
+}
