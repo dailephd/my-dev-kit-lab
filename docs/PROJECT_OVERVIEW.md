@@ -16,5 +16,8 @@ MVP scope for Milestone 1 is intentionally narrow:
 - validation tests and scripts
 - deterministic report generation
 - optional screenshot capture from local reports
+- raw full-file context baseline
+- external my-dev-kit retrieval measurement
+- estimated token/context comparison artifacts
 
-Token savings, telemetry, adapters, and gallery output remain future work.
+Telemetry, adapters, and gallery output remain future work.

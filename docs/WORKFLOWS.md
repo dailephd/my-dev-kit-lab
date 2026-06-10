@@ -20,7 +20,6 @@ Expected outputs:
 - concise pass/fail output from the benchmark verification script
 
 Current limitations:
-- no token/context comparison
 - no provider telemetry
 - no gallery workflow
 
@@ -49,6 +48,36 @@ Current limitations:
 - no gallery workflow
 
 Placeholders for later workflows:
-- token-savings evaluation
 - tutorial and gallery workflow
 - provider telemetry
+
+## Workflow 3: Token-Savings Evaluation
+
+Purpose:
+- measure raw full-file baseline context
+- run external my-dev-kit retrieval
+- compare estimated chars and estimated tokens
+- render evaluation artifacts through the existing report and screenshot flow
+
+Command:
+- `npm run evaluate-token-savings -- --cases examples/token-savings-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/token-savings`
+
+Raw baseline path:
+- expand `rawIncludeGlobs` under each benchmark target root
+- concatenate sorted full-file contents with file path headers
+
+my-dev-kit path:
+- run `index -> search -> lookup -> slice -> source` as external subprocess commands
+- capture stdout, stderr, and telemetry for each command
+
+Expected outputs:
+- `token-savings-summary.json`
+- `token-savings-runs.json`
+- `token-savings-report.html`
+- `token-savings-report.png` when screenshot capture succeeds
+- `commands/*.stdout.txt`
+- `commands/*.stderr.txt`
+- `commands/*.telemetry.json`
+
+Skipped behavior:
+- if the configured my-dev-kit command is unavailable and `--require-kit` is not passed, the run succeeds with skipped warnings and still writes JSON and HTML artifacts

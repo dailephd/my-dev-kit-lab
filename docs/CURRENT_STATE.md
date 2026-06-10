@@ -9,8 +9,11 @@ Implemented now:
 - benchmark validation
 - report layer
 - screenshot capture as optional report screenshot capture
+- token-savings evaluation
+- raw full-file baseline
+- my-dev-kit retrieval runner as external subprocess integration
+- report and screenshot layer reuse for evaluation artifacts
 
 Not implemented yet:
-- token comparison
 - provider telemetry
 - gallery workflow

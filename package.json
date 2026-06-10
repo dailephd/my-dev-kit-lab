@@ -10,10 +10,13 @@
     "test:benchmarks": "vitest run tests/benchmarks tests/scripts",
     "test:report": "vitest run tests/report tests/commands",
     "test:screenshot": "vitest run tests/screenshot",
+    "test:evaluation": "vitest run tests/core tests/evaluation tests/commands",
+    "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e",
     "capture-demo-report": "tsx scripts/capture-demo-report.ts",
+    "evaluate-token-savings": "tsx scripts/evaluate-token-savings.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
-    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:e2e && npm run verify:benchmarks"
+    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:integration && npm run test:e2e && npm run verify:benchmarks"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

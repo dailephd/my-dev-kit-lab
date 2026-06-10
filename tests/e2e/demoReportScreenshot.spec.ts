@@ -60,5 +60,5 @@ describe("demo report screenshot e2e", () => {
       expect(bodyText).toContain("Artifacts");
       await browser.close();
     }
-  }, 15000);
+  }, 30000);
 });

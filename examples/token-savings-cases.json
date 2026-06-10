@@ -1,0 +1,47 @@
+[
+  {
+    "id": "todo-ts-create-task",
+    "title": "Todo TS create task retrieval",
+    "benchmarkProject": "todo-ts",
+    "targetRoot": "benchmarks/projects/todo-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "create task deterministic id task-1",
+    "expectedFiles": ["src/taskService.ts", "src/taskStore.ts"],
+    "expectedSymbols": ["createTask", "TaskService"],
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "TypeScript create task path."
+  },
+  {
+    "id": "todo-python-complete-task",
+    "title": "Todo Python complete task retrieval",
+    "benchmarkProject": "todo-python",
+    "targetRoot": "benchmarks/projects/todo-python",
+    "sourceRoots": ["src", "tests"],
+    "query": "complete task by id",
+    "expectedFiles": ["src/task_service.py"],
+    "expectedSymbols": ["complete_task"],
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"]
+  },
+  {
+    "id": "todo-js-open-tasks",
+    "title": "Todo JS open tasks retrieval",
+    "benchmarkProject": "todo-js",
+    "targetRoot": "benchmarks/projects/todo-js",
+    "sourceRoots": ["src", "tests"],
+    "query": "list open tasks incomplete tasks",
+    "expectedFiles": ["src/taskService.js"],
+    "expectedSymbols": ["listOpenTasks"],
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"]
+  },
+  {
+    "id": "todo-mixed-summary",
+    "title": "Todo mixed summary retrieval",
+    "benchmarkProject": "todo-mixed-ts-py",
+    "targetRoot": "benchmarks/projects/todo-mixed-ts-py",
+    "sourceRoots": ["src", "python", "tests"],
+    "query": "summarize tasks total open completed",
+    "expectedFiles": ["src/taskCli.ts", "python/task_service.py"],
+    "expectedSymbols": ["summarizeTasks", "summarize_tasks"],
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"]
+  }
+]

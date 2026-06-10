@@ -6,6 +6,8 @@ Repository layers:
 - `docs/`: project, workflow, and roadmap documentation
 - `src/report/`: report types, HTML rendering, and artifact writing
 - `src/screenshot/`: optional PNG capture from generated local HTML reports
+- `src/core/`: shared utilities for token counting, safe paths, file glob collection, and measured subprocess execution
+- `src/evaluation/`: raw baseline, my-dev-kit retrieval, token comparison, and artifact generation
 - `src/commands/`: reusable command implementations
 - `src/`: reusable lab runtime code and exports
 - `scripts/`: command entrypoints and verification helpers
@@ -25,13 +27,21 @@ The screenshot layer consumes generated local HTML reports and produces optional
 
 Screenshot output is presentation evidence, not the source of evaluation truth. JSON remains the structured artifact of record. HTML is the readable report view. PNG is a shareable snapshot of that report.
 
-Future evaluation layer:
+Evaluation layer:
 
-Later prompts will compare raw full-file context against my-dev-kit retrieval results. That layer will feed token-savings and evaluation artifacts into the same report layer instead of creating a second reporting architecture.
+The evaluation layer measures two paths for each benchmark case:
+
+- `RawFullFileBaselineRunner`: reads deterministic full-file context using safe, sorted file expansion under the benchmark target root
+- `MyDevKitRetrievalRunner`: calls my-dev-kit externally as a subprocess using the sequence `index -> search -> lookup -> slice -> source`
+- `TokenSavingsComparator`: compares estimated chars and estimated tokens between the two paths and aggregates the results
+
+This layer writes structured JSON artifacts and feeds the results into the existing report layer. It does not create a second reporting or screenshot architecture.
+
+my-dev-kit is called externally, not imported. This keeps my-dev-kit-lab decoupled from my-dev-kit internals and allows configurable commands such as `my-dev-kit`, `npx @dailephd/my-dev-kit`, or `node ../my-dev-kit-v1/dist/cli.js`.
 
 Future provider telemetry layer:
 
-Provider telemetry and adapter-specific metadata belong in a later layer that records run details without changing benchmark semantics. This is not part of Prompt 1.
+Provider telemetry and adapter-specific metadata belong in a later layer that records run details without changing benchmark semantics. This is not part of Prompt 3.
 
 Boundary between my-dev-kit and my-dev-kit-lab:
 
