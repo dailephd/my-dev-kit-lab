@@ -2,7 +2,7 @@
 
 Milestone 1:
 
-- Prompt 1: benchmark foundation, repository setup, contracts, and validation
+- Prompt 1: benchmark foundation, repository setup, contracts, and validation (implemented)
 - Prompt 2: report and screenshot capture
 - Prompt 3: token-savings evaluation
 - Prompt 4: tutorial and gallery workflow

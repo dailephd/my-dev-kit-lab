@@ -2,15 +2,18 @@
   "name": "my-dev-kit-lab",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:benchmarks": "vitest run tests/benchmarks tests/scripts",
-    "verify": "npm run build && npm run test && npm run test:benchmarks"
+    "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
+    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run verify:benchmarks"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
   }

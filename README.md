@@ -4,7 +4,7 @@ my-dev-kit-lab is the evidence, benchmark, screenshot, and evaluation companion 
 
 my-dev-kit is the indexing and retrieval engine. my-dev-kit-lab is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
 
-Current status: Milestone 1 Prompt 1 foundation is in progress on the benchmark branch. The repository currently focuses on documentation, benchmark contracts, sample projects, and validation workflows.
+Current status: Milestone 1 Prompt 1 is implemented. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, and validation workflows.
 
 Planned Milestone 1 features:
 - Prompt 1: project foundation, branch workflow, benchmark projects, and benchmark validation
@@ -19,6 +19,14 @@ Quick commands:
 - `npm run test:benchmarks`
 - `npm run verify`
 
+Benchmark projects:
+- `benchmarks/projects/todo-ts`
+- `benchmarks/projects/todo-js`
+- `benchmarks/projects/todo-python`
+- `benchmarks/projects/todo-mixed-ts-py`
+
+They exist to provide the same small Todo Core behavior in different language layouts so later prompts can compare retrieval quality, screenshots, and context usage against a stable benchmark suite.
+
 Not implemented yet:
 - screenshot capture
 - token-savings evaluation
@@ -27,4 +35,16 @@ Not implemented yet:
 - HTML report rendering
 - gallery workflow
 
-Install and usage details are documented in [docs/COMMANDS.md](docs/COMMANDS.md).
+Install:
+- `npm install`
+
+Run tests:
+- `npm run test`
+- `npm run test:benchmarks`
+- `python -m unittest discover benchmarks/projects/todo-python/tests`
+
+Run benchmark verification:
+- `npm run verify:benchmarks`
+- `npm run verify`
+
+The next prompts add screenshot capture and token-savings evaluation. Install and usage details are documented in [docs/COMMANDS.md](docs/COMMANDS.md).

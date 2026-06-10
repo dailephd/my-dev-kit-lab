@@ -1,0 +1,82 @@
+[
+  {
+    "id": "todo-create-task",
+    "title": "Create a task with deterministic IDs",
+    "task": "Find the code path that creates a task and assigns its deterministic id.",
+    "query": "create task deterministic id task-1",
+    "expectedOperation": "createTask",
+    "expectedSymbols": ["createTask", "create_task", "TaskService"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts", "src/taskStore.ts"],
+      "todo-python": ["src/task_service.py", "src/task_store.py"],
+      "todo-js": ["src/taskService.js", "src/taskStore.js"],
+      "todo-mixed-ts-py": ["src/taskCli.ts", "python/task_service.py"]
+    },
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "The creation path should be obvious and small across all projects."
+  },
+  {
+    "id": "todo-complete-task",
+    "title": "Complete an existing task",
+    "task": "Locate the code path that completes a task by id.",
+    "query": "complete task by id",
+    "expectedOperation": "completeTask",
+    "expectedSymbols": ["completeTask", "complete_task"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts"],
+      "todo-python": ["src/task_service.py"],
+      "todo-js": ["src/taskService.js"],
+      "todo-mixed-ts-py": ["python/task_service.py", "src/taskCli.ts"]
+    },
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "Completion must flip the completed flag for the targeted task."
+  },
+  {
+    "id": "todo-list-open-tasks",
+    "title": "List open tasks only",
+    "task": "Identify the logic that returns only incomplete tasks.",
+    "query": "list open tasks incomplete tasks",
+    "expectedOperation": "listOpenTasks",
+    "expectedSymbols": ["listOpenTasks", "list_open_tasks"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts"],
+      "todo-python": ["src/task_service.py"],
+      "todo-js": ["src/taskService.js"],
+      "todo-mixed-ts-py": ["python/task_service.py", "src/taskCli.ts"]
+    },
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "Open-task listing should remain separate from list-all behavior."
+  },
+  {
+    "id": "todo-summarize-tasks",
+    "title": "Summarize task counts",
+    "task": "Find the summary logic that reports total, open, and completed counts.",
+    "query": "summarize tasks total open completed",
+    "expectedOperation": "summarizeTasks",
+    "expectedSymbols": ["summarizeTasks", "summarize_tasks"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts"],
+      "todo-python": ["src/task_service.py"],
+      "todo-js": ["src/taskService.js"],
+      "todo-mixed-ts-py": ["python/task_service.py", "src/taskCli.ts"]
+    },
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "Summary shape must stay aligned across every benchmark project."
+  },
+  {
+    "id": "todo-empty-title-validation",
+    "title": "Reject an empty task title",
+    "task": "Locate the validation that rejects blank task titles.",
+    "query": "empty title validation create task blank title",
+    "expectedOperation": "createTask",
+    "expectedSymbols": ["createTask", "create_task", "validate"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts"],
+      "todo-python": ["src/task_service.py"],
+      "todo-js": ["src/taskService.js"],
+      "todo-mixed-ts-py": ["python/task_service.py", "src/taskCli.ts"]
+    },
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "Validation errors should be clear and deterministic."
+  }
+]

@@ -3,11 +3,13 @@
 Implemented now:
 - repository foundation
 - documentation foundation
+- project folder exists
+- benchmark sample projects
+- benchmark contract
+- benchmark validation
 
 Not implemented yet:
-- benchmark sample projects
-- benchmark validation
 - screenshots
-- token evaluation
+- token comparison
 - provider telemetry
 - gallery workflow

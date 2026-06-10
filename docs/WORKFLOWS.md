@@ -9,6 +9,7 @@ Purpose:
 
 Commands:
 - `npm run test:benchmarks`
+- `npm run verify:benchmarks`
 - `npm run verify`
 - `python -m unittest discover benchmarks/projects/todo-python/tests`
 
