@@ -30,6 +30,10 @@ export function parseAgentCommandTemplate(template: string): AgentCommandTemplat
 export function applyPromptToCommandTemplate(template: AgentCommandTemplate, promptText: string): { command: string; args: string[] } {
   let replaced = false;
   const args = template.args.map((arg) => {
+    if (arg.includes(`{${template.promptPlaceholder}}`)) {
+      replaced = true;
+      return arg.replaceAll(`{${template.promptPlaceholder}}`, promptText);
+    }
     if (arg.includes(template.promptPlaceholder)) {
       replaced = true;
       return arg.replaceAll(template.promptPlaceholder, promptText);

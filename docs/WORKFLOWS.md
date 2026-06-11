@@ -150,6 +150,13 @@ Unavailable-agent behavior:
 - passing `--require-agent` turns unavailable real agents into command failures
 - automated tests use `fake-agent` and do not require Codex or Claude installations
 
+Windows troubleshooting:
+- run fake-agent first to verify prompt generation and artifact writing
+- Codex installed through npm may resolve to `codex.cmd`, `codex.exe`, or `codex.ps1`
+- the runtime prefers `.cmd` over `.ps1` and invokes PowerShell only for resolved `.ps1` shims
+- if local CLI flags differ, pass `--command-template`, for example `codex exec --json {{prompt}}`
+- if a real-agent smoke run skips unexpectedly, rerun with `--require-agent` to surface the failure as a command error
+
 Current limitations:
 - no controlled experiment matrix
 - no correctness scoring runtime

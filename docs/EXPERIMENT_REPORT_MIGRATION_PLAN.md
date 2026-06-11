@@ -27,6 +27,14 @@ Update after Follow-up Prompt 4:
 - `run-agent-prompt` runs one generated prompt through one adapter for smoke validation
 - controlled experiment execution, correctness scoring, report redesign, plots, visualization demos, screenshot changes, and gallery upgrades remain future work
 
+Update after Follow-up Prompt 4.5:
+
+- Windows npm CLI shim resolution was added to the shared core command runtime
+- Codex and Claude adapters continue to reuse `src/core/runMeasuredCommand.ts`
+- `.cmd` wrappers are preferred over `.ps1` wrappers when both exist
+- `.ps1` wrappers are invoked only through controlled PowerShell arguments
+- no controlled experiment runner, correctness scoring, report redesign, screenshots, plots, or gallery upgrades were added
+
 This is a migration of the existing MVP.
 
 It is not a greenfield redesign.

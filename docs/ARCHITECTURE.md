@@ -79,6 +79,8 @@ The agent layer consumes `PromptVariant` objects from `src/prompts` and produces
 
 Real CLI adapters reuse `src/core/runMeasuredCommand.ts` for stdout, stderr, exit code, duration, and telemetry capture. Token usage parsing is best-effort and records source and reliability labels; missing provider usage is represented as unavailable rather than estimated.
 
+Command resolution for real CLI adapters lives in `src/core/resolveCommand.ts` and is used by `src/core/runMeasuredCommand.ts`. On Windows, it resolves npm-style CLI wrappers without enabling `shell: true` globally: `.cmd` and `.bat` wrappers use a controlled `cmd.exe` invocation, `.ps1` wrappers use a controlled PowerShell invocation, and `.cmd` is preferred over `.ps1`.
+
 This layer does not compare strategies, run experiment matrices, score correctness, render final experiment reports, capture screenshots, or update the gallery.
 
 Gallery layer:
@@ -118,3 +120,7 @@ Prompt variants and prompt complexity metrics have been added under `src/prompts
 Follow-up Prompt 4 note:
 
 Agent adapters have been added under `src/agents`, and `run-agent-prompt` can run one generated prompt through one adapter. Controlled experiment execution, correctness scoring, final experiment reporting, plots, visualization demos, screenshot changes, and gallery upgrades remain future work.
+
+Follow-up Prompt 4.5 note:
+
+Windows CLI shim resolution has been added under `src/core` and reused by the existing measured command runtime. This improves real Codex and Claude CLI smoke runs without adding a second command runner or changing experiment architecture.

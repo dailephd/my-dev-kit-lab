@@ -86,7 +86,7 @@ Run one agent prompt:
 - `--out`: output directory for prompt and agent-run artifacts
 - `--command-template`: optional command override for real CLI adapters; use `{prompt}` as the prompt placeholder
 - `--require-agent`: fail if a real CLI adapter is unavailable instead of skipping
-- `--timeout-ms`: accepted for future timeout policy; current runtime still relies on the shared measured command execution path
+- `--timeout-ms`: optional timeout for real CLI adapter prompt execution through the shared measured command runtime
 
 Expected output files:
 - `prompt.txt`
@@ -94,6 +94,15 @@ Expected output files:
 - `*.stdout.txt`, `*.stderr.txt`, and `*.telemetry.json` when the selected adapter writes command telemetry
 
 This command runs one generated prompt through one adapter. It does not run all cases, compare strategies, score correctness, render final experiment reports, capture screenshots, or update the gallery.
+
+Windows CLI shim notes:
+- npm-installed CLIs may appear as `codex.cmd`, `codex.exe`, `codex.ps1`, or extensionless commands on PATH
+- the shared measured command runtime resolves extensionless commands on Windows before spawning
+- `.cmd` and `.bat` wrappers are invoked through a controlled `cmd.exe` command path, not `shell: true`
+- `.ps1` wrappers are invoked through `powershell.exe -NoProfile -ExecutionPolicy Bypass -File <shim>` only after resolving a `.ps1` shim
+- `.cmd` is preferred over `.ps1` when both are available
+- use `--command-template` to override local CLI syntax, for example `codex exec --json {{prompt}}` or `claude --print {{prompt}}`
+- use `--require-agent` when a missing or unusable real CLI should fail the command instead of writing a skipped result
 
 Run the full lab demo:
 - `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`

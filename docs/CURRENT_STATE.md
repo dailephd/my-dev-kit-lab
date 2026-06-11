@@ -31,6 +31,7 @@ Implemented now:
 - Claude CLI adapter
 - single-prompt `run-agent-prompt` smoke command
 - normalized `AgentRunResult` artifacts
+- Windows CLI shim resolution for npm-style `.cmd`, `.exe`, and `.ps1` wrappers
 
 Not implemented yet:
 - provider telemetry
@@ -46,5 +47,6 @@ Architecture audit status:
 - benchmark metadata and complexity contracts implemented after the audit
 - prompt variants and prompt complexity metrics implemented after the metadata upgrade
 - agent adapters implemented after prompt variants
+- Windows CLI shim compatibility improved after agent adapters
 - no controlled experiment runtime, correctness scoring runtime, or final report redesign has been added yet
 - next prompt is controlled experiment runner and correctness scoring

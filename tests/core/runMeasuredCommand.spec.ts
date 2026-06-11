@@ -26,6 +26,7 @@ describe("runMeasuredCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(await readFile(result.telemetryPath, "utf8")).toContain("\"commandId\": \"hello\"");
+    expect(result.resolvedCommand?.resolutionKind).toBeTruthy();
   });
 
   it("handles nonzero exit code", async () => {
@@ -59,5 +60,49 @@ describe("runMeasuredCommand", () => {
       executable: "node",
       args: ["path with spaces/file.js", "--flag"]
     });
+  });
+
+  it("preserves args when command resolution is enabled", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
+    tempDirs.push(outDir);
+    const result = await runMeasuredCommand({
+      commandId: "args",
+      commandString: `"${process.execPath}"`,
+      extraArgs: ["-e", "console.log(process.argv.slice(1).join(','))", "alpha", "beta"],
+      cwd: process.cwd(),
+      outDir
+    });
+    expect(result.ok).toBe(true);
+    expect(result.stdout).toContain("alpha,beta");
+  });
+
+  it("returns structured failure on timeout", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
+    tempDirs.push(outDir);
+    const result = await runMeasuredCommand({
+      commandId: "timeout",
+      commandString: `"${process.execPath}"`,
+      extraArgs: ["-e", "setTimeout(() => {}, 10000)"],
+      cwd: process.cwd(),
+      outDir,
+      timeoutMs: 100
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("timed out");
+  });
+
+  it("does not leave child stdin open for non-interactive commands", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
+    tempDirs.push(outDir);
+    const result = await runMeasuredCommand({
+      commandId: "stdin",
+      commandString: `"${process.execPath}"`,
+      extraArgs: ["-e", "process.stdin.on('end', () => console.log('stdin-ended')); process.stdin.resume();"],
+      cwd: process.cwd(),
+      outDir,
+      timeoutMs: 1000
+    });
+    expect(result.ok).toBe(true);
+    expect(result.stdout).toContain("stdin-ended");
   });
 });

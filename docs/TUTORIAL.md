@@ -61,6 +61,24 @@ npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-ca
 
 Codex and Claude adapters are optional CLI adapters. They skip when unavailable unless `--require-agent` is passed. This is not the controlled experiment runner and does not score correctness.
 
+## Test Real Agents Locally
+
+Real-agent checks are optional for automated tests. On Windows, npm CLI shims may resolve to `.cmd`, `.exe`, or `.ps1` files; the shared measured command runtime resolves those wrappers before running Codex or Claude.
+
+Codex example:
+
+```bash
+npm run run-agent-prompt -- --agent codex --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy my-dev-kit-guided --complexity short --out lab-output/agent-run-codex
+```
+
+Claude example:
+
+```bash
+npm run run-agent-prompt -- --agent claude --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy my-dev-kit-guided --complexity short --out lab-output/agent-run-claude
+```
+
+Use `--command-template` if your installed CLI has different non-interactive flags, and use `--require-agent` when a skipped real-agent run should be treated as a failure.
+
 ## Run The All-In-One Lab Demo
 
 Prompt 4 ties the Milestone 1 pieces together:

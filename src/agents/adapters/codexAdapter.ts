@@ -77,7 +77,8 @@ export async function runCliAgent(request: AgentRunRequest, adapter: AgentAdapte
     extraArgs: command.args,
     cwd: request.commandTemplate?.cwd ?? request.cwd,
     outDir: request.outDir,
-    env: request.env
+    env: request.env,
+    timeoutMs: request.timeoutMs
   });
   const ended = Date.now();
   const combinedOutput = `${measured.stdout}\n${measured.stderr}`;
@@ -96,8 +97,8 @@ export async function runCliAgent(request: AgentRunRequest, adapter: AgentAdapte
     durationMs: ended - started,
     status: measured.ok ? "completed" : "failed",
     exitCode: measured.exitCode,
-    command: command.command,
-    args: command.args,
+    command: measured.executable,
+    args: measured.args,
     cwd: request.commandTemplate?.cwd ?? request.cwd,
     stdoutPath: measured.stdoutPath,
     stderrPath: measured.stderrPath,
