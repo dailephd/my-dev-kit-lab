@@ -17,6 +17,7 @@
     "test:e2e": "vitest run tests/e2e",
     "capture-demo-report": "tsx scripts/capture-demo-report.ts",
     "evaluate-token-savings": "tsx scripts/evaluate-token-savings.ts",
+    "generate-prompt-variants": "tsx scripts/generate-prompt-variants.ts",
     "lab-demo": "tsx scripts/run-lab-demo.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
     "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks"

@@ -21,20 +21,24 @@ Implemented now:
 - deterministic benchmark file tree metadata
 - project complexity metrics and score formula
 - benchmark task answer keys with expected facts
+- raw-full-file prompt variants
+- my-dev-kit-guided prompt variants
+- prompt complexity metrics
+- deterministic prompt preview artifacts
 
 Not implemented yet:
 - provider telemetry
 - semantic quality judging
 - benchmark generation
-- raw-full-file prompt variants
-- my-dev-kit-guided prompt variants
 - Codex or Claude adapters
 - controlled agent experiment runner
 - correctness scoring runtime
+- final experiment report redesign
 
 Architecture audit status:
 - experiment report architecture audit completed
 - migration plan documented in `docs/EXPERIMENT_REPORT_MIGRATION_PLAN.md`
 - benchmark metadata and complexity contracts implemented after the audit
-- no prompt-variant, agent-adapter, or controlled experiment runtime has been added yet
-- next prompt is prompt variants and prompt complexity
+- prompt variants and prompt complexity metrics implemented after the metadata upgrade
+- no agent-adapter, controlled experiment runtime, correctness scoring runtime, or final report redesign has been added yet
+- next prompt is agent adapters

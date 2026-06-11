@@ -6,6 +6,8 @@ my-dev-kit is the indexing and retrieval engine. my-dev-kit-lab is the separate 
 
 Current status: Milestone 1 is implemented, and the benchmark metadata upgrade is in place. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, quantifiable project profiles with file-tree metadata and answer keys, report artifact generation, optional report screenshot capture, token/context comparison against external my-dev-kit retrieval commands, and the all-in-one demo gallery workflow.
 
+Prompt variants are also available as deterministic previews. The prompt layer can generate raw-full-file and my-dev-kit-guided instruction prompts at `short`, `medium`, `long`, and `multi-step` complexity levels, with prompt complexity metrics based on the existing token estimator. This does not run Codex, Claude, or any other agent yet.
+
 Planned Milestone 1 features:
 - Prompt 1: project foundation, branch workflow, benchmark projects, and benchmark validation
 - Prompt 2: report and screenshot capture
@@ -19,6 +21,7 @@ Quick commands:
 - `npm run test:benchmarks`
 - `npm run capture-demo-report -- --input examples/demo-report-input.json --out lab-output/demo-report`
 - `npm run evaluate-token-savings -- --cases examples/token-savings-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/token-savings`
+- `npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants`
 - `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
 - `npm run verify`
 
@@ -38,6 +41,7 @@ Benchmark metadata:
 Not implemented yet:
 - provider telemetry
 - Codex or Claude adapters
+- controlled agent experiment runner
 - semantic quality judging
 - benchmark project generation
 

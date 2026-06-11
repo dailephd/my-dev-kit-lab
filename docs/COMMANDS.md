@@ -60,6 +60,21 @@ Expected output files:
 - `commands/*.stderr.txt`
 - `commands/*.telemetry.json`
 
+Generate prompt variants:
+- `npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants`
+- `--cases`: path to the evaluation case list JSON
+- `--out`: output directory for prompt preview artifacts
+- `--project-profiles`: optional path to benchmark project profiles, defaults to `benchmarks/contracts/benchmark-project-profiles.json`
+- `--strategy`: optional filter, `raw-full-file` or `my-dev-kit-guided`
+- `--complexity`: optional filter, `short`, `medium`, `long`, or `multi-step`
+
+Expected output files:
+- `prompt-variants-summary.json`
+- `prompt-variants.json`
+- `prompts/<caseId>.<strategy>.<complexity>.txt`
+
+This command only writes prompt previews. It does not run Codex, Claude, fake agents, correctness scoring, screenshots, reports, or gallery updates.
+
 Run the full lab demo:
 - `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
 - `--cases`: path to the lab demo case list JSON

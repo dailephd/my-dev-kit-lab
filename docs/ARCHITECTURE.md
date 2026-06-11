@@ -8,6 +8,7 @@ Repository layers:
 - `src/screenshot/`: optional PNG capture from generated local HTML reports
 - `src/core/`: shared utilities for token counting, safe paths, file glob collection, and measured subprocess execution
 - `src/evaluation/`: raw baseline, my-dev-kit retrieval, token comparison, and artifact generation
+- `src/prompts/`: raw-full-file and my-dev-kit-guided prompt generation plus prompt complexity metrics
 - `src/gallery/`: gallery manifest types and writer
 - `src/commands/`: reusable command implementations
 - `src/`: reusable lab runtime code and exports
@@ -56,6 +57,17 @@ The evaluation case reader remains backward compatible with the existing token-s
 
 my-dev-kit is called externally, not imported. This keeps my-dev-kit-lab decoupled from my-dev-kit internals and allows configurable commands such as `my-dev-kit`, `npx @dailephd/my-dev-kit`, or `node ../my-dev-kit-v1/dist/cli.js`.
 
+Prompt generation layer:
+
+The prompt layer consumes existing `EvaluationCase` objects, benchmark project profiles, answer keys, and file-tree metadata. It generates deterministic prompt variants for two context strategies:
+
+- `raw-full-file`
+- `my-dev-kit-guided`
+
+It supports `short`, `medium`, `long`, and `multi-step` prompt complexity levels and computes prompt complexity metrics using `src/core/countTokens.ts`.
+
+This layer does not execute agents. It does not replace the raw full-file baseline runner, my-dev-kit retrieval runner, token-savings evaluator, report renderer, screenshot capture, or gallery manifest writer.
+
 Gallery layer:
 
 The gallery layer packages evaluation outputs into a portable manifest that can drive README examples, GitHub evidence, tutorial references, later portfolio templates, and future gallery surfaces without changing the underlying evaluator.
@@ -85,3 +97,7 @@ The post-Milestone-1 experiment upgrade path is documented in `docs/EXPERIMENT_R
 Follow-up Prompt 2 note:
 
 Benchmark metadata, file-tree data, complexity metrics, and answer keys have been added. The report and screenshot layers are unchanged by this prompt.
+
+Follow-up Prompt 3 note:
+
+Prompt variants and prompt complexity metrics have been added under `src/prompts`. Agent adapters, controlled experiment execution, correctness scoring, and final experiment reporting remain future work.

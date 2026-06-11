@@ -89,7 +89,45 @@ Expected outputs:
 Skipped behavior:
 - if the configured my-dev-kit command is unavailable and `--require-kit` is not passed, the run succeeds with skipped warnings and still writes JSON and HTML artifacts
 
-## Workflow 4: Lab Demo And Gallery Workflow
+## Workflow 4: Prompt Variant Generation
+
+Purpose:
+- generate raw-full-file prompt previews
+- generate my-dev-kit-guided prompt previews
+- measure prompt complexity with the existing token estimator
+- write deterministic prompt artifacts for later agent experiments and reports
+
+Command:
+- `npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants`
+
+Raw-full-file strategy:
+- tells the agent to use full source files supplied separately by a later runner
+- asks for relevant files, relevant symbols, expected facts found, token usage source, and timing if available
+- does not require my-dev-kit commands
+
+my-dev-kit-guided strategy:
+- tells the agent not to read full files by default
+- asks the agent to use my-dev-kit `index`, `search`, `lookup`, `slice`, and `source`
+- asks for commands run, selected context, selected files, selected symbols, full-file reads if any, and justifications if any
+
+Prompt complexity levels:
+- `short`
+- `medium`
+- `long`
+- `multi-step`
+
+Expected outputs:
+- `prompt-variants-summary.json`
+- `prompt-variants.json`
+- `prompts/*.txt`
+
+Current limitations:
+- no Codex or Claude execution
+- no fake-agent execution
+- no correctness scoring runtime
+- no report or gallery display of prompt comparisons yet
+
+## Workflow 5: Lab Demo And Gallery Workflow
 
 Purpose:
 - run the Milestone 1 MVP end to end

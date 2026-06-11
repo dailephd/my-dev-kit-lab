@@ -4,6 +4,8 @@ The gallery manifest is a deterministic index of the artifacts produced by the M
 
 Benchmark metadata and answer keys are now validated before the lab demo runs, but the gallery manifest format is unchanged in this prompt.
 
+Prompt variants are available as preview artifacts for future experiment reports and gallery items. The current gallery manifest does not display prompt comparisons yet.
+
 ## What It Contains
 
 `gallery-manifest.json` records:

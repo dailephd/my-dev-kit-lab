@@ -34,6 +34,21 @@ npm run evaluate-token-savings -- --cases examples/token-savings-cases.json --ki
 
 Token counts in the MVP are estimated with `estimated_chars_div_4`. They are static context estimates, not provider billing telemetry.
 
+## Generate Prompt Variant Previews
+
+Prompt variants compare two future agent-instruction strategies without running an agent:
+
+- `raw-full-file`: assumes full source files will be supplied separately by a later runner
+- `my-dev-kit-guided`: asks the agent to use my-dev-kit `index`, `search`, `lookup`, `slice`, and `source` before reading broad context
+
+Run:
+
+```bash
+npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants
+```
+
+The command writes `prompt-variants-summary.json`, `prompt-variants.json`, and text files under `prompts/`. Prompt complexity metrics use the existing `estimated_chars_div_4` token estimator.
+
 ## Run The All-In-One Lab Demo
 
 Prompt 4 ties the Milestone 1 pieces together:

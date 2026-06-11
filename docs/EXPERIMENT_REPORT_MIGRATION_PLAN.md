@@ -11,6 +11,14 @@ Update after Follow-up Prompt 2:
 - deterministic file-tree metadata and complexity metrics are validated by the existing benchmark verification path
 - prompt variants, agent adapters, controlled experiment execution, correctness scoring, report redesign, plots, visualization demos, screenshot changes, and gallery upgrades remain future work
 
+Update after Follow-up Prompt 3:
+
+- prompt variants were added under `src/prompts`
+- raw-full-file and my-dev-kit-guided prompt generation are implemented
+- prompt complexity metrics are computed with the existing token-count utility
+- `generate-prompt-variants` writes deterministic preview artifacts
+- agent adapters, controlled experiment execution, correctness scoring, report redesign, plots, visualization demos, screenshot changes, and gallery upgrades remain future work
+
 This is a migration of the existing MVP.
 
 It is not a greenfield redesign.
