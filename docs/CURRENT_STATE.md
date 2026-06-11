@@ -25,12 +25,17 @@ Implemented now:
 - my-dev-kit-guided prompt variants
 - prompt complexity metrics
 - deterministic prompt preview artifacts
+- agent adapter interface
+- deterministic fake-agent adapter
+- Codex CLI adapter
+- Claude CLI adapter
+- single-prompt `run-agent-prompt` smoke command
+- normalized `AgentRunResult` artifacts
 
 Not implemented yet:
 - provider telemetry
 - semantic quality judging
 - benchmark generation
-- Codex or Claude adapters
 - controlled agent experiment runner
 - correctness scoring runtime
 - final experiment report redesign
@@ -40,5 +45,6 @@ Architecture audit status:
 - migration plan documented in `docs/EXPERIMENT_REPORT_MIGRATION_PLAN.md`
 - benchmark metadata and complexity contracts implemented after the audit
 - prompt variants and prompt complexity metrics implemented after the metadata upgrade
-- no agent-adapter, controlled experiment runtime, correctness scoring runtime, or final report redesign has been added yet
-- next prompt is agent adapters
+- agent adapters implemented after prompt variants
+- no controlled experiment runtime, correctness scoring runtime, or final report redesign has been added yet
+- next prompt is controlled experiment runner and correctness scoring

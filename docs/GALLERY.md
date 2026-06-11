@@ -6,6 +6,8 @@ Benchmark metadata and answer keys are now validated before the lab demo runs, b
 
 Prompt variants are available as preview artifacts for future experiment reports and gallery items. The current gallery manifest does not display prompt comparisons yet.
 
+Agent-run artifacts are also available from `run-agent-prompt` as future report and gallery inputs. The current gallery manifest does not display agent comparisons yet.
+
 ## What It Contains
 
 `gallery-manifest.json` records:
@@ -66,4 +68,5 @@ Do not commit generated:
 - token counts use `estimated_chars_div_4`
 - provider telemetry does not exist yet
 - the gallery currently covers the Milestone 1 token-savings demo only
+- agent-run comparison views are future work
 - portfolio-specific templates are future work

@@ -22,7 +22,7 @@ Future work after Milestone 1:
 Planned follow-up prompt sequence after the architecture audit:
 - Prompt 2: benchmark metadata, project complexity, file tree, and answer keys (implemented)
 - Prompt 3: prompt variants and prompt complexity (implemented)
-- Prompt 4: agent adapter interface with Codex, Claude, and fake-agent adapters
+- Prompt 4: agent adapter interface with Codex, Claude, and fake-agent adapters (implemented)
 - Prompt 5: controlled experiment runner and correctness scoring
 - Prompt 6: final experiment report and screenshot target
 - Prompt 7: plots, visualization command demos, and gallery integration

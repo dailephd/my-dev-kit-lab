@@ -15,12 +15,14 @@
     "test:demo": "vitest run tests/commands/runLabDemo.spec.ts tests/integration/runLabDemoCommand.spec.ts",
     "test:integration": "vitest run tests/integration",
     "test:e2e": "vitest run tests/e2e",
+    "test:agents": "vitest run tests/agents tests/commands/runAgentPromptCommand.spec.ts tests/integration/runAgentPromptFake.spec.ts",
     "capture-demo-report": "tsx scripts/capture-demo-report.ts",
     "evaluate-token-savings": "tsx scripts/evaluate-token-savings.ts",
     "generate-prompt-variants": "tsx scripts/generate-prompt-variants.ts",
     "lab-demo": "tsx scripts/run-lab-demo.ts",
+    "run-agent-prompt": "tsx scripts/run-agent-prompt.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
-    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks"
+    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:agents && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

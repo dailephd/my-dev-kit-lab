@@ -19,6 +19,14 @@ Update after Follow-up Prompt 3:
 - `generate-prompt-variants` writes deterministic preview artifacts
 - agent adapters, controlled experiment execution, correctness scoring, report redesign, plots, visualization demos, screenshot changes, and gallery upgrades remain future work
 
+Update after Follow-up Prompt 4:
+
+- `src/agents` now contains the canonical agent adapter layer
+- `fake-agent`, Codex, and Claude adapters produce normalized `AgentRunResult` artifacts
+- real CLI adapters reuse `src/core/runMeasuredCommand.ts`
+- `run-agent-prompt` runs one generated prompt through one adapter for smoke validation
+- controlled experiment execution, correctness scoring, report redesign, plots, visualization demos, screenshot changes, and gallery upgrades remain future work
+
 This is a migration of the existing MVP.
 
 It is not a greenfield redesign.

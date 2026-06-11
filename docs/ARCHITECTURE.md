@@ -9,6 +9,7 @@ Repository layers:
 - `src/core/`: shared utilities for token counting, safe paths, file glob collection, and measured subprocess execution
 - `src/evaluation/`: raw baseline, my-dev-kit retrieval, token comparison, and artifact generation
 - `src/prompts/`: raw-full-file and my-dev-kit-guided prompt generation plus prompt complexity metrics
+- `src/agents/`: one-prompt coding-agent adapter layer for fake-agent, Codex, and Claude
 - `src/gallery/`: gallery manifest types and writer
 - `src/commands/`: reusable command implementations
 - `src/`: reusable lab runtime code and exports
@@ -68,6 +69,18 @@ It supports `short`, `medium`, `long`, and `multi-step` prompt complexity levels
 
 This layer does not execute agents. It does not replace the raw full-file baseline runner, my-dev-kit retrieval runner, token-savings evaluator, report renderer, screenshot capture, or gallery manifest writer.
 
+Agent adapter layer:
+
+The agent layer consumes `PromptVariant` objects from `src/prompts` and produces normalized `AgentRunResult` artifacts. It currently supports:
+
+- `fake-agent` for deterministic tests and smoke checks
+- `codex` as a configurable CLI adapter
+- `claude` as a configurable CLI adapter
+
+Real CLI adapters reuse `src/core/runMeasuredCommand.ts` for stdout, stderr, exit code, duration, and telemetry capture. Token usage parsing is best-effort and records source and reliability labels; missing provider usage is represented as unavailable rather than estimated.
+
+This layer does not compare strategies, run experiment matrices, score correctness, render final experiment reports, capture screenshots, or update the gallery.
+
 Gallery layer:
 
 The gallery layer packages evaluation outputs into a portable manifest that can drive README examples, GitHub evidence, tutorial references, later portfolio templates, and future gallery surfaces without changing the underlying evaluator.
@@ -101,3 +114,7 @@ Benchmark metadata, file-tree data, complexity metrics, and answer keys have bee
 Follow-up Prompt 3 note:
 
 Prompt variants and prompt complexity metrics have been added under `src/prompts`. Agent adapters, controlled experiment execution, correctness scoring, and final experiment reporting remain future work.
+
+Follow-up Prompt 4 note:
+
+Agent adapters have been added under `src/agents`, and `run-agent-prompt` can run one generated prompt through one adapter. Controlled experiment execution, correctness scoring, final experiment reporting, plots, visualization demos, screenshot changes, and gallery upgrades remain future work.

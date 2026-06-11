@@ -26,8 +26,6 @@ Expected outputs:
 
 Current limitations:
 - no provider telemetry
-- no prompt variants
-- no agent execution workflow
 - no correctness scoring runtime
 
 ## Workflow 2: Report and Screenshot Capture
@@ -122,12 +120,43 @@ Expected outputs:
 - `prompts/*.txt`
 
 Current limitations:
-- no Codex or Claude execution
-- no fake-agent execution
 - no correctness scoring runtime
 - no report or gallery display of prompt comparisons yet
 
-## Workflow 5: Lab Demo And Gallery Workflow
+## Workflow 5: Single Agent Prompt Smoke Run
+
+Purpose:
+- generate one prompt variant from an existing evaluation case
+- run it through one selected adapter
+- capture normalized agent output and telemetry
+- verify adapter wiring without running a full experiment matrix
+
+Fake-agent command:
+- `npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake`
+
+Codex command:
+- `npm run run-agent-prompt -- --agent codex --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy my-dev-kit-guided --complexity short --out lab-output/agent-run-codex`
+
+Claude command:
+- `npm run run-agent-prompt -- --agent claude --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy my-dev-kit-guided --complexity short --out lab-output/agent-run-claude`
+
+Expected outputs:
+- `prompt.txt`
+- `agent-run-result.json`
+- adapter stdout, stderr, and telemetry files when produced by the adapter
+
+Unavailable-agent behavior:
+- real Codex and Claude CLI adapters skip when unavailable
+- passing `--require-agent` turns unavailable real agents into command failures
+- automated tests use `fake-agent` and do not require Codex or Claude installations
+
+Current limitations:
+- no controlled experiment matrix
+- no correctness scoring runtime
+- no final experiment report
+- no screenshot or gallery update
+
+## Workflow 6: Lab Demo And Gallery Workflow
 
 Purpose:
 - run the Milestone 1 MVP end to end

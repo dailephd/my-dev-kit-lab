@@ -5,6 +5,7 @@ Install:
 
 Tests:
 - `npm run test`
+- `npm run test:agents`
 - `npm run test:report`
 - `npm run test:screenshot`
 - `npm run test:evaluation`
@@ -74,6 +75,25 @@ Expected output files:
 - `prompts/<caseId>.<strategy>.<complexity>.txt`
 
 This command only writes prompt previews. It does not run Codex, Claude, fake agents, correctness scoring, screenshots, reports, or gallery updates.
+
+Run one agent prompt:
+- `npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake`
+- `--agent`: `fake-agent`, `codex`, or `claude`
+- `--cases`: path to the evaluation case list JSON
+- `--case`: evaluation case ID to run
+- `--strategy`: `raw-full-file` or `my-dev-kit-guided`
+- `--complexity`: `short`, `medium`, `long`, or `multi-step`
+- `--out`: output directory for prompt and agent-run artifacts
+- `--command-template`: optional command override for real CLI adapters; use `{prompt}` as the prompt placeholder
+- `--require-agent`: fail if a real CLI adapter is unavailable instead of skipping
+- `--timeout-ms`: accepted for future timeout policy; current runtime still relies on the shared measured command execution path
+
+Expected output files:
+- `prompt.txt`
+- `agent-run-result.json`
+- `*.stdout.txt`, `*.stderr.txt`, and `*.telemetry.json` when the selected adapter writes command telemetry
+
+This command runs one generated prompt through one adapter. It does not run all cases, compare strategies, score correctness, render final experiment reports, capture screenshots, or update the gallery.
 
 Run the full lab demo:
 - `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`

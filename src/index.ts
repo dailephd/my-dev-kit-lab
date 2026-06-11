@@ -8,4 +8,5 @@ export * from "./report/index.js";
 export * from "./screenshot/index.js";
 export * from "./evaluation/index.js";
 export * from "./prompts/index.js";
+export * from "./agents/index.js";
 export * from "./gallery/index.js";

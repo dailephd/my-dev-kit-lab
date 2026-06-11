@@ -49,6 +49,18 @@ npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --
 
 The command writes `prompt-variants-summary.json`, `prompt-variants.json`, and text files under `prompts/`. Prompt complexity metrics use the existing `estimated_chars_div_4` token estimator.
 
+## Run A Single Agent Prompt
+
+Prompt 4 added a small adapter smoke command. It runs one generated prompt through one adapter and writes a normalized `AgentRunResult`.
+
+Use fake-agent for deterministic local checks:
+
+```bash
+npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake
+```
+
+Codex and Claude adapters are optional CLI adapters. They skip when unavailable unless `--require-agent` is passed. This is not the controlled experiment runner and does not score correctness.
+
 ## Run The All-In-One Lab Demo
 
 Prompt 4 ties the Milestone 1 pieces together:
@@ -83,3 +95,4 @@ The key artifacts are `token-savings-summary.json`, `token-savings-runs.json`, `
 - provider telemetry is future work
 - screenshots capture generated reports, not arbitrary browser pages
 - semantic quality judging is not implemented in Milestone 1
+- full controlled agent experiments are future work
