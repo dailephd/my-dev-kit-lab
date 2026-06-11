@@ -22,6 +22,16 @@ Benchmark verification:
 - `npm run verify`
 - `python -m unittest discover benchmarks/projects/todo-python/tests`
 
+Benchmark verification validates:
+- benchmark project structure
+- behavior contract presence
+- benchmark task contract shape
+- per-project expected files
+- benchmark project profiles in `benchmarks/contracts/benchmark-project-profiles.json`
+- deterministic file-tree metadata
+- nonnegative complexity metrics and 0-100 complexity scores
+- answer keys, unique expected fact IDs, and valid `minimumCorrectFacts`
+
 Capture demo report:
 - `npm run capture-demo-report -- --input examples/demo-report-input.json --out lab-output/demo-report`
 - `--input`: path to a lab report JSON input file

@@ -18,6 +18,20 @@ Benchmark layer:
 
 The benchmark layer is the current center of the repository. It contains small, intentionally cheap sample projects that all implement the same Todo Core behavior across different language layouts.
 
+Benchmark metadata now lives with the benchmark contracts:
+
+- `benchmarks/contracts/todo-benchmark-case.json` stores benchmark tasks, expected operations, per-project expected files, and answer keys
+- `benchmarks/contracts/benchmark-project-profiles.json` stores project descriptions, language mix, source/test roots, deterministic file-tree entries, complexity metrics, complexity scores, and the formula used for scoring
+- `scripts/verify-benchmarks.ts` validates the enriched contract data before lab-demo runs
+
+The metadata helpers are part of the existing evaluation layer:
+
+- `src/evaluation/projectFileTree.ts` builds deterministic compact file trees
+- `src/evaluation/projectComplexity.ts` owns the simple benchmark complexity formula
+- `src/evaluation/benchmarkMetadata.ts` validates profiles and answer keys
+
+This is not a second benchmark architecture. It extends the existing benchmark contract path so later prompt variants, agent adapters, correctness scoring, and final reports can reuse the same data.
+
 Report layer:
 
 The report layer normalizes lab report input, renders deterministic local HTML, and writes JSON and HTML artifacts. It is the reusable artifact foundation for benchmark validation today and token/context evaluation in Prompt 3.
@@ -37,6 +51,8 @@ The evaluation layer measures two paths for each benchmark case:
 - `TokenSavingsComparator`: compares estimated chars and estimated tokens between the two paths and aggregates the results
 
 This layer writes structured JSON artifacts and feeds the results into the existing report layer. It does not create a second reporting or screenshot architecture.
+
+The evaluation case reader remains backward compatible with the existing token-savings evaluator. It accepts optional answer keys and project profile references but does not require them unless profile resolution is explicitly requested by future workflows.
 
 my-dev-kit is called externally, not imported. This keeps my-dev-kit-lab decoupled from my-dev-kit internals and allows configurable commands such as `my-dev-kit`, `npx @dailephd/my-dev-kit`, or `node ../my-dev-kit-v1/dist/cli.js`.
 
@@ -65,3 +81,7 @@ my-dev-kit remains the indexing and retrieval engine. my-dev-kit-lab owns benchm
 Migration planning note:
 
 The post-Milestone-1 experiment upgrade path is documented in `docs/EXPERIMENT_REPORT_MIGRATION_PLAN.md`. Future prompts should extend the existing evaluation, report, screenshot, gallery, and command layers rather than introducing parallel architectures.
+
+Follow-up Prompt 2 note:
+
+Benchmark metadata, file-tree data, complexity metrics, and answer keys have been added. The report and screenshot layers are unchanged by this prompt.

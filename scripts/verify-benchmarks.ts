@@ -1,6 +1,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  REQUIRED_BENCHMARK_PROJECT_IDS,
+  parseBenchmarkProjectProfiles,
+  validateAnswerKey,
+  validateBenchmarkProjectProfiles
+} from "../src/evaluation/benchmarkMetadata.js";
+import type { BenchmarkTaskAnswerKey } from "../src/evaluation/types.js";
 
 type BenchmarkCase = {
   id: string;
@@ -10,6 +17,7 @@ type BenchmarkCase = {
   expectedOperation: string;
   expectedSymbols: string[];
   expectedFilesByProject: Record<string, string[]>;
+  answerKey?: BenchmarkTaskAnswerKey;
   rawIncludeGlobs: string[];
   notes: string;
 };
@@ -20,7 +28,7 @@ type ValidationResult = {
   checks: string[];
 };
 
-const requiredProjects = ["todo-ts", "todo-python", "todo-js", "todo-mixed-ts-py"] as const;
+const requiredProjects = REQUIRED_BENCHMARK_PROJECT_IDS;
 const projectRequiredPaths: Record<(typeof requiredProjects)[number], string[]> = {
   "todo-ts": [
     "README.md",
@@ -77,6 +85,7 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
   const projectsDir = path.join(rootDir, "benchmarks", "projects");
   const behaviorPath = path.join(contractsDir, "todo-behavior.md");
   const casesPath = path.join(contractsDir, "todo-benchmark-case.json");
+  const profilesPath = path.join(contractsDir, "benchmark-project-profiles.json");
 
   if (!existsSync(behaviorPath)) {
     errors.push("Missing contract file: benchmarks/contracts/todo-behavior.md");
@@ -93,6 +102,21 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
       checks.push("parsed todo-benchmark-case.json");
     } catch (error) {
       errors.push(`Invalid JSON in todo-benchmark-case.json: ${(error as Error).message}`);
+    }
+  }
+
+  if (!existsSync(profilesPath)) {
+    errors.push("Missing contract file: benchmarks/contracts/benchmark-project-profiles.json");
+  } else {
+    try {
+      const profiles = parseBenchmarkProjectProfiles(JSON.parse(readFileSync(profilesPath, "utf8")));
+      const profileErrors = validateBenchmarkProjectProfiles(profiles, rootDir);
+      errors.push(...profileErrors);
+      if (profileErrors.length === 0) {
+        checks.push("validated benchmark-project-profiles.json");
+      }
+    } catch (error) {
+      errors.push(`Invalid benchmark-project-profiles.json: ${(error as Error).message}`);
     }
   }
 
@@ -123,6 +147,14 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
   }
 
   for (const benchmarkCase of cases) {
+    if (!benchmarkCase.answerKey) {
+      errors.push(`Case ${benchmarkCase.id} does not define answerKey`);
+    } else {
+      errors.push(...validateAnswerKey(benchmarkCase.answerKey, `Case ${benchmarkCase.id}`));
+    }
+    if (!Array.isArray(benchmarkCase.expectedSymbols) || benchmarkCase.expectedSymbols.length === 0) {
+      errors.push(`Case ${benchmarkCase.id} does not define expectedSymbols`);
+    }
     for (const project of requiredProjects) {
       const expectedFiles = benchmarkCase.expectedFilesByProject?.[project];
       if (!Array.isArray(expectedFiles) || expectedFiles.length === 0) {

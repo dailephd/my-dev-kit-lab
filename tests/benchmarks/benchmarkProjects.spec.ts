@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { buildProjectFileTree, isExcludedProjectPath } from "../../src/evaluation/projectFileTree.js";
 
 const projectsDir = path.join(process.cwd(), "benchmarks", "projects");
 const projects = ["todo-ts", "todo-python", "todo-js", "todo-mixed-ts-py"];
@@ -38,6 +39,21 @@ describe("benchmark project structure", () => {
         path.relative(path.join(projectsDir, project), fullPath).replace(/\\/g, "/")
       );
       expect(files.some((file) => /(^|\/)(node_modules|dist|build|coverage|lab-output)(\/|$)/.test(file))).toBe(false);
+    }
+  });
+
+  it("builds deterministic file trees that exclude generated output folders", () => {
+    for (const project of projects) {
+      const projectRoot = path.join(projectsDir, project);
+      const first = buildProjectFileTree(projectRoot);
+      const second = buildProjectFileTree(projectRoot);
+      expect(second).toEqual(first);
+      expect(first.entries.length).toBeGreaterThan(0);
+      expect(first.entries.some((entry) => isExcludedProjectPath(entry.path))).toBe(false);
+      for (const entry of first.entries) {
+        expect(path.isAbsolute(entry.path)).toBe(false);
+        expect(existsSync(path.join(projectRoot, entry.path))).toBe(true);
+      }
     }
   });
 });

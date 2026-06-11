@@ -17,14 +17,24 @@ Implemented now:
 - gallery manifest
 - tutorial documentation
 - Milestone 1 MVP
+- benchmark project profiles
+- deterministic benchmark file tree metadata
+- project complexity metrics and score formula
+- benchmark task answer keys with expected facts
 
 Not implemented yet:
 - provider telemetry
 - semantic quality judging
 - benchmark generation
+- raw-full-file prompt variants
+- my-dev-kit-guided prompt variants
+- Codex or Claude adapters
+- controlled agent experiment runner
+- correctness scoring runtime
 
 Architecture audit status:
 - experiment report architecture audit completed
 - migration plan documented in `docs/EXPERIMENT_REPORT_MIGRATION_PLAN.md`
-- no runtime behavior changed in this prompt
-- next prompt is benchmark metadata and complexity upgrade
+- benchmark metadata and complexity contracts implemented after the audit
+- no prompt-variant, agent-adapter, or controlled experiment runtime has been added yet
+- next prompt is prompt variants and prompt complexity

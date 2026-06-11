@@ -6,6 +6,10 @@ Purpose:
 - validate benchmark contracts
 - validate benchmark project structure
 - validate behavior parity across benchmark projects
+- validate benchmark project profiles
+- validate deterministic file-tree metadata
+- validate project complexity metrics and complexity scores
+- validate task answer keys and expected facts
 
 Commands:
 - `npm run test:benchmarks`
@@ -15,13 +19,16 @@ Commands:
 
 Expected outputs:
 - passing benchmark contract checks
+- passing benchmark profile and answer-key checks
 - passing benchmark structure checks
 - passing parity checks for TypeScript, JavaScript, Python, and mixed boundary projects
 - concise pass/fail output from the benchmark verification script
 
 Current limitations:
 - no provider telemetry
-- no gallery workflow
+- no prompt variants
+- no agent execution workflow
+- no correctness scoring runtime
 
 ## Workflow 2: Report and Screenshot Capture
 
@@ -112,6 +119,8 @@ Failure and skip behavior:
 
 Workflow relationship:
 - benchmark validation proves the fixture suite is intact
+- profile validation proves project complexity metadata and file trees are trustworthy
+- answer-key validation proves later correctness scoring has stable expected facts
 - token evaluation produces the structured JSON artifacts
 - report rendering converts those results into HTML
 - screenshot capture turns the HTML report into a shareable PNG when available

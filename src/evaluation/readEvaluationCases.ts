@@ -1,9 +1,19 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveWithinRoot } from "../core/pathSafety.js";
-import type { EvaluationCase, EvaluationCaseInput } from "./types.js";
+import { validateAnswerKey } from "./benchmarkMetadata.js";
+import type { BenchmarkProjectProfile, EvaluationCase, EvaluationCaseInput } from "./types.js";
 
-export async function readEvaluationCases(casesPath: string, repoRoot = process.cwd()): Promise<EvaluationCase[]> {
+export type ReadEvaluationCasesOptions = {
+  projectProfiles?: BenchmarkProjectProfile[];
+  requireProjectProfileRef?: boolean;
+};
+
+export async function readEvaluationCases(
+  casesPath: string,
+  repoRoot = process.cwd(),
+  options: ReadEvaluationCasesOptions = {}
+): Promise<EvaluationCase[]> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(await readFile(casesPath, "utf8"));
@@ -39,6 +49,23 @@ export async function readEvaluationCases(casesPath: string, repoRoot = process.
       throw new Error(`Duplicate evaluation case id: ${input.id}`);
     }
     ids.add(input.id);
+
+    if (candidate.answerKey !== undefined) {
+      const answerKeyErrors = validateAnswerKey(candidate.answerKey, `evaluation case ${input.id}`);
+      if (answerKeyErrors.length > 0) {
+        throw new Error(answerKeyErrors.join("\n"));
+      }
+    }
+
+    if (options.requireProjectProfileRef === true) {
+      if (typeof input.projectProfileRef !== "string" || input.projectProfileRef.length === 0) {
+        throw new Error(`evaluation case ${input.id}: missing projectProfileRef.`);
+      }
+      const profileIds = new Set((options.projectProfiles ?? []).map((profile) => profile.projectId));
+      if (!profileIds.has(input.projectProfileRef)) {
+        throw new Error(`evaluation case ${input.id}: unknown projectProfileRef ${input.projectProfileRef}.`);
+      }
+    }
 
     return {
       ...input,

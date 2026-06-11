@@ -13,6 +13,13 @@ export type EvaluationCaseInput = {
   expectedFiles: string[];
   expectedSymbols: string[];
   rawIncludeGlobs: string[];
+  answerKey?: BenchmarkTaskAnswerKey;
+  expectedFacts?: ExpectedAnswerFact[];
+  expectedFilesByProject?: Record<string, string[]>;
+  expectedOperation?: string;
+  projectProfileRef?: string;
+  promptComplexityHint?: string;
+  projectComplexityRelevance?: string;
   notes?: string;
 };
 
@@ -113,4 +120,118 @@ export type TokenSavingsCommandConfig = {
   requireKit: boolean;
   noScreenshot: boolean;
   outputDir: string;
+};
+
+export type ProjectComplexityLevel = "small" | "medium" | "large" | "mixed-language";
+
+export type ProjectFileTreeEntry = {
+  path: string;
+  kind: "file" | "directory";
+  role: "source" | "test" | "config" | "docs" | "contract" | "other";
+  language?: string;
+  lines?: number;
+};
+
+export type ProjectFileTree = {
+  entries: ProjectFileTreeEntry[];
+};
+
+export type ProjectComplexityMetrics = {
+  fileCount: number;
+  sourceFileCount: number;
+  testFileCount: number;
+  totalLinesOfCode: number;
+  sourceLinesOfCode: number;
+  testLinesOfCode: number;
+  languageCount: number;
+  dependencyFileCount: number;
+  internalImportCount: number;
+  exportedSymbolEstimate: number;
+  taskCount: number;
+  expectedRelevantFilesAverage: number;
+  expectedRelevantSymbolsAverage: number;
+  maxFileLines: number;
+  averageFileLines: number;
+  packageDependencyCount?: number;
+  functionOrClassEstimate?: number;
+  callGraphEdgeEstimate?: number;
+};
+
+export type ProjectComplexityFormula = {
+  id: string;
+  description: string;
+  scoreRange: [number, number];
+  normalizedValue: string;
+  weights: {
+    sourceFileCount: number;
+    sourceLinesOfCode: number;
+    languageCount: number;
+    internalImportCount: number;
+    maxFileLines: number;
+    expectedRelevantFilesAverage: number;
+    expectedRelevantSymbolsAverage: number;
+  };
+  caps: {
+    sourceFileCount: number;
+    sourceLinesOfCode: number;
+    languageCount: number;
+    internalImportCount: number;
+    maxFileLines: number;
+    expectedRelevantFilesAverage: number;
+    expectedRelevantSymbolsAverage: number;
+  };
+};
+
+export type BenchmarkProjectProfile = {
+  projectId: string;
+  displayName: string;
+  description: string;
+  languageMix: string;
+  primaryLanguage: string;
+  languages: string[];
+  complexityLevel: ProjectComplexityLevel;
+  complexityScore: number;
+  complexityMetrics: ProjectComplexityMetrics;
+  complexityFormula: ProjectComplexityFormula;
+  rootPath: string;
+  sourceRoots: string[];
+  testRoots: string[];
+  fileTree: ProjectFileTree;
+  benchmarkPurpose: string;
+  expectedUseCases: string[];
+};
+
+export type BenchmarkProjectProfilesContract = {
+  schemaVersion: string;
+  profiles: BenchmarkProjectProfile[];
+};
+
+export type ExpectedAnswerFact = {
+  id: string;
+  text: string;
+  weight: number;
+  required: boolean;
+};
+
+export type ExpectedContextTarget = {
+  projectId?: string;
+  file: string;
+  symbols?: string[];
+  required?: boolean;
+};
+
+export type BenchmarkTaskAnswerKey = {
+  expectedFiles: string[];
+  expectedSymbols: string[];
+  expectedFacts: ExpectedAnswerFact[];
+  expectedContextTargets?: ExpectedContextTarget[];
+  forbiddenWrongClaims?: string[];
+  minimumCorrectFacts: number;
+  notes?: string;
+};
+
+export type BenchmarkMetadataValidationResult = {
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
 };

@@ -5,3 +5,6 @@ export * from "./runMyDevKitRetrieval.js";
 export * from "./compareTokenSavings.js";
 export * from "./writeTokenSavingsArtifacts.js";
 export * from "./renderTokenSavingsReportInput.js";
+export * from "./projectFileTree.js";
+export * from "./projectComplexity.js";
+export * from "./benchmarkMetadata.js";

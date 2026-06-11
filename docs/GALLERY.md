@@ -2,6 +2,8 @@
 
 The gallery manifest is a deterministic index of the artifacts produced by the Milestone 1 lab demo workflow.
 
+Benchmark metadata and answer keys are now validated before the lab demo runs, but the gallery manifest format is unchanged in this prompt.
+
 ## What It Contains
 
 `gallery-manifest.json` records:

@@ -4,7 +4,7 @@ my-dev-kit-lab is the evidence, benchmark, screenshot, evaluation, and tutorial/
 
 my-dev-kit is the indexing and retrieval engine. my-dev-kit-lab is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
 
-Current status: Milestone 1 is implemented. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, report artifact generation, optional report screenshot capture, token/context comparison against external my-dev-kit retrieval commands, and the all-in-one demo gallery workflow.
+Current status: Milestone 1 is implemented, and the benchmark metadata upgrade is in place. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, quantifiable project profiles with file-tree metadata and answer keys, report artifact generation, optional report screenshot capture, token/context comparison against external my-dev-kit retrieval commands, and the all-in-one demo gallery workflow.
 
 Planned Milestone 1 features:
 - Prompt 1: project foundation, branch workflow, benchmark projects, and benchmark validation
@@ -29,6 +29,11 @@ Benchmark projects:
 - `benchmarks/projects/todo-mixed-ts-py`
 
 They exist to provide the same small Todo Core behavior in different language layouts so later prompts can compare retrieval quality, screenshots, and context usage against a stable benchmark suite.
+
+Benchmark metadata:
+- `benchmarks/contracts/benchmark-project-profiles.json` stores project descriptions, language mix, file-tree entries, complexity metrics, complexity scores, and the formula used for scoring.
+- `benchmarks/contracts/todo-benchmark-case.json` now includes task answer keys with expected files, expected symbols, and expected facts.
+- Controlled agent experiments, prompt variants, Codex/Claude adapters, and correctness scoring are still future work.
 
 Not implemented yet:
 - provider telemetry

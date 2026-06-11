@@ -1,0 +1,289 @@
+{
+  "schemaVersion": "1",
+  "profiles": [
+    {
+      "projectId": "todo-ts",
+      "displayName": "Todo TypeScript",
+      "description": "TypeScript Todo Core implementation.",
+      "languageMix": "single-language TypeScript",
+      "primaryLanguage": "typescript",
+      "languages": ["typescript"],
+      "complexityLevel": "small",
+      "complexityScore": 12,
+      "complexityMetrics": {
+        "fileCount": 8,
+        "sourceFileCount": 3,
+        "testFileCount": 1,
+        "totalLinesOfCode": 105,
+        "sourceLinesOfCode": 66,
+        "testLinesOfCode": 39,
+        "languageCount": 1,
+        "dependencyFileCount": 1,
+        "internalImportCount": 1,
+        "exportedSymbolEstimate": 4,
+        "taskCount": 5,
+        "expectedRelevantFilesAverage": 1.2,
+        "expectedRelevantSymbolsAverage": 2.4,
+        "maxFileLines": 46,
+        "averageFileLines": 31.5,
+        "packageDependencyCount": 2,
+        "functionOrClassEstimate": 2
+      },
+      "complexityFormula": {
+        "id": "benchmark-project-complexity-v1",
+        "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
+        "scoreRange": [0, 100],
+        "normalizedValue": "min(value / cap, 1)",
+        "weights": {
+          "sourceFileCount": 0.2,
+          "sourceLinesOfCode": 0.2,
+          "languageCount": 0.15,
+          "internalImportCount": 0.15,
+          "maxFileLines": 0.1,
+          "expectedRelevantFilesAverage": 0.1,
+          "expectedRelevantSymbolsAverage": 0.1
+        },
+        "caps": {
+          "sourceFileCount": 20,
+          "sourceLinesOfCode": 2000,
+          "languageCount": 4,
+          "internalImportCount": 50,
+          "maxFileLines": 300,
+          "expectedRelevantFilesAverage": 10,
+          "expectedRelevantSymbolsAverage": 20
+        }
+      },
+      "rootPath": "benchmarks/projects/todo-ts",
+      "sourceRoots": ["src"],
+      "testRoots": ["tests"],
+      "fileTree": {
+        "entries": [
+          { "path": "package.json", "kind": "file", "role": "config", "language": "json", "lines": 13 },
+          { "path": "README.md", "kind": "file", "role": "docs", "language": "markdown", "lines": 4 },
+          { "path": "src", "kind": "directory", "role": "source" },
+          { "path": "src/index.ts", "kind": "file", "role": "source", "language": "typescript", "lines": 3 },
+          { "path": "src/taskService.ts", "kind": "file", "role": "source", "language": "typescript", "lines": 42 },
+          { "path": "src/taskStore.ts", "kind": "file", "role": "source", "language": "typescript", "lines": 35 },
+          { "path": "tests", "kind": "directory", "role": "test" },
+          { "path": "tests/taskService.test.ts", "kind": "file", "role": "test", "language": "typescript", "lines": 46 },
+          { "path": "tsconfig.json", "kind": "file", "role": "config", "language": "json", "lines": 13 },
+          { "path": "vitest.config.ts", "kind": "file", "role": "config", "language": "typescript", "lines": 6 }
+        ]
+      },
+      "benchmarkPurpose": "Baseline TypeScript retrieval fixture.",
+      "expectedUseCases": ["token-savings retrieval evaluation", "future prompt variant comparison", "future answer-key correctness scoring"]
+    },
+    {
+      "projectId": "todo-python",
+      "displayName": "Todo Python",
+      "description": "Python Todo Core implementation.",
+      "languageMix": "single-language Python",
+      "primaryLanguage": "python",
+      "languages": ["python"],
+      "complexityLevel": "small",
+      "complexityScore": 12,
+      "complexityMetrics": {
+        "fileCount": 5,
+        "sourceFileCount": 3,
+        "testFileCount": 1,
+        "totalLinesOfCode": 91,
+        "sourceLinesOfCode": 50,
+        "testLinesOfCode": 41,
+        "languageCount": 1,
+        "dependencyFileCount": 0,
+        "internalImportCount": 3,
+        "exportedSymbolEstimate": 13,
+        "taskCount": 5,
+        "expectedRelevantFilesAverage": 1.2,
+        "expectedRelevantSymbolsAverage": 2.4,
+        "maxFileLines": 53,
+        "averageFileLines": 30,
+        "packageDependencyCount": 0,
+        "functionOrClassEstimate": 12
+      },
+      "complexityFormula": {
+        "id": "benchmark-project-complexity-v1",
+        "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
+        "scoreRange": [0, 100],
+        "normalizedValue": "min(value / cap, 1)",
+        "weights": {
+          "sourceFileCount": 0.2,
+          "sourceLinesOfCode": 0.2,
+          "languageCount": 0.15,
+          "internalImportCount": 0.15,
+          "maxFileLines": 0.1,
+          "expectedRelevantFilesAverage": 0.1,
+          "expectedRelevantSymbolsAverage": 0.1
+        },
+        "caps": {
+          "sourceFileCount": 20,
+          "sourceLinesOfCode": 2000,
+          "languageCount": 4,
+          "internalImportCount": 50,
+          "maxFileLines": 300,
+          "expectedRelevantFilesAverage": 10,
+          "expectedRelevantSymbolsAverage": 20
+        }
+      },
+      "rootPath": "benchmarks/projects/todo-python",
+      "sourceRoots": ["src"],
+      "testRoots": ["tests"],
+      "fileTree": {
+        "entries": [
+          { "path": "README.md", "kind": "file", "role": "docs", "language": "markdown", "lines": 4 },
+          { "path": "src", "kind": "directory", "role": "source" },
+          { "path": "src/__init__.py", "kind": "file", "role": "source", "language": "python", "lines": 5 },
+          { "path": "src/task_service.py", "kind": "file", "role": "source", "language": "python", "lines": 33 },
+          { "path": "src/task_store.py", "kind": "file", "role": "source", "language": "python", "lines": 29 },
+          { "path": "tests", "kind": "directory", "role": "test" },
+          { "path": "tests/test_task_service.py", "kind": "file", "role": "test", "language": "python", "lines": 53 }
+        ]
+      },
+      "benchmarkPurpose": "Baseline Python retrieval fixture.",
+      "expectedUseCases": ["token-savings retrieval evaluation", "future prompt variant comparison", "future answer-key correctness scoring"]
+    },
+    {
+      "projectId": "todo-js",
+      "displayName": "Todo JavaScript",
+      "description": "JavaScript Todo Core implementation.",
+      "languageMix": "single-language JavaScript",
+      "primaryLanguage": "javascript",
+      "languages": ["javascript"],
+      "complexityLevel": "small",
+      "complexityScore": 12,
+      "complexityMetrics": {
+        "fileCount": 7,
+        "sourceFileCount": 3,
+        "testFileCount": 1,
+        "totalLinesOfCode": 95,
+        "sourceLinesOfCode": 56,
+        "testLinesOfCode": 39,
+        "languageCount": 1,
+        "dependencyFileCount": 1,
+        "internalImportCount": 1,
+        "exportedSymbolEstimate": 2,
+        "taskCount": 5,
+        "expectedRelevantFilesAverage": 1.2,
+        "expectedRelevantSymbolsAverage": 2.4,
+        "maxFileLines": 46,
+        "averageFileLines": 29,
+        "packageDependencyCount": 1,
+        "functionOrClassEstimate": 2
+      },
+      "complexityFormula": {
+        "id": "benchmark-project-complexity-v1",
+        "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
+        "scoreRange": [0, 100],
+        "normalizedValue": "min(value / cap, 1)",
+        "weights": {
+          "sourceFileCount": 0.2,
+          "sourceLinesOfCode": 0.2,
+          "languageCount": 0.15,
+          "internalImportCount": 0.15,
+          "maxFileLines": 0.1,
+          "expectedRelevantFilesAverage": 0.1,
+          "expectedRelevantSymbolsAverage": 0.1
+        },
+        "caps": {
+          "sourceFileCount": 20,
+          "sourceLinesOfCode": 2000,
+          "languageCount": 4,
+          "internalImportCount": 50,
+          "maxFileLines": 300,
+          "expectedRelevantFilesAverage": 10,
+          "expectedRelevantSymbolsAverage": 20
+        }
+      },
+      "rootPath": "benchmarks/projects/todo-js",
+      "sourceRoots": ["src"],
+      "testRoots": ["tests"],
+      "fileTree": {
+        "entries": [
+          { "path": "package.json", "kind": "file", "role": "config", "language": "json", "lines": 12 },
+          { "path": "README.md", "kind": "file", "role": "docs", "language": "markdown", "lines": 4 },
+          { "path": "src", "kind": "directory", "role": "source" },
+          { "path": "src/index.js", "kind": "file", "role": "source", "language": "javascript", "lines": 3 },
+          { "path": "src/taskService.js", "kind": "file", "role": "source", "language": "javascript", "lines": 38 },
+          { "path": "src/taskStore.js", "kind": "file", "role": "source", "language": "javascript", "lines": 29 },
+          { "path": "tests", "kind": "directory", "role": "test" },
+          { "path": "tests/taskService.test.js", "kind": "file", "role": "test", "language": "javascript", "lines": 46 },
+          { "path": "vitest.config.js", "kind": "file", "role": "config", "language": "javascript", "lines": 6 }
+        ]
+      },
+      "benchmarkPurpose": "Baseline JavaScript retrieval fixture.",
+      "expectedUseCases": ["token-savings retrieval evaluation", "future prompt variant comparison", "future answer-key correctness scoring"]
+    },
+    {
+      "projectId": "todo-mixed-ts-py",
+      "displayName": "Todo Mixed TS/Python",
+      "description": "Mixed TypeScript and Python Todo boundary implementation.",
+      "languageMix": "mixed TypeScript and Python",
+      "primaryLanguage": "typescript",
+      "languages": ["typescript", "python"],
+      "complexityLevel": "mixed-language",
+      "complexityScore": 16,
+      "complexityMetrics": {
+        "fileCount": 7,
+        "sourceFileCount": 2,
+        "testFileCount": 1,
+        "totalLinesOfCode": 100,
+        "sourceLinesOfCode": 84,
+        "testLinesOfCode": 16,
+        "languageCount": 2,
+        "dependencyFileCount": 1,
+        "internalImportCount": 0,
+        "exportedSymbolEstimate": 11,
+        "taskCount": 5,
+        "expectedRelevantFilesAverage": 2,
+        "expectedRelevantSymbolsAverage": 2.4,
+        "maxFileLines": 77,
+        "averageFileLines": 40.67,
+        "packageDependencyCount": 3,
+        "functionOrClassEstimate": 10
+      },
+      "complexityFormula": {
+        "id": "benchmark-project-complexity-v1",
+        "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
+        "scoreRange": [0, 100],
+        "normalizedValue": "min(value / cap, 1)",
+        "weights": {
+          "sourceFileCount": 0.2,
+          "sourceLinesOfCode": 0.2,
+          "languageCount": 0.15,
+          "internalImportCount": 0.15,
+          "maxFileLines": 0.1,
+          "expectedRelevantFilesAverage": 0.1,
+          "expectedRelevantSymbolsAverage": 0.1
+        },
+        "caps": {
+          "sourceFileCount": 20,
+          "sourceLinesOfCode": 2000,
+          "languageCount": 4,
+          "internalImportCount": 50,
+          "maxFileLines": 300,
+          "expectedRelevantFilesAverage": 10,
+          "expectedRelevantSymbolsAverage": 20
+        }
+      },
+      "rootPath": "benchmarks/projects/todo-mixed-ts-py",
+      "sourceRoots": ["src", "python"],
+      "testRoots": ["tests"],
+      "fileTree": {
+        "entries": [
+          { "path": "package.json", "kind": "file", "role": "config", "language": "json", "lines": 14 },
+          { "path": "python", "kind": "directory", "role": "source" },
+          { "path": "python/task_service.py", "kind": "file", "role": "source", "language": "python", "lines": 77 },
+          { "path": "README.md", "kind": "file", "role": "docs", "language": "markdown", "lines": 4 },
+          { "path": "src", "kind": "directory", "role": "source" },
+          { "path": "src/taskCli.ts", "kind": "file", "role": "source", "language": "typescript", "lines": 26 },
+          { "path": "tests", "kind": "directory", "role": "test" },
+          { "path": "tests/mixedBoundary.test.ts", "kind": "file", "role": "test", "language": "typescript", "lines": 19 },
+          { "path": "tsconfig.json", "kind": "file", "role": "config", "language": "json", "lines": 13 },
+          { "path": "vitest.config.ts", "kind": "file", "role": "config", "language": "typescript", "lines": 6 }
+        ]
+      },
+      "benchmarkPurpose": "Mixed-language boundary retrieval fixture.",
+      "expectedUseCases": ["token-savings retrieval evaluation", "future prompt variant comparison", "future answer-key correctness scoring"]
+    }
+  ]
+}

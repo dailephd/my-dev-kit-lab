@@ -4,6 +4,13 @@
 
 This document audits the current `my-dev-kit-lab` Milestone 1 MVP and defines the migration path for upgrading it into a controlled coding-agent experiment framework.
 
+Update after Follow-up Prompt 2:
+
+- benchmark project profiles were added in `benchmarks/contracts/benchmark-project-profiles.json`
+- benchmark cases now include answer keys and expected facts
+- deterministic file-tree metadata and complexity metrics are validated by the existing benchmark verification path
+- prompt variants, agent adapters, controlled experiment execution, correctness scoring, report redesign, plots, visualization demos, screenshot changes, and gallery upgrades remain future work
+
 This is a migration of the existing MVP.
 
 It is not a greenfield redesign.

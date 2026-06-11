@@ -6,6 +6,8 @@
 
 The benchmark projects under `benchmarks/projects` are intentionally small Todo Core implementations. They exist to keep validation, retrieval, and static context comparisons cheap and reproducible.
 
+Benchmark metadata lives in `benchmarks/contracts/benchmark-project-profiles.json` and `benchmarks/contracts/todo-benchmark-case.json`. Verification now checks project profiles, compact file trees, complexity metrics, and task answer keys in addition to the original fixture structure.
+
 Run benchmark validation:
 
 ```bash
