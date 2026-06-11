@@ -22,3 +22,9 @@ Not implemented yet:
 - provider telemetry
 - semantic quality judging
 - benchmark generation
+
+Architecture audit status:
+- experiment report architecture audit completed
+- migration plan documented in `docs/EXPERIMENT_REPORT_MIGRATION_PLAN.md`
+- no runtime behavior changed in this prompt
+- next prompt is benchmark metadata and complexity upgrade

@@ -61,3 +61,7 @@ Provider telemetry and adapter-specific metadata belong in a later layer that re
 Boundary between my-dev-kit and my-dev-kit-lab:
 
 my-dev-kit remains the indexing and retrieval engine. my-dev-kit-lab owns benchmark inputs, validation, reports, and future evaluation workflows. In later prompts, my-dev-kit-lab will call my-dev-kit externally rather than importing internal my-dev-kit implementation details directly.
+
+Migration planning note:
+
+The post-Milestone-1 experiment upgrade path is documented in `docs/EXPERIMENT_REPORT_MIGRATION_PLAN.md`. Future prompts should extend the existing evaluation, report, screenshot, gallery, and command layers rather than introducing parallel architectures.
