@@ -47,11 +47,15 @@ Implemented now:
 - `run-final-demo` workflow
 
 Not implemented yet:
-- provider telemetry
-- semantic quality judging
-- benchmark generation
 - provider telemetry dashboards
+- OpenTelemetry collection
+- semantic LLM judging
 - cloud API integration
+- real Codex or Claude benchmark campaigns
+- larger benchmark suites
+- richer gallery UI
+- cost dashboards
+- benchmark generation
 
 Architecture audit status:
 - experiment report architecture audit completed

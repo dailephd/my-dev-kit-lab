@@ -1,0 +1,76 @@
+my-dev-kit-lab final batch handoff
+
+Completed feature batch summary:
+- Prompt 1: architecture audit, migration plan, anti-duplication guardrails
+- Prompt 2: benchmark metadata, complexity metrics, file trees, answer keys
+- Prompt 3: raw-full-file and my-dev-kit-guided prompt variants plus complexity metrics
+- Prompt 4 and 4.5: fake-agent, Codex, Claude, and Windows CLI shim resolution
+- Prompt 5: controlled experiment runner and deterministic correctness scoring
+- Prompt 6: experiment report rendering and optional screenshot reuse
+- Prompt 7: plots, visualization demos, gallery integration, final demo workflow
+
+Architecture summary:
+- src/core: measured command execution, token counting, command resolution
+- src/evaluation: benchmark metadata, token-savings evaluation, controlled experiments, scoring
+- src/prompts: prompt variants and complexity metrics
+- src/agents: fake-agent, Codex, Claude adapters
+- src/report: token-savings and experiment reports
+- src/screenshot: existing screenshot layer reused
+- src/plots: plot data and deterministic SVG charts
+- src/visualizationDemos: bounded my-dev-kit demo runner
+- src/gallery: extended gallery manifest and simple gallery index
+- src/commands and scripts: CLI entrypoints and orchestration
+
+Command checklist:
+- npm run build
+- npm run test
+- npm run verify
+- npm run generate-prompt-variants
+- npm run run-agent-prompt
+- npm run run-controlled-experiment
+- npm run render-experiment-report
+- npm run generate-experiment-plots
+- npm run run-visualization-demos
+- npm run build-gallery
+- npm run run-final-demo
+- npm run evaluate-token-savings
+- npm run lab-demo
+- npm run capture-demo-report
+
+Artifact checklist:
+- prompt preview artifacts
+- agent-run artifacts
+- controlled experiment artifacts
+- experiment report JSON and HTML
+- optional experiment report PNG
+- plot-data.json and plots-summary.json
+- six SVG charts
+- visualization demo summary and per-command artifacts
+- gallery-manifest.json
+- gallery-index.html
+
+Known limitations:
+- npm audit still reports 5 high severity dev-tooling vulnerabilities in the vite/vitest/esbuild chain.
+- Provider telemetry dashboards and OpenTelemetry collection are not implemented.
+- Semantic LLM judging is not implemented.
+- Prompt and token comparisons remain deterministic local evidence, not cloud billing or telemetry evidence.
+- Real Codex and Claude benchmark campaigns remain optional future work.
+- Real my-dev-kit visualization coverage depends on CLI capabilities and may produce structured unsupported-command outcomes.
+- The gallery index is intentionally simple.
+
+Future work:
+- dependency maintenance prompt for vite/vitest/esbuild
+- provider telemetry and cost reporting
+- semantic judging or richer answer-quality analysis
+- larger benchmark suites
+- richer gallery UI
+- real Codex and Claude benchmark campaign automation
+
+Suggested next maintenance prompts:
+- Dependency maintenance prompt focused on npm audit findings
+- Small UX prompt for relative clickable artifact links in experiment-report.html and gallery-index.html
+- Optional benchmark expansion prompt
+- Optional real-agent campaign prompt
+
+Merge recommendation:
+- Ready to merge with documented limitations

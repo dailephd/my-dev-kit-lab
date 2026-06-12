@@ -25,8 +25,8 @@ Expected outputs:
 - concise pass/fail output from the benchmark verification script
 
 Current limitations:
-- no provider telemetry
-- no correctness scoring runtime
+- no provider telemetry dashboards
+- no semantic LLM judging
 
 ## Workflow 2: Report and Screenshot Capture
 
@@ -48,9 +48,8 @@ Fallback behavior:
 - the command records a warning stating `PNG screenshot skipped because Playwright or browser runtime is unavailable.`
 
 Current limitations:
-- no token/context comparison
-- no provider telemetry
-- no gallery workflow
+- no provider telemetry dashboards
+- no cloud API integration
 
 Placeholders for later workflows:
 - tutorial and gallery workflow
@@ -120,8 +119,7 @@ Expected outputs:
 - `prompts/*.txt`
 
 Current limitations:
-- no correctness scoring runtime
-- no report or gallery display of prompt comparisons yet
+- prompt previews are static artifacts until they are consumed by later run and report workflows
 
 ## Workflow 5: Single Agent Prompt Smoke Run
 
@@ -158,10 +156,7 @@ Windows troubleshooting:
 - if a real-agent smoke run skips unexpectedly, rerun with `--require-agent` to surface the failure as a command error
 
 Current limitations:
-- no controlled experiment matrix
-- no correctness scoring runtime
-- no final experiment report
-- no screenshot or gallery update
+- this command is intentionally a single-run smoke path and does not compare strategies or update reports or galleries by itself
 
 ## Workflow 6: Controlled Experiment Runner
 
@@ -171,7 +166,7 @@ Purpose:
 - run selected agents and prompt complexity levels
 - score correctness from benchmark answer keys
 - compare correctness, token totals, and execution time when data is available
-- write JSON artifacts for later report redesign
+- write JSON artifacts for later report rendering, plots, and gallery indexing
 
 Fake-agent command:
 - `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
@@ -204,9 +199,7 @@ External-agent behavior:
 - failed or unparsable outputs still produce artifacts
 
 Current limitations:
-- no plots
-- no visualization demos
-- no gallery update
+- this command writes experiment artifacts only; report rendering, plots, visualization demos, and gallery updates are separate workflows
 
 ## Workflow 7: Experiment Report Rendering
 
@@ -293,7 +286,7 @@ Command:
 
 Expected outputs:
 - `controlled-experiment/*`
-- `experiment-plots/*`
+- `plots/*`
 - `visualization-demos/*`
 - `experiment-report/*`
 - `gallery/gallery-manifest.json`

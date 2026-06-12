@@ -1,0 +1,90 @@
+my-dev-kit-lab final verification report
+
+Branch:
+- feature/lab-final-verification-doc-audit
+
+Validated feature baseline commit:
+- fab1916 Add experiment plots visualization demos and gallery integration
+
+Validation commands:
+- git status --short
+- npm install
+- npm run build
+- npm run test
+- npm run test:plots
+- npm run test:visualization-demos
+- npm run test:report
+- npm run test:gallery
+- npm run test:experiments
+- npm run test:agents
+- npm run test:benchmarks
+- npm run test:evaluation
+- npm run test:integration
+- npm run test:e2e
+- npm run verify
+- npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants-audit
+- npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake-audit
+- npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-audit
+- npm run render-experiment-report -- --experiment lab-output/controlled-experiment-audit --out lab-output/experiment-report-audit --no-screenshot
+- npm run generate-experiment-plots -- --experiment lab-output/controlled-experiment-audit --out lab-output/experiment-plots-audit
+- npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/visualization-demos-audit
+- npm run render-experiment-report -- --experiment lab-output/controlled-experiment-audit --out lab-output/experiment-report-enhanced-audit --plots lab-output/experiment-plots-audit --visualizations lab-output/visualization-demos-audit --no-screenshot
+- npm run build-gallery -- --report lab-output/experiment-report-enhanced-audit --plots lab-output/experiment-plots-audit --visualizations lab-output/visualization-demos-audit --out lab-output/gallery-audit
+- npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo-audit --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
+- npm run evaluate-token-savings -- --cases examples/token-savings-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/token-savings-audit --no-screenshot
+- npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery-audit --no-screenshot
+- npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo-shot-audit --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --screenshot
+- npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node ../my-dev-kit-v1/dist/cli.js" --out lab-output/visualization-demos-real-audit
+- npm audit
+
+Validation results:
+- install, build, test, targeted suites, e2e, and verify passed after updating the final demo plot path and matching assertions.
+- fake-agent workflow commands passed.
+- final demo now writes plots under plots/ as documented.
+- screenshot-enabled final demo passed and wrote experiment-report.png.
+- optional real my-dev-kit visualization smoke completed with structured partial failures, not runner crashes.
+
+Final demo commands:
+- npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo-audit --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
+- npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo-shot-audit --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --screenshot
+
+Final demo artifact checklist:
+- controlled-experiment/experiment-summary.json: present
+- controlled-experiment/experiment-runs.json: present
+- controlled-experiment/experiment-comparisons.json: present
+- experiment-report/experiment-report.json: present
+- experiment-report/experiment-report.html: present
+- plots/plots-summary.json: present
+- plots/plot-data.json: present
+- plots/charts/*.svg: present
+- visualization-demos/visualization-demo-summary.json: present
+- gallery/gallery-manifest.json: present
+- gallery/gallery-index.html: present
+- screenshot run only: experiment-report/experiment-report.png present
+
+npm audit finding:
+- npm audit reports 5 high severity vulnerabilities.
+- The findings are in the vitest/vite/esbuild dev-tooling chain.
+- npm audit fix requires --force and would upgrade vitest to 4.1.8 as a breaking change.
+- Recommended action: separate dependency maintenance prompt. Do not roll into this feature-batch merge.
+
+Optional real my-dev-kit check:
+- Command completed.
+- 6 demo commands ran.
+- 4 completed.
+- 2 failed with structured warnings that look like capability mismatch or unsupported output expectations, not runner bugs.
+- Warnings:
+  - missing model-view-lineage artifact
+  - view-model-view-lineage command failed or unsupported
+  - source-known-symbol command failed or unsupported
+
+Known limitations:
+- Prompt estimated tokens and token-savings evaluation remain static estimates, not provider billing telemetry.
+- Provider telemetry dashboards and OpenTelemetry collection are not implemented.
+- Semantic LLM judging is not implemented.
+- Real Codex and Claude benchmark campaigns were not part of final verification.
+- The experiment report and gallery index show local artifact paths as text rather than fully linked UI elements.
+- Gallery output remains a simple static index rather than a richer UI.
+
+Merge readiness decision:
+- Ready to merge with documented limitations

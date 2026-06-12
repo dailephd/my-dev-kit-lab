@@ -1,12 +1,8 @@
 # Gallery
 
-The gallery manifest is a deterministic index of the artifacts produced by the Milestone 1 lab demo workflow.
+The gallery manifest is a deterministic index of the artifacts produced by the lab workflows in this repository.
 
-Benchmark metadata and answer keys are now validated before the lab demo runs, but the gallery manifest format is unchanged in this prompt.
-
-Prompt variants are available as preview artifacts for future experiment reports and gallery items. The current gallery manifest does not display prompt comparisons yet.
-
-Agent-run artifacts are also available from `run-agent-prompt` as future report and gallery inputs. Controlled experiment artifacts from `run-controlled-experiment` can now be rendered into `experiment-report.html` and `experiment-report.json`, plotted as static SVG charts, combined with visualization demo artifacts, and indexed by the existing gallery manifest.
+Benchmark metadata and answer keys are validated before the token-savings demo runs. Controlled experiment artifacts can be rendered into `experiment-report.html` and `experiment-report.json`, plotted as static SVG charts, combined with visualization demo artifacts, and indexed by the existing gallery manifest.
 
 ## What It Contains
 
@@ -18,7 +14,7 @@ Agent-run artifacts are also available from `run-agent-prompt` as future report 
 - summary metrics
 - warnings
 
-The required Prompt 4 item is `token-savings-demo`, which points to the token-savings summary, runs, HTML report, and optional PNG screenshot.
+The original demo item is `token-savings-demo`, which points to the token-savings summary, runs, HTML report, and optional PNG screenshot.
 
 Prompt 7 gallery item kinds include:
 
@@ -38,6 +34,15 @@ Running the lab demo writes:
 - `token-savings-report.png` when screenshot capture succeeds
 - `gallery-manifest.json`
 - `commands/*` telemetry files from external my-dev-kit subprocess calls
+
+Running the final demo writes:
+
+- `controlled-experiment/*`
+- `plots/*`
+- `visualization-demos/*`
+- `experiment-report/*`
+- `gallery/gallery-manifest.json`
+- `gallery/gallery-index.html`
 
 ## Regenerate The Demo Gallery
 
@@ -75,6 +80,6 @@ Do not commit generated:
 
 - token counts use `estimated_chars_div_4`
 - provider telemetry does not exist yet
-- the gallery currently covers the Milestone 1 token-savings demo only
+- gallery manifest entries are static metadata, not a richer interactive gallery UI
 - richer gallery UI is future work
 - portfolio-specific templates are future work

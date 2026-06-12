@@ -63,7 +63,7 @@ export function parseRunFinalDemoArgs(argv: string[]): ParsedRunFinalDemoArgs {
 export async function runFinalDemoFromArgs(args: ParsedRunFinalDemoArgs, repoRoot = process.cwd()) {
   const rootOut = path.resolve(repoRoot, args.outDir);
   const experimentDir = path.join(rootOut, "controlled-experiment");
-  const plotsDir = path.join(rootOut, "experiment-plots");
+  const plotsDir = path.join(rootOut, "plots");
   const visualizationsDir = path.join(rootOut, "visualization-demos");
   const reportDir = path.join(rootOut, "experiment-report");
   const galleryDir = path.join(rootOut, "gallery");

@@ -5,6 +5,8 @@ Install:
 
 Tests:
 - `npm run test`
+- `npm run test:plots`
+- `npm run test:visualization-demos`
 - `npm run test:agents`
 - `npm run test:report`
 - `npm run test:screenshot`
@@ -212,6 +214,14 @@ Run final demo:
 - `--timeout-ms`: optional command timeout
 
 The final demo uses fake-agent and fake my-dev-kit cleanly for deterministic local runs. It does not require real Codex, Claude, my-dev-kit, network, or cloud APIs.
+
+Expected output directories:
+- `controlled-experiment/*`
+- `plots/*`
+- `visualization-demos/*`
+- `experiment-report/*`
+- `gallery/gallery-manifest.json`
+- `gallery/gallery-index.html`
 
 Windows CLI shim notes:
 - npm-installed CLIs may appear as `codex.cmd`, `codex.exe`, `codex.ps1`, or extensionless commands on PATH

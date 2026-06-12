@@ -33,7 +33,7 @@ describe("runFinalDemoCommand", () => {
     ).toBe(0);
     expect(existsSync(path.join(outDir, "controlled-experiment", "experiment-summary.json"))).toBe(true);
     expect(existsSync(path.join(outDir, "experiment-report", "experiment-report.html"))).toBe(true);
-    expect(existsSync(path.join(outDir, "experiment-plots", "plot-data.json"))).toBe(true);
+    expect(existsSync(path.join(outDir, "plots", "plot-data.json"))).toBe(true);
     expect(existsSync(path.join(outDir, "visualization-demos", "visualization-demo-summary.json"))).toBe(true);
     expect(existsSync(path.join(outDir, "gallery", "gallery-manifest.json"))).toBe(true);
   });

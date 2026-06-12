@@ -1,20 +1,23 @@
 # my-dev-kit-lab
 
-my-dev-kit-lab is the evidence, benchmark, screenshot, evaluation, and tutorial/gallery companion for my-dev-kit. It exists to host deterministic benchmark projects, validation workflows, reproducible report artifacts, and the Milestone 1 MVP demo flow that measures how my-dev-kit retrieval compares with raw full-file context.
+my-dev-kit-lab is the evidence, benchmark, screenshot, evaluation, and tutorial/gallery companion for my-dev-kit. It exists to host deterministic benchmark projects, validation workflows, reproducible report artifacts, and the completed local feature-batch demo flow that measures how my-dev-kit retrieval compares with raw full-file context.
 
 my-dev-kit is the indexing and retrieval engine. my-dev-kit-lab is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
 
-Current status: Milestone 1 is implemented, and the benchmark metadata upgrade is in place. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, quantifiable project profiles with file-tree metadata and answer keys, report artifact generation, optional report screenshot capture, token/context comparison against external my-dev-kit retrieval commands, controlled experiment artifacts, and the all-in-one demo gallery workflow.
+Current status: the Prompt 1 through Prompt 7 batch is implemented. The repository currently contains benchmark contracts, four deterministic benchmark projects, quantified project profiles with file-tree metadata and answer keys, prompt variants, agent adapters, controlled experiment artifacts, experiment reports, optional report screenshots, static SVG plots, bounded visualization demos, and gallery integration.
 
 Prompt variants are also available as deterministic previews. The prompt layer can generate raw-full-file and my-dev-kit-guided instruction prompts at `short`, `medium`, `long`, and `multi-step` complexity levels, with prompt complexity metrics based on the existing token estimator.
 
 Agent adapters now support one-prompt smoke runs through `fake-agent`, Codex, or Claude. Automated tests use deterministic `fake-agent` behavior and do not require real Codex or Claude CLIs. The controlled experiment runner can compare `raw-full-file` and `my-dev-kit-guided` strategies, score correctness from benchmark answer keys, and write structured JSON artifacts. Codex and Claude experiment runs are optional and may produce structured unavailable or limit-reached outcomes when local CLIs or accounts are constrained. Controlled experiment artifacts can now be rendered into a final HTML experiment report with optional screenshot capture, static SVG plots, bounded my-dev-kit visualization demos, and gallery integration.
 
-Planned Milestone 1 features:
-- Prompt 1: project foundation, branch workflow, benchmark projects, and benchmark validation
-- Prompt 2: report and screenshot capture
-- Prompt 3: token/context comparison between raw full-file reading and my-dev-kit retrieval
-- Prompt 4: tutorial and gallery workflow
+Completed feature batch:
+- Prompt 1: architecture audit, migration plan, and anti-duplication guardrails
+- Prompt 2: benchmark metadata, complexity metrics, file trees, and answer keys
+- Prompt 3: raw-full-file and my-dev-kit-guided prompt variants plus complexity metrics
+- Prompt 4 and 4.5: fake-agent, Codex, and Claude adapters plus Windows CLI shim resolution
+- Prompt 5: controlled experiment runner and answer-key correctness scoring
+- Prompt 6: controlled experiment report rendering and optional screenshot capture
+- Prompt 7: plots, visualization demos, gallery integration, and final demo workflow
 
 Quick commands:
 - `npm install`
@@ -27,6 +30,9 @@ Quick commands:
 - `npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake`
 - `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
 - `npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot`
+- `npm run generate-experiment-plots -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-plots`
+- `npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/visualization-demos`
+- `npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-output/experiment-plots --visualizations lab-output/visualization-demos --out lab-output/gallery`
 - `npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot`
 - `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
 - `npm run verify`
@@ -45,9 +51,13 @@ Benchmark metadata:
 - Controlled agent experiments and answer-key correctness scoring now write structured JSON artifacts under `lab-output`.
 
 Not implemented yet:
-- provider telemetry
-- semantic quality judging
-- benchmark project generation
+- provider telemetry dashboards
+- OpenTelemetry collection
+- semantic LLM judging
+- cloud API integration
+- real Codex or Claude benchmark campaigns
+- larger benchmark suites
+- richer gallery UI
 - cloud API billing or cost dashboards
 
 Install:
@@ -107,7 +117,7 @@ Token counts are estimated only. This workflow uses `estimated_chars_div_4`, whi
 Run:
 - `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
 
-This is the Milestone 1 MVP workflow:
+This is the earlier token-savings demo workflow:
 - benchmark projects
 - token comparison
 - report
@@ -169,4 +179,4 @@ The report shows project profile and complexity data, benchmark file tree entrie
 Run the complete deterministic local batch demo:
 - `npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot`
 
-This runs a controlled experiment, renders an enhanced experiment report, generates plot data and SVG charts, runs fake my-dev-kit visualization demos, and writes a gallery manifest plus static gallery index. Real Codex, Claude, and real my-dev-kit commands are optional and are not required for tests.
+This runs a controlled experiment, renders an enhanced experiment report, generates plot data and SVG charts, runs fake my-dev-kit visualization demos, and writes a gallery manifest plus static gallery index. Plot generation and visualization demos are local deterministic artifacts; they do not depend on cloud APIs. Real Codex, Claude, and real my-dev-kit commands are optional and are not required for tests.

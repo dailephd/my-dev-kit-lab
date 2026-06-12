@@ -34,7 +34,7 @@ describe("final demo fake integration", () => {
     const html = await readFile(path.join(outDir, "experiment-report", "experiment-report.html"), "utf8");
     expect(html).toContain("Plots");
     expect(html).toContain("my-dev-kit Visualization Demos");
-    expect(existsSync(path.join(outDir, "experiment-plots", "charts", "run-outcomes-by-agent.svg"))).toBe(true);
+    expect(existsSync(path.join(outDir, "plots", "charts", "run-outcomes-by-agent.svg"))).toBe(true);
     expect(existsSync(path.join(outDir, "experiment-report", "experiment-report.png"))).toBe(false);
   });
 });
