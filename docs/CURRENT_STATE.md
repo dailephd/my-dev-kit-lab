@@ -37,12 +37,14 @@ Implemented now:
 - raw-full-file versus my-dev-kit-guided experiment comparisons
 - deterministic fake-agent experiment tests
 - structured outcomes for unavailable agents, external usage or session limits, timeouts, failures, and invalid output
+- final controlled experiment report renderer under `src/report`
+- `render-experiment-report` command
+- optional experiment report screenshot target through the existing screenshot layer
 
 Not implemented yet:
 - provider telemetry
 - semantic quality judging
 - benchmark generation
-- final experiment report redesign
 - plots
 - visualization demos
 - experiment gallery integration
@@ -55,8 +57,11 @@ Architecture audit status:
 - agent adapters implemented after prompt variants
 - Windows CLI shim compatibility improved after agent adapters
 - controlled experiment runtime and correctness scoring are implemented after agent adapters
+- final experiment report rendering is implemented after controlled experiments
 - Codex and Claude controlled runs remain optional and can fail because of external usage or session limits
-- screenshot behavior is unchanged
+- screenshot behavior still reuses the existing screenshot layer
 - gallery behavior is unchanged
-- no final experiment report redesign, plot generation, or visualization demo workflow has been added yet
-- next prompt is final experiment report redesign
+- provider telemetry dashboards do not exist yet
+- no plot generation or visualization demo workflow has been added yet
+- gallery integration for experiment reports is still future work
+- next prompt is plots, visualization command demos, and gallery integration

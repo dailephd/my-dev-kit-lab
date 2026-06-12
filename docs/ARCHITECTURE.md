@@ -38,11 +38,19 @@ Report layer:
 
 The report layer normalizes lab report input, renders deterministic local HTML, and writes JSON and HTML artifacts. It is the reusable artifact foundation for benchmark validation today and token/context evaluation in Prompt 3.
 
+Controlled experiment reporting also lives in `src/report`. It consumes the JSON artifacts written by `src/evaluation`, builds an experiment report input model, renders `experiment-report.html`, and writes `experiment-report.json` plus an artifact index. This extends the existing report layer; there is no `report-v2` or separate HTML renderer.
+
+The experiment report flow is:
+
+`controlled experiment artifacts -> ExperimentReportInput -> experiment-report.json -> experiment-report.html -> optional screenshot PNG`
+
 Screenshot layer:
 
 The screenshot layer consumes generated local HTML reports and produces optional PNG captures. The flow is `lab artifact JSON -> HTML report -> PNG screenshot`.
 
 Screenshot output is presentation evidence, not the source of evaluation truth. JSON remains the structured artifact of record. HTML is the readable report view. PNG is a shareable snapshot of that report.
+
+Experiment report screenshots reuse `src/screenshot/captureReportScreenshot.ts`. The report command defaults to no screenshot and only captures PNG output when requested.
 
 Evaluation layer:
 
@@ -101,7 +109,7 @@ Gallery layer:
 
 The gallery layer packages evaluation outputs into a portable manifest that can drive README examples, GitHub evidence, tutorial references, later portfolio templates, and future gallery surfaces without changing the underlying evaluator.
 
-Controlled experiment artifacts are future report and gallery inputs. Prompt 5 does not change report rendering, screenshot capture, or gallery manifest behavior.
+Controlled experiment artifacts now feed the experiment report renderer. Gallery integration for those reports remains future work, and Prompt 6 does not change gallery manifest behavior.
 
 Lab-demo orchestration layer:
 
@@ -144,3 +152,7 @@ Windows CLI shim resolution has been added under `src/core` and reused by the ex
 Follow-up Prompt 5 note:
 
 Controlled experiment execution, answer parsing, correctness scoring, comparison metrics, and experiment artifact writing have been added under `src/evaluation`. The report, screenshot, and gallery layers remain unchanged.
+
+Follow-up Prompt 6 note:
+
+Experiment report input building, HTML rendering, artifact writing, and the `render-experiment-report` command have been added under the existing `src/report`, `src/commands`, and `scripts` layers. Optional screenshots reuse `src/screenshot`. Plot generation, visualization command demos, and gallery integration remain Prompt 7 work.

@@ -24,5 +24,5 @@ Planned follow-up prompt sequence after the architecture audit:
 - Prompt 3: prompt variants and prompt complexity (implemented)
 - Prompt 4: agent adapter interface with Codex, Claude, and fake-agent adapters (implemented)
 - Prompt 5: controlled experiment runner and correctness scoring (implemented)
-- Prompt 6: final experiment report redesign
+- Prompt 6: final experiment report redesign (implemented)
 - Prompt 7: plots, visualization command demos, and gallery integration

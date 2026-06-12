@@ -44,6 +44,13 @@ Update after Follow-up Prompt 5:
 - real-agent unavailability, usage or session limits, timeouts, failures, and invalid output are structured run outcomes
 - final report redesign, screenshots, plots, visualization demos, and gallery upgrades remain future work
 
+Update after Follow-up Prompt 6:
+
+- controlled experiment artifacts can now be rendered into `experiment-report.json` and `experiment-report.html`
+- `render-experiment-report` builds the report input model from experiment artifacts without running agents or experiments
+- optional report screenshot capture reuses the existing screenshot layer
+- plots, visualization demos, provider telemetry dashboards, and gallery integration remain future work
+
 This is a migration of the existing MVP.
 
 It is not a greenfield redesign.
@@ -1251,6 +1258,8 @@ Allowed new modules only when they represent a genuinely new layer:
 - Acceptance criteria summary:
   - experiment report includes project profile, prompts, run comparisons, correctness, tokens, timing, formulas, and artifact links
   - screenshot capture still reuses the same module
+  - Status:
+    - implemented
 
 ### Prompt 7
 

@@ -8,7 +8,7 @@ Current status: Milestone 1 is implemented, and the benchmark metadata upgrade i
 
 Prompt variants are also available as deterministic previews. The prompt layer can generate raw-full-file and my-dev-kit-guided instruction prompts at `short`, `medium`, `long`, and `multi-step` complexity levels, with prompt complexity metrics based on the existing token estimator.
 
-Agent adapters now support one-prompt smoke runs through `fake-agent`, Codex, or Claude. Automated tests use deterministic `fake-agent` behavior and do not require real Codex or Claude CLIs. The controlled experiment runner can compare `raw-full-file` and `my-dev-kit-guided` strategies, score correctness from benchmark answer keys, and write structured JSON artifacts. Codex and Claude experiment runs are optional and may produce structured unavailable or limit-reached outcomes when local CLIs or accounts are constrained.
+Agent adapters now support one-prompt smoke runs through `fake-agent`, Codex, or Claude. Automated tests use deterministic `fake-agent` behavior and do not require real Codex or Claude CLIs. The controlled experiment runner can compare `raw-full-file` and `my-dev-kit-guided` strategies, score correctness from benchmark answer keys, and write structured JSON artifacts. Codex and Claude experiment runs are optional and may produce structured unavailable or limit-reached outcomes when local CLIs or accounts are constrained. Controlled experiment artifacts can now be rendered into a final HTML experiment report with optional screenshot capture through the existing screenshot layer.
 
 Planned Milestone 1 features:
 - Prompt 1: project foundation, branch workflow, benchmark projects, and benchmark validation
@@ -26,6 +26,7 @@ Quick commands:
 - `npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants`
 - `npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake`
 - `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
+- `npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot`
 - `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
 - `npm run verify`
 
@@ -46,8 +47,8 @@ Not implemented yet:
 - provider telemetry
 - semantic quality judging
 - benchmark project generation
-- final visual experiment report redesign
 - experiment plots and visualization demos
+- experiment gallery integration
 
 Install:
 - `npm install`
@@ -145,4 +146,20 @@ Run a deterministic fake-agent experiment:
 
 This writes `experiment-summary.json`, `experiment-runs.json`, `experiment-comparisons.json`, `experiment-config.json`, and per-run artifacts under `runs/<runId>/`. It compares strategy pairs, scores correctness from answer keys, and computes token and duration comparisons when both paired runs expose totals.
 
-Real Codex and Claude runs require `--include-real-agents`. External usage limits, session limits, timeouts, and unavailable CLIs are stored as structured outcomes. The final visual experiment report, plots, screenshots, and gallery integration are still future work.
+Real Codex and Claude runs require `--include-real-agents`. External usage limits, session limits, timeouts, and unavailable CLIs are stored as structured outcomes.
+
+## Render a controlled experiment report
+
+Render the fake-agent experiment artifacts into a final HTML report:
+- `npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot`
+
+Capture an optional screenshot from the generated local HTML report:
+- `npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake-shot --screenshot`
+
+Expected outputs:
+- `experiment-report.json`
+- `experiment-report.html`
+- `experiment-report-artifacts.json`
+- `experiment-report.png` when `--screenshot` succeeds
+
+The report shows project profile and complexity data, benchmark file tree entries, benchmark tasks, prompt strategy excerpts, agent run statuses, correctness scores, token and timing comparisons, formulas, aggregate answers, warnings, and limitations. Plots, visualization demos, and gallery integration remain future work.

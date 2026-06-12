@@ -125,6 +125,26 @@ Expected output files:
 
 This command writes structured experiment artifacts only. It does not render the final visual experiment report, capture screenshots, create plots, run visualization demos, or update the gallery manifest.
 
+Render a controlled experiment report:
+- `npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot`
+- `--experiment`: path to an existing controlled experiment output directory
+- `--out`: output directory for report artifacts
+- `--title`: optional report title override
+- `--subtitle`: optional report subtitle override
+- `--screenshot`: capture `experiment-report.png` through the existing screenshot layer
+- `--no-screenshot`: skip PNG capture; this is the default
+- `--require-screenshot`: fail if screenshot capture is requested but cannot complete
+- `--max-prompt-chars`: optional prompt excerpt length cap for the HTML report
+- `--max-file-tree-entries`: optional per-project file tree entry cap
+
+Expected output files:
+- `experiment-report.json`
+- `experiment-report.html`
+- `experiment-report-artifacts.json`
+- `experiment-report.png` when `--screenshot` succeeds
+
+This command consumes existing controlled experiment artifacts. It does not run agents, run controlled experiments, generate plots, run visualization demos, or update the gallery manifest.
+
 Windows CLI shim notes:
 - npm-installed CLIs may appear as `codex.cmd`, `codex.exe`, `codex.ps1`, or extensionless commands on PATH
 - the shared measured command runtime resolves extensionless commands on Windows before spawning

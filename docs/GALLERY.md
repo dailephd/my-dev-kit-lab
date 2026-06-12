@@ -6,7 +6,7 @@ Benchmark metadata and answer keys are now validated before the lab demo runs, b
 
 Prompt variants are available as preview artifacts for future experiment reports and gallery items. The current gallery manifest does not display prompt comparisons yet.
 
-Agent-run artifacts are also available from `run-agent-prompt` as future report and gallery inputs. Controlled experiment artifacts from `run-controlled-experiment` are future report and gallery inputs too. The current gallery manifest does not display agent or experiment comparisons yet.
+Agent-run artifacts are also available from `run-agent-prompt` as future report and gallery inputs. Controlled experiment artifacts from `run-controlled-experiment` can now be rendered into `experiment-report.html` and `experiment-report.json`. Those experiment report artifacts are future gallery inputs; the current gallery manifest does not display agent or experiment comparisons yet.
 
 ## What It Contains
 
@@ -69,5 +69,5 @@ Do not commit generated:
 - provider telemetry does not exist yet
 - the gallery currently covers the Milestone 1 token-savings demo only
 - agent-run comparison views are future work
-- controlled experiment comparison views are future work
+- controlled experiment report artifacts are not yet published through the gallery manifest
 - portfolio-specific templates are future work

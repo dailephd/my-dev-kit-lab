@@ -204,12 +204,40 @@ External-agent behavior:
 - failed or unparsable outputs still produce artifacts
 
 Current limitations:
-- no final visual experiment report
 - no plots
 - no visualization demos
-- no screenshot or gallery update
+- no gallery update
 
-## Workflow 7: Lab Demo And Gallery Workflow
+## Workflow 7: Experiment Report Rendering
+
+Purpose:
+- render controlled experiment artifacts into a final HTML report
+- show project profile, project complexity metrics, benchmark file tree, prompts, agent outcomes, correctness, token usage, timing, formulas, warnings, and limitations
+- optionally capture a screenshot of the generated local HTML report through the existing screenshot layer
+
+Fake-agent command sequence:
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
+- `npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot`
+
+Optional screenshot:
+- `npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake-shot --screenshot`
+
+Optional Codex and Claude note:
+- real-agent experiment artifacts can be rendered the same way after `run-controlled-experiment`
+- unavailable CLIs, usage limits, session limits, timeouts, invalid output, and failures remain visible as structured report statuses
+
+Expected outputs:
+- `experiment-report.json`
+- `experiment-report.html`
+- `experiment-report-artifacts.json`
+- `experiment-report.png` when screenshot capture is requested and succeeds
+
+Current limitations:
+- no plots
+- no visualization demos
+- no gallery manifest update for experiment reports
+
+## Workflow 8: Lab Demo And Gallery Workflow
 
 Purpose:
 - run the Milestone 1 MVP end to end

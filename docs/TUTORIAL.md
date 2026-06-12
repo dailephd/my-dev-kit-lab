@@ -97,6 +97,32 @@ npm run run-controlled-experiment -- --cases examples/token-savings-cases.json -
 
 Real-agent runs can hit external usage limits, session limits, local CLI availability issues, or timeouts. Those are recorded as structured run outcomes so experiment artifacts are still inspectable.
 
+## Render The Controlled Experiment Report
+
+Prompt 6 turns controlled experiment artifacts into a final HTML report:
+
+```bash
+npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot
+```
+
+Open `lab-output/experiment-report-fake/experiment-report.html` in a browser. The report includes the project description, complexity metrics, compact file tree, benchmark task, prompt strategy excerpts, agent run statuses, correctness scores, token comparisons, timing comparisons, formulas, aggregate answers, warnings, and limitations.
+
+To capture a screenshot from the same generated local HTML:
+
+```bash
+npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake-shot --screenshot
+```
+
+Use fake-agent output to verify the workflow deterministically. Fake-agent results are smoke evidence, not proof that real Codex or Claude sessions will behave the same way. Real Codex and Claude experiment artifacts can be rendered too, and any usage limits, session limits, timeouts, or invalid outputs will appear as structured report outcomes.
+
+Interpret aggregate answers conservatively:
+
+- `yes`: most available comparisons support the claim
+- `no`: most available comparisons contradict the claim
+- `mixed`: available comparisons disagree or correctness outcomes differ
+- `inconclusive`: there is not enough comparable data
+- `unavailable`: required token or timing totals are missing
+
 ## Run The All-In-One Lab Demo
 
 Prompt 4 ties the Milestone 1 pieces together:
@@ -131,5 +157,4 @@ The key artifacts are `token-savings-summary.json`, `token-savings-runs.json`, `
 - provider telemetry is future work
 - screenshots capture generated reports, not arbitrary browser pages
 - semantic quality judging is not implemented in Milestone 1
-- final controlled experiment report redesign is future work
 - plots, visualization demos, and gallery integration for experiment comparisons are future work

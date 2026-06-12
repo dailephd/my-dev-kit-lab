@@ -21,6 +21,7 @@
     "evaluate-token-savings": "tsx scripts/evaluate-token-savings.ts",
     "generate-prompt-variants": "tsx scripts/generate-prompt-variants.ts",
     "lab-demo": "tsx scripts/run-lab-demo.ts",
+    "render-experiment-report": "tsx scripts/render-experiment-report.ts",
     "run-agent-prompt": "tsx scripts/run-agent-prompt.ts",
     "run-controlled-experiment": "tsx scripts/run-controlled-experiment.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
