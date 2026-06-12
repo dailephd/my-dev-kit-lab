@@ -10,3 +10,5 @@ export * from "./evaluation/index.js";
 export * from "./prompts/index.js";
 export * from "./agents/index.js";
 export * from "./gallery/index.js";
+export * from "./plots/index.js";
+export * from "./visualizationDemos/index.js";

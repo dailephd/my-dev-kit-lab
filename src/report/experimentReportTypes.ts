@@ -71,6 +71,15 @@ export type ExperimentReportInput = {
   tokenSections: ExperimentComparison[];
   timingSections: ExperimentComparison[];
   comparisonSections: ExperimentComparison[];
+  plotSections: Array<{ id: string; title: string; path: string; kind: string }>;
+  visualizationSections: Array<{
+    id: string;
+    name: string;
+    status: string;
+    durationMs: number;
+    producedArtifactPaths: string[];
+    warnings: string[];
+  }>;
   formulaSections: Array<{ id: string; title: string; formula: string; notes: string[] }>;
   limitations: string[];
   warnings: string[];

@@ -51,6 +51,14 @@ Update after Follow-up Prompt 6:
 - optional report screenshot capture reuses the existing screenshot layer
 - plots, visualization demos, provider telemetry dashboards, and gallery integration remain future work
 
+Update after Follow-up Prompt 7:
+
+- experiment plot data and deterministic SVG charts were added under `src/plots`
+- my-dev-kit visualization demo command artifacts were added under `src/visualizationDemos`
+- experiment reports can link plot and visualization artifacts
+- the existing gallery manifest now indexes experiment reports, screenshots, plots, visualization demos, and final demo artifacts
+- the planned feature batch is complete
+
 This is a migration of the existing MVP.
 
 It is not a greenfield redesign.
@@ -1288,6 +1296,8 @@ Allowed new modules only when they represent a genuinely new layer:
   - plot-ready data exists
   - visualization command artifacts are captured
   - gallery manifest includes the expanded experiment outputs
+  - Status:
+    - implemented
 
 ## 11. Risks and decisions
 

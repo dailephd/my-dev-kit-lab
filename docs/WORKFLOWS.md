@@ -233,11 +233,73 @@ Expected outputs:
 - `experiment-report.png` when screenshot capture is requested and succeeds
 
 Current limitations:
-- no plots
-- no visualization demos
-- no gallery manifest update for experiment reports
+- plots and visualization sections appear only when artifact directories are provided
 
-## Workflow 8: Lab Demo And Gallery Workflow
+## Workflow 8: Plot Generation
+
+Purpose:
+- generate plot-ready data from controlled experiment comparisons
+- write deterministic static SVG charts
+- preserve warnings for unavailable token or timing comparisons
+
+Command:
+- `npm run generate-experiment-plots -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-plots`
+
+Expected outputs:
+- `plots-summary.json`
+- `plot-data.json`
+- six SVG files under `charts/`
+
+## Workflow 9: Visualization Demos
+
+Purpose:
+- run bounded my-dev-kit visualization-oriented commands against a benchmark project
+- record stdout, stderr, command telemetry, expected artifacts, warnings, and failures
+- support fake my-dev-kit for deterministic tests
+
+Command:
+- `npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/visualization-demos`
+
+Unsupported graph behavior:
+- unsupported commands are recorded as failed demo outcomes and warnings
+- the demo continues unless `--require-all` is provided
+
+## Workflow 10: Experiment Gallery
+
+Purpose:
+- index controlled experiment reports, screenshots, plots, and visualization demo artifacts in the existing gallery manifest
+- write a simple static gallery index for local browsing
+
+Command:
+- `npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-output/experiment-plots --visualizations lab-output/visualization-demos --out lab-output/gallery`
+
+Expected outputs:
+- `gallery-manifest.json`
+- `gallery-index.html`
+
+## Workflow 11: Final Demo
+
+Purpose:
+- run the final deterministic local workflow for this feature batch
+- run controlled experiment
+- generate plots
+- run visualization demos
+- render an enhanced experiment report
+- build gallery
+- optionally capture a report screenshot
+
+Command:
+- `npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot`
+
+Expected outputs:
+- `controlled-experiment/*`
+- `experiment-plots/*`
+- `visualization-demos/*`
+- `experiment-report/*`
+- `gallery/gallery-manifest.json`
+- `gallery/gallery-index.html`
+
+## Workflow 12: Lab Demo And Gallery Workflow
 
 Purpose:
 - run the Milestone 1 MVP end to end

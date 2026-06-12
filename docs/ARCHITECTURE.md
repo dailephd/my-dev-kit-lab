@@ -11,6 +11,8 @@ Repository layers:
 - `src/prompts/`: raw-full-file and my-dev-kit-guided prompt generation plus prompt complexity metrics
 - `src/agents/`: one-prompt coding-agent adapter layer for fake-agent, Codex, and Claude
 - `src/gallery/`: gallery manifest types and writer
+- `src/plots/`: plot-ready data generation and deterministic SVG chart rendering
+- `src/visualizationDemos/`: bounded my-dev-kit visualization command demos
 - `src/commands/`: reusable command implementations
 - `src/`: reusable lab runtime code and exports
 - `scripts/`: command entrypoints and verification helpers
@@ -51,6 +53,14 @@ The screenshot layer consumes generated local HTML reports and produces optional
 Screenshot output is presentation evidence, not the source of evaluation truth. JSON remains the structured artifact of record. HTML is the readable report view. PNG is a shareable snapshot of that report.
 
 Experiment report screenshots reuse `src/screenshot/captureReportScreenshot.ts`. The report command defaults to no screenshot and only captures PNG output when requested.
+
+Plot layer:
+
+The plot layer reads controlled experiment runs and comparisons and writes plot-ready JSON plus static SVG charts. It does not use external charting libraries, network assets, or browser rendering. Missing token or timing data is preserved as skipped plot points and warnings.
+
+Visualization demo layer:
+
+The visualization demo layer builds a bounded sequence of my-dev-kit commands for a benchmark project and runs them through `src/core/runMeasuredCommand.ts`. It records stdout, stderr, telemetry, expected artifacts, produced artifacts, warnings, and failures. Fake my-dev-kit is used in tests; real my-dev-kit is optional.
 
 Evaluation layer:
 
@@ -109,7 +119,7 @@ Gallery layer:
 
 The gallery layer packages evaluation outputs into a portable manifest that can drive README examples, GitHub evidence, tutorial references, later portfolio templates, and future gallery surfaces without changing the underlying evaluator.
 
-Controlled experiment artifacts now feed the experiment report renderer. Gallery integration for those reports remains future work, and Prompt 6 does not change gallery manifest behavior.
+Controlled experiment artifacts now feed the experiment report renderer, plot artifacts, visualization demos, and the extended gallery manifest. The gallery layer was extended in place; no `gallery-v2` format was added.
 
 Lab-demo orchestration layer:
 
@@ -156,3 +166,7 @@ Controlled experiment execution, answer parsing, correctness scoring, comparison
 Follow-up Prompt 6 note:
 
 Experiment report input building, HTML rendering, artifact writing, and the `render-experiment-report` command have been added under the existing `src/report`, `src/commands`, and `scripts` layers. Optional screenshots reuse `src/screenshot`. Plot generation, visualization command demos, and gallery integration remain Prompt 7 work.
+
+Follow-up Prompt 7 note:
+
+Plot data generation, static SVG chart rendering, visualization demos, experiment gallery integration, and `run-final-demo` have been added. Report, screenshot, gallery, command, experiment, prompt, and agent systems were extended in place.

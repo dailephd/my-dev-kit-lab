@@ -114,6 +114,14 @@ export function renderExperimentHtmlReport(report: ExperimentReportInput): strin
     ${renderComparisons(report.comparisonSections)}
   </section>
 
+  ${report.plotSections.length ? `<section id="plots"><h2>Plots</h2>${renderPlots(report.plotSections)}</section>` : ""}
+
+  ${
+    report.visualizationSections.length
+      ? `<section id="visualization-demos"><h2>my-dev-kit Visualization Demos</h2>${renderVisualizations(report.visualizationSections)}</section>`
+      : ""
+  }
+
   <section id="formulas">
     <h2>Formulas</h2>
     ${report.formulaSections
@@ -237,6 +245,26 @@ function renderRuns(runs: ExperimentRun[]): string {
       [run.artifactPaths.promptPath, run.artifactPaths.agentRunResultPath, run.artifactPaths.parsedAnswerPath, run.artifactPaths.correctnessScorePath]
         .filter(Boolean)
         .join("\n")
+    ])
+  );
+}
+
+function renderPlots(plots: ExperimentReportInput["plotSections"]): string {
+  return table(
+    ["Plot", "Kind", "Path"],
+    plots.map((plot) => [plot.title, plot.kind, plot.path])
+  );
+}
+
+function renderVisualizations(demos: ExperimentReportInput["visualizationSections"]): string {
+  return table(
+    ["Command", "Status", "Duration", "Artifacts", "Warnings"],
+    demos.map((demo) => [
+      demo.name,
+      demo.status,
+      `${demo.durationMs} ms`,
+      demo.producedArtifactPaths.join("\n"),
+      demo.warnings.join("; ")
     ])
   );
 }

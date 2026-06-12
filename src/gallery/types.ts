@@ -18,6 +18,8 @@ export type GalleryManifestItem = {
   screenshotPath?: string;
   summaryPath?: string;
   runsPath?: string;
+  artifactPaths?: string[];
+  tags?: string[];
   metrics: GalleryManifestMetric[];
   warnings: string[];
 };

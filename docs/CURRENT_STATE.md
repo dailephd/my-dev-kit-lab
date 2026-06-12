@@ -40,14 +40,18 @@ Implemented now:
 - final controlled experiment report renderer under `src/report`
 - `render-experiment-report` command
 - optional experiment report screenshot target through the existing screenshot layer
+- plot data generation under `src/plots`
+- deterministic static SVG chart rendering
+- my-dev-kit visualization demo artifacts under `src/visualizationDemos`
+- gallery integration for experiment reports, plots, screenshots, and visualization demos
+- `run-final-demo` workflow
 
 Not implemented yet:
 - provider telemetry
 - semantic quality judging
 - benchmark generation
-- plots
-- visualization demos
-- experiment gallery integration
+- provider telemetry dashboards
+- cloud API integration
 
 Architecture audit status:
 - experiment report architecture audit completed
@@ -58,10 +62,10 @@ Architecture audit status:
 - Windows CLI shim compatibility improved after agent adapters
 - controlled experiment runtime and correctness scoring are implemented after agent adapters
 - final experiment report rendering is implemented after controlled experiments
+- plots, visualization demos, and experiment gallery integration are implemented after experiment reports
 - Codex and Claude controlled runs remain optional and can fail because of external usage or session limits
 - screenshot behavior still reuses the existing screenshot layer
-- gallery behavior is unchanged
+- gallery behavior was extended in place
 - provider telemetry dashboards do not exist yet
-- no plot generation or visualization demo workflow has been added yet
-- gallery integration for experiment reports is still future work
-- next prompt is plots, visualization command demos, and gallery integration
+- semantic LLM judging and cloud API integration do not exist yet
+- this feature batch is complete after Prompt 7

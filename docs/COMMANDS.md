@@ -136,6 +136,8 @@ Render a controlled experiment report:
 - `--require-screenshot`: fail if screenshot capture is requested but cannot complete
 - `--max-prompt-chars`: optional prompt excerpt length cap for the HTML report
 - `--max-file-tree-entries`: optional per-project file tree entry cap
+- `--plots`: optional plot artifact directory to link in the report
+- `--visualizations`: optional visualization demo artifact directory to link in the report
 
 Expected output files:
 - `experiment-report.json`
@@ -144,6 +146,72 @@ Expected output files:
 - `experiment-report.png` when `--screenshot` succeeds
 
 This command consumes existing controlled experiment artifacts. It does not run agents, run controlled experiments, generate plots, run visualization demos, or update the gallery manifest.
+
+Generate experiment plots:
+- `npm run generate-experiment-plots -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-plots`
+- `--experiment`: controlled experiment output directory
+- `--out`: output directory for plot artifacts
+
+Expected output files:
+- `plots-summary.json`
+- `plot-data.json`
+- `charts/token-savings-vs-prompt-length.svg`
+- `charts/time-reduction-vs-prompt-length.svg`
+- `charts/token-savings-vs-project-complexity.svg`
+- `charts/time-reduction-vs-project-complexity.svg`
+- `charts/correctness-by-strategy.svg`
+- `charts/run-outcomes-by-agent.svg`
+
+Run visualization demos:
+- `npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/visualization-demos`
+- `--project`: benchmark project directory
+- `--kit-command`: fake or real my-dev-kit command
+- `--out`: output directory
+- `--query`: optional search query
+- `--node`: optional node ID for source smoke command
+- `--require-all`: stop/fail when a visualization command fails
+- `--timeout-ms`: optional command timeout
+
+Real my-dev-kit example:
+- `npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node ../my-dev-kit-v1/dist/cli.js" --out lab-output/visualization-demos-real`
+
+Expected output files:
+- `visualization-demo-summary.json`
+- `visualization-demo-runs.json`
+- `commands/<command-id>/*.stdout.txt`
+- `commands/<command-id>/*.stderr.txt`
+- `commands/<command-id>/*.telemetry.json`
+- `artifacts/*` when graph commands produce output
+
+Build gallery:
+- `npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-output/experiment-plots --visualizations lab-output/visualization-demos --out lab-output/gallery`
+- `--report`: experiment report directory
+- `--plots`: experiment plot directory
+- `--visualizations`: visualization demo directory
+- `--experiment`: optional controlled experiment directory
+- `--out`: gallery output directory
+
+Expected output files:
+- `gallery-manifest.json`
+- `gallery-index.html`
+
+Run final demo:
+- `npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot`
+- `--cases`: evaluation cases file
+- `--out`: final demo output directory
+- `--kit-command`: fake or real my-dev-kit command
+- `--agents`: comma-separated `fake-agent`, `codex`, or `claude`; defaults to `fake-agent`
+- `--strategies`: comma-separated strategies; defaults to both
+- `--complexities`: comma-separated complexity levels; defaults to `short`
+- `--case`: optional case filter
+- `--benchmark-project`: optional project filter
+- `--max-runs`: optional run cap
+- `--screenshot` or `--no-screenshot`: optional report screenshot
+- `--include-real-agents`: allow Codex or Claude
+- `--continue-on-failure`: continue after failed runs
+- `--timeout-ms`: optional command timeout
+
+The final demo uses fake-agent and fake my-dev-kit cleanly for deterministic local runs. It does not require real Codex, Claude, my-dev-kit, network, or cloud APIs.
 
 Windows CLI shim notes:
 - npm-installed CLIs may appear as `codex.cmd`, `codex.exe`, `codex.ps1`, or extensionless commands on PATH

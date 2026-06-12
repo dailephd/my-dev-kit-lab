@@ -25,4 +25,15 @@ Planned follow-up prompt sequence after the architecture audit:
 - Prompt 4: agent adapter interface with Codex, Claude, and fake-agent adapters (implemented)
 - Prompt 5: controlled experiment runner and correctness scoring (implemented)
 - Prompt 6: final experiment report redesign (implemented)
-- Prompt 7: plots, visualization command demos, and gallery integration
+- Prompt 7: plots, visualization command demos, and gallery integration (implemented)
+
+This follow-up feature batch is complete.
+
+Future work:
+- provider telemetry dashboards
+- semantic judging
+- cloud API adapters
+- larger benchmark project suite
+- richer gallery UI
+- more chart types
+- real Codex and Claude benchmark campaigns

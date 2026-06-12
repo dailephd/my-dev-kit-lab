@@ -20,6 +20,8 @@ export type BuildExperimentReportInputOptions = {
   subtitle?: string;
   maxPromptChars?: number;
   maxFileTreeEntries?: number;
+  plotsDir?: string;
+  visualizationsDir?: string;
 };
 
 const DEFAULT_MAX_PROMPT_CHARS = 1800;
@@ -58,6 +60,8 @@ export async function buildExperimentReportInput(options: BuildExperimentReportI
     warnings,
     maxPromptChars: options.maxPromptChars ?? DEFAULT_MAX_PROMPT_CHARS
   });
+  const plotSections = await buildPlotSections({ repoRoot, plotsDir: options.plotsDir, warnings });
+  const visualizationSections = await buildVisualizationSections({ repoRoot, visualizationsDir: options.visualizationsDir, warnings });
   const aggregate = buildAggregateAnswers({ summary, runs, comparisons });
 
   return {
@@ -78,12 +82,13 @@ export async function buildExperimentReportInput(options: BuildExperimentReportI
     tokenSections: comparisons,
     timingSections: comparisons,
     comparisonSections: comparisons,
+    plotSections,
+    visualizationSections,
     formulaSections: buildFormulaSections(),
     limitations: buildLimitations(runs),
     warnings: unique([...summary.warnings, ...runs.flatMap((run) => run.warnings), ...comparisons.flatMap((comparison) => comparison.warnings), ...warnings]),
     artifactLinks: buildArtifactLinks(experimentDir, runs),
     nextSteps: [
-      "Use Prompt 7 to add plots, visualization command demos, and gallery integration.",
       "Run optional Codex and Claude experiments when local CLI sessions and account limits allow.",
       "Use JSON artifacts as the source of truth for follow-up analysis."
     ],
@@ -94,6 +99,46 @@ export async function buildExperimentReportInput(options: BuildExperimentReportI
       config
     }
   };
+}
+
+async function buildPlotSections(args: { repoRoot: string; plotsDir?: string; warnings: string[] }) {
+  if (!args.plotsDir) return [];
+  const plotsDir = path.resolve(args.repoRoot, args.plotsDir);
+  try {
+    const data = JSON.parse(await readFile(path.join(plotsDir, "plot-data.json"), "utf8")) as {
+      plots?: Array<{ id: string; title: string }>;
+    };
+    return (data.plots ?? []).map((plot) => ({
+      id: plot.id,
+      title: plot.title,
+      kind: "svg",
+      path: path.join(plotsDir, "charts", `${plot.id}.svg`)
+    }));
+  } catch (error) {
+    args.warnings.push(`Plot artifacts unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  }
+}
+
+async function buildVisualizationSections(args: { repoRoot: string; visualizationsDir?: string; warnings: string[] }) {
+  if (!args.visualizationsDir) return [];
+  const visualizationsDir = path.resolve(args.repoRoot, args.visualizationsDir);
+  try {
+    const runsPayload = JSON.parse(await readFile(path.join(visualizationsDir, "visualization-demo-runs.json"), "utf8")) as {
+      runs?: Array<{ id: string; name: string; ok: boolean; durationMs: number; producedArtifactPaths: string[]; warnings: string[] }>;
+    };
+    return (runsPayload.runs ?? []).map((run) => ({
+      id: run.id,
+      name: run.name,
+      status: run.ok ? "completed" : "warning",
+      durationMs: run.durationMs,
+      producedArtifactPaths: run.producedArtifactPaths ?? [],
+      warnings: run.warnings ?? []
+    }));
+  } catch (error) {
+    args.warnings.push(`Visualization demo artifacts unavailable: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  }
 }
 
 export function buildAggregateAnswers(args: {
@@ -280,9 +325,8 @@ function buildLimitations(runs: ExperimentRun[]): string[] {
     "Token usage depends on agent output availability.",
     "Prompt estimated tokens are not provider session tokens.",
     "Correctness scoring is answer-key based and deterministic, not semantic.",
-    "Plots are not implemented until Prompt 7.",
-    "Visualization demos are not implemented until Prompt 7.",
-    "Gallery integration is not implemented until Prompt 7."
+    "Charts are deterministic static SVG summaries, not provider telemetry dashboards.",
+    "Visualization demos are bounded command smoke checks and may report unsupported graph commands as warnings."
   ].filter((item): item is string => Boolean(item));
 }
 

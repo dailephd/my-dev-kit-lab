@@ -105,6 +105,8 @@ function reportInput(): ExperimentReportInput {
     tokenSections: [{ comparisonId: "c", caseId: "case", benchmarkProject: "todo-ts", agentId: "fake-agent", complexityLevel: "short", sameCorrectnessPass: true, tokenComparisonAvailable: true, tokenSavingsPercent: 10, durationReductionPercent: 10, reliabilityLabel: "strong", warnings: [] }],
     timingSections: [{ comparisonId: "c", caseId: "case", benchmarkProject: "todo-ts", agentId: "fake-agent", complexityLevel: "short", sameCorrectnessPass: true, tokenComparisonAvailable: true, tokenSavingsPercent: 10, durationReductionPercent: 10, reliabilityLabel: "strong", warnings: [] }],
     comparisonSections: [{ comparisonId: "c", caseId: "case", benchmarkProject: "todo-ts", agentId: "fake-agent", complexityLevel: "short", sameCorrectnessPass: true, tokenComparisonAvailable: true, tokenSavingsPercent: 10, durationReductionPercent: 10, reliabilityLabel: "strong", warnings: [] }],
+    plotSections: [],
+    visualizationSections: [],
     formulaSections: [
       { id: "correctness", title: "Correctness Score", formula: "correctnessScore = 0.25 * fileMatchScore + 0.25 * symbolMatchScore + 0.50 * factMatchScore", notes: ["pass"] },
       { id: "tokens", title: "Token Savings", formula: "tokenDelta = rawTotalTokens - myDevKitTotalTokens", notes: ["tokens"] },

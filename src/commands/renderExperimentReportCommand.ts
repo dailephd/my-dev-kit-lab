@@ -17,6 +17,8 @@ export type ParsedRenderExperimentReportArgs = {
   requireScreenshot: boolean;
   maxPromptChars?: number;
   maxFileTreeEntries?: number;
+  plotsDir?: string;
+  visualizationsDir?: string;
 };
 
 export type RenderExperimentReportCommandDependencies = {
@@ -32,6 +34,8 @@ export function parseRenderExperimentReportArgs(argv: string[]): ParsedRenderExp
   let requireScreenshot = false;
   let maxPromptChars: number | undefined;
   let maxFileTreeEntries: number | undefined;
+  let plotsDir: string | undefined;
+  let visualizationsDir: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -60,6 +64,12 @@ export function parseRenderExperimentReportArgs(argv: string[]): ParsedRenderExp
     } else if (arg === "--max-file-tree-entries") {
       maxFileTreeEntries = parsePositiveInteger("--max-file-tree-entries", argv[index + 1] ?? "");
       index += 1;
+    } else if (arg === "--plots") {
+      plotsDir = argv[index + 1] ?? "";
+      index += 1;
+    } else if (arg === "--visualizations") {
+      visualizationsDir = argv[index + 1] ?? "";
+      index += 1;
     }
   }
 
@@ -68,12 +78,13 @@ export function parseRenderExperimentReportArgs(argv: string[]): ParsedRenderExp
       [
         "Usage: --experiment <controlled-experiment-dir> --out <directory>",
         "[--title <title>] [--subtitle <subtitle>] [--screenshot|--no-screenshot]",
-        "[--require-screenshot] [--max-prompt-chars <n>] [--max-file-tree-entries <n>]"
+        "[--require-screenshot] [--max-prompt-chars <n>] [--max-file-tree-entries <n>]",
+        "[--plots <dir>] [--visualizations <dir>]"
       ].join(" ")
     );
   }
 
-  return { experimentDir, outDir, title, subtitle, screenshot, requireScreenshot, maxPromptChars, maxFileTreeEntries };
+  return { experimentDir, outDir, title, subtitle, screenshot, requireScreenshot, maxPromptChars, maxFileTreeEntries, plotsDir, visualizationsDir };
 }
 
 export async function runRenderExperimentReportFromArgs(
@@ -93,7 +104,9 @@ export async function runRenderExperimentReportFromArgs(
     title: args.title,
     subtitle: args.subtitle,
     maxPromptChars: args.maxPromptChars,
-    maxFileTreeEntries: args.maxFileTreeEntries
+    maxFileTreeEntries: args.maxFileTreeEntries,
+    plotsDir: args.plotsDir,
+    visualizationsDir: args.visualizationsDir
   });
 
   let screenshot: ScreenshotCaptureResult = {

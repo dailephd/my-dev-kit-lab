@@ -22,6 +22,7 @@ if (command === "index") {
   if (outDir) {
     fs.mkdirSync(outDir, { recursive: true });
     fs.writeFileSync(path.join(outDir, "fake-index.json"), JSON.stringify({ ok: true }));
+    fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify({ ok: true, fake: true }));
   }
   console.log(JSON.stringify({ ok: true, command: "index", outDir }));
   process.exit(0);
@@ -61,6 +62,20 @@ if (command === "source") {
     "todo-mixed:summarize_tasks": "1 def summarize_tasks(self) -> dict:\n2     completed = len([task for task in self._tasks if task['completed']])\n3     return {'total': len(self._tasks), 'open': len(self._tasks) - completed, 'completed': completed}"
   };
   process.stdout.write(sourceMap[node] || `1 source for ${node}`);
+  process.exit(0);
+}
+
+if (command === "view") {
+  const graph = argValue("--graph") || "unknown";
+  const outPath = argValue("--out");
+  if (outPath) {
+    fs.mkdirSync(path.dirname(outPath), { recursive: true });
+    fs.writeFileSync(
+      outPath,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160"><text x="20" y="40">fake ${graph}</text><circle cx="80" cy="90" r="18" fill="#2563eb" /><circle cx="200" cy="90" r="18" fill="#16a34a" /><line x1="98" y1="90" x2="182" y2="90" stroke="#344054" /></svg>\n`
+    );
+  }
+  console.log(JSON.stringify({ ok: true, command: "view", graph, outPath }));
   process.exit(0);
 }
 

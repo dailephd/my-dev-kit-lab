@@ -123,6 +123,44 @@ Interpret aggregate answers conservatively:
 - `inconclusive`: there is not enough comparable data
 - `unavailable`: required token or timing totals are missing
 
+## Generate Plots And Visualization Demos
+
+Generate deterministic SVG charts from controlled experiment artifacts:
+
+```bash
+npm run generate-experiment-plots -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-plots
+```
+
+The charts cover token savings and execution-time reduction against prompt length and project complexity, correctness by strategy, and run outcome counts by agent.
+
+Run bounded my-dev-kit visualization demos with the fake CLI:
+
+```bash
+npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/visualization-demos
+```
+
+Inspect `visualization-demo-runs.json` for command status, stdout/stderr paths, telemetry paths, and produced graph artifacts.
+
+## Build The Experiment Gallery
+
+Build a gallery manifest and local index:
+
+```bash
+npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-output/experiment-plots --visualizations lab-output/visualization-demos --out lab-output/gallery
+```
+
+Open `gallery-index.html` for a compact local artifact index, or inspect `gallery-manifest.json` for structured paths.
+
+## Run The Final Demo
+
+Prompt 7 adds the full deterministic final demo:
+
+```bash
+npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
+```
+
+This produces controlled experiment artifacts, plot data, SVG charts, visualization demo artifacts, an enhanced experiment report, and gallery artifacts. Use `--screenshot` to capture `experiment-report.png` when local screenshot dependencies are available.
+
 ## Run The All-In-One Lab Demo
 
 Prompt 4 ties the Milestone 1 pieces together:
@@ -157,4 +195,4 @@ The key artifacts are `token-savings-summary.json`, `token-savings-runs.json`, `
 - provider telemetry is future work
 - screenshots capture generated reports, not arbitrary browser pages
 - semantic quality judging is not implemented in Milestone 1
-- plots, visualization demos, and gallery integration for experiment comparisons are future work
+- provider telemetry dashboards and cloud API billing dashboards are future work
