@@ -163,7 +163,53 @@ Current limitations:
 - no final experiment report
 - no screenshot or gallery update
 
-## Workflow 6: Lab Demo And Gallery Workflow
+## Workflow 6: Controlled Experiment Runner
+
+Purpose:
+- run a controlled matrix across selected benchmark cases
+- pair `raw-full-file` and `my-dev-kit-guided` prompt strategies
+- run selected agents and prompt complexity levels
+- score correctness from benchmark answer keys
+- compare correctness, token totals, and execution time when data is available
+- write JSON artifacts for later report redesign
+
+Fake-agent command:
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
+
+Fake-agent matrix smoke command:
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short,multi-step --max-runs 4 --out lab-output/controlled-experiment-fake-matrix`
+
+Optional Codex command:
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents codex --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-codex --include-real-agents --continue-on-failure`
+
+Optional Claude command:
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents claude --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-claude --include-real-agents --continue-on-failure`
+
+Expected outputs:
+- `experiment-summary.json`
+- `experiment-runs.json`
+- `experiment-comparisons.json`
+- `experiment-config.json`
+- `runs/<runId>/prompt.txt`
+- `runs/<runId>/agent-run-result.json`
+- `runs/<runId>/parsed-answer.json`
+- `runs/<runId>/correctness-score.json`
+
+External-agent behavior:
+- fake-agent is the default and is used by deterministic tests
+- Codex and Claude require `--include-real-agents`
+- unavailable CLIs are stored as `agent-unavailable`
+- usage limits, rate limits, quotas, and session limits are stored as `agent-limit-reached`
+- timeouts are stored as `timeout`
+- failed or unparsable outputs still produce artifacts
+
+Current limitations:
+- no final visual experiment report
+- no plots
+- no visualization demos
+- no screenshot or gallery update
+
+## Workflow 7: Lab Demo And Gallery Workflow
 
 Purpose:
 - run the Milestone 1 MVP end to end

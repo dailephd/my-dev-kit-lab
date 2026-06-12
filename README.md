@@ -4,11 +4,11 @@ my-dev-kit-lab is the evidence, benchmark, screenshot, evaluation, and tutorial/
 
 my-dev-kit is the indexing and retrieval engine. my-dev-kit-lab is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
 
-Current status: Milestone 1 is implemented, and the benchmark metadata upgrade is in place. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, quantifiable project profiles with file-tree metadata and answer keys, report artifact generation, optional report screenshot capture, token/context comparison against external my-dev-kit retrieval commands, and the all-in-one demo gallery workflow.
+Current status: Milestone 1 is implemented, and the benchmark metadata upgrade is in place. The repository currently contains the documentation foundation, benchmark contracts, four deterministic benchmark projects, quantifiable project profiles with file-tree metadata and answer keys, report artifact generation, optional report screenshot capture, token/context comparison against external my-dev-kit retrieval commands, controlled experiment artifacts, and the all-in-one demo gallery workflow.
 
 Prompt variants are also available as deterministic previews. The prompt layer can generate raw-full-file and my-dev-kit-guided instruction prompts at `short`, `medium`, `long`, and `multi-step` complexity levels, with prompt complexity metrics based on the existing token estimator.
 
-Agent adapters now support one-prompt smoke runs through `fake-agent`, Codex, or Claude. Automated tests use deterministic `fake-agent` behavior and do not require real Codex or Claude CLIs. The adapter layer records normalized `AgentRunResult` telemetry only; controlled experiment matrices and correctness scoring are still future work.
+Agent adapters now support one-prompt smoke runs through `fake-agent`, Codex, or Claude. Automated tests use deterministic `fake-agent` behavior and do not require real Codex or Claude CLIs. The controlled experiment runner can compare `raw-full-file` and `my-dev-kit-guided` strategies, score correctness from benchmark answer keys, and write structured JSON artifacts. Codex and Claude experiment runs are optional and may produce structured unavailable or limit-reached outcomes when local CLIs or accounts are constrained.
 
 Planned Milestone 1 features:
 - Prompt 1: project foundation, branch workflow, benchmark projects, and benchmark validation
@@ -25,6 +25,7 @@ Quick commands:
 - `npm run evaluate-token-savings -- --cases examples/token-savings-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/token-savings`
 - `npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants`
 - `npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake`
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
 - `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
 - `npm run verify`
 
@@ -39,13 +40,14 @@ They exist to provide the same small Todo Core behavior in different language la
 Benchmark metadata:
 - `benchmarks/contracts/benchmark-project-profiles.json` stores project descriptions, language mix, file-tree entries, complexity metrics, complexity scores, and the formula used for scoring.
 - `benchmarks/contracts/todo-benchmark-case.json` now includes task answer keys with expected files, expected symbols, and expected facts.
-- Controlled agent experiments and correctness scoring are still future work.
+- Controlled agent experiments and answer-key correctness scoring now write structured JSON artifacts under `lab-output`.
 
 Not implemented yet:
 - provider telemetry
-- controlled agent experiment runner
 - semantic quality judging
 - benchmark project generation
+- final visual experiment report redesign
+- experiment plots and visualization demos
 
 Install:
 - `npm install`
@@ -135,3 +137,12 @@ Real adapters are optional and skipped when unavailable unless `--require-agent`
 - `npm run run-agent-prompt -- --agent claude --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy my-dev-kit-guided --complexity short --out lab-output/agent-run-claude`
 
 This command writes a prompt preview and `agent-run-result.json`. It does not compare strategies, score correctness, render final experiment reports, update screenshots, or update the gallery.
+
+## Run a controlled experiment
+
+Run a deterministic fake-agent experiment:
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
+
+This writes `experiment-summary.json`, `experiment-runs.json`, `experiment-comparisons.json`, `experiment-config.json`, and per-run artifacts under `runs/<runId>/`. It compares strategy pairs, scores correctness from answer keys, and computes token and duration comparisons when both paired runs expose totals.
+
+Real Codex and Claude runs require `--include-real-agents`. External usage limits, session limits, timeouts, and unavailable CLIs are stored as structured outcomes. The final visual experiment report, plots, screenshots, and gallery integration are still future work.

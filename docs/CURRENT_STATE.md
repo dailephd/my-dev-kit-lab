@@ -32,14 +32,20 @@ Implemented now:
 - single-prompt `run-agent-prompt` smoke command
 - normalized `AgentRunResult` artifacts
 - Windows CLI shim resolution for npm-style `.cmd`, `.exe`, and `.ps1` wrappers
+- controlled experiment runner under `src/evaluation`
+- answer-key-based correctness scoring
+- raw-full-file versus my-dev-kit-guided experiment comparisons
+- deterministic fake-agent experiment tests
+- structured outcomes for unavailable agents, external usage or session limits, timeouts, failures, and invalid output
 
 Not implemented yet:
 - provider telemetry
 - semantic quality judging
 - benchmark generation
-- controlled agent experiment runner
-- correctness scoring runtime
 - final experiment report redesign
+- plots
+- visualization demos
+- experiment gallery integration
 
 Architecture audit status:
 - experiment report architecture audit completed
@@ -48,5 +54,9 @@ Architecture audit status:
 - prompt variants and prompt complexity metrics implemented after the metadata upgrade
 - agent adapters implemented after prompt variants
 - Windows CLI shim compatibility improved after agent adapters
-- no controlled experiment runtime, correctness scoring runtime, or final report redesign has been added yet
-- next prompt is controlled experiment runner and correctness scoring
+- controlled experiment runtime and correctness scoring are implemented after agent adapters
+- Codex and Claude controlled runs remain optional and can fail because of external usage or session limits
+- screenshot behavior is unchanged
+- gallery behavior is unchanged
+- no final experiment report redesign, plot generation, or visualization demo workflow has been added yet
+- next prompt is final experiment report redesign

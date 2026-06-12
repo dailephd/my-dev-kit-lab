@@ -79,6 +79,24 @@ npm run run-agent-prompt -- --agent claude --cases examples/token-savings-cases.
 
 Use `--command-template` if your installed CLI has different non-interactive flags, and use `--require-agent` when a skipped real-agent run should be treated as a failure.
 
+## Run A Controlled Experiment
+
+Prompt 5 added the controlled experiment runner. Use fake-agent for deterministic local checks and CI tests:
+
+```bash
+npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake
+```
+
+The command writes JSON artifacts only: summary, runs, comparisons, config, prompts, agent results, parsed answers, and correctness scores. Correctness is scored from benchmark answer keys; no LLM judge or network service is used.
+
+Codex and Claude runs are optional:
+
+```bash
+npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents codex --strategies raw-full-file,my-dev-kit-guided --complexities short --max-runs 2 --out lab-output/controlled-experiment-codex --include-real-agents --continue-on-failure
+```
+
+Real-agent runs can hit external usage limits, session limits, local CLI availability issues, or timeouts. Those are recorded as structured run outcomes so experiment artifacts are still inspectable.
+
 ## Run The All-In-One Lab Demo
 
 Prompt 4 ties the Milestone 1 pieces together:
@@ -113,4 +131,5 @@ The key artifacts are `token-savings-summary.json`, `token-savings-runs.json`, `
 - provider telemetry is future work
 - screenshots capture generated reports, not arbitrary browser pages
 - semantic quality judging is not implemented in Milestone 1
-- full controlled agent experiments are future work
+- final controlled experiment report redesign is future work
+- plots, visualization demos, and gallery integration for experiment comparisons are future work

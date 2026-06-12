@@ -52,7 +52,21 @@ The evaluation layer measures two paths for each benchmark case:
 - `MyDevKitRetrievalRunner`: calls my-dev-kit externally as a subprocess using the sequence `index -> search -> lookup -> slice -> source`
 - `TokenSavingsComparator`: compares estimated chars and estimated tokens between the two paths and aggregates the results
 
-This layer writes structured JSON artifacts and feeds the results into the existing report layer. It does not create a second reporting or screenshot architecture.
+This layer writes structured JSON artifacts and feeds the token-savings results into the existing report layer. It does not create a second reporting or screenshot architecture.
+
+Controlled experiment runtime also lives in `src/evaluation`. It reuses:
+
+- `src/prompts` to generate `raw-full-file` and `my-dev-kit-guided` prompt variants
+- `src/agents` to run `fake-agent`, Codex, or Claude adapters
+- benchmark answer keys from evaluation cases for deterministic correctness scoring
+- existing token usage fields from `AgentRunResult`
+- existing command telemetry produced by real CLI adapters through `runMeasuredCommand`
+
+The controlled experiment flow is:
+
+`EvaluationCase + BenchmarkProjectProfile + AnswerKey -> ExperimentMatrix -> PromptVariant -> AgentRunResult -> ParsedAgentAnswer -> CorrectnessScore -> ExperimentComparison -> JSON artifacts`
+
+External Codex and Claude failures are represented as run statuses such as `agent-unavailable`, `agent-limit-reached`, `timeout`, `failed`, or `invalid-output`. These statuses are data in the experiment artifacts, not crashes in the evaluation architecture.
 
 The evaluation case reader remains backward compatible with the existing token-savings evaluator. It accepts optional answer keys and project profile references but does not require them unless profile resolution is explicitly requested by future workflows.
 
@@ -81,11 +95,13 @@ Real CLI adapters reuse `src/core/runMeasuredCommand.ts` for stdout, stderr, exi
 
 Command resolution for real CLI adapters lives in `src/core/resolveCommand.ts` and is used by `src/core/runMeasuredCommand.ts`. On Windows, it resolves npm-style CLI wrappers without enabling `shell: true` globally: `.cmd` and `.bat` wrappers use a controlled `cmd.exe` invocation, `.ps1` wrappers use a controlled PowerShell invocation, and `.cmd` is preferred over `.ps1`.
 
-This layer does not compare strategies, run experiment matrices, score correctness, render final experiment reports, capture screenshots, or update the gallery.
+This layer does not itself compare strategies, run experiment matrices, score correctness, render final experiment reports, capture screenshots, or update the gallery. The experiment runner consumes its normalized `AgentRunResult` records.
 
 Gallery layer:
 
 The gallery layer packages evaluation outputs into a portable manifest that can drive README examples, GitHub evidence, tutorial references, later portfolio templates, and future gallery surfaces without changing the underlying evaluator.
+
+Controlled experiment artifacts are future report and gallery inputs. Prompt 5 does not change report rendering, screenshot capture, or gallery manifest behavior.
 
 Lab-demo orchestration layer:
 
@@ -124,3 +140,7 @@ Agent adapters have been added under `src/agents`, and `run-agent-prompt` can ru
 Follow-up Prompt 4.5 note:
 
 Windows CLI shim resolution has been added under `src/core` and reused by the existing measured command runtime. This improves real Codex and Claude CLI smoke runs without adding a second command runner or changing experiment architecture.
+
+Follow-up Prompt 5 note:
+
+Controlled experiment execution, answer parsing, correctness scoring, comparison metrics, and experiment artifact writing have been added under `src/evaluation`. The report, screenshot, and gallery layers remain unchanged.

@@ -35,6 +35,15 @@ Update after Follow-up Prompt 4.5:
 - `.ps1` wrappers are invoked only through controlled PowerShell arguments
 - no controlled experiment runner, correctness scoring, report redesign, screenshots, plots, or gallery upgrades were added
 
+Update after Follow-up Prompt 5:
+
+- controlled experiment execution was added under `src/evaluation`
+- `run-controlled-experiment` runs selected cases, agents, strategies, and prompt complexity levels
+- correctness scoring is deterministic and uses benchmark answer keys
+- raw-full-file and my-dev-kit-guided runs are paired for correctness, token, and duration comparisons
+- real-agent unavailability, usage or session limits, timeouts, failures, and invalid output are structured run outcomes
+- final report redesign, screenshots, plots, visualization demos, and gallery upgrades remain future work
+
 This is a migration of the existing MVP.
 
 It is not a greenfield redesign.

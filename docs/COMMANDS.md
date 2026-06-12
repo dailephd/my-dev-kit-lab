@@ -95,6 +95,36 @@ Expected output files:
 
 This command runs one generated prompt through one adapter. It does not run all cases, compare strategies, score correctness, render final experiment reports, capture screenshots, or update the gallery.
 
+Run a controlled experiment:
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
+- `--cases`: path to the evaluation case list JSON
+- `--project-profiles`: optional path to benchmark project profiles, defaults to `benchmarks/contracts/benchmark-project-profiles.json`
+- `--case`: optional evaluation case ID filter; may be repeated or comma-separated
+- `--benchmark-project`: optional benchmark project ID filter; may be repeated or comma-separated
+- `--agents`: comma-separated `fake-agent`, `codex`, or `claude`; defaults to `fake-agent`
+- `--strategies`: comma-separated `raw-full-file` and/or `my-dev-kit-guided`; defaults to both
+- `--complexities`: comma-separated `short`, `medium`, `long`, or `multi-step`; defaults to `short`
+- `--out`: output directory for experiment artifacts
+- `--timeout-ms`: optional timeout for real CLI adapter prompt execution
+- `--max-runs`: optional cap for smoke tests
+- `--continue-on-failure`: continue writing artifacts after individual failed runs; this is the default safe behavior
+- `--require-agents`: turn unavailable real agents into failed adapter results
+- `--include-real-agents`: required before Codex or Claude matrix runs are allowed
+- `--command-template-codex`: optional Codex command override; use `{prompt}` as the prompt placeholder
+- `--command-template-claude`: optional Claude command override; use `{prompt}` as the prompt placeholder
+
+Expected output files:
+- `experiment-summary.json`
+- `experiment-runs.json`
+- `experiment-comparisons.json`
+- `experiment-config.json`
+- `runs/<runId>/prompt.txt`
+- `runs/<runId>/agent-run-result.json`
+- `runs/<runId>/parsed-answer.json`
+- `runs/<runId>/correctness-score.json`
+
+This command writes structured experiment artifacts only. It does not render the final visual experiment report, capture screenshots, create plots, run visualization demos, or update the gallery manifest.
+
 Windows CLI shim notes:
 - npm-installed CLIs may appear as `codex.cmd`, `codex.exe`, `codex.ps1`, or extensionless commands on PATH
 - the shared measured command runtime resolves extensionless commands on Windows before spawning

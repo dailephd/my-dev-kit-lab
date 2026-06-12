@@ -22,7 +22,8 @@ export const fakeAgentAdapter: AgentAdapter = {
 
     const failed = mode === "failure";
     const missingUsage = mode === "missing-token-usage";
-    const finalAnswerText = buildFakeAnswer(request, missingUsage);
+    const invalidOutput = mode === "invalid-output";
+    const finalAnswerText = invalidOutput ? "Simulated unstructured output without scoreable fields." : buildFakeAnswer(request, missingUsage);
     await writeFile(stdoutPath, `${finalAnswerText}\n`, "utf8");
     await writeFile(stderrPath, failed ? "Simulated fake-agent failure.\n" : "", "utf8");
 
@@ -47,7 +48,7 @@ export const fakeAgentAdapter: AgentAdapter = {
       stderrPath,
       telemetryPath,
       finalAnswerText,
-      finalAnswerParseStatus: "parsed",
+      finalAnswerParseStatus: invalidOutput ? "empty" : "parsed",
       tokenUsage: missingUsage
         ? { source: "unavailable", rawText: finalAnswerText }
         : {
