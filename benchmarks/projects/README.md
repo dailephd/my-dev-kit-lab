@@ -2,14 +2,16 @@
 
 This directory contains deterministic benchmark projects used by my-dev-kit-lab.
 
-Each project implements the same Todo Core behavior in a different language layout:
+The current suite mixes baseline Todo fixtures with more complex workflow and analytics projects:
 
 - `todo-ts`
 - `todo-js`
 - `todo-python`
 - `todo-mixed-ts-py`
+- `task-workflow-medium-ts`
+- `task-analytics-large-mixed`
 
-These projects are intentionally small so future prompts can compare raw full-file context, my-dev-kit retrieval output, screenshots, and workflow evidence against a stable baseline.
+The Todo fixtures stay intentionally small so validation and smoke experiments remain cheap. The newer medium and large projects are intentionally more connected so raw full-file context and guided retrieval diverge more meaningfully.
 
 Benchmark project profiles live in `benchmarks/contracts/benchmark-project-profiles.json`.
 
@@ -28,5 +30,5 @@ Current complexity levels:
 - `todo-js`: small
 - `todo-python`: small
 - `todo-mixed-ts-py`: mixed-language
-
-The current projects are not intended to be large. They are deliberately small so benchmark validation, token-savings evaluation, and future prompt or agent experiments stay deterministic and cheap. Larger benchmark projects can be added later as separate profiles without changing the current evaluator.
+- `task-workflow-medium-ts`: medium
+- `task-analytics-large-mixed`: large

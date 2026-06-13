@@ -1,10 +1,11 @@
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { REQUIRED_BENCHMARK_PROJECT_IDS } from "../../src/evaluation/benchmarkMetadata.js";
 import { buildProjectFileTree, isExcludedProjectPath } from "../../src/evaluation/projectFileTree.js";
 
 const projectsDir = path.join(process.cwd(), "benchmarks", "projects");
-const projects = ["todo-ts", "todo-python", "todo-js", "todo-mixed-ts-py"];
+const projects = [...REQUIRED_BENCHMARK_PROJECT_IDS];
 
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -22,14 +23,15 @@ describe("benchmark project structure", () => {
 
   it("ensures every benchmark project has source files", () => {
     for (const project of projects) {
-      const sourceRoots = ["src", "python"].map((segment) => path.join(projectsDir, project, segment));
+      const sourceRoots = ["src", "python", "py", "ts/src", "py/task_analytics"].map((segment) => path.join(projectsDir, project, segment));
       expect(sourceRoots.some((sourceRoot) => existsSync(sourceRoot))).toBe(true);
     }
   });
 
   it("ensures every benchmark project has test files", () => {
     for (const project of projects) {
-      expect(existsSync(path.join(projectsDir, project, "tests"))).toBe(true);
+      const testRoots = ["tests", "ts/tests", "py/tests"].map((segment) => path.join(projectsDir, project, segment));
+      expect(testRoots.some((testRoot) => existsSync(testRoot))).toBe(true);
     }
   });
 

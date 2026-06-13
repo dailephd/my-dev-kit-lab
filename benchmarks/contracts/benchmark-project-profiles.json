@@ -7,8 +7,28 @@
       "description": "TypeScript Todo Core implementation.",
       "languageMix": "single-language TypeScript",
       "primaryLanguage": "typescript",
-      "languages": ["typescript"],
+      "languages": [
+        "typescript"
+      ],
       "complexityLevel": "small",
+      "rootPath": "benchmarks/projects/todo-ts",
+      "sourceRoots": [
+        "src"
+      ],
+      "testRoots": [
+        "tests"
+      ],
+      "benchmarkPurpose": "Baseline TypeScript retrieval fixture.",
+      "expectedUseCases": [
+        "token-savings retrieval evaluation",
+        "prompt strategy comparison",
+        "answer-key correctness scoring"
+      ],
+      "taskStats": {
+        "taskCount": 5,
+        "expectedRelevantFilesAverage": 1.2,
+        "expectedRelevantSymbolsAverage": 2.4
+      },
       "complexityScore": 12,
       "complexityMetrics": {
         "fileCount": 8,
@@ -32,7 +52,10 @@
       "complexityFormula": {
         "id": "benchmark-project-complexity-v1",
         "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
-        "scoreRange": [0, 100],
+        "scoreRange": [
+          0,
+          100
+        ],
         "normalizedValue": "min(value / cap, 1)",
         "weights": {
           "sourceFileCount": 0.2,
@@ -53,25 +76,76 @@
           "expectedRelevantSymbolsAverage": 20
         }
       },
-      "rootPath": "benchmarks/projects/todo-ts",
-      "sourceRoots": ["src"],
-      "testRoots": ["tests"],
       "fileTree": {
         "entries": [
-          { "path": "package.json", "kind": "file", "role": "config", "language": "json", "lines": 13 },
-          { "path": "README.md", "kind": "file", "role": "docs", "language": "markdown", "lines": 4 },
-          { "path": "src", "kind": "directory", "role": "source" },
-          { "path": "src/index.ts", "kind": "file", "role": "source", "language": "typescript", "lines": 3 },
-          { "path": "src/taskService.ts", "kind": "file", "role": "source", "language": "typescript", "lines": 42 },
-          { "path": "src/taskStore.ts", "kind": "file", "role": "source", "language": "typescript", "lines": 35 },
-          { "path": "tests", "kind": "directory", "role": "test" },
-          { "path": "tests/taskService.test.ts", "kind": "file", "role": "test", "language": "typescript", "lines": 46 },
-          { "path": "tsconfig.json", "kind": "file", "role": "config", "language": "json", "lines": 13 },
-          { "path": "vitest.config.ts", "kind": "file", "role": "config", "language": "typescript", "lines": 6 }
+          {
+            "path": "package.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 13
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "role": "docs",
+            "language": "markdown",
+            "lines": 4
+          },
+          {
+            "path": "src",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/index.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 3
+          },
+          {
+            "path": "src/taskService.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 42
+          },
+          {
+            "path": "src/taskStore.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 35
+          },
+          {
+            "path": "tests",
+            "kind": "directory",
+            "role": "test"
+          },
+          {
+            "path": "tests/taskService.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 46
+          },
+          {
+            "path": "tsconfig.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 13
+          },
+          {
+            "path": "vitest.config.ts",
+            "kind": "file",
+            "role": "config",
+            "language": "typescript",
+            "lines": 6
+          }
         ]
-      },
-      "benchmarkPurpose": "Baseline TypeScript retrieval fixture.",
-      "expectedUseCases": ["token-savings retrieval evaluation", "future prompt variant comparison", "future answer-key correctness scoring"]
+      }
     },
     {
       "projectId": "todo-python",
@@ -79,8 +153,28 @@
       "description": "Python Todo Core implementation.",
       "languageMix": "single-language Python",
       "primaryLanguage": "python",
-      "languages": ["python"],
+      "languages": [
+        "python"
+      ],
       "complexityLevel": "small",
+      "rootPath": "benchmarks/projects/todo-python",
+      "sourceRoots": [
+        "src"
+      ],
+      "testRoots": [
+        "tests"
+      ],
+      "benchmarkPurpose": "Baseline Python retrieval fixture.",
+      "expectedUseCases": [
+        "token-savings retrieval evaluation",
+        "prompt strategy comparison",
+        "answer-key correctness scoring"
+      ],
+      "taskStats": {
+        "taskCount": 5,
+        "expectedRelevantFilesAverage": 1.2,
+        "expectedRelevantSymbolsAverage": 2.4
+      },
       "complexityScore": 12,
       "complexityMetrics": {
         "fileCount": 5,
@@ -104,7 +198,10 @@
       "complexityFormula": {
         "id": "benchmark-project-complexity-v1",
         "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
-        "scoreRange": [0, 100],
+        "scoreRange": [
+          0,
+          100
+        ],
         "normalizedValue": "min(value / cap, 1)",
         "weights": {
           "sourceFileCount": 0.2,
@@ -125,22 +222,55 @@
           "expectedRelevantSymbolsAverage": 20
         }
       },
-      "rootPath": "benchmarks/projects/todo-python",
-      "sourceRoots": ["src"],
-      "testRoots": ["tests"],
       "fileTree": {
         "entries": [
-          { "path": "README.md", "kind": "file", "role": "docs", "language": "markdown", "lines": 4 },
-          { "path": "src", "kind": "directory", "role": "source" },
-          { "path": "src/__init__.py", "kind": "file", "role": "source", "language": "python", "lines": 5 },
-          { "path": "src/task_service.py", "kind": "file", "role": "source", "language": "python", "lines": 33 },
-          { "path": "src/task_store.py", "kind": "file", "role": "source", "language": "python", "lines": 29 },
-          { "path": "tests", "kind": "directory", "role": "test" },
-          { "path": "tests/test_task_service.py", "kind": "file", "role": "test", "language": "python", "lines": 53 }
+          {
+            "path": "README.md",
+            "kind": "file",
+            "role": "docs",
+            "language": "markdown",
+            "lines": 4
+          },
+          {
+            "path": "src",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/__init__.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 5
+          },
+          {
+            "path": "src/task_service.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 33
+          },
+          {
+            "path": "src/task_store.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 29
+          },
+          {
+            "path": "tests",
+            "kind": "directory",
+            "role": "test"
+          },
+          {
+            "path": "tests/test_task_service.py",
+            "kind": "file",
+            "role": "test",
+            "language": "python",
+            "lines": 53
+          }
         ]
-      },
-      "benchmarkPurpose": "Baseline Python retrieval fixture.",
-      "expectedUseCases": ["token-savings retrieval evaluation", "future prompt variant comparison", "future answer-key correctness scoring"]
+      }
     },
     {
       "projectId": "todo-js",
@@ -148,8 +278,28 @@
       "description": "JavaScript Todo Core implementation.",
       "languageMix": "single-language JavaScript",
       "primaryLanguage": "javascript",
-      "languages": ["javascript"],
+      "languages": [
+        "javascript"
+      ],
       "complexityLevel": "small",
+      "rootPath": "benchmarks/projects/todo-js",
+      "sourceRoots": [
+        "src"
+      ],
+      "testRoots": [
+        "tests"
+      ],
+      "benchmarkPurpose": "Baseline JavaScript retrieval fixture.",
+      "expectedUseCases": [
+        "token-savings retrieval evaluation",
+        "prompt strategy comparison",
+        "answer-key correctness scoring"
+      ],
+      "taskStats": {
+        "taskCount": 5,
+        "expectedRelevantFilesAverage": 1.2,
+        "expectedRelevantSymbolsAverage": 2.4
+      },
       "complexityScore": 12,
       "complexityMetrics": {
         "fileCount": 7,
@@ -173,7 +323,10 @@
       "complexityFormula": {
         "id": "benchmark-project-complexity-v1",
         "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
-        "scoreRange": [0, 100],
+        "scoreRange": [
+          0,
+          100
+        ],
         "normalizedValue": "min(value / cap, 1)",
         "weights": {
           "sourceFileCount": 0.2,
@@ -194,24 +347,69 @@
           "expectedRelevantSymbolsAverage": 20
         }
       },
-      "rootPath": "benchmarks/projects/todo-js",
-      "sourceRoots": ["src"],
-      "testRoots": ["tests"],
       "fileTree": {
         "entries": [
-          { "path": "package.json", "kind": "file", "role": "config", "language": "json", "lines": 12 },
-          { "path": "README.md", "kind": "file", "role": "docs", "language": "markdown", "lines": 4 },
-          { "path": "src", "kind": "directory", "role": "source" },
-          { "path": "src/index.js", "kind": "file", "role": "source", "language": "javascript", "lines": 3 },
-          { "path": "src/taskService.js", "kind": "file", "role": "source", "language": "javascript", "lines": 38 },
-          { "path": "src/taskStore.js", "kind": "file", "role": "source", "language": "javascript", "lines": 29 },
-          { "path": "tests", "kind": "directory", "role": "test" },
-          { "path": "tests/taskService.test.js", "kind": "file", "role": "test", "language": "javascript", "lines": 46 },
-          { "path": "vitest.config.js", "kind": "file", "role": "config", "language": "javascript", "lines": 6 }
+          {
+            "path": "package.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 12
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "role": "docs",
+            "language": "markdown",
+            "lines": 4
+          },
+          {
+            "path": "src",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/index.js",
+            "kind": "file",
+            "role": "source",
+            "language": "javascript",
+            "lines": 3
+          },
+          {
+            "path": "src/taskService.js",
+            "kind": "file",
+            "role": "source",
+            "language": "javascript",
+            "lines": 38
+          },
+          {
+            "path": "src/taskStore.js",
+            "kind": "file",
+            "role": "source",
+            "language": "javascript",
+            "lines": 29
+          },
+          {
+            "path": "tests",
+            "kind": "directory",
+            "role": "test"
+          },
+          {
+            "path": "tests/taskService.test.js",
+            "kind": "file",
+            "role": "test",
+            "language": "javascript",
+            "lines": 46
+          },
+          {
+            "path": "vitest.config.js",
+            "kind": "file",
+            "role": "config",
+            "language": "javascript",
+            "lines": 6
+          }
         ]
-      },
-      "benchmarkPurpose": "Baseline JavaScript retrieval fixture.",
-      "expectedUseCases": ["token-savings retrieval evaluation", "future prompt variant comparison", "future answer-key correctness scoring"]
+      }
     },
     {
       "projectId": "todo-mixed-ts-py",
@@ -219,8 +417,30 @@
       "description": "Mixed TypeScript and Python Todo boundary implementation.",
       "languageMix": "mixed TypeScript and Python",
       "primaryLanguage": "typescript",
-      "languages": ["typescript", "python"],
+      "languages": [
+        "typescript",
+        "python"
+      ],
       "complexityLevel": "mixed-language",
+      "rootPath": "benchmarks/projects/todo-mixed-ts-py",
+      "sourceRoots": [
+        "src",
+        "python"
+      ],
+      "testRoots": [
+        "tests"
+      ],
+      "benchmarkPurpose": "Mixed-language boundary retrieval fixture.",
+      "expectedUseCases": [
+        "token-savings retrieval evaluation",
+        "prompt strategy comparison",
+        "answer-key correctness scoring"
+      ],
+      "taskStats": {
+        "taskCount": 5,
+        "expectedRelevantFilesAverage": 2,
+        "expectedRelevantSymbolsAverage": 2.4
+      },
       "complexityScore": 16,
       "complexityMetrics": {
         "fileCount": 7,
@@ -244,7 +464,10 @@
       "complexityFormula": {
         "id": "benchmark-project-complexity-v1",
         "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
-        "scoreRange": [0, 100],
+        "scoreRange": [
+          0,
+          100
+        ],
         "normalizedValue": "min(value / cap, 1)",
         "weights": {
           "sourceFileCount": 0.2,
@@ -265,25 +488,712 @@
           "expectedRelevantSymbolsAverage": 20
         }
       },
-      "rootPath": "benchmarks/projects/todo-mixed-ts-py",
-      "sourceRoots": ["src", "python"],
-      "testRoots": ["tests"],
       "fileTree": {
         "entries": [
-          { "path": "package.json", "kind": "file", "role": "config", "language": "json", "lines": 14 },
-          { "path": "python", "kind": "directory", "role": "source" },
-          { "path": "python/task_service.py", "kind": "file", "role": "source", "language": "python", "lines": 77 },
-          { "path": "README.md", "kind": "file", "role": "docs", "language": "markdown", "lines": 4 },
-          { "path": "src", "kind": "directory", "role": "source" },
-          { "path": "src/taskCli.ts", "kind": "file", "role": "source", "language": "typescript", "lines": 26 },
-          { "path": "tests", "kind": "directory", "role": "test" },
-          { "path": "tests/mixedBoundary.test.ts", "kind": "file", "role": "test", "language": "typescript", "lines": 19 },
-          { "path": "tsconfig.json", "kind": "file", "role": "config", "language": "json", "lines": 13 },
-          { "path": "vitest.config.ts", "kind": "file", "role": "config", "language": "typescript", "lines": 6 }
+          {
+            "path": "package.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 14
+          },
+          {
+            "path": "python",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "python/task_service.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 77
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "role": "docs",
+            "language": "markdown",
+            "lines": 4
+          },
+          {
+            "path": "src",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/taskCli.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 26
+          },
+          {
+            "path": "tests",
+            "kind": "directory",
+            "role": "test"
+          },
+          {
+            "path": "tests/mixedBoundary.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 19
+          },
+          {
+            "path": "tsconfig.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 13
+          },
+          {
+            "path": "vitest.config.ts",
+            "kind": "file",
+            "role": "config",
+            "language": "typescript",
+            "lines": 6
+          }
         ]
+      }
+    },
+    {
+      "projectId": "task-workflow-medium-ts",
+      "displayName": "Task Workflow Medium TypeScript",
+      "description": "Medium TypeScript workflow benchmark with validation, filtering, import dedupe, and summarization.",
+      "languageMix": "single-language TypeScript",
+      "primaryLanguage": "typescript",
+      "languages": [
+        "typescript"
+      ],
+      "complexityLevel": "medium",
+      "rootPath": "benchmarks/projects/task-workflow-medium-ts",
+      "sourceRoots": [
+        "src"
+      ],
+      "testRoots": [
+        "tests"
+      ],
+      "benchmarkPurpose": "Medium retrieval fixture where services, validation, and store state all matter.",
+      "expectedUseCases": [
+        "real-agent strategy comparison",
+        "project complexity comparison",
+        "answer-key correctness scoring"
+      ],
+      "taskStats": {
+        "taskCount": 1,
+        "expectedRelevantFilesAverage": 3,
+        "expectedRelevantSymbolsAverage": 4
       },
-      "benchmarkPurpose": "Mixed-language boundary retrieval fixture.",
-      "expectedUseCases": ["token-savings retrieval evaluation", "future prompt variant comparison", "future answer-key correctness scoring"]
+      "complexityScore": 30,
+      "complexityMetrics": {
+        "fileCount": 20,
+        "sourceFileCount": 11,
+        "testFileCount": 5,
+        "totalLinesOfCode": 366,
+        "sourceLinesOfCode": 266,
+        "testLinesOfCode": 100,
+        "languageCount": 1,
+        "dependencyFileCount": 1,
+        "internalImportCount": 17,
+        "exportedSymbolEstimate": 21,
+        "taskCount": 1,
+        "expectedRelevantFilesAverage": 3,
+        "expectedRelevantSymbolsAverage": 4,
+        "maxFileLines": 77,
+        "averageFileLines": 26.31,
+        "packageDependencyCount": 2,
+        "functionOrClassEstimate": 14
+      },
+      "complexityFormula": {
+        "id": "benchmark-project-complexity-v1",
+        "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
+        "scoreRange": [
+          0,
+          100
+        ],
+        "normalizedValue": "min(value / cap, 1)",
+        "weights": {
+          "sourceFileCount": 0.2,
+          "sourceLinesOfCode": 0.2,
+          "languageCount": 0.15,
+          "internalImportCount": 0.15,
+          "maxFileLines": 0.1,
+          "expectedRelevantFilesAverage": 0.1,
+          "expectedRelevantSymbolsAverage": 0.1
+        },
+        "caps": {
+          "sourceFileCount": 20,
+          "sourceLinesOfCode": 2000,
+          "languageCount": 4,
+          "internalImportCount": 50,
+          "maxFileLines": 300,
+          "expectedRelevantFilesAverage": 10,
+          "expectedRelevantSymbolsAverage": 20
+        }
+      },
+      "fileTree": {
+        "entries": [
+          {
+            "path": "package.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 13
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "role": "docs",
+            "language": "markdown",
+            "lines": 2
+          },
+          {
+            "path": "src",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/index.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 10
+          },
+          {
+            "path": "src/models",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/models/project.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 7
+          },
+          {
+            "path": "src/models/task.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 40
+          },
+          {
+            "path": "src/services",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/services/completeTask.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 16
+          },
+          {
+            "path": "src/services/createTask.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 27
+          },
+          {
+            "path": "src/services/filterTasks.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 18
+          },
+          {
+            "path": "src/services/importTasks.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 34
+          },
+          {
+            "path": "src/services/summarizeTasks.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 31
+          },
+          {
+            "path": "src/store",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/store/taskStore.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 77
+          },
+          {
+            "path": "src/utils",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/utils/deterministicId.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 4
+          },
+          {
+            "path": "src/validation",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "src/validation/taskValidation.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 46
+          },
+          {
+            "path": "tests",
+            "kind": "directory",
+            "role": "test"
+          },
+          {
+            "path": "tests/completeTask.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 17
+          },
+          {
+            "path": "tests/createTask.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 22
+          },
+          {
+            "path": "tests/filterTasks.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 19
+          },
+          {
+            "path": "tests/importTasks.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 23
+          },
+          {
+            "path": "tests/summarizeTasks.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 30
+          },
+          {
+            "path": "tsconfig.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 13
+          },
+          {
+            "path": "vitest.config.ts",
+            "kind": "file",
+            "role": "config",
+            "language": "typescript",
+            "lines": 6
+          }
+        ]
+      }
+    },
+    {
+      "projectId": "task-analytics-large-mixed",
+      "displayName": "Task Analytics Large Mixed",
+      "description": "Large mixed-language benchmark with TypeScript snapshot building and Python quality reporting.",
+      "languageMix": "mixed TypeScript and Python",
+      "primaryLanguage": "typescript",
+      "languages": [
+        "typescript",
+        "python"
+      ],
+      "complexityLevel": "large",
+      "rootPath": "benchmarks/projects/task-analytics-large-mixed",
+      "sourceRoots": [
+        "ts/src",
+        "py/task_analytics"
+      ],
+      "testRoots": [
+        "ts/tests",
+        "py/tests"
+      ],
+      "benchmarkPurpose": "Larger retrieval fixture where guided context should matter more than toy Todo projects.",
+      "expectedUseCases": [
+        "real-agent strategy comparison",
+        "cross-language retrieval evaluation",
+        "answer-key correctness scoring"
+      ],
+      "taskStats": {
+        "taskCount": 1,
+        "expectedRelevantFilesAverage": 5,
+        "expectedRelevantSymbolsAverage": 5
+      },
+      "complexityScore": 48,
+      "complexityMetrics": {
+        "fileCount": 35,
+        "sourceFileCount": 22,
+        "testFileCount": 9,
+        "totalLinesOfCode": 480,
+        "sourceLinesOfCode": 301,
+        "testLinesOfCode": 179,
+        "languageCount": 2,
+        "dependencyFileCount": 1,
+        "internalImportCount": 28,
+        "exportedSymbolEstimate": 24,
+        "taskCount": 1,
+        "expectedRelevantFilesAverage": 5,
+        "expectedRelevantSymbolsAverage": 5,
+        "maxFileLines": 49,
+        "averageFileLines": 18.55,
+        "packageDependencyCount": 2,
+        "functionOrClassEstimate": 22
+      },
+      "complexityFormula": {
+        "id": "benchmark-project-complexity-v1",
+        "description": "Weighted score using capped normalized source files, source lines, language count, internal imports, max file lines, expected relevant files, and expected relevant symbols.",
+        "scoreRange": [
+          0,
+          100
+        ],
+        "normalizedValue": "min(value / cap, 1)",
+        "weights": {
+          "sourceFileCount": 0.2,
+          "sourceLinesOfCode": 0.2,
+          "languageCount": 0.15,
+          "internalImportCount": 0.15,
+          "maxFileLines": 0.1,
+          "expectedRelevantFilesAverage": 0.1,
+          "expectedRelevantSymbolsAverage": 0.1
+        },
+        "caps": {
+          "sourceFileCount": 20,
+          "sourceLinesOfCode": 2000,
+          "languageCount": 4,
+          "internalImportCount": 50,
+          "maxFileLines": 300,
+          "expectedRelevantFilesAverage": 10,
+          "expectedRelevantSymbolsAverage": 20
+        }
+      },
+      "fileTree": {
+        "entries": [
+          {
+            "path": "py",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "py/task_analytics",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "py/task_analytics/__init__.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 4
+          },
+          {
+            "path": "py/task_analytics/fixtures.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 7
+          },
+          {
+            "path": "py/task_analytics/metrics.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 30
+          },
+          {
+            "path": "py/task_analytics/models.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 22
+          },
+          {
+            "path": "py/task_analytics/parser.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 17
+          },
+          {
+            "path": "py/task_analytics/pipeline.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 10
+          },
+          {
+            "path": "py/task_analytics/quality.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 9
+          },
+          {
+            "path": "py/task_analytics/reporting.py",
+            "kind": "file",
+            "role": "source",
+            "language": "python",
+            "lines": 12
+          },
+          {
+            "path": "py/tests",
+            "kind": "directory",
+            "role": "test"
+          },
+          {
+            "path": "py/tests/test_metrics.py",
+            "kind": "file",
+            "role": "test",
+            "language": "python",
+            "lines": 20
+          },
+          {
+            "path": "py/tests/test_parser.py",
+            "kind": "file",
+            "role": "test",
+            "language": "python",
+            "lines": 16
+          },
+          {
+            "path": "py/tests/test_quality.py",
+            "kind": "file",
+            "role": "test",
+            "language": "python",
+            "lines": 20
+          },
+          {
+            "path": "py/tests/test_reporting.py",
+            "kind": "file",
+            "role": "test",
+            "language": "python",
+            "lines": 16
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "role": "docs",
+            "language": "markdown",
+            "lines": 2
+          },
+          {
+            "path": "ts",
+            "kind": "directory",
+            "role": "other"
+          },
+          {
+            "path": "ts/package.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 13
+          },
+          {
+            "path": "ts/src",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "ts/src/index.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 12
+          },
+          {
+            "path": "ts/src/models",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "ts/src/models/analyticsSnapshot.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 21
+          },
+          {
+            "path": "ts/src/models/project.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 6
+          },
+          {
+            "path": "ts/src/models/task.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 11
+          },
+          {
+            "path": "ts/src/reporting",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "ts/src/reporting/buildProjectLeaderboard.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 8
+          },
+          {
+            "path": "ts/src/reporting/formatTaskHealthReport.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 14
+          },
+          {
+            "path": "ts/src/services",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "ts/src/services/buildAnalyticsSnapshot.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 40
+          },
+          {
+            "path": "ts/src/services/completeTask.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 11
+          },
+          {
+            "path": "ts/src/services/createTask.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 22
+          },
+          {
+            "path": "ts/src/services/listTasksByProject.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 7
+          },
+          {
+            "path": "ts/src/store",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "ts/src/store/projectStore.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 21
+          },
+          {
+            "path": "ts/src/store/taskStore.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 45
+          },
+          {
+            "path": "ts/src/validation",
+            "kind": "directory",
+            "role": "source"
+          },
+          {
+            "path": "ts/src/validation/projectValidation.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 13
+          },
+          {
+            "path": "ts/src/validation/taskValidation.ts",
+            "kind": "file",
+            "role": "source",
+            "language": "typescript",
+            "lines": 19
+          },
+          {
+            "path": "ts/tests",
+            "kind": "directory",
+            "role": "test"
+          },
+          {
+            "path": "ts/tests/buildAnalyticsSnapshot.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 49
+          },
+          {
+            "path": "ts/tests/completeTask.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 22
+          },
+          {
+            "path": "ts/tests/createTask.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 32
+          },
+          {
+            "path": "ts/tests/listTasksByProject.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 19
+          },
+          {
+            "path": "ts/tests/reporting.test.ts",
+            "kind": "file",
+            "role": "test",
+            "language": "typescript",
+            "lines": 20
+          },
+          {
+            "path": "ts/tsconfig.json",
+            "kind": "file",
+            "role": "config",
+            "language": "json",
+            "lines": 13
+          },
+          {
+            "path": "ts/vitest.config.ts",
+            "kind": "file",
+            "role": "config",
+            "language": "typescript",
+            "lines": 6
+          }
+        ]
+      }
     }
   ]
 }

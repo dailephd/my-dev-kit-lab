@@ -50,15 +50,12 @@ describe("benchmark contracts", () => {
     }
   });
 
-  it("covers all four benchmark projects in expectedFilesByProject", () => {
+  it("uses only known project ids in expectedFilesByProject", () => {
     const cases = JSON.parse(readFileSync(casesPath, "utf8")) as Array<{ expectedFilesByProject: Record<string, string[]> }>;
     for (const benchmarkCase of cases) {
-      expect(Object.keys(benchmarkCase.expectedFilesByProject).sort()).toEqual([
-        "todo-js",
-        "todo-mixed-ts-py",
-        "todo-python",
-        "todo-ts"
-      ]);
+      expect(Object.keys(benchmarkCase.expectedFilesByProject).every((projectId) => REQUIRED_BENCHMARK_PROJECT_IDS.includes(projectId as never))).toBe(
+        true
+      );
     }
   });
 

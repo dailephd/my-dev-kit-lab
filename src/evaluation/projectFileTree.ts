@@ -24,7 +24,7 @@ export function inferFileRole(relativePath: string, kind: "file" | "directory"):
   if (/(^|\/)(tests?|__tests__)(\/|$)/.test(normalized) || /\.test\.[tj]s$/.test(basename) || basename.startsWith("test_")) {
     return "test";
   }
-  if (/(^|\/)(src|python)(\/|$)/.test(normalized)) {
+  if (/(^|\/)(src|python|py)(\/|$)/.test(normalized)) {
     return "source";
   }
   if (basename === "readme.md" || basename.endsWith(".md")) {

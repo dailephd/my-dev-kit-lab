@@ -1,0 +1,118 @@
+[
+  {
+    "id": "task-workflow-import-dedup",
+    "title": "Task workflow import and dedupe retrieval",
+    "benchmarkProject": "task-workflow-medium-ts",
+    "projectProfileRef": "task-workflow-medium-ts",
+    "targetRoot": "benchmarks/projects/task-workflow-medium-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "import tasks duplicate normalized title deterministic id summarize workflow project",
+    "expectedFiles": [
+      "src/services/importTasks.ts",
+      "src/store/taskStore.ts",
+      "src/validation/taskValidation.ts"
+    ],
+    "expectedSymbols": ["importTasks", "validateImportInput", "findDuplicate", "createTask"],
+    "answerKey": {
+      "expectedFiles": [
+        "src/services/importTasks.ts",
+        "src/store/taskStore.ts",
+        "src/validation/taskValidation.ts"
+      ],
+      "expectedSymbols": ["importTasks", "validateImportInput", "findDuplicate", "createTask"],
+      "expectedFacts": [
+        {
+          "id": "workflow-import-validates-title-and-project",
+          "text": "importTasks validates normalized task titles and project ids before inserting records.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "workflow-import-skips-duplicates-by-project-and-normalized-title",
+          "text": "importTasks skips duplicates when a task with the same normalized title already exists in the same project.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "workflow-import-keeps-deterministic-task-sequences",
+          "text": "New imported tasks still receive deterministic ids such as task-1 and task-2 from the shared store sequence.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 3,
+      "notes": "This case is intended to require multiple files: service, validation, and store logic."
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "Medium project case for real-agent comparison."
+  },
+  {
+    "id": "task-analytics-health-label",
+    "title": "Task analytics health label retrieval",
+    "benchmarkProject": "task-analytics-large-mixed",
+    "projectProfileRef": "task-analytics-large-mixed",
+    "targetRoot": "benchmarks/projects/task-analytics-large-mixed",
+    "sourceRoots": ["ts/src", "ts/tests", "py/task_analytics", "py/tests"],
+    "query": "completion rate stale tasks quality label health report build analytics snapshot mixed language",
+    "expectedFiles": [
+      "ts/src/services/buildAnalyticsSnapshot.ts",
+      "ts/src/reporting/formatTaskHealthReport.ts",
+      "py/task_analytics/metrics.py",
+      "py/task_analytics/quality.py",
+      "py/task_analytics/reporting.py"
+    ],
+    "expectedSymbols": [
+      "buildAnalyticsSnapshot",
+      "formatTaskHealthReport",
+      "calculate_project_metrics",
+      "determine_quality_label",
+      "build_health_report"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "ts/src/services/buildAnalyticsSnapshot.ts",
+        "ts/src/reporting/formatTaskHealthReport.ts",
+        "py/task_analytics/metrics.py",
+        "py/task_analytics/quality.py",
+        "py/task_analytics/reporting.py"
+      ],
+      "expectedSymbols": [
+        "buildAnalyticsSnapshot",
+        "formatTaskHealthReport",
+        "calculate_project_metrics",
+        "determine_quality_label",
+        "build_health_report"
+      ],
+      "expectedFacts": [
+        {
+          "id": "analytics-snapshot-computes-completion-rate",
+          "text": "The analytics snapshot computes completionRate as completedTasks divided by totalTasks times 100, rounded to two decimals.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "analytics-snapshot-counts-stale-open-tasks",
+          "text": "Stale tasks count only open tasks whose updated day is at least ten days behind the current day.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "python-quality-labels-healthy-watch-risk",
+          "text": "The Python quality layer maps metrics to healthy, watch, or risk labels based on completion rate and stale task thresholds.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "python-reporting-renders-quality-lines",
+          "text": "The Python report writer emits one line per project with the quality label plus completion, open, and stale counts.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 3,
+      "notes": "This case intentionally spans TypeScript snapshot building and Python quality reporting."
+    },
+    "rawIncludeGlobs": ["ts/src/**/*", "ts/tests/**/*", "py/task_analytics/**/*", "py/tests/**/*"],
+    "notes": "Large mixed-language case for real-agent comparison."
+  }
+]

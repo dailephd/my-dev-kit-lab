@@ -1,12 +1,18 @@
 # Tutorial
 
-`my-dev-kit-lab` demonstrates the Milestone 1 MVP workflow for deterministic benchmark validation, estimated token/context comparison, report generation, optional screenshot capture, and gallery packaging.
+`my-dev-kit-lab` demonstrates the Milestone 1 MVP workflow for deterministic benchmark validation, estimated token/context comparison, report generation, optional screenshot capture, gallery packaging, and bounded real-agent benchmarking.
 
 ## Benchmark Projects
 
-The benchmark projects under `benchmarks/projects` are intentionally small Todo Core implementations. They exist to keep validation, retrieval, and static context comparisons cheap and reproducible.
+The benchmark projects under `benchmarks/projects` now include:
+
+- small Todo fixtures for cheap regression checks
+- `task-workflow-medium-ts` as a medium TypeScript workflow project
+- `task-analytics-large-mixed` as a larger mixed TypeScript and Python analytics project
 
 Benchmark metadata lives in `benchmarks/contracts/benchmark-project-profiles.json` and `benchmarks/contracts/todo-benchmark-case.json`. Verification now checks project profiles, compact file trees, complexity metrics, and task answer keys in addition to the original fixture structure.
+
+The metric glossary lives in `docs/METRICS.md`. The experiment report artifact index links back to that glossary.
 
 Run benchmark validation:
 
@@ -96,6 +102,8 @@ npm run run-controlled-experiment -- --cases examples/token-savings-cases.json -
 ```
 
 Real-agent runs can hit external usage limits, session limits, local CLI availability issues, or timeouts. Those are recorded as structured run outcomes so experiment artifacts are still inspectable.
+
+Bounded real-agent campaign cases live in `examples/real-agent-campaign-cases.json` and intentionally target the medium and large benchmark projects.
 
 ## Render The Controlled Experiment Report
 

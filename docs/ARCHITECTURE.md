@@ -20,12 +20,14 @@ Repository layers:
 
 Benchmark layer:
 
-The benchmark layer is the current center of the repository. It contains small, intentionally cheap sample projects that all implement the same Todo Core behavior across different language layouts.
+The benchmark layer is the current center of the repository. It contains both small Todo fixtures and larger deterministic benchmark projects so raw full-file versus guided retrieval can be compared at meaningfully different project sizes.
 
 Benchmark metadata now lives with the benchmark contracts:
 
 - `benchmarks/contracts/todo-benchmark-case.json` stores benchmark tasks, expected operations, per-project expected files, and answer keys
 - `benchmarks/contracts/benchmark-project-profiles.json` stores project descriptions, language mix, source/test roots, deterministic file-tree entries, complexity metrics, complexity scores, and the formula used for scoring
+- `examples/real-agent-campaign-cases.json` stores the bounded real-agent campaign evaluation cases for medium and large projects
+- `docs/METRICS.md` is the canonical metric glossary for profiles, prompts, runs, and comparisons
 - `scripts/verify-benchmarks.ts` validates the enriched contract data before lab-demo runs
 
 The metadata helpers are part of the existing evaluation layer:

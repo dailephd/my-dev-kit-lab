@@ -33,6 +33,7 @@ export function renderExperimentHtmlReport(report: ExperimentReportInput): strin
     .status-agent-unavailable, .status-skipped, .answer-unavailable, .answer-inconclusive { background: #ece8ff; color: #5639a8; }
     .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
     .small { font-size: 13px; }
+    .note { margin: 8px 0 14px; padding: 10px 12px; border-left: 4px solid #537895; background: #f4f8fc; color: #324255; }
     @media (max-width: 900px) { main { padding: 16px; } .grid, .two { grid-template-columns: 1fr; } table { font-size: 13px; } }
   </style>
 </head>
@@ -61,6 +62,7 @@ export function renderExperimentHtmlReport(report: ExperimentReportInput): strin
       ${metricCard("Invalid output", report.executiveSummary.invalidOutputRuns)}
     </div>
     <h3>Comparison Reliability</h3>
+    ${note("Reliability label describes whether a comparison had completed runs, available token counts, and valid scores. Strong means both runs completed and token comparison was available.")}
     ${keyValueTable(report.executiveSummary.comparisonReliabilityCounts)}
   </section>
 
@@ -71,46 +73,55 @@ export function renderExperimentHtmlReport(report: ExperimentReportInput): strin
 
   <section id="projects">
     <h2>Benchmark Projects</h2>
+    ${note("Complexity score is a 0-100 weighted score based on source file count, source lines, language count, internal imports, max file size, and expected relevant context size. Higher means the project should be harder for raw full-file reading.")}
     ${report.projectProfiles.map(renderProject).join("")}
   </section>
 
   <section id="file-trees">
     <h2>File Trees</h2>
+    ${note("File tree entries show the compact benchmark layout used by prompts and reports: each row lists the relative path, its role, detected language, and line count.")}
     ${report.fileTreeSections.map(renderFileTree).join("")}
   </section>
 
   <section id="benchmark-tasks">
     <h2>Benchmark Tasks</h2>
+    ${note("Expected files, symbols, and facts come from deterministic answer keys. They drive correctness scoring and help show how much context a task should need.")}
     ${report.benchmarkCases.map(renderBenchmarkCase).join("")}
   </section>
 
   <section id="prompts">
     <h2>Prompt Strategies</h2>
+    ${note("Prompt metrics summarize prompt size and structure. Higher prompt chars or estimated tokens mean more instruction overhead before the agent starts its own work.")}
     ${report.promptComparisonSections.map(renderPrompt).join("")}
   </section>
 
   <section id="agent-runs">
     <h2>Agent Runs</h2>
+    ${note("Run status records whether the agent completed, failed, timed out, was unavailable, hit a usage/session limit, or returned invalid output. Token source and reliability describe how trustworthy the token counts are for that run.")}
     ${renderRuns(report.agentRunSections)}
   </section>
 
   <section id="correctness">
     <h2>Correctness Results</h2>
+    ${note("Correctness score is deterministic and answer-key based: 25% expected files, 25% expected symbols, 50% expected facts. It is not an LLM judge.")}
     ${renderCorrectness(report.correctnessSections)}
   </section>
 
   <section id="tokens">
     <h2>Token Results</h2>
+    ${note("Token savings percent is computed as (rawTotalTokens - myDevKitTotalTokens) / rawTotalTokens * 100. Positive means my-dev-kit used fewer tokens. Negative means my-dev-kit used more tokens.")}
     ${renderTokenComparisons(report.tokenSections)}
   </section>
 
   <section id="timing">
     <h2>Timing Results</h2>
+    ${note("Duration reduction percent is computed as (rawDurationMs - myDevKitDurationMs) / rawDurationMs * 100. Positive means my-dev-kit was faster. Negative means it was slower.")}
     ${renderTimingComparisons(report.timingSections)}
   </section>
 
   <section id="comparisons">
     <h2>Raw vs my-dev-kit Comparisons</h2>
+    ${note("This table joins the paired raw-full-file and my-dev-kit-guided runs for the same agent, case, and prompt complexity so token, timing, and correctness differences are directly comparable.")}
     ${renderComparisons(report.comparisonSections)}
   </section>
 
@@ -124,6 +135,7 @@ export function renderExperimentHtmlReport(report: ExperimentReportInput): strin
 
   <section id="formulas">
     <h2>Formulas</h2>
+    ${note("Full metric definitions live in docs/METRICS.md. The artifact index below links to that glossary alongside the experiment JSON artifacts.")}
     ${report.formulaSections
       .map((section) => `<div class="card"><h3>${escapeHtml(section.title)}</h3><pre>${escapeHtml(section.formula)}</pre>${list(section.notes)}</div>`)
       .join("")}
@@ -218,6 +230,10 @@ function renderPrompt(section: ExperimentReportInput["promptComparisonSections"]
         ["Instruction count", String(section.metrics.instructionCount)],
         ["Constraint count", String(section.metrics.constraintCount)],
         ["Requested output fields", String(section.metrics.requestedOutputFieldCount)],
+        ["Task step count", String(section.metrics.taskStepCount)],
+        ["Expected fact count", String(section.metrics.expectedFactCount)],
+        ["Expected file count", String(section.metrics.expectedFileCount)],
+        ["Expected symbol count", String(section.metrics.expectedSymbolCount)],
         ["Graph-guided retrieval required", String(section.metrics.requiresGraphGuidedRetrieval)],
         ["Command execution required", String(section.metrics.requiresCommandExecution)]
       ]
@@ -229,7 +245,7 @@ function renderPrompt(section: ExperimentReportInput["promptComparisonSections"]
 
 function renderRuns(runs: ExperimentRun[]): string {
   return table(
-    ["Run ID", "Agent", "Strategy", "Complexity", "Status", "Reason", "Duration", "Exit", "Tokens", "Token Source", "Correctness", "Artifacts"],
+    ["Run ID", "Agent", "Strategy", "Complexity", "Status", "Reason", "Duration", "Exit", "Input", "Output", "Total", "Token Source", "Correctness", "Artifacts"],
     runs.map((run) => [
       run.runId,
       run.agentId,
@@ -239,6 +255,8 @@ function renderRuns(runs: ExperimentRun[]): string {
       run.statusReason,
       `${run.durationMs} ms`,
       run.agentRunResult.exitCode === null ? "" : String(run.agentRunResult.exitCode),
+      run.tokenUsage.inputTokens === undefined ? "unavailable" : String(run.tokenUsage.inputTokens),
+      run.tokenUsage.outputTokens === undefined ? "unavailable" : String(run.tokenUsage.outputTokens),
       run.tokenUsage.totalTokens === undefined ? "unavailable" : String(run.tokenUsage.totalTokens),
       `${run.tokenUsageSource} / ${run.tokenUsageReliability}`,
       `${run.correctness.correctnessScore} (${run.correctness.passed ? "pass" : "fail"})`,
@@ -369,6 +387,10 @@ function keyValueTable(values: Record<string, string | number | undefined>): str
     ["Metric", "Value"],
     Object.entries(values).map(([key, value]) => [key, value === undefined ? "" : String(value)])
   );
+}
+
+function note(text: string): string {
+  return `<p class="note small">${escapeHtml(text)}</p>`;
 }
 
 function table(headers: string[], rows: string[][], allowHtml = false): string {

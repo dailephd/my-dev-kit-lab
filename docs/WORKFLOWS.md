@@ -10,6 +10,7 @@ Purpose:
 - validate deterministic file-tree metadata
 - validate project complexity metrics and complexity scores
 - validate task answer keys and expected facts
+- validate metric glossary coverage in `docs/METRICS.md`
 
 Commands:
 - `npm run test:benchmarks`
@@ -190,6 +191,9 @@ Expected outputs:
 - `runs/<runId>/parsed-answer.json`
 - `runs/<runId>/correctness-score.json`
 
+Real-agent campaign note:
+- `examples/real-agent-campaign-cases.json` is the bounded medium and large project case set for Codex and Claude campaign runs.
+
 External-agent behavior:
 - fake-agent is the default and is used by deterministic tests
 - Codex and Claude require `--include-real-agents`
@@ -227,6 +231,7 @@ Expected outputs:
 
 Current limitations:
 - plots and visualization sections appear only when artifact directories are provided
+- full metric definitions live in `docs/METRICS.md`; the HTML report links that glossary through the artifact index
 
 ## Workflow 8: Plot Generation
 

@@ -10,7 +10,14 @@ import type {
   ProjectFileTreeEntry
 } from "./types.js";
 
-export const REQUIRED_BENCHMARK_PROJECT_IDS = ["todo-ts", "todo-python", "todo-js", "todo-mixed-ts-py"] as const;
+export const REQUIRED_BENCHMARK_PROJECT_IDS = [
+  "todo-ts",
+  "todo-python",
+  "todo-js",
+  "todo-mixed-ts-py",
+  "task-workflow-medium-ts",
+  "task-analytics-large-mixed"
+] as const;
 export const VALID_COMPLEXITY_LEVELS = new Set(["small", "medium", "large", "mixed-language"]);
 
 export async function readBenchmarkProjectProfiles(

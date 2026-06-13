@@ -52,7 +52,7 @@ Not implemented yet:
 - semantic LLM judging
 - cloud API integration
 - real Codex or Claude benchmark campaigns
-- larger benchmark suites
+- larger benchmark suites beyond the current medium and large additions
 - richer gallery UI
 - cost dashboards
 - benchmark generation
@@ -68,6 +68,7 @@ Architecture audit status:
 - final experiment report rendering is implemented after controlled experiments
 - plots, visualization demos, and experiment gallery integration are implemented after experiment reports
 - Codex and Claude controlled runs remain optional and can fail because of external usage or session limits
+- bounded real-agent campaign cases now exist for medium and large projects
 - screenshot behavior still reuses the existing screenshot layer
 - gallery behavior was extended in place
 - provider telemetry dashboards do not exist yet

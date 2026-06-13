@@ -34,6 +34,10 @@ Benchmark verification validates:
 - deterministic file-tree metadata
 - nonnegative complexity metrics and 0-100 complexity scores
 - answer keys, unique expected fact IDs, and valid `minimumCorrectFacts`
+- benchmark complexity and experiment metric definitions documented in `docs/METRICS.md`
+
+Metric glossary:
+- `docs/METRICS.md` defines project complexity metrics, prompt complexity metrics, and experiment/run metrics.
 
 Capture demo report:
 - `npm run capture-demo-report -- --input examples/demo-report-input.json --out lab-output/demo-report`
@@ -99,6 +103,7 @@ This command runs one generated prompt through one adapter. It does not run all 
 
 Run a controlled experiment:
 - `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
+- `npm run run-controlled-experiment -- --cases examples/real-agent-campaign-cases.json --agents codex,claude --strategies raw-full-file,my-dev-kit-guided --complexities medium,multi-step --out lab-output/real-agent-campaign --include-real-agents --continue-on-failure --timeout-ms 240000`
 - `--cases`: path to the evaluation case list JSON
 - `--project-profiles`: optional path to benchmark project profiles, defaults to `benchmarks/contracts/benchmark-project-profiles.json`
 - `--case`: optional evaluation case ID filter; may be repeated or comma-separated

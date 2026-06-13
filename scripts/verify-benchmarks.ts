@@ -61,6 +61,27 @@ const projectRequiredPaths: Record<(typeof requiredProjects)[number], string[]> 
     "src/taskCli.ts",
     "python/task_service.py",
     "tests/mixedBoundary.test.ts"
+  ],
+  "task-workflow-medium-ts": [
+    "README.md",
+    "package.json",
+    "tsconfig.json",
+    "src/store/taskStore.ts",
+    "src/services/createTask.ts",
+    "src/services/importTasks.ts",
+    "src/services/summarizeTasks.ts",
+    "tests/importTasks.test.ts"
+  ],
+  "task-analytics-large-mixed": [
+    "README.md",
+    "ts/package.json",
+    "ts/tsconfig.json",
+    "ts/src/services/buildAnalyticsSnapshot.ts",
+    "ts/src/reporting/formatTaskHealthReport.ts",
+    "ts/tests/buildAnalyticsSnapshot.test.ts",
+    "py/task_analytics/metrics.py",
+    "py/task_analytics/quality.py",
+    "py/tests/test_reporting.py"
   ]
 };
 
@@ -155,8 +176,11 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
     if (!Array.isArray(benchmarkCase.expectedSymbols) || benchmarkCase.expectedSymbols.length === 0) {
       errors.push(`Case ${benchmarkCase.id} does not define expectedSymbols`);
     }
-    for (const project of requiredProjects) {
-      const expectedFiles = benchmarkCase.expectedFilesByProject?.[project];
+    for (const [project, expectedFiles] of Object.entries(benchmarkCase.expectedFilesByProject ?? {})) {
+      if (!requiredProjects.includes(project as (typeof requiredProjects)[number])) {
+        errors.push(`Case ${benchmarkCase.id} references unknown project id: ${project}`);
+        continue;
+      }
       if (!Array.isArray(expectedFiles) || expectedFiles.length === 0) {
         errors.push(`Case ${benchmarkCase.id} does not define expected files for ${project}`);
         continue;

@@ -332,6 +332,7 @@ function buildLimitations(runs: ExperimentRun[]): string[] {
 
 function buildArtifactLinks(experimentDir: string, runs: ExperimentRun[]) {
   return [
+    { label: "Metric glossary", path: path.resolve("docs", "METRICS.md"), kind: "markdown" },
     { label: "Experiment summary", path: path.join(experimentDir, "experiment-summary.json"), kind: "json" },
     { label: "Experiment runs", path: path.join(experimentDir, "experiment-runs.json"), kind: "json" },
     { label: "Experiment comparisons", path: path.join(experimentDir, "experiment-comparisons.json"), kind: "json" },

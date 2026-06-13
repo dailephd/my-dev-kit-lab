@@ -9,8 +9,10 @@ describe("benchmark metadata helpers", () => {
       path.join(process.cwd(), "benchmarks", "contracts", "benchmark-project-profiles.json"),
       process.cwd()
     );
-    expect(profiles).toHaveLength(4);
+    expect(profiles).toHaveLength(6);
     expect(profiles.map((profile) => profile.projectId).sort()).toEqual([
+      "task-analytics-large-mixed",
+      "task-workflow-medium-ts",
       "todo-js",
       "todo-mixed-ts-py",
       "todo-python",
@@ -23,11 +25,12 @@ describe("benchmark metadata helpers", () => {
       path.join(process.cwd(), "benchmarks", "contracts", "benchmark-project-profiles.json"),
       process.cwd()
     );
-    expect(Object.fromEntries(profiles.map((profile) => [profile.projectId, calculateProjectComplexityScore(profile.complexityMetrics)]))).toEqual({
-      "todo-js": 12,
-      "todo-mixed-ts-py": 16,
-      "todo-python": 12,
-      "todo-ts": 12
-    });
+    const scores = Object.fromEntries(profiles.map((profile) => [profile.projectId, calculateProjectComplexityScore(profile.complexityMetrics)]));
+    expect(scores["todo-js"]).toBe(12);
+    expect(scores["todo-python"]).toBe(12);
+    expect(scores["todo-ts"]).toBe(12);
+    expect(scores["todo-mixed-ts-py"]).toBe(16);
+    expect(scores["task-workflow-medium-ts"]).toBeGreaterThan(scores["todo-ts"]);
+    expect(scores["task-analytics-large-mixed"]).toBeGreaterThan(scores["task-workflow-medium-ts"]);
   });
 });

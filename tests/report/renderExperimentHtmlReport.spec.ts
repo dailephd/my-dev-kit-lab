@@ -160,6 +160,12 @@ describe("renderExperimentHtmlReport", () => {
     expect(html).toContain("correctnessScore");
     expect(html).toContain("tokenDelta");
     expect(html).toContain("durationDeltaMs");
+    expect(html).toContain("Positive means my-dev-kit used fewer tokens");
+    expect(html).toContain("Negative means my-dev-kit used more tokens");
+    expect(html).toContain("Correctness score is deterministic");
+    expect(html).toContain("Complexity score is a 0-100 weighted score");
+    expect(html).toContain("Run status records");
+    expect(html).toContain("Reliability label");
     expect(html).toContain("Warnings and Limitations");
     expect(html).not.toContain("<script>alert");
     expect(html).not.toMatch(/https?:\/\//);
