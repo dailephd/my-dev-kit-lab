@@ -1,0 +1,227 @@
+[
+  {
+    "id": "todo-create-task",
+    "title": "Create a task with deterministic IDs",
+    "task": "Find the code path that creates a task and assigns its deterministic id.",
+    "query": "create task deterministic id task-1",
+    "expectedOperation": "createTask",
+    "expectedSymbols": ["createTask", "create_task", "TaskService"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts", "src/taskStore.ts"],
+      "todo-python": ["src/task_service.py", "src/task_store.py"],
+      "todo-js": ["src/taskService.js", "src/taskStore.js"],
+      "todo-mixed-ts-py": ["src/taskCli.ts", "python/task_service.py"]
+    },
+    "answerKey": {
+      "expectedFiles": ["src/taskService.ts", "src/taskStore.ts", "src/task_service.py", "src/task_store.py", "src/taskService.js", "src/taskStore.js", "src/taskCli.ts", "python/task_service.py"],
+      "expectedSymbols": ["createTask", "create_task", "TaskService"],
+      "expectedFacts": [
+        {
+          "id": "create-validates-title",
+          "text": "Task creation validates that the title is not empty or whitespace-only.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "create-deterministic-id",
+          "text": "Task creation assigns deterministic IDs such as task-1 and task-2.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "create-stores-incomplete-task",
+          "text": "A newly created task is stored with completed set to false.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "forbiddenWrongClaims": ["Task IDs are random UUIDs.", "New tasks are completed by default."],
+      "minimumCorrectFacts": 2,
+      "notes": "A correct answer must identify deterministic ID assignment and the creation path."
+    },
+    "promptComplexityHint": "single operation with storage side effect",
+    "projectComplexityRelevance": "uses service and store files in single-language projects and boundary files in the mixed project",
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "The creation path should be obvious and small across all projects."
+  },
+  {
+    "id": "todo-complete-task",
+    "title": "Complete an existing task",
+    "task": "Locate the code path that completes a task by id.",
+    "query": "complete task by id",
+    "expectedOperation": "completeTask",
+    "expectedSymbols": ["completeTask", "complete_task"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts"],
+      "todo-python": ["src/task_service.py"],
+      "todo-js": ["src/taskService.js"],
+      "todo-mixed-ts-py": ["python/task_service.py", "src/taskCli.ts"]
+    },
+    "answerKey": {
+      "expectedFiles": ["src/taskService.ts", "src/task_service.py", "src/taskService.js", "python/task_service.py", "src/taskCli.ts"],
+      "expectedSymbols": ["completeTask", "complete_task"],
+      "expectedFacts": [
+        {
+          "id": "complete-finds-by-id",
+          "text": "Completion locates the matching task by id.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "complete-marks-completed",
+          "text": "Completion marks the matching task as completed.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "complete-preserves-other-tasks",
+          "text": "Completion does not mark unrelated tasks as completed.",
+          "weight": 1,
+          "required": false
+        }
+      ],
+      "forbiddenWrongClaims": ["completeTask deletes the task.", "completeTask marks every task as completed."],
+      "minimumCorrectFacts": 2,
+      "notes": "A correct answer must distinguish targeted completion from list or delete behavior."
+    },
+    "promptComplexityHint": "single update operation by identifier",
+    "projectComplexityRelevance": "primarily service logic, with mixed project boundary coverage",
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "Completion must flip the completed flag for the targeted task."
+  },
+  {
+    "id": "todo-list-open-tasks",
+    "title": "List open tasks only",
+    "task": "Identify the logic that returns only incomplete tasks.",
+    "query": "list open tasks incomplete tasks",
+    "expectedOperation": "listOpenTasks",
+    "expectedSymbols": ["listOpenTasks", "list_open_tasks"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts"],
+      "todo-python": ["src/task_service.py"],
+      "todo-js": ["src/taskService.js"],
+      "todo-mixed-ts-py": ["python/task_service.py", "src/taskCli.ts"]
+    },
+    "answerKey": {
+      "expectedFiles": ["src/taskService.ts", "src/task_service.py", "src/taskService.js", "python/task_service.py", "src/taskCli.ts"],
+      "expectedSymbols": ["listOpenTasks", "list_open_tasks"],
+      "expectedFacts": [
+        {
+          "id": "open-filters-incomplete",
+          "text": "Open-task listing returns tasks where completed is false.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "open-separate-from-all",
+          "text": "Open-task listing is separate from list-all task behavior.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "open-preserves-task-shape",
+          "text": "Open-task listing returns task objects with id, title, and completed fields.",
+          "weight": 1,
+          "required": false
+        }
+      ],
+      "forbiddenWrongClaims": ["listOpenTasks returns completed tasks only.", "listOpenTasks mutates task completion state."],
+      "minimumCorrectFacts": 2,
+      "notes": "A correct answer must identify filtering on incomplete tasks."
+    },
+    "promptComplexityHint": "read-only filtered list operation",
+    "projectComplexityRelevance": "service-level filter with no storage mutation",
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "Open-task listing should remain separate from list-all behavior."
+  },
+  {
+    "id": "todo-summarize-tasks",
+    "title": "Summarize task counts",
+    "task": "Find the summary logic that reports total, open, and completed counts.",
+    "query": "summarize tasks total open completed",
+    "expectedOperation": "summarizeTasks",
+    "expectedSymbols": ["summarizeTasks", "summarize_tasks"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts"],
+      "todo-python": ["src/task_service.py"],
+      "todo-js": ["src/taskService.js"],
+      "todo-mixed-ts-py": ["python/task_service.py", "src/taskCli.ts"]
+    },
+    "answerKey": {
+      "expectedFiles": ["src/taskService.ts", "src/task_service.py", "src/taskService.js", "python/task_service.py", "src/taskCli.ts"],
+      "expectedSymbols": ["summarizeTasks", "summarize_tasks"],
+      "expectedFacts": [
+        {
+          "id": "summary-total",
+          "text": "Task summary reports the total task count.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "summary-open",
+          "text": "Task summary reports the open task count.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "summary-completed",
+          "text": "Task summary reports the completed task count.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "forbiddenWrongClaims": ["Summary returns only a string.", "Summary omits completed tasks."],
+      "minimumCorrectFacts": 3,
+      "notes": "A correct answer must identify the total, open, and completed fields."
+    },
+    "promptComplexityHint": "aggregate read operation",
+    "projectComplexityRelevance": "tests aggregation logic across single-language and mixed-language projects",
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "Summary shape must stay aligned across every benchmark project."
+  },
+  {
+    "id": "todo-empty-title-validation",
+    "title": "Reject an empty task title",
+    "task": "Locate the validation that rejects blank task titles.",
+    "query": "empty title validation create task blank title",
+    "expectedOperation": "createTask",
+    "expectedSymbols": ["createTask", "create_task", "validate"],
+    "expectedFilesByProject": {
+      "todo-ts": ["src/taskService.ts"],
+      "todo-python": ["src/task_service.py"],
+      "todo-js": ["src/taskService.js"],
+      "todo-mixed-ts-py": ["python/task_service.py", "src/taskCli.ts"]
+    },
+    "answerKey": {
+      "expectedFiles": ["src/taskService.ts", "src/task_service.py", "src/taskService.js", "python/task_service.py", "src/taskCli.ts"],
+      "expectedSymbols": ["createTask", "create_task", "validate"],
+      "expectedFacts": [
+        {
+          "id": "empty-title-trim",
+          "text": "Title validation rejects empty or whitespace-only task titles.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "empty-title-create-path",
+          "text": "Title validation is part of the create task path.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "empty-title-error",
+          "text": "Invalid titles produce a clear deterministic error instead of creating a task.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "forbiddenWrongClaims": ["Blank titles are silently converted to Untitled.", "Validation happens only in tests."],
+      "minimumCorrectFacts": 2,
+      "notes": "A correct answer must locate validation and explain the rejected blank title behavior."
+    },
+    "promptComplexityHint": "validation behavior inside create operation",
+    "projectComplexityRelevance": "requires reading creation logic rather than only public exports",
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"],
+    "notes": "Validation errors should be clear and deterministic."
+  }
+]

@@ -1,0 +1,166 @@
+Real-Agent Benchmark Campaign Report
+
+Branch: feature/real-agent-benchmark-campaign
+Commit: d697e47bcc9f6dc78286322c7e612a62fe3ea5ba
+Date: 2026-06-13
+Campaign status: Partial campaign with structured outcomes
+
+---
+
+Overview
+
+This report summarizes the real-agent benchmark campaign run against the medium and large
+benchmark projects using Codex and Claude. The campaign infrastructure ran end-to-end and
+recorded all outcomes as structured JSON. Results are partial because real-agent CLIs can
+produce completed runs, timeouts, invalid output, and session limits.
+
+These results demonstrate that the experiment infrastructure works with real agents. They
+do not constitute proof of token savings. Stronger evidence requires future experiment
+types such as warm-index reuse, incremental-change, and context-window scaling.
+
+See docs/ROADMAP.md for the planned next phases.
+
+---
+
+Projects tested
+
+- task-workflow-medium-ts (medium, complexity score 30)
+- task-analytics-large-mixed (large, complexity score 48)
+
+Complexity formula: benchmark-project-complexity-v1
+Canonical metric definitions: docs/METRICS.md
+
+---
+
+Agents tested
+
+- codex
+- claude
+
+---
+
+Strategies tested
+
+- raw-full-file
+- my-dev-kit-guided
+
+---
+
+Complexity levels tested
+
+- Pilot: short
+- Main campaign: medium, multi-step
+
+---
+
+Commands run
+
+npm install
+codex --version
+claude --version
+npm run build
+npm run test
+npm run test:benchmarks
+npm run test:report
+npm run test:experiments
+npm run test:plots
+npm run test:gallery
+npm run test:integration
+python -m unittest discover benchmarks/projects/todo-python/tests
+cd benchmarks/projects/task-workflow-medium-ts && npm test
+cd benchmarks/projects/task-analytics-large-mixed/ts && npm test
+cd benchmarks/projects/task-analytics-large-mixed && set PYTHONPATH=py && python -m unittest discover py/tests
+npm run verify
+
+Pilot campaign:
+npm run run-controlled-experiment -- \
+  --cases examples/real-agent-campaign-cases.json \
+  --agents codex,claude \
+  --strategies raw-full-file,my-dev-kit-guided \
+  --complexities short \
+  --max-runs 4 \
+  --out lab-output/real-agent-campaign-pilot \
+  --include-real-agents \
+  --continue-on-failure \
+  --timeout-ms 180000
+
+Main campaign:
+npm run run-controlled-experiment -- \
+  --cases examples/real-agent-campaign-cases.json \
+  --agents codex,claude \
+  --strategies raw-full-file,my-dev-kit-guided \
+  --complexities medium,multi-step \
+  --out lab-output/real-agent-campaign \
+  --include-real-agents \
+  --continue-on-failure \
+  --timeout-ms 240000
+
+Report and gallery:
+npm run render-experiment-report -- \
+  --experiment lab-output/real-agent-campaign \
+  --out lab-output/real-agent-report \
+  --no-screenshot
+
+npm run generate-experiment-plots -- \
+  --experiment lab-output/real-agent-campaign \
+  --out lab-output/real-agent-plots
+
+npm run run-visualization-demos -- \
+  --project benchmarks/projects/task-workflow-medium-ts \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --out lab-output/real-agent-visualization-demos
+
+npm run render-experiment-report -- \
+  --experiment lab-output/real-agent-campaign \
+  --out lab-output/real-agent-report-enhanced \
+  --plots lab-output/real-agent-plots \
+  --visualizations lab-output/real-agent-visualization-demos \
+  --screenshot
+
+npm run build-gallery -- \
+  --report lab-output/real-agent-report-enhanced \
+  --plots lab-output/real-agent-plots \
+  --visualizations lab-output/real-agent-visualization-demos \
+  --out lab-output/real-agent-gallery
+
+---
+
+Artifact locations
+
+HTML report:   lab-output/real-agent-report-enhanced/experiment-report.html
+Screenshot:    lab-output/real-agent-report-enhanced/experiment-report.png
+Plots:         lab-output/real-agent-plots/charts/
+Gallery:       lab-output/real-agent-gallery/gallery-index.html
+
+---
+
+Known limitations
+
+- Claude does not expose token totals. Token savings comparisons are unavailable for
+  Claude runs. The report shows N/A for token savings on all Claude run pairs.
+
+- Codex may expose token totals but produced some timeouts and invalid-output runs
+  during this campaign. Token savings are only shown for completed Codex run pairs
+  where both runs returned token totals.
+
+- Campaign results are partial. Not all runs completed. The report shows warnings for
+  missing token totals and non-completed runs.
+
+- The current baseline does not prove token savings. It demonstrates that the experiment
+  infrastructure works end-to-end with real agents and records structured outcomes.
+
+---
+
+Outcome types recorded
+
+- completed:      Agent returned a valid response
+- timeout:        Run exceeded the timeout limit
+- invalid-output: Agent returned output that could not be parsed
+- limit-reached:  Agent hit a usage or session limit
+
+---
+
+Next steps
+
+See docs/ROADMAP.md for the planned generic experiment-plugin framework and future
+experiment types that will provide stronger evidence of my-dev-kit value.

@@ -1,0 +1,122 @@
+[
+  {
+    "id": "todo-ts-create-task",
+    "title": "Todo TS create task retrieval",
+    "benchmarkProject": "todo-ts",
+    "projectProfileRef": "todo-ts",
+    "targetRoot": "benchmarks/projects/todo-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "create task deterministic id task-1",
+    "expectedFiles": ["src/taskService.ts", "src/taskStore.ts"],
+    "expectedSymbols": ["createTask", "TaskService"],
+    "answerKey": {
+      "expectedFiles": ["src/taskService.ts", "src/taskStore.ts"],
+      "expectedSymbols": ["createTask", "TaskService"],
+      "expectedFacts": [
+        {
+          "id": "create-deterministic-id",
+          "text": "createTask assigns deterministic IDs such as task-1 and task-2.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "create-validates-title",
+          "text": "createTask validates that the title is not empty or whitespace-only.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 2,
+      "notes": "Example metadata is optional for the current token-savings evaluator."
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "TypeScript create task path."
+  },
+  {
+    "id": "todo-python-complete-task",
+    "title": "Todo Python complete task retrieval",
+    "benchmarkProject": "todo-python",
+    "projectProfileRef": "todo-python",
+    "targetRoot": "benchmarks/projects/todo-python",
+    "sourceRoots": ["src", "tests"],
+    "query": "complete task by id",
+    "expectedFiles": ["src/task_service.py"],
+    "expectedSymbols": ["complete_task"],
+    "answerKey": {
+      "expectedFiles": ["src/task_service.py"],
+      "expectedSymbols": ["complete_task"],
+      "expectedFacts": [
+        {
+          "id": "complete-finds-by-id",
+          "text": "complete_task locates the matching task by id.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "complete-marks-completed",
+          "text": "complete_task marks the matching task as completed.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 2
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"]
+  },
+  {
+    "id": "todo-js-open-tasks",
+    "title": "Todo JS open tasks retrieval",
+    "benchmarkProject": "todo-js",
+    "projectProfileRef": "todo-js",
+    "targetRoot": "benchmarks/projects/todo-js",
+    "sourceRoots": ["src", "tests"],
+    "query": "list open tasks incomplete tasks",
+    "expectedFiles": ["src/taskService.js"],
+    "expectedSymbols": ["listOpenTasks"],
+    "answerKey": {
+      "expectedFiles": ["src/taskService.js"],
+      "expectedSymbols": ["listOpenTasks"],
+      "expectedFacts": [
+        {
+          "id": "open-filters-incomplete",
+          "text": "listOpenTasks returns tasks where completed is false.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 1
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"]
+  },
+  {
+    "id": "todo-mixed-summary",
+    "title": "Todo mixed summary retrieval",
+    "benchmarkProject": "todo-mixed-ts-py",
+    "projectProfileRef": "todo-mixed-ts-py",
+    "targetRoot": "benchmarks/projects/todo-mixed-ts-py",
+    "sourceRoots": ["src", "python", "tests"],
+    "query": "summarize tasks total open completed",
+    "expectedFiles": ["src/taskCli.ts", "python/task_service.py"],
+    "expectedSymbols": ["summarizeTasks", "summarize_tasks"],
+    "answerKey": {
+      "expectedFiles": ["src/taskCli.ts", "python/task_service.py"],
+      "expectedSymbols": ["summarizeTasks", "summarize_tasks"],
+      "expectedFacts": [
+        {
+          "id": "summary-total",
+          "text": "Summary reports total task count.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "summary-open-completed",
+          "text": "Summary reports open and completed task counts.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 2
+    },
+    "rawIncludeGlobs": ["src/**/*", "python/**/*", "tests/**/*"]
+  }
+]

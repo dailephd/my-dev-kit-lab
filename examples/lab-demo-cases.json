@@ -1,0 +1,35 @@
+[
+  {
+    "id": "todo-ts-create-task-demo",
+    "title": "Todo TS create task demo retrieval",
+    "benchmarkProject": "todo-ts",
+    "projectProfileRef": "todo-ts",
+    "targetRoot": "benchmarks/projects/todo-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "create task deterministic id task-1",
+    "expectedFiles": ["src/taskService.ts", "src/taskStore.ts"],
+    "expectedSymbols": ["createTask", "TaskService"],
+    "answerKey": {
+      "expectedFiles": ["src/taskService.ts", "src/taskStore.ts"],
+      "expectedSymbols": ["createTask", "TaskService"],
+      "expectedFacts": [
+        {
+          "id": "create-deterministic-id",
+          "text": "createTask assigns deterministic IDs such as task-1 and task-2.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "create-stores-incomplete-task",
+          "text": "createTask stores new tasks with completed set to false.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 2,
+      "notes": "Demo metadata prepares later correctness scoring without changing the current lab-demo command."
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "Small single-case lab demo fixture."
+  }
+]
