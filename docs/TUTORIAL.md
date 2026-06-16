@@ -1,206 +1,202 @@
 # Tutorial
 
-`my-dev-kit-lab` demonstrates the Milestone 1 MVP workflow for deterministic benchmark validation, estimated token/context comparison, report generation, optional screenshot capture, gallery packaging, and bounded real-agent benchmarking.
+This tutorial walks you through your first run of my-dev-kit-lab, from installation to reading the experiment report.
 
-## Benchmark Projects
-
-The benchmark projects under `benchmarks/projects` now include:
-
-- small Todo fixtures for cheap regression checks
-- `task-workflow-medium-ts` as a medium TypeScript workflow project
-- `task-analytics-large-mixed` as a larger mixed TypeScript and Python analytics project
-
-Benchmark metadata lives in `benchmarks/contracts/benchmark-project-profiles.json` and `benchmarks/contracts/todo-benchmark-case.json`. Verification now checks project profiles, compact file trees, complexity metrics, and task answer keys in addition to the original fixture structure.
-
-The metric glossary lives in `docs/METRICS.md`. The experiment report artifact index links back to that glossary.
-
-Run benchmark validation:
-
-```bash
-npm run verify:benchmarks
+```mermaid
+flowchart TD
+  A[Install dependencies] --> B[Build]
+  B --> C[Run fake-agent final demo]
+  C --> D[Open experiment-report.html]
+  D --> E[Read token savings]
+  E --> F[Read correctness scores]
+  F --> G[Optional: run real-agent campaign]
+  G --> H[Interpret partial results]
 ```
 
-## Capture A Demo Report Screenshot
+---
 
-Prompt 2 added a report renderer and optional screenshot capture path:
-
-```bash
-npm run capture-demo-report -- --input examples/demo-report-input.json --out lab-output/demo-report
-```
-
-Screenshots capture generated local HTML reports. They are presentation artifacts, not arbitrary browser-page screenshots.
-
-## Run Token-Savings Evaluation
-
-Prompt 3 added the raw full-file baseline and external my-dev-kit retrieval workflow:
+## Step 1: Install dependencies
 
 ```bash
-npm run evaluate-token-savings -- --cases examples/token-savings-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/token-savings
+npm install
 ```
 
-Token counts in the MVP are estimated with `estimated_chars_div_4`. They are static context estimates, not provider billing telemetry.
+This installs all Node.js dependencies. No external CLIs are required for the fake-agent demo.
 
-## Generate Prompt Variant Previews
+---
 
-Prompt variants compare two future agent-instruction strategies without running an agent:
-
-- `raw-full-file`: assumes full source files will be supplied separately by a later runner
-- `my-dev-kit-guided`: asks the agent to use my-dev-kit `index`, `search`, `lookup`, `slice`, and `source` before reading broad context
-
-Run:
+## Step 2: Build
 
 ```bash
-npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants
+npm run build
 ```
 
-The command writes `prompt-variants-summary.json`, `prompt-variants.json`, and text files under `prompts/`. Prompt complexity metrics use the existing `estimated_chars_div_4` token estimator.
+This compiles TypeScript sources to `dist/`. Always run this before executing lab commands.
 
-## Run A Single Agent Prompt
+---
 
-Prompt 4 added a small adapter smoke command. It runs one generated prompt through one adapter and writes a normalized `AgentRunResult`.
-
-Use fake-agent for deterministic local checks:
+## Step 3: Verify the installation
 
 ```bash
-npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake
+npm run verify
 ```
 
-Codex and Claude adapters are optional CLI adapters. They skip when unavailable unless `--require-agent` is passed. This is not the controlled experiment runner and does not score correctness.
+This runs the full verification suite. All checks should pass before you run experiments.
 
-## Test Real Agents Locally
+---
 
-Real-agent checks are optional for automated tests. On Windows, npm CLI shims may resolve to `.cmd`, `.exe`, or `.ps1` files; the shared measured command runtime resolves those wrappers before running Codex or Claude.
-
-Codex example:
+## Step 4: Run the fake-agent final demo
 
 ```bash
-npm run run-agent-prompt -- --agent codex --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy my-dev-kit-guided --complexity short --out lab-output/agent-run-codex
+npm run run-final-demo -- \
+  --cases examples/token-savings-cases.json \
+  --out lab-output/final-demo \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
 ```
 
-Claude example:
+This runs the complete pipeline:
+1. Controlled experiment with fake-agent (deterministic, no external CLIs)
+2. Report rendering
+3. Plot generation
+4. Visualization demos
+5. Gallery manifest and index
 
+The fake-agent adapter returns deterministic outputs so results are reproducible on any machine.
+
+---
+
+## Step 5: Open the report
+
+Open the generated HTML report in a browser:
+
+```
+lab-output/final-demo/experiment-report.html
+```
+
+The report is a self-contained HTML file. No server is required.
+
+---
+
+## Step 6: How to read token savings
+
+The report shows a **token savings** value for each paired comparison between `raw-full-file` and `my-dev-kit-guided` runs.
+
+| Value | Meaning |
+|---|---|
+| Positive | my-dev-kit used fewer tokens than raw-full-file |
+| Negative | my-dev-kit used more tokens than raw-full-file |
+| N/A | Token totals were not available for one or both runs |
+
+**Important notes:**
+- In fake-agent runs, token counts are estimated using `Math.ceil(characterCount / 4)`. These are context-size estimates, not provider billing totals.
+- Claude does not expose token totals; token savings comparisons are unavailable for Claude runs.
+- Codex may expose token totals but can produce timeouts or invalid-output runs.
+- Small projects may show negative token savings because raw-full-file is cheaper when the entire project fits easily in context. Larger, more localized tasks are where my-dev-kit is expected to become more useful.
+
+See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
+
+---
+
+## Step 7: How to read correctness scores
+
+The report shows a **correctness score** for each run. Correctness is scored deterministically against the benchmark answer key — it is not semantic LLM judging.
+
+Each answer key defines:
+- **Expected files** — which source files the agent should reference
+- **Expected symbols** — which functions or classes the agent should identify
+- **Expected facts** — specific facts the agent's response should contain
+- **Minimum correct facts** — the threshold for a passing score
+
+A run passes if it meets or exceeds the minimum correct facts threshold.
+
+---
+
+## Step 8: Run a real-agent campaign (optional)
+
+Real-agent campaigns require a local Codex or Claude CLI and available usage capacity.
+
+**Check CLI availability:**
 ```bash
-npm run run-agent-prompt -- --agent claude --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy my-dev-kit-guided --complexity short --out lab-output/agent-run-claude
+codex --version
+claude --version
 ```
 
-Use `--command-template` if your installed CLI has different non-interactive flags, and use `--require-agent` when a skipped real-agent run should be treated as a failure.
-
-## Run A Controlled Experiment
-
-Prompt 5 added the controlled experiment runner. Use fake-agent for deterministic local checks and CI tests:
-
+**Run a pilot campaign:**
 ```bash
-npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake
+npm run run-controlled-experiment -- \
+  --cases examples/real-agent-campaign-cases.json \
+  --agents codex,claude \
+  --strategies raw-full-file,my-dev-kit-guided \
+  --complexities short \
+  --max-runs 4 \
+  --out lab-output/real-agent-campaign-pilot \
+  --include-real-agents \
+  --continue-on-failure \
+  --timeout-ms 180000
 ```
 
-The command writes JSON artifacts only: summary, runs, comparisons, config, prompts, agent results, parsed answers, and correctness scores. Correctness is scored from benchmark answer keys; no LLM judge or network service is used.
-
-Codex and Claude runs are optional:
-
+**Render the report:**
 ```bash
-npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents codex --strategies raw-full-file,my-dev-kit-guided --complexities short --max-runs 2 --out lab-output/controlled-experiment-codex --include-real-agents --continue-on-failure
+npm run render-experiment-report -- \
+  --experiment lab-output/real-agent-campaign-pilot \
+  --out lab-output/real-agent-report \
+  --no-screenshot
 ```
 
-Real-agent runs can hit external usage limits, session limits, local CLI availability issues, or timeouts. Those are recorded as structured run outcomes so experiment artifacts are still inspectable.
+---
 
-Bounded real-agent campaign cases live in `examples/real-agent-campaign-cases.json` and intentionally target the medium and large benchmark projects.
+## Step 9: Interpreting partial real-agent results
 
-## Render The Controlled Experiment Report
+Real-agent runs can produce four outcome types:
 
-Prompt 6 turns controlled experiment artifacts into a final HTML report:
+| Outcome | Meaning |
+|---|---|
+| `completed` | The agent returned a valid response |
+| `timeout` | The run exceeded the timeout limit |
+| `invalid-output` | The agent returned output that could not be parsed |
+| `limit-reached` | The agent hit a usage or session limit |
 
-```bash
-npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot
-```
+The report shows warnings for runs with missing token totals or non-completed outcomes. Partial results are still useful for understanding which runs completed and what correctness scores were achieved on completed runs.
 
-Open `lab-output/experiment-report-fake/experiment-report.html` in a browser. The report includes the project description, complexity metrics, compact file tree, benchmark task, prompt strategy excerpts, agent run statuses, correctness scores, token comparisons, timing comparisons, formulas, aggregate answers, warnings, and limitations.
+**Do not interpret partial real-agent results as proof of token savings.** The current baseline establishes the experiment infrastructure. Stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-To capture a screenshot from the same generated local HTML:
+---
 
-```bash
-npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake-shot --screenshot
-```
+## Benchmark projects used in this tutorial
 
-Use fake-agent output to verify the workflow deterministically. Fake-agent results are smoke evidence, not proof that real Codex or Claude sessions will behave the same way. Real Codex and Claude experiment artifacts can be rendered too, and any usage limits, session limits, timeouts, or invalid outputs will appear as structured report outcomes.
+| Project | Size | Languages |
+|---|---|---|
+| `todo-ts` | small | TypeScript |
+| `todo-js` | small | JavaScript |
+| `todo-python` | small | Python |
+| `todo-mixed-ts-py` | small | TypeScript + Python |
+| `task-workflow-medium-ts` | medium | TypeScript |
+| `task-analytics-large-mixed` | large | TypeScript + Python |
 
-Interpret aggregate answers conservatively:
+The small Todo projects are used in the fake-agent demo. The medium and large projects are used in real-agent campaigns.
 
-- `yes`: most available comparisons support the claim
-- `no`: most available comparisons contradict the claim
-- `mixed`: available comparisons disagree or correctness outcomes differ
-- `inconclusive`: there is not enough comparable data
-- `unavailable`: required token or timing totals are missing
+---
 
-## Generate Plots And Visualization Demos
+## Where outputs are written
 
-Generate deterministic SVG charts from controlled experiment artifacts:
+| Artifact | Location |
+|---|---|
+| Experiment summary | `lab-output/<out>/experiment-summary.json` |
+| All runs | `lab-output/<out>/experiment-runs.json` |
+| Strategy comparisons | `lab-output/<out>/experiment-comparisons.json` |
+| HTML report | `lab-output/<out>/experiment-report.html` |
+| SVG charts | `lab-output/<out>/charts/*.svg` |
+| Gallery manifest | `lab-output/<out>/gallery-manifest.json` |
+| Gallery index | `lab-output/<out>/gallery-index.html` |
 
-```bash
-npm run generate-experiment-plots -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-plots
-```
+---
 
-The charts cover token savings and execution-time reduction against prompt length and project complexity, correctness by strategy, and run outcome counts by agent.
+## Next steps
 
-Run bounded my-dev-kit visualization demos with the fake CLI:
-
-```bash
-npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/visualization-demos
-```
-
-Inspect `visualization-demo-runs.json` for command status, stdout/stderr paths, telemetry paths, and produced graph artifacts.
-
-## Build The Experiment Gallery
-
-Build a gallery manifest and local index:
-
-```bash
-npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-output/experiment-plots --visualizations lab-output/visualization-demos --out lab-output/gallery
-```
-
-Open `gallery-index.html` for a compact local artifact index, or inspect `gallery-manifest.json` for structured paths.
-
-## Run The Final Demo
-
-Prompt 7 adds the full deterministic final demo:
-
-```bash
-npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
-```
-
-This produces controlled experiment artifacts, plot data, SVG charts, visualization demo artifacts, an enhanced experiment report, and gallery artifacts. Use `--screenshot` to capture `experiment-report.png` when local screenshot dependencies are available.
-
-## Run The All-In-One Lab Demo
-
-Prompt 4 ties the Milestone 1 pieces together:
-
-```bash
-npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery
-```
-
-This workflow runs:
-
-- benchmark validation
-- token-savings evaluation
-- HTML report generation
-- optional PNG screenshot capture
-- gallery manifest writing
-
-## Use Generated Artifacts
-
-The generated output is designed for:
-
-- README examples
-- GitHub issue or pull request evidence
-- npm package documentation later
-- tutorial screenshots
-- portfolio walkthroughs
-
-The key artifacts are `token-savings-summary.json`, `token-savings-runs.json`, `token-savings-report.html`, optional `token-savings-report.png`, and `gallery-manifest.json`.
-
-## MVP Limits
-
-- token counts are estimated, not provider-reported
-- provider telemetry is future work
-- screenshots capture generated reports, not arbitrary browser pages
-- semantic quality judging is not implemented in Milestone 1
-- provider telemetry dashboards and cloud API billing dashboards are future work
+- Read [docs/METRICS.md](docs/METRICS.md) for full metric definitions
+- Read [docs/WORKFLOWS.md](docs/WORKFLOWS.md) for detailed workflow diagrams
+- Read [docs/COMMANDS.md](docs/COMMANDS.md) for all command options
+- Read [docs/ROADMAP.md](docs/ROADMAP.md) to understand where the project is heading

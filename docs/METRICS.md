@@ -1,6 +1,34 @@
 # Metrics
 
-This document is the canonical metric glossary for benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports.
+This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports.
+
+Related documentation:
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how metrics flow through the pipeline
+- [docs/TUTORIAL.md](docs/TUTORIAL.md) — how to read token savings and correctness scores in the report
+- [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) — current baseline and limitations
+
+## Metric interpretation quick reference
+
+| Metric | Positive means | Negative means | N/A means |
+|---|---|---|---|
+| `tokenSavings` | my-dev-kit used fewer tokens | my-dev-kit used more tokens | Token totals unavailable for one or both runs |
+| `correctnessScore` | More answer-key facts matched | Fewer answer-key facts matched | Run did not complete |
+| `complexityScore` | Higher project complexity | Lower project complexity | — |
+
+**Token savings notes:**
+- A positive token savings value means the my-dev-kit-guided strategy used fewer tokens than raw-full-file for that run pair.
+- A negative token savings value means my-dev-kit-guided used more tokens. This can happen on small projects where raw-full-file is cheaper.
+- Token savings are only computed when both paired runs expose token totals. Claude does not expose token totals. Codex may expose token totals but can produce timeouts or invalid-output runs.
+- Token counts in fake-agent runs are estimated using `Math.ceil(characterCount / 4)`. These are context-size estimates, not provider billing totals.
+
+**Correctness scoring notes:**
+- Correctness is scored deterministically against benchmark answer keys. It is not semantic LLM judging.
+- A run passes if it meets or exceeds the `minimumCorrectFacts` threshold defined in the answer key.
+
+**Complexity score notes:**
+- The complexity score is a heuristic 0-100 weighted score. Higher scores indicate projects where raw full-file reading is less attractive.
+- Small projects may show negative token savings because raw-full-file is cheaper when the entire project fits easily in context.
+- Larger, more localized tasks are where my-dev-kit is expected to become more useful.
 
 ## Project Complexity Metrics
 

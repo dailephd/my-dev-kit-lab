@@ -1,85 +1,108 @@
 # Gallery
 
-The gallery manifest is a deterministic index of the artifacts produced by the lab workflows in this repository.
+The gallery is a browsable collection of all artifacts produced by a my-dev-kit-lab experiment run. It brings together the experiment report, SVG charts, visualization demos, and optional screenshots into a single navigable index.
 
-Benchmark metadata and answer keys are validated before the token-savings demo runs. Controlled experiment artifacts can be rendered into `experiment-report.html` and `experiment-report.json`, plotted as static SVG charts, combined with visualization demo artifacts, and indexed by the existing gallery manifest.
+---
 
-## What It Contains
+## What the gallery contains
 
-`gallery-manifest.json` records:
+A gallery output directory contains:
 
-- when the gallery was generated
-- the output directory
-- generated artifact paths
-- summary metrics
-- warnings
+| Artifact | Description |
+|---|---|
+| `gallery-manifest.json` | Structured list of all gallery entries with paths, types, and metadata |
+| `gallery-index.html` | Static HTML page linking to all gallery entries |
 
-The original demo item is `token-savings-demo`, which points to the token-savings summary, runs, HTML report, and optional PNG screenshot.
+The gallery manifest references artifacts from:
+- The experiment report (`experiment-report.html`, `experiment-report.json`, optional `experiment-report.png`)
+- SVG charts from the plot generator (`charts/*.svg`)
+- Visualization demo artifacts
+- Any additional screenshots captured during the pipeline
 
-Prompt 7 gallery item kinds include:
+---
 
-- `controlled-experiment`
-- `experiment-report`
-- `experiment-plots`
-- `visualization-demo`
-- `final-demo`
+## How the gallery relates to other outputs
 
-## Generated Artifacts
-
-Running the lab demo writes:
-
-- `token-savings-summary.json`
-- `token-savings-runs.json`
-- `token-savings-report.html`
-- `token-savings-report.png` when screenshot capture succeeds
-- `gallery-manifest.json`
-- `commands/*` telemetry files from external my-dev-kit subprocess calls
-
-Running the final demo writes:
-
-- `controlled-experiment/*`
-- `plots/*`
-- `visualization-demos/*`
-- `experiment-report/*`
-- `gallery/gallery-manifest.json`
-- `gallery/gallery-index.html`
-
-## Regenerate The Demo Gallery
-
-```bash
-npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery
+```mermaid
+flowchart TD
+  A[Controlled Experiment\nJSON artifacts] --> B[Report Renderer]
+  A --> C[Plot Generator]
+  A --> D[Visualization Demos]
+  B --> E[experiment-report.html]
+  B --> F[experiment-report.json]
+  B --> G[experiment-report.png\noptional]
+  C --> H[charts/*.svg]
+  C --> I[plot-data.json]
+  D --> J[demo artifacts]
+  E --> K[npm run build-gallery]
+  F --> K
+  G --> K
+  H --> K
+  I --> K
+  J --> K
+  K --> L[gallery-manifest.json]
+  K --> M[gallery-index.html]
 ```
 
-## Interpret `token-savings-demo`
+---
 
-The gallery item summarizes static context comparison results:
+## Gallery manifest structure
 
-- how many cases ran
-- how many completed
-- how many were skipped
-- average raw full-file estimated tokens
-- average my-dev-kit estimated tokens
-- average tokens saved
-- average percent saved
-- token count method
+The `gallery-manifest.json` file lists every artifact in the gallery. Each entry includes:
 
-Screenshots are tied directly to the generated HTML report. They are presentation output derived from evaluation artifacts, not the source of truth.
+- **type** — the artifact type: `report`, `plot`, `screenshot`, `demo`, or `index`
+- **path** — relative path to the artifact file
+- **label** — human-readable label for the gallery index
+- **metadata** — additional context such as experiment name, agent, strategy, or complexity level
 
-## Commit Policy
+---
 
-Commit source files, documentation, tests, and the `lab-output/.gitkeep` placeholder only.
+## How to build a gallery
 
-Do not commit generated:
+After running a controlled experiment and generating a report and plots:
 
-- lab output JSON
-- HTML reports
-- screenshots
-- command telemetry logs
+```bash
+npm run build-gallery -- \
+  --report lab-output/experiment-report-fake \
+  --plots lab-output/experiment-plots \
+  --visualizations lab-output/visualization-demos \
+  --out lab-output/gallery
+```
 
-## Known Limitations
+Open `lab-output/gallery/gallery-index.html` in a browser to browse all artifacts.
 
-- token counts use `estimated_chars_div_4`
-- provider telemetry does not exist yet
-- gallery manifest entries are static metadata, not a richer interactive gallery UI
-- richer gallery UI is future work
-- portfolio-specific templates are future work
+---
+
+## Gallery publishing diagram
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Lab as my-dev-kit-lab
+  participant FS as File System
+
+  User->>Lab: npm run build-gallery
+  Lab->>FS: Read report artifacts
+  Lab->>FS: Read plot artifacts
+  Lab->>FS: Read visualization demo artifacts
+  Lab->>Lab: Build gallery manifest
+  Lab->>FS: Write gallery-manifest.json
+  Lab->>FS: Write gallery-index.html
+  Lab->>User: Gallery ready at lab-output/gallery/gallery-index.html
+```
+
+---
+
+## Gallery in the final demo
+
+The `npm run run-final-demo` command builds the gallery automatically as the last step of the pipeline. The gallery output is written to the same directory as all other final demo artifacts.
+
+---
+
+## Current limitations
+
+- The gallery index is a static HTML file with no interactive filtering or search
+- Gallery entries are linked by relative path; moving the output directory breaks links
+- Richer gallery UI with filtering, tagging, and comparison views is planned for a future phase
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the gallery UI roadmap item.

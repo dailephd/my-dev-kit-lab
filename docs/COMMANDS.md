@@ -1,257 +1,414 @@
 # Commands
 
-Install:
-- `npm install`
+This document describes all available commands in my-dev-kit-lab, their options, expected outputs, and when to use each one.
 
-Tests:
-- `npm run test`
-- `npm run test:plots`
-- `npm run test:visualization-demos`
-- `npm run test:agents`
-- `npm run test:report`
-- `npm run test:screenshot`
-- `npm run test:evaluation`
-- `npm run test:gallery`
-- `npm run test:demo`
-- `npm run test:integration`
-- `npm run test:e2e`
-- `npm --prefix benchmarks/projects/todo-ts test`
-- `npm --prefix benchmarks/projects/todo-js test`
-- `npm --prefix benchmarks/projects/todo-mixed-ts-py test`
+See [docs/WORKFLOWS.md](docs/WORKFLOWS.md) for end-to-end workflow examples that combine multiple commands.
 
-Benchmark verification:
-- `npm run test:benchmarks`
-- `npm run verify:benchmarks`
-- `npm run verify`
-- `python -m unittest discover benchmarks/projects/todo-python/tests`
+---
 
-Benchmark verification validates:
-- benchmark project structure
-- behavior contract presence
-- benchmark task contract shape
-- per-project expected files
-- benchmark project profiles in `benchmarks/contracts/benchmark-project-profiles.json`
-- deterministic file-tree metadata
-- nonnegative complexity metrics and 0-100 complexity scores
-- answer keys, unique expected fact IDs, and valid `minimumCorrectFacts`
-- benchmark complexity and experiment metric definitions documented in `docs/METRICS.md`
+## Installation and build
 
-Metric glossary:
-- `docs/METRICS.md` defines project complexity metrics, prompt complexity metrics, and experiment/run metrics.
+### `npm install` / `npm ci`
 
-Capture demo report:
-- `npm run capture-demo-report -- --input examples/demo-report-input.json --out lab-output/demo-report`
-- `--input`: path to a lab report JSON input file
-- `--out`: output directory for generated artifacts
-- `--no-screenshot`: skip PNG capture and write JSON and HTML only
+Installs all dependencies. Use `npm ci` in CI environments for a clean, reproducible install.
 
-Expected output files:
-- `demo-report.json`
-- `demo-report.html`
-- `demo-report.png` when screenshot capture succeeds
+```bash
+npm install
+```
 
-Evaluate token savings:
-- `npm run evaluate-token-savings -- --cases examples/token-savings-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/token-savings`
-- `--cases`: path to the evaluation case list JSON
-- `--kit-command`: external my-dev-kit command string
-- `--out`: output directory for evaluation artifacts
-- `--require-kit`: fail if my-dev-kit is unavailable or errors
-- `--no-screenshot`: skip PNG capture and write JSON and HTML only
+### `npm run build`
 
-Expected output files:
-- `token-savings-summary.json`
-- `token-savings-runs.json`
-- `token-savings-report.html`
-- `token-savings-report.png` when screenshot capture succeeds
-- `commands/*.stdout.txt`
-- `commands/*.stderr.txt`
-- `commands/*.telemetry.json`
+Compiles TypeScript sources to `dist/`. Run this before executing any lab commands.
 
-Generate prompt variants:
-- `npm run generate-prompt-variants -- --cases examples/token-savings-cases.json --out lab-output/prompt-variants`
-- `--cases`: path to the evaluation case list JSON
-- `--out`: output directory for prompt preview artifacts
-- `--project-profiles`: optional path to benchmark project profiles, defaults to `benchmarks/contracts/benchmark-project-profiles.json`
-- `--strategy`: optional filter, `raw-full-file` or `my-dev-kit-guided`
-- `--complexity`: optional filter, `short`, `medium`, `long`, or `multi-step`
+```bash
+npm run build
+```
 
-Expected output files:
-- `prompt-variants-summary.json`
-- `prompt-variants.json`
-- `prompts/<caseId>.<strategy>.<complexity>.txt`
+---
 
-This command only writes prompt previews. It does not run Codex, Claude, fake agents, correctness scoring, screenshots, reports, or gallery updates.
+## Validation commands
 
-Run one agent prompt:
-- `npm run run-agent-prompt -- --agent fake-agent --cases examples/token-savings-cases.json --case todo-ts-create-task --strategy raw-full-file --complexity short --out lab-output/agent-run-fake`
-- `--agent`: `fake-agent`, `codex`, or `claude`
-- `--cases`: path to the evaluation case list JSON
-- `--case`: evaluation case ID to run
-- `--strategy`: `raw-full-file` or `my-dev-kit-guided`
-- `--complexity`: `short`, `medium`, `long`, or `multi-step`
-- `--out`: output directory for prompt and agent-run artifacts
-- `--command-template`: optional command override for real CLI adapters; use `{prompt}` as the prompt placeholder
-- `--require-agent`: fail if a real CLI adapter is unavailable instead of skipping
-- `--timeout-ms`: optional timeout for real CLI adapter prompt execution through the shared measured command runtime
+### `npm run test`
 
-Expected output files:
-- `prompt.txt`
-- `agent-run-result.json`
-- `*.stdout.txt`, `*.stderr.txt`, and `*.telemetry.json` when the selected adapter writes command telemetry
+Runs the full test suite. Use this to verify that all modules are working correctly.
 
-This command runs one generated prompt through one adapter. It does not run all cases, compare strategies, score correctness, render final experiment reports, capture screenshots, or update the gallery.
+```bash
+npm run test
+```
 
-Run a controlled experiment:
-- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --agents fake-agent --strategies raw-full-file,my-dev-kit-guided --complexities short --out lab-output/controlled-experiment-fake`
-- `npm run run-controlled-experiment -- --cases examples/real-agent-campaign-cases.json --agents codex,claude --strategies raw-full-file,my-dev-kit-guided --complexities medium,multi-step --out lab-output/real-agent-campaign --include-real-agents --continue-on-failure --timeout-ms 240000`
-- `--cases`: path to the evaluation case list JSON
-- `--project-profiles`: optional path to benchmark project profiles, defaults to `benchmarks/contracts/benchmark-project-profiles.json`
-- `--case`: optional evaluation case ID filter; may be repeated or comma-separated
-- `--benchmark-project`: optional benchmark project ID filter; may be repeated or comma-separated
-- `--agents`: comma-separated `fake-agent`, `codex`, or `claude`; defaults to `fake-agent`
-- `--strategies`: comma-separated `raw-full-file` and/or `my-dev-kit-guided`; defaults to both
-- `--complexities`: comma-separated `short`, `medium`, `long`, or `multi-step`; defaults to `short`
-- `--out`: output directory for experiment artifacts
-- `--timeout-ms`: optional timeout for real CLI adapter prompt execution
-- `--max-runs`: optional cap for smoke tests
-- `--continue-on-failure`: continue writing artifacts after individual failed runs; this is the default safe behavior
-- `--require-agents`: turn unavailable real agents into failed adapter results
-- `--include-real-agents`: required before Codex or Claude matrix runs are allowed
-- `--command-template-codex`: optional Codex command override; use `{prompt}` as the prompt placeholder
-- `--command-template-claude`: optional Claude command override; use `{prompt}` as the prompt placeholder
+### `npm run test:benchmarks`
 
-Expected output files:
-- `experiment-summary.json`
-- `experiment-runs.json`
-- `experiment-comparisons.json`
-- `experiment-config.json`
-- `runs/<runId>/prompt.txt`
-- `runs/<runId>/agent-run-result.json`
-- `runs/<runId>/parsed-answer.json`
-- `runs/<runId>/correctness-score.json`
+Runs benchmark-specific tests: project structure, contract shape, profile validation, answer keys, and complexity metrics.
 
-This command writes structured experiment artifacts only. It does not render the final visual experiment report, capture screenshots, create plots, run visualization demos, or update the gallery manifest.
+```bash
+npm run test:benchmarks
+```
 
-Render a controlled experiment report:
-- `npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot`
-- `--experiment`: path to an existing controlled experiment output directory
-- `--out`: output directory for report artifacts
-- `--title`: optional report title override
-- `--subtitle`: optional report subtitle override
-- `--screenshot`: capture `experiment-report.png` through the existing screenshot layer
-- `--no-screenshot`: skip PNG capture; this is the default
-- `--require-screenshot`: fail if screenshot capture is requested but cannot complete
-- `--max-prompt-chars`: optional prompt excerpt length cap for the HTML report
-- `--max-file-tree-entries`: optional per-project file tree entry cap
-- `--plots`: optional plot artifact directory to link in the report
-- `--visualizations`: optional visualization demo artifact directory to link in the report
+### `npm run test:report`
 
-Expected output files:
-- `experiment-report.json`
-- `experiment-report.html`
-- `experiment-report-artifacts.json`
-- `experiment-report.png` when `--screenshot` succeeds
+Runs report rendering tests.
 
-This command consumes existing controlled experiment artifacts. It does not run agents, run controlled experiments, generate plots, run visualization demos, or update the gallery manifest.
+```bash
+npm run test:report
+```
 
-Generate experiment plots:
-- `npm run generate-experiment-plots -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-plots`
-- `--experiment`: controlled experiment output directory
-- `--out`: output directory for plot artifacts
+### `npm run test:experiments`
 
-Expected output files:
-- `plots-summary.json`
-- `plot-data.json`
-- `charts/token-savings-vs-prompt-length.svg`
-- `charts/time-reduction-vs-prompt-length.svg`
-- `charts/token-savings-vs-project-complexity.svg`
-- `charts/time-reduction-vs-project-complexity.svg`
-- `charts/correctness-by-strategy.svg`
-- `charts/run-outcomes-by-agent.svg`
+Runs controlled experiment runner tests.
 
-Run visualization demos:
-- `npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/visualization-demos`
-- `--project`: benchmark project directory
-- `--kit-command`: fake or real my-dev-kit command
-- `--out`: output directory
-- `--query`: optional search query
-- `--node`: optional node ID for source smoke command
-- `--require-all`: stop/fail when a visualization command fails
-- `--timeout-ms`: optional command timeout
+```bash
+npm run test:experiments
+```
 
-Real my-dev-kit example:
-- `npm run run-visualization-demos -- --project benchmarks/projects/todo-ts --kit-command "node ../my-dev-kit-v1/dist/cli.js" --out lab-output/visualization-demos-real`
+### `npm run test:plots`
 
-Expected output files:
-- `visualization-demo-summary.json`
-- `visualization-demo-runs.json`
-- `commands/<command-id>/*.stdout.txt`
-- `commands/<command-id>/*.stderr.txt`
-- `commands/<command-id>/*.telemetry.json`
-- `artifacts/*` when graph commands produce output
+Runs plot generation tests.
 
-Build gallery:
-- `npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-output/experiment-plots --visualizations lab-output/visualization-demos --out lab-output/gallery`
-- `--report`: experiment report directory
-- `--plots`: experiment plot directory
-- `--visualizations`: visualization demo directory
-- `--experiment`: optional controlled experiment directory
-- `--out`: gallery output directory
+```bash
+npm run test:plots
+```
 
-Expected output files:
-- `gallery-manifest.json`
-- `gallery-index.html`
+### `npm run test:gallery`
 
-Run final demo:
-- `npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot`
-- `--cases`: evaluation cases file
-- `--out`: final demo output directory
-- `--kit-command`: fake or real my-dev-kit command
-- `--agents`: comma-separated `fake-agent`, `codex`, or `claude`; defaults to `fake-agent`
-- `--strategies`: comma-separated strategies; defaults to both
-- `--complexities`: comma-separated complexity levels; defaults to `short`
-- `--case`: optional case filter
-- `--benchmark-project`: optional project filter
-- `--max-runs`: optional run cap
-- `--screenshot` or `--no-screenshot`: optional report screenshot
-- `--include-real-agents`: allow Codex or Claude
-- `--continue-on-failure`: continue after failed runs
-- `--timeout-ms`: optional command timeout
+Runs gallery manifest and index tests.
 
-The final demo uses fake-agent and fake my-dev-kit cleanly for deterministic local runs. It does not require real Codex, Claude, my-dev-kit, network, or cloud APIs.
+```bash
+npm run test:gallery
+```
 
-Expected output directories:
-- `controlled-experiment/*`
-- `plots/*`
-- `visualization-demos/*`
-- `experiment-report/*`
-- `gallery/gallery-manifest.json`
-- `gallery/gallery-index.html`
+### `npm run test:integration`
 
-Windows CLI shim notes:
-- npm-installed CLIs may appear as `codex.cmd`, `codex.exe`, `codex.ps1`, or extensionless commands on PATH
-- the shared measured command runtime resolves extensionless commands on Windows before spawning
-- `.cmd` and `.bat` wrappers are invoked through a controlled `cmd.exe` command path, not `shell: true`
-- `.ps1` wrappers are invoked through `powershell.exe -NoProfile -ExecutionPolicy Bypass -File <shim>` only after resolving a `.ps1` shim
-- `.cmd` is preferred over `.ps1` when both are available
-- use `--command-template` to override local CLI syntax, for example `codex exec --json {{prompt}}` or `claude --print {{prompt}}`
-- use `--require-agent` when a missing or unusable real CLI should fail the command instead of writing a skipped result
+Runs integration tests that exercise multiple modules together.
 
-Run the full lab demo:
-- `npm run lab-demo -- --cases examples/lab-demo-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/demo-gallery`
-- `--cases`: path to the lab demo case list JSON
-- `--kit-command`: external my-dev-kit command string
-- `--out`: output directory for the complete demo artifacts
-- `--require-kit`: fail if my-dev-kit is unavailable or errors
-- `--no-screenshot`: skip PNG capture and write JSON and HTML only
-- `--skip-benchmark-validation`: skip benchmark verification and record a warning
+```bash
+npm run test:integration
+```
 
-Expected output files:
-- `token-savings-summary.json`
-- `token-savings-runs.json`
-- `token-savings-report.html`
-- `token-savings-report.png` when screenshot capture succeeds
-- `gallery-manifest.json`
-- `commands/*.stdout.txt`
-- `commands/*.stderr.txt`
-- `commands/*.telemetry.json`
+### `npm run verify`
+
+Runs the full verification suite: build, tests, and benchmark checks. Use this as a final check before committing.
+
+```bash
+npm run verify
+```
+
+---
+
+## Lab commands
+
+### `npm run generate-prompt-variants`
+
+Generates raw-full-file and my-dev-kit-guided prompt variants for each benchmark case at the specified complexity levels. Writes prompt text files and prompt complexity metrics.
+
+**When to use:** Before running an experiment, to preview the prompts that will be sent to agents.
+
+**Options:**
+- `--cases` — path to the benchmark case list JSON
+- `--out` — output directory for generated prompt variant files
+
+**Example:**
+```bash
+npm run generate-prompt-variants -- \
+  --cases examples/token-savings-cases.json \
+  --out lab-output/prompt-variants
+```
+
+**Outputs:**
+- `lab-output/prompt-variants/<case>/<strategy>/<complexity>.txt`
+- `lab-output/prompt-variants/prompt-variants-summary.json`
+
+---
+
+### `npm run run-agent-prompt`
+
+Runs a single prompt against a single agent for a single benchmark case. Writes a prompt preview and an `agent-run-result.json`. Does not compare strategies, score correctness, or update the gallery.
+
+**When to use:** To smoke-test a single agent run or preview what an agent returns for a specific case and strategy.
+
+**Options:**
+- `--agent` — agent name: `fake-agent`, `codex`, or `claude`
+- `--cases` — path to the benchmark case list JSON
+- `--case` — specific case ID to run
+- `--strategy` — `raw-full-file` or `my-dev-kit-guided`
+- `--complexity` — `short`, `medium`, `long`, or `multi-step`
+- `--out` — output directory
+- `--require-agent` — fail if the agent CLI is unavailable (default: skip)
+
+**Examples:**
+```bash
+# Deterministic fake-agent run
+npm run run-agent-prompt -- \
+  --agent fake-agent \
+  --cases examples/token-savings-cases.json \
+  --case todo-ts-create-task \
+  --strategy raw-full-file \
+  --complexity short \
+  --out lab-output/agent-run-fake
+
+# Real Codex run (requires local Codex CLI)
+npm run run-agent-prompt -- \
+  --agent codex \
+  --cases examples/token-savings-cases.json \
+  --case todo-ts-create-task \
+  --strategy my-dev-kit-guided \
+  --complexity short \
+  --out lab-output/agent-run-codex
+```
+
+**Outputs:**
+- `lab-output/agent-run-fake/agent-run-result.json`
+
+---
+
+### `npm run run-controlled-experiment`
+
+Runs a controlled experiment comparing `raw-full-file` and `my-dev-kit-guided` strategies across the specified cases, agents, and complexity levels. Pairs runs by case, agent, and complexity, scores correctness from answer keys, and computes token and duration comparisons.
+
+**When to use:** To run a full comparison experiment and produce structured JSON artifacts for reporting.
+
+**Options:**
+- `--cases` — path to the benchmark case list JSON
+- `--agents` — comma-separated agent names: `fake-agent`, `codex`, `claude`
+- `--strategies` — comma-separated strategies: `raw-full-file`, `my-dev-kit-guided`
+- `--complexities` — comma-separated complexity levels: `short`, `medium`, `long`, `multi-step`
+- `--out` — output directory
+- `--include-real-agents` — include Codex and Claude runs (skipped by default)
+- `--continue-on-failure` — continue after individual run failures
+- `--timeout-ms` — per-run timeout in milliseconds
+- `--max-runs` — maximum number of runs to execute
+
+**Examples:**
+```bash
+# Fake-agent experiment
+npm run run-controlled-experiment -- \
+  --cases examples/token-savings-cases.json \
+  --agents fake-agent \
+  --strategies raw-full-file,my-dev-kit-guided \
+  --complexities short \
+  --out lab-output/controlled-experiment-fake
+
+# Real-agent campaign
+npm run run-controlled-experiment -- \
+  --cases examples/real-agent-campaign-cases.json \
+  --agents codex,claude \
+  --strategies raw-full-file,my-dev-kit-guided \
+  --complexities medium,multi-step \
+  --out lab-output/real-agent-campaign \
+  --include-real-agents \
+  --continue-on-failure \
+  --timeout-ms 240000
+```
+
+**Outputs:**
+- `lab-output/<out>/experiment-summary.json`
+- `lab-output/<out>/experiment-runs.json`
+- `lab-output/<out>/experiment-comparisons.json`
+- `lab-output/<out>/experiment-config.json`
+- `lab-output/<out>/runs/<runId>/` — per-run artifacts
+
+---
+
+### `npm run render-experiment-report`
+
+Renders experiment artifacts into an HTML report with JSON metadata. Optionally captures a PNG screenshot.
+
+**When to use:** After running a controlled experiment, to produce a human-readable report.
+
+**Options:**
+- `--experiment` — path to the experiment output directory
+- `--out` — output directory for report artifacts
+- `--screenshot` / `--no-screenshot` — whether to capture a PNG (default: no screenshot)
+- `--plots` — optional path to a plots directory to link in the report
+- `--visualizations` — optional path to a visualization demos directory to link in the report
+
+**Examples:**
+```bash
+# Render without screenshot
+npm run render-experiment-report -- \
+  --experiment lab-output/controlled-experiment-fake \
+  --out lab-output/experiment-report-fake \
+  --no-screenshot
+
+# Render with screenshot
+npm run render-experiment-report -- \
+  --experiment lab-output/controlled-experiment-fake \
+  --out lab-output/experiment-report-fake-shot \
+  --screenshot
+```
+
+**Outputs:**
+- `lab-output/<out>/experiment-report.json`
+- `lab-output/<out>/experiment-report.html`
+- `lab-output/<out>/experiment-report-artifacts.json`
+- `lab-output/<out>/experiment-report.png` — when `--screenshot` succeeds
+
+---
+
+### `npm run generate-experiment-plots`
+
+Generates plot data and static SVG charts from experiment artifacts.
+
+**When to use:** After running a controlled experiment, to produce visual summaries of the results.
+
+**Options:**
+- `--experiment` — path to the experiment output directory
+- `--out` — output directory for plot artifacts
+
+**Example:**
+```bash
+npm run generate-experiment-plots -- \
+  --experiment lab-output/controlled-experiment-fake \
+  --out lab-output/experiment-plots
+```
+
+**Outputs:**
+- `lab-output/experiment-plots/plot-data.json`
+- `lab-output/experiment-plots/plots-summary.json`
+- `lab-output/experiment-plots/charts/*.svg`
+
+---
+
+### `npm run run-visualization-demos`
+
+Runs bounded my-dev-kit visualization command demos against a benchmark project and writes demo artifacts.
+
+**When to use:** To demonstrate my-dev-kit retrieval commands on a benchmark project and include the results in a gallery.
+
+**Options:**
+- `--project` — path to the benchmark project directory
+- `--kit-command` — my-dev-kit CLI command string
+- `--out` — output directory for demo artifacts
+
+**Example:**
+```bash
+npm run run-visualization-demos -- \
+  --project benchmarks/projects/todo-ts \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --out lab-output/visualization-demos
+```
+
+---
+
+### `npm run build-gallery`
+
+Collects report, plot, visualization demo, and screenshot artifacts into a gallery manifest and a static gallery index.
+
+**When to use:** After generating a report, plots, and visualization demos, to publish a browsable gallery.
+
+**Options:**
+- `--report` — path to the report output directory
+- `--plots` — path to the plots output directory
+- `--visualizations` — path to the visualization demos output directory
+- `--out` — output directory for gallery artifacts
+
+**Example:**
+```bash
+npm run build-gallery -- \
+  --report lab-output/experiment-report-fake \
+  --plots lab-output/experiment-plots \
+  --visualizations lab-output/visualization-demos \
+  --out lab-output/gallery
+```
+
+**Outputs:**
+- `lab-output/gallery/gallery-manifest.json`
+- `lab-output/gallery/gallery-index.html`
+
+---
+
+### `npm run run-final-demo`
+
+Runs the complete pipeline in one command: controlled experiment → report → plots → visualization demos → gallery. Use this for a full end-to-end demo.
+
+**When to use:** To run the entire pipeline in one step, typically with fake-agent for a deterministic demo.
+
+**Options:**
+- `--cases` — path to the benchmark case list JSON
+- `--out` — output directory for all artifacts
+- `--kit-command` — my-dev-kit CLI command string
+- `--agents` — comma-separated agent names
+- `--complexities` — comma-separated complexity levels
+- `--screenshot` / `--no-screenshot` — whether to capture a PNG
+
+**Example:**
+```bash
+npm run run-final-demo -- \
+  --cases examples/token-savings-cases.json \
+  --out lab-output/final-demo \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
+```
+
+---
+
+### `npm run evaluate-token-savings`
+
+Runs the earlier token-savings evaluation workflow: measures raw full-file baseline context, runs my-dev-kit retrieval, and compares estimated token counts. This is a simpler predecessor to the controlled experiment workflow.
+
+**When to use:** For a quick estimated token comparison without full experiment infrastructure.
+
+**Options:**
+- `--cases` — path to the evaluation case list JSON
+- `--kit-command` — my-dev-kit CLI command string
+- `--out` — output directory
+- `--require-kit` — fail if my-dev-kit is unavailable
+- `--no-screenshot` — skip PNG capture
+
+**Example:**
+```bash
+npm run evaluate-token-savings -- \
+  --cases examples/token-savings-cases.json \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --out lab-output/token-savings
+```
+
+**Note:** Token counts in this workflow are estimated using `Math.ceil(characterCount / 4)`. This is a static context-size comparison, not provider billing telemetry.
+
+---
+
+### `npm run lab-demo`
+
+Runs the earlier quick demo workflow: token-savings evaluation → report → screenshot → gallery manifest.
+
+**When to use:** For a quick demo of the token-savings evaluation pipeline.
+
+**Example:**
+```bash
+npm run lab-demo -- \
+  --cases examples/lab-demo-cases.json \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --out lab-output/demo-gallery
+```
+
+---
+
+### `npm run capture-demo-report`
+
+Renders a demo report from a JSON input file and optionally captures a PNG screenshot.
+
+**When to use:** To render a standalone demo report from a custom JSON input.
+
+**Options:**
+- `--input` — path to a lab report JSON input file
+- `--out` — output directory
+- `--no-screenshot` — skip PNG capture
+
+**Example:**
+```bash
+npm run capture-demo-report -- \
+  --input examples/demo-report-input.json \
+  --out lab-output/demo-report
+```
+
+**Outputs:**
+- `lab-output/demo-report/demo-report.json`
+- `lab-output/demo-report/demo-report.html`
+- `lab-output/demo-report/demo-report.png` — when screenshot capture succeeds
+
+---
+
+## Screenshot capture notes
+
+Screenshot capture uses Playwright and requires a browser runtime. When Playwright or the browser runtime is unavailable, JSON and HTML artifacts are still written and the command succeeds with a warning. Pass `--no-screenshot` to skip capture explicitly.

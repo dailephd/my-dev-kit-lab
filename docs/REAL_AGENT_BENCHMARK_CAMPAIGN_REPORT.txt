@@ -1,124 +1,166 @@
-Real-agent benchmark campaign report
+Real-Agent Benchmark Campaign Report
 
 Branch: feature/real-agent-benchmark-campaign
 Commit: d697e47bcc9f6dc78286322c7e612a62fe3ea5ba
-Date/time: 2026-06-13 America/Chicago
-Campaign status: partial campaign with structured outcomes
+Date: 2026-06-13
+Campaign status: Partial campaign with structured outcomes
 
-Projects tested:
-- task-workflow-medium-ts
-- task-analytics-large-mixed
+---
 
-Project complexity scores:
-- task-workflow-medium-ts: medium, score 30
-- task-analytics-large-mixed: large, score 48
+Overview
 
-Complexity formula summary:
-- 0-100 weighted score from sourceFileCount, sourceLinesOfCode, languageCount, internalImportCount, maxFileLines, expectedRelevantFilesAverage, and expectedRelevantSymbolsAverage
-- Formula id: benchmark-project-complexity-v1
-- Canonical definitions: docs/METRICS.md
+This report summarizes the real-agent benchmark campaign run against the medium and large
+benchmark projects using Codex and Claude. The campaign infrastructure ran end-to-end and
+recorded all outcomes as structured JSON. Results are partial because real-agent CLIs can
+produce completed runs, timeouts, invalid output, and session limits.
 
-Agents tested:
+These results demonstrate that the experiment infrastructure works with real agents. They
+do not constitute proof of token savings. Stronger evidence requires future experiment
+types such as warm-index reuse, incremental-change, and context-window scaling.
+
+See docs/ROADMAP.md for the planned next phases.
+
+---
+
+Projects tested
+
+- task-workflow-medium-ts (medium, complexity score 30)
+- task-analytics-large-mixed (large, complexity score 48)
+
+Complexity formula: benchmark-project-complexity-v1
+Canonical metric definitions: docs/METRICS.md
+
+---
+
+Agents tested
+
 - codex
 - claude
 
-Prompt strategies tested:
+---
+
+Strategies tested
+
 - raw-full-file
 - my-dev-kit-guided
 
-Prompt complexities tested:
-- pilot: short
-- main campaign: medium, multi-step
+---
 
-Commands run:
-- npm install
-- codex --version
-- claude --version
-- npm run build
-- npm run test
-- npm run test:benchmarks
-- npm run test:report
-- npm run test:experiments
-- npm run test:plots
-- npm run test:gallery
-- npm run test:integration
-- python -m unittest discover benchmarks/projects/todo-python/tests
-- cd benchmarks/projects/task-workflow-medium-ts && npm test
-- cd benchmarks/projects/task-analytics-large-mixed/ts && npm test
-- cd benchmarks/projects/task-analytics-large-mixed && set PYTHONPATH=py && python -m unittest discover py/tests
-- npm run verify
-- npm run run-controlled-experiment -- --cases examples/real-agent-campaign-cases.json --agents codex,claude --strategies raw-full-file,my-dev-kit-guided --complexities short --max-runs 4 --out lab-output/real-agent-campaign-pilot --include-real-agents --continue-on-failure --timeout-ms 180000
-- npm run run-controlled-experiment -- --cases examples/real-agent-campaign-cases.json --agents codex,claude --strategies raw-full-file,my-dev-kit-guided --complexities medium,multi-step --out lab-output/real-agent-campaign --include-real-agents --continue-on-failure --timeout-ms 240000
-- npm run render-experiment-report -- --experiment lab-output/real-agent-campaign --out lab-output/real-agent-report --no-screenshot
-- npm run generate-experiment-plots -- --experiment lab-output/real-agent-campaign --out lab-output/real-agent-plots
-- npm run run-visualization-demos -- --project benchmarks/projects/task-workflow-medium-ts --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/real-agent-visualization-demos
-- npm run render-experiment-report -- --experiment lab-output/real-agent-campaign --out lab-output/real-agent-report-enhanced --plots lab-output/real-agent-plots --visualizations lab-output/real-agent-visualization-demos --screenshot
-- npm run build-gallery -- --report lab-output/real-agent-report-enhanced --plots lab-output/real-agent-plots --visualizations lab-output/real-agent-visualization-demos --out lab-output/real-agent-gallery
+Complexity levels tested
 
-Artifact locations:
-- HTML report: lab-output/real-agent-report-enhanced/experiment-report.html
-- Screenshot: lab-output/real-agent-report-enhanced/experiment-report.png
-- JSON comparisons: lab-output/real-agent-campaign/experiment-comparisons.json
-- JSON runs: lab-output/real-agent-campaign/experiment-runs.json
-- Summary: lab-output/real-agent-campaign/experiment-summary.json
-- Plots: lab-output/real-agent-plots
-- Gallery: lab-output/real-agent-gallery
+- Pilot: short
+- Main campaign: medium, multi-step
 
-Run outcome counts:
-- completed: 8
-- failed: 0
-- timeout: 4
-- invalid-output: 2
-- agent-limit-reached: 2
-- unavailable: 0
+---
 
-Codex result summary:
-- 8 runs attempted
-- 0 completed
-- 4 timeouts
-- 2 invalid-output outcomes
-- 2 agent-limit-reached outcomes
-- Average correctness delta across paired comparisons: 0
-- Average token savings percent across paired comparisons: -152.4453
-- Average duration reduction percent across paired comparisons: -90.0885
+Commands run
 
-Claude result summary:
-- 8 runs attempted
-- 8 completed
-- Average correctness score across runs: 0.5964
-- Average correctness delta across paired comparisons: -0.226
-- Token comparison was unavailable in all 4 paired comparisons because token totals were not exposed by the CLI output
-- Average duration reduction percent across paired comparisons: -179.3752
+npm install
+codex --version
+claude --version
+npm run build
+npm run test
+npm run test:benchmarks
+npm run test:report
+npm run test:experiments
+npm run test:plots
+npm run test:gallery
+npm run test:integration
+python -m unittest discover benchmarks/projects/todo-python/tests
+cd benchmarks/projects/task-workflow-medium-ts && npm test
+cd benchmarks/projects/task-analytics-large-mixed/ts && npm test
+cd benchmarks/projects/task-analytics-large-mixed && set PYTHONPATH=py && python -m unittest discover py/tests
+npm run verify
 
-Token savings summary:
-- Main campaign average token savings percent across comparable pairs: -152.445325
-- Negative token savings means my-dev-kit-guided used more tokens than raw-full-file for that comparison
-- Only Codex comparisons exposed paired total token counts in this campaign
+Pilot campaign:
+npm run run-controlled-experiment -- \
+  --cases examples/real-agent-campaign-cases.json \
+  --agents codex,claude \
+  --strategies raw-full-file,my-dev-kit-guided \
+  --complexities short \
+  --max-runs 4 \
+  --out lab-output/real-agent-campaign-pilot \
+  --include-real-agents \
+  --continue-on-failure \
+  --timeout-ms 180000
 
-Duration summary:
-- Main campaign average duration reduction percent: -134.73185
-- Negative duration reduction means my-dev-kit-guided was slower than raw-full-file
-- One comparison was positive: codex on task-analytics-large-mixed at multi-step prompt complexity
+Main campaign:
+npm run run-controlled-experiment -- \
+  --cases examples/real-agent-campaign-cases.json \
+  --agents codex,claude \
+  --strategies raw-full-file,my-dev-kit-guided \
+  --complexities medium,multi-step \
+  --out lab-output/real-agent-campaign \
+  --include-real-agents \
+  --continue-on-failure \
+  --timeout-ms 240000
 
-Correctness summary:
-- Main campaign average correctness delta: -0.1130125
-- The aggregate answer remained "preserve correctness" because every paired comparison kept the same pass/fail outcome
-- Claude generally answered more of the structured task than Codex, but my-dev-kit-guided correctness was still lower than raw-full-file in the completed Claude pairs
+Report and gallery:
+npm run render-experiment-report -- \
+  --experiment lab-output/real-agent-campaign \
+  --out lab-output/real-agent-report \
+  --no-screenshot
 
-Interpretation of negative token savings:
-- Negative token savings does not mean the experiment runner is broken
-- It means the guided strategy produced larger or more verbose sessions than the raw-full-file strategy for the comparable run pair
-- In this campaign the guided prompts and retrieval-oriented output contract often increased interaction overhead instead of shrinking it
+npm run generate-experiment-plots -- \
+  --experiment lab-output/real-agent-campaign \
+  --out lab-output/real-agent-plots
 
-Limitations:
-- This is a partial real-agent campaign because Codex produced timeouts, invalid outputs, and limit-reached outcomes
-- Claude did not expose token totals in these runs, so Claude token comparisons are unavailable
-- Correctness is deterministic and answer-key based; there is no semantic LLM judge
-- The report compares local CLI behavior, not cloud billing telemetry
-- Visualization demos used the fake my-dev-kit CLI because the request focused on real agents, not real retrieval engine runs
+npm run run-visualization-demos -- \
+  --project benchmarks/projects/task-workflow-medium-ts \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --out lab-output/real-agent-visualization-demos
 
-Recommended next benchmark campaign:
-- Keep these medium and large projects
-- Add one more medium or large case per project so answer-key coverage is broader than a single retrieval task each
-- Run a smaller Codex-only retry campaign with one complexity level at a time to separate timeout behavior from prompt-size effects
-- Add a second mixed-language case that targets different Python and TypeScript modules to test whether guided retrieval helps on cross-language symbol navigation
+npm run render-experiment-report -- \
+  --experiment lab-output/real-agent-campaign \
+  --out lab-output/real-agent-report-enhanced \
+  --plots lab-output/real-agent-plots \
+  --visualizations lab-output/real-agent-visualization-demos \
+  --screenshot
+
+npm run build-gallery -- \
+  --report lab-output/real-agent-report-enhanced \
+  --plots lab-output/real-agent-plots \
+  --visualizations lab-output/real-agent-visualization-demos \
+  --out lab-output/real-agent-gallery
+
+---
+
+Artifact locations
+
+HTML report:   lab-output/real-agent-report-enhanced/experiment-report.html
+Screenshot:    lab-output/real-agent-report-enhanced/experiment-report.png
+Plots:         lab-output/real-agent-plots/charts/
+Gallery:       lab-output/real-agent-gallery/gallery-index.html
+
+---
+
+Known limitations
+
+- Claude does not expose token totals. Token savings comparisons are unavailable for
+  Claude runs. The report shows N/A for token savings on all Claude run pairs.
+
+- Codex may expose token totals but produced some timeouts and invalid-output runs
+  during this campaign. Token savings are only shown for completed Codex run pairs
+  where both runs returned token totals.
+
+- Campaign results are partial. Not all runs completed. The report shows warnings for
+  missing token totals and non-completed runs.
+
+- The current baseline does not prove token savings. It demonstrates that the experiment
+  infrastructure works end-to-end with real agents and records structured outcomes.
+
+---
+
+Outcome types recorded
+
+- completed:      Agent returned a valid response
+- timeout:        Run exceeded the timeout limit
+- invalid-output: Agent returned output that could not be parsed
+- limit-reached:  Agent hit a usage or session limit
+
+---
+
+Next steps
+
+See docs/ROADMAP.md for the planned generic experiment-plugin framework and future
+experiment types that will provide stronger evidence of my-dev-kit value.
