@@ -155,3 +155,12 @@ flowchart LR
   G --> H[Real-agent\nhardening]
   H --> I[Richer gallery\nand report UX]
 ```
+
+---
+
+## Project support
+
+Sponsorships and donations help support continued independent development, maintenance, documentation, and future experiment-framework work.
+
+- [Sponsor on GitHub](https://github.com/sponsors/dailephd)
+- [Support via PayPal](https://paypal.me/daile88)

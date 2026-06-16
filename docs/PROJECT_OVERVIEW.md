@@ -75,3 +75,12 @@ The next major development phase refactors my-dev-kit-lab into a generic experim
 This makes it straightforward to add warm-index reuse, incremental-change, context-window scaling, and retrieval precision experiments without rebuilding the pipeline each time.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.
+
+---
+
+## Support
+
+my-dev-kit-lab is developed independently as part of the dailephd LLC toolchain. Users who want to support continued development can sponsor the project through GitHub Sponsors or PayPal.
+
+- [Sponsor on GitHub](https://github.com/sponsors/dailephd)
+- [Support via PayPal](https://paypal.me/daile88)

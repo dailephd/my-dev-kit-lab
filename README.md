@@ -151,6 +151,19 @@ my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline 
 
 ---
 
+## Support
+
+my-dev-kit-lab is an independent project by dailephd LLC, developed and maintained by Dai Le.
+
+If this project helps your workflow, you can support continued development through GitHub Sponsors or PayPal:
+
+- [Sponsor on GitHub](https://github.com/sponsors/dailephd)
+- [Support via PayPal](https://paypal.me/daile88)
+
+Support is optional and does not affect access to the project.
+
+---
+
 ## Documentation
 
 - [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) — product purpose and target users
