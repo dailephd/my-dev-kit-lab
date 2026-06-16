@@ -1,10 +1,57 @@
+# Node / TypeScript
 node_modules/
 dist/
 build/
 coverage/
+.turbo/
+.next/
+out/
+*.tsbuildinfo
 .vitest/
-lab-output/*
-!lab-output/.gitkeep
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+*.secret.*
+secrets/
+credentials/
+.credentials/
+service-account*.json
+
+# Logs / caches
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
+.pytest_cache/
 __pycache__/
 *.pyc
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project-generated artifacts
+lab-output/*
+!lab-output/.gitkeep
+screenshots/
+tmp/
+temp/
+artifacts/
+reports/generated/
+playwright-report/
+test-results/
