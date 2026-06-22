@@ -151,6 +151,26 @@ my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline 
 
 ---
 
+## Planned security validation
+
+my-dev-kit-lab will also own a planned release-security track for **my-dev-kit**. This work is separate from the current experiment pipeline and does not replace the generic experiment-plugin roadmap. Its purpose is to generate release-validation evidence for the local CLI/package before public release preparation.
+
+This is not a web application pentest framework. **my-dev-kit** is a local CLI/package, so the planned validation model is CLI/package adversarial testing focused on whether it remains:
+
+- local-first
+- deterministic
+- read-only with respect to user source files
+- network-free during normal CLI operation
+- LLM-free
+- database-free
+- safe to run on local repositories
+
+The planned release-gate concept is a future `security:validate` workflow that will eventually combine static scans, dependency/package checks, adversarial CLI tests, fuzz smoke checks, and a release security report. Those commands are roadmap items only; they are not current capabilities in this repository.
+
+See [docs/security-validation-framework.md](docs/security-validation-framework.md) for the planned framework and [docs/ROADMAP.md](docs/ROADMAP.md) for phased milestones.
+
+---
+
 ## Support
 
 my-dev-kit-lab is an independent project by dailephd LLC, developed and maintained by Dai Le.
