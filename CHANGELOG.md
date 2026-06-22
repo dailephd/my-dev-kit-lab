@@ -2,6 +2,30 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.1.1] - 2026-06-22
+
+Public release hygiene and cross-platform assurance patch.
+
+### Changed
+
+- cleaned package metadata for the public npm release, including repository, funding, keyword, engine, and bin metadata
+- restricted published package contents to runtime assets and the deterministic fake my-dev-kit fixture used by local demos
+- improved cross-platform command parsing and Windows `.cmd` shim execution, especially for commands and script paths that contain spaces
+- added cross-platform CI coverage for `windows-latest`, `macos-latest`, and `ubuntu-latest`
+- updated quickstart and workflow docs with PowerShell guidance and clearer notes about current baseline capabilities versus future roadmap items
+
+### Validation
+
+- `npm run build`
+- `npm run test`
+- `npm run verify`
+- `npm pack --dry-run`
+
+### Notes
+
+- this patch does not add the full security-validation framework
+- generic experiment-plugin architecture remains planned for a later release
+
 ## [0.1.0] - 2026-06-16
 
 ### Initial public baseline

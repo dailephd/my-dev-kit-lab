@@ -26,6 +26,20 @@ flowchart TD
 ```
 
 **Command:**
+PowerShell:
+
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+macOS/Linux shell:
+
 ```bash
 npm run run-final-demo -- \
   --cases examples/token-savings-cases.json \
@@ -35,6 +49,8 @@ npm run run-final-demo -- \
   --complexities short \
   --no-screenshot
 ```
+
+For shell continuations, use `\` in Bash-like shells, PowerShell backticks in PowerShell, and a single line in `cmd.exe`.
 
 **Outputs:**
 - `lab-output/final-demo/experiment-summary.json`

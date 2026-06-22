@@ -33,7 +33,7 @@ describe("resolveCommand", () => {
     const result = resolveCommand("codex", { platform: "win32", env: { Path: bin } });
     expect(result.command.toLowerCase()).toContain("cmd");
     expect(result.resolvedPath).toBe(path.join(bin, "codex.cmd"));
-    expect(result.argsPrefix).toContain(path.join(bin, "codex.cmd"));
+    expect(result.argsPrefix).toEqual(["/d", "/s", "/c", "call"]);
     expect(result.resolutionKind).toBe("windows-cmd-shim");
   });
 

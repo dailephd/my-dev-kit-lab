@@ -1,11 +1,43 @@
 {
   "name": "my-dev-kit-lab",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.1",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
+  "bin": {
+    "my-dev-kit-lab": "dist/scripts/run-final-demo.js"
+  },
+  "files": [
+    "dist/scripts/",
+    "dist/src/",
+    "benchmarks/",
+    "docs/METRICS.md",
+    "examples/",
+    "tests/fixtures/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dailephd/my-dev-kit-lab.git"
+  },
+  "homepage": "https://github.com/dailephd/my-dev-kit-lab#readme",
+  "bugs": {
+    "url": "https://github.com/dailephd/my-dev-kit-lab/issues"
+  },
+  "funding": [
+    "https://github.com/sponsors/dailephd",
+    "https://paypal.me/daile88"
+  ],
+  "keywords": [
+    "benchmark",
+    "evaluation",
+    "reporting",
+    "graph-retrieval",
+    "codex",
+    "claude"
+  ],
+  "author": "Dai Le",
+  "license": "UNLICENSED",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
     "test": "vitest run",
     "test:benchmarks": "vitest run tests/benchmarks tests/scripts",
     "test:report": "vitest run tests/report tests/commands",
@@ -39,5 +71,8 @@
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

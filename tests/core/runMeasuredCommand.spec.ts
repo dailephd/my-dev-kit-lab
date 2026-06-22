@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -62,6 +62,13 @@ describe("runMeasuredCommand", () => {
     });
   });
 
+  it("parses escaped quotes and extra whitespace", () => {
+    expect(parseCommandString('  node   "script \\"quoted\\".js"   --label  "hello world"  ')).toEqual({
+      executable: "node",
+      args: ['script "quoted".js', "--label", "hello world"]
+    });
+  });
+
   it("preserves args when command resolution is enabled", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
     tempDirs.push(outDir);
@@ -104,5 +111,36 @@ describe("runMeasuredCommand", () => {
     });
     expect(result.ok).toBe(true);
     expect(result.stdout).toContain("stdin-ended");
+  });
+
+  it("runs a Windows cmd shim from a path with spaces", async () => {
+    if (process.platform !== "win32") {
+      return;
+    }
+
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
+    const shimRoot = mkdtempSync(path.join(os.tmpdir(), "cmd-shim-"));
+    tempDirs.push(outDir, shimRoot);
+    const binDir = path.join(shimRoot, "bin with spaces");
+    mkdirSync(binDir, { recursive: true });
+    const shimPath = path.join(binDir, "echo-args.cmd");
+    writeFileSync(
+      shimPath,
+      `@echo off\r\n"${process.execPath}" -e "console.log(process.argv.slice(1).join('|'))" %*\r\n`,
+      "utf8"
+    );
+    const nodeBinDir = path.dirname(process.execPath);
+    const joinedPath = `${binDir}${path.delimiter}${nodeBinDir}`;
+    const result = await runMeasuredCommand({
+      commandId: "cmd-shim",
+      commandString: 'echo-args "alpha beta" gamma',
+      cwd: process.cwd(),
+      outDir,
+      env: { Path: joinedPath, PATH: joinedPath }
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.args.some((arg) => arg.includes("echo-args.cmd"))).toBe(true);
+    expect(result.stdout).toContain("alpha beta|gamma");
   });
 });

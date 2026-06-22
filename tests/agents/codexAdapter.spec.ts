@@ -99,11 +99,15 @@ describe("codexAdapter", () => {
 
   it("runs through a simulated Windows npm codex.cmd shim via command template", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "codex-agent-"));
-    const binDir = mkdtempSync(path.join(os.tmpdir(), "codex-bin-"));
-    tempDirs.push(outDir, binDir);
+    const binRoot = mkdtempSync(path.join(os.tmpdir(), "codex-bin-"));
+    const binDir = path.join(binRoot, "bin with spaces");
+    tempDirs.push(outDir, binRoot);
+    mkdirSync(binDir, { recursive: true });
     const shimPath = path.join(binDir, "codex.cmd");
     writeFileSync(shimPath, `@echo off\r\n"${process.execPath}" -e "console.log('{\\\"usage\\\":{\\\"input_tokens\\\":7,\\\"output_tokens\\\":3,\\\"total_tokens\\\":10}}')"\r\n`, "utf8");
     const promptVariant = await loadPromptVariant();
+    const nodeBinDir = path.dirname(process.execPath);
+    const joinedPath = `${binDir}${path.delimiter}${nodeBinDir}`;
     const result = await codexAdapter.runPrompt({
       runId: "codex-cmd",
       agentId: "codex",
@@ -112,10 +116,10 @@ describe("codexAdapter", () => {
       cwd: process.cwd(),
       outDir,
       commandTemplate: parseAgentCommandTemplate("codex {prompt}"),
-      env: { Path: binDir, PATH: binDir }
+      env: { Path: joinedPath, PATH: joinedPath }
     });
     expect(result.command.toLowerCase()).toContain("cmd");
-    expect(result.args.some((arg) => arg.endsWith("codex.cmd"))).toBe(true);
+    expect(result.args.some((arg) => arg.includes("codex.cmd"))).toBe(true);
     expect(result.status).toBe("completed");
     expect(result.tokenUsage.totalTokens).toBe(10);
   });

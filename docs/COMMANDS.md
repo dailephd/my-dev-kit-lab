@@ -12,6 +12,14 @@ See [docs/WORKFLOWS.md](docs/WORKFLOWS.md) for end-to-end workflow examples that
 
 Installs all dependencies. Use `npm ci` in CI environments for a clean, reproducible install.
 
+PowerShell:
+
+```powershell
+npm install
+```
+
+macOS/Linux shell:
+
 ```bash
 npm install
 ```
@@ -280,12 +288,25 @@ Runs bounded my-dev-kit visualization command demos against a benchmark project 
 - `--out` — output directory for demo artifacts
 
 **Example:**
+PowerShell:
+
+```powershell
+npm run run-visualization-demos -- `
+  --project benchmarks/projects/todo-ts `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --out lab-output/visualization-demos
+```
+
+macOS/Linux shell:
+
 ```bash
 npm run run-visualization-demos -- \
   --project benchmarks/projects/todo-ts \
   --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
   --out lab-output/visualization-demos
 ```
+
+Pass `--kit-command` as one command string. Quoted command paths with spaces are supported on Windows, macOS, and Linux.
 
 ---
 
@@ -331,6 +352,20 @@ Runs the complete pipeline in one command: controlled experiment → report → 
 - `--screenshot` / `--no-screenshot` — whether to capture a PNG
 
 **Example:**
+PowerShell:
+
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+macOS/Linux shell:
+
 ```bash
 npm run run-final-demo -- \
   --cases examples/token-savings-cases.json \
@@ -340,6 +375,8 @@ npm run run-final-demo -- \
   --complexities short \
   --no-screenshot
 ```
+
+`cmd.exe` users should run the same command on one line because backtick and backslash continuations are shell-specific.
 
 ---
 
