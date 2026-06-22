@@ -263,6 +263,24 @@ The planned framework should verify that:
 
 ---
 
+## Current implementation status
+
+| Module | Status |
+|---|---|
+| `src/securityValidation/types.ts` | **Implemented** — severity, verdict, check result, finding, validation summary types |
+| `src/securityValidation/config.ts` | **Implemented** — default config with forbidden patterns and timeouts |
+| `src/securityValidation/testMatrix.ts` | **Implemented** — structured test matrix with 30+ planned adversarial test entries |
+| `tests/security/securityValidationTypes.test.ts` | **Implemented** — enumeration completeness checks |
+| `tests/security/securityValidationTestMatrix.test.ts` | **Implemented** — test matrix structure and uniqueness checks |
+| `src/securityValidation/dependencies/` | Planned (Prompt 3) |
+| `src/securityValidation/packageChecks/` | Planned (Prompt 3) |
+| `scripts/security/` | Planned (Prompt 3) |
+| `src/securityValidation/staticScans/` | Planned (Prompt 6) |
+| `tests/fuzz/` | Planned (Prompt 7) |
+| `src/securityValidation/report/` | Planned (Prompt 8) |
+
+---
+
 ## Planned command concepts
 
 The following command names are planned roadmap items, not current repository capabilities unless they are implemented in a future phase:

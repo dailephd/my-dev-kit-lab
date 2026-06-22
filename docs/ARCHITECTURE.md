@@ -215,17 +215,21 @@ The release-security framework described here is planned architecture, not a cur
 
 The security-validation track does not replace the current pipeline and does not depend on my-dev-kit becoming a hosted service. The target remains a local CLI/package, so the architecture is centered on static analysis, dependency/package checks, adversarial CLI tests, bounded fuzz smoke checks, and release reporting.
 
-### Planned module placement
+### Security validation module map
 
-| Planned module | Path | Responsibility |
-|---|---|---|
-| Security validation core | `src/securityValidation/` | Shared models, policy boundaries, report assembly, release verdict logic |
-| Security scripts | `scripts/security/` | Planned wrappers for static scans, dependency/package checks, and report generation |
-| Adversarial CLI tests | `tests/security/` | Temporary-directory hostile-input tests against the local built CLI |
-| Fuzz smoke tests | `tests/fuzz/` | Bounded parser and helper stress tests |
-| Release reports | `reports/` | Versioned security-validation reports for release preparation |
-
-These paths show where future modules would fit if the framework is implemented. They should not be read as current repository capabilities.
+| Module | Path | Status | Responsibility |
+|---|---|---|---|
+| Security validation core | `src/securityValidation/` | Foundational types implemented | Shared models, policy boundaries, report assembly, release verdict logic |
+| Types | `src/securityValidation/types.ts` | **Implemented** | Severity, verdict, check result, finding, validation summary |
+| Config | `src/securityValidation/config.ts` | **Implemented** | Report paths, timeouts, forbidden patterns, optional tool toggles |
+| Test matrix | `src/securityValidation/testMatrix.ts` | **Implemented** | Structured adversarial test case catalog |
+| Dependencies | `src/securityValidation/dependencies/` | Planned (Prompt 3) | npm audit, npm outdated, npm ls, OSV-Scanner wrappers |
+| Package checks | `src/securityValidation/packageChecks/` | Planned (Prompt 3) | npm pack dry-run, forbidden-content detection |
+| Static scans | `src/securityValidation/staticScans/` | Planned (Prompt 6) | CodeQL and Semgrep wrappers |
+| Security scripts | `scripts/security/` | Planned (Prompt 3) | npm script entrypoints for security:deps, security:package |
+| Adversarial CLI tests | `tests/security/` | Foundation implemented | Type/matrix tests now; adversarial tests in Prompts 4–5 |
+| Fuzz smoke tests | `tests/fuzz/` | Planned (Prompt 7) | Bounded parser and helper stress tests |
+| Security reports | `reports/security/` | Generated (not committed) | Versioned dependency-checks.json and package-checks.json |
 
 ### Security validation pipeline
 
