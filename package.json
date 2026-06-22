@@ -42,7 +42,10 @@
     "test:plots": "vitest run tests/plots tests/commands/generateExperimentPlotsCommand.spec.ts",
     "test:visualization-demos": "vitest run tests/visualizationDemos tests/commands/runVisualizationDemosCommand.spec.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
-    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:agents && npm run test:experiments && npm run test:plots && npm run test:visualization-demos && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks"
+    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:agents && npm run test:experiments && npm run test:plots && npm run test:visualization-demos && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks",
+    "security:deps": "tsx scripts/security/runDependencyChecks.ts",
+    "security:package": "tsx scripts/security/runPackageChecks.ts",
+    "test:security": "vitest run tests/security/"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

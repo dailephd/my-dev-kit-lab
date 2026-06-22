@@ -64,7 +64,9 @@ docs/PUBLIC_RELEASE_CHECKLIST.md
 docs/PUBLISHING.md
 docs/REAL_AGENT_BENCHMARK_CAMPAIGN_REPORT.txt
 
-# Security validation generated artifacts
-reports/security/raw/
-reports/security/dependency-checks.json
-reports/security/package-checks.json
+# Security validation generated artifacts (keep directory structure, ignore generated files)
+reports/security/raw/*
+!reports/security/raw/.gitkeep
+reports/security/*.json
+reports/security/npm-*.json
+reports/security/osv-*.json

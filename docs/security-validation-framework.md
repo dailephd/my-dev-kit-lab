@@ -272,34 +272,47 @@ The planned framework should verify that:
 | `src/securityValidation/testMatrix.ts` | **Implemented** — structured test matrix with 30+ planned adversarial test entries |
 | `tests/security/securityValidationTypes.test.ts` | **Implemented** — enumeration completeness checks |
 | `tests/security/securityValidationTestMatrix.test.ts` | **Implemented** — test matrix structure and uniqueness checks |
-| `src/securityValidation/dependencies/` | Planned (Prompt 3) |
-| `src/securityValidation/packageChecks/` | Planned (Prompt 3) |
-| `scripts/security/` | Planned (Prompt 3) |
+| `src/securityValidation/commandRunner.ts` | **Implemented** — subprocess runner (no shell interpolation) |
+| `src/securityValidation/artifacts.ts` | **Implemented** — structured artifact writer |
+| `src/securityValidation/index.ts` | **Implemented** — public API surface |
+| `src/securityValidation/dependencies/` | **Implemented** — npm audit, ls, outdated parsers; OSV-Scanner runner |
+| `src/securityValidation/packageChecks/` | **Implemented** — npm pack --dry-run parser; forbidden-content detector |
+| `scripts/security/runDependencyChecks.ts` | **Implemented** — entrypoint for `security:deps` |
+| `scripts/security/runPackageChecks.ts` | **Implemented** — entrypoint for `security:package` |
 | `src/securityValidation/staticScans/` | Planned (Prompt 6) |
 | `tests/fuzz/` | Planned (Prompt 7) |
 | `src/securityValidation/report/` | Planned (Prompt 8) |
 
 ---
 
-## Planned command concepts
+## Available commands
 
-The following command names are planned roadmap items, not current repository capabilities unless they are implemented in a future phase:
+### Implemented
 
-- `security:codeql`
-- `security:semgrep`
-- `security:deps`
-- `security:package`
-- `test:security`
-- `test:fuzz:smoke`
-- `security:validate`
+```bash
+npm run security:deps
+```
 
-Intended behavior:
+Runs npm audit (full), npm audit --omit=dev (runtime only), npm outdated, npm ls --all, and OSV-Scanner (if available). Writes structured results to `reports/security/`. Exits non-zero on blocker findings.
 
-- `security:deps` runs dependency audit checks and uses OSV-Scanner when available.
-- `security:package` inspects package contents via `npm pack --dry-run` and related tarball checks.
-- `test:security` runs adversarial CLI tests in temporary directories.
-- `test:fuzz:smoke` runs bounded fuzz targets with short timeouts.
-- `security:validate` assembles the release-security gate and report.
+```bash
+npm run security:package
+```
+
+Runs npm pack --dry-run and checks the file list for forbidden contents (lab-output, .my-dev-kit, .env files, private docs, node_modules, tarballs). Writes structured results to `reports/security/`. Exits non-zero on blocker or major findings.
+
+```bash
+npm run test:security
+```
+
+Runs all security-validation unit tests (type completeness, test matrix structure, dependency parsers, package content checks). Does not require network access or external tools.
+
+### Planned (future prompts)
+
+- `security:codeql` — CodeQL static scan (Prompt 6)
+- `security:semgrep` — Semgrep static scan (Prompt 6)
+- `test:fuzz:smoke` — bounded fuzz targets (Prompt 7)
+- `security:validate` — release-gate assembly and report generation (Prompt 8)
 
 ---
 
