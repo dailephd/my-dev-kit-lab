@@ -61,10 +61,10 @@ The framework should provide evidence that my-dev-kit stays within its intended 
 
 ### 1. Static application security testing
 
-Planned tools:
+Implemented tools:
 
-- CodeQL
-- Semgrep
+- CodeQL (local CLI availability check; full analysis via GitHub Actions)
+- Semgrep (local binary or npx fallback; `.semgrep.yml` config)
 
 Primary focus areas:
 
@@ -165,37 +165,34 @@ Act like an attacker or careless user and verify that the CLI fails safely.
 
 ### 4. Fuzzing
 
-Planned tools:
+Implemented (smoke-level, bounded, deterministic):
 
-- Jazzer.js or a lightweight custom fuzz harness first
-- optional larger fuzz infrastructure later
+- Custom seeded fuzz harness (`src/securityValidation/fuzz/fuzzHarness.ts`)
+- Seeded PRNG (Mulberry32) for reproducible CI runs
 
-Initial fuzz targets:
+Implemented fuzz targets:
 
-- manifest reader
-- symbol-index reader
-- code-graph reader
-- data-model reader
-- frontend-semantic reader
-- CLI argument parser
-- source `--contains` matcher
-- path normalization helpers
-- DOT label escaping
-- TS/TSX frontend analyzer
-- data-model analyzer
-- graph view renderer
+- manifest reader (JSON mutations)
+- code-graph reader (JSON mutations)
+- npm audit parser
+- npm ls parser
+- npm outdated parser
+- npm pack dry-run parser
+- DOT label escaping helper
+- path normalization with traversal inputs
 - source retrieval windowing logic
 
 Purpose:
 Stress parsers and artifact readers with malformed or randomized input.
 
-Initial fuzzing is intended to stay bounded and smoke-level. Early releases should not depend on long-running fuzz jobs.
+Fuzzing is bounded and smoke-level. Release validation does not depend on long-running fuzz jobs.
 
 ### 5. Release security report
 
-Each release candidate should eventually generate a report such as:
+Implemented. Each release candidate generates:
 
-- `reports/v<version>-security-validation.txt`
+- `reports/v<version>-security-validation.txt` — human-readable report
+- `reports/v<version>-security-validation.json` — machine-readable structured report
 
 Planned report sections:
 
@@ -297,9 +294,22 @@ The planned framework should verify that:
 | `tests/security/cliAdversarialJsonStdout.test.ts` | **Implemented** — 9 tests |
 | `tests/security/cliAdversarialSubprocessSafety.test.ts` | **Implemented** — 14 tests |
 | `tests/security/cliAdversarialDataVolume.test.ts` | **Implemented** — 8 tests |
-| `src/securityValidation/staticScans/` | Planned (Prompt 6) |
-| `tests/fuzz/` | Planned (Prompt 7) |
-| `src/securityValidation/report/` | Planned (Prompt 8) |
+| `src/securityValidation/staticScans/codeql.ts` | **Implemented** — CodeQL CLI availability check; skipped gracefully when absent |
+| `src/securityValidation/staticScans/semgrep.ts` | **Implemented** — Semgrep scan with npx fallback; `.semgrep.yml` config; JSON output parser |
+| `src/securityValidation/fuzz/randomInput.ts` | **Implemented** — seeded PRNG, JSON mutation helpers, path traversal inputs |
+| `src/securityValidation/fuzz/fuzzHarness.ts` | **Implemented** — bounded fuzz runner; crashes become structured findings |
+| `src/securityValidation/fuzz/fuzzTargets.ts` | **Implemented** — 9 fuzz targets covering parsers, DOT escaping, path normalization |
+| `src/securityValidation/validate/verdict.ts` | **Implemented** — verdict calculation from check results and findings |
+| `src/securityValidation/validate/runSecurityValidation.ts` | **Implemented** — orchestrator for all security checks |
+| `src/securityValidation/report/securityReportTypes.ts` | **Implemented** — SecurityReport, SecurityReportSection, SecurityReportMetadata types |
+| `src/securityValidation/report/renderSecurityReport.ts` | **Implemented** — text and JSON report renderers |
+| `scripts/security/runCodeql.ts` | **Implemented** — entrypoint for `security:codeql` |
+| `scripts/security/runSemgrep.ts` | **Implemented** — entrypoint for `security:semgrep` |
+| `scripts/security/runFuzzSmoke.ts` | **Implemented** — entrypoint for `test:fuzz:smoke` |
+| `scripts/security/validate.ts` | **Implemented** — entrypoint for `security:validate` |
+| `tests/security/staticScanChecks.test.ts` | **Implemented** — CodeQL/Semgrep skip gracefully; parseSemgrepJson unit tests |
+| `tests/security/securityValidateGate.test.ts` | **Implemented** — verdict calculation; text and JSON report rendering |
+| `tests/fuzz/fuzzSmoke.test.ts` | **Implemented** — PRNG, individual fuzz targets, runAllFuzzTargets (23 tests) |
 
 ---
 
@@ -327,12 +337,31 @@ Runs all security-validation unit tests (type completeness, test matrix structur
 
 By default, adversarial tests run against `tests/fixtures/fake-adversarial-cli.js` (deterministic, CI-safe). To run against a real my-dev-kit CLI, set `MY_DEV_KIT_SECURITY_TARGET_COMMAND=<path-to-cli>` before running the test suite.
 
-### Planned (future prompts)
+### Also implemented (v0.1.4)
 
-- `security:codeql` — CodeQL static scan (Prompt 6)
-- `security:semgrep` — Semgrep static scan (Prompt 6)
-- `test:fuzz:smoke` — bounded fuzz targets (Prompt 7)
-- `security:validate` — release-gate assembly and report generation (Prompt 8)
+```bash
+npm run security:codeql
+```
+
+Checks local CodeQL CLI availability. Skipped with structured reason if not installed. Full analysis via GitHub Actions.
+
+```bash
+npm run security:semgrep
+```
+
+Runs Semgrep against `src/` using `.semgrep.yml`. Falls back to npx if local binary unavailable. Skipped with structured reason if both unavailable.
+
+```bash
+npm run test:fuzz:smoke
+```
+
+Runs 9 bounded fuzz targets (50 iterations each, seeded PRNG). Completes in under 1 second. No network, no external tools, no source file writes.
+
+```bash
+npm run security:validate
+```
+
+Orchestrates all security checks and writes `reports/v<version>-security-validation.txt` and `.json`. Returns a structured verdict. See `docs/COMMANDS.md` for full details.
 
 ---
 
@@ -374,7 +403,19 @@ src/securityValidation/
     runPackageChecks.ts        Orchestrate npm pack --dry-run and forbidden-content scan
     parseNpmPackDryRun.ts      Parse npm pack --dry-run output into file list
     forbiddenPackageContents.ts Detect lab-output, .my-dev-kit, .env, and other unsafe inclusions
-  staticScans/                 (planned: Phase 4 — CodeQL and Semgrep wrappers)
+  staticScans/                 (implemented: Phase 4 — CodeQL and Semgrep wrappers)
+    codeql.ts                  CodeQL CLI availability check; skips gracefully when absent
+    semgrep.ts                 Semgrep scan with npx fallback; JSON output parser
+  fuzz/                        (implemented: Phase 5 — bounded parser fuzz targets)
+    randomInput.ts             Seeded PRNG, JSON mutations, path traversal inputs
+    fuzzHarness.ts             Bounded fuzz runner; crashes become structured findings
+    fuzzTargets.ts             9 fuzz targets: parsers, DOT escaping, path normalization
+  validate/                    (implemented: Phase 6a — orchestrator and verdict)
+    runSecurityValidation.ts   Orchestrates all security checks; collects results
+    verdict.ts                 Calculates release verdict from check results and findings
+  report/                      (implemented: Phase 6b — text and JSON report renderer)
+    securityReportTypes.ts     SecurityReport, SecurityReportSection, metadata types
+    renderSecurityReport.ts    Human-readable and JSON report renderers
   cliAdversarial/              (implemented: Phase 3a+3b — path/read-only boundaries + malformed/subprocess/data-volume)
     tempWorkspace.ts             Temp workspace factory; file snapshot and diff helpers
     adversarialCliConfig.ts      CLI target config; MY_DEV_KIT_SECURITY_TARGET_COMMAND opt-in
@@ -393,6 +434,10 @@ src/securityValidation/
 scripts/security/
   runDependencyChecks.ts       npm script entrypoint for security:deps
   runPackageChecks.ts          npm script entrypoint for security:package
+  runCodeql.ts                 npm script entrypoint for security:codeql
+  runSemgrep.ts                npm script entrypoint for security:semgrep
+  runFuzzSmoke.ts              npm script entrypoint for test:fuzz:smoke
+  validate.ts                  npm script entrypoint for security:validate
 
 tests/security/
   securityValidationTypes.test.ts         Type and enumeration completeness checks
@@ -405,8 +450,11 @@ tests/security/
   cliAdversarialJsonStdout.test.ts        JSON stdout parseable; stderr/stdout separation; failure error (9 tests)
   cliAdversarialSubprocessSafety.test.ts  DOT label escaping logic; shell metachar injection (14 tests)
   cliAdversarialDataVolume.test.ts        Large file, many files, deeply nested dirs (8 tests)
+  staticScanChecks.test.ts               CodeQL/Semgrep skip gracefully; parseSemgrepJson unit tests (14 tests)
+  securityValidateGate.test.ts           Verdict calculation; text and JSON report rendering (20 tests)
 
-tests/fuzz/                    (planned: Phase 5 — bounded fuzz harnesses)
+tests/fuzz/
+  fuzzSmoke.test.ts            PRNG determinism, individual targets, runAllFuzzTargets (23 tests)
 
 reports/security/              Generated security check artifacts (not committed)
   dependency-checks.json
@@ -425,9 +473,7 @@ reports/security/              Generated security check artifacts (not committed
 | `feature/security-package-validation` | Prompt 3: dependency and package-content checks |
 | `feature/security-cli-adversarial-tests` | Prompt 4: CLI adversarial harness, part 1 — path boundaries and read-only boundaries |
 | `feature/security-malformed-artifacts` | Prompt 5: malformed artifacts, JSON stdout/stderr safety, subprocess/DOT label safety, data-volume smoke |
-| `feature/security-static-scan-integration` | Prompt 6 (future): CodeQL and Semgrep integration |
-| `feature/security-fuzz-smoke` | Prompt 7 (future): bounded fuzz smoke tests |
-| `feature/security-release-report` | Prompt 8 (future): security:validate and release report |
+| `feature/security-validation-release-gate` | Prompts 6–8: static scans, fuzz smoke, security:validate, release report |
 
 No npm version bump is needed for Prompts 1–3. These are development branches targeting a future v0.1.1 or later release.
 
@@ -488,22 +534,24 @@ Security artifacts are written to `reports/security/` and kept separate from exp
 - Data-volume smoke checks: large file (5,000 lines), many files (100), deeply nested dirs (10 levels)
 - 45 new tests across 4 test files (14 + 9 + 14 + 8)
 
-### Phase 4: Static scan integration (Prompt 6, future)
+### Phase 4: Static scan integration (Prompts 6–8, implemented)
 
-- CodeQL and Semgrep wrappers exist in `src/securityValidation/staticScans/`
-- Focus areas include unsafe subprocess use, path traversal, unsafe deletion, and tainted argument flows
-- Results feed the security report rather than standing alone
+- `src/securityValidation/staticScans/codeql.ts` — CodeQL local CLI check; skipped when absent
+- `src/securityValidation/staticScans/semgrep.ts` — Semgrep with npx fallback; `.semgrep.yml` covers subprocess safety, path traversal, unsafe deletion, secret leakage
+- Both scanners return structured results; absence is `skipped`, not `failed`
 
-### Phase 5: Fuzz smoke tests (Prompt 7, future)
+### Phase 5: Fuzz smoke tests (Prompts 6–8, implemented)
 
-- Fuzz targets for manifest, symbol index, code graph, data model, frontend semantic, and DOT label escaping
-- Time-bounded; release validation does not depend on long-running fuzz jobs
+- `src/securityValidation/fuzz/` — custom seeded harness with 9 targets
+- Time-bounded (< 1s at default settings); release validation does not depend on long-running fuzz jobs
+- Crashes become structured `SecurityFinding` entries; expected validation errors are not treated as crashes
 
-### Phase 6: Release report generator (Prompt 8, future)
+### Phase 6: Release report generator (Prompts 6–8, implemented)
 
-- `npm run security:validate` assembles evidence from all prior phases
+- `npm run security:validate` orchestrates all prior phases
 - Report is written to `reports/v<version>-security-validation.txt` and `reports/v<version>-security-validation.json`
-- Report includes executive summary, findings by severity, release verdict, and recommended next step
+- Report includes executive summary, all 22 report sections, findings by severity, release verdict, and recommended next step
+- Verdict: one of four options (ready / not-ready / ready-except-optional / inconclusive)
 
 ---
 

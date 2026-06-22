@@ -66,7 +66,11 @@
     "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:agents && npm run test:experiments && npm run test:plots && npm run test:visualization-demos && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks",
     "security:deps": "tsx scripts/security/runDependencyChecks.ts",
     "security:package": "tsx scripts/security/runPackageChecks.ts",
-    "test:security": "vitest run tests/security/"
+    "security:codeql": "tsx scripts/security/runCodeql.ts",
+    "security:semgrep": "tsx scripts/security/runSemgrep.ts",
+    "test:security": "vitest run tests/security/",
+    "test:fuzz:smoke": "tsx scripts/security/runFuzzSmoke.ts",
+    "security:validate": "tsx scripts/security/validate.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

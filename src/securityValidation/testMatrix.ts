@@ -422,6 +422,104 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
   },
 
   // ---------------------------------------------------------------------------
+  // Static scan tests
+  // ---------------------------------------------------------------------------
+  {
+    id: "codeql-cli-availability",
+    title: "CodeQL CLI local availability check",
+    category: "static-scan",
+    attackSurface: "codeql binary",
+    inputExamples: ["run codeql version --format terse"],
+    expectedBehavior: "Skipped with structured reason if CLI is absent; passed if CLI is present and functional",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "semgrep-scan-subprocess-safety",
+    title: "Semgrep rules for subprocess safety",
+    category: "static-scan",
+    attackSurface: "spawn/exec usage in src/",
+    inputExamples: ["spawn($CMD, $ARGS, {shell: true})"],
+    expectedBehavior: "Rules detect shell:true, exec with interpolation, and similar patterns; skipped if semgrep unavailable",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "semgrep-scan-path-traversal",
+    title: "Semgrep rules for path traversal",
+    category: "static-scan",
+    attackSurface: "path.join/resolve usage in src/",
+    inputExamples: ["path.join($BASE, $USER_INPUT)"],
+    expectedBehavior: "Rules flag unvalidated user-controlled path joins; skipped if semgrep unavailable",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+
+  // ---------------------------------------------------------------------------
+  // Fuzz smoke tests
+  // ---------------------------------------------------------------------------
+  {
+    id: "fuzz-manifest-reader",
+    title: "Manifest JSON reader does not crash on malformed input",
+    category: "fuzz-smoke",
+    attackSurface: "manifest.json reader",
+    inputExamples: ["truncated JSON", "null values", "deeply nested objects", "very long strings"],
+    expectedBehavior: "Reader throws a structured parse error or returns a validation message; never a raw crash",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-code-graph-reader",
+    title: "Code-graph JSON reader does not crash on malformed input",
+    category: "fuzz-smoke",
+    attackSurface: "code-graph.json reader",
+    inputExamples: ["truncated JSON", "nodes: null", "wrong-type arrays"],
+    expectedBehavior: "Reader throws a structured parse error or returns a validation message; never a raw crash",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-npm-parsers",
+    title: "npm audit/ls/outdated parsers do not crash on malformed input",
+    category: "fuzz-smoke",
+    attackSurface: "parseNpmAudit, parseNpmLs, parseNpmOutdated, parseNpmPackDryRun",
+    inputExamples: ["random JSON", "empty string", "deeply nested garbage"],
+    expectedBehavior: "All parsers return a result with findings or parseError; never throw",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-dot-label-escaping",
+    title: "DOT label escaping never crashes on arbitrary string input",
+    category: "fuzz-smoke",
+    attackSurface: "escapeDotLabel helper",
+    inputExamples: ["shell metacharacters", "null bytes", "Unicode", "empty string"],
+    expectedBehavior: "escapeDotLabel always returns a string without throwing",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-path-normalization",
+    title: "Path normalization does not crash on traversal inputs",
+    category: "fuzz-smoke",
+    attackSurface: "path.normalize / path.resolve",
+    inputExamples: ["../../etc/passwd", "../../../Windows/System32", "/etc/hosts", "path\0with\0nulls"],
+    expectedBehavior: "path.normalize and path.resolve return strings without throwing for any input",
+    severityIfFailed: "minor",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-source-windowing",
+    title: "Source windowing handles edge-case window sizes",
+    category: "fuzz-smoke",
+    attackSurface: "source retrieval windowing logic",
+    inputExamples: ["windowSize: -1", "windowSize: 0", "windowSize: NaN", "windowSize: Infinity"],
+    expectedBehavior: "Windowing math clamps to safe values without crashing",
+    severityIfFailed: "minor",
+    implementationStatus: "implemented",
+  },
+
+  // ---------------------------------------------------------------------------
   // Package content tests
   // ---------------------------------------------------------------------------
   {

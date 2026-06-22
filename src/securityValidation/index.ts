@@ -52,3 +52,20 @@ export { checkMalformedManifest, checkAllMalformedManifestCases, checkMalformedC
 export { checkJsonOutputIsParseable, checkStderrNotInStdout, checkFailureProducesJsonError, checkProgressNotInJsonStdout } from "./cliAdversarial/jsonStdoutChecks.js";
 export { DOT_LABEL_TEST_CASES, escapeDotLabel, checkSubprocessNoShellInterpolation, checkDotLabelEscaping } from "./cliAdversarial/subprocessSafetyChecks.js";
 export { checkHugeSourceFile, checkManyFiles, checkDeeplyNestedSource } from "./cliAdversarial/dataVolumeChecks.js";
+
+export { runCodeqlCheck } from "./staticScans/codeql.js";
+export { runSemgrepCheck, parseSemgrepJson } from "./staticScans/semgrep.js";
+export type { SemgrepFinding, ParsedSemgrepOutput } from "./staticScans/semgrep.js";
+
+export { createPrng, randomInt, randomChoice, randomString, randomJsonValue, randomJsonString, mutateJson, validManifestJson, validCodeGraphJson } from "./fuzz/randomInput.js";
+export type { Prng, MutationStrategy } from "./fuzz/randomInput.js";
+export { ALL_MUTATION_STRATEGIES, PATH_TRAVERSAL_INPUTS } from "./fuzz/randomInput.js";
+export { runFuzzTarget, runAllFuzzTargets } from "./fuzz/fuzzHarness.js";
+export type { FuzzResult, FuzzCrash, FuzzTarget, FuzzHarnessOptions } from "./fuzz/fuzzHarness.js";
+export { ALL_FUZZ_TARGETS, manifestReaderTarget, codeGraphReaderTarget, dotLabelEscapingTarget, pathNormalizationTarget, sourceWindowingTarget } from "./fuzz/fuzzTargets.js";
+
+export { calculateVerdict, verdictToHumanLabel } from "./validate/verdict.js";
+export { runSecurityValidation } from "./validate/runSecurityValidation.js";
+export type { RunSecurityValidationOptions } from "./validate/runSecurityValidation.js";
+export { renderTextReport, renderJsonReport } from "./report/renderSecurityReport.js";
+export type { SecurityReport, SecurityReportMetadata, SecurityReportSection } from "./report/securityReportTypes.js";
