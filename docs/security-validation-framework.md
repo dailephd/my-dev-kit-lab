@@ -285,6 +285,145 @@ Intended behavior:
 
 ---
 
+## Npm published baseline
+
+my-dev-kit-lab v0.1.0 is published on npm as `my-dev-kit-lab`. The published package exposes a CLI bin `my-dev-kit-lab` that runs the final demo workflow.
+
+The security-validation framework is post-v0.1.0 work. It is being developed in staged branches after the v0.1.0 baseline release.
+
+Baseline verification commands:
+
+```bash
+npm view my-dev-kit-lab@0.1.0 version
+npm view my-dev-kit-lab@0.1.0 bin
+```
+
+Security scripts such as `security:deps` and `security:package` are new additions that do not exist in v0.1.0. They should not be referenced in user-facing v0.1.0 documentation as current capabilities.
+
+---
+
+## Planned module map
+
+The following paths show where each security-validation module will live once implemented. None of these modules exist yet unless a prompt has created them.
+
+```
+src/securityValidation/
+  types.ts                     Security model types: severity, verdict, check result, finding, summary
+  config.ts                    Report paths, timeouts, forbidden patterns, optional tool toggles
+  commandRunner.ts             Structured subprocess executor for security check commands
+  artifacts.ts                 Artifact writer for structured JSON check results
+  index.ts                     Public API surface for the securityValidation module
+  dependencies/
+    runDependencyChecks.ts     Orchestrate npm audit, npm outdated, npm ls, OSV-Scanner
+    parseNpmAudit.ts           Parse npm audit JSON output into SecurityCheckResult
+    parseNpmLs.ts              Parse npm ls --all output into SecurityCheckResult
+    parseNpmOutdated.ts        Parse npm outdated output into SecurityCheckResult
+    runOsvScanner.ts           Run OSV-Scanner if available; skip with reason if not
+  packageChecks/
+    runPackageChecks.ts        Orchestrate npm pack --dry-run and forbidden-content scan
+    parseNpmPackDryRun.ts      Parse npm pack --dry-run output into file list
+    forbiddenPackageContents.ts Detect lab-output, .my-dev-kit, .env, and other unsafe inclusions
+  staticScans/                 (planned: Phase 4 — CodeQL and Semgrep wrappers)
+  adversarialCli/              (planned: Phase 3 — hostile CLI argument tests)
+  fuzz/                        (planned: Phase 5 — bounded parser fuzz targets)
+  report/                      (planned: Phase 6 — release security report generator)
+
+scripts/security/
+  runDependencyChecks.ts       npm script entrypoint for security:deps
+  runPackageChecks.ts          npm script entrypoint for security:package
+
+tests/security/
+  securityValidationTypes.test.ts    Type and enumeration completeness checks
+  securityValidationTestMatrix.test.ts  Test matrix structure and uniqueness checks
+  dependencyChecks.test.ts     Parse and runner unit tests for dependency checks
+  packageContentChecks.test.ts Forbidden-content detection unit tests
+
+tests/fuzz/                    (planned: Phase 5 — bounded fuzz harnesses)
+
+reports/security/              Generated security check artifacts (not committed)
+  dependency-checks.json
+  package-checks.json
+  raw/                         Raw command stdout/stderr captured during checks
+```
+
+---
+
+## Branch and version sequence
+
+| Branch | Purpose |
+|---|---|
+| `feature/security-validation-planning` | Prompt 1: implementation plan and framework doc |
+| `feature/security-validation-foundation` | Prompt 2: types, config, and test matrix |
+| `feature/security-package-validation` | Prompt 3: dependency and package-content checks |
+| `feature/security-cli-adversarial-tests` | Prompt 4 (future): CLI adversarial harness, part 1 |
+| `feature/security-malformed-artifacts` | Prompt 5 (future): malformed artifacts, JSON, Graphviz |
+| `feature/security-static-scan-integration` | Prompt 6 (future): CodeQL and Semgrep integration |
+| `feature/security-fuzz-smoke` | Prompt 7 (future): bounded fuzz smoke tests |
+| `feature/security-release-report` | Prompt 8 (future): security:validate and release report |
+
+No npm version bump is needed for Prompts 1–3. These are development branches targeting a future v0.1.1 or later release.
+
+---
+
+## Relationship to the existing experiment and evidence pipeline
+
+The security-validation framework is additive. It does not replace or modify:
+
+- the raw-vs-indexed controlled experiment pipeline
+- fake-agent deterministic demo behavior
+- Codex and Claude adapter support
+- report, plot, screenshot, visualization demo, and gallery workflows
+- benchmark metadata and correctness scoring
+
+It also does not depend on the future generic experiment-plugin framework. The two tracks are parallel and independent.
+
+Security artifacts are written to `reports/security/` and kept separate from experiment artifacts in `lab-output/`.
+
+---
+
+## Acceptance criteria by phase
+
+### Phase 1: Security model and test matrix (Prompt 1–2)
+
+- Security model documents local-first, deterministic, read-only, network-free, LLM-free, and database-free boundaries
+- Threat model explicitly distinguishes CLI/package adversarial testing from web-application pentesting
+- TypeScript types exist for severity, verdict, check result, finding, and validation summary
+- Test matrix covers path traversal, read-only boundaries, malformed artifacts, JSON stdout/stderr, Graphviz safety, secret leakage, scale, and CLI arguments
+- Each test matrix entry has a unique id, category, attack surface, expected behavior, severity, and implementation status
+
+### Phase 2: Package and dependency checks (Prompt 3)
+
+- `npm run security:deps` runs npm audit, npm audit --omit=dev, npm outdated, npm ls --all, and OSV-Scanner (if available)
+- `npm run security:package` runs npm pack --dry-run and detects forbidden package contents
+- Structured JSON results are written to `reports/security/dependency-checks.json` and `reports/security/package-checks.json`
+- Unavailable optional tools (OSV-Scanner) are marked skipped, not failed
+- Tests run without network access or OSV-Scanner installation
+
+### Phase 3: CLI adversarial tests (Prompt 4–5, future)
+
+- Test harness covers hostile values for all documented CLI flags
+- Tests run in temporary directories with no writes outside those directories
+- Path traversal, unsafe output paths, symlink escape, malformed artifacts, and JSON stdout/stderr contamination are covered
+
+### Phase 4: Static scan integration (Prompt 6, future)
+
+- CodeQL and Semgrep wrappers exist in `src/securityValidation/staticScans/`
+- Focus areas include unsafe subprocess use, path traversal, unsafe deletion, and tainted argument flows
+- Results feed the security report rather than standing alone
+
+### Phase 5: Fuzz smoke tests (Prompt 7, future)
+
+- Fuzz targets for manifest, symbol index, code graph, data model, frontend semantic, and DOT label escaping
+- Time-bounded; release validation does not depend on long-running fuzz jobs
+
+### Phase 6: Release report generator (Prompt 8, future)
+
+- `npm run security:validate` assembles evidence from all prior phases
+- Report is written to `reports/v<version>-security-validation.txt` and `reports/v<version>-security-validation.json`
+- Report includes executive summary, findings by severity, release verdict, and recommended next step
+
+---
+
 ## Initial implementation phases
 
 ```mermaid

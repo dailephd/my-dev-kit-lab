@@ -63,4 +63,8 @@ docs/FINAL_VERIFICATION_REPORT.txt
 docs/PUBLIC_RELEASE_CHECKLIST.md
 docs/PUBLISHING.md
 docs/REAL_AGENT_BENCHMARK_CAMPAIGN_REPORT.txt
-docs/security-validation-framework.md
+
+# Security validation generated artifacts
+reports/security/raw/
+reports/security/dependency-checks.json
+reports/security/package-checks.json
