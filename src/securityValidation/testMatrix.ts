@@ -30,7 +30,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--root ../../etc", "--root /etc/passwd", "--root ..\\..\\Windows"],
     expectedBehavior: "CLI rejects the path or confines all operations within an allowed boundary; no file access outside the intended repo root",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "path-traversal-out",
@@ -40,7 +40,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--out ../../etc/cron.d", "--out /tmp/escape"],
     expectedBehavior: "Output is written only within the specified directory; no writes outside the intended output tree",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "path-traversal-index",
@@ -50,7 +50,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--index ../../etc/.my-dev-kit"],
     expectedBehavior: "Index path is validated; reads are confined to the specified index directory",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "absolute-path-escape",
@@ -60,7 +60,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--file /etc/hosts", "--src C:\\Windows\\System32"],
     expectedBehavior: "CLI rejects absolute paths that escape the declared root boundary",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "symlink-junction-escape",
@@ -70,7 +70,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["directory containing a symlink pointing outside the root"],
     expectedBehavior: "Symlink targets outside the root are not followed or are treated as out-of-scope",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "skipped-environment",
   },
   {
     id: "generated-cleanup-user-files",
@@ -80,7 +80,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["index refresh over a directory that contains user source files"],
     expectedBehavior: "Only generated artifacts in the explicitly declared output path are removed; user source files are never deleted",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["npm run index -- --root benchmarks/projects/todo-ts"],
     expectedBehavior: "All source files in the root directory have the same content and modification time after indexing completes",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "writes-limited-to-output",
@@ -104,7 +104,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["run index with --out pointing to a temp directory; verify no writes elsewhere"],
     expectedBehavior: "No files are created or modified outside the declared output and index paths",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -418,7 +418,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["path with space", "path with double quote", "path with semicolon", "path with Unicode"],
     expectedBehavior: "All path arguments are treated as literal strings; no shell injection; correct behavior on Windows and Unix",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------

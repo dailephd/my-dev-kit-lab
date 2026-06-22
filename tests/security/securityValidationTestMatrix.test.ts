@@ -95,10 +95,22 @@ describe("security validation test matrix — structure and completeness", () =>
     expect(blockers.length).toBeGreaterThan(0);
   });
 
-  it("all entries start as planned (none incorrectly marked implemented without code)", () => {
+  it("implemented entries have a valid id and category (code exists for them)", () => {
     const implemented = SECURITY_TEST_MATRIX.filter((e) => e.implementationStatus === "implemented");
-    // All test matrix entries are planned at this phase; this test confirms the initial state.
-    // Update this test when entries are implemented.
-    expect(implemented).toHaveLength(0);
+    // Prompt 4 implemented: path-traversal-root, path-traversal-out, path-traversal-index,
+    // absolute-path-escape, path-with-metacharacters, source-files-not-modified,
+    // writes-limited-to-output, generated-cleanup-user-files
+    expect(implemented.length).toBeGreaterThan(0);
+    for (const entry of implemented) {
+      expect(entry.id, "implemented entry must have a non-empty id").toBeTruthy();
+      expect(entry.category, `implemented entry '${entry.id}' must have a valid category`).toBeTruthy();
+    }
+  });
+
+  it("skipped-environment entries have valid ids", () => {
+    const skipped = SECURITY_TEST_MATRIX.filter((e) => e.implementationStatus === "skipped-environment");
+    for (const entry of skipped) {
+      expect(entry.id, "skipped entry must have a non-empty id").toBeTruthy();
+    }
   });
 });

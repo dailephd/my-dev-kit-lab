@@ -70,3 +70,7 @@ reports/security/raw/*
 reports/security/*.json
 reports/security/npm-*.json
 reports/security/osv-*.json
+AGENTS.md
+agents.txt
+CLAUDE.md
+claude.txt

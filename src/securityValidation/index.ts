@@ -34,3 +34,14 @@ export { runDependencyChecks } from "./dependencies/runDependencyChecks.js";
 export { parseNpmPackDryRun } from "./packageChecks/parseNpmPackDryRun.js";
 export { detectForbiddenContents } from "./packageChecks/forbiddenPackageContents.js";
 export { runPackageChecks } from "./packageChecks/runPackageChecks.js";
+
+export { createTempWorkspace, snapshotDir, diffSnapshots, findWritesOutside, findNewFiles } from "./cliAdversarial/tempWorkspace.js";
+export type { TempWorkspace, FileSnapshot, SnapshotDiff } from "./cliAdversarial/tempWorkspace.js";
+export { getAdversarialCliTarget, buildCliCommand } from "./cliAdversarial/adversarialCliConfig.js";
+export type { AdversarialCliTarget } from "./cliAdversarial/adversarialCliConfig.js";
+export { ALL_PATH_TEST_INPUTS, PATH_TRAVERSAL_CASES, ABSOLUTE_PATH_CASES, SPACES_PATH_CASES, METACHAR_PATH_CASES, UNICODE_PATH_CASES, LONG_NAME_CASES, MISSING_PATH_CASES } from "./cliAdversarial/pathCases.js";
+export type { PathTestInput, PathInputCategory } from "./cliAdversarial/pathCases.js";
+export { runAdversarialCheck, skippedCheck, makeFinding } from "./cliAdversarial/runAdversarialCheck.js";
+export type { AdversarialCommandResult, AdversarialCheckInput } from "./cliAdversarial/runAdversarialCheck.js";
+export { checkRootPathTraversal, checkOutPathTraversal, checkIndexPathTraversal, checkPathWithSpaces, checkUnicodePath, checkSafeAbsolutePath, checkHarnessEscapeDetection } from "./cliAdversarial/pathBoundaryChecks.js";
+export { checkSourceFilesNotModified, checkWritesLimitedToOutput, checkIndexWriteContainment, checkArtifactCleanupSafe } from "./cliAdversarial/readOnlyBoundaryChecks.js";

@@ -279,6 +279,15 @@ The planned framework should verify that:
 | `src/securityValidation/packageChecks/` | **Implemented** — npm pack --dry-run parser; forbidden-content detector |
 | `scripts/security/runDependencyChecks.ts` | **Implemented** — entrypoint for `security:deps` |
 | `scripts/security/runPackageChecks.ts` | **Implemented** — entrypoint for `security:package` |
+| `src/securityValidation/cliAdversarial/tempWorkspace.ts` | **Implemented** — temp workspace creation, file snapshots, diff detection |
+| `src/securityValidation/cliAdversarial/adversarialCliConfig.ts` | **Implemented** — fake/real CLI target config; `MY_DEV_KIT_SECURITY_TARGET_COMMAND` opt-in |
+| `src/securityValidation/cliAdversarial/pathCases.ts` | **Implemented** — path traversal, absolute, spaces, metachar, unicode, long, missing test inputs |
+| `src/securityValidation/cliAdversarial/runAdversarialCheck.ts` | **Implemented** — `spawn` (no shell) harness runner; finding builder |
+| `src/securityValidation/cliAdversarial/pathBoundaryChecks.ts` | **Implemented** — --root/--out/--index traversal, spaces, absolute, unicode, escape detection |
+| `src/securityValidation/cliAdversarial/readOnlyBoundaryChecks.ts` | **Implemented** — source not modified, writes limited to output, index containment, cleanup safety |
+| `tests/fixtures/fake-adversarial-cli.js` | **Implemented** — deterministic fake CLI for CI adversarial tests (no network, no source writes) |
+| `tests/security/cliAdversarialPathBoundary.test.ts` | **Implemented** — 23 tests: harness infra, escape detection, traversal, safe paths |
+| `tests/security/cliAdversarialReadOnlyBoundary.test.ts` | **Implemented** — 13 tests: source not modified, writes limited, index containment, cleanup safety |
 | `src/securityValidation/staticScans/` | Planned (Prompt 6) |
 | `tests/fuzz/` | Planned (Prompt 7) |
 | `src/securityValidation/report/` | Planned (Prompt 8) |
@@ -305,7 +314,9 @@ Runs npm pack --dry-run and checks the file list for forbidden contents (lab-out
 npm run test:security
 ```
 
-Runs all security-validation unit tests (type completeness, test matrix structure, dependency parsers, package content checks). Does not require network access or external tools.
+Runs all security-validation unit tests (type completeness, test matrix structure, dependency parsers, package content checks, CLI adversarial path boundary and read-only boundary tests). Does not require network access, external tools, or a globally installed my-dev-kit.
+
+By default, adversarial tests run against `tests/fixtures/fake-adversarial-cli.js` (deterministic, CI-safe). To run against a real my-dev-kit CLI, set `MY_DEV_KIT_SECURITY_TARGET_COMMAND=<path-to-cli>` before running the test suite.
 
 ### Planned (future prompts)
 
@@ -355,7 +366,13 @@ src/securityValidation/
     parseNpmPackDryRun.ts      Parse npm pack --dry-run output into file list
     forbiddenPackageContents.ts Detect lab-output, .my-dev-kit, .env, and other unsafe inclusions
   staticScans/                 (planned: Phase 4 — CodeQL and Semgrep wrappers)
-  adversarialCli/              (planned: Phase 3 — hostile CLI argument tests)
+  cliAdversarial/              (implemented: Phase 3a — path boundary and read-only boundary checks)
+    tempWorkspace.ts           Temp workspace factory; file snapshot and diff helpers
+    adversarialCliConfig.ts    CLI target config; MY_DEV_KIT_SECURITY_TARGET_COMMAND opt-in
+    pathCases.ts               Path test input catalog (traversal, absolute, spaces, metachar, unicode)
+    runAdversarialCheck.ts     spawn-based check runner; finding builder
+    pathBoundaryChecks.ts      Path traversal, unicode, spaces, absolute, escape detection checks
+    readOnlyBoundaryChecks.ts  Source not modified, writes limited to output, index containment, cleanup safety
   fuzz/                        (planned: Phase 5 — bounded parser fuzz targets)
   report/                      (planned: Phase 6 — release security report generator)
 
@@ -364,10 +381,12 @@ scripts/security/
   runPackageChecks.ts          npm script entrypoint for security:package
 
 tests/security/
-  securityValidationTypes.test.ts    Type and enumeration completeness checks
-  securityValidationTestMatrix.test.ts  Test matrix structure and uniqueness checks
-  dependencyChecks.test.ts     Parse and runner unit tests for dependency checks
-  packageContentChecks.test.ts Forbidden-content detection unit tests
+  securityValidationTypes.test.ts         Type and enumeration completeness checks
+  securityValidationTestMatrix.test.ts    Test matrix structure and uniqueness checks
+  dependencyChecks.test.ts                Parse and runner unit tests for dependency checks
+  packageContentChecks.test.ts            Forbidden-content detection unit tests
+  cliAdversarialPathBoundary.test.ts      Path traversal, safe paths, escape detection (23 tests)
+  cliAdversarialReadOnlyBoundary.test.ts  Source not modified, write containment, cleanup safety (13 tests)
 
 tests/fuzz/                    (planned: Phase 5 — bounded fuzz harnesses)
 
@@ -386,8 +405,8 @@ reports/security/              Generated security check artifacts (not committed
 | `feature/security-validation-planning` | Prompt 1: implementation plan and framework doc |
 | `feature/security-validation-foundation` | Prompt 2: types, config, and test matrix |
 | `feature/security-package-validation` | Prompt 3: dependency and package-content checks |
-| `feature/security-cli-adversarial-tests` | Prompt 4 (future): CLI adversarial harness, part 1 |
-| `feature/security-malformed-artifacts` | Prompt 5 (future): malformed artifacts, JSON, Graphviz |
+| `feature/security-cli-adversarial-tests` | Prompt 4: CLI adversarial harness, part 1 — path boundaries and read-only boundaries |
+| `feature/security-malformed-artifacts` | Prompt 5 (future): malformed artifacts, JSON stdout/stderr safety, Graphviz safety |
 | `feature/security-static-scan-integration` | Prompt 6 (future): CodeQL and Semgrep integration |
 | `feature/security-fuzz-smoke` | Prompt 7 (future): bounded fuzz smoke tests |
 | `feature/security-release-report` | Prompt 8 (future): security:validate and release report |
@@ -430,11 +449,25 @@ Security artifacts are written to `reports/security/` and kept separate from exp
 - Unavailable optional tools (OSV-Scanner) are marked skipped, not failed
 - Tests run without network access or OSV-Scanner installation
 
-### Phase 3: CLI adversarial tests (Prompt 4–5, future)
+### Phase 3: CLI adversarial tests (Prompt 4–5)
 
-- Test harness covers hostile values for all documented CLI flags
-- Tests run in temporary directories with no writes outside those directories
-- Path traversal, unsafe output paths, symlink escape, malformed artifacts, and JSON stdout/stderr contamination are covered
+**Prompt 4 (implemented):**
+
+- Temp workspace factory with file snapshot and diff detection for write boundary verification
+- Fake adversarial CLI fixture (`tests/fixtures/fake-adversarial-cli.js`) for deterministic CI testing without network or global installs
+- `MY_DEV_KIT_SECURITY_TARGET_COMMAND` env var for opt-in real CLI testing
+- Path boundary checks: `--root`, `--out`, `--index` path traversal; absolute paths; paths with spaces; unicode paths; escape detection self-test
+- Read-only boundary checks: source files not modified; writes limited to output dir; index write containment; artifact refresh does not delete user files
+- 36 new tests across `cliAdversarialPathBoundary.test.ts` (23) and `cliAdversarialReadOnlyBoundary.test.ts` (13)
+- All subprocess invocations use `spawn` with `shell: false` — no shell interpolation
+
+**Prompt 5 (future):**
+
+- Malformed artifact handling (manifest, symbol index, code graph, data model, frontend semantic)
+- JSON stdout/stderr safety (warnings must not corrupt JSON stdout)
+- Graphviz/subprocess safety tests
+- Shell metacharacters in labels and paths
+- Data-volume smoke checks (large files, many nodes/edges)
 
 ### Phase 4: Static scan integration (Prompt 6, future)
 

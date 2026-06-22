@@ -501,8 +501,23 @@ npm run security:package
 
 Runs all security-validation unit tests without network access or external tools.
 
-**When to use:** As part of regular development to verify the security types, test matrix, and parser logic are correct.
+**When to use:** As part of regular development to verify the security types, test matrix, parser logic, and CLI adversarial boundary checks are correct.
+
+Tests included:
+- `securityValidationTypes.test.ts` — type and enumeration completeness (4 tests)
+- `securityValidationTestMatrix.test.ts` — test matrix structure and uniqueness (15 tests)
+- `dependencyChecks.test.ts` — dependency parser unit tests (16 tests)
+- `packageContentChecks.test.ts` — forbidden-content detection unit tests (16 tests)
+- `cliAdversarialPathBoundary.test.ts` — path traversal, safe paths, escape detection (23 tests)
+- `cliAdversarialReadOnlyBoundary.test.ts` — source not modified, write containment, cleanup safety (13 tests)
+
+By default, adversarial tests run against a deterministic fake CLI fixture — no my-dev-kit installation required. To run against a real CLI, set `MY_DEV_KIT_SECURITY_TARGET_COMMAND=<path>` before running.
 
 ```bash
+npm run test:security
+```
+
+```powershell
+$env:MY_DEV_KIT_SECURITY_TARGET_COMMAND = "node path/to/my-dev-kit/dist/cli.js"
 npm run test:security
 ```
