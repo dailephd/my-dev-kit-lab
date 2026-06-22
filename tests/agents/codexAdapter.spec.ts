@@ -124,6 +124,34 @@ describe("codexAdapter", () => {
     expect(result.tokenUsage.totalTokens).toBe(10);
   });
 
+  it("runs through a Windows codex.cmd shim stored in a path with spaces", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "codex-agent-"));
+    const rootDir = mkdtempSync(path.join(os.tmpdir(), "codex bin root-"));
+    const binDir = path.join(rootDir, "bin with spaces");
+    tempDirs.push(outDir, rootDir);
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(
+      path.join(binDir, "codex.cmd"),
+      `@echo off\r\n"${process.execPath}" -e "console.log('{\\\"usage\\\":{\\\"input_tokens\\\":9,\\\"output_tokens\\\":4,\\\"total_tokens\\\":13}}')"\r\n`,
+      "utf8"
+    );
+    const promptVariant = await loadPromptVariant();
+    const result = await codexAdapter.runPrompt({
+      runId: "codex-cmd-space",
+      agentId: "codex",
+      promptVariant,
+      promptText: promptVariant.promptText,
+      cwd: process.cwd(),
+      outDir,
+      commandTemplate: parseAgentCommandTemplate("codex {prompt}"),
+      env: { Path: binDir, PATH: binDir }
+    });
+
+    expect(result.status).toBe("completed");
+    expect(result.tokenUsage.totalTokens).toBe(13);
+    expect(result.args.some((arg) => arg.includes("codex.cmd"))).toBe(true);
+  });
+
   it("resolves a simulated Windows npm codex.ps1 shim through PowerShell", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "codex-agent-"));
     const binDir = mkdtempSync(path.join(os.tmpdir(), "codex-bin-"));

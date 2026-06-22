@@ -51,17 +51,15 @@ flowchart TD
 
 ### Install
 
-PowerShell:
+```bash
+npm install
+```
 
 ```powershell
 npm install
 ```
 
-macOS/Linux shell:
-
-```bash
-npm install
-```
+`cmd.exe` users should run the same command on one line.
 
 ### Build
 
@@ -75,23 +73,7 @@ npm run build
 npm run verify
 ```
 
-`cmd.exe` users can run the same commands on one line without shell line continuations.
-
-### Run the fake-agent final demo (deterministic, no external agent CLIs required)
-
-PowerShell:
-
-```powershell
-npm run run-final-demo -- `
-  --cases examples/token-savings-cases.json `
-  --out lab-output/final-demo `
-  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
-  --agents fake-agent `
-  --complexities short `
-  --no-screenshot
-```
-
-macOS/Linux shell:
+### Run the fake-agent final demo (deterministic, no external CLIs required)
 
 ```bash
 npm run run-final-demo -- \
@@ -103,14 +85,23 @@ npm run run-final-demo -- \
   --no-screenshot
 ```
 
-`cmd.exe` example:
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
 
-```cmd
+```bat
 npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
 ```
 
-This runs a full pipeline: controlled experiment -> report -> plots -> visualization demos -> gallery.
-The lab resolves Windows `.cmd` and `.ps1` npm shims without requiring Bash, and command paths with spaces are supported on Windows, macOS, and Linux.
+The lab resolves Windows `.cmd` and `.ps1` CLI shims, supports command paths with spaces, and keeps generated artifacts inside the requested output directory.
+
+This runs a full pipeline: controlled experiment → report → plots → visualization demos → gallery.
 
 ### Run a real-agent campaign (requires Codex or Claude CLI)
 
@@ -151,15 +142,15 @@ Real-agent runs require local Codex or Claude CLI setup and available usage capa
 
 Open `experiment-report.html` in a browser. The report shows:
 
-- **Project profile** - benchmark project name, language mix, complexity score, and file tree
-- **Benchmark tasks** - task descriptions and answer keys
-- **Strategy comparisons** - paired `raw-full-file` vs `my-dev-kit-guided` runs per case
-- **Correctness scores** - deterministic answer-key scoring, not semantic LLM judging
-- **Token usage** - estimated or reported token totals per run
-- **Token savings** - positive means my-dev-kit used fewer tokens; negative means it used more
-- **Duration** - wall-clock time per run
-- **Status** - completed, timeout, invalid-output, or limit-reached
-- **Warnings and limitations** - notes on missing token totals or partial results
+- **Project profile** — benchmark project name, language mix, complexity score, and file tree
+- **Benchmark tasks** — task descriptions and answer keys
+- **Strategy comparisons** — paired `raw-full-file` vs `my-dev-kit-guided` runs per case
+- **Correctness scores** — deterministic answer-key scoring (not semantic LLM judging)
+- **Token usage** — estimated or reported token totals per run
+- **Token savings** — positive means my-dev-kit used fewer tokens; negative means it used more
+- **Duration** — wall-clock time per run
+- **Status** — completed, timeout, invalid-output, or limit-reached
+- **Warnings and limitations** — notes on missing token totals or partial results
 
 See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
@@ -173,13 +164,32 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Small projects may make raw-full-file cheaper than my-dev-kit-guided; larger localized tasks are where my-dev-kit is expected to become more useful
 - The current baseline does not yet prove every future value claim; stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
-- `npx my-dev-kit-lab@0.1.1` exposes the final demo entrypoint, but the most reliable validated path remains running from a checked-out lab repository where bundled benchmarks and docs are present
 
 ---
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. Future roadmap items such as a generic experiment-plugin framework, warm-index reuse experiments, and security-validation reporting remain planned work, not features added in this patch release.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The next major development phase is a generic experiment-plugin framework that will make it straightforward to add new experiment types without rebuilding the pipeline.
+
+---
+
+## Planned security validation
+
+my-dev-kit-lab will also own a planned release-security track for **my-dev-kit**. This work is separate from the current experiment pipeline and does not replace the generic experiment-plugin roadmap. Its purpose is to generate release-validation evidence for the local CLI/package before public release preparation.
+
+This is not a web application pentest framework. **my-dev-kit** is a local CLI/package, so the planned validation model is CLI/package adversarial testing focused on whether it remains:
+
+- local-first
+- deterministic
+- read-only with respect to user source files
+- network-free during normal CLI operation
+- LLM-free
+- database-free
+- safe to run on local repositories
+
+The planned release-gate concept is a future `security:validate` workflow that will eventually combine static scans, dependency/package checks, adversarial CLI tests, fuzz smoke checks, and a release security report. The foundational dependency and package commands now exist as `security:deps`, `security:package`, and `test:security`, while the full release gate remains a roadmap item.
+
+See [docs/security-validation-framework.md](docs/security-validation-framework.md) for the implemented foundation and planned later phases, and [docs/ROADMAP.md](docs/ROADMAP.md) for phased milestones.
 
 ---
 
@@ -198,11 +208,11 @@ Support is optional and does not affect access to the project.
 
 ## Documentation
 
-- [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) - product purpose and target users
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - current and future architecture
-- [docs/WORKFLOWS.md](docs/WORKFLOWS.md) - step-by-step workflows with diagrams
-- [docs/COMMANDS.md](docs/COMMANDS.md) - all commands with options and examples
-- [docs/TUTORIAL.md](docs/TUTORIAL.md) - first-run walkthrough
-- [docs/METRICS.md](docs/METRICS.md) - metric definitions and interpretation
-- [docs/ROADMAP.md](docs/ROADMAP.md) - current baseline and future phases
-- [docs/GALLERY.md](docs/GALLERY.md) - gallery output explained
+- [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) — product purpose and target users
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — current and future architecture
+- [docs/WORKFLOWS.md](docs/WORKFLOWS.md) — step-by-step workflows with diagrams
+- [docs/COMMANDS.md](docs/COMMANDS.md) — all commands with options and examples
+- [docs/TUTORIAL.md](docs/TUTORIAL.md) — first-run walkthrough
+- [docs/METRICS.md](docs/METRICS.md) — metric definitions and interpretation
+- [docs/ROADMAP.md](docs/ROADMAP.md) — current baseline and future phases
+- [docs/GALLERY.md](docs/GALLERY.md) — gallery output explained

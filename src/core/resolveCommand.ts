@@ -28,6 +28,7 @@ const windowsExtensionPreference = [".cmd", ".exe", ".bat", ".ps1", ""];
 
 export function resolveCommand(command: string, options: ResolveCommandOptions = {}): ResolvedCommand {
   const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
   if (platform !== "win32") {
     return {
       originalCommand: command,
@@ -39,7 +40,6 @@ export function resolveCommand(command: string, options: ResolveCommandOptions =
     };
   }
 
-  const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
   const candidate = findWindowsCommandCandidate(command, env, cwd);
   if (!candidate) {

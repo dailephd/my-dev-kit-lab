@@ -2,6 +2,38 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.1.2] - 2026-06-22
+
+Security validation foundation and package checks.
+
+### Added
+
+- added security-validation planning and framework documentation for the staged release-security track
+- added security validation core types, configuration, command runner, and test matrix scaffolding
+- added dependency validation command support through `security:deps`
+- added package-content validation command support through `security:package`
+- added initial security unit test coverage through `test:security`
+- added Windows-safe npm command resolution support used by the security scripts
+- added parsers and runners for `npm audit`, `npm audit --omit=dev`, `npm ls --all`, `npm outdated`, and optional OSV-Scanner execution
+- added forbidden package-content detection and structured `npm pack --dry-run` parsing
+
+### Validation
+
+- `npm run build`
+- `npm run test`
+- `npm run verify`
+- `npm run security:deps`
+- `npm run security:package`
+- `npm pack --dry-run`
+
+### Limitations
+
+- full CLI adversarial harness is planned next
+- malformed artifact, JSON stdout/stderr, and Graphviz safety tests are not complete yet
+- CodeQL and Semgrep integration is planned
+- fuzz smoke tests are planned
+- `security:validate` and final release security report generation are planned
+
 ## [0.1.1] - 2026-06-22
 
 Public release hygiene and cross-platform assurance patch.

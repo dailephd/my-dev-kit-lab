@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -113,34 +113,32 @@ describe("runMeasuredCommand", () => {
     expect(result.stdout).toContain("stdin-ended");
   });
 
-  it("runs a Windows cmd shim from a path with spaces", async () => {
-    if (process.platform !== "win32") {
-      return;
-    }
-
-    const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
-    const shimRoot = mkdtempSync(path.join(os.tmpdir(), "cmd-shim-"));
-    tempDirs.push(outDir, shimRoot);
-    const binDir = path.join(shimRoot, "bin with spaces");
+  it("executes Windows cmd shims from a path containing spaces", async () => {
+    const rootDir = mkdtempSync(path.join(os.tmpdir(), "measured-cmd-root-"));
+    const binDir = path.join(rootDir, "bin with spaces");
+    const outDir = path.join(rootDir, "out");
+    const nodeBinDir = path.dirname(process.execPath);
+    tempDirs.push(rootDir);
     mkdirSync(binDir, { recursive: true });
-    const shimPath = path.join(binDir, "echo-args.cmd");
+    mkdirSync(outDir, { recursive: true });
     writeFileSync(
-      shimPath,
-      `@echo off\r\n"${process.execPath}" -e "console.log(process.argv.slice(1).join('|'))" %*\r\n`,
+      path.join(binDir, "echo-args.cmd"),
+      "@echo off\r\nnode -e \"console.log(process.argv.slice(1).join('|'))\" %*\r\n",
       "utf8"
     );
-    const nodeBinDir = path.dirname(process.execPath);
-    const joinedPath = `${binDir}${path.delimiter}${nodeBinDir}`;
+
     const result = await runMeasuredCommand({
       commandId: "cmd-shim",
-      commandString: 'echo-args "alpha beta" gamma',
+      commandString: "echo-args",
       cwd: process.cwd(),
       outDir,
-      env: { Path: joinedPath, PATH: joinedPath }
+      extraArgs: ["alpha", "two words"],
+      env: { Path: `${binDir}${path.delimiter}${nodeBinDir}`, PATH: `${binDir}${path.delimiter}${nodeBinDir}` },
+      timeoutMs: 5000
     });
 
     expect(result.ok).toBe(true);
+    expect(result.stdout.trim()).toBe("alpha|two words");
     expect(result.args.some((arg) => arg.includes("echo-args.cmd"))).toBe(true);
-    expect(result.stdout).toContain("alpha beta|gamma");
   });
 });

@@ -12,15 +12,11 @@ See [docs/WORKFLOWS.md](docs/WORKFLOWS.md) for end-to-end workflow examples that
 
 Installs all dependencies. Use `npm ci` in CI environments for a clean, reproducible install.
 
-PowerShell:
-
-```powershell
+```bash
 npm install
 ```
 
-macOS/Linux shell:
-
-```bash
+```powershell
 npm install
 ```
 
@@ -288,25 +284,12 @@ Runs bounded my-dev-kit visualization command demos against a benchmark project 
 - `--out` — output directory for demo artifacts
 
 **Example:**
-PowerShell:
-
-```powershell
-npm run run-visualization-demos -- `
-  --project benchmarks/projects/todo-ts `
-  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
-  --out lab-output/visualization-demos
-```
-
-macOS/Linux shell:
-
 ```bash
 npm run run-visualization-demos -- \
   --project benchmarks/projects/todo-ts \
   --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
   --out lab-output/visualization-demos
 ```
-
-Pass `--kit-command` as one command string. Quoted command paths with spaces are supported on Windows, macOS, and Linux.
 
 ---
 
@@ -352,7 +335,15 @@ Runs the complete pipeline in one command: controlled experiment → report → 
 - `--screenshot` / `--no-screenshot` — whether to capture a PNG
 
 **Example:**
-PowerShell:
+```bash
+npm run run-final-demo -- \
+  --cases examples/token-savings-cases.json \
+  --out lab-output/final-demo \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
+```
 
 ```powershell
 npm run run-final-demo -- `
@@ -364,19 +355,9 @@ npm run run-final-demo -- `
   --no-screenshot
 ```
 
-macOS/Linux shell:
-
-```bash
-npm run run-final-demo -- \
-  --cases examples/token-savings-cases.json \
-  --out lab-output/final-demo \
-  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
-  --agents fake-agent \
-  --complexities short \
-  --no-screenshot
-```
-
-`cmd.exe` users should run the same command on one line because backtick and backslash continuations are shell-specific.
+- `--kit-command` should be passed as one command string such as `node tests/fixtures/fake-my-dev-kit-cli.js`.
+- Paths with spaces are supported on Windows, macOS, and Linux.
+- `cmd.exe` users should run the same arguments on one line instead of using line continuations.
 
 ---
 
@@ -449,3 +430,79 @@ npm run capture-demo-report -- \
 ## Screenshot capture notes
 
 Screenshot capture uses Playwright and requires a browser runtime. When Playwright or the browser runtime is unavailable, JSON and HTML artifacts are still written and the command succeeds with a warning. Pass `--no-screenshot` to skip capture explicitly.
+
+---
+
+## Security validation commands
+
+These commands implement the planned release-security validation track for **my-dev-kit**. They do not replace the experiment pipeline and do not require internet access for their core logic (though `npm audit` and `npm ls` do contact the npm registry).
+
+### `npm run security:deps`
+
+Runs dependency audit checks and writes structured results to `reports/security/`.
+
+Checks performed:
+- `npm audit --json` — full audit including devDependencies
+- `npm audit --omit=dev --json` — runtime dependencies only
+- `npm outdated --json` — outdated package detection (informational)
+- `npm ls --all --json` — dependency tree resolution
+- OSV-Scanner — if installed; skipped with a clear reason if not available
+
+**When to use:** Before release preparation to check for known dependency vulnerabilities.
+
+**Outputs:**
+- `reports/security/dependency-checks.json` — combined summary
+- `reports/security/npm-audit-full.json`
+- `reports/security/npm-audit-runtime.json`
+- `reports/security/npm-outdated.json`
+- `reports/security/npm-ls.json`
+- `reports/security/osv-scanner.json`
+- `reports/security/raw/` — raw stdout/stderr captured from each command
+
+**Exit code:** Non-zero when any blocker-severity finding is detected. Zero when only informational, minor, or skipped checks exist.
+
+```bash
+npm run security:deps
+```
+
+```powershell
+npm run security:deps
+```
+
+---
+
+### `npm run security:package`
+
+Runs `npm pack --dry-run` and inspects the tarball file list for forbidden contents. Does not publish anything.
+
+Checks performed:
+- Detects lab-output/, .my-dev-kit/, .env files, private planning docs, node_modules/, tarballs, and other unsafe inclusions
+
+**When to use:** Before release preparation to verify the npm tarball does not include generated artifacts, secrets, or internal files.
+
+**Outputs:**
+- `reports/security/package-checks.json` — combined summary
+- `reports/security/npm-pack-dry-run.json`
+- `reports/security/raw/` — raw stdout/stderr from npm pack
+
+**Exit code:** Non-zero when any blocker or major finding is detected.
+
+```bash
+npm run security:package
+```
+
+```powershell
+npm run security:package
+```
+
+---
+
+### `npm run test:security`
+
+Runs all security-validation unit tests without network access or external tools.
+
+**When to use:** As part of regular development to verify the security types, test matrix, and parser logic are correct.
+
+```bash
+npm run test:security
+```

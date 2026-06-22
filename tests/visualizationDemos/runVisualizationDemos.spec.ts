@@ -38,11 +38,11 @@ describe("runVisualizationDemos", () => {
     expect(artifacts.warnings.some((warning) => warning.includes("unsupported") || warning.includes("failed"))).toBe(true);
   });
 
-  it("supports node kit commands whose script path contains spaces", async () => {
-    const outDir = mkdtempSync(path.join(os.tmpdir(), "viz-space-"));
-    const scriptRoot = mkdtempSync(path.join(os.tmpdir(), "viz-script-"));
-    tempDirs.push(outDir, scriptRoot);
-    const scriptDir = path.join(scriptRoot, "script dir");
+  it("normalizes a node kit command whose script path contains spaces", async () => {
+    const rootDir = mkdtempSync(path.join(os.tmpdir(), "viz-space-root-"));
+    const scriptDir = path.join(rootDir, "script dir");
+    const outDir = path.join(rootDir, "out");
+    tempDirs.push(rootDir);
     mkdirSync(scriptDir, { recursive: true });
     const spacedScriptPath = path.join(scriptDir, "fake my-dev-kit cli.js");
     copyFileSync(path.resolve("tests/fixtures/fake-my-dev-kit-cli.js"), spacedScriptPath);
@@ -54,6 +54,6 @@ describe("runVisualizationDemos", () => {
     });
 
     expect(artifacts.summary.completedRuns).toBe(6);
-    expect(existsSync(path.join(outDir, "artifacts", "call-graph.svg"))).toBe(true);
+    expect(existsSync(path.join(outDir, "artifacts", "data-model.svg"))).toBe(true);
   });
 });

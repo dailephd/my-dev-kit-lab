@@ -1,8 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { parseCommandString, type ParsedCommand } from "./commandLine.js";
+import { parseCommandString } from "./commandLine.js";
 import { resolveCommand, type ResolvedCommand } from "./resolveCommand.js";
+
+export { parseCommandString } from "./commandLine.js";
 
 export type MeasuredCommandResult = {
   commandId: string;
@@ -23,8 +25,6 @@ export type MeasuredCommandResult = {
   error?: string;
   resolvedCommand?: ResolvedCommand;
 };
-
-export { parseCommandString } from "./commandLine.js";
 
 export async function runMeasuredCommand(options: {
   commandId: string;
@@ -57,8 +57,8 @@ export async function runMeasuredCommand(options: {
   const executable = resolution.command;
   const trailingArgs = [...parsed.args, ...(options.extraArgs ?? [])];
   const args =
-    resolution.resolutionKind === "windows-cmd-shim"
-      ? [...resolution.argsPrefix, resolution.resolvedPath ?? parsed.executable, ...trailingArgs]
+    resolution.resolutionKind === "windows-cmd-shim" && resolution.resolvedPath
+      ? [...resolution.argsPrefix, resolution.resolvedPath, ...trailingArgs]
       : [...resolution.argsPrefix, ...trailingArgs];
   const stdoutPath = path.join(options.outDir, `${options.commandId}.stdout.txt`);
   const stderrPath = path.join(options.outDir, `${options.commandId}.stderr.txt`);
