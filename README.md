@@ -55,6 +55,12 @@ flowchart TD
 npm install
 ```
 
+```powershell
+npm install
+```
+
+`cmd.exe` users should run the same command on one line.
+
 ### Build
 
 ```bash
@@ -78,6 +84,22 @@ npm run run-final-demo -- \
   --complexities short \
   --no-screenshot
 ```
+
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+```bat
+npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
+```
+
+The lab resolves Windows `.cmd` and `.ps1` CLI shims, supports command paths with spaces, and keeps generated artifacts inside the requested output directory.
 
 This runs a full pipeline: controlled experiment → report → plots → visualization demos → gallery.
 

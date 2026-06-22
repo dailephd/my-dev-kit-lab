@@ -36,6 +36,20 @@ npm run run-final-demo -- \
   --no-screenshot
 ```
 
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+- Bash and zsh examples use `\` line continuations.
+- PowerShell examples use the backtick continuation shown above.
+- `cmd.exe` users should run the same arguments on one line.
+
 **Outputs:**
 - `lab-output/final-demo/experiment-summary.json`
 - `lab-output/final-demo/experiment-runs.json`

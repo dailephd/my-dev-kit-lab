@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -36,5 +36,24 @@ describe("runVisualizationDemos", () => {
     });
     expect(artifacts.summary.failedRuns).toBe(1);
     expect(artifacts.warnings.some((warning) => warning.includes("unsupported") || warning.includes("failed"))).toBe(true);
+  });
+
+  it("normalizes a node kit command whose script path contains spaces", async () => {
+    const rootDir = mkdtempSync(path.join(os.tmpdir(), "viz-space-root-"));
+    const scriptDir = path.join(rootDir, "script dir");
+    const outDir = path.join(rootDir, "out");
+    tempDirs.push(rootDir);
+    mkdirSync(scriptDir, { recursive: true });
+    const spacedScriptPath = path.join(scriptDir, "fake my-dev-kit cli.js");
+    copyFileSync(path.resolve("tests/fixtures/fake-my-dev-kit-cli.js"), spacedScriptPath);
+
+    const artifacts = await runVisualizationDemos({
+      projectPath: path.resolve("benchmarks/projects/todo-ts"),
+      kitCommand: `node "${spacedScriptPath}"`,
+      outDir
+    });
+
+    expect(artifacts.summary.completedRuns).toBe(6);
+    expect(existsSync(path.join(outDir, "artifacts", "data-model.svg"))).toBe(true);
   });
 });

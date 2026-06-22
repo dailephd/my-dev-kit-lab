@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -62,6 +62,13 @@ describe("runMeasuredCommand", () => {
     });
   });
 
+  it("parses escaped quotes and whitespace in command strings", () => {
+    expect(parseCommandString('node "folder with spaces\\\\\\"quoted\\\\\\"/file.js" "two words"')).toEqual({
+      executable: "node",
+      args: ['folder with spaces\\"quoted\\"/file.js', "two words"]
+    });
+  });
+
   it("preserves args when command resolution is enabled", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
     tempDirs.push(outDir);
@@ -104,5 +111,34 @@ describe("runMeasuredCommand", () => {
     });
     expect(result.ok).toBe(true);
     expect(result.stdout).toContain("stdin-ended");
+  });
+
+  it("executes Windows cmd shims from a path containing spaces", async () => {
+    const rootDir = mkdtempSync(path.join(os.tmpdir(), "measured-cmd-root-"));
+    const binDir = path.join(rootDir, "bin with spaces");
+    const outDir = path.join(rootDir, "out");
+    const nodeBinDir = path.dirname(process.execPath);
+    tempDirs.push(rootDir);
+    mkdirSync(binDir, { recursive: true });
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(
+      path.join(binDir, "echo-args.cmd"),
+      "@echo off\r\nnode -e \"console.log(process.argv.slice(1).join('|'))\" %*\r\n",
+      "utf8"
+    );
+
+    const result = await runMeasuredCommand({
+      commandId: "cmd-shim",
+      commandString: "echo-args",
+      cwd: process.cwd(),
+      outDir,
+      extraArgs: ["alpha", "two words"],
+      env: { Path: `${binDir}${path.delimiter}${nodeBinDir}`, PATH: `${binDir}${path.delimiter}${nodeBinDir}` },
+      timeoutMs: 5000
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.stdout.trim()).toBe("alpha|two words");
+    expect(result.args.some((arg) => arg.includes("echo-args.cmd"))).toBe(true);
   });
 });

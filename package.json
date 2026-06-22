@@ -1,9 +1,20 @@
 {
   "name": "my-dev-kit-lab",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "docs",
+    "examples",
+    "benchmarks"
+  ],
+  "bin": {
+    "my-dev-kit-lab": "dist/scripts/run-final-demo.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",

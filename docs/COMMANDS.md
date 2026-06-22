@@ -16,6 +16,10 @@ Installs all dependencies. Use `npm ci` in CI environments for a clean, reproduc
 npm install
 ```
 
+```powershell
+npm install
+```
+
 ### `npm run build`
 
 Compiles TypeScript sources to `dist/`. Run this before executing any lab commands.
@@ -340,6 +344,20 @@ npm run run-final-demo -- \
   --complexities short \
   --no-screenshot
 ```
+
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+- `--kit-command` should be passed as one command string such as `node tests/fixtures/fake-my-dev-kit-cli.js`.
+- Paths with spaces are supported on Windows, macOS, and Linux.
+- `cmd.exe` users should run the same arguments on one line instead of using line continuations.
 
 ---
 

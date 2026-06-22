@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { parseCommandString } from "../core/commandLine.js";
 import { getAgentAdapter } from "./agentRegistry.js";
 import type { AgentCommandTemplate, AgentRunRequest, AgentRunResult } from "./types.js";
 
@@ -15,14 +16,10 @@ export async function runAgentPrompt(options: RunAgentPromptOptions): Promise<Ag
 }
 
 export function parseAgentCommandTemplate(template: string): AgentCommandTemplate {
-  const parts = splitCommandTemplate(template);
-  const [command, ...args] = parts;
-  if (!command) {
-    throw new Error("Command template must include a command.");
-  }
+  const parts = parseCommandString(template);
   return {
-    command,
-    args,
+    command: parts.executable,
+    args: parts.args,
     promptPlaceholder: "{prompt}"
   };
 }
@@ -44,35 +41,4 @@ export function applyPromptToCommandTemplate(template: AgentCommandTemplate, pro
     args.push(promptText);
   }
   return { command: template.command, args };
-}
-
-function splitCommandTemplate(template: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let quote: "\"" | "'" | null = null;
-
-  for (let index = 0; index < template.length; index += 1) {
-    const char = template[index];
-    if ((char === "\"" || char === "'") && quote === null) {
-      quote = char;
-      continue;
-    }
-    if (char === quote) {
-      quote = null;
-      continue;
-    }
-    if (/\s/.test(char) && quote === null) {
-      if (current) {
-        result.push(current);
-        current = "";
-      }
-      continue;
-    }
-    current += char;
-  }
-
-  if (current) {
-    result.push(current);
-  }
-  return result;
 }
