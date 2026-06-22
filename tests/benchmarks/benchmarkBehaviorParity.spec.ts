@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { TaskService as TsTaskService } from "../../benchmarks/projects/todo-ts/src/taskService.js";
 import { runTodoScenario } from "../../benchmarks/projects/todo-mixed-ts-py/src/taskCli.js";
+import { resolvePythonCommand } from "../../src/core/pythonCommand.js";
 
 async function loadJsTaskService() {
   const modulePath = path.join(process.cwd(), "benchmarks", "projects", "todo-js", "src", "taskService.js");
@@ -18,14 +19,19 @@ async function loadJsTaskService() {
 
 function runPythonSnippet(code: string) {
   const projectDir = path.join(process.cwd(), "benchmarks", "projects", "todo-python");
-  return spawnSync("python", ["-c", code], {
+  const python = resolvePythonCommand();
+  const result = spawnSync(python.command, [...python.argsPrefix, "-c", code], {
     cwd: projectDir,
     encoding: "utf8",
+    shell: false,
+    timeout: 10_000,
+    windowsHide: true,
     env: {
       ...process.env,
       PYTHONPATH: path.join(projectDir, "src")
     }
   });
+  return { python, result };
 }
 
 describe("benchmark behavior parity", () => {
@@ -49,7 +55,7 @@ describe("benchmark behavior parity", () => {
   });
 
   it("Python behavior passes through a child process", () => {
-    const result = runPythonSnippet(
+    const { python, result } = runPythonSnippet(
       [
         "import json",
         "from task_service import TaskService",
@@ -60,12 +66,22 @@ describe("benchmark behavior parity", () => {
         "print(json.dumps({'open': service.list_open_tasks(), 'summary': service.summarize_tasks()}))"
       ].join("; ")
     );
-    expect(result.status).toBe(0);
+    const diagnostics = [
+      `python=${python.command}`,
+      `args=${JSON.stringify([...python.argsPrefix, "-c", "<snippet>"])}`,
+      `status=${String(result.status)}`,
+      `signal=${String(result.signal)}`,
+      `error=${result.error?.message ?? ""}`,
+      `stdout=${result.stdout.trim()}`,
+      `stderr=${result.stderr.trim()}`
+    ].join("\n");
+    expect(result.error, diagnostics).toBeUndefined();
+    expect(result.status, diagnostics).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       open: [{ id: "task-2", title: "Two", completed: false }],
       summary: { total: 2, open: 1, completed: 1 }
     });
-  });
+  }, 15_000);
 
   it("mixed boundary behavior passes", () => {
     const result = runTodoScenario([
