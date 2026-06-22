@@ -1,6 +1,6 @@
 # Security Validation Framework
 
-This document defines the planned security-validation framework that my-dev-kit-lab will own for **my-dev-kit** release preparation.
+This document defines the security-validation framework that my-dev-kit-lab owns for **my-dev-kit** release preparation.
 
 The framework is a lab-owned validation and evidence layer. It is not a normal end-user feature of my-dev-kit-lab, and it does not change the current experiment baseline or the planned generic experiment-plugin architecture. Its purpose is to help determine whether **my-dev-kit**, as a local CLI/package, remains safe to run on local repositories before release candidates are promoted.
 
@@ -8,7 +8,7 @@ The framework is a lab-owned validation and evidence layer. It is not a normal e
 
 ## Security model
 
-The planned framework validates whether my-dev-kit remains:
+The framework validates whether my-dev-kit remains:
 
 - local-first
 - deterministic
@@ -84,11 +84,11 @@ Find code-level vulnerability patterns before release candidates move forward.
 
 ### 2. Dependency and supply-chain audit
 
-Planned tools:
+Implemented tools:
 
 - `npm audit`
 - `npm audit --omit=dev`
-- OSV-Scanner
+- OSV-Scanner (optional; skipped when unavailable)
 - `npm outdated`
 - `npm ls --all`
 - `npm pack --dry-run`
@@ -112,13 +112,12 @@ Detect vulnerable dependencies and prevent unsafe package publication.
 
 ### 3. CLI adversarial test harness
 
-Planned tools:
+Implemented tools:
 
-- Vitest or the Node test runner
-- temporary test directories
-- local built CLI such as `node dist/cli.js`
-- no network access
-- no destructive activity outside temporary directories
+- Vitest test runner
+- temporary test directories (auto-cleaned)
+- deterministic `fake-adversarial-cli.js` fixture (CI-safe; no network; no source writes)
+- real CLI opt-in via `MY_DEV_KIT_SECURITY_TARGET_COMMAND` environment variable
 
 Primary attack surface:
 
@@ -194,7 +193,7 @@ Implemented. Each release candidate generates:
 - `reports/v<version>-security-validation.txt` — human-readable report
 - `reports/v<version>-security-validation.json` — machine-readable structured report
 
-Planned report sections:
+Report sections:
 
 1. Executive summary
 2. Branch and commit audited
@@ -226,7 +225,7 @@ Produce a stable release-gate artifact that can be reviewed alongside normal rel
 
 ## Expected safe behavior
 
-The planned framework should verify that:
+The framework verifies that:
 
 - the CLI fails safely with clear error messages
 - JSON mode returns valid JSON errors where supported

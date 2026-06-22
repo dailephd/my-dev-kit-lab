@@ -19,8 +19,9 @@ my-dev-kit-lab is organized as a layered pipeline. Each layer has a focused resp
 | Plots | `src/plots/` | Plot-ready data generation and deterministic SVG chart rendering |
 | Visualization demos | `src/visualizationDemos/` | Bounded my-dev-kit visualization command demos |
 | Gallery | `src/gallery/` | Gallery manifest types and writer |
+| Security validation | `src/securityValidation/` | Types, config, test matrix, dependency checks, package checks, CLI adversarial harness, static scans, fuzz smoke tests, release gate orchestrator, report renderer |
 | Scripts | `scripts/` | Command entrypoints and verification helpers |
-| Tests | `tests/` | Validation and parity tests |
+| Tests | `tests/` | Validation, parity, adversarial, and fuzz smoke tests |
 
 ---
 

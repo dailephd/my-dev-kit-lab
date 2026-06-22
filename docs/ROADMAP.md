@@ -118,85 +118,53 @@ flowchart LR
   E --> F[Release verdict\nrelease gate for preparation]
 ```
 
-### Phase 1: Security model and test matrix
+### Phase 1: Security model and test matrix — **Implemented (v0.1.2)**
 
-Define the threat model, scope boundary, and initial release-security matrix for my-dev-kit as a local CLI/package.
+Security model, types, config, test matrix, command runner, and artifact writer are implemented in `src/securityValidation/`.
 
-Acceptance criteria:
+### Phase 2: Package and dependency checks — **Implemented (v0.1.2)**
 
-- Security model clearly documents local-first, deterministic, read-only, network-free, LLM-free, and database-free boundaries
-- Threat model distinguishes CLI/package adversarial testing from web-application pentesting
-- Initial attack-surface matrix exists for CLI flags, artifact readers, subprocess paths, and package contents
-- Planned report format, severities, and release verdicts are documented
+`security:deps` runs `npm audit`, `npm audit --omit=dev`, OSV-Scanner (if available), `npm outdated`, and `npm ls --all`. `security:package` runs `npm pack --dry-run` and checks for forbidden contents.
 
-### Phase 2: Package and dependency checks
+### Phase 3: CLI adversarial tests — **Implemented (v0.1.2–v0.1.3)**
 
-Add planned dependency and publication-safety checks for release preparation.
+`test:security` runs 165 adversarial tests across path traversal, read-only boundary checks, malformed artifact handling, JSON stdout/stderr safety, subprocess safety, and data volume edge cases. All tests run against a deterministic `fake-adversarial-cli.js` fixture; real CLI opt-in available via `MY_DEV_KIT_SECURITY_TARGET_COMMAND`.
 
-Acceptance criteria:
+### Phase 4: Static scan integration — **Implemented (v0.1.4)**
 
-- Roadmap defines dependency checks using `npm audit`, `npm audit --omit=dev`, OSV-Scanner, `npm outdated`, and `npm ls --all`
-- Package review includes `npm pack --dry-run` and tarball-content inspection
-- Validation scope explicitly covers accidental publication of generated artifacts, private notes, secrets, local tarballs, and machine-specific files
-- This phase is documented as release-gate evidence rather than a current shipping feature
+`security:codeql` checks local CodeQL CLI availability and skips gracefully when absent. `security:semgrep` scans `src/` using `.semgrep.yml` rules via local binary or npx fallback. Both produce structured `SecurityCheckResult` outputs.
 
-### Phase 3: CLI adversarial tests
+### Phase 5: Fuzz smoke tests — **Implemented (v0.1.4)**
 
-Design a harness that behaves like an attacker or careless user while staying inside temporary directories.
+`test:fuzz:smoke` runs 9 bounded fuzz targets (50 iterations each) with a seeded PRNG (Mulberry32 / `0xDEADBEEF`). Targets cover manifest reader, code-graph reader, npm parsers, DOT label escaping, path normalization, and source windowing. Completes in under 1 second.
 
-Acceptance criteria:
+### Phase 6: Release report generator — **Implemented (v0.1.4)**
 
-- Test plan covers hostile values for `--root`, `--src`, `--out`, `--index`, `--file`, `--node`, `--symbol`, `--contains`, `--query`, `--graph`, `--format`, `--path`, `--react-region`, and related inclusion flags
-- Cases include path traversal, unsafe output paths, symlink/junction escape, malformed artifacts, huge inputs, Graphviz label escaping, and JSON stdout/stderr contamination
-- Expected safe behavior is defined for read-only boundaries, clear errors, non-destructive cleanup, and bounded writes
-- No test is expected to write outside temporary directories or require network access
+`security:validate` orchestrates all security checks and writes:
 
-### Phase 4: Static scan integration
+- `reports/v<version>-security-validation.txt` — 22-section human-readable report
+- `reports/v<version>-security-validation.json` — machine-readable report with `schemaVersion: 1`
 
-Integrate planned static security scans into the release-security process.
+Four release verdicts are possible:
 
-Acceptance criteria:
+- `ready for release preparation`
+- `not ready: security blocker remains`
+- `ready except optional manual checks`
+- `inconclusive: audit environment incomplete`
 
-- CodeQL and Semgrep are documented as planned checks
-- Focus areas include unsafe subprocess use, unsafe Graphviz invocation, path traversal, unsafe deletion, unbounded reads, unbounded artifact generation, secret indexing, and tainted argument flows
-- Results are intended to feed the release security report rather than stand alone
-- Documentation keeps these scans separate from the generic experiment-plugin runtime
+Generated reports are excluded from git by default (`.gitignore`).
 
-### Phase 5: Fuzz smoke tests
+### Security commands (all implemented)
 
-Add bounded fuzzing for parsers, artifact readers, and path/escaping helpers.
-
-Acceptance criteria:
-
-- Initial target list includes manifest, symbol index, code graph, data model, frontend semantic, CLI parsing, `--contains` matching, path normalization, DOT label escaping, and selected analyzers/renderers
-- Fuzzing is explicitly smoke-level and time-bounded in the initial phase
-- The roadmap does not require long-running fuzz infrastructure as a release prerequisite yet
-- Results roll into the security report as a smoke signal, not as a full coverage claim
-
-### Phase 6: Release report generator
-
-Generate a release-security report and verdict that release preparation can consume.
-
-Acceptance criteria:
-
-- Planned output includes `reports/v<version>-security-validation.txt` or an equivalent release artifact
-- Report format includes executive summary, audited commit, tool results, adversarial-test results, fuzz smoke result, findings by severity, release verdict, and recommended next step
-- Severity classes are defined as Blocker, Major, Minor, Informational, and Skipped
-- Verdict options are defined and clearly separated from ordinary experiment output
-
-### Planned command concepts
-
-The following command names are reserved as roadmap concepts only unless they are implemented later:
-
-- `security:codeql`
-- `security:semgrep`
-- `security:deps`
-- `security:package`
-- `test:security`
-- `test:fuzz:smoke`
-- `security:validate`
-
-`security:validate` is intended to be the future release-gate entry point that assembles the security-validation evidence for release preparation.
+| Command | Description |
+|---|---|
+| `npm run security:deps` | Dependency and supply-chain audit |
+| `npm run security:package` | Package tarball content inspection |
+| `npm run security:codeql` | CodeQL CLI check (skips if absent) |
+| `npm run security:semgrep` | Semgrep scan (npx fallback; skips if both absent) |
+| `npm run test:security` | 165 adversarial CLI tests |
+| `npm run test:fuzz:smoke` | 9 bounded fuzz targets |
+| `npm run security:validate` | Full release gate with verdict and reports |
 
 ---
 

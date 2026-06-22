@@ -173,11 +173,11 @@ my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline 
 
 ---
 
-## Planned security validation
+## Security validation
 
-my-dev-kit-lab will also own a planned release-security track for **my-dev-kit**. This work is separate from the current experiment pipeline and does not replace the generic experiment-plugin roadmap. Its purpose is to generate release-validation evidence for the local CLI/package before public release preparation.
+my-dev-kit-lab owns a release-security validation track for **my-dev-kit**. This work is separate from the experiment pipeline and does not replace the generic experiment-plugin roadmap. Its purpose is to generate release-validation evidence for the local CLI/package before release preparation.
 
-This is not a web application pentest framework. **my-dev-kit** is a local CLI/package, so the planned validation model is CLI/package adversarial testing focused on whether it remains:
+This is not a web application pentest framework. **my-dev-kit** is a local CLI/package, so the validation model is CLI/package adversarial testing focused on whether it remains:
 
 - local-first
 - deterministic
@@ -187,9 +187,25 @@ This is not a web application pentest framework. **my-dev-kit** is a local CLI/p
 - database-free
 - safe to run on local repositories
 
-The planned release-gate concept is a future `security:validate` workflow that will eventually combine static scans, dependency/package checks, adversarial CLI tests, fuzz smoke checks, and a release security report. The foundational dependency and package commands now exist as `security:deps`, `security:package`, and `test:security`, while the full release gate remains a roadmap item.
+The release gate is implemented as of v0.1.4. It combines static scans, dependency/package checks, adversarial CLI tests, bounded fuzz smoke tests, and a structured release security report with a four-category verdict.
 
-See [docs/security-validation-framework.md](docs/security-validation-framework.md) for the implemented foundation and planned later phases, and [docs/ROADMAP.md](docs/ROADMAP.md) for phased milestones.
+### Security commands
+
+| Command | Description |
+|---|---|
+| `npm run security:deps` | npm audit, OSV-Scanner (if available), outdated packages |
+| `npm run security:package` | npm pack --dry-run, forbidden content detection |
+| `npm run security:codeql` | CodeQL CLI availability check; skipped gracefully when absent |
+| `npm run security:semgrep` | Semgrep scan via local binary or npx; skipped gracefully when both absent |
+| `npm run test:security` | 165 adversarial CLI tests (path traversal, read-only boundaries, malformed artifacts, JSON safety, fuzz targets) |
+| `npm run test:fuzz:smoke` | 9 bounded fuzz targets, seeded PRNG, completes in under 1 second |
+| `npm run security:validate` | Full release gate — runs all checks and writes `reports/v<version>-security-validation.{txt,json}` |
+
+CodeQL, Semgrep, and OSV-Scanner are optional. When unavailable locally, they are recorded as `skipped` in the report — not as failures — and the verdict is `ready except optional manual checks` rather than `not ready`.
+
+Generated security reports (`reports/v*-security-validation.*`) are excluded from git by default. They are produced locally or in CI as release-gate evidence and are not committed to the repository.
+
+See [docs/COMMANDS.md](docs/COMMANDS.md) for full command options and [docs/security-validation-framework.md](docs/security-validation-framework.md) for the security model, implemented modules, and release verdicts.
 
 ---
 
