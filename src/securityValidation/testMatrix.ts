@@ -30,7 +30,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--root ../../etc", "--root /etc/passwd", "--root ..\\..\\Windows"],
     expectedBehavior: "CLI rejects the path or confines all operations within an allowed boundary; no file access outside the intended repo root",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "path-traversal-out",
@@ -40,7 +40,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--out ../../etc/cron.d", "--out /tmp/escape"],
     expectedBehavior: "Output is written only within the specified directory; no writes outside the intended output tree",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "path-traversal-index",
@@ -50,7 +50,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--index ../../etc/.my-dev-kit"],
     expectedBehavior: "Index path is validated; reads are confined to the specified index directory",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "absolute-path-escape",
@@ -60,7 +60,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--file /etc/hosts", "--src C:\\Windows\\System32"],
     expectedBehavior: "CLI rejects absolute paths that escape the declared root boundary",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "symlink-junction-escape",
@@ -70,7 +70,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["directory containing a symlink pointing outside the root"],
     expectedBehavior: "Symlink targets outside the root are not followed or are treated as out-of-scope",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "skipped-environment",
   },
   {
     id: "generated-cleanup-user-files",
@@ -80,7 +80,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["index refresh over a directory that contains user source files"],
     expectedBehavior: "Only generated artifacts in the explicitly declared output path are removed; user source files are never deleted",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["npm run index -- --root benchmarks/projects/todo-ts"],
     expectedBehavior: "All source files in the root directory have the same content and modification time after indexing completes",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "writes-limited-to-output",
@@ -104,7 +104,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["run index with --out pointing to a temp directory; verify no writes elsewhere"],
     expectedBehavior: "No files are created or modified outside the declared output and index paths",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["{", "null", "[]", "{\"version\": null}", "not JSON at all"],
     expectedBehavior: "CLI surfaces a clear error without crashing or panicking; no partial state is committed",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "malformed-symbol-index-json",
@@ -138,7 +138,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["empty object", "nodes array is null", "cyclic reference marker"],
     expectedBehavior: "Clear error message; no crash",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "malformed-data-model-json",
@@ -168,7 +168,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["{\"schemaVersion\": 9999}", "{\"schemaVersion\": \"future\"}"],
     expectedBehavior: "CLI reports an unsupported-version error with the version it found; no silent data corruption",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "missing-index-directory",
@@ -178,7 +178,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--index /nonexistent/.my-dev-kit"],
     expectedBehavior: "Clear error stating the index directory does not exist; no crash",
     severityIfFailed: "minor",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["any valid CLI command with JSON output enabled"],
     expectedBehavior: "stdout is valid JSON that can be parsed without error",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "warnings-go-to-stderr",
@@ -202,7 +202,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["run any command that emits a warning; capture stdout and stderr separately"],
     expectedBehavior: "Warning messages appear only on stderr; stdout is not contaminated",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "progress-not-in-json-stdout",
@@ -212,7 +212,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["run a long-running index with progress messages; parse stdout as JSON"],
     expectedBehavior: "stdout remains valid JSON even when progress or status messages are emitted",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "json-error-object-on-failure",
@@ -222,7 +222,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--format json --root /nonexistent"],
     expectedBehavior: "stdout is a valid JSON object with an error field; not a raw stack trace",
     severityIfFailed: "minor",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -256,7 +256,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["node name with double quote: foo\"bar", "node name with backslash: foo\\bar", "path with semicolon: foo;bar"],
     expectedBehavior: "All special characters in DOT labels are properly escaped; no broken DOT syntax or injection",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "subprocess-no-shell-interpolation",
@@ -266,7 +266,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["path with semicolon: /tmp/foo;rm -rf ~", "path with backtick: /tmp/`whoami`"],
     expectedBehavior: "Subprocess is invoked with an argument array, not a shell string; metacharacters are treated as literal path content",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -314,7 +314,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["a .ts file with 100,000 lines"],
     expectedBehavior: "Indexer completes or fails gracefully without running out of memory or hanging indefinitely",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "huge-literal",
@@ -334,7 +334,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["TSX with 500 levels of nesting"],
     expectedBehavior: "Analyzer completes or fails with a clear depth-limit error; no stack overflow",
     severityIfFailed: "minor",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "many-duplicate-strings",
@@ -354,7 +354,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["a project with 10,000 files and 100,000 import relationships"],
     expectedBehavior: "Graph artifact size is bounded; graph view renderer completes without hanging",
     severityIfFailed: "minor",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "unicode-paths",
@@ -418,7 +418,105 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["path with space", "path with double quote", "path with semicolon", "path with Unicode"],
     expectedBehavior: "All path arguments are treated as literal strings; no shell injection; correct behavior on Windows and Unix",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
+  },
+
+  // ---------------------------------------------------------------------------
+  // Static scan tests
+  // ---------------------------------------------------------------------------
+  {
+    id: "codeql-cli-availability",
+    title: "CodeQL CLI local availability check",
+    category: "static-scan",
+    attackSurface: "codeql binary",
+    inputExamples: ["run codeql version --format terse"],
+    expectedBehavior: "Skipped with structured reason if CLI is absent; passed if CLI is present and functional",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "semgrep-scan-subprocess-safety",
+    title: "Semgrep rules for subprocess safety",
+    category: "static-scan",
+    attackSurface: "spawn/exec usage in src/",
+    inputExamples: ["spawn($CMD, $ARGS, {shell: true})"],
+    expectedBehavior: "Rules detect shell:true, exec with interpolation, and similar patterns; skipped if semgrep unavailable",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "semgrep-scan-path-traversal",
+    title: "Semgrep rules for path traversal",
+    category: "static-scan",
+    attackSurface: "path.join/resolve usage in src/",
+    inputExamples: ["path.join($BASE, $USER_INPUT)"],
+    expectedBehavior: "Rules flag unvalidated user-controlled path joins; skipped if semgrep unavailable",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+
+  // ---------------------------------------------------------------------------
+  // Fuzz smoke tests
+  // ---------------------------------------------------------------------------
+  {
+    id: "fuzz-manifest-reader",
+    title: "Manifest JSON reader does not crash on malformed input",
+    category: "fuzz-smoke",
+    attackSurface: "manifest.json reader",
+    inputExamples: ["truncated JSON", "null values", "deeply nested objects", "very long strings"],
+    expectedBehavior: "Reader throws a structured parse error or returns a validation message; never a raw crash",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-code-graph-reader",
+    title: "Code-graph JSON reader does not crash on malformed input",
+    category: "fuzz-smoke",
+    attackSurface: "code-graph.json reader",
+    inputExamples: ["truncated JSON", "nodes: null", "wrong-type arrays"],
+    expectedBehavior: "Reader throws a structured parse error or returns a validation message; never a raw crash",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-npm-parsers",
+    title: "npm audit/ls/outdated parsers do not crash on malformed input",
+    category: "fuzz-smoke",
+    attackSurface: "parseNpmAudit, parseNpmLs, parseNpmOutdated, parseNpmPackDryRun",
+    inputExamples: ["random JSON", "empty string", "deeply nested garbage"],
+    expectedBehavior: "All parsers return a result with findings or parseError; never throw",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-dot-label-escaping",
+    title: "DOT label escaping never crashes on arbitrary string input",
+    category: "fuzz-smoke",
+    attackSurface: "escapeDotLabel helper",
+    inputExamples: ["shell metacharacters", "null bytes", "Unicode", "empty string"],
+    expectedBehavior: "escapeDotLabel always returns a string without throwing",
+    severityIfFailed: "major",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-path-normalization",
+    title: "Path normalization does not crash on traversal inputs",
+    category: "fuzz-smoke",
+    attackSurface: "path.normalize / path.resolve",
+    inputExamples: ["../../etc/passwd", "../../../Windows/System32", "/etc/hosts", "path\0with\0nulls"],
+    expectedBehavior: "path.normalize and path.resolve return strings without throwing for any input",
+    severityIfFailed: "minor",
+    implementationStatus: "implemented",
+  },
+  {
+    id: "fuzz-source-windowing",
+    title: "Source windowing handles edge-case window sizes",
+    category: "fuzz-smoke",
+    attackSurface: "source retrieval windowing logic",
+    inputExamples: ["windowSize: -1", "windowSize: 0", "windowSize: NaN", "windowSize: Infinity"],
+    expectedBehavior: "Windowing math clamps to safe values without crashing",
+    severityIfFailed: "minor",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------

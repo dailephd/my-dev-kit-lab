@@ -70,3 +70,11 @@ reports/security/raw/*
 reports/security/*.json
 reports/security/npm-*.json
 reports/security/osv-*.json
+
+# Generated security-validate release reports (not committed by default)
+reports/v*-security-validation.txt
+reports/v*-security-validation.json
+AGENTS.md
+agents.txt
+CLAUDE.md
+claude.txt

@@ -31,7 +31,7 @@ export function parseNpmOutdated(stdout: string, checkId: string): NpmOutdatedPa
   const outdatedMap = parsed as Record<string, unknown>;
   const entries = Object.entries(outdatedMap);
   const findings: SecurityFinding[] = entries.map(([pkgName, info]) => {
-    const pkg = info as Record<string, unknown>;
+    const pkg = info !== null && typeof info === "object" ? (info as Record<string, unknown>) : {};
     return {
       id: `${checkId}-outdated-${pkgName}`,
       title: `Outdated dependency: ${pkgName}`,

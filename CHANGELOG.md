@@ -2,6 +2,45 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.1.4] - 2026-06-22
+
+Final security-validation gate.
+
+### Added
+
+- Added static scan integration for CodeQL and Semgrep.
+  - CodeQL: local CLI availability check; full analysis delegates to GitHub Actions.
+  - Semgrep: local or npx fallback; `.semgrep.yml` covers subprocess safety, path traversal, unsafe fs.rm, and secret leakage.
+  - Both scanners return structured `skipped` results when unavailable — never crash.
+- Added bounded fuzz smoke tests (`test:fuzz:smoke`) for 9 security-sensitive parsers and helpers.
+  - Seeded PRNG (`0xDEADBEEF`) for deterministic CI reproduction.
+  - Completes in under 1 second at default settings (50 iterations per target).
+- Added `security:validate` release-gate command that orchestrates all checks and produces a verdict.
+- Added text and JSON security-validation report generation to `reports/v<version>-security-validation.{txt,json}`.
+- Added release verdict calculation from normalized check results (four verdict categories).
+- Added documentation for mandatory checks, optional scanner availability, findings, skipped checks, and release verdicts in `docs/COMMANDS.md`.
+- Fixed defensive null guard in `parseNpmOutdated` when JSON value entries contain null.
+
+### Validation
+
+- `npm run build`
+- `npm run test` (407 tests, 88 files)
+- `npm run verify`
+- `npm run security:deps`
+- `npm run security:package`
+- `npm run security:codeql`
+- `npm run security:semgrep`
+- `npm run test:security` (165 tests, 12 files)
+- `npm run test:fuzz:smoke` (9 targets, 450 iterations)
+- `npm run security:validate` (verdict: ready except optional manual checks)
+- `npm pack --dry-run`
+
+### Notes
+
+- CodeQL, Semgrep, and OSV-Scanner may be skipped locally if unavailable. Absence is reported as `ready except optional manual checks`, not a blocker.
+- Generated security reports are not committed by default (`.gitignore` excludes `reports/v*-security-validation.*`).
+- This release completes the initial security-validation release-gate track.
+
 ## [0.1.2] - 2026-06-22
 
 Security validation foundation and package checks.

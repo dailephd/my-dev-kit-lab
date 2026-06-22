@@ -501,8 +501,158 @@ npm run security:package
 
 Runs all security-validation unit tests without network access or external tools.
 
-**When to use:** As part of regular development to verify the security types, test matrix, and parser logic are correct.
+**When to use:** As part of regular development to verify the security types, test matrix, parser logic, CLI adversarial boundary checks, static scan parsers, and the validate gate are correct.
+
+Tests included (v0.1.4):
+- `securityValidationTypes.test.ts` — type and enumeration completeness
+- `securityValidationTestMatrix.test.ts` — test matrix structure and uniqueness
+- `dependencyChecks.test.ts` — dependency parser unit tests
+- `packageContentChecks.test.ts` — forbidden-content detection unit tests
+- `cliAdversarialPathBoundary.test.ts` — path traversal, safe paths, escape detection
+- `cliAdversarialReadOnlyBoundary.test.ts` — source not modified, write containment, cleanup safety
+- `cliAdversarialMalformedArtifacts.test.ts` — malformed JSON artifacts, unsupported schema versions
+- `cliAdversarialJsonStdout.test.ts` — JSON stdout/stderr safety
+- `cliAdversarialSubprocessSafety.test.ts` — DOT label escaping, shell metacharacter injection
+- `cliAdversarialDataVolume.test.ts` — huge source file, many files, deep nesting
+- `staticScanChecks.test.ts` — CodeQL/Semgrep skip gracefully when unavailable; Semgrep JSON parser
+- `securityValidateGate.test.ts` — verdict calculation, report rendering (text and JSON)
+
+By default, adversarial tests run against a deterministic fake CLI fixture — no my-dev-kit installation required. To run against a real CLI, set `MY_DEV_KIT_SECURITY_TARGET_COMMAND=<path>` before running.
 
 ```bash
 npm run test:security
+```
+
+```powershell
+$env:MY_DEV_KIT_SECURITY_TARGET_COMMAND = "node path/to/my-dev-kit/dist/cli.js"
+npm run test:security
+```
+
+---
+
+### `npm run security:codeql`
+
+Checks if the CodeQL CLI is available locally and verifies it is functional.
+
+**When CodeQL is present:** Runs `codeql version --format terse` to confirm the CLI works. Full database creation and analysis is delegated to the GitHub Actions code-scanning workflow.
+
+**When CodeQL is absent:** Returns a structured `skipped` result with a clear reason. CodeQL absence does not fail `security:validate`.
+
+**Note:** This is an optional check. The GitHub Actions workflow at `.github/workflows/codeql.yml` runs the full CodeQL analysis on push. Local validation is a best-effort availability check only.
+
+```bash
+npm run security:codeql
+```
+
+```powershell
+npm run security:codeql
+```
+
+---
+
+### `npm run security:semgrep`
+
+Runs Semgrep static analysis using the project's `.semgrep.yml` configuration against `src/`.
+
+**When Semgrep is available (local or npx):** Runs rules covering subprocess safety, path traversal, unsafe `fs.rm`, secret leakage, and similar patterns. Returns structured findings.
+
+**When Semgrep is unavailable:** Returns a structured `skipped` result with a clear reason. Semgrep absence does not fail `security:validate`.
+
+Semgrep rules focus on:
+- `spawn/exec` with `shell: true`
+- `exec()` with string interpolation
+- `path.join()` with user-controlled input
+- Recursive `fs.rm` on unvalidated paths
+- `process.env` values serialized into JSON output
+
+**Configuration:** `.semgrep.yml` at repo root.
+
+```bash
+npm run security:semgrep
+```
+
+```powershell
+npm run security:semgrep
+```
+
+---
+
+### `npm run test:fuzz:smoke`
+
+Runs bounded, deterministic fuzz smoke tests against security-sensitive parsers and helpers.
+
+**When to use:** Before release to verify that no parser crashes on malformed input.
+
+**Design:**
+- Seeded PRNG (default seed: `0xDEADBEEF`) for reproducibility.
+- Default: 50 iterations per target.
+- Completes in under 1 second.
+- Does not require network access, external tools, or a my-dev-kit installation.
+- Does not write outside temp directories.
+- Does not mutate source files.
+
+**Fuzz targets:**
+- `manifest-reader` — manifest JSON parsing
+- `code-graph-reader` — code-graph JSON parsing
+- `npm-audit-parser` — npm audit JSON parsing
+- `npm-ls-parser` — npm ls JSON parsing
+- `npm-outdated-parser` — npm outdated JSON parsing
+- `npm-pack-dry-run-parser` — npm pack dry-run output parsing
+- `dot-label-escaping` — DOT label escaping helper (arbitrary string input)
+- `path-normalization` — path.normalize/resolve with traversal inputs
+- `source-windowing` — source retrieval window size edge cases
+
+**Environment variables:**
+- `FUZZ_SEED` — override the PRNG seed (hex, default: `0xDEADBEEF`)
+- `FUZZ_ITERATIONS` — override iterations per target (default: `50`)
+
+```bash
+npm run test:fuzz:smoke
+```
+
+```powershell
+$env:FUZZ_ITERATIONS = "200"
+npm run test:fuzz:smoke
+```
+
+---
+
+### `npm run security:validate`
+
+Orchestrates all security-validation checks and writes a release security report.
+
+**When to use:** Before release preparation to get a single verdict and actionable report.
+
+**Checks orchestrated:**
+- `security:deps` — dependency audit (mandatory)
+- `security:package` — package tarball inspection (mandatory)
+- `security:codeql` — CodeQL availability check (optional, skipped if CLI absent)
+- `security:semgrep` — Semgrep static analysis (optional, skipped if unavailable)
+- `test:security` — full CLI adversarial test suite (mandatory)
+- fuzz smoke — bounded fuzz targets (mandatory)
+
+**Mandatory checks:** npm audit, package tarball inspection, CLI adversarial suite, fuzz smoke.
+
+**Optional checks:** CodeQL CLI local availability, Semgrep availability, OSV-Scanner. These are skipped with a structured reason if the tools are not installed.
+
+**Report outputs:**
+- `reports/v<version>-security-validation.txt` — human-readable full report
+- `reports/v<version>-security-validation.json` — machine-readable structured report
+
+Generated reports are not committed by default (see `.gitignore`). To preserve a report for a release handoff, copy it to a versioned location explicitly.
+
+**Verdict options:**
+- `ready for release preparation` — all mandatory checks passed, no blocker/major findings
+- `ready except optional manual checks` — mandatory checks passed but some optional tools were absent
+- `not ready: security blocker remains` — blocker or mandatory check failure
+- `inconclusive: audit environment incomplete` — too many mandatory checks were skipped
+
+**Exit codes:** `0` = ready or ready-except-optional, `1` = blocker, `2` = inconclusive.
+
+```bash
+npm run security:validate
+```
+
+```powershell
+npm run security:validate
 ```
