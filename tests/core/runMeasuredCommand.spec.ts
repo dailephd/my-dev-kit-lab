@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -11,6 +11,15 @@ afterEach(async () => {
 });
 
 describe("runMeasuredCommand", () => {
+  function writeHostExecutable(filePath: string, nodeScript: string): void {
+    if (process.platform === "win32") {
+      writeFileSync(filePath, `@echo off\r\nnode -e "${nodeScript.replace(/"/g, '\\"')}" %*\r\n`, "utf8");
+      return;
+    }
+    writeFileSync(filePath, `#!/usr/bin/env node\n${nodeScript}\n`, "utf8");
+    chmodSync(filePath, 0o755);
+  }
+
   it("captures stdout, stderr, exit code, duration, and telemetry", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
     tempDirs.push(outDir);
@@ -113,19 +122,16 @@ describe("runMeasuredCommand", () => {
     expect(result.stdout).toContain("stdin-ended");
   });
 
-  it("executes Windows cmd shims from a path containing spaces", async () => {
+  it("executes host-platform PATH shims from a path containing spaces", async () => {
     const rootDir = mkdtempSync(path.join(os.tmpdir(), "measured-cmd-root-"));
     const binDir = path.join(rootDir, "bin with spaces");
     const outDir = path.join(rootDir, "out");
     const nodeBinDir = path.dirname(process.execPath);
+    const shimName = process.platform === "win32" ? "echo-args.cmd" : "echo-args";
     tempDirs.push(rootDir);
     mkdirSync(binDir, { recursive: true });
     mkdirSync(outDir, { recursive: true });
-    writeFileSync(
-      path.join(binDir, "echo-args.cmd"),
-      "@echo off\r\nnode -e \"console.log(process.argv.slice(1).join('|'))\" %*\r\n",
-      "utf8"
-    );
+    writeHostExecutable(path.join(binDir, shimName), "console.log(process.argv.slice(1).join('|'))");
 
     const result = await runMeasuredCommand({
       commandId: "cmd-shim",
@@ -139,6 +145,12 @@ describe("runMeasuredCommand", () => {
 
     expect(result.ok).toBe(true);
     expect(result.stdout.trim()).toBe("alpha|two words");
-    expect(result.args.some((arg) => arg.includes("echo-args.cmd"))).toBe(true);
+    if (process.platform === "win32") {
+      expect(result.executable.toLowerCase()).toContain("cmd");
+      expect(result.args.some((arg) => arg.includes("echo-args.cmd"))).toBe(true);
+    } else {
+      expect(result.executable).toBe("echo-args");
+      expect(result.args.some((arg) => arg.includes("echo-args.cmd"))).toBe(false);
+    }
   });
 });
