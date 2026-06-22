@@ -1,12 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { parseCommandString } from "./commandLine.js";
 import { resolveCommand, type ResolvedCommand } from "./resolveCommand.js";
 
-export type ParsedCommand = {
-  executable: string;
-  args: string[];
-};
+export { parseCommandString } from "./commandLine.js";
 
 export type MeasuredCommandResult = {
   commandId: string;
@@ -27,17 +25,6 @@ export type MeasuredCommandResult = {
   error?: string;
   resolvedCommand?: ResolvedCommand;
 };
-
-export function parseCommandString(command: string): ParsedCommand {
-  const parts = command.match(/"[^"]*"|'[^']*'|\S+/g)?.map((part) => part.replace(/^['"]|['"]$/g, "")) ?? [];
-  if (parts.length === 0) {
-    throw new Error("Command string is empty.");
-  }
-  return {
-    executable: parts[0],
-    args: parts.slice(1)
-  };
-}
 
 export async function runMeasuredCommand(options: {
   commandId: string;
@@ -68,7 +55,11 @@ export async function runMeasuredCommand(options: {
           allowPowerShellShim: options.allowPowerShellShim
         });
   const executable = resolution.command;
-  const args = [...resolution.argsPrefix, ...parsed.args, ...(options.extraArgs ?? [])];
+  const trailingArgs = [...parsed.args, ...(options.extraArgs ?? [])];
+  const args =
+    resolution.resolutionKind === "windows-cmd-shim" && resolution.resolvedPath
+      ? [...resolution.argsPrefix, resolution.resolvedPath, ...trailingArgs]
+      : [...resolution.argsPrefix, ...trailingArgs];
   const stdoutPath = path.join(options.outDir, `${options.commandId}.stdout.txt`);
   const stderrPath = path.join(options.outDir, `${options.commandId}.stderr.txt`);
   const telemetryPath = path.join(options.outDir, `${options.commandId}.telemetry.json`);

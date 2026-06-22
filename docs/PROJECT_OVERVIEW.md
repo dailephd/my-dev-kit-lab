@@ -32,6 +32,11 @@ Experiment artifacts — JSON summaries, HTML reports, SVG plots, PNG screenshot
 ### Scalable benchmarking
 Benchmark projects range from small Todo fixtures to medium and large multi-language projects, so experiments can be run at meaningfully different complexity levels.
 
+### Release-security validation
+my-dev-kit-lab will also add a planned release-validation layer for **my-dev-kit** itself. In that model, **my-dev-kit** is the local CLI/package being validated, while **my-dev-kit-lab** owns the adversarial harnesses, static/package checks, report generation, and release-gate evidence.
+
+This future validation layer is focused on whether my-dev-kit remains local-first, deterministic, read-only with respect to user source files, network-free during normal CLI operation, LLM-free, database-free, and safe to run on local repositories. It is a release-preparation responsibility of the lab, not a replacement for the experiment system and not a web-application pentest framework.
+
 ---
 
 ## Product flow
@@ -64,7 +69,7 @@ The raw-vs-indexed experiment establishes the infrastructure and shows how the t
 - **Context-window scaling** — as projects grow, raw full-file context eventually exceeds agent context windows. Experiments that measure this boundary are not yet implemented.
 - **Retrieval precision and recall** — measuring whether my-dev-kit retrieves the right files and symbols, not just fewer tokens, requires dedicated precision/recall experiments.
 
-The current baseline does not yet prove every future value claim. It establishes the experiment infrastructure and shows how to run reproducible comparisons. Stronger evidence will come from the future experiment types described in [docs/ROADMAP.md](docs/ROADMAP.md).
+The current baseline does not yet prove every future value claim. It establishes the experiment infrastructure and shows how to run reproducible comparisons. Stronger evidence will come from the future experiment types described in [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -74,7 +79,15 @@ The next major development phase refactors my-dev-kit-lab into a generic experim
 
 This makes it straightforward to add warm-index reuse, incremental-change, context-window scaling, and retrieval precision experiments without rebuilding the pipeline each time.
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.
+See [ROADMAP.md](ROADMAP.md) for the full roadmap.
+
+---
+
+## How security validation fits the roadmap
+
+The security-validation framework is now a partially implemented parallel release-security track. It does not replace the generic experiment-plugin roadmap and it is not presented as a standard user-facing my-dev-kit capability. Instead, it gives the lab a way to produce repeatable release evidence showing whether the local CLI/package still respects its intended safety boundaries before release preparation.
+
+The current implementation covers the foundation, dependency checks, package-content checks, and associated tests. See [security-validation-framework.md](security-validation-framework.md) for the implemented scope and planned next phases.
 
 ---
 

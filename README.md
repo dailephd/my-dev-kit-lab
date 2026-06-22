@@ -55,6 +55,12 @@ flowchart TD
 npm install
 ```
 
+```powershell
+npm install
+```
+
+`cmd.exe` users should run the same command on one line.
+
 ### Build
 
 ```bash
@@ -78,6 +84,22 @@ npm run run-final-demo -- \
   --complexities short \
   --no-screenshot
 ```
+
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+```bat
+npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
+```
+
+The lab resolves Windows `.cmd` and `.ps1` CLI shims, supports command paths with spaces, and keeps generated artifacts inside the requested output directory.
 
 This runs a full pipeline: controlled experiment → report → plots → visualization demos → gallery.
 
@@ -148,6 +170,26 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 ## Current baseline release positioning
 
 my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The next major development phase is a generic experiment-plugin framework that will make it straightforward to add new experiment types without rebuilding the pipeline.
+
+---
+
+## Planned security validation
+
+my-dev-kit-lab will also own a planned release-security track for **my-dev-kit**. This work is separate from the current experiment pipeline and does not replace the generic experiment-plugin roadmap. Its purpose is to generate release-validation evidence for the local CLI/package before public release preparation.
+
+This is not a web application pentest framework. **my-dev-kit** is a local CLI/package, so the planned validation model is CLI/package adversarial testing focused on whether it remains:
+
+- local-first
+- deterministic
+- read-only with respect to user source files
+- network-free during normal CLI operation
+- LLM-free
+- database-free
+- safe to run on local repositories
+
+The planned release-gate concept is a future `security:validate` workflow that will eventually combine static scans, dependency/package checks, adversarial CLI tests, fuzz smoke checks, and a release security report. The foundational dependency and package commands now exist as `security:deps`, `security:package`, and `test:security`, while the full release gate remains a roadmap item.
+
+See [docs/security-validation-framework.md](docs/security-validation-framework.md) for the implemented foundation and planned later phases, and [docs/ROADMAP.md](docs/ROADMAP.md) for phased milestones.
 
 ---
 

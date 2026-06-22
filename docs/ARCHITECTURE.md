@@ -209,6 +209,74 @@ flowchart TD
 
 ---
 
+## Planned security validation architecture
+
+The release-security framework described here is planned architecture, not a current implementation. It is intended to sit alongside the experiment system as a lab-owned validation layer for **my-dev-kit** release preparation.
+
+The security-validation track does not replace the current pipeline and does not depend on my-dev-kit becoming a hosted service. The target remains a local CLI/package, so the architecture is centered on static analysis, dependency/package checks, adversarial CLI tests, bounded fuzz smoke checks, and release reporting.
+
+### Security validation module map
+
+| Module | Path | Status | Responsibility |
+|---|---|---|---|
+| Security validation core | `src/securityValidation/` | Foundational types implemented | Shared models, policy boundaries, report assembly, release verdict logic |
+| Types | `src/securityValidation/types.ts` | **Implemented** | Severity, verdict, check result, finding, validation summary |
+| Config | `src/securityValidation/config.ts` | **Implemented** | Report paths, timeouts, forbidden patterns, optional tool toggles |
+| Test matrix | `src/securityValidation/testMatrix.ts` | **Implemented** | Structured adversarial test case catalog |
+| Dependencies | `src/securityValidation/dependencies/` | **Implemented** | npm audit, npm outdated, npm ls, OSV-Scanner wrappers |
+| Package checks | `src/securityValidation/packageChecks/` | **Implemented** | npm pack dry-run, forbidden-content detection |
+| Static scans | `src/securityValidation/staticScans/` | Planned (Prompt 6) | CodeQL and Semgrep wrappers |
+| Security scripts | `scripts/security/` | **Implemented** | npm script entrypoints for security:deps, security:package |
+| Adversarial CLI tests | `tests/security/` | Foundation implemented | Type/matrix tests now; adversarial tests in Prompts 4–5 |
+| Fuzz smoke tests | `tests/fuzz/` | Planned (Prompt 7) | Bounded parser and helper stress tests |
+| Security reports | `reports/security/` | Generated (not committed) | Versioned dependency-checks.json and package-checks.json |
+
+### Security validation pipeline
+
+```mermaid
+flowchart LR
+  A[Static scans\nCodeQL + Semgrep] --> E[Security validation report]
+  B[Dependency and package checks\nnpm audit + OSV + npm pack dry run] --> E
+  C[CLI adversarial tests\nhostile local inputs in temp dirs] --> E
+  D[Fuzz smoke checks\nbounded parser and helper stress] --> E
+  E --> F[Release verdict\nready / not ready / inconclusive]
+```
+
+### Relationship to the existing lab architecture
+
+```mermaid
+flowchart TD
+  A[Current experiment and evidence pipeline] --> B[Future generic experiment-plugin runtime]
+  A --> C[Planned release-security validation layer]
+  C --> D[Static scans]
+  C --> E[Dependency and package checks]
+  C --> F[CLI adversarial tests]
+  C --> G[Fuzz smoke tests]
+  D --> H[Security report]
+  E --> H
+  F --> H
+  G --> H
+  H --> I[Release preparation evidence for my-dev-kit]
+```
+
+### Planned validation boundaries
+
+The future security-validation modules are intended to verify that my-dev-kit remains:
+
+- local-first
+- deterministic
+- read-only with respect to user source files
+- network-free during normal CLI operation
+- LLM-free
+- database-free
+- safe to run on local repositories
+
+Expected safe behavior includes clear failures for hostile input, writes limited to explicit output paths, non-destructive artifact refresh behavior, safe subprocess execution without shell-string interpolation, and valid JSON output behavior when machine-readable modes are used.
+
+See [security-validation-framework.md](security-validation-framework.md) for the canonical framework description and phased release-gate plan.
+
+---
+
 ## Benchmark projects
 
 | Project | Size | Languages |

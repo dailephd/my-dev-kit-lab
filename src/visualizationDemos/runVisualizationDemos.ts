@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { parseCommandString, runMeasuredCommand } from "../core/runMeasuredCommand.js";
+import { parseCommandString, serializeCommand } from "../core/commandLine.js";
+import { runMeasuredCommand } from "../core/runMeasuredCommand.js";
 import { buildMyDevKitVisualizationCommands } from "./buildMyDevKitVisualizationCommands.js";
 import type { VisualizationDemoArtifacts, VisualizationDemoCommand, VisualizationDemoRun } from "./types.js";
 import { writeVisualizationDemoArtifacts } from "./writeVisualizationDemoArtifacts.js";
@@ -87,7 +88,7 @@ function normalizeKitCommand(command: string): string {
   if ((parsed.executable === "node" || parsed.executable === "node.exe") && parsed.args[0] && !path.isAbsolute(parsed.args[0])) {
     const scriptPath = path.resolve(process.cwd(), parsed.args[0]);
     if (existsSync(scriptPath)) {
-      return [parsed.executable, scriptPath, ...parsed.args.slice(1)].join(" ");
+      return serializeCommand([parsed.executable, scriptPath, ...parsed.args.slice(1)]);
     }
   }
   return command;
