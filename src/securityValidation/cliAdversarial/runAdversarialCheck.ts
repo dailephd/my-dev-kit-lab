@@ -60,7 +60,7 @@ export async function runAdversarialCheck(
     name: input.name,
     category: input.category,
     status,
-    severity: findings.length > 0 ? findings[0].severity : "informational",
+    severity: input.severity,
     startedAt,
     finishedAt,
     durationMs,

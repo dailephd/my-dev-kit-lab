@@ -288,6 +288,15 @@ The planned framework should verify that:
 | `tests/fixtures/fake-adversarial-cli.js` | **Implemented** — deterministic fake CLI for CI adversarial tests (no network, no source writes) |
 | `tests/security/cliAdversarialPathBoundary.test.ts` | **Implemented** — 23 tests: harness infra, escape detection, traversal, safe paths |
 | `tests/security/cliAdversarialReadOnlyBoundary.test.ts` | **Implemented** — 13 tests: source not modified, writes limited, index containment, cleanup safety |
+| `src/securityValidation/cliAdversarial/malformedArtifactFixtures.ts` | **Implemented** — malformed manifest, code-graph, unsupported schema version fixture content |
+| `src/securityValidation/cliAdversarial/malformedArtifactChecks.ts` | **Implemented** — malformed manifest (all cases), code-graph, schema version, missing index dir |
+| `src/securityValidation/cliAdversarial/jsonStdoutChecks.ts` | **Implemented** — JSON parseable, stderr/stdout separation, failure JSON error, progress isolation |
+| `src/securityValidation/cliAdversarial/subprocessSafetyChecks.ts` | **Implemented** — shell metachar injection check, DOT label escaper (`escapeDotLabel`) |
+| `src/securityValidation/cliAdversarial/dataVolumeChecks.ts` | **Implemented** — large file (5k lines), many files (100), deeply nested dirs (10 levels) |
+| `tests/security/cliAdversarialMalformedArtifacts.test.ts` | **Implemented** — 14 tests |
+| `tests/security/cliAdversarialJsonStdout.test.ts` | **Implemented** — 9 tests |
+| `tests/security/cliAdversarialSubprocessSafety.test.ts` | **Implemented** — 14 tests |
+| `tests/security/cliAdversarialDataVolume.test.ts` | **Implemented** — 8 tests |
 | `src/securityValidation/staticScans/` | Planned (Prompt 6) |
 | `tests/fuzz/` | Planned (Prompt 7) |
 | `src/securityValidation/report/` | Planned (Prompt 8) |
@@ -366,13 +375,18 @@ src/securityValidation/
     parseNpmPackDryRun.ts      Parse npm pack --dry-run output into file list
     forbiddenPackageContents.ts Detect lab-output, .my-dev-kit, .env, and other unsafe inclusions
   staticScans/                 (planned: Phase 4 — CodeQL and Semgrep wrappers)
-  cliAdversarial/              (implemented: Phase 3a — path boundary and read-only boundary checks)
-    tempWorkspace.ts           Temp workspace factory; file snapshot and diff helpers
-    adversarialCliConfig.ts    CLI target config; MY_DEV_KIT_SECURITY_TARGET_COMMAND opt-in
-    pathCases.ts               Path test input catalog (traversal, absolute, spaces, metachar, unicode)
-    runAdversarialCheck.ts     spawn-based check runner; finding builder
-    pathBoundaryChecks.ts      Path traversal, unicode, spaces, absolute, escape detection checks
-    readOnlyBoundaryChecks.ts  Source not modified, writes limited to output, index containment, cleanup safety
+  cliAdversarial/              (implemented: Phase 3a+3b — path/read-only boundaries + malformed/subprocess/data-volume)
+    tempWorkspace.ts             Temp workspace factory; file snapshot and diff helpers
+    adversarialCliConfig.ts      CLI target config; MY_DEV_KIT_SECURITY_TARGET_COMMAND opt-in
+    pathCases.ts                 Path test input catalog (traversal, absolute, spaces, metachar, unicode)
+    runAdversarialCheck.ts       spawn-based (shell:false) check runner; finding builder
+    pathBoundaryChecks.ts        Path traversal, unicode, spaces, absolute, escape detection checks
+    readOnlyBoundaryChecks.ts    Source not modified, writes limited to output, index containment, cleanup safety
+    malformedArtifactFixtures.ts Malformed manifest, code-graph, unsupported schema version fixture content
+    malformedArtifactChecks.ts   Checks for malformed pre-placed artifacts; missing index dir
+    jsonStdoutChecks.ts          JSON stdout parseable; stderr isolation; failure JSON error; progress isolation
+    subprocessSafetyChecks.ts    Shell metachar injection check; DOT label escaper (escapeDotLabel)
+    dataVolumeChecks.ts          Large file (5k lines), many files (100), deeply nested dirs (10 levels)
   fuzz/                        (planned: Phase 5 — bounded parser fuzz targets)
   report/                      (planned: Phase 6 — release security report generator)
 
@@ -387,6 +401,10 @@ tests/security/
   packageContentChecks.test.ts            Forbidden-content detection unit tests
   cliAdversarialPathBoundary.test.ts      Path traversal, safe paths, escape detection (23 tests)
   cliAdversarialReadOnlyBoundary.test.ts  Source not modified, write containment, cleanup safety (13 tests)
+  cliAdversarialMalformedArtifacts.test.ts Malformed artifacts, schema version, missing index (14 tests)
+  cliAdversarialJsonStdout.test.ts        JSON stdout parseable; stderr/stdout separation; failure error (9 tests)
+  cliAdversarialSubprocessSafety.test.ts  DOT label escaping logic; shell metachar injection (14 tests)
+  cliAdversarialDataVolume.test.ts        Large file, many files, deeply nested dirs (8 tests)
 
 tests/fuzz/                    (planned: Phase 5 — bounded fuzz harnesses)
 
@@ -406,7 +424,7 @@ reports/security/              Generated security check artifacts (not committed
 | `feature/security-validation-foundation` | Prompt 2: types, config, and test matrix |
 | `feature/security-package-validation` | Prompt 3: dependency and package-content checks |
 | `feature/security-cli-adversarial-tests` | Prompt 4: CLI adversarial harness, part 1 — path boundaries and read-only boundaries |
-| `feature/security-malformed-artifacts` | Prompt 5 (future): malformed artifacts, JSON stdout/stderr safety, Graphviz safety |
+| `feature/security-malformed-artifacts` | Prompt 5: malformed artifacts, JSON stdout/stderr safety, subprocess/DOT label safety, data-volume smoke |
 | `feature/security-static-scan-integration` | Prompt 6 (future): CodeQL and Semgrep integration |
 | `feature/security-fuzz-smoke` | Prompt 7 (future): bounded fuzz smoke tests |
 | `feature/security-release-report` | Prompt 8 (future): security:validate and release report |
@@ -461,13 +479,14 @@ Security artifacts are written to `reports/security/` and kept separate from exp
 - 36 new tests across `cliAdversarialPathBoundary.test.ts` (23) and `cliAdversarialReadOnlyBoundary.test.ts` (13)
 - All subprocess invocations use `spawn` with `shell: false` — no shell interpolation
 
-**Prompt 5 (future):**
+**Prompt 5 (implemented):**
 
-- Malformed artifact handling (manifest, symbol index, code graph, data model, frontend semantic)
-- JSON stdout/stderr safety (warnings must not corrupt JSON stdout)
-- Graphviz/subprocess safety tests
-- Shell metacharacters in labels and paths
-- Data-volume smoke checks (large files, many nodes/edges)
+- Malformed artifact fixture library (manifest: 5 cases; code graph: 3 cases; schema version: 3 cases)
+- Checks for pre-placed malformed manifest, code-graph, unsupported schema version, missing index directory
+- JSON stdout/stderr safety: parseable JSON check, stderr/stdout separation, failure JSON error object, progress isolation
+- Subprocess safety: shell metachar injection detection; DOT label escaping logic (`escapeDotLabel`) for `"`, `\`, `\n`, `<>{}|`
+- Data-volume smoke checks: large file (5,000 lines), many files (100), deeply nested dirs (10 levels)
+- 45 new tests across 4 test files (14 + 9 + 14 + 8)
 
 ### Phase 4: Static scan integration (Prompt 6, future)
 

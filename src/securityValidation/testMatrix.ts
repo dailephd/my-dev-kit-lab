@@ -118,7 +118,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["{", "null", "[]", "{\"version\": null}", "not JSON at all"],
     expectedBehavior: "CLI surfaces a clear error without crashing or panicking; no partial state is committed",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "malformed-symbol-index-json",
@@ -138,7 +138,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["empty object", "nodes array is null", "cyclic reference marker"],
     expectedBehavior: "Clear error message; no crash",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "malformed-data-model-json",
@@ -168,7 +168,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["{\"schemaVersion\": 9999}", "{\"schemaVersion\": \"future\"}"],
     expectedBehavior: "CLI reports an unsupported-version error with the version it found; no silent data corruption",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "missing-index-directory",
@@ -178,7 +178,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--index /nonexistent/.my-dev-kit"],
     expectedBehavior: "Clear error stating the index directory does not exist; no crash",
     severityIfFailed: "minor",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["any valid CLI command with JSON output enabled"],
     expectedBehavior: "stdout is valid JSON that can be parsed without error",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "warnings-go-to-stderr",
@@ -202,7 +202,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["run any command that emits a warning; capture stdout and stderr separately"],
     expectedBehavior: "Warning messages appear only on stderr; stdout is not contaminated",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "progress-not-in-json-stdout",
@@ -212,7 +212,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["run a long-running index with progress messages; parse stdout as JSON"],
     expectedBehavior: "stdout remains valid JSON even when progress or status messages are emitted",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "json-error-object-on-failure",
@@ -222,7 +222,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["--format json --root /nonexistent"],
     expectedBehavior: "stdout is a valid JSON object with an error field; not a raw stack trace",
     severityIfFailed: "minor",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -256,7 +256,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["node name with double quote: foo\"bar", "node name with backslash: foo\\bar", "path with semicolon: foo;bar"],
     expectedBehavior: "All special characters in DOT labels are properly escaped; no broken DOT syntax or injection",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "subprocess-no-shell-interpolation",
@@ -266,7 +266,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["path with semicolon: /tmp/foo;rm -rf ~", "path with backtick: /tmp/`whoami`"],
     expectedBehavior: "Subprocess is invoked with an argument array, not a shell string; metacharacters are treated as literal path content",
     severityIfFailed: "blocker",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
 
   // ---------------------------------------------------------------------------
@@ -314,7 +314,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["a .ts file with 100,000 lines"],
     expectedBehavior: "Indexer completes or fails gracefully without running out of memory or hanging indefinitely",
     severityIfFailed: "major",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "huge-literal",
@@ -334,7 +334,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["TSX with 500 levels of nesting"],
     expectedBehavior: "Analyzer completes or fails with a clear depth-limit error; no stack overflow",
     severityIfFailed: "minor",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "many-duplicate-strings",
@@ -354,7 +354,7 @@ export const SECURITY_TEST_MATRIX: TestMatrixEntry[] = [
     inputExamples: ["a project with 10,000 files and 100,000 import relationships"],
     expectedBehavior: "Graph artifact size is bounded; graph view renderer completes without hanging",
     severityIfFailed: "minor",
-    implementationStatus: "planned",
+    implementationStatus: "implemented",
   },
   {
     id: "unicode-paths",

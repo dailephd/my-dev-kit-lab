@@ -45,3 +45,10 @@ export { runAdversarialCheck, skippedCheck, makeFinding } from "./cliAdversarial
 export type { AdversarialCommandResult, AdversarialCheckInput } from "./cliAdversarial/runAdversarialCheck.js";
 export { checkRootPathTraversal, checkOutPathTraversal, checkIndexPathTraversal, checkPathWithSpaces, checkUnicodePath, checkSafeAbsolutePath, checkHarnessEscapeDetection } from "./cliAdversarial/pathBoundaryChecks.js";
 export { checkSourceFilesNotModified, checkWritesLimitedToOutput, checkIndexWriteContainment, checkArtifactCleanupSafe } from "./cliAdversarial/readOnlyBoundaryChecks.js";
+
+export type { MalformedArtifactCase } from "./cliAdversarial/malformedArtifactFixtures.js";
+export { MALFORMED_MANIFEST_CASES, MALFORMED_CODE_GRAPH_CASES, UNSUPPORTED_SCHEMA_VERSION_CASES, placeMalformedArtifact, placeMalformedManifest, placeMalformedCodeGraph, placeUnsupportedSchemaManifest } from "./cliAdversarial/malformedArtifactFixtures.js";
+export { checkMalformedManifest, checkAllMalformedManifestCases, checkMalformedCodeGraph, checkUnsupportedSchemaVersion, checkMissingIndexDirectory } from "./cliAdversarial/malformedArtifactChecks.js";
+export { checkJsonOutputIsParseable, checkStderrNotInStdout, checkFailureProducesJsonError, checkProgressNotInJsonStdout } from "./cliAdversarial/jsonStdoutChecks.js";
+export { DOT_LABEL_TEST_CASES, escapeDotLabel, checkSubprocessNoShellInterpolation, checkDotLabelEscaping } from "./cliAdversarial/subprocessSafetyChecks.js";
+export { checkHugeSourceFile, checkManyFiles, checkDeeplyNestedSource } from "./cliAdversarial/dataVolumeChecks.js";
