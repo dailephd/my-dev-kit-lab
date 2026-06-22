@@ -148,6 +148,8 @@ describe("codexAdapter", () => {
     const shimName = process.platform === "win32" ? "codex.cmd" : "codex";
     writeHostCodexExecutable(path.join(binDir, shimName), 13);
     const promptVariant = await loadPromptVariant();
+    const nodeBinDir = path.dirname(process.execPath);
+    const joinedPath = `${binDir}${path.delimiter}${nodeBinDir}`;
     const result = await codexAdapter.runPrompt({
       runId: "codex-cmd-space",
       agentId: "codex",
@@ -156,7 +158,7 @@ describe("codexAdapter", () => {
       cwd: process.cwd(),
       outDir,
       commandTemplate: parseAgentCommandTemplate("codex {prompt}"),
-      env: { Path: binDir, PATH: binDir }
+      env: { Path: joinedPath, PATH: joinedPath }
     });
 
     expect(result.status).toBe("completed");

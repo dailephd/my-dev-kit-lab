@@ -13,10 +13,13 @@ afterEach(async () => {
 describe("runMeasuredCommand", () => {
   function writeHostExecutable(filePath: string, nodeScript: string): void {
     if (process.platform === "win32") {
+      // node -e mode: real args start at argv[1]
       writeFileSync(filePath, `@echo off\r\nnode -e "${nodeScript.replace(/"/g, '\\"')}" %*\r\n`, "utf8");
       return;
     }
-    writeFileSync(filePath, `#!/usr/bin/env node\n${nodeScript}\n`, "utf8");
+    // Shebang mode: argv[0]=node, argv[1]=scriptPath, real args start at argv[2]
+    const unixScript = nodeScript.replace(/process\.argv\.slice\(1\)/g, "process.argv.slice(2)");
+    writeFileSync(filePath, `#!/usr/bin/env node\n${unixScript}\n`, "utf8");
     chmodSync(filePath, 0o755);
   }
 
