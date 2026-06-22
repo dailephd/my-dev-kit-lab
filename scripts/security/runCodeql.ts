@@ -1,13 +1,30 @@
 #!/usr/bin/env node
-import path from "node:path";
 import { runCodeqlCheck } from "../../src/securityValidation/staticScans/codeql.js";
+import { resolveValidationTarget } from "../../src/securityValidation/validate/resolveTarget.js";
 
-const cwd = process.cwd();
+const rawArgs = process.argv.slice(2);
+const args = parseArgs(rawArgs);
+
+const toolRoot = process.cwd();
+
+let targetRoot: string;
+try {
+  const target = resolveValidationTarget(args.target, toolRoot);
+  targetRoot = target.targetRoot;
+  if (!target.isSelf) {
+    console.log(`Target: ${targetRoot}`);
+  }
+} catch (err) {
+  console.error(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
+  process.exitCode = 1;
+  process.exit(1);
+}
 
 console.log("Running CodeQL static analysis check...");
 
 const result = await runCodeqlCheck({
-  cwd,
+  cwd: toolRoot,
+  targetRoot,
   timeoutMs: 30_000,
 });
 
@@ -34,4 +51,14 @@ if (result.status === "skipped") {
   process.exitCode = 1;
 } else {
   process.exitCode = 0;
+}
+
+function parseArgs(argv: string[]): { target?: string } {
+  const result: { target?: string } = {};
+  for (let i = 0; i < argv.length; i++) {
+    if ((argv[i] === "--target" || argv[i] === "-t") && i + 1 < argv.length) {
+      result.target = argv[++i];
+    }
+  }
+  return result;
 }

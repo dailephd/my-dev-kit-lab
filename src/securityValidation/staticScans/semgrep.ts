@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { runSecurityCommand } from "../commandRunner.js";
 import { resolveCommand } from "../../core/resolveCommand.js";
 import { skippedCheck } from "../cliAdversarial/runAdversarialCheck.js";
@@ -68,20 +69,24 @@ function semgrepSeverityToSecurity(semgrepSeverity: string): SecurityFinding["se
 }
 
 export async function runSemgrepCheck(options: {
-  cwd: string;
+  // Root of the project being scanned (may differ from toolRoot for external targets)
+  targetRoot: string;
+  // Tool root — where .semgrep.yml lives; defaults to targetRoot if not provided
+  toolRoot?: string;
   configPath?: string;
   timeoutMs: number;
 }): Promise<SecurityCheckResult> {
-  const { cwd, timeoutMs } = options;
-  const configPath = options.configPath ?? path.join(cwd, ".semgrep.yml");
+  const { targetRoot, timeoutMs } = options;
+  const toolRoot = options.toolRoot ?? targetRoot;
+  const configPath = options.configPath ?? path.join(toolRoot, ".semgrep.yml");
 
   // Prefer a locally installed semgrep binary; fall back to npx.
-  const localResolved = resolveCommand("semgrep", { cwd, env: process.env });
+  const localResolved = resolveCommand("semgrep", { cwd: toolRoot, env: process.env });
   const useNpx = localResolved.resolutionKind === "unavailable";
 
   // Check if npx is available as fallback.
   if (useNpx) {
-    const npxResolved = resolveCommand("npx", { cwd, env: process.env });
+    const npxResolved = resolveCommand("npx", { cwd: toolRoot, env: process.env });
     if (npxResolved.resolutionKind === "unavailable") {
       return skippedCheck({
         id: "semgrep-scan",
@@ -95,6 +100,18 @@ export async function runSemgrepCheck(options: {
 
   const startedAt = new Date().toISOString();
 
+  // Determine what directory to scan.
+  // For self-validation, scan src/ (matches original behavior).
+  // For external targets, scan src/ if it exists, otherwise the target root itself.
+  const isSelf = path.resolve(targetRoot) === path.resolve(toolRoot);
+  const srcDir = path.join(targetRoot, "src");
+  let scanTarget: string;
+  if (isSelf) {
+    scanTarget = "src/";
+  } else {
+    scanTarget = fs.existsSync(srcDir) ? srcDir : targetRoot;
+  }
+
   const command = useNpx ? "npx" : "semgrep";
   const baseArgs = useNpx ? ["--yes", "semgrep"] : [];
   const scanArgs = [
@@ -103,13 +120,13 @@ export async function runSemgrepCheck(options: {
     "--config", configPath,
     "--json",
     "--quiet",
-    "src/",
+    scanTarget,
   ];
 
   const cmd = await runSecurityCommand({
     command,
     args: scanArgs,
-    cwd,
+    cwd: targetRoot,
     timeoutMs,
   });
 

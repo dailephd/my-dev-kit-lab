@@ -23,6 +23,7 @@ my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [m
 - Gallery manifest and static gallery index output
 - Visualization demos using my-dev-kit commands against benchmark projects
 - Final demo workflow combining all pipeline stages
+- Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, and release verdict — runnable against any local project via `security:validate --target <path>`
 
 ---
 

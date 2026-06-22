@@ -125,10 +125,16 @@ function makeReport(overrides: Partial<SecurityReport> = {}): SecurityReport {
   const now = new Date().toISOString();
   return {
     metadata: {
+      toolRoot: "/tool/root",
+      toolPackageName: "my-dev-kit-lab",
+      toolPackageVersion: "0.1.4",
+      targetRoot: "/tool/root",
+      targetDescription: "self (my-dev-kit-lab)",
       packageName: "my-dev-kit-lab",
       packageVersion: "0.1.4",
       branch: "feature/security-validation-release-gate",
       commit: "abc1234",
+      isSelf: true,
       generatedAt: now,
       totalDurationMs: 12345,
     },

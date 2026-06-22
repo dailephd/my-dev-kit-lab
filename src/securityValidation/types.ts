@@ -138,10 +138,18 @@ export type SecurityCheckResult = {
 // ---------------------------------------------------------------------------
 
 export type SecurityValidationSummary = {
+  // Tool identity
+  toolRoot: string;
+  toolPackageName: string;
+  toolPackageVersion: string;
+  // Target project
+  targetRoot: string;
+  targetDescription: string;
   packageName: string;
   packageVersion: string;
   auditedBranch: string;
   auditedCommit: string;
+  isSelf: boolean;
   startedAt: string;
   finishedAt: string;
   checks: SecurityCheckResult[];

@@ -36,7 +36,14 @@ export function renderTextReport(report: SecurityReport): string {
   lines.push(divider("="));
   lines.push("SECURITY VALIDATION REPORT");
   lines.push(divider("="));
-  lines.push(`Package    : ${metadata.packageName}@${metadata.packageVersion}`);
+  if (!metadata.isSelf) {
+    lines.push(`Tool       : ${metadata.toolPackageName}@${metadata.toolPackageVersion}`);
+    lines.push(`Tool root  : ${metadata.toolRoot}`);
+    lines.push(`Target     : ${metadata.packageName}@${metadata.packageVersion}`);
+    lines.push(`Target root: ${metadata.targetRoot}`);
+  } else {
+    lines.push(`Package    : ${metadata.packageName}@${metadata.packageVersion}`);
+  }
   lines.push(`Branch     : ${metadata.branch}`);
   lines.push(`Commit     : ${metadata.commit}`);
   lines.push(`Generated  : ${metadata.generatedAt}`);

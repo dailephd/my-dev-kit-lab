@@ -448,6 +448,9 @@ Checks performed:
 - `npm ls --all --json` — dependency tree resolution
 - OSV-Scanner — if installed; skipped with a clear reason if not available
 
+**Options:**
+- `--target <path>` — audit a different project directory instead of the current one
+
 **When to use:** Before release preparation to check for known dependency vulnerabilities.
 
 **Outputs:**
@@ -477,6 +480,9 @@ Runs `npm pack --dry-run` and inspects the tarball file list for forbidden conte
 
 Checks performed:
 - Detects lab-output/, .my-dev-kit/, .env files, private planning docs, node_modules/, tarballs, and other unsafe inclusions
+
+**Options:**
+- `--target <path>` — inspect a different project's tarball instead of the current one
 
 **When to use:** Before release preparation to verify the npm tarball does not include generated artifacts, secrets, or internal files.
 
@@ -552,11 +558,14 @@ npm run security:codeql
 
 ### `npm run security:semgrep`
 
-Runs Semgrep static analysis using the project's `.semgrep.yml` configuration against `src/`.
+Runs Semgrep static analysis using the project's `.semgrep.yml` configuration.
 
 **When Semgrep is available (local or npx):** Runs rules covering subprocess safety, path traversal, unsafe `fs.rm`, secret leakage, and similar patterns. Returns structured findings.
 
 **When Semgrep is unavailable:** Returns a structured `skipped` result with a clear reason. Semgrep absence does not fail `security:validate`.
+
+**Options:**
+- `--target <path>` — scan a different project's source files; scans `<target>/src/` if present, else `<target>/` directly
 
 Semgrep rules focus on:
 - `spawn/exec` with `shell: true`
@@ -621,23 +630,30 @@ npm run test:fuzz:smoke
 
 Orchestrates all security-validation checks and writes a release security report.
 
-**When to use:** Before release preparation to get a single verdict and actionable report.
+**When to use:** Before release preparation to get a single verdict and actionable report. Can validate the current project (self-validation) or any local project directory via `--target`.
+
+**Options:**
+- `--target <path>` / `-t <path>` — path to the project to validate (default: self-validation of my-dev-kit-lab)
+- `--out <dir>` — report output directory (default: `reports/security/`)
+- `--report-prefix <name>` — override the generated filename prefix
 
 **Checks orchestrated:**
-- `security:deps` — dependency audit (mandatory)
-- `security:package` — package tarball inspection (mandatory)
-- `security:codeql` — CodeQL availability check (optional, skipped if CLI absent)
-- `security:semgrep` — Semgrep static analysis (optional, skipped if unavailable)
-- `test:security` — full CLI adversarial test suite (mandatory)
-- fuzz smoke — bounded fuzz targets (mandatory)
+- dependency audit — `npm audit` and `npm outdated` against the target (mandatory)
+- package tarball inspection — `npm pack --dry-run` against the target (mandatory if target has package.json)
+- CodeQL availability check — optional, skipped if CLI absent
+- Semgrep static analysis — optional, skipped if unavailable
+- CLI adversarial test suite — runs against tool root (my-dev-kit-lab), labeled clearly as tool self-tests
+- fuzz smoke — bounded fuzz targets against tool root (mandatory)
 
-**Mandatory checks:** npm audit, package tarball inspection, CLI adversarial suite, fuzz smoke.
+**Mandatory checks:** npm audit, package tarball inspection (when target has package.json), CLI adversarial suite, fuzz smoke.
 
-**Optional checks:** CodeQL CLI local availability, Semgrep availability, OSV-Scanner. These are skipped with a structured reason if the tools are not installed.
+**Optional checks:** CodeQL CLI local availability, Semgrep, OSV-Scanner. Skipped with a structured reason when tools are absent.
 
 **Report outputs:**
-- `reports/v<version>-security-validation.txt` — human-readable full report
-- `reports/v<version>-security-validation.json` — machine-readable structured report
+- `reports/security/<prefix>-security-validation.txt` — human-readable full report
+- `reports/security/<prefix>-security-validation.json` — machine-readable structured report
+
+Where `<prefix>` is derived automatically: `v0.1.4` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
 
 Generated reports are not committed by default (see `.gitignore`). To preserve a report for a release handoff, copy it to a versioned location explicitly.
 
@@ -650,9 +666,23 @@ Generated reports are not committed by default (see `.gitignore`). To preserve a
 **Exit codes:** `0` = ready or ready-except-optional, `1` = blocker, `2` = inconclusive.
 
 ```bash
+# Self-validation (default)
 npm run security:validate
+
+# Validate an external project
+npm run security:validate -- --target /path/to/my-dev-kit
+
+# Custom output directory and prefix
+npm run security:validate -- --target /path/to/project --out /tmp/reports --report-prefix my-project-v1
 ```
 
 ```powershell
+# Self-validation (default)
 npm run security:validate
+
+# Validate an external project on Windows
+npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+
+# Invalid target — fails cleanly with an error message
+npm run security:validate -- --target "Z:\does\not\exist"
 ```

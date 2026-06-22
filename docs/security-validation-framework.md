@@ -1,8 +1,10 @@
 # Security Validation Framework
 
-This document defines the security-validation framework that my-dev-kit-lab owns for **my-dev-kit** release preparation.
+This document defines the security-validation framework owned by my-dev-kit-lab for local CLI/package release preparation.
 
-The framework is a lab-owned validation and evidence layer. It is not a normal end-user feature of my-dev-kit-lab, and it does not change the current experiment baseline or the planned generic experiment-plugin architecture. Its purpose is to help determine whether **my-dev-kit**, as a local CLI/package, remains safe to run on local repositories before release candidates are promoted.
+The framework is a lab-owned validation and evidence layer. It is not a normal end-user feature of my-dev-kit-lab, and it does not change the current experiment baseline or the planned generic experiment-plugin architecture. Its purpose is to help determine whether a local CLI/package remains safe to run on local repositories before release candidates are promoted.
+
+By default, `security:validate` validates my-dev-kit-lab itself (self-validation). With `--target <path>`, it can validate any local project directory — reporting tool metadata separately from the target under test.
 
 ---
 
@@ -188,10 +190,12 @@ Fuzzing is bounded and smoke-level. Release validation does not depend on long-r
 
 ### 5. Release security report
 
-Implemented. Each release candidate generates:
+Implemented. Each validation run generates:
 
-- `reports/v<version>-security-validation.txt` — human-readable report
-- `reports/v<version>-security-validation.json` — machine-readable structured report
+- `reports/security/<prefix>-security-validation.txt` — human-readable report
+- `reports/security/<prefix>-security-validation.json` — machine-readable structured report
+
+The `<prefix>` is derived automatically from the target: `v0.1.4` for self-validation, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or the directory basename when no package.json is present.
 
 Report sections:
 
@@ -298,8 +302,9 @@ The framework verifies that:
 | `src/securityValidation/fuzz/randomInput.ts` | **Implemented** — seeded PRNG, JSON mutation helpers, path traversal inputs |
 | `src/securityValidation/fuzz/fuzzHarness.ts` | **Implemented** — bounded fuzz runner; crashes become structured findings |
 | `src/securityValidation/fuzz/fuzzTargets.ts` | **Implemented** — 9 fuzz targets covering parsers, DOT escaping, path normalization |
+| `src/securityValidation/validate/resolveTarget.ts` | **Implemented** — `SecurityValidationTarget` type; `resolveValidationTarget()`, `reportFilenamePrefix()`, `targetDescription()` helpers |
 | `src/securityValidation/validate/verdict.ts` | **Implemented** — verdict calculation from check results and findings |
-| `src/securityValidation/validate/runSecurityValidation.ts` | **Implemented** — orchestrator for all security checks |
+| `src/securityValidation/validate/runSecurityValidation.ts` | **Implemented** — orchestrator for all security checks; target-aware (accepts `targetPath?`) |
 | `src/securityValidation/report/securityReportTypes.ts` | **Implemented** — SecurityReport, SecurityReportSection, SecurityReportMetadata types |
 | `src/securityValidation/report/renderSecurityReport.ts` | **Implemented** — text and JSON report renderers |
 | `scripts/security/runCodeql.ts` | **Implemented** — entrypoint for `security:codeql` |
@@ -308,6 +313,7 @@ The framework verifies that:
 | `scripts/security/validate.ts` | **Implemented** — entrypoint for `security:validate` |
 | `tests/security/staticScanChecks.test.ts` | **Implemented** — CodeQL/Semgrep skip gracefully; parseSemgrepJson unit tests |
 | `tests/security/securityValidateGate.test.ts` | **Implemented** — verdict calculation; text and JSON report rendering |
+| `tests/security/securityValidationTarget.test.ts` | **Implemented** — self-mode, external target, error cases, reportFilenamePrefix, targetDescription (23 tests) |
 | `tests/fuzz/fuzzSmoke.test.ts` | **Implemented** — PRNG, individual fuzz targets, runAllFuzzTargets (23 tests) |
 
 ---
@@ -360,7 +366,7 @@ Runs 9 bounded fuzz targets (50 iterations each, seeded PRNG). Completes in unde
 npm run security:validate
 ```
 
-Orchestrates all security checks and writes `reports/v<version>-security-validation.txt` and `.json`. Returns a structured verdict. See `docs/COMMANDS.md` for full details.
+Orchestrates all security checks and writes `reports/security/<prefix>-security-validation.txt` and `.json`. Returns a structured verdict. Accepts `--target <path>` to validate any local project. See `docs/COMMANDS.md` for full option details.
 
 ---
 
@@ -409,8 +415,9 @@ src/securityValidation/
     randomInput.ts             Seeded PRNG, JSON mutations, path traversal inputs
     fuzzHarness.ts             Bounded fuzz runner; crashes become structured findings
     fuzzTargets.ts             9 fuzz targets: parsers, DOT escaping, path normalization
-  validate/                    (implemented: Phase 6a — orchestrator and verdict)
-    runSecurityValidation.ts   Orchestrates all security checks; collects results
+  validate/                    (implemented: Phase 6a — orchestrator, verdict, target resolution)
+    resolveTarget.ts           SecurityValidationTarget type; resolveValidationTarget, reportFilenamePrefix, targetDescription
+    runSecurityValidation.ts   Orchestrates all security checks; target-aware (accepts targetPath?)
     verdict.ts                 Calculates release verdict from check results and findings
   report/                      (implemented: Phase 6b — text and JSON report renderer)
     securityReportTypes.ts     SecurityReport, SecurityReportSection, metadata types
@@ -451,6 +458,7 @@ tests/security/
   cliAdversarialDataVolume.test.ts        Large file, many files, deeply nested dirs (8 tests)
   staticScanChecks.test.ts               CodeQL/Semgrep skip gracefully; parseSemgrepJson unit tests (14 tests)
   securityValidateGate.test.ts           Verdict calculation; text and JSON report rendering (20 tests)
+  securityValidationTarget.test.ts       Self-mode, external target, error cases, reportFilenamePrefix, targetDescription (23 tests)
 
 tests/fuzz/
   fuzzSmoke.test.ts            PRNG determinism, individual targets, runAllFuzzTargets (23 tests)

@@ -4,7 +4,26 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [0.1.4] - 2026-06-22
 
-Final security-validation gate.
+Final security-validation gate with reusable multi-project target support.
+
+### Added (reusable target support)
+
+- Added `--target <path>` option to `security:validate`, `security:deps`, `security:package`, `security:semgrep`, and `security:codeql` to validate any local project, not just my-dev-kit-lab itself.
+- Added `SecurityValidationTarget` type separating the validation target from the tool root (my-dev-kit-lab).
+- Added `resolveValidationTarget(targetPath?, toolRoot)` — validates target path, reads package.json/lockfile/git metadata gracefully; returns null fields on missing metadata rather than crashing.
+- Added `reportFilenamePrefix(target)` — generates collision-free filename prefixes: `v0.1.4` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, directory basename for projects with no package.json.
+- Added `targetDescription(target)` — human-readable label for report headers.
+- Added `isSelf` flag for backward-compatible self-validation when no `--target` is given.
+- Added `--out <dir>` option to control report output directory (default: `reports/security/`).
+- Added `--report-prefix <name>` option to override the generated filename prefix.
+- Report headers now distinguish self-validation (`Package: ...`) from external target validation (`Tool: ..., Target: ...`).
+- CLI adversarial tests and fuzz smoke always run against the tool root and are labeled clearly as "tool self-tests, not target-specific."
+- Added 23 new unit tests for target resolution in `tests/security/securityValidationTarget.test.ts`.
+- Exported `resolveValidationTarget`, `reportFilenamePrefix`, `targetDescription`, `SecurityValidationTarget` from `src/securityValidation/index.ts`.
+
+### Added (security-validation gate)
+
+- Added static scan integration for CodeQL and Semgrep.
 
 ### Added
 

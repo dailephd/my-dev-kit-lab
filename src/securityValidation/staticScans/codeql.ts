@@ -9,6 +9,7 @@ import type { SecurityCheckResult } from "../types.js";
 
 export async function runCodeqlCheck(options: {
   cwd: string;
+  targetRoot?: string;
   timeoutMs: number;
 }): Promise<SecurityCheckResult> {
   const { cwd, timeoutMs } = options;

@@ -48,7 +48,7 @@ describe("CodeQL check — unavailable CLI", () => {
 
 describe("Semgrep check — unavailable CLI", () => {
   it("returns a structured result (skipped or passed/warned/failed) regardless of tool availability", async () => {
-    const result = await runSemgrepCheck({ cwd: process.cwd(), timeoutMs: 30_000 });
+    const result = await runSemgrepCheck({ targetRoot: process.cwd(), timeoutMs: 30_000 });
     expect(result.id).toBe("semgrep-scan");
     expect(result.category).toBe("static-scan");
     expect(["skipped", "passed", "failed", "warning"]).toContain(result.status);
@@ -58,7 +58,7 @@ describe("Semgrep check — unavailable CLI", () => {
   }, 35000);
 
   it("skipped result has a skippedReason when tool is unavailable", async () => {
-    const result = await runSemgrepCheck({ cwd: process.cwd(), timeoutMs: 30_000 });
+    const result = await runSemgrepCheck({ targetRoot: process.cwd(), timeoutMs: 30_000 });
     if (result.status === "skipped") {
       expect(typeof result.skippedReason).toBe("string");
       expect(result.skippedReason!.length).toBeGreaterThan(0);

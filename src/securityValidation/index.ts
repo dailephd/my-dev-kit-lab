@@ -65,6 +65,8 @@ export type { FuzzResult, FuzzCrash, FuzzTarget, FuzzHarnessOptions } from "./fu
 export { ALL_FUZZ_TARGETS, manifestReaderTarget, codeGraphReaderTarget, dotLabelEscapingTarget, pathNormalizationTarget, sourceWindowingTarget } from "./fuzz/fuzzTargets.js";
 
 export { calculateVerdict, verdictToHumanLabel } from "./validate/verdict.js";
+export { resolveValidationTarget, reportFilenamePrefix, targetDescription } from "./validate/resolveTarget.js";
+export type { SecurityValidationTarget } from "./validate/resolveTarget.js";
 export { runSecurityValidation } from "./validate/runSecurityValidation.js";
 export type { RunSecurityValidationOptions } from "./validate/runSecurityValidation.js";
 export { renderTextReport, renderJsonReport } from "./report/renderSecurityReport.js";
