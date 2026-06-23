@@ -2,6 +2,8 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [my-dev-kit](https://github.com/your-org/my-dev-kit). It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, and builds gallery outputs.
 
+As of the v0.2.0 development track, my-dev-kit-lab also exposes a generic experiment-plugin framework for validating local developer tools, security checks, codebase workflows, retrieval strategies, and experiment outcomes. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+
 **my-dev-kit** is the repo indexing and graph-guided retrieval engine.
 **my-dev-kit-lab** is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
 
@@ -23,6 +25,10 @@ my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [m
 - Gallery manifest and static gallery index output
 - Visualization demos using my-dev-kit commands against benchmark projects
 - Final demo workflow combining all pipeline stages
+- Generic experiment-plugin command surface: `experiment:list`, `experiment:describe`, and `experiment:run`
+- First experiment plugin: `context-strategy-comparison`
+- Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
+- Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
 - Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, and release verdict — runnable against any local project via `security:validate --target <path>`
 
 ---
@@ -120,6 +126,32 @@ npm run run-controlled-experiment -- \
 
 Real-agent runs require local Codex or Claude CLI setup and available usage capacity. Runs that time out, produce invalid output, or hit session limits are recorded as structured outcomes rather than failures.
 
+### List, describe, and run experiment plugins
+
+```bash
+npm run experiment:list
+npm run experiment:describe -- --experiment context-strategy-comparison
+npm run experiment:run -- \
+  --experiment context-strategy-comparison \
+  --target /path/to/local/project \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
+```
+
+```powershell
+npm run experiment:list
+npm run experiment:describe -- --experiment context-strategy-comparison
+npm run experiment:run -- `
+  --experiment context-strategy-comparison `
+  --target "Z:\Users\newuser\Projects\my-dev-kit-v1" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+When `--target` is omitted, the experiment runs in self mode against my-dev-kit-lab. When `--target <path>` is provided, the lab remains the tool root and the target project is inspected separately. Generated experiment outputs stay under lab-controlled output directories by default, not inside the target project.
+
 ---
 
 ## Where to find outputs
@@ -132,6 +164,8 @@ Real-agent runs require local Codex or Claude CLI setup and available usage capa
 | HTML report | `lab-output/<report>/experiment-report.html` |
 | Report JSON | `lab-output/<report>/experiment-report.json` |
 | Report screenshot | `lab-output/<report>/experiment-report.png` |
+| Plugin experiment report JSON | `lab-output/experiments/<plugin>/<target>/<run>/report.json` |
+| Plugin experiment report HTML | `lab-output/experiments/<plugin>/<target>/<run>/report.html` |
 | Plot data | `lab-output/<plots>/plot-data.json` |
 | SVG charts | `lab-output/<plots>/charts/*.svg` |
 | Gallery manifest | `lab-output/<gallery>/gallery-manifest.json` |
@@ -163,14 +197,15 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Claude does not expose token totals; token savings comparisons are unavailable for Claude runs
 - Codex may expose token totals but can produce timeouts or invalid-output runs
 - Small projects may make raw-full-file cheaper than my-dev-kit-guided; larger localized tasks are where my-dev-kit is expected to become more useful
-- The current baseline does not yet prove every future value claim; stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling
+- The generic experiment-plugin framework currently ships one plugin, `context-strategy-comparison`; future plugins such as warm-index reuse, incremental-change, and context-window scaling are not implemented yet
+- The current baseline does not prove token savings are guaranteed; it produces auditable evidence for specific cases, targets, agents, and strategies
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
 
 ---
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The next major development phase is a generic experiment-plugin framework that will make it straightforward to add new experiment types without rebuilding the pipeline.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The v0.2.0 development track introduces the generic experiment-plugin framework, keeps `context-strategy-comparison` as the first plugin, and keeps future experiment types on the roadmap.
 
 ---
 

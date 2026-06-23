@@ -146,18 +146,20 @@ my-dev-kit-lab now includes a generic experiment framework. The existing raw-ful
 ### Plugin model
 
 Each experiment plugin declares:
-- **Trial plan** — which cases, agents, strategies, and complexity levels to run
-- **Agent execution** — how to invoke agents and collect results
-- **Metric collection** — which metrics to record per run
-- **Scoring** — how to evaluate run outputs
-- **Report sections** — which sections to include in the HTML report
-- **Plot sections** — which charts to generate
-- **Screenshot capture** — whether to capture a PNG
-- **Gallery publishing** — which artifacts to include in the gallery
+- **Metadata** - stable id, name, description, schema version, status, supported targets, and supported outputs
+- **Config definition and validation** - required and optional fields plus normalized defaults
+- **Lifecycle hooks** - optional prepare and cleanup steps around `run`
+- **Execution behavior** - the plugin-specific experiment implementation
+- **Normalized result data** - variants, cases, outcomes, metrics, artifacts, warnings, failures, and summary
 
 The `context-strategy-comparison` plugin delegates to the existing controlled experiment engine, preserving fake-agent, Codex, Claude, scoring, report, plot, screenshot, and gallery behavior. It also emits normalized plugin result metadata in `experiment-plugin-result.json` next to the existing legacy experiment artifacts.
 
 Target-aware plugin execution passes a context with separate tool and target roots. Lab-owned outputs default to `lab-output/experiments/<plugin-id>/<target>/<run-id>/`, and plugin-aware reports in that directory include plugin, target, variant, case, metric, artifact, warning, skip, and failure metadata.
+
+The user-facing command surface is:
+- `npm run experiment:list`
+- `npm run experiment:describe -- --experiment <plugin-id>`
+- `npm run experiment:run -- --experiment <plugin-id> [--target <path>]`
 
 ### Plugin architecture diagram
 
