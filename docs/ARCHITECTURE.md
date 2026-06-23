@@ -11,6 +11,7 @@ my-dev-kit-lab is organized as a layered pipeline. Each layer has a focused resp
 | Benchmarks | `benchmarks/` | Deterministic benchmark projects, contracts, and answer keys |
 | Core utilities | `src/core/` | Token counting, safe paths, file glob collection, subprocess execution |
 | Evaluation | `src/evaluation/` | File tree building, complexity scoring, benchmark metadata validation |
+| Experiments | `src/experiments/` | Generic experiment plugin contracts, registry, target metadata, config validation, normalized run results, and the first `context-strategy-comparison` plugin |
 | Prompts | `src/prompts/` | Raw-full-file and my-dev-kit-guided prompt generation, prompt complexity metrics |
 | Agents | `src/agents/` | fake-agent, Codex, and Claude adapter interfaces |
 | Experiment runner | `src/commands/` | Controlled experiment orchestration, correctness scoring, artifact writing |
@@ -138,9 +139,9 @@ flowchart TD
 
 ---
 
-## Future experiment-plugin architecture
+## Experiment-plugin architecture
 
-The next major development phase refactors my-dev-kit-lab into a generic experiment framework. The current pipeline becomes the first experiment plugin.
+my-dev-kit-lab now includes a generic experiment framework. The existing raw-full-file vs my-dev-kit-guided pipeline is registered as the first plugin: `context-strategy-comparison`.
 
 ### Plugin model
 
@@ -154,7 +155,9 @@ Each experiment plugin declares:
 - **Screenshot capture** — whether to capture a PNG
 - **Gallery publishing** — which artifacts to include in the gallery
 
-### Future plugin architecture diagram
+The `context-strategy-comparison` plugin delegates to the existing controlled experiment engine, preserving fake-agent, Codex, Claude, scoring, report, plot, screenshot, and gallery behavior. It also emits normalized plugin result metadata in `experiment-plugin-result.json` next to the existing legacy experiment artifacts.
+
+### Plugin architecture diagram
 
 ```mermaid
 graph TD
@@ -199,9 +202,9 @@ graph TD
 
 ```mermaid
 flowchart TD
-  A[Current: hardcoded\nraw-vs-indexed pipeline] --> B[Extract shared runtime\nfrom current pipeline]
-  B --> C[Wrap current experiment\nas context-strategy-comparison plugin]
-  C --> D[Validate plugin produces\nsame artifacts as current pipeline]
+  A[Generic plugin\ncontracts + registry] --> B[Wrap current experiment\nas context-strategy-comparison plugin]
+  B --> C[Validate plugin produces\nsame artifacts as current pipeline]
+  C --> D[Add target-aware\nexperiment execution]
   D --> E[Add warm-index-reuse plugin]
   E --> F[Add incremental-change plugin]
   F --> G[Add context-window-scaling plugin]

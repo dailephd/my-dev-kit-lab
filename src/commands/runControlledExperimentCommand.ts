@@ -1,7 +1,8 @@
 import path from "node:path";
 import { parseAgentCommandTemplate } from "../agents/index.js";
 import { parseAgentId } from "../agents/agentRegistry.js";
-import { readBenchmarkProjectProfiles, readEvaluationCases, runControlledExperiment } from "../evaluation/index.js";
+import { readBenchmarkProjectProfiles, readEvaluationCases } from "../evaluation/index.js";
+import { contextStrategyComparisonPlugin, resolveExperimentTarget } from "../experiments/index.js";
 import { parsePromptComplexityLevel, parsePromptStrategy } from "../prompts/index.js";
 import type { AgentCommandTemplate } from "../agents/types.js";
 import type { PromptComplexityLevel } from "../prompts/types.js";
@@ -113,16 +114,29 @@ export async function runControlledExperimentFromArgs(args: ParsedRunControlledE
     projectProfiles,
     requireProjectProfileRef: true
   });
-  const artifacts = await runControlledExperiment({
-    config: {
-      ...args,
-      casesPath: args.casesPath,
-      projectProfilesPath: args.projectProfilesPath
-    },
-    cases,
-    projectProfiles,
-    repoRoot
+  const config = {
+    ...args,
+    casesPath: args.casesPath,
+    projectProfilesPath: args.projectProfilesPath
+  };
+  const validation = contextStrategyComparisonPlugin.validateConfig(config);
+  if (!validation.valid || !validation.config) {
+    throw new Error(`Invalid context strategy comparison config: ${validation.errors.join("; ")}`);
+  }
+  const result = await contextStrategyComparisonPlugin.run({
+    runId: `context-strategy-comparison-${Date.now()}`,
+    startedAt: new Date(),
+    toolRoot: repoRoot,
+    target: resolveExperimentTarget(undefined, repoRoot),
+    config: validation.config,
+    outputRoot: path.resolve(repoRoot, validation.config.outDir),
+    inputs: {
+      cases,
+      projectProfiles,
+      env: process.env
+    }
   });
+  const artifacts = result.legacyArtifacts;
   return { projectProfiles, cases, artifacts };
 }
 
