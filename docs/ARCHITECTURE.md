@@ -15,7 +15,7 @@ my-dev-kit-lab is organized as a layered pipeline. Each layer has a focused resp
 | Prompts | `src/prompts/` | Raw-full-file and my-dev-kit-guided prompt generation, prompt complexity metrics |
 | Agents | `src/agents/` | fake-agent, Codex, and Claude adapter interfaces |
 | Experiment runner | `src/commands/` | Controlled experiment orchestration, correctness scoring, artifact writing |
-| Report | `src/report/` | Experiment report input model, HTML rendering, artifact writing |
+| Report | `src/report/` | Legacy controlled-experiment report rendering plus plugin-aware report models, HTML/JSON rendering, and artifact writing |
 | Screenshot | `src/screenshot/` | Optional PNG capture from generated local HTML reports |
 | Plots | `src/plots/` | Plot-ready data generation and deterministic SVG chart rendering |
 | Visualization demos | `src/visualizationDemos/` | Bounded my-dev-kit visualization command demos |
@@ -110,7 +110,7 @@ The controlled experiment runner pairs `raw-full-file` and `my-dev-kit-guided` r
 
 ### 5. Reporting layer
 
-The report renderer reads experiment artifacts and produces `experiment-report.json` and `experiment-report.html`. The plot generator reads experiment artifacts and produces `plot-data.json` and SVG charts. Visualization demos run bounded my-dev-kit commands against a benchmark project and write demo artifacts. Screenshot capture optionally produces a PNG from the HTML report.
+The legacy report renderer reads controlled-experiment artifacts and produces `experiment-report.json` and `experiment-report.html`. The plugin-aware report renderer reads normalized `ExperimentRun` results plus plugin metadata and produces target-aware `report.json` and `report.html` under the experiment output root. The plot generator reads experiment artifacts and produces `plot-data.json` and SVG charts. Visualization demos run bounded my-dev-kit commands against a benchmark project and write demo artifacts. Screenshot capture optionally produces a PNG from the HTML report.
 
 ### 6. Gallery layer
 
@@ -156,6 +156,8 @@ Each experiment plugin declares:
 - **Gallery publishing** — which artifacts to include in the gallery
 
 The `context-strategy-comparison` plugin delegates to the existing controlled experiment engine, preserving fake-agent, Codex, Claude, scoring, report, plot, screenshot, and gallery behavior. It also emits normalized plugin result metadata in `experiment-plugin-result.json` next to the existing legacy experiment artifacts.
+
+Target-aware plugin execution passes a context with separate tool and target roots. Lab-owned outputs default to `lab-output/experiments/<plugin-id>/<target>/<run-id>/`, and plugin-aware reports in that directory include plugin, target, variant, case, metric, artifact, warning, skip, and failure metadata.
 
 ### Plugin architecture diagram
 

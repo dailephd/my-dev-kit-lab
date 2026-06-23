@@ -2,9 +2,10 @@ import path from "node:path";
 import { parseAgentCommandTemplate } from "../../src/agents/index.js";
 import { parseAgentId } from "../../src/agents/agentRegistry.js";
 import { readBenchmarkProjectProfiles, readEvaluationCases } from "../../src/evaluation/index.js";
-import { runExperiment } from "../../src/experiments/index.js";
+import { createDefaultExperimentPluginRegistry, runExperiment } from "../../src/experiments/index.js";
 import { contextStrategyComparisonPlugin } from "../../src/experiments/plugins/contextStrategyComparison/index.js";
 import { parsePromptComplexityLevel, parsePromptStrategy } from "../../src/prompts/index.js";
+import { writePluginExperimentReports } from "../../src/report/index.js";
 import type { AgentCommandTemplate } from "../../src/agents/types.js";
 import type {
   ExperimentAgentId,
@@ -24,14 +25,21 @@ async function main(argv: string[]): Promise<number> {
   try {
     const args = parseRunExperimentArgs(argv);
     const toolRoot = process.cwd();
+    const registry = createDefaultExperimentPluginRegistry();
     const inputs = await loadPluginInputs(args, toolRoot);
     const result = await runExperiment({
       pluginId: args.experimentId,
+      registry,
       targetPath: args.targetPath,
       outputRoot: args.outDir,
       config: args.config,
       inputs,
       toolRoot,
+    });
+    const reports = await writePluginExperimentReports({
+      run: result,
+      plugin: registry.describe(result.pluginId),
+      outputRoot: String(result.metadata?.outputRoot ?? ""),
     });
     console.log(
       [
@@ -41,6 +49,8 @@ async function main(argv: string[]): Promise<number> {
         `Tool root: ${result.target.toolRoot}`,
         `Target root: ${result.target.targetRoot}`,
         `Output: ${String(result.metadata?.outputRoot ?? "")}`,
+        `Report JSON: ${reports.outputPaths.jsonPath}`,
+        `Report HTML: ${reports.outputPaths.htmlPath}`,
       ].join("\n")
     );
     return result.status === "failed" ? 1 : 0;
