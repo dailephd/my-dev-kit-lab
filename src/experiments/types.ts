@@ -163,10 +163,18 @@ export type ExperimentRun = {
 export type ExperimentExecutionContext<TConfig = unknown> = {
   runId: string;
   startedAt: Date;
+  pluginId?: string;
+  pluginSchemaVersion?: string;
   toolRoot: string;
+  targetRoot?: string;
+  isSelfTarget?: boolean;
   target: ExperimentTarget;
   config: TConfig;
   outputRoot?: string;
+  environment?: {
+    platform: string;
+    nodeVersion: string;
+  };
   inputs?: Record<string, unknown>;
   logger?: {
     info(message: string): void;

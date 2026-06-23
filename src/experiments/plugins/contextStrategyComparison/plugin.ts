@@ -52,11 +52,11 @@ export const contextStrategyComparisonPlugin: ExperimentPlugin<
       config: context.config,
       cases,
       projectProfiles,
-      repoRoot: context.toolRoot,
+      repoRoot: context.target.targetRoot,
       env,
     });
     const completedAt = new Date().toISOString();
-    const outDir = path.resolve(context.toolRoot, context.config.outDir);
+    const outDir = context.outputRoot ?? path.resolve(context.toolRoot, context.config.outDir);
     await mkdir(outDir, { recursive: true });
     const pluginResultPath = path.join(outDir, "experiment-plugin-result.json");
     const result = mapLegacyArtifactsToExperimentRun({
