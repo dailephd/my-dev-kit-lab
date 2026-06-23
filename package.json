@@ -1,6 +1,6 @@
 {
   "name": "my-dev-kit-lab",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {

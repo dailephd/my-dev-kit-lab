@@ -2,7 +2,7 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased] - v0.2.0
+## [0.2.0] - 2026-06-23
 
 Generic experiment-plugin foundation, first plugin conversion, target-aware execution, plugin-aware reports, and user-facing command surface.
 
@@ -23,6 +23,29 @@ Generic experiment-plugin foundation, first plugin conversion, target-aware exec
 
 - Routed the existing controlled experiment command wrapper through the `context-strategy-comparison` plugin without changing the public command arguments or legacy artifact behavior.
 - Preserved existing raw-vs-indexed workflow behavior through the plugin runner and kept old controlled-experiment commands available.
+
+### Validation
+
+- `npm install`
+- `npm run build`
+- `npm run test`
+- `npm run verify`
+- `npm run security:deps`
+- `npm run security:package`
+- `npm run security:codeql`
+- `npm run security:semgrep`
+- `npm run test:security`
+- `npm run test:fuzz:smoke`
+- `npm run security:validate`
+- `npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"`
+- `npm run security:validate -- --target "Z:\Users\newuser\Projects\scientific-literature-explorer-v1"`
+- `npm run experiment:list`
+- `npm run experiment:describe -- --experiment context-strategy-comparison`
+- `npm run experiment:describe -- --experiment does-not-exist`
+- `npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --case todo-ts-create-task --agents fake-agent --complexities short --no-screenshot`
+- `npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\scientific-literature-explorer-v1" --case todo-ts-create-task --agents fake-agent --complexities short --no-screenshot`
+- `npm run run-controlled-experiment -- --cases examples/token-savings-cases.json --out lab-output/legacy-v0.2.0-smoke --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot`
+- `npm pack --dry-run`
 
 ## [0.1.4] - 2026-06-22
 

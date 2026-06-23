@@ -65,7 +65,7 @@ The current baseline is a fully working experiment pipeline for the raw-vs-index
 
 ## v0.2.0: Generic experiment-plugin framework
 
-The v0.2.0 development track refactors my-dev-kit-lab into a generic experiment framework while preserving the raw-vs-indexed behavior.
+v0.2.0 refactors my-dev-kit-lab into a generic experiment framework while preserving the raw-vs-indexed behavior.
 
 ### What this means
 

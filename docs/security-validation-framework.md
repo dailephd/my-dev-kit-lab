@@ -195,7 +195,7 @@ Implemented. Each validation run generates:
 - `reports/security/<prefix>-security-validation.txt` — human-readable report
 - `reports/security/<prefix>-security-validation.json` — machine-readable structured report
 
-The `<prefix>` is derived automatically from the target: `v0.1.4` for self-validation, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or the directory basename when no package.json is present.
+The `<prefix>` is derived automatically from the target: `v0.2.0` for self-validation, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or the directory basename when no package.json is present.
 
 Report sections:
 

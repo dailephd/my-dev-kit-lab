@@ -14,6 +14,10 @@ function cleanup(...dirs: string[]): void {
   }
 }
 
+const currentPackageVersion = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "package.json"), "utf8")
+) as { version: string };
+
 describe("resolveExperimentTarget", () => {
   it("resolves the current repository as the self target", () => {
     const target = resolveExperimentTarget(undefined, process.cwd());
@@ -21,7 +25,7 @@ describe("resolveExperimentTarget", () => {
     expect(target.isSelf).toBe(true);
     expect(path.resolve(target.targetRoot)).toBe(path.resolve(process.cwd()));
     expect(target.packageName).toBe("my-dev-kit-lab");
-    expect(target.packageVersion).toBe("0.1.4");
+    expect(target.packageVersion).toBe(currentPackageVersion.version);
   });
 
   it("resolves an external local target fixture", () => {

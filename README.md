@@ -2,7 +2,7 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [my-dev-kit](https://github.com/your-org/my-dev-kit). It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, and builds gallery outputs.
 
-As of the v0.2.0 development track, my-dev-kit-lab also exposes a generic experiment-plugin framework for validating local developer tools, security checks, codebase workflows, retrieval strategies, and experiment outcomes. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+As of v0.2.0, my-dev-kit-lab also exposes a generic experiment-plugin framework for validating local developer tools, security checks, codebase workflows, retrieval strategies, and experiment outcomes. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
 
 **my-dev-kit** is the repo indexing and graph-guided retrieval engine.
 **my-dev-kit-lab** is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
@@ -205,7 +205,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The v0.2.0 development track introduces the generic experiment-plugin framework, keeps `context-strategy-comparison` as the first plugin, and keeps future experiment types on the roadmap.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. v0.2.0 adds the generic experiment-plugin framework, keeps `context-strategy-comparison` as the first plugin, and keeps future experiment types on the roadmap.
 
 ---
 

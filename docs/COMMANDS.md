@@ -788,7 +788,7 @@ Orchestrates all security-validation checks and writes a release security report
 - `reports/security/<prefix>-security-validation.txt` — human-readable full report
 - `reports/security/<prefix>-security-validation.json` — machine-readable structured report
 
-Where `<prefix>` is derived automatically: `v0.1.4` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
+Where `<prefix>` is derived automatically: `v0.2.0` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
 
 External-target reports include both the tool root (`my-dev-kit-lab`) and the target root, plus target package and git metadata when available. Target project files are not modified during validation.
 
