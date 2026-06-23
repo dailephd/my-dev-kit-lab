@@ -35,7 +35,7 @@ Final security-validation gate with reusable multi-project target support.
   - Seeded PRNG (`0xDEADBEEF`) for deterministic CI reproduction.
   - Completes in under 1 second at default settings (50 iterations per target).
 - Added `security:validate` release-gate command that orchestrates all checks and produces a verdict.
-- Added text and JSON security-validation report generation to `reports/v<version>-security-validation.{txt,json}`.
+- Added text and JSON security-validation report generation to `reports/security/<prefix>-security-validation.{txt,json}`.
 - Added release verdict calculation from normalized check results (four verdict categories).
 - Added documentation for mandatory checks, optional scanner availability, findings, skipped checks, and release verdicts in `docs/COMMANDS.md`.
 - Fixed defensive null guard in `parseNpmOutdated` when JSON value entries contain null.
@@ -57,7 +57,7 @@ Final security-validation gate with reusable multi-project target support.
 ### Notes
 
 - CodeQL, Semgrep, and OSV-Scanner may be skipped locally if unavailable. Absence is reported as `ready except optional manual checks`, not a blocker.
-- Generated security reports are not committed by default (`.gitignore` excludes `reports/v*-security-validation.*`).
+- Generated security reports are not committed by default (`.gitignore` excludes `reports/security/` outputs).
 - This release completes the initial security-validation release-gate track.
 
 ## [0.1.2] - 2026-06-22

@@ -449,7 +449,9 @@ Checks performed:
 - OSV-Scanner — if installed; skipped with a clear reason if not available
 
 **Options:**
-- `--target <path>` — audit a different project directory instead of the current one
+- `--target <path>` - audit a different project directory instead of the current one
+
+**Target behavior:** Reads package metadata and dependency state from the target project without modifying target files. Generated artifacts stay under this tool's `reports/security/` directory.
 
 **When to use:** Before release preparation to check for known dependency vulnerabilities.
 
@@ -472,6 +474,10 @@ npm run security:deps
 npm run security:deps
 ```
 
+```powershell
+npm run security:deps -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+```
+
 ---
 
 ### `npm run security:package`
@@ -482,7 +488,9 @@ Checks performed:
 - Detects lab-output/, .my-dev-kit/, .env files, private planning docs, node_modules/, tarballs, and other unsafe inclusions
 
 **Options:**
-- `--target <path>` — inspect a different project's tarball instead of the current one
+- `--target <path>` - inspect a different project's tarball instead of the current one
+
+**Target behavior:** Runs `npm pack --dry-run` in the target project without publishing or modifying target files. Generated artifacts stay under this tool's `reports/security/` directory.
 
 **When to use:** Before release preparation to verify the npm tarball does not include generated artifacts, secrets, or internal files.
 
@@ -499,6 +507,10 @@ npm run security:package
 
 ```powershell
 npm run security:package
+```
+
+```powershell
+npm run security:package -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 ```
 
 ---
@@ -546,12 +558,21 @@ Checks if the CodeQL CLI is available locally and verifies it is functional.
 
 **Note:** This is an optional check. The GitHub Actions workflow at `.github/workflows/codeql.yml` runs the full CodeQL analysis on push. Local validation is a best-effort availability check only.
 
+**Options:**
+- `--target <path>` - resolve and label a different validation target while keeping the local CLI availability check anchored to the tool root
+
+**Target behavior:** External-target mode does not modify target files. It preserves target-aware context for the validation workflow while the local CodeQL check remains an availability/functionality probe.
+
 ```bash
 npm run security:codeql
 ```
 
 ```powershell
 npm run security:codeql
+```
+
+```powershell
+npm run security:codeql -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 ```
 
 ---
@@ -565,7 +586,9 @@ Runs Semgrep static analysis using the project's `.semgrep.yml` configuration.
 **When Semgrep is unavailable:** Returns a structured `skipped` result with a clear reason. Semgrep absence does not fail `security:validate`.
 
 **Options:**
-- `--target <path>` — scan a different project's source files; scans `<target>/src/` if present, else `<target>/` directly
+- `--target <path>` - scan a different project's source files; scans `<target>/src/` if present, else `<target>/` directly
+
+**Target behavior:** Semgrep reads the target project in place and does not modify target files. Rules come from the tool root's `.semgrep.yml`; generated artifacts stay under `reports/security/`.
 
 Semgrep rules focus on:
 - `spawn/exec` with `shell: true`
@@ -582,6 +605,10 @@ npm run security:semgrep
 
 ```powershell
 npm run security:semgrep
+```
+
+```powershell
+npm run security:semgrep -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 ```
 
 ---
@@ -654,6 +681,8 @@ Orchestrates all security-validation checks and writes a release security report
 - `reports/security/<prefix>-security-validation.json` — machine-readable structured report
 
 Where `<prefix>` is derived automatically: `v0.1.4` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
+
+External-target reports include both the tool root (`my-dev-kit-lab`) and the target root, plus target package and git metadata when available. Target project files are not modified during validation.
 
 Generated reports are not committed by default (see `.gitignore`). To preserve a report for a release handoff, copy it to a versioned location explicitly.
 

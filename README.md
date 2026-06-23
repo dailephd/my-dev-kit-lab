@@ -200,11 +200,13 @@ The release gate is implemented as of v0.1.4. It combines static scans, dependen
 | `npm run security:semgrep` | Semgrep scan via local binary or npx; skipped gracefully when both absent |
 | `npm run test:security` | 165 adversarial CLI tests (path traversal, read-only boundaries, malformed artifacts, JSON safety, fuzz targets) |
 | `npm run test:fuzz:smoke` | 9 bounded fuzz targets, seeded PRNG, completes in under 1 second |
-| `npm run security:validate` | Full release gate — runs all checks and writes `reports/v<version>-security-validation.{txt,json}` |
+| `npm run security:validate` | Full release gate — runs all checks and writes `reports/security/<prefix>-security-validation.{txt,json}` |
 
 CodeQL, Semgrep, and OSV-Scanner are optional. When unavailable locally, they are recorded as `skipped` in the report — not as failures — and the verdict is `ready except optional manual checks` rather than `not ready`.
 
-Generated security reports (`reports/v*-security-validation.*`) are excluded from git by default. They are produced locally or in CI as release-gate evidence and are not committed to the repository.
+Each security command can validate my-dev-kit-lab itself or another local project via `--target <path>`. When `--target` is omitted, the framework performs self-validation. Target projects are inspected in place: their source files are not modified, generated artifacts stay under `reports/security/`, and external-target reports identify both the tool root and the target root.
+
+Generated security reports under `reports/security/` are excluded from git by default. They are produced locally or in CI as release-gate evidence and are not committed to the repository.
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) for full command options and [docs/security-validation-framework.md](docs/security-validation-framework.md) for the security model, implemented modules, and release verdicts.
 

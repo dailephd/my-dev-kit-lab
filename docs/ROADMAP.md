@@ -142,8 +142,8 @@ Security model, types, config, test matrix, command runner, and artifact writer 
 
 `security:validate` orchestrates all security checks and writes:
 
-- `reports/v<version>-security-validation.txt` — 22-section human-readable report
-- `reports/v<version>-security-validation.json` — machine-readable report with `schemaVersion: 1`
+- `reports/security/<prefix>-security-validation.txt` — 22-section human-readable report
+- `reports/security/<prefix>-security-validation.json` — machine-readable report with `schemaVersion: 1`
 
 Four release verdicts are possible:
 
@@ -152,7 +152,7 @@ Four release verdicts are possible:
 - `ready except optional manual checks`
 - `inconclusive: audit environment incomplete`
 
-Generated reports are excluded from git by default (`.gitignore`).
+When `--target` is omitted, the command performs self-validation. With `--target <path>`, it validates another local project without modifying target files and records tool-root and target-root metadata separately. Generated reports are excluded from git by default (`.gitignore`).
 
 ### Security commands (all implemented)
 

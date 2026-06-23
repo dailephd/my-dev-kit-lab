@@ -226,11 +226,11 @@ The security-validation track does not replace the current pipeline and does not
 | Test matrix | `src/securityValidation/testMatrix.ts` | **Implemented** | Structured adversarial test case catalog |
 | Dependencies | `src/securityValidation/dependencies/` | **Implemented** | npm audit, npm outdated, npm ls, OSV-Scanner wrappers |
 | Package checks | `src/securityValidation/packageChecks/` | **Implemented** | npm pack dry-run, forbidden-content detection |
-| Static scans | `src/securityValidation/staticScans/` | Planned (Prompt 6) | CodeQL and Semgrep wrappers |
-| Security scripts | `scripts/security/` | **Implemented** | npm script entrypoints for security:deps, security:package |
-| Adversarial CLI tests | `tests/security/` | Foundation implemented | Type/matrix tests now; adversarial tests in Prompts 4–5 |
-| Fuzz smoke tests | `tests/fuzz/` | Planned (Prompt 7) | Bounded parser and helper stress tests |
-| Security reports | `reports/security/` | Generated (not committed) | Versioned dependency-checks.json and package-checks.json |
+| Static scans | `src/securityValidation/staticScans/` | **Implemented** | CodeQL availability check and Semgrep wrappers with target-aware scanning |
+| Security scripts | `scripts/security/` | **Implemented** | npm script entrypoints for `security:deps`, `security:package`, `security:codeql`, `security:semgrep`, and `security:validate` |
+| Adversarial CLI tests | `tests/security/` | **Implemented** | Type/matrix tests plus adversarial boundary, malformed-input, JSON-safety, subprocess-safety, and validate-gate coverage |
+| Fuzz smoke tests | `tests/fuzz/` | **Implemented** | Bounded parser and helper stress tests used by `test:fuzz:smoke` |
+| Security reports | `reports/security/` | Generated (not committed) | Target-aware dependency, package, raw command, and release-validation artifacts |
 
 ### Security validation pipeline
 

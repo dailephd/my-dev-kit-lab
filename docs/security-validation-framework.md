@@ -383,7 +383,7 @@ npm view my-dev-kit-lab@0.1.0 version
 npm view my-dev-kit-lab@0.1.0 bin
 ```
 
-Security scripts such as `security:deps` and `security:package` are post-v0.1.0 additions. They should not be referenced in user-facing v0.1.0 documentation as current capabilities, but they are part of the current v0.1.2 scope.
+Security scripts such as `security:deps`, `security:package`, `security:codeql`, `security:semgrep`, and `security:validate` are post-v0.1.0 additions. They should not be referenced in user-facing v0.1.0 documentation as current capabilities, but they are part of the current v0.1.4 scope.
 
 ---
 
@@ -478,7 +478,7 @@ reports/security/              Generated security check artifacts (not committed
 | `feature/security-validation-planning` | Prompt 1: implementation plan and framework doc |
 | `feature/security-validation-foundation` | Prompt 2: types, config, and test matrix |
 | `feature/security-package-validation` | Prompt 3: dependency and package-content checks |
-| `feature/security-cli-adversarial-tests` | Prompt 4: CLI adversarial harness, part 1 — path boundaries and read-only boundaries |
+| `feature/security-cli-adversarial-tests` | Historical implementation branch for the CLI adversarial harness path/read-only phases |
 | `feature/security-malformed-artifacts` | Prompt 5: malformed artifacts, JSON stdout/stderr safety, subprocess/DOT label safety, data-volume smoke |
 | `feature/security-validation-release-gate` | Prompts 6–8: static scans, fuzz smoke, security:validate, release report |
 
@@ -553,10 +553,10 @@ Security artifacts are written to `reports/security/` and kept separate from exp
 - Time-bounded (< 1s at default settings); release validation does not depend on long-running fuzz jobs
 - Crashes become structured `SecurityFinding` entries; expected validation errors are not treated as crashes
 
-### Phase 6: Release report generator (Prompts 6–8, implemented)
+### Phase 6: Release report generator (implemented)
 
 - `npm run security:validate` orchestrates all prior phases
-- Report is written to `reports/v<version>-security-validation.txt` and `reports/v<version>-security-validation.json`
+- Report is written to `reports/security/<prefix>-security-validation.txt` and `reports/security/<prefix>-security-validation.json`
 - Report includes executive summary, all 22 report sections, findings by severity, release verdict, and recommended next step
 - Verdict: one of four options (ready / not-ready / ready-except-optional / inconclusive)
 
