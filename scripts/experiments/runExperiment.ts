@@ -44,6 +44,7 @@ async function main(argv: string[]): Promise<number> {
     console.log(
       [
         `Experiment: ${result.pluginId}`,
+        `Run ID: ${result.runId}`,
         `Status: ${result.status}`,
         `Mode: ${result.target.isSelf ? "self" : "external target"}`,
         `Tool root: ${result.target.toolRoot}`,
@@ -85,29 +86,29 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--experiment") {
-      experimentId = argv[++index] ?? "";
+      experimentId = readRequiredValue(argv, ++index, "--experiment");
     } else if (arg === "--target") {
-      targetPath = argv[++index] ?? "";
+      targetPath = readRequiredValue(argv, ++index, "--target");
     } else if (arg === "--out") {
-      outDir = argv[++index] ?? "";
+      outDir = readRequiredValue(argv, ++index, "--out");
     } else if (arg === "--cases") {
-      casesPath = argv[++index] ?? "";
+      casesPath = readRequiredValue(argv, ++index, "--cases");
     } else if (arg === "--project-profiles") {
-      projectProfilesPath = argv[++index] ?? "";
+      projectProfilesPath = readRequiredValue(argv, ++index, "--project-profiles");
     } else if (arg === "--case") {
-      caseIds.push(...splitList(argv[++index] ?? ""));
+      caseIds.push(...splitList(readRequiredValue(argv, ++index, "--case")));
     } else if (arg === "--benchmark-project") {
-      benchmarkProjects.push(...splitList(argv[++index] ?? ""));
+      benchmarkProjects.push(...splitList(readRequiredValue(argv, ++index, "--benchmark-project")));
     } else if (arg === "--agents") {
-      agents = splitList(argv[++index] ?? "").map((value) => parseAgentId(value) as ExperimentAgentId);
+      agents = splitList(readRequiredValue(argv, ++index, "--agents")).map((value) => parseAgentId(value) as ExperimentAgentId);
     } else if (arg === "--strategies") {
-      strategies = splitList(argv[++index] ?? "").map(parsePromptStrategy);
+      strategies = splitList(readRequiredValue(argv, ++index, "--strategies")).map(parsePromptStrategy);
     } else if (arg === "--complexities") {
-      complexityLevels = splitList(argv[++index] ?? "").map(parsePromptComplexityLevel);
+      complexityLevels = splitList(readRequiredValue(argv, ++index, "--complexities")).map(parsePromptComplexityLevel);
     } else if (arg === "--timeout-ms") {
-      timeoutMs = parsePositiveInteger("--timeout-ms", argv[++index] ?? "");
+      timeoutMs = parsePositiveInteger("--timeout-ms", readRequiredValue(argv, ++index, "--timeout-ms"));
     } else if (arg === "--max-runs") {
-      maxRuns = parsePositiveInteger("--max-runs", argv[++index] ?? "");
+      maxRuns = parsePositiveInteger("--max-runs", readRequiredValue(argv, ++index, "--max-runs"));
     } else if (arg === "--continue-on-failure") {
       continueOnFailure = true;
     } else if (arg === "--no-continue-on-failure") {
@@ -117,9 +118,14 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     } else if (arg === "--include-real-agents") {
       includeRealAgents = true;
     } else if (arg === "--command-template-codex") {
-      commandTemplates.codex = parseAgentCommandTemplate(argv[++index] ?? "");
+      commandTemplates.codex = parseAgentCommandTemplate(readRequiredValue(argv, ++index, "--command-template-codex"));
     } else if (arg === "--command-template-claude") {
-      commandTemplates.claude = parseAgentCommandTemplate(argv[++index] ?? "");
+      commandTemplates.claude = parseAgentCommandTemplate(readRequiredValue(argv, ++index, "--command-template-claude"));
+    } else if (arg === "--no-screenshot") {
+      // The plugin-aware report path does not capture screenshots yet; accept this
+      // flag so smoke commands can share the legacy demo option set.
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
     }
   }
 
@@ -172,6 +178,14 @@ function splitList(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function readRequiredValue(argv: string[], index: number, label: string): string {
+  const value = argv[index];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${label} requires a value.`);
+  }
+  return value;
 }
 
 function parsePositiveInteger(label: string, value: string): number {

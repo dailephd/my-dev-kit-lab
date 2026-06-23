@@ -146,18 +146,20 @@ my-dev-kit-lab now includes a generic experiment framework. The existing raw-ful
 ### Plugin model
 
 Each experiment plugin declares:
-- **Trial plan** — which cases, agents, strategies, and complexity levels to run
-- **Agent execution** — how to invoke agents and collect results
-- **Metric collection** — which metrics to record per run
-- **Scoring** — how to evaluate run outputs
-- **Report sections** — which sections to include in the HTML report
-- **Plot sections** — which charts to generate
-- **Screenshot capture** — whether to capture a PNG
-- **Gallery publishing** — which artifacts to include in the gallery
+- **Metadata** - stable id, name, description, schema version, status, supported targets, and supported outputs
+- **Config definition and validation** - required and optional fields plus normalized defaults
+- **Lifecycle hooks** - optional prepare and cleanup steps around `run`
+- **Execution behavior** - the plugin-specific experiment implementation
+- **Normalized result data** - variants, cases, outcomes, metrics, artifacts, warnings, failures, and summary
 
 The `context-strategy-comparison` plugin delegates to the existing controlled experiment engine, preserving fake-agent, Codex, Claude, scoring, report, plot, screenshot, and gallery behavior. It also emits normalized plugin result metadata in `experiment-plugin-result.json` next to the existing legacy experiment artifacts.
 
 Target-aware plugin execution passes a context with separate tool and target roots. Lab-owned outputs default to `lab-output/experiments/<plugin-id>/<target>/<run-id>/`, and plugin-aware reports in that directory include plugin, target, variant, case, metric, artifact, warning, skip, and failure metadata.
+
+The user-facing command surface is:
+- `npm run experiment:list`
+- `npm run experiment:describe -- --experiment <plugin-id>`
+- `npm run experiment:run -- --experiment <plugin-id> [--target <path>]`
 
 ### Plugin architecture diagram
 
@@ -215,9 +217,9 @@ flowchart TD
 
 ---
 
-## Planned security validation architecture
+## Security validation architecture
 
-The release-security framework described here is planned architecture, not a current implementation. It is intended to sit alongside the experiment system as a lab-owned validation layer for **my-dev-kit** release preparation.
+The release-security framework sits alongside the experiment system as a lab-owned validation layer for local CLI/package release preparation. As of v0.1.4, it supports self-validation and reusable target-aware validation for external local projects.
 
 The security-validation track does not replace the current pipeline and does not depend on my-dev-kit becoming a hosted service. The target remains a local CLI/package, so the architecture is centered on static analysis, dependency/package checks, adversarial CLI tests, bounded fuzz smoke checks, and release reporting.
 
@@ -252,8 +254,8 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  A[Current experiment and evidence pipeline] --> B[Future generic experiment-plugin runtime]
-  A --> C[Planned release-security validation layer]
+  A[Current experiment and evidence pipeline] --> B[Generic experiment-plugin runtime]
+  A --> C[Target-aware release-security validation layer]
   C --> D[Static scans]
   C --> E[Dependency and package checks]
   C --> F[CLI adversarial tests]

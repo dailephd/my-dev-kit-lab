@@ -100,6 +100,114 @@ npm run verify
 
 ## Lab commands
 
+### `npm run experiment:list`
+
+Lists registered experiment plugins. The v0.2.0 command surface includes `context-strategy-comparison`, the first plugin built from the existing raw-full-file vs my-dev-kit-guided workflow.
+
+**When to use:** To discover available local experiment plugins before describing or running one.
+
+**Options:**
+- `--json` — print structured JSON instead of readable console output
+
+**Examples:**
+```bash
+npm run experiment:list
+npm run --silent experiment:list -- --json
+```
+
+**Output includes:**
+- plugin id
+- plugin name and description
+- status
+- supported variants
+- supported output types
+
+---
+
+### `npm run experiment:describe`
+
+Prints metadata and usage details for a registered experiment plugin.
+
+**When to use:** Before running an experiment, to inspect its purpose, supported variants, config fields, target behavior, reports, and examples.
+
+**Options:**
+- `--experiment` — plugin id, for example `context-strategy-comparison`
+- `--json` — print structured JSON
+
+**Examples:**
+```bash
+npm run experiment:describe -- --experiment context-strategy-comparison
+npm run --silent experiment:describe -- --experiment context-strategy-comparison --json
+```
+
+Unknown plugin ids fail cleanly with a nonzero exit code and no stack trace unless `DEBUG` is set.
+
+---
+
+### `npm run experiment:run`
+
+Runs an experiment plugin through the generic target-aware runner and writes plugin-aware reports.
+
+The first plugin is `context-strategy-comparison`. It preserves the existing raw-full-file vs my-dev-kit-guided controlled experiment behavior while adding plugin metadata, target metadata, and normalized report outputs.
+
+**When to use:** To run a plugin against my-dev-kit-lab itself or against an explicit local target project.
+
+**Options:**
+- `--experiment` — plugin id, for example `context-strategy-comparison`
+- `--target` — optional local target project path; omitted means self mode
+- `--out` — optional output directory; defaults to `lab-output/experiments/<plugin>/<target>/<run>`
+- `--cases` — benchmark case JSON, default `examples/token-savings-cases.json`
+- `--project-profiles` — benchmark project profile JSON
+- `--case` — one or more comma-separated case ids
+- `--benchmark-project` — one or more comma-separated benchmark project ids
+- `--agents` — comma-separated agents: `fake-agent`, `codex`, `claude`
+- `--strategies` — comma-separated variants: `raw-full-file`, `my-dev-kit-guided`
+- `--complexities` — comma-separated complexity levels: `short`, `medium`, `long`, `multi-step`
+- `--timeout-ms` — per-run timeout in milliseconds
+- `--max-runs` — maximum run count
+- `--continue-on-failure` / `--no-continue-on-failure` — partial outcome behavior
+- `--include-real-agents` — allow Codex or Claude runs
+- `--command-template-codex` / `--command-template-claude` — override real-agent command templates
+- `--no-screenshot` — accepted for compatibility with demo smoke commands; plugin-aware reports do not capture screenshots yet
+
+**Examples:**
+```bash
+# Self-target fake-agent smoke
+npm run experiment:run -- \
+  --experiment context-strategy-comparison \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
+
+# External local target
+npm run experiment:run -- \
+  --experiment context-strategy-comparison \
+  --target /path/to/local/project \
+  --case todo-ts-create-task \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
+```
+
+```powershell
+npm run experiment:run -- `
+  --experiment context-strategy-comparison `
+  --target "Z:\Users\newuser\Projects\my-dev-kit-v1" `
+  --case todo-ts-create-task `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+**Outputs:**
+- legacy controlled-experiment artifacts: `experiment-summary.json`, `experiment-runs.json`, `experiment-comparisons.json`, `experiment-config.json`
+- plugin result metadata: `experiment-plugin-result.json`
+- plugin-aware reports: `report.json`, `report.html`
+
+Reports include plugin, target, variant, case, metric, artifact, warning, skip, and failure metadata. Target projects are not modified; generated artifacts stay under lab-owned output paths unless an explicit lab output path is provided.
+
+---
+
 ### `npm run generate-prompt-variants`
 
 Generates raw-full-file and my-dev-kit-guided prompt variants for each benchmark case at the specified complexity levels. Writes prompt text files and prompt complexity metrics.

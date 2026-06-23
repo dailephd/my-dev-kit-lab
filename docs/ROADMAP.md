@@ -8,8 +8,8 @@ This document describes the current baseline state of my-dev-kit-lab and the pla
 
 ```mermaid
 flowchart TD
-  A[Current Baseline\nraw-vs-indexed pipeline\nreal-agent campaign support] --> B[Next Phase\nGeneric experiment-plugin framework\ncontext-strategy-comparison plugin migration]
-  B --> C[Experiment Track\nWarm-index reuse experiments\nIncremental-change experiments]
+  A[Current Baseline\nraw-vs-indexed pipeline\nreal-agent campaign support] --> B[v0.2.0\nGeneric experiment-plugin framework\ncontext-strategy-comparison plugin]
+  B --> C[Next Experiment Track\nWarm-index reuse experiments\nIncremental-change experiments]
   C --> D[Experiment Track\nContext-window scaling\nRetrieval precision and recall]
   D --> E[Experiment Track\nAgent-success-rate experiments\nReal-agent hardening\nRicher gallery and report UX]
   B --> F[Release-Security Track\nSecurity model and test matrix\npackage and dependency checks]
@@ -59,19 +59,19 @@ The current baseline is a fully working experiment pipeline for the raw-vs-index
 - Codex may produce timeouts or invalid-output runs
 - The current baseline does not yet prove every future value claim for my-dev-kit
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
-- The experiment pipeline is currently hardcoded for the raw-vs-indexed comparison; adding new experiment types requires significant pipeline changes
+- The generic experiment-plugin framework currently has one implemented plugin; stronger evidence still requires future plugins and broader real-target campaigns
 
 ---
 
-## Next phase: Generic experiment-plugin framework
+## v0.2.0: Generic experiment-plugin framework
 
-The next major development item is to refactor my-dev-kit-lab into a generic experiment framework.
+The v0.2.0 development track refactors my-dev-kit-lab into a generic experiment framework while preserving the raw-vs-indexed behavior.
 
 ### What this means
 
-Instead of a single hardcoded pipeline, each experiment type becomes a plugin. The shared runtime handles trial planning, agent execution, metric collection, scoring, report building, plot building, screenshot capture, and gallery publishing. Each plugin declares what it needs from the runtime.
+Instead of treating the raw-vs-indexed workflow as the only experiment shape, experiment types are represented as plugins. The shared runtime handles plugin discovery, target metadata, config validation, execution context, normalized results, and plugin-aware JSON/HTML reports. Existing legacy report, plot, screenshot, and gallery workflows remain available for the controlled experiment path.
 
-The current raw-vs-indexed experiment becomes the first plugin: **context-strategy-comparison**.
+The current raw-vs-indexed experiment is the first plugin: **context-strategy-comparison**.
 
 ### Migration steps
 
@@ -79,15 +79,19 @@ The current raw-vs-indexed experiment becomes the first plugin: **context-strate
 flowchart TD
   A[Extract shared runtime\nfrom current pipeline] --> B[Define experiment plugin interface]
   B --> C[Wrap current raw-vs-indexed experiment\nas context-strategy-comparison plugin]
-  C --> D[Validate plugin produces\nsame artifacts as current pipeline]
-  D --> E[Framework is ready\nfor new plugins]
+  C --> D[Add target-aware execution\nand plugin-aware reports]
+  D --> E[Add user-facing\nexperiment commands]
 ```
 
 ### Why this matters
 
 - New experiment types can be added as plugins without rebuilding the pipeline
-- The shared runtime handles common concerns: agent execution, metric collection, report sections, gallery publishing
+- Users can list, describe, and run experiments by plugin id
+- Experiments can run against explicit local target projects
+- Plugin-aware reports include plugin, target, variant, metric, artifact, warning, skip, and failure metadata
 - Each plugin focuses only on what makes its experiment type unique
+
+Future plugins remain planned, not implemented.
 
 ---
 
