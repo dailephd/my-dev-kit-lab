@@ -37,8 +37,11 @@ describe("runControlledExperimentCommand", () => {
     expect(existsSync(path.join(outDir, "experiment-summary.json"))).toBe(true);
     expect(existsSync(path.join(outDir, "experiment-runs.json"))).toBe(true);
     expect(existsSync(path.join(outDir, "experiment-comparisons.json"))).toBe(true);
+    expect(existsSync(path.join(outDir, "experiment-plugin-result.json"))).toBe(true);
     const summary = JSON.parse(await readFile(path.join(outDir, "experiment-summary.json"), "utf8"));
     expect(summary.totalRuns).toBe(2);
+    const pluginResult = JSON.parse(await readFile(path.join(outDir, "experiment-plugin-result.json"), "utf8"));
+    expect(pluginResult.pluginId).toBe("context-strategy-comparison");
   });
 
   it("supports multi-step complexity and max-runs", async () => {

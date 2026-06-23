@@ -11,10 +11,11 @@ my-dev-kit-lab is organized as a layered pipeline. Each layer has a focused resp
 | Benchmarks | `benchmarks/` | Deterministic benchmark projects, contracts, and answer keys |
 | Core utilities | `src/core/` | Token counting, safe paths, file glob collection, subprocess execution |
 | Evaluation | `src/evaluation/` | File tree building, complexity scoring, benchmark metadata validation |
+| Experiments | `src/experiments/` | Generic experiment plugin contracts, registry, target metadata, config validation, normalized run results, and the first `context-strategy-comparison` plugin |
 | Prompts | `src/prompts/` | Raw-full-file and my-dev-kit-guided prompt generation, prompt complexity metrics |
 | Agents | `src/agents/` | fake-agent, Codex, and Claude adapter interfaces |
 | Experiment runner | `src/commands/` | Controlled experiment orchestration, correctness scoring, artifact writing |
-| Report | `src/report/` | Experiment report input model, HTML rendering, artifact writing |
+| Report | `src/report/` | Legacy controlled-experiment report rendering plus plugin-aware report models, HTML/JSON rendering, and artifact writing |
 | Screenshot | `src/screenshot/` | Optional PNG capture from generated local HTML reports |
 | Plots | `src/plots/` | Plot-ready data generation and deterministic SVG chart rendering |
 | Visualization demos | `src/visualizationDemos/` | Bounded my-dev-kit visualization command demos |
@@ -109,7 +110,7 @@ The controlled experiment runner pairs `raw-full-file` and `my-dev-kit-guided` r
 
 ### 5. Reporting layer
 
-The report renderer reads experiment artifacts and produces `experiment-report.json` and `experiment-report.html`. The plot generator reads experiment artifacts and produces `plot-data.json` and SVG charts. Visualization demos run bounded my-dev-kit commands against a benchmark project and write demo artifacts. Screenshot capture optionally produces a PNG from the HTML report.
+The legacy report renderer reads controlled-experiment artifacts and produces `experiment-report.json` and `experiment-report.html`. The plugin-aware report renderer reads normalized `ExperimentRun` results plus plugin metadata and produces target-aware `report.json` and `report.html` under the experiment output root. The plot generator reads experiment artifacts and produces `plot-data.json` and SVG charts. Visualization demos run bounded my-dev-kit commands against a benchmark project and write demo artifacts. Screenshot capture optionally produces a PNG from the HTML report.
 
 ### 6. Gallery layer
 
@@ -138,23 +139,29 @@ flowchart TD
 
 ---
 
-## Future experiment-plugin architecture
+## Experiment-plugin architecture
 
-The next major development phase refactors my-dev-kit-lab into a generic experiment framework. The current pipeline becomes the first experiment plugin.
+my-dev-kit-lab now includes a generic experiment framework. The existing raw-full-file vs my-dev-kit-guided pipeline is registered as the first plugin: `context-strategy-comparison`.
 
 ### Plugin model
 
 Each experiment plugin declares:
-- **Trial plan** — which cases, agents, strategies, and complexity levels to run
-- **Agent execution** — how to invoke agents and collect results
-- **Metric collection** — which metrics to record per run
-- **Scoring** — how to evaluate run outputs
-- **Report sections** — which sections to include in the HTML report
-- **Plot sections** — which charts to generate
-- **Screenshot capture** — whether to capture a PNG
-- **Gallery publishing** — which artifacts to include in the gallery
+- **Metadata** - stable id, name, description, schema version, status, supported targets, and supported outputs
+- **Config definition and validation** - required and optional fields plus normalized defaults
+- **Lifecycle hooks** - optional prepare and cleanup steps around `run`
+- **Execution behavior** - the plugin-specific experiment implementation
+- **Normalized result data** - variants, cases, outcomes, metrics, artifacts, warnings, failures, and summary
 
-### Future plugin architecture diagram
+The `context-strategy-comparison` plugin delegates to the existing controlled experiment engine, preserving fake-agent, Codex, Claude, scoring, report, plot, screenshot, and gallery behavior. It also emits normalized plugin result metadata in `experiment-plugin-result.json` next to the existing legacy experiment artifacts.
+
+Target-aware plugin execution passes a context with separate tool and target roots. Lab-owned outputs default to `lab-output/experiments/<plugin-id>/<target>/<run-id>/`, and plugin-aware reports in that directory include plugin, target, variant, case, metric, artifact, warning, skip, and failure metadata.
+
+The user-facing command surface is:
+- `npm run experiment:list`
+- `npm run experiment:describe -- --experiment <plugin-id>`
+- `npm run experiment:run -- --experiment <plugin-id> [--target <path>]`
+
+### Plugin architecture diagram
 
 ```mermaid
 graph TD
@@ -199,9 +206,9 @@ graph TD
 
 ```mermaid
 flowchart TD
-  A[Current: hardcoded\nraw-vs-indexed pipeline] --> B[Extract shared runtime\nfrom current pipeline]
-  B --> C[Wrap current experiment\nas context-strategy-comparison plugin]
-  C --> D[Validate plugin produces\nsame artifacts as current pipeline]
+  A[Generic plugin\ncontracts + registry] --> B[Wrap current experiment\nas context-strategy-comparison plugin]
+  B --> C[Validate plugin produces\nsame artifacts as current pipeline]
+  C --> D[Add target-aware\nexperiment execution]
   D --> E[Add warm-index-reuse plugin]
   E --> F[Add incremental-change plugin]
   F --> G[Add context-window-scaling plugin]
@@ -210,9 +217,9 @@ flowchart TD
 
 ---
 
-## Planned security validation architecture
+## Security validation architecture
 
-The release-security framework described here is planned architecture, not a current implementation. It is intended to sit alongside the experiment system as a lab-owned validation layer for **my-dev-kit** release preparation.
+The release-security framework sits alongside the experiment system as a lab-owned validation layer for local CLI/package release preparation. As of v0.1.4, it supports self-validation and reusable target-aware validation for external local projects.
 
 The security-validation track does not replace the current pipeline and does not depend on my-dev-kit becoming a hosted service. The target remains a local CLI/package, so the architecture is centered on static analysis, dependency/package checks, adversarial CLI tests, bounded fuzz smoke checks, and release reporting.
 
@@ -247,8 +254,8 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  A[Current experiment and evidence pipeline] --> B[Future generic experiment-plugin runtime]
-  A --> C[Planned release-security validation layer]
+  A[Current experiment and evidence pipeline] --> B[Generic experiment-plugin runtime]
+  A --> C[Target-aware release-security validation layer]
   C --> D[Static scans]
   C --> E[Dependency and package checks]
   C --> F[CLI adversarial tests]

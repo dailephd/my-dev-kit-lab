@@ -2,6 +2,28 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased] - v0.2.0
+
+Generic experiment-plugin foundation, first plugin conversion, target-aware execution, plugin-aware reports, and user-facing command surface.
+
+### Added
+
+- Added generic experiment plugin contracts, registry, execution context, target model, config validation result, and normalized result model.
+- Added shared local target metadata resolution used by both experiment targets and security validation targets.
+- Added `context-strategy-comparison` as the first registered experiment plugin for the existing raw-full-file vs my-dev-kit-guided workflow.
+- Added plugin result metadata output at `experiment-plugin-result.json` while preserving the existing `experiment-summary.json`, `experiment-runs.json`, and `experiment-comparisons.json` artifacts.
+- Added target-aware experiment execution for explicit local projects via `experiment:run -- --target <path>`.
+- Added plugin-aware JSON and HTML reports with plugin, target, variant, case, metric, artifact, warning, skip, and failure metadata.
+- Added `experiment:list`.
+- Added `experiment:describe`.
+- Added `experiment:run`.
+- Documented `context-strategy-comparison` as the first experiment plugin.
+
+### Changed
+
+- Routed the existing controlled experiment command wrapper through the `context-strategy-comparison` plugin without changing the public command arguments or legacy artifact behavior.
+- Preserved existing raw-vs-indexed workflow behavior through the plugin runner and kept old controlled-experiment commands available.
+
 ## [0.1.4] - 2026-06-22
 
 Final security-validation gate with reusable multi-project target support.
