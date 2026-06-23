@@ -217,9 +217,9 @@ flowchart TD
 
 ---
 
-## Planned security validation architecture
+## Security validation architecture
 
-The release-security framework described here is planned architecture, not a current implementation. It is intended to sit alongside the experiment system as a lab-owned validation layer for **my-dev-kit** release preparation.
+The release-security framework sits alongside the experiment system as a lab-owned validation layer for local CLI/package release preparation. As of v0.1.4, it supports self-validation and reusable target-aware validation for external local projects.
 
 The security-validation track does not replace the current pipeline and does not depend on my-dev-kit becoming a hosted service. The target remains a local CLI/package, so the architecture is centered on static analysis, dependency/package checks, adversarial CLI tests, bounded fuzz smoke checks, and release reporting.
 
@@ -254,8 +254,8 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  A[Current experiment and evidence pipeline] --> B[Future generic experiment-plugin runtime]
-  A --> C[Planned release-security validation layer]
+  A[Current experiment and evidence pipeline] --> B[Generic experiment-plugin runtime]
+  A --> C[Target-aware release-security validation layer]
   C --> D[Static scans]
   C --> E[Dependency and package checks]
   C --> F[CLI adversarial tests]
