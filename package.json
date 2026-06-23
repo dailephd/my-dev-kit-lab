@@ -56,6 +56,7 @@
     "build-gallery": "tsx scripts/build-gallery.ts",
     "lab-demo": "tsx scripts/run-lab-demo.ts",
     "render-experiment-report": "tsx scripts/render-experiment-report.ts",
+    "experiment:run": "tsx scripts/experiments/runExperiment.ts",
     "run-final-demo": "tsx scripts/run-final-demo.ts",
     "run-agent-prompt": "tsx scripts/run-agent-prompt.ts",
     "run-controlled-experiment": "tsx scripts/run-controlled-experiment.ts",
