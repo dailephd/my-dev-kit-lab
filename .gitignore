@@ -63,6 +63,7 @@ docs/FINAL_VERIFICATION_REPORT.txt
 docs/PUBLIC_RELEASE_CHECKLIST.md
 docs/PUBLISHING.md
 docs/REAL_AGENT_BENCHMARK_CAMPAIGN_REPORT.txt
+my-dev-kit-lab-security-check-template.txt
 
 # Security validation generated artifacts (not committed by default)
 reports/security/raw/*
