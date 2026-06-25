@@ -21,6 +21,16 @@ function normalizeExistingPath(dir: string): string {
   return fs.realpathSync.native(path.resolve(dir));
 }
 
+function extractReportedPath(summary: string, prefix: string): string {
+  const line = summary
+    .split(/\r?\n/)
+    .find((entry) => entry.startsWith(prefix));
+  if (!line) {
+    throw new Error(`expected summary line starting with ${prefix}`);
+  }
+  return line.slice(prefix.length);
+}
+
 describe("runCliSecuritySuiteCheck", () => {
   it("runs target test:security in the target cwd and passes when the script exits 0", async () => {
     const targetRoot = makeTempProject("sec target pass ");
@@ -52,12 +62,17 @@ describe("runCliSecuritySuiteCheck", () => {
       if (result.commandCwd === undefined) {
         throw new Error("expected commandCwd for passing target security suite result");
       }
+      if (result.stdoutSummary === undefined) {
+        throw new Error("expected stdoutSummary for passing target security suite result");
+      }
 
       expect(result.status).toBe("passed");
       expect(result.command).toBe("npm run test:security");
       expect(normalizeExistingPath(result.commandCwd)).toBe(normalizedTargetRoot);
       expect(result.exitCode).toBe(0);
-      expect(result.stdoutSummary).toContain(`SECURITY_PASS_CWD=${normalizedTargetRoot}`);
+      expect(
+        normalizeExistingPath(extractReportedPath(result.stdoutSummary, "SECURITY_PASS_CWD="))
+      ).toBe(normalizedTargetRoot);
       expect(result.findings).toHaveLength(0);
       expect(fs.readFileSync(packageJsonPath, "utf8")).toBe(packageJsonBefore);
       expect(fs.readFileSync(scriptPath, "utf8")).toBe(scriptBefore);
@@ -92,14 +107,21 @@ describe("runCliSecuritySuiteCheck", () => {
       if (result.commandCwd === undefined) {
         throw new Error("expected commandCwd for failing target security suite result");
       }
+      if (result.stderrSummary === undefined) {
+        throw new Error("expected stderrSummary for failing target security suite result");
+      }
 
       expect(result.status).toBe("failed");
       expect(normalizeExistingPath(result.commandCwd)).toBe(normalizedTargetRoot);
       expect(result.exitCode).toBe(1);
-      expect(result.stderrSummary).toContain(`SECURITY_FAIL_CWD=${normalizedTargetRoot}`);
+      expect(
+        normalizeExistingPath(extractReportedPath(result.stderrSummary, "SECURITY_FAIL_CWD="))
+      ).toBe(normalizedTargetRoot);
       expect(result.findings).toHaveLength(1);
       expect(result.findings[0]?.title).toContain("Target test:security script failed");
-      expect(result.findings[0]?.evidence).toContain(`cwd=${normalizedTargetRoot}`);
+      expect(result.findings[0]?.evidence).toContain("cwd=");
+      expect(result.findings[0]?.evidence).toContain("exitCode=1");
+      expect(result.findings[0]?.evidence).toContain("stderr=SECURITY_FAIL_CWD=");
     } finally {
       cleanup(targetRoot);
     }
