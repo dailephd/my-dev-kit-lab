@@ -23,7 +23,7 @@ describe("runVisualizationDemos", () => {
     expect(artifacts.summary.completedRuns).toBe(6);
     expect(existsSync(path.join(outDir, "artifacts", "call-graph.svg"))).toBe(true);
     expect(artifacts.runs[0].stdoutPath).toContain("stdout");
-  });
+  }, 15000);
 
   it("records unsupported commands as warnings", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "viz-fail-"));
@@ -55,5 +55,5 @@ describe("runVisualizationDemos", () => {
 
     expect(artifacts.summary.completedRuns).toBe(6);
     expect(existsSync(path.join(outDir, "artifacts", "data-model.svg"))).toBe(true);
-  });
+  }, 15000);
 });

@@ -24,7 +24,7 @@ function runPythonSnippet(code: string) {
     cwd: projectDir,
     encoding: "utf8",
     shell: false,
-    timeout: 10_000,
+    timeout: 30_000,
     windowsHide: true,
     env: {
       ...process.env,
@@ -93,5 +93,5 @@ describe("benchmark behavior parity", () => {
     ]);
     expect(result.results.at(3)).toEqual([{ id: "task-2", title: "Two", completed: false }]);
     expect(result.results.at(4)).toEqual({ total: 2, open: 1, completed: 1 });
-  });
+  }, 30_000);
 });

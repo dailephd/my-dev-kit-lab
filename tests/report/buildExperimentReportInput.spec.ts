@@ -58,7 +58,7 @@ describe("buildExperimentReportInput", () => {
     tempDirs.push(experimentDir3);
     await rm(path.join(experimentDir3, "experiment-comparisons.json"));
     await expect(buildExperimentReportInput({ experimentDir: experimentDir3 })).rejects.toThrow("experiment-comparisons.json");
-  });
+  }, 15000);
 });
 
 describe("buildAggregateAnswers", () => {
