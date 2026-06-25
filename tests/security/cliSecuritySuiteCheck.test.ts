@@ -49,6 +49,9 @@ describe("runCliSecuritySuiteCheck", () => {
         timeoutMs: 30_000,
       });
       const normalizedTargetRoot = normalizeExistingPath(targetRoot);
+      if (result.commandCwd === undefined) {
+        throw new Error("expected commandCwd for passing target security suite result");
+      }
 
       expect(result.status).toBe("passed");
       expect(result.command).toBe("npm run test:security");
@@ -86,6 +89,9 @@ describe("runCliSecuritySuiteCheck", () => {
         timeoutMs: 30_000,
       });
       const normalizedTargetRoot = normalizeExistingPath(targetRoot);
+      if (result.commandCwd === undefined) {
+        throw new Error("expected commandCwd for failing target security suite result");
+      }
 
       expect(result.status).toBe("failed");
       expect(normalizeExistingPath(result.commandCwd)).toBe(normalizedTargetRoot);
