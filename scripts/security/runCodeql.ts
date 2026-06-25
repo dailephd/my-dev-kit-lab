@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { runCodeqlCheck } from "../../src/securityValidation/staticScans/codeql.js";
 import { resolveValidationTarget } from "../../src/securityValidation/validate/resolveTarget.js";
+import { resolveToolRoot } from "./resolveToolRoot.js";
 
 const rawArgs = process.argv.slice(2);
 const args = parseArgs(rawArgs);
 
-const toolRoot = process.cwd();
+const toolRoot = resolveToolRoot(import.meta.url);
 
 let targetRoot: string;
 try {

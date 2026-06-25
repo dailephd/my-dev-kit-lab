@@ -642,6 +642,7 @@ Tests included (v0.1.4):
 - `cliAdversarialDataVolume.test.ts` — huge source file, many files, deep nesting
 - `staticScanChecks.test.ts` — CodeQL/Semgrep skip gracefully when unavailable; Semgrep JSON parser
 - `securityValidateGate.test.ts` — verdict calculation, report rendering (text and JSON)
+- `cliSecuritySuiteCheck.test.ts` — external target `test:security` cwd, pass/fail behavior, and path-with-spaces coverage
 
 By default, adversarial tests run against a deterministic fake CLI fixture — no my-dev-kit installation required. To run against a real CLI, set `MY_DEV_KIT_SECURITY_TARGET_COMMAND=<path>` before running.
 
@@ -777,10 +778,10 @@ Orchestrates all security-validation checks and writes a release security report
 - package tarball inspection — `npm pack --dry-run` against the target (mandatory if target has package.json)
 - CodeQL availability check — optional, skipped if CLI absent
 - Semgrep static analysis — optional, skipped if unavailable
-- CLI adversarial test suite — runs against tool root (my-dev-kit-lab), labeled clearly as tool self-tests
+- target security test suite — runs `npm run test:security` in the target root for external validation when the target defines `scripts.test:security`; self-validation still runs the lab's own `test:security` suite in the tool root
 - fuzz smoke — bounded fuzz targets against tool root (mandatory)
 
-**Mandatory checks:** npm audit, package tarball inspection (when target has package.json), CLI adversarial suite, fuzz smoke.
+**Mandatory checks:** npm audit, package tarball inspection (when target has package.json), target/tool security test suite, fuzz smoke.
 
 **Optional checks:** CodeQL CLI local availability, Semgrep, OSV-Scanner. Skipped with a structured reason when tools are absent.
 
@@ -788,9 +789,11 @@ Orchestrates all security-validation checks and writes a release security report
 - `reports/security/<prefix>-security-validation.txt` — human-readable full report
 - `reports/security/<prefix>-security-validation.json` — machine-readable structured report
 
-Where `<prefix>` is derived automatically: `v0.2.0` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
+Where `<prefix>` is derived automatically: `v0.2.1` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
 
-External-target reports include both the tool root (`my-dev-kit-lab`) and the target root, plus target package and git metadata when available. Target project files are not modified during validation.
+External-target reports include both the tool root (`my-dev-kit-lab`) and the target root, plus target package and git metadata when available. The target security suite check records the executed command, command cwd, exit code, and stdout/stderr summaries. Target project files are not modified during validation.
+
+Installed-package validation must be smoke-tested from a packed tarball before publish. This catches cases where source-checkout execution differs from the npm package layout.
 
 Generated reports are not committed by default (see `.gitignore`). To preserve a report for a release handoff, copy it to a versioned location explicitly.
 

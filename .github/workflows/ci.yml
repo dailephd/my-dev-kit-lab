@@ -6,6 +6,7 @@ on:
       - main
       - release/**
       - fix/**
+      - audit/**
   pull_request:
 
 jobs:

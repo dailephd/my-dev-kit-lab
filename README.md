@@ -2,7 +2,7 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [my-dev-kit](https://github.com/your-org/my-dev-kit). It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, and builds gallery outputs.
 
-As of v0.2.0, my-dev-kit-lab also exposes a generic experiment-plugin framework for validating local developer tools, security checks, codebase workflows, retrieval strategies, and experiment outcomes. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+As of v0.2.1, my-dev-kit-lab also exposes a generic experiment-plugin framework for validating local developer tools, security checks, codebase workflows, retrieval strategies, and experiment outcomes. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
 
 **my-dev-kit** is the repo indexing and graph-guided retrieval engine.
 **my-dev-kit-lab** is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
@@ -205,7 +205,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. v0.2.0 adds the generic experiment-plugin framework, keeps `context-strategy-comparison` as the first plugin, and keeps future experiment types on the roadmap.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. v0.2.1 keeps the generic experiment-plugin framework, preserves `context-strategy-comparison` as the first plugin, and fixes target-aware security validation so installed-package checks run `npm run test:security` in the external target project root.
 
 ---
 
@@ -239,7 +239,9 @@ The release gate is implemented as of v0.1.4. It combines static scans, dependen
 
 CodeQL, Semgrep, and OSV-Scanner are optional. When unavailable locally, they are recorded as `skipped` in the report — not as failures — and the verdict is `ready except optional manual checks` rather than `not ready`.
 
-Each security command can validate my-dev-kit-lab itself or another local project via `--target <path>`. When `--target` is omitted, the framework performs self-validation. Target projects are inspected in place: their source files are not modified, generated artifacts stay under `reports/security/`, and external-target reports identify both the tool root and the target root.
+Each security command can validate my-dev-kit-lab itself or another local project via `--target <path>`. When `--target` is omitted, the framework performs self-validation. Target projects are inspected in place: their source files are not modified, generated artifacts stay under `reports/security/`, and external-target reports identify the tool root, target root, target package metadata, target git metadata, command cwd, exit code, and stdout/stderr summaries.
+
+For external-target validation, `security:validate` reads the target `package.json`, detects `scripts.test:security`, and runs `npm run test:security` in the target project root when that script exists. This behavior is validated both from the source checkout and from an installed packed tarball because published-package execution differs from local source execution.
 
 Generated security reports under `reports/security/` are excluded from git by default. They are produced locally or in CI as release-gate evidence and are not committed to the repository.
 

@@ -105,9 +105,9 @@ export async function runMeasuredCommand(options: {
         resolvedCommand: resolution
       };
       void Promise.all([
-        writeFile(stdoutPath, stdout, "utf8"),
-        writeFile(stderrPath, stderr, "utf8"),
-        writeFile(telemetryPath, JSON.stringify(measured, null, 2), "utf8")
+        writeArtifact(stdoutPath, stdout),
+        writeArtifact(stderrPath, stderr),
+        writeArtifact(telemetryPath, JSON.stringify(measured, null, 2))
       ]).then(() => resolve(measured));
       return;
     }
@@ -134,8 +134,8 @@ export async function runMeasuredCommand(options: {
       }
       const endedAt = new Date().toISOString();
       const durationMs = Date.now() - started;
-      await writeFile(stdoutPath, stdout, "utf8");
-      await writeFile(stderrPath, stderr, "utf8");
+      await writeArtifact(stdoutPath, stdout);
+      await writeArtifact(stderrPath, stderr);
       const measured: MeasuredCommandResult = {
         commandId: options.commandId,
         commandString: options.commandString,
@@ -155,12 +155,17 @@ export async function runMeasuredCommand(options: {
         error: spawnError,
         resolvedCommand: resolution
       };
-      await writeFile(telemetryPath, JSON.stringify(measured, null, 2), "utf8");
+      await writeArtifact(telemetryPath, JSON.stringify(measured, null, 2));
       resolve(measured);
     });
   });
 
   return result;
+}
+
+async function writeArtifact(filePath: string, value: string): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, value, "utf8");
 }
 
 function killProcessTree(pid: number | undefined): void {

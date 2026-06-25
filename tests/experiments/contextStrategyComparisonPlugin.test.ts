@@ -89,7 +89,7 @@ describe("context-strategy-comparison plugin", () => {
       await readFile(path.join(outDir, "experiment-plugin-result.json"), "utf8")
     );
     expect(pluginJson.pluginId).toBe("context-strategy-comparison");
-    expect(pluginJson.target.packageName).toBe("my-dev-kit-lab");
+    expect(pluginJson.target.packageName).toBe("@dailephd/my-dev-kit-lab");
     expect(pluginJson.legacyArtifactPaths.summaryPath).toBe(
       path.join(outDir, "experiment-summary.json")
     );

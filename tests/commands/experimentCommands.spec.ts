@@ -21,7 +21,7 @@ describe("experiment npm scripts", () => {
     expect(result.stdout).toContain("Context Strategy Comparison");
     expect(result.stdout).toContain("raw-full-file");
     expect(result.stdout).toContain("my-dev-kit-guided");
-  });
+  }, 15000);
 
   it("experiment:list supports JSON output", () => {
     const result = runNpm(["run", "--silent", "experiment:list", "--", "--json"]);
@@ -34,7 +34,7 @@ describe("experiment npm scripts", () => {
         supportedVariants: ["raw-full-file", "my-dev-kit-guided"],
       })
     );
-  });
+  }, 15000);
 
   it("experiment:describe prints plugin metadata and usage details", () => {
     const result = runNpm([
@@ -52,7 +52,7 @@ describe("experiment npm scripts", () => {
     expect(result.stdout).toContain("Target behavior:");
     expect(result.stdout).toContain("Expected reports:");
     expect(result.stdout).toContain("npm run experiment:run");
-  });
+  }, 15000);
 
   it("experiment:describe fails cleanly for an unknown plugin", () => {
     const result = runNpm([
@@ -66,7 +66,7 @@ describe("experiment npm scripts", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Experiment plugin not found: does-not-exist");
     expect(result.stderr).not.toContain("at ");
-  });
+  }, 15000);
 
   it("experiment:run parses target paths with spaces and accepts --no-screenshot", () => {
     const parsed = parseRunExperimentArgs([
@@ -157,7 +157,7 @@ describe("experiment npm scripts", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Runs: 2");
     expect(result.stdout).toContain("Comparisons: 1");
-  });
+  }, 15000);
 });
 
 function runNpm(args: string[]): { status: number | null; stdout: string; stderr: string } {

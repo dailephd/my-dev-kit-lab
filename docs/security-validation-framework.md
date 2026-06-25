@@ -195,7 +195,7 @@ Implemented. Each validation run generates:
 - `reports/security/<prefix>-security-validation.txt` — human-readable report
 - `reports/security/<prefix>-security-validation.json` — machine-readable structured report
 
-The `<prefix>` is derived automatically from the target: `v0.2.0` for self-validation, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or the directory basename when no package.json is present.
+The `<prefix>` is derived automatically from the target: `v0.2.1` for self-validation, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or the directory basename when no package.json is present.
 
 Report sections:
 
@@ -208,7 +208,7 @@ Report sections:
 7. npm audit result
 8. OSV-Scanner result
 9. Package tarball inspection
-10. File-system/path traversal tests
+10. CLI / file-system / path traversal tests
 11. Source read-only boundary tests
 12. Graphviz/subprocess safety tests
 13. JSON stdout/stderr safety tests
@@ -241,6 +241,8 @@ The framework verifies that:
 - subprocess execution avoids shell-string interpolation
 - output paths and labels do not allow command injection
 - warnings and progress stay on stderr rather than corrupting JSON stdout
+- external target `test:security` runs in the target project root rather than the tool root
+- external-target reports retain command cwd, exit code, stdout/stderr summaries, and target package metadata
 
 ---
 
@@ -303,6 +305,7 @@ The framework verifies that:
 | `src/securityValidation/fuzz/fuzzHarness.ts` | **Implemented** — bounded fuzz runner; crashes become structured findings |
 | `src/securityValidation/fuzz/fuzzTargets.ts` | **Implemented** — 9 fuzz targets covering parsers, DOT escaping, path normalization |
 | `src/securityValidation/validate/resolveTarget.ts` | **Implemented** — `SecurityValidationTarget` type; `resolveValidationTarget()`, `reportFilenamePrefix()`, `targetDescription()` helpers |
+| `src/securityValidation/validate/runCliSecuritySuiteCheck.ts` | **Implemented** — self-vs-target `test:security` execution, command cwd/exit metadata, missing-script handling |
 | `src/securityValidation/validate/verdict.ts` | **Implemented** — verdict calculation from check results and findings |
 | `src/securityValidation/validate/runSecurityValidation.ts` | **Implemented** — orchestrator for all security checks; target-aware (accepts `targetPath?`) |
 | `src/securityValidation/report/securityReportTypes.ts` | **Implemented** — SecurityReport, SecurityReportSection, SecurityReportMetadata types |
@@ -314,6 +317,7 @@ The framework verifies that:
 | `tests/security/staticScanChecks.test.ts` | **Implemented** — CodeQL/Semgrep skip gracefully; parseSemgrepJson unit tests |
 | `tests/security/securityValidateGate.test.ts` | **Implemented** — verdict calculation; text and JSON report rendering |
 | `tests/security/securityValidationTarget.test.ts` | **Implemented** — self-mode, external target, error cases, reportFilenamePrefix, targetDescription (23 tests) |
+| `tests/security/cliSecuritySuiteCheck.test.ts` | **Implemented** — external target cwd, pass/fail exit codes, missing target script, path-with-spaces |
 | `tests/fuzz/fuzzSmoke.test.ts` | **Implemented** — PRNG, individual fuzz targets, runAllFuzzTargets (23 tests) |
 
 ---
@@ -368,22 +372,26 @@ npm run security:validate
 
 Orchestrates all security checks and writes `reports/security/<prefix>-security-validation.txt` and `.json`. Returns a structured verdict. Accepts `--target <path>` to validate any local project. See `docs/COMMANDS.md` for full option details.
 
+In self mode, the validator runs the lab's own `npm run test:security` suite in the tool root. In external-target mode, it resolves the target root, reads the target `package.json`, detects `scripts.test:security`, and runs `npm run test:security` in the target project root when that script exists. Reports retain the executed command, command cwd, exit code, and stdout/stderr summaries.
+
+Packed-package validation is required before publish for this workflow. The validator must be run from an installed tarball as well as from the source checkout so npm-package execution differences are caught before release.
+
 ---
 
 ## Npm published baseline
 
-my-dev-kit-lab v0.1.0 is published on npm as `my-dev-kit-lab`. The published package exposes a CLI bin `my-dev-kit-lab` that runs the final demo workflow.
+my-dev-kit-lab v0.1.0 is published on npm as `@dailephd/my-dev-kit-lab`. The published package exposes a CLI bin `my-dev-kit-lab` that runs the final demo workflow.
 
 The security-validation framework is post-v0.1.0 work. Its foundation, dependency checks, package-content checks, and initial tests are now implemented after the v0.1.0 baseline release.
 
 Baseline verification commands:
 
 ```bash
-npm view my-dev-kit-lab@0.1.0 version
-npm view my-dev-kit-lab@0.1.0 bin
+npm view @dailephd/my-dev-kit-lab@0.1.0 version
+npm view @dailephd/my-dev-kit-lab@0.1.0 bin
 ```
 
-Security scripts such as `security:deps`, `security:package`, `security:codeql`, `security:semgrep`, and `security:validate` are post-v0.1.0 additions. They should not be referenced in user-facing v0.1.0 documentation as current capabilities, but they are part of the current v0.1.4 scope.
+Security scripts such as `security:deps`, `security:package`, `security:codeql`, `security:semgrep`, and `security:validate` are post-v0.1.0 additions. They should not be referenced in user-facing v0.1.0 documentation as current capabilities, but they are part of the current v0.2.1 scope.
 
 ---
 

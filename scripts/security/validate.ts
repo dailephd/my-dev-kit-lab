@@ -5,12 +5,13 @@ import { runSecurityValidation } from "../../src/securityValidation/validate/run
 import { resolveValidationTarget, reportFilenamePrefix } from "../../src/securityValidation/validate/resolveTarget.js";
 import { renderTextReport, renderJsonReport } from "../../src/securityValidation/report/renderSecurityReport.js";
 import type { SecurityReport } from "../../src/securityValidation/report/securityReportTypes.js";
+import { resolveToolRoot } from "./resolveToolRoot.js";
 
 // Parse CLI arguments from process.argv (after the node/tsx and script path).
 const rawArgs = process.argv.slice(2);
 const args = parseArgs(rawArgs);
 
-const toolRoot = process.cwd();
+const toolRoot = resolveToolRoot(import.meta.url);
 
 // Resolve and validate target early so we can fail fast with a clean error.
 let target: ReturnType<typeof resolveValidationTarget>;

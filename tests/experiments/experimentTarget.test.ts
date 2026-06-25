@@ -24,7 +24,7 @@ describe("resolveExperimentTarget", () => {
     expect(target.kind).toBe("self");
     expect(target.isSelf).toBe(true);
     expect(path.resolve(target.targetRoot)).toBe(path.resolve(process.cwd()));
-    expect(target.packageName).toBe("my-dev-kit-lab");
+    expect(target.packageName).toBe("@dailephd/my-dev-kit-lab");
     expect(target.packageVersion).toBe(currentPackageVersion.version);
   });
 

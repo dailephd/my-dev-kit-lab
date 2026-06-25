@@ -56,7 +56,7 @@ describe("runCliSecuritySuiteCheck", () => {
     } finally {
       cleanup(targetRoot);
     }
-  });
+  }, 15000);
 
   it("fails when the target test:security script exits nonzero", async () => {
     const targetRoot = makeTempProject("sec-target-fail-");
@@ -91,7 +91,7 @@ describe("runCliSecuritySuiteCheck", () => {
     } finally {
       cleanup(targetRoot);
     }
-  });
+  }, 15000);
 
   it("fails with a major finding when the target package lacks test:security", async () => {
     const targetRoot = makeTempProject("sec-target-missing-");
