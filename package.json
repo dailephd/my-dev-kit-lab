@@ -1,6 +1,6 @@
 {
-  "name": "my-dev-kit-lab",
-  "version": "0.2.0",
+  "name": "@dailephd/my-dev-kit-lab",
+  "version": "0.2.1",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
@@ -22,6 +22,9 @@
   "bugs": {
     "url": "https://github.com/dailephd/my-dev-kit-lab/issues"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "funding": [
     "https://github.com/sponsors/dailephd",
     "https://paypal.me/daile88"
@@ -38,6 +41,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:benchmarks": "vitest run tests/benchmarks tests/scripts",
     "test:report": "vitest run tests/report tests/commands",

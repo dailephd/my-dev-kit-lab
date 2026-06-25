@@ -80,7 +80,7 @@ export function renderTextReport(report: SecurityReport): string {
     { num: 7, title: "npm audit Result", ids: ["npm-audit-full", "npm-audit-runtime"] },
     { num: 8, title: "OSV-Scanner Result", ids: ["osv-scanner"] },
     { num: 9, title: "Package Tarball Inspection", ids: ["npm-pack-dry-run"] },
-    { num: 10, title: "File-System / Path Traversal Tests", ids: ["path-traversal-root", "path-traversal-out", "path-traversal-index", "absolute-path-escape", "path-harness-escape-detection"] },
+    { num: 10, title: "CLI / File-System / Path Traversal Tests", ids: ["cli-adversarial-suite", "path-traversal-root", "path-traversal-out", "path-traversal-index", "absolute-path-escape", "path-harness-escape-detection"] },
     { num: 11, title: "Source Read-Only Boundary Tests", ids: ["source-files-not-modified", "writes-limited-to-output", "index-write-containment", "artifact-cleanup-safe"] },
     { num: 12, title: "Graphviz / Subprocess Safety Tests", ids: ["graphviz-label-escaping", "subprocess-no-shell-interpolation"] },
     { num: 13, title: "JSON stdout/stderr Safety Tests", ids: ["json-mode-parseable-output", "stderr-not-in-stdout", "json-failure-error-object", "progress-not-in-json-stdout"] },
@@ -159,6 +159,21 @@ export function renderTextReport(report: SecurityReport): string {
       lines.push(
         `[${statusIcon(check.status)}] ${pad(check.name)} ${formatDuration(check.durationMs)}`
       );
+      if (check.command) {
+        lines.push(`       Command: ${check.command}`);
+      }
+      if (check.commandCwd) {
+        lines.push(`       Cwd: ${check.commandCwd}`);
+      }
+      if (check.exitCode !== undefined) {
+        lines.push(`       Exit code: ${String(check.exitCode)}`);
+      }
+      if (check.stdoutSummary) {
+        lines.push(`       Stdout: ${check.stdoutSummary.slice(0, 200)}`);
+      }
+      if (check.stderrSummary) {
+        lines.push(`       Stderr: ${check.stderrSummary.slice(0, 200)}`);
+      }
       if (check.status === "skipped" && check.skippedReason) {
         lines.push(`       Reason: ${check.skippedReason}`);
       }
@@ -229,6 +244,10 @@ export function renderJsonReport(report: SecurityReport): string {
     findingCount: c.findings.length,
     skippedReason: c.skippedReason ?? null,
     command: c.command ?? null,
+    commandCwd: c.commandCwd ?? null,
+    exitCode: c.exitCode ?? null,
+    stdoutSummary: c.stdoutSummary ?? null,
+    stderrSummary: c.stderrSummary ?? null,
   }));
 
   const sanitizedFindings = allFindings.map((f) => ({

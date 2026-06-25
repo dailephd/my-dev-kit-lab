@@ -128,6 +128,10 @@ export type SecurityCheckResult = {
   findings: SecurityFinding[];
   skippedReason?: string;
   command?: string;
+  commandCwd?: string;
+  exitCode?: number | null;
+  stdoutSummary?: string;
+  stderrSummary?: string;
   stdoutPath?: string;
   stderrPath?: string;
   artifactPaths?: string[];

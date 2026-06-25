@@ -8,6 +8,7 @@ export type LocalProjectTargetMetadata = {
   packageName: string | null;
   packageVersion: string | null;
   hasPackageJson: boolean;
+  hasSecurityTestScript: boolean;
   hasLockfile: boolean;
   branch: string | null;
   commit: string | null;
@@ -47,6 +48,7 @@ export function resolveLocalProjectTarget(
     packageName: packageMetadata.packageName,
     packageVersion: packageMetadata.packageVersion,
     hasPackageJson: packageMetadata.hasPackageJson,
+    hasSecurityTestScript: packageMetadata.hasSecurityTestScript,
     hasLockfile: hasLockfile(resolvedTargetRoot),
     ...readGitMetadata(resolvedTargetRoot),
     isSelf: resolvedTargetRoot === resolvedToolRoot,
@@ -55,21 +57,28 @@ export function resolveLocalProjectTarget(
 
 function readPackageMetadata(targetRoot: string): Pick<
   LocalProjectTargetMetadata,
-  "packageName" | "packageVersion" | "hasPackageJson"
+  "packageName" | "packageVersion" | "hasPackageJson" | "hasSecurityTestScript"
 > {
   try {
     const pkgRaw = fs.readFileSync(path.join(targetRoot, "package.json"), "utf8");
-    const pkg = JSON.parse(pkgRaw) as { name?: unknown; version?: unknown };
+    const pkg = JSON.parse(pkgRaw) as {
+      name?: unknown;
+      version?: unknown;
+      scripts?: Record<string, unknown>;
+    };
+    const testSecurityScript = pkg.scripts && typeof pkg.scripts["test:security"] === "string";
     return {
       hasPackageJson: true,
       packageName: typeof pkg.name === "string" ? pkg.name : null,
       packageVersion: typeof pkg.version === "string" ? pkg.version : null,
+      hasSecurityTestScript: Boolean(testSecurityScript),
     };
   } catch {
     return {
       hasPackageJson: false,
       packageName: null,
       packageVersion: null,
+      hasSecurityTestScript: false,
     };
   }
 }

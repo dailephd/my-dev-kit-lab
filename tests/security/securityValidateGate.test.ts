@@ -179,6 +179,27 @@ describe("renderTextReport", () => {
     expect(text).toContain("Not installed");
   });
 
+  it("includes command execution details when present", () => {
+    const text = renderTextReport(
+      makeReport({
+        allChecks: [
+          makeCheck({
+            id: "cli-adversarial-suite",
+            name: "Target security test suite",
+            command: "npm run test:security",
+            commandCwd: "Z:/tmp/target project",
+            exitCode: 0,
+            stdoutSummary: "SECURITY_PASS_CWD=Z:/tmp/target project",
+          }),
+        ],
+      })
+    );
+    expect(text).toContain("Command: npm run test:security");
+    expect(text).toContain("Cwd: Z:/tmp/target project");
+    expect(text).toContain("Exit code: 0");
+    expect(text).toContain("SECURITY_PASS_CWD=Z:/tmp/target project");
+  });
+
   it("includes executive summary section", () => {
     const text = renderTextReport(makeReport());
     expect(text).toContain("EXECUTIVE SUMMARY");
@@ -225,6 +246,29 @@ describe("renderJsonReport", () => {
     const json = renderJsonReport(makeReport());
     const parsed = JSON.parse(json) as Record<string, unknown>;
     expect(parsed["verdictLabel"]).toBe("ready except optional manual checks");
+  });
+
+  it("JSON includes command execution details when present", () => {
+    const json = renderJsonReport(
+      makeReport({
+        allChecks: [
+          makeCheck({
+            id: "cli-adversarial-suite",
+            name: "Target security test suite",
+            command: "npm run test:security",
+            commandCwd: "Z:/tmp/target project",
+            exitCode: 0,
+            stdoutSummary: "SECURITY_PASS_CWD=Z:/tmp/target project",
+            stderrSummary: "",
+          }),
+        ],
+      })
+    );
+    const parsed = JSON.parse(json) as { checks: Array<Record<string, unknown>> };
+    expect(parsed.checks[0]?.["command"]).toBe("npm run test:security");
+    expect(parsed.checks[0]?.["commandCwd"]).toBe("Z:/tmp/target project");
+    expect(parsed.checks[0]?.["exitCode"]).toBe(0);
+    expect(parsed.checks[0]?.["stdoutSummary"]).toBe("SECURITY_PASS_CWD=Z:/tmp/target project");
   });
 
   it("JSON includes recommendedNextStep", () => {

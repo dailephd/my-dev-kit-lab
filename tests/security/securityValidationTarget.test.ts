@@ -48,6 +48,7 @@ describe("resolveValidationTarget — self mode (no targetPath)", () => {
     expect(target.hasPackageJson).toBe(true);
     expect(typeof target.packageName).toBe("string");
     expect(typeof target.packageVersion).toBe("string");
+    expect(typeof target.hasSecurityTestScript).toBe("boolean");
   });
 
   it("detects lockfile presence", () => {
@@ -95,6 +96,7 @@ describe("resolveValidationTarget — external target", () => {
     try {
       const target = resolveValidationTarget(tmp, process.cwd());
       expect(target.hasPackageJson).toBe(false);
+      expect(target.hasSecurityTestScript).toBe(false);
       expect(target.packageName).toBeNull();
       expect(target.packageVersion).toBeNull();
     } finally {
@@ -113,6 +115,26 @@ describe("resolveValidationTarget — external target", () => {
       expect(target.hasPackageJson).toBe(true);
       expect(target.packageName).toBe("test-project");
       expect(target.packageVersion).toBe("2.3.4");
+      expect(target.hasSecurityTestScript).toBe(false);
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
+  it("detects scripts.test:security from target package.json", () => {
+    const tmp = makeTempDir();
+    try {
+      fs.writeFileSync(
+        path.join(tmp, "package.json"),
+        JSON.stringify({
+          name: "test-project",
+          version: "2.3.4",
+          scripts: { "test:security": "node security-check.js" },
+        })
+      );
+      const target = resolveValidationTarget(tmp, process.cwd());
+      expect(target.hasPackageJson).toBe(true);
+      expect(target.hasSecurityTestScript).toBe(true);
     } finally {
       cleanup(tmp);
     }

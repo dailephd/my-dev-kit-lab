@@ -10,6 +10,7 @@ export type SecurityValidationTarget = {
   packageName: string | null;
   packageVersion: string | null;
   hasPackageJson: boolean;
+  hasSecurityTestScript: boolean;
   hasLockfile: boolean;
   branch: string | null;
   commit: string | null;

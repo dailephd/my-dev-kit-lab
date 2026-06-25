@@ -7,12 +7,12 @@ import { runCodeqlCheck } from "../staticScans/codeql.js";
 import { runSemgrepCheck } from "../staticScans/semgrep.js";
 import { runAllFuzzTargets } from "../fuzz/fuzzHarness.js";
 import { ALL_FUZZ_TARGETS } from "../fuzz/fuzzTargets.js";
-import { runSecurityCommand, resolveNpmCommand } from "../commandRunner.js";
 import { calculateVerdict } from "./verdict.js";
 import { resolveValidationTarget, targetDescription as describeTarget } from "./resolveTarget.js";
 import { DEFAULT_SECURITY_CONFIG } from "../config.js";
 import type { SecurityCheckResult, SecurityFinding, SecurityValidationSummary } from "../types.js";
 import type { SecurityValidationConfig } from "../config.js";
+import { runCliSecuritySuiteCheck } from "./runCliSecuritySuiteCheck.js";
 
 export type RunSecurityValidationOptions = {
   // my-dev-kit-lab root (tool root — where configs, fuzz targets, and tests live)
@@ -92,46 +92,16 @@ export async function runSecurityValidation(
     collect(errorCheck("semgrep-scan", "Semgrep static analysis", "static-scan", err));
   }
 
-  // --- CLI adversarial tests (always tool-internal; tests my-dev-kit-lab harness) ---
-  // These run in the tool root because they use fake-adversarial-cli.js fixtures.
-  // Labeled clearly so the report shows they are not target-specific checks.
-  {
-    const startedAt2 = new Date().toISOString();
-    const npm = resolveNpmCommand();
-    const cmd = await runSecurityCommand({
-      command: npm,
-      args: ["run", "test:security", "--", "--reporter=json"],
-      cwd: toolRoot,
-      timeoutMs: Math.min(config.commandTimeoutMs * 3, 180_000),
-    });
-    const finishedAt2 = new Date().toISOString();
-
-    const passed = cmd.exitCode === 0;
-    collect({
-      id: "cli-adversarial-suite",
-      name: "CLI adversarial test suite (tool self-tests, not target-specific)",
-      category: "cli-adversarial",
-      status: passed ? "passed" : "failed",
-      severity: "major",
-      startedAt: startedAt2,
-      finishedAt: finishedAt2,
-      durationMs: cmd.durationMs,
-      findings: passed
-        ? []
-        : [
-            {
-              id: "cli-adversarial-suite-failed",
-              title: "CLI adversarial test suite had failures",
-              severity: "major",
-              category: "cli-adversarial",
-              description: `test:security exited with code ${String(cmd.exitCode)}. Run 'npm run test:security' for details.`,
-              recommendation: "Fix failing adversarial tests before release.",
-              releaseImpact: "Should fix before release",
-            },
-          ],
-      command: `${npm} run test:security`,
-    });
-  }
+  // --- Security suite check ---
+  // Self-validation runs the lab's own test:security suite.
+  // External validation runs the target project's test:security script when present.
+  collect(
+    await runCliSecuritySuiteCheck({
+      toolRoot,
+      target,
+      timeoutMs: config.commandTimeoutMs,
+    })
+  );
 
   // --- Fuzz smoke (always tool-internal; tests library parser/helper code) ---
   try {
