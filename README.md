@@ -1,8 +1,10 @@
 # my-dev-kit-lab
 
-my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [my-dev-kit](https://github.com/your-org/my-dev-kit). It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, and builds gallery outputs.
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and future audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, and performs automated CLI/package security validation.
 
-As of v0.2.1, my-dev-kit-lab also exposes a generic experiment-plugin framework for validating local developer tools, security checks, codebase workflows, retrieval strategies, and experiment outcomes. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+The current package is v0.2.1. Its generic experiment-plugin framework was introduced in v0.2.0. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+
+my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
 **my-dev-kit** is the repo indexing and graph-guided retrieval engine.
 **my-dev-kit-lab** is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
@@ -37,19 +39,14 @@ As of v0.2.1, my-dev-kit-lab also exposes a generic experiment-plugin framework 
 
 ```mermaid
 flowchart TD
-  A[Benchmark Projects] --> B[Prompt Variants]
-  B --> C[Agent Adapters\nfake-agent / Codex / Claude]
-  C --> D[Controlled Experiment Runner]
-  D --> E[Experiment Artifacts\nJSON]
-  E --> F[Report Renderer]
-  E --> G[Plot Generator]
-  E --> H[Visualization Demos]
-  F --> I[HTML Report + optional PNG]
-  G --> J[SVG Charts]
-  H --> K[Demo Artifacts]
-  I --> L[Gallery]
-  J --> L
-  K --> L
+  A[scripts/experiments] --> B[Experiment plugin registry + runner]
+  B --> C[context-strategy-comparison]
+  C --> D[Controlled experiment foundations]
+  D --> E[Plugin + legacy artifacts]
+  E --> F[Plugin-aware reports]
+  E --> G[Plots / screenshots / gallery]
+  H[scripts/security] --> I[Automated security validation]
+  I --> J[Security reports + verdict]
 ```
 
 ---
@@ -233,7 +230,7 @@ The release gate is implemented as of v0.1.4. It combines static scans, dependen
 | `npm run security:package` | npm pack --dry-run, forbidden content detection |
 | `npm run security:codeql` | CodeQL CLI availability check; skipped gracefully when absent |
 | `npm run security:semgrep` | Semgrep scan via local binary or npx; skipped gracefully when both absent |
-| `npm run test:security` | 165 adversarial CLI tests (path traversal, read-only boundaries, malformed artifacts, JSON safety, fuzz targets) |
+| `npm run test:security` | Automated security and adversarial CLI tests (path traversal, read-only boundaries, malformed artifacts, JSON safety, and related checks) |
 | `npm run test:fuzz:smoke` | 9 bounded fuzz targets, seeded PRNG, completes in under 1 second |
 | `npm run security:validate` | Full release gate — runs all checks and writes `reports/security/<prefix>-security-validation.{txt,json}` |
 

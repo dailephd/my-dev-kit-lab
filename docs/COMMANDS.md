@@ -32,6 +32,27 @@ npm run build
 
 ## Validation commands
 
+The following list matches the current `package.json` validation scripts. The focused scripts overlap by design; `verify` runs the complete repository sequence.
+
+| Script | Scope |
+|---|---|
+| `npm run typecheck` | TypeScript checking without emitting files |
+| `npm run test` | Full Vitest suite |
+| `npm run test:benchmarks` | Benchmark and script tests |
+| `npm run test:report` | Report and command tests |
+| `npm run test:screenshot` | Screenshot tests |
+| `npm run test:evaluation` | Core, evaluation, and related command tests |
+| `npm run test:gallery` | Gallery tests |
+| `npm run test:demo` | Demo command and integration tests |
+| `npm run test:integration` | Integration tests |
+| `npm run test:e2e` | End-to-end tests |
+| `npm run test:agents` | Agent adapter and command tests |
+| `npm run test:experiments` | Controlled-experiment compatibility suite |
+| `npm run test:plots` | Plot and plot-command tests |
+| `npm run test:visualization-demos` | Visualization demo tests |
+| `npm run verify:benchmarks` | Benchmark contract validation |
+| `npm run verify` | Build plus all test and benchmark verification stages |
+
 ### `npm run test`
 
 Runs the full test suite. Use this to verify that all modules are working correctly.
@@ -826,3 +847,7 @@ npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 # Invalid target — fails cleanly with an error message
 npm run security:validate -- --target "Z:\does\not\exist"
 ```
+
+## Planned commands
+
+There is currently no `npm run audit` or `npm run security:pentest` script. Those command surfaces are planned with the generic audit framework and manual pentest framework; they must not be used as current examples.

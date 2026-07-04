@@ -2,6 +2,22 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
+### Documentation
+
+- Synchronized current-state, architecture, command, security-validation, and project-overview documentation with the v0.2.1 implementation.
+- Replaced the stale roadmap with a semantically ordered plan from v0.2.1 through v1.4.0, placing stable v1.0.0 after all prerequisite v0.x work.
+- Clarified that automated security validation is implemented, while the generic audit framework, code rot and quality detectors, unified audits, and manual pentest framework are planned.
+
+## [0.2.1] - 2026-06-25
+
+Target-aware security-validation correction.
+
+### Fixed
+
+- Corrected external-target `test:security` execution so it runs in the selected target project, including installed-package validation paths.
+
 ## [0.2.0] - 2026-06-23
 
 Generic experiment-plugin foundation, first plugin conversion, target-aware execution, plugin-aware reports, and user-facing command surface.
@@ -202,6 +218,6 @@ Public release hygiene and cross-platform assurance patch.
 - Small projects may show negative token savings because raw-full-file is cheaper when the entire project fits in context
 - Current baseline does not yet prove every future value claim; stronger evidence requires future experiment types
 
-### Next roadmap phase
+### Roadmap at release time
 
-The next major development phase is a generic experiment-plugin framework. The current raw-vs-indexed pipeline will become the first experiment plugin (`context-strategy-comparison`). Future plugins will cover warm-index reuse, incremental-change staleness, context-window scaling, retrieval precision/recall, and agent-success-rate experiments.
+At v0.1.0 the generic experiment-plugin framework was planned. It was subsequently implemented in v0.2.0 with `context-strategy-comparison` as the first plugin. Later planned plugins cover warm-index reuse, incremental-change staleness, context-window scaling, retrieval precision/recall, and agent-success-rate experiments.

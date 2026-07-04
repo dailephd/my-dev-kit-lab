@@ -1,117 +1,68 @@
 # Current State
 
-This document summarizes the current release-ready baseline state of my-dev-kit-lab.
+This file is the concise source of truth for the checked-in implementation. The current package is `@dailephd/my-dev-kit-lab` version `0.2.1`.
 
----
+## Implemented
 
-## Status: Working baseline
+- Generic experiment-plugin runtime in `src/experiments`.
+- Registry containing one experimental plugin: `context-strategy-comparison`.
+- Raw-full-file versus my-dev-kit-guided behavior routed through that plugin while preserving legacy artifacts and commands.
+- Self and explicit local-project experiment targets.
+- Plugin-aware JSON and HTML reports in `src/report/experiments`.
+- Benchmark metadata, prompt variants, fake-agent, Codex, and Claude adapters.
+- Correctness, token, duration, status, reliability, plot, screenshot, visualization, gallery, and final-demo workflows.
+- Automated security validation in `src/securityValidation`, covering dependency and package checks, CLI adversarial checks, CodeQL/Semgrep integration, bounded fuzz smoke, structured reports, and release verdicts.
+- Self and explicit local-project security-validation targets.
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. All core modules are tested and verified.
+## Current commands
 
----
+```powershell
+npm run experiment:list
+npm run experiment:describe -- --experiment context-strategy-comparison
+npm run experiment:run -- --experiment context-strategy-comparison --target <path>
+npm run security:validate
+npm run security:validate -- --target <path>
+```
 
-## What is implemented
+`npm run run-controlled-experiment` and the demo/report/plot/gallery commands remain supported. See [COMMANDS.md](COMMANDS.md) for the complete package-script inventory.
 
-### Benchmark layer
-- Six benchmark projects: four small Todo projects, one medium TypeScript project, one large mixed TypeScript/Python project
-- Benchmark contracts with task descriptions, expected files, expected symbols, and answer keys
-- Project profiles with complexity metrics and 0-100 complexity scores
-- Benchmark verification scripts
+## Current architecture
 
-### Prompt layer
-- Raw-full-file and my-dev-kit-guided prompt variant generation
-- Four complexity levels: `short`, `medium`, `long`, `multi-step`
-- Prompt complexity metrics computed alongside each variant
-
-### Agent layer
-- fake-agent adapter — deterministic, no external CLI required
-- Codex adapter — requires local Codex CLI
-- Claude adapter — requires local Claude CLI
-- Windows-safe CLI command resolution
-
-### Experiment layer
-- Controlled experiment runner
-- Strategy pairing by case, agent, and complexity level
-- Deterministic correctness scoring from answer keys
-- Token usage, duration, and status comparisons
-- Structured outcomes for timeouts, invalid output, and session limits
-
-### Reporting layer
-- HTML experiment report rendering
-- JSON experiment report metadata
-- Optional PNG screenshot capture via Playwright
-- Static SVG plot generation
-- Visualization demos using my-dev-kit commands
-
-### Gallery layer
-- Gallery manifest writer
-- Static gallery index HTML
-
-### Pipeline commands
-- `npm run generate-prompt-variants`
-- `npm run run-agent-prompt`
-- `npm run run-controlled-experiment`
-- `npm run render-experiment-report`
-- `npm run generate-experiment-plots`
-- `npm run run-visualization-demos`
-- `npm run build-gallery`
-- `npm run run-final-demo`
-- `npm run evaluate-token-savings`
-- `npm run lab-demo`
-- `npm run capture-demo-report`
-- `npm run verify`
-
----
-
-## What is not yet implemented
-
-- Provider telemetry dashboards
-- OpenTelemetry collection
-- Semantic LLM judging
-- Cloud API billing integration
-- Generic experiment-plugin framework
-- Warm-index reuse experiments
-- Incremental-change experiments
-- Context-window scaling experiments
-- Retrieval precision and recall experiments
-- Agent-success-rate experiments
-- Richer gallery UI with filtering and comparison views
-- Benchmark project generator
-
----
-
-## Real-agent campaign status
-
-A real-agent campaign was run on the `feature/real-agent-benchmark-campaign` branch using Codex and Claude against the medium and large benchmark projects (`task-workflow-medium-ts` and `task-analytics-large-mixed`).
-
-Campaign results were partial. Real-agent CLIs can produce completed runs, timeouts, invalid output, and session limits. The campaign infrastructure recorded all outcomes as structured JSON. The experiment report shows warnings for missing token totals and non-completed runs.
-
-**Claude** does not expose token totals; token savings comparisons are unavailable for Claude runs.
-
-**Codex** may expose token totals but produced some timeouts and invalid-output runs during the campaign.
-
-These partial results demonstrate that the experiment infrastructure works end-to-end with real agents. They do not constitute proof of token savings. Stronger evidence requires future experiment types. See [docs/ROADMAP.md](docs/ROADMAP.md).
-
----
-
-## Output locations
-
-| Artifact | Location |
+| Path | Responsibility |
 |---|---|
-| Experiment summary | `lab-output/<experiment>/experiment-summary.json` |
-| All runs | `lab-output/<experiment>/experiment-runs.json` |
-| Strategy comparisons | `lab-output/<experiment>/experiment-comparisons.json` |
-| HTML report | `lab-output/<report>/experiment-report.html` |
-| Report JSON | `lab-output/<report>/experiment-report.json` |
-| Report screenshot | `lab-output/<report>/experiment-report.png` |
-| Plot data | `lab-output/<plots>/plot-data.json` |
-| Plots summary | `lab-output/<plots>/plots-summary.json` |
-| SVG charts | `lab-output/<plots>/charts/*.svg` |
-| Gallery manifest | `lab-output/<gallery>/gallery-manifest.json` |
-| Gallery index | `lab-output/<gallery>/gallery-index.html` |
+| `src/core` | Shared process, path, token, and local-target utilities |
+| `src/experiments` | Plugin contracts, registry, runner, targets, configuration, and results |
+| `src/experiments/plugins/contextStrategyComparison` | Current raw-versus-guided experiment plugin |
+| `scripts/experiments` | User-facing experiment command entrypoints |
+| `src/evaluation` | Benchmark contracts, controlled runs, metrics, and correctness |
+| `src/agents` | Fake-agent, Codex, and Claude adapters |
+| `src/report` | Shared and legacy report infrastructure |
+| `src/report/experiments` | Plugin-aware experiment reports |
+| `src/securityValidation` | Automated security-validation checks, orchestration, and reports |
+| `scripts/security` | Security command entrypoints |
+| `src/plots`, `src/screenshot`, `src/gallery`, `src/visualizationDemos` | Evidence presentation and demo output |
 
----
+## Experimental versus planned
 
-## Next development direction
+`context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The next major development phase is the generic experiment-plugin framework. See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.
+The following are planned, not implemented:
+
+- generic audit framework and code rot detector
+- code quality detector
+- unified audit reports and project-wide audit command
+- manual pentest framework
+- warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins
+- normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
+
+## Limitations
+
+- The implemented security framework is automated CLI/package validation with adversarial checks; it is not a complete manual pentest framework.
+- Some security tools are optional and may be reported as skipped when unavailable.
+- Fake-agent token totals are estimates. Provider telemetry differs by adapter and can be unavailable.
+- Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
+- Only one experiment plugin is currently registered.
+
+## Next planned work
+
+The `v0.2.1` line fortifies automated security validation while preserving `security:validate`. The next feature version, `v0.3.0`, adds the generic audit framework and code rot detector. See [ROADMAP.md](ROADMAP.md) for the complete semantically ordered sequence.

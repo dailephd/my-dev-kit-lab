@@ -61,13 +61,13 @@ npm run run-final-demo -- `
 
 ---
 
-## Workflow 2: Raw-vs-indexed controlled experiment
+## Workflow 2: Context-strategy-comparison plugin
 
-Use this workflow to run a controlled comparison between `raw-full-file` and `my-dev-kit-guided` strategies. Each case is run under both strategies with the same agent and complexity level so results are directly comparable.
+Use the implemented `context-strategy-comparison` plugin to compare `raw-full-file` and `my-dev-kit-guided`. Each case is run under both strategies with the same agent and complexity level so results are directly comparable.
 
 ```mermaid
 flowchart TD
-  A[Select cases\nagents\nstrategies\ncomplexities] --> B[npm run run-controlled-experiment]
+  A[Select target\ncases\nagents\nstrategies\ncomplexities] --> B[npm run experiment:run]
   B --> C{For each case}
   C --> D[Run raw-full-file\nvia agent]
   C --> E[Run my-dev-kit-guided\nvia agent]
@@ -83,13 +83,15 @@ flowchart TD
 
 **Command (fake-agent):**
 ```bash
-npm run run-controlled-experiment -- \
-  --cases examples/token-savings-cases.json \
+npm run experiment:run -- \
+  --experiment context-strategy-comparison \
   --agents fake-agent \
   --strategies raw-full-file,my-dev-kit-guided \
   --complexities short \
   --out lab-output/controlled-experiment-fake
 ```
+
+Add `--target /path/to/local/project` to select an explicit local target. Omitting it uses self mode. The legacy `npm run run-controlled-experiment` command remains supported for backward compatibility.
 
 **Then render the report:**
 ```bash

@@ -1,256 +1,1426 @@
 # Roadmap
 
-This document describes the current baseline state of my-dev-kit-lab and the planned development phases ahead.
+This roadmap separates the implemented baseline from planned work. A version listed here is not released or implemented unless explicitly marked as current or completed.
 
----
+The roadmap follows semantic version order. `v1.0.0` is the stable release after the complete `v0.x` development track; it is newer than every `v0.x` release.
 
-## Roadmap overview
+## Version sequence
 
 ```mermaid
-flowchart TD
-  A[Current Baseline\nraw-vs-indexed pipeline\nreal-agent campaign support] --> B[v0.2.0\nGeneric experiment-plugin framework\ncontext-strategy-comparison plugin]
-  B --> C[Next Experiment Track\nWarm-index reuse experiments\nIncremental-change experiments]
-  C --> D[Experiment Track\nContext-window scaling\nRetrieval precision and recall]
-  D --> E[Experiment Track\nAgent-success-rate experiments\nReal-agent hardening\nRicher gallery and report UX]
-  B --> F[Release-Security Track\nSecurity model and test matrix\npackage and dependency checks]
-  F --> G[Release-Security Track\nCLI adversarial tests\nstatic scan integration]
-  G --> H[Release-Security Track\nFuzz smoke tests\nrelease security reports]
+flowchart LR
+  A[v0.2.0<br/>plugin framework] --> B[v0.2.1<br/>current baseline]
+  B --> C[v0.2.2<br/>security fortification]
+  C --> D[v0.3.x<br/>audit framework]
+  D --> E[v0.4.0<br/>manual pentest]
+  E --> F[v0.4.1-v0.4.5<br/>mobile validation profiles]
+  F --> G[v0.5.x-v0.9.x<br/>experiment evidence track]
+  G --> H[v1.0.0<br/>stable framework]
+  H --> I[v1.1.0-v1.4.0<br/>post-stable releases]
 ```
 
----
+## Product direction
+
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, audit, and release-readiness companion for my-dev-kit.
+
+my-dev-kit-lab should remain validation-first, evidence-first, and non-destructive by default. It should not become a project generator, app publisher, signing tool, Play Console uploader, or automatic fixer.
+
+The strongest product thesis remains:
+
+* my-dev-kit helps when a repository is larger than the task.
+* my-dev-kit-lab should prove when my-dev-kit is useful, not claim that my-dev-kit always saves tokens.
+* The most important usefulness cases are large repositories, localized tasks, warm index reuse, context-window limits, retrieval precision, stale-index risk detection, and better coding-agent edit quality.
+* Security validation, audit reporting, code rot detection, code quality checks, mobile validation, and manual pentest support should strengthen release-readiness and implementation-readiness workflows around this evidence system.
 
 ## Current baseline
 
-The current baseline is a fully working experiment pipeline for the raw-vs-indexed context comparison.
+### v0.2.0 — completed
 
-### What is implemented
+* Generic experiment-plugin contracts, registry, runner, configuration, target model, and normalized results.
+* `context-strategy-comparison` as the first experiment plugin.
+* Existing raw-full-file versus my-dev-kit-guided behavior preserved through the plugin.
+* Target-aware experiment execution.
+* Plugin-aware JSON and HTML reports.
+* Backward-compatible `experiment:list`, `experiment:describe`, `experiment:run`, and legacy controlled-experiment workflows.
+* Reusable target-aware automated security validation carried forward from earlier security work.
 
-- **Benchmark projects** — small, medium, and large benchmark projects with version-controlled source trees
-- **Project complexity metrics** — weighted 0-100 complexity scores, file counts, line counts, language counts, import counts, and symbol estimates
-- **Benchmark case metadata** — task descriptions, expected files, expected symbols, and answer keys
-- **Prompt variant generation** — raw-full-file and my-dev-kit-guided variants at `short`, `medium`, `long`, and `multi-step` complexity levels with prompt complexity metrics
-- **Agent adapters** — fake-agent (deterministic), Codex, and Claude
-- **Windows-safe CLI command resolution** — safe subprocess execution on Windows
-- **Controlled experiment runner** — pairs raw-full-file and my-dev-kit-guided runs by case, agent, and complexity; scores correctness from answer keys; computes token and duration comparisons
-- **Report rendering** — HTML experiment report with project profiles, benchmark tasks, strategy comparisons, correctness scores, token usage, duration, status, warnings, and limitations
-- **Plot generation** — static SVG charts from experiment data
-- **Screenshot capture** — optional PNG capture from generated HTML reports
-- **Gallery output** — gallery manifest and static gallery index
-- **Visualization demos** — bounded my-dev-kit command demos against benchmark projects
-- **Final demo workflow** — single command that runs the complete pipeline
-- **Real-agent campaign support** — Codex and Claude campaigns with structured outcomes for timeouts, invalid output, and session limits
-- **Metric glossary** — [METRICS.md](METRICS.md)
+### v0.2.1 — current package baseline
 
-### Current benchmark projects
+* Correct target-project execution of `test:security` during external-target validation, including installed-package execution.
+* Documentation synchronized with the implemented plugin and security-validation architecture.
+* Fortification continues after this baseline without changing the backward-compatible `security:validate` command.
+* The current package baseline is not the final security, audit, mobile, or pentest architecture.
 
-| Project | Size | Languages |
-|---|---|---|
-| `todo-ts` | small | TypeScript |
-| `todo-js` | small | JavaScript |
-| `todo-python` | small | Python |
-| `todo-mixed-ts-py` | small | TypeScript + Python |
-| `task-workflow-medium-ts` | medium | TypeScript |
-| `task-analytics-large-mixed` | large | TypeScript + Python |
+## Planned v0.x development track
 
-### Current limitations
+### v0.2.2 — fortified automated security validation
 
-- Token savings in fake-agent runs are estimated from character counts, not provider billing telemetry
-- Claude does not expose token totals
-- Codex may produce timeouts or invalid-output runs
-- The current baseline does not yet prove every future value claim for my-dev-kit
-- Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
-- The generic experiment-plugin framework currently has one implemented plugin; stronger evidence still requires future plugins and broader real-target campaigns
+Purpose:
 
----
+* Strengthen the existing automated security-validation framework so it moves closer to a reusable adversarial security framework, not just dependency scanning or package validation.
+* Keep `security:validate` backward compatible.
+* Do not merge this work into the audit framework yet.
 
-## v0.2.0: Generic experiment-plugin framework
+Features:
 
-v0.2.0 refactors my-dev-kit-lab into a generic experiment framework while preserving the raw-vs-indexed behavior.
+* Add automated attack-scenario model.
+* Add reusable security profiles.
+* Add stronger payload corpus for CLI, package, and local-tool projects.
+* Add explicit exploit-evidence model.
+* Add stronger target sandbox and read-only validation guarantees.
+* Add secret leakage checks.
+* Add report poisoning checks.
+* Add package boundary checks.
+* Add generated-artifact boundary checks.
+* Add config/path injection checks.
+* Add network-free/local-first assumption checks where feasible.
+* Add clearer separation between scanner findings, adversarial failures, optional skipped tools, release blockers, and target-project blockers.
 
-### What this means
+Command direction:
 
-Instead of treating the raw-vs-indexed workflow as the only experiment shape, experiment types are represented as plugins. The shared runtime handles plugin discovery, target metadata, config validation, execution context, normalized results, and plugin-aware JSON/HTML reports. Existing legacy report, plot, screenshot, and gallery workflows remain available for the controlled experiment path.
+* Keep existing commands:
 
-The current raw-vs-indexed experiment is the first plugin: **context-strategy-comparison**.
+  * `npm run security:validate`
+  * `npm run security:validate -- --target <path>`
 
-### Migration steps
+* Add multi-option flags:
+
+  * `--checks deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network`
+  * `--profile node-cli-package,local-tool,npm-package`
+  * `--format text,json`
+  * `--fail-on blocker,high,medium,low`
+  * `--out <path>`
+
+Suggested architecture:
+
+* `src/securityValidation/attackScenarios/`
+* `src/securityValidation/attackScenarios/profiles/`
+* `src/securityValidation/attackScenarios/scenarios/`
+* `src/securityValidation/cliAdversarial/`
+* `src/securityValidation/validate/`
+* `src/securityValidation/report/`
+* `scripts/security/validate.ts`
+* `tests/security/attackScenarios/`
+
+Acceptance:
+
+* Existing `security:validate` behavior remains backward compatible.
+* Existing dependency, package, static-scan, fuzz, and CLI adversarial checks still work.
+* New attack scenarios produce structured evidence.
+* Target project files are not modified.
+* Optional unavailable tools are reported as skipped, not passed.
+* Cross-platform CI passes on Ubuntu, macOS, and Windows with Node 20 and Node 22.
+* Existing experiment framework behavior is unchanged.
+
+### v0.3.0 — generic audit framework and code rot detector
+
+Purpose:
+
+* Add a generic audit framework for project health, implementation-readiness, refactor-readiness, and release-readiness.
+* Add code rot detection as the first audit detector family.
+* Keep this separate from experiments and separate from direct security validation.
+
+Features:
+
+* Add reusable audit contracts, target resolution, registry, severity model, issue model, and report infrastructure.
+* Add project inventory scanner.
+* Add source-of-truth collector.
+* Add normalized audit issue schema.
+* Add code rot detector.
+* Add stable text and JSON reports.
+* Add configurable fail-on severity.
+* Add false-positive and confidence labels.
+* Add suggested fix strategy and validation commands per finding.
+* Write reports under `reports/audits/code-rot/`.
+
+Code rot detector scope:
+
+* Stale command and workflow references.
+* Documentation/code mismatch.
+* Duplicate or parallel implementation candidates.
+* Dead-code candidates from deterministic evidence.
+* Test rot signals.
+* Architecture drift signals.
+* Package/release rot.
+* Dependency/environment rot.
+* Cross-platform rot.
+* Security/validation assumption rot.
+
+Command direction:
+
+* Add one main audit command:
+
+  * `npm run audit`
+
+* Use flags instead of separate audit commands:
+
+  * `npm run audit -- --target <path> --types code-rot`
+  * `npm run audit -- --target <path> --types code-rot --include docs,tests,package,architecture,cli`
+  * `npm run audit -- --target <path> --types code-rot --format text,json`
+
+Suggested architecture:
+
+* `src/audits/core/`
+* `src/audits/codeRot/`
+* `src/audits/codeRot/detectors/`
+* `src/report/audits/`
+* `scripts/audits/runAudit.ts`
+* `tests/audits/core/`
+* `tests/audits/codeRot/`
+
+Acceptance:
+
+* `npm run audit -- --target <path> --types code-rot` works.
+* Reports include target metadata, tool metadata, timestamp, summary, issue counts, evidence, severity, confidence, recommended action, validation commands, release-blocking flag, implementation-blocking flag, and auto-fix eligibility.
+* No target files are modified.
+* Invalid targets fail cleanly.
+* JSON schema is stable.
+* Windows paths work.
+* Existing experiment commands still work.
+* Existing `security:validate` still works.
+
+### v0.3.1 — code quality detector
+
+Purpose:
+
+* Add code-quality checks as a separate audit detector family.
+* Keep code quality separate from code rot and security, while allowing shared evidence in unified audit reports.
+
+Features:
+
+* Detect overly large files.
+* Detect overly large functions where deterministic analysis is feasible.
+* Detect high-complexity candidates.
+* Detect duplicate implementation candidates.
+* Detect poor module boundaries.
+* Detect missing tests for exported public modules.
+* Detect testability issues.
+* Detect TypeScript strictness/config drift.
+* Detect lint/tooling absence or inconsistency.
+* Detect dependency bloat signals.
+* Treat findings as maintainability risks, not automatic proof of bad code.
+
+Command direction:
+
+* Reuse:
+
+  * `npm run audit`
+
+* Add:
+
+  * `npm run audit -- --target <path> --types quality`
+  * `npm run audit -- --target <path> --types code-rot,quality`
+  * `--quality-checks complexity,duplication,modularity,testability,typescript,lint,deps`
+
+Suggested architecture:
+
+* `src/audits/codeQuality/`
+* `src/audits/codeQuality/detectors/`
+* `tests/audits/codeQuality/`
+
+Acceptance:
+
+* Quality findings use the shared audit issue schema.
+* Quality findings include evidence and confidence.
+* Quality detector does not duplicate code rot detector logic unnecessarily.
+* Existing code rot audit still works.
+* Existing security validation still works.
+* Existing experiment commands still work.
+
+### v0.3.2 — security results in unified audit reports
+
+Purpose:
+
+* Integrate existing automated security-validation results into the audit framework as a report source.
+* Preserve standalone `security:validate`.
+
+Features:
+
+* Add audit adapter for securityValidation.
+* Convert security validation findings into the shared audit issue model.
+* Preserve original security report output.
+* Add security summary section to audit reports.
+* Distinguish scanner findings, adversarial scenario failures, package/release findings, and optional skipped checks.
+* Add audit report links to generated security validation reports.
+
+Command direction:
+
+* Keep:
+
+  * `npm run security:validate`
+  * `npm run security:validate -- --target <path>`
+
+* Extend:
+
+  * `npm run audit -- --target <path> --types security`
+  * `npm run audit -- --target <path> --types code-rot,quality,security`
+  * `--security-checks deps,package,static,cli-adversarial,fuzz,attack-scenarios,secrets,network`
+
+Suggested architecture:
+
+* `src/audits/security/`
+* `src/audits/security/securityAuditAdapter.ts`
+* `src/audits/security/mapSecurityFindingToAuditIssue.ts`
+* `src/audits/core/auditSource.ts`
+* `src/audits/core/auditResultMerger.ts`
+* `tests/audits/security/`
+
+Acceptance:
+
+* `security:validate` remains backward compatible.
+* `npm run audit -- --target <path> --types security` works.
+* Audit reports include security findings in the shared issue model.
+* Audit reports link or reference generated security reports.
+* Optional skipped security tools are represented correctly.
+* Existing security reports remain available.
+* Existing experiment framework remains unchanged.
+
+### v0.3.3 — project-wide audit command
+
+Purpose:
+
+* Make the audit framework easy to use before implementation, refactor, release readiness, or publication.
+* Provide a single memorable project-wide audit command.
+
+Features:
+
+* Add audit profiles.
+* Add default profile detection.
+* Add combined audit summary.
+* Add issue deduplication across code rot, quality, and security.
+* Add source attribution for each issue.
+* Add release-readiness recommendation.
+* Add implementation-readiness recommendation.
+* Add suggested next steps grouped by category.
+* Add stable JSON output for future orchestrator integration.
+* Write combined reports under `reports/audits/project/`.
+
+Command direction:
+
+* Main command:
+
+  * `npm run audit -- --target <path>`
+
+* Specialized behavior through flags:
+
+  * `--types code-rot,quality,security`
+  * `--include docs,tests,package,dependencies,cross-platform,architecture,cli,security`
+  * `--security-checks deps,package,static,cli-adversarial,fuzz,attack-scenarios,secrets,network`
+  * `--quality-checks complexity,duplication,modularity,testability,typescript,lint,deps`
+  * `--rot-checks stale-references,docs-code-mismatch,duplicates,dead-code,test-rot,architecture,package,cross-platform,security-assumptions`
+  * `--profile node-cli-package,local-tool,npm-package,web-app`
+  * `--format text,json`
+  * `--fail-on blocker,high,medium,low,none`
+
+Suggested architecture:
+
+* `src/audits/core/auditProfile.ts`
+* `src/audits/core/auditProfileResolver.ts`
+* `src/audits/core/auditResultMerger.ts`
+* `src/audits/core/auditIssueDeduper.ts`
+* `src/audits/core/auditRecommendation.ts`
+* `src/audits/core/auditReadinessVerdict.ts`
+* `src/audits/profiles/`
+* `tests/audits/integration/`
+
+Acceptance:
+
+* `npm run audit -- --target <path>` works as the main project-wide audit.
+* `--types code-rot`, `--types quality`, `--types security`, and `--types code-rot,quality,security` all work.
+* One report contains combined findings without losing category or source attribution.
+* Duplicate findings are merged or cross-linked.
+* Report states whether the project is ready for implementation, refactor, release preparation, or publication.
+* Existing `security:validate` remains available.
+* Existing experiment framework remains available.
+
+### v0.4.0 — manual pentest framework
+
+Purpose:
+
+* Add a manual pentest framework next to automated security validation.
+* Keep automated checks and human-led manual testing clearly distinct.
+* Generate plans, checklists, findings, and manual reports.
+
+Features:
+
+* Add manual pentest plan generator.
+* Add manual checklist generator.
+* Add manual finding schema.
+* Add manual report renderer.
+* Add manual profiles for node CLI packages, local tools, npm packages, and web apps.
+* Adapt PTES-style workflow, NIST-style assessment/reporting discipline, and OWASP-style test case/checklist structure where appropriate.
+* Do not claim manual tests passed unless a manual report explicitly records them.
+
+Command direction:
+
+* Add a separate command because manual testing is a different workflow:
+
+  * `npm run security:pentest`
+
+* Use multi-option flags:
+
+  * `--mode plan,checklist,report`
+  * `--target <path>`
+  * `--profile node-cli-package,local-tool,npm-package,web-app`
+  * `--sections scope,recon,threat-model,attack-surface,test-cases,evidence,findings,recommendations`
+  * `--format text,json,markdown`
+  * `--out <path>`
+
+Suggested architecture:
+
+* `src/securityValidation/manualPentest/`
+* `src/securityValidation/manualPentest/profiles/`
+* `src/securityValidation/manualPentest/templates/`
+* `src/report/securityManual/`
+* `scripts/security/runManualPentest.ts`
+* `tests/security/manualPentest/`
+
+Report paths:
+
+* `reports/security/manual/<target>/pentest-plan.txt`
+* `reports/security/manual/<target>/pentest-plan.json`
+* `reports/security/manual/<target>/checklist.md`
+* `reports/security/manual/<target>/checklist.json`
+* `reports/security/manual/<target>/findings.json`
+* `reports/security/manual/<target>/final-pentest-report.txt`
+* `reports/security/manual/<target>/final-pentest-report.json`
+
+Acceptance:
+
+* `npm run security:pentest -- --mode plan,checklist --target <path> --profile node-cli-package` works.
+* Generated manual pentest plan includes scope, target metadata, attack surface, test cases, evidence requirements, and reporting instructions.
+* Generated checklist is editable and usable by a human tester.
+* Manual findings schema supports pass, fail, blocked, not-applicable, and not-started.
+* Automated security validation remains unchanged.
+* Audit framework remains unchanged except optional future linking.
+* Existing experiment framework remains unchanged.
+
+### v0.4.1 — mobile validation profile foundation
+
+Purpose:
+
+* Add mobile validation profiles to my-dev-kit-lab, starting with Android.
+* Keep mobile validation non-destructive and report-first.
+* Do not add mobile app generation, Android project scaffolding, Play Store publishing, release signing, or Android static indexing to my-dev-kit-lab.
+
+Responsibility boundary:
+
+* my-dev-kit should eventually index and understand Android/Kotlin/Gradle projects.
+* my-dev-kit-orchestrator should eventually bootstrap Android projects and guide greenfield Android workflows.
+* my-dev-kit-lab should validate existing mobile projects for security, packaging risk, release readiness, dependency risk, and platform-specific safety issues.
+
+Features:
+
+* Add mobile profile model.
+* Add Android project detection.
+* Add Android Compose project classification.
+* Add non-destructive target metadata capture.
+* Add mobile report schema foundation.
+* Add conservative confidence scoring.
+* Add unsupported/partial-detection wording.
+* Add target before/after git status capture where available.
+
+Initial profiles:
+
+* `android-app`
+* `android-compose`
+
+Future profile placeholders:
+
+* `android-xml`
+* `react-native-app`
+* `flutter-app`
+* `ios-swiftui-app`
+* `kotlin-multiplatform-app`
+* `expo-app`
+* `capacitor-ionic-app`
+
+Android detection signals:
+
+* `settings.gradle`
+* `settings.gradle.kts`
+* `build.gradle`
+* `build.gradle.kts`
+* `gradle.properties`
+* `gradle/libs.versions.toml`
+* `gradlew`
+* `gradlew.bat`
+* `app/build.gradle`
+* `app/build.gradle.kts`
+* `app/src/main/AndroidManifest.xml`
+* `app/src/main/java`
+* `app/src/main/kotlin`
+* `app/src/androidTest`
+* `app/src/test`
+* `com.android.application`
+* `com.android.library`
+* `org.jetbrains.kotlin.android`
+* Android namespace
+* `applicationId`
+* Compose dependencies or Compose Gradle configuration
+
+Detection output:
+
+* project root
+* detected profile
+* confidence
+* Gradle wrapper presence
+* Android plugin presence
+* modules detected
+* app modules detected
+* library modules detected
+* manifest paths
+* source sets
+* test source sets
+* Compose-based, XML/View-based, mixed, or uncertain classification
+
+Command direction:
+
+* Prefer extending existing validation commands with profile flags:
+
+  * `npm run security:validate -- --target <path> --profile android`
+  * `npm run security:validate -- --target <path> --profile android-compose`
+  * `npm run audit -- --target <path> --profile android-compose --types security`
+
+* Avoid adding many mobile-specific commands unless later justified.
+
+Suggested architecture:
+
+* `src/mobile/detection/`
+* `src/mobile/detection/detectMobileProject.ts`
+* `src/mobile/detection/detectAndroidProject.ts`
+* `src/mobile/detection/mobileProfileTypes.ts`
+* `src/mobile/android/`
+* `src/mobile/android/androidTypes.ts`
+* `src/mobile/android/readAndroidProject.ts`
+* `src/mobile/android/parseAndroidManifest.ts`
+* `src/mobile/android/parseGradleMetadata.ts`
+* `src/mobile/android/classifyAndroidProject.ts`
+* `src/securityValidation/profiles/androidProfile.ts`
+* `src/securityValidation/profiles/androidComposeProfile.ts`
+* `tests/mobile/detection/`
+* `tests/fixtures/android/`
+
+Acceptance:
+
+* Android project detection works on Kotlin/Compose/Gradle Kotlin DSL fixtures.
+* Partial Android projects are detected conservatively.
+* Detection results include evidence and confidence.
+* Target files are not modified.
+* Reports are written under my-dev-kit-lab, not into the target project.
+* Existing security, audit, and experiment commands remain backward compatible.
+
+### v0.4.2 — Android security validation MVP
+
+Purpose:
+
+* Add Android-specific security checks to my-dev-kit-lab’s validation system.
+* Produce a clear Android security verdict without modifying the target project.
+
+Features:
+
+* AndroidManifest parser.
+* Permission audit.
+* Exported component audit.
+* Deep link and intent-filter audit.
+* Cleartext traffic and network security audit.
+* Backup and data extraction audit.
+* Debuggable and release build configuration audit.
+* Hardcoded secret scan with redacted previews only.
+* Android security report.
+* Android security verdict policy.
+
+Initial Android security checks:
+
+* Dangerous and sensitive permissions.
+* Internet/network permissions.
+* Location, camera, microphone, contacts, calendar, SMS, call-log, storage, notification, background location, and foreground service permissions.
+* Activities, services, receivers, and providers with `android:exported`.
+* Intent filters and externally reachable components.
+* Deep link entry points.
+* `usesCleartextTraffic`.
+* `networkSecurityConfig`.
+* Debuggable release configuration.
+* Backup/data extraction settings.
+* Signing credentials or obvious secrets committed in source.
+* High-confidence API keys, tokens, private keys, keystore passwords, and signing passwords.
+
+Verdicts:
+
+* ready for release preparation
+* ready except optional manual checks
+* inconclusive: android environment incomplete
+* not ready: security blocker remains
+
+Blockers:
+
+* Exported sensitive component with no protection.
+* Debuggable release build.
+* Hardcoded high-confidence secret.
+* Dangerous cleartext/network config in release.
+* Unsafe high-confidence WebView pattern if implemented in this version.
+* Signing credentials committed in source.
+* Security command crash that prevents required evidence.
+* Target project modification during validation.
+* Missing required Android project files when the target claims Android support.
+
+Suggested architecture:
+
+* `src/mobile/android/checks/auditAndroidPermissions.ts`
+* `src/mobile/android/checks/auditExportedComponents.ts`
+* `src/mobile/android/checks/auditDeepLinks.ts`
+* `src/mobile/android/checks/auditNetworkSecurity.ts`
+* `src/mobile/android/checks/auditBackupAndDataExtraction.ts`
+* `src/mobile/android/checks/auditDebuggableBuild.ts`
+* `src/mobile/android/checks/auditHardcodedSecrets.ts`
+* `src/mobile/android/validation/runAndroidValidation.ts`
+* `src/mobile/android/validation/androidVerdictPolicy.ts`
+* `src/mobile/android/reports/buildAndroidSecurityReport.ts`
+* `src/mobile/android/reports/writeAndroidSecurityReport.ts`
+
+Acceptance:
+
+* Android security validation runs through `security:validate` with Android profile flags.
+* Safe Android fixtures produce no critical/high blockers.
+* Risky fixtures produce expected findings.
+* Findings include severity, confidence, file path, line or approximate location when possible, and recommendation.
+* Full secrets are never printed in reports.
+* Target project files are not modified.
+* Optional tools are reported as skipped when unavailable.
+
+### v0.4.3 — Android build and release-readiness validation
+
+Purpose:
+
+* Add Android build, test, lint, package, and release-preparation checks.
+* Keep release preparation separate from signing, publishing, or Play Store upload.
+
+Features:
+
+* Gradle wrapper check.
+* Gradle metadata extraction.
+* `gradlew.bat --version` validation on Windows.
+* `gradlew.bat tasks` validation where safe.
+* `assembleDebug` validation.
+* Optional `assembleRelease` validation if signing config allows it.
+* `testDebugUnitTest` validation.
+* `lintDebug` validation.
+* Optional `lintRelease` validation.
+* Optional `connectedDebugAndroidTest` only when emulator/device is available or explicitly requested.
+* APK/AAB artifact metadata inspection if artifacts exist.
+* Manifest release metadata summary.
+* Play-readiness checklist placeholders.
+
+Android release metadata checks:
+
+* applicationId/package.
+* versionCode.
+* versionName.
+* minSdk.
+* targetSdk.
+* permissions.
+* uses-feature declarations.
+* launcher activity.
+* app label/icon references.
+* adaptive icon presence when detectable.
+
+Play-readiness placeholders:
+
+* privacy policy likely required.
+* permissions declaration likely required.
+* data safety form likely required.
+* targetSdk policy should be checked against current Play policy before real release.
+* app icon/adaptive icon present.
+* app label present.
+* release notes needed.
+
+Boundary:
+
+* Do not create signing keys.
+* Do not sign packages.
+* Do not publish.
+* Do not upload to Google Play.
+* Do not edit Gradle files.
+* Do not update dependencies.
+* Do not clean target build outputs unless a later explicit cleanup mode exists.
+
+Acceptance:
+
+* Android release-readiness validation can run on fixtures and real local Android projects.
+* Gradle-generated build outputs are reported as expected local outputs, not unexpected lab modifications.
+* Missing emulator/device is an optional skipped check unless explicitly required.
+* Release verdict distinguishes security blockers from incomplete environment evidence.
+* Reports remain text and JSON.
+* Target source files are not modified.
+
+### v0.4.4 — Android advanced security and supply-chain checks
+
+Purpose:
+
+* Add deeper Android-specific security checks and optional external tool integration.
+* Keep external tool absence non-blocking unless explicitly required.
+
+Features:
+
+* WebView unsafe settings audit.
+* FileProvider path exposure audit.
+* Sensitive local storage pattern audit.
+* Sensitive logging audit.
+* Clipboard sensitive-data audit.
+* Gradle dependency and supply-chain audit.
+* Network Security Config deeper parsing.
+* Signing config leak detection.
+* Google services / Firebase config risk review.
+* Optional OSV-Scanner integration for supported dependency evidence.
+* Optional Semgrep integration for Android-specific patterns.
+* Optional Android Lint evidence integration.
+* Optional Gradle dependency-check integration if available.
+
+WebView checks:
+
+* `setJavaScriptEnabled(true)`.
+* `addJavascriptInterface`.
+* `setAllowFileAccess(true)`.
+* `setAllowContentAccess(true)`.
+* `setAllowFileAccessFromFileURLs(true)`.
+* `setAllowUniversalAccessFromFileURLs(true)`.
+* mixed content mode.
+* SSL error override patterns such as `onReceivedSslError` with `proceed`.
+
+FileProvider checks:
+
+* provider declarations.
+* FileProvider authorities.
+* `res/xml/file_paths`.
+* `external-path`.
+* `root-path`.
+* broad path exposure.
+* `grantUriPermissions`.
+
+Sensitive storage and logging checks:
+
+* SharedPreferences or DataStore keys with token/password/secret/session terms.
+* Plaintext file writes with sensitive names.
+* SQLite/Room sensitive field candidates.
+* `Log.*` or `println` calls with sensitive terms.
+* Clipboard writes with sensitive terms.
+
+Acceptance:
+
+* Advanced checks produce deterministic findings on fixtures.
+* Optional unavailable tools are reported as skipped, not passed.
+* Findings include false-positive risk where appropriate.
+* Reports do not print secrets.
+* Target project files are not modified.
+* Android report schema remains stable or versioned.
+
+### v0.4.5 — mobile report integration and platform expansion
+
+Purpose:
+
+* Stabilize mobile validation report schemas and prepare support for additional mobile platforms after Android works.
+* Keep Android as the first-class supported profile before expanding.
+
+Features:
+
+* Stable mobile validation JSON schema.
+* Shared mobile report sections.
+* Mobile profile registry.
+* Android report integration into security and audit summaries.
+* React Native detection preview.
+* Flutter detection preview.
+* iOS SwiftUI detection preview.
+* Kotlin Multiplatform detection preview.
+* Expo and Capacitor/Ionic detection preview.
+* Platform-specific unsupported-case messaging.
+* Documentation for mobile validation boundaries.
+
+Report sections:
+
+* Executive summary.
+* Target metadata.
+* Detected mobile profile.
+* Android project detection evidence.
+* Gradle/build metadata.
+* Manifest summary.
+* Permission audit.
+* Exported component audit.
+* Deep link audit.
+* Network security audit.
+* WebView audit.
+* FileProvider audit.
+* Backup/data extraction audit.
+* Debuggable/release build audit.
+* Secrets scan.
+* Storage/logging/clipboard audit.
+* Dependency/supply-chain audit.
+* Validation commands run.
+* Skipped checks and reasons.
+* Findings by severity.
+* Release/security verdict.
+* Recommended next step.
+
+Acceptance:
+
+* Android reports are stable and machine-readable.
+* Mobile profile registry supports future platforms without rewriting Android validation.
+* React Native, Flutter, iOS, Kotlin Multiplatform, Expo, and Capacitor/Ionic are clearly marked as planned or preview until implemented.
+* `security:validate` and `audit` can reference mobile profile status without claiming unsupported checks passed.
+* Documentation clearly states that my-dev-kit-lab validates mobile projects; it does not generate, sign, publish, upload, or index them.
+
+### v0.5.0 — warm-index reuse experiment support
+
+Purpose:
+
+* Add a plugin for testing the strongest my-dev-kit value case: indexing once and reusing the index across multiple tasks.
+
+Features:
+
+* Add warm-index-reuse experiment plugin.
+* Add setup step to index a project once.
+* Run multiple benchmark tasks using the same index.
+* Compare against raw-full-file context per task.
+* Measure index build time, retrieval time per task, raw context size, retrieved context size, amortized index cost, correctness, duration, and token usage when available.
+* Add report section explaining cold cost versus warm cost.
+* Add plots for amortized index cost, raw versus retrieved context size, correctness, and cumulative token usage.
+
+Acceptance:
+
+* Warm-index experiment runs with fake-agent.
+* Reports clearly separate one-time index cost from per-task retrieval cost.
+* Results do not overclaim token savings when token totals are unavailable.
+
+### v0.5.1 — expanded warm-index benchmark suite
+
+Purpose:
+
+* Add enough tasks to make warm-index reuse meaningful.
+
+Features:
+
+* Add multiple cases per benchmark project.
+* Add localized tasks.
+* Add cross-module tasks.
+* Add broad-change tasks as negative controls.
+* Add answer keys for all new tasks.
+* Add expected relevant files and symbols for retrieval evaluation.
+* Add benchmark metadata for task locality.
+
+Acceptance:
+
+* At least five tasks exist for the medium benchmark project.
+* At least five tasks exist for the large/mixed benchmark project.
+* Reports can compare warm-index behavior as task count increases.
+
+### v0.5.2 — warm-index real-agent campaigns
+
+Purpose:
+
+* Run Codex and Claude on warm-index experiments with structured partial-outcome reporting.
+
+Features:
+
+* Add real-agent warm-index campaign presets.
+* Add reduced-size campaign for Codex timeout isolation.
+* Add Claude token-unavailable explanation.
+* Add partial-result friendly report sections.
+* Add screenshots and gallery output.
+
+Acceptance:
+
+* Campaigns can run with Codex and Claude.
+* Partial outcomes are structured.
+* Reports distinguish infrastructure success from agent/provider limitations.
+
+### v0.6.0 — index freshness and changed-file detection
+
+Purpose:
+
+* Detect source changes that may invalidate indexed context.
+
+Features:
+
+* Record index manifest metadata.
+* Track indexed files, file hashes, modified timestamps where useful, my-dev-kit version, command used, and generated artifacts.
+* Add changed-file detection against the current working tree.
+* Add reportable index freshness status:
+
+  * fresh
+  * stale
+  * partially stale
+  * unknown
+
+Acceptance:
+
+* Lab can detect changed files after an index was built.
+* Freshness status appears in experiment artifacts and reports.
+
+### v0.6.1 — affected-neighborhood experiments
+
+Purpose:
+
+* Measure graph-neighborhood targeting after localized changes.
+
+Features:
+
+* Use my-dev-kit graph outputs to map changed files and symbols to affected nodes.
+* Determine whether a future task overlaps affected nodes.
+* Add affected-neighborhood metrics:
+
+  * changedFileCount
+  * changedSymbolCount
+  * affectedNodeCount
+  * affectedEdgeCount
+  * taskOverlapCount
+  * taskOverlapPercent
+  * reindexRecommendation
+
+Acceptance:
+
+* Experiment can classify next task as related or unrelated to a prior change.
+* Report explains whether reindex was recommended.
+
+### v0.6.2 — incremental-change and staleness plugin
+
+Purpose:
+
+* Compare stale, refreshed, and incrementally updated index behavior after controlled code changes.
+
+Features:
+
+* Add incremental-change-staleness plugin.
+* Define change scenarios:
+
+  * unrelated file change
+  * local implementation change
+  * exported symbol change
+  * public API change
+  * import graph change
+  * test-only change
+* Run next tasks with stale index, refreshed full index, and partial refresh where available.
+* Score correctness and retrieval safety.
+* Report stale-index risk.
+
+Acceptance:
+
+* Plugin demonstrates safe and unsafe stale-index scenarios.
+* Reports do not recommend skipping reindex unless evidence supports it.
+
+### v0.6.3 — partial-refresh planning
+
+Purpose:
+
+* Add evidence and planning support for bounded index refreshes.
+
+Features:
+
+* Add experiment treatments:
+
+  * my-dev-kit-full-refresh
+  * my-dev-kit-no-refresh
+  * my-dev-kit-changed-files-refresh
+  * my-dev-kit-affected-neighborhood-refresh
+* If my-dev-kit does not yet support partial reindex, simulate or mark treatment unavailable.
+* Document dependency on future my-dev-kit support.
+
+Acceptance:
+
+* Lab can model partial-refresh experiments even if my-dev-kit support is incomplete.
+* Reports clearly distinguish implemented behavior from planned capability.
+
+### v0.7.0 — context-window scaling plugin
+
+Purpose:
+
+* Measure raw and guided strategies under increasing repository and context sizes.
+
+Features:
+
+* Add context-window-scaling plugin.
+* Define context budgets:
+
+  * 8k
+  * 16k
+  * 32k
+  * 64k
+  * custom
+* Measure raw context estimated tokens, retrieved context estimated tokens, whether raw context fits, whether retrieved context fits, correctness, omitted relevant files, and context budget utilization.
+* Add report sections for context fit/fail.
+* Add plots for raw versus retrieved context size, success rate by context budget, and correctness by context budget.
+
+Acceptance:
+
+* Experiment can mark raw strategy as context-too-large without treating it as a normal failure.
+* my-dev-kit-guided treatment can be evaluated under the same budget.
+
+### v0.7.1 — synthetic large-repository generator
+
+Purpose:
+
+* Generate reproducible repositories with controlled scale and topology.
+
+Features:
+
+* Add deterministic benchmark generator for synthetic TypeScript and Python repositories.
+* Generate configurable file count, module depth, internal imports, symbol count, test count, task locality, and repeated patterns.
+* Add answer keys for generated tasks.
+
+Acceptance:
+
+* Generated projects can be used in context-window experiments.
+* Generated source is deterministic and maintainable.
+
+### v0.7.2 — real-world and local-repository experiments
+
+Purpose:
+
+* Support repeatable campaigns against explicitly selected local repositories.
+
+Features:
+
+* Add support for external benchmark subject paths.
+* Add safety checks for ignored files and large files.
+* Add no-commit/no-modification policy for external source.
+* Add report metadata for external repo name, commit, and size.
+* Add privacy-safe artifact policies.
+
+Acceptance:
+
+* User can run lab experiments against a local repo path.
+* Reports capture enough metadata to reproduce the experiment without copying private code.
+
+### v0.8.0 — retrieval precision/recall plugin
+
+Purpose:
+
+* Measure whether retrieval includes required context and excludes irrelevant context without requiring real agents.
+
+Features:
+
+* Add retrieval-precision-recall plugin.
+* Run my-dev-kit search, lookup, source, and slice commands.
+* Compare retrieved files and symbols against answer keys.
+* Measure file precision, file recall, symbol precision, symbol recall, fact coverage, irrelevant context ratio, retrieved token count, and missed required context.
+
+Acceptance:
+
+* Experiment does not require real agents.
+* Retrieval metrics are deterministic.
+* Reports identify missed files/symbols and irrelevant retrieved context.
+
+### v0.8.1 — retrieval query strategy comparison
+
+Purpose:
+
+* Compare different ways of asking my-dev-kit for context.
+
+Features:
+
+* Compare keyword search, symbol lookup, graph neighborhood, source slice, data-model graph, model-view-lineage, and combined graph-guided workflows.
+* Add strategy-specific metrics.
+* Add report section showing which retrieval strategy worked best for each task type.
+
+Acceptance:
+
+* Lab can compare multiple my-dev-kit retrieval workflows without running coding agents.
+
+### v0.8.2 — context-pack generation experiments
+
+Purpose:
+
+* Evaluate reproducible, auditable task-specific context packs.
+
+Features:
+
+* Add context-pack treatment.
+* Generate context pack containing task summary, relevant files, relevant symbols, source slices, call relationships, tests, and evidence notes.
+* Compare context pack size and coverage against raw full-file context.
+* Add report preview of context pack.
+
+Acceptance:
+
+* Context pack artifacts are generated.
+* Reports show context pack coverage and size.
+
+### v0.9.0 — agent-success-rate plugin
+
+Purpose:
+
+* Compare task completion and correctness across context strategies.
+
+Features:
+
+* Add agent-success-rate plugin.
+* Run agents on implementation tasks.
+* Capture changed files.
+* Run benchmark tests.
+* Score tests passed, expected files modified, unexpected files modified, answer-key facts satisfied, regression failures, time, and tokens if available.
+* Add safe sandbox/copy workflow for benchmark projects.
+* Preserve diffs as artifacts.
+* Add edit-quality and blast-radius metrics.
+* Add multi-attempt repair mode as an optional experiment mode.
+
+Acceptance:
+
+* Fake-agent or deterministic fixture can simulate edits.
+* Real-agent campaign can run with guarded local benchmark copies.
+* Reports show diff summary, test result summary, blast radius, and repair-attempt labeling where applicable.
+
+### v0.9.1 — normalized provider telemetry and campaign scheduler
+
+Purpose:
+
+* Normalize available provider/CLI telemetry and make real-agent campaigns safer to run incrementally.
+
+Features:
+
+* Improve agent output parsing.
+* Add token usage reliability levels:
+
+  * provider-reported
+  * cli-reported
+  * parsed-from-output
+  * unavailable
+  * estimated
+* Add duration source metadata.
+* Add status taxonomy:
+
+  * completed
+  * failed
+  * timeout
+  * invalid-output
+  * agent-unavailable
+  * agent-limit-reached
+  * token-unavailable
+* Add campaign queue.
+* Add one-case-at-a-time mode.
+* Add resume mode.
+* Add skip completed runs.
+* Add rate/limit pause handling.
+* Add per-agent timeout presets.
+* Add campaign progress summary.
+
+Acceptance:
+
+* Reports make clear which comparisons are strong, partial, or unavailable.
+* Interrupted campaigns can resume.
+* Partial results are preserved.
+
+### v0.9.2 — hardened real-agent prompts and report/gallery generalization
+
+Purpose:
+
+* Harden real-agent prompt contracts and generalize reports/gallery for stable release readiness.
+
+Features:
+
+* Add stricter output schemas for Codex and Claude.
+* Add short-form prompt mode.
+* Add no-extra-explanation mode.
+* Add bounded tool-use mode.
+* Add max command count guidance.
+* Add per-agent prompt templates.
+* Make report renderer fully plugin-aware.
+* Add report section registry.
+* Add glossary links for every metric.
+* Add report-level caveats generated from metric reliability.
+* Improve static HTML report UX.
+* Make gallery the entry point for many experiment outputs.
+
+Acceptance:
+
+* Invalid-output rate improves in smoke campaigns.
+* Reports compare prompt template versions.
+* Existing context-strategy report renders through generic report framework.
+* Warm-index, retrieval, context-window, audit, security, and mobile reports can share or link through consistent infrastructure where appropriate.
+* Gallery can browse multiple experiment and validation outputs.
+
+## Stable and post-stable releases
+
+### v1.0.0 — stable framework release
+
+Purpose:
+
+* Release my-dev-kit-lab as a stable experiment, audit, automated security-validation, manual pentest, mobile validation, reporting, and evidence framework after all prerequisite `v0.x` work.
+
+Required capabilities:
+
+* Stable experiment plugin framework.
+* Stable `context-strategy-comparison` plugin.
+* Warm-index-reuse experiment support.
+* Retrieval precision/recall experiment support.
+* Context-window scaling experiment support.
+* At least partial index freshness/staleness support.
+* Agent-success-rate experiment support.
+* Stable audit framework with code rot, quality, and security summary support.
+* Stable automated security validation.
+* Manual pentest plan/checklist/report support.
+* Android validation profile support.
+* Stable artifact schema versioning.
+* Stable report output.
+* Stable gallery output.
+* Strong documentation.
+* Public examples.
+* Deterministic fake demos.
+* Structured real-agent partial outcomes.
+* No known critical build/test failures.
+
+Acceptance:
+
+* Users can add a new experiment type without copying the whole pipeline.
+* Users can audit a target project before implementation or release preparation.
+* Users can validate a local Android project for release preparation without signing, publishing, or modifying target source files.
+* Users can generate manual pentest plans and checklists.
+* Reports explain metrics, findings, confidence, and limitations clearly.
+* All core tests pass.
+* Verify passes.
+* Cross-platform CI passes.
+
+### v1.1.0 — incremental index and stale-context proof
+
+Purpose:
+
+* Productize evidence for incremental indexing and stale-context controls.
+
+Features:
+
+* Stronger changed-node and affected-neighborhood experiments.
+* Partial-refresh treatment support if my-dev-kit supports it.
+* Stale-index risk reporting.
+* Reindex recommendation reports.
+* Incremental workflow diagrams and tutorials.
+
+### v1.2.0 — large-repository, external-repository, and mobile scaling
+
+Purpose:
+
+* Expand reproducible evidence across larger repositories, explicitly selected local repositories, and additional mobile project profiles.
+
+Features:
+
+* External repo subject support.
+* Synthetic large-repo generator.
+* Context-window scaling campaigns.
+* Large-repo report templates.
+* Privacy-safe artifact policies.
+* Reproducibility metadata.
+* Additional mobile validation profiles after Android is stable, such as Flutter, React Native, iOS SwiftUI, Kotlin Multiplatform, Expo, and Capacitor/Ionic.
+
+### v1.3.0 — agent productivity and edit quality
+
+Purpose:
+
+* Consolidate agent-success, edit-quality, and repair evidence.
+
+Features:
+
+* Stronger agent-success experiments.
+* Diff artifact capture.
+* Test-pass scoring.
+* Blast-radius scoring.
+* Multi-attempt repair experiment mode.
+* Real-agent campaign presets.
+* Cross-project implementation-readiness evidence.
+
+### v1.4.0 — publication and evidence portal
+
+Purpose:
+
+* Generalize reports, plots, screenshots, validation summaries, mobile reports, audit outputs, and gallery output into a publication-oriented evidence portal.
+
+Features:
+
+* Curated example reports.
+* Public demo screenshots.
+* Release-linked evidence bundles.
+* Comparison summaries across experiment types.
+* Audit and security evidence summaries.
+* Android validation example reports.
+* Documentation for interpreting evidence responsibly.
+* Gallery as a navigable evidence portal.
+
+## Command surface direction
+
+Commands to keep:
+
+* `npm run experiment:list`
+* `npm run experiment:describe`
+* `npm run experiment:run`
+* `npm run security:validate`
+* `npm run audit`
+* `npm run security:pentest`
+
+Commands to avoid unless truly necessary:
+
+* `npm run audit:code-rot`
+* `npm run audit:quality`
+* `npm run audit:security`
+* `npm run audit:release`
+* `npm run audit:docs`
+* `npm run audit:tests`
+* `npm run audit:package`
+* `npm run mobile:detect`
+* `npm run mobile:validate`
+* `npm run mobile:release-check`
+* `npm run security:android`
+
+Preferred flag-based usage:
+
+* Code rot only:
+
+  * `npm run audit -- --target <path> --types code-rot`
+
+* Quality only:
+
+  * `npm run audit -- --target <path> --types quality`
+
+* Security summary only:
+
+  * `npm run audit -- --target <path> --types security`
+
+* Full project audit:
+
+  * `npm run audit -- --target <path> --types code-rot,quality,security`
+
+* Automated security validation:
+
+  * `npm run security:validate -- --target <path> --checks deps,package,static,cli-adversarial,fuzz,attack-scenarios`
+
+* Android validation:
+
+  * `npm run security:validate -- --target <path> --profile android`
+  * `npm run security:validate -- --target <path> --profile android-compose`
+
+* Manual pentest plan:
+
+  * `npm run security:pentest -- --mode plan,checklist --target <path> --profile node-cli-package`
+
+## Mobile validation boundaries
+
+my-dev-kit-lab mobile support means:
+
+* Detect mobile project type.
+* Validate Android project structure.
+* Audit Android security risks.
+* Run safe Gradle validation commands when requested.
+* Inspect build, test, lint, and package metadata where available.
+* Generate text and JSON reports.
+* Produce a release-preparation verdict.
+* Preserve non-destructive behavior.
+
+my-dev-kit-lab mobile support does not mean:
+
+* Creating Android apps.
+* Bootstrapping mobile projects.
+* Indexing Android code for retrieval.
+* Publishing to Google Play.
+* Uploading to Play Console.
+* Signing releases.
+* Managing signing secrets.
+* Creating keystores.
+* Editing target Gradle files.
+* Updating target dependencies.
+* Automatically fixing target code.
+* Modifying target projects by default.
+
+## Current boundaries
+
+* `context-strategy-comparison` is the implemented experiment plugin.
+* Automated security validation is implemented; a complete manual pentest framework is planned.
+* Generic audit, code rot, code quality, unified audit reports, and project-wide audit commands are planned.
+* Android/mobile validation profiles are planned.
+* Warm-index reuse, index freshness, context scaling, retrieval precision/recall, and agent-success plugins are planned.
+* The evidence does not establish that my-dev-kit always saves tokens.
+* The strongest thesis is that reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection help when a repository is larger than the task.
+
+## Architecture direction
 
 ```mermaid
 flowchart TD
-  A[Extract shared runtime\nfrom current pipeline] --> B[Define experiment plugin interface]
-  B --> C[Wrap current raw-vs-indexed experiment\nas context-strategy-comparison plugin]
-  C --> D[Add target-aware execution\nand plugin-aware reports]
-  D --> E[Add user-facing\nexperiment commands]
+  A[Experiments<br/>src/experiments] --> R[Evidence reports<br/>src/report]
+  S[Security validation<br/>src/securityValidation] --> R
+  M[Mobile validation<br/>src/mobile] --> S
+  M --> R
+  P[Manual pentest<br/>src/securityValidation/manualPentest] --> R
+  Q[Project audits<br/>src/audits] --> R
+  Q --> S
+  Q --> M
+  R --> G[Gallery and evidence portal]
 ```
 
-### Why this matters
+Responsibility split:
 
-- New experiment types can be added as plugins without rebuilding the pipeline
-- Users can list, describe, and run experiments by plugin id
-- Experiments can run against explicit local target projects
-- Plugin-aware reports include plugin, target, variant, metric, artifact, warning, skip, and failure metadata
-- Each plugin focuses only on what makes its experiment type unique
+* `src/experiments/` stays focused on experiment plugins and experiment execution.
+* `src/securityValidation/` stays focused on automated security validation and manual pentest support.
+* `src/mobile/` supports mobile project detection and platform-specific validation evidence, starting with Android.
+* `src/audits/` becomes the unified project audit framework for code rot, code quality, and security summaries.
+* `src/report/experiments/` stays focused on experiment reports.
+* `src/report/audits/` becomes the shared audit report renderer.
+* `src/report/securityManual/` supports manual pentest artifacts if manual reporting is too specialized for generic audit reports.
+* `scripts/experiments/` contains experiment commands only.
+* `scripts/security/` contains security validation and manual pentest commands.
+* `scripts/audits/` contains the single audit entrypoint.
+* `reports/security/` contains automated security validation reports.
+* `reports/security/manual/` contains manual pentest artifacts.
+* `reports/audits/` contains unified audit reports.
 
-Future plugins remain planned, not implemented.
+## Validation expectations for every release
 
----
+Every release should run the relevant subset of:
 
-## Parallel track: Release-security validation for my-dev-kit
+* `npm install`
+* `npm run build`
+* `npm run test`
+* `npm run verify`
+* `npm run security:validate`
+* `npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"`
+* `npm run security:validate -- --target "Z:\Users\newuser\Projects\scientific-literature-explorer-v1"`
+* `npm run experiment:list`
+* `npm run experiment:describe -- --experiment context-strategy-comparison`
+* `npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --case todo-ts-create-task --agents fake-agent --complexities short --no-screenshot`
+* `npm pack --dry-run`
 
-my-dev-kit-lab will also add a planned release-security track for **my-dev-kit**. This track is separate from the generic experiment-plugin framework and does not replace it. The goal is to produce repeatable security-validation evidence that release preparation for the local CLI/package can consume.
+When Android validation exists, Android-profile releases should additionally run fixture-backed checks for:
 
-This is not a web-application pentest roadmap. The target under validation is a local CLI/package, so the correct model is CLI/package adversarial testing and release-gate evidence around these boundaries:
+* Android project detection.
+* Android Compose detection.
+* Android manifest audit.
+* Android permission audit.
+* Android exported component audit.
+* Android deep link audit.
+* Android network security audit.
+* Android backup/data extraction audit.
+* Android debug/release configuration audit.
+* Android hardcoded secret scan.
+* Android report schema stability.
+* Android non-destructive target validation.
+* Optional tool skipped-check handling.
 
-- local-first
-- deterministic
-- read-only with respect to user source files
-- network-free during normal CLI operation
-- LLM-free
-- database-free
-- safe to run on local repositories
+GitHub Actions matrix should continue to cover:
 
-The planned framework is described in [security-validation-framework.md](security-validation-framework.md). The milestones below describe how it fits into the roadmap.
+* Ubuntu Node 24
+* Ubuntu Node 22
+* macOS Node 24
+* macOS Node 22
+* Windows Node 24
+* Windows Node 22
 
-### Security validation flow
+## Key rule
 
-```mermaid
-flowchart LR
-  A[Static scans\nCodeQL + Semgrep] --> E[Security report]
-  B[Dependency and package checks\nnpm audit + OSV + npm pack dry run] --> E
-  C[CLI adversarial tests\ntemp directories + built CLI] --> E
-  D[Fuzz smoke tests\nbounded parser stress] --> E
-  E --> F[Release verdict\nrelease gate for preparation]
-```
+Use one framework per responsibility:
 
-### Phase 1: Security model and test matrix — **Implemented (v0.1.2)**
+* Experiments measure behavior across experiment variants.
+* Security validation performs automated target security checks.
+* Manual pentest support generates human-led testing plans, checklists, findings, and reports.
+* Mobile validation inspects platform-specific project security, build, package, and release-readiness risks.
+* Audits inspect project health across code rot, code quality, and security summaries.
+* Reports render evidence and results.
 
-Security model, types, config, test matrix, command runner, and artifact writer are implemented in `src/securityValidation/`.
+Do not collapse everything into one vague system.
 
-### Phase 2: Package and dependency checks — **Implemented (v0.1.2)**
+Do not add many commands when flags can express the difference.
 
-`security:deps` runs `npm audit`, `npm audit --omit=dev`, OSV-Scanner (if available), `npm outdated`, and `npm ls --all`. `security:package` runs `npm pack --dry-run` and checks for forbidden contents.
+Do not break existing experiment framework commands.
 
-### Phase 3: CLI adversarial tests — **Implemented (v0.1.2–v0.1.3)**
+Do not make mobile validation destructive.
 
-`test:security` runs 165 adversarial tests across path traversal, read-only boundary checks, malformed artifact handling, JSON stdout/stderr safety, subprocess safety, and data volume edge cases. All tests run against a deterministic `fake-adversarial-cli.js` fixture; real CLI opt-in available via `MY_DEV_KIT_SECURITY_TARGET_COMMAND`.
-
-### Phase 4: Static scan integration — **Implemented (v0.1.4)**
-
-`security:codeql` checks local CodeQL CLI availability and skips gracefully when absent. `security:semgrep` scans `src/` using `.semgrep.yml` rules via local binary or npx fallback. Both produce structured `SecurityCheckResult` outputs.
-
-### Phase 5: Fuzz smoke tests — **Implemented (v0.1.4)**
-
-`test:fuzz:smoke` runs 9 bounded fuzz targets (50 iterations each) with a seeded PRNG (Mulberry32 / `0xDEADBEEF`). Targets cover manifest reader, code-graph reader, npm parsers, DOT label escaping, path normalization, and source windowing. Completes in under 1 second.
-
-### Phase 6: Release report generator — **Implemented (v0.1.4)**
-
-`security:validate` orchestrates all security checks and writes:
-
-- `reports/security/<prefix>-security-validation.txt` — 22-section human-readable report
-- `reports/security/<prefix>-security-validation.json` — machine-readable report with `schemaVersion: 1`
-
-Four release verdicts are possible:
-
-- `ready for release preparation`
-- `not ready: security blocker remains`
-- `ready except optional manual checks`
-- `inconclusive: audit environment incomplete`
-
-When `--target` is omitted, the command performs self-validation. With `--target <path>`, it validates another local project without modifying target files and records tool-root and target-root metadata separately. Generated reports are excluded from git by default (`.gitignore`).
-
-### Security commands (all implemented)
-
-| Command | Description |
-|---|---|
-| `npm run security:deps` | Dependency and supply-chain audit |
-| `npm run security:package` | Package tarball content inspection |
-| `npm run security:codeql` | CodeQL CLI check (skips if absent) |
-| `npm run security:semgrep` | Semgrep scan (npx fallback; skips if both absent) |
-| `npm run test:security` | 165 adversarial CLI tests |
-| `npm run test:fuzz:smoke` | 9 bounded fuzz targets |
-| `npm run security:validate` | Full release gate with verdict and reports |
-
----
-
-## Future phases
-
-### Warm-index reuse experiments
-
-```mermaid
-flowchart TD
-  A[Index benchmark project\none time] --> B[Run N queries\nagainst warm index]
-  B --> C[Measure amortized\nper-query cost]
-  C --> D[Compare with\ncold-start raw-full-file]
-  D --> E[warm-index-reuse report]
-```
-
-The warm-index-reuse plugin will measure the amortized cost of my-dev-kit indexing when the index is reused across multiple queries. Cold-start comparisons understate this benefit because the indexing cost is paid only once.
-
-### Incremental-change and stale-index experiments
-
-```mermaid
-flowchart TD
-  A[Index project at version N] --> B[Apply incremental changes]
-  B --> C[Run queries against stale index]
-  C --> D[Measure correctness degradation]
-  D --> E[Re-index and compare]
-  E --> F[incremental-change report]
-```
-
-The incremental-change plugin will measure how well a partially stale index still guides retrieval after code changes, and how quickly correctness recovers after re-indexing.
-
-### Context-window scaling experiments
-
-This plugin will measure what happens as project size grows toward and beyond agent context window limits. Raw-full-file becomes infeasible at large scale; my-dev-kit-guided retrieval is expected to remain viable.
-
-### Retrieval precision and recall experiments
-
-This plugin will measure whether my-dev-kit retrieves the right files and symbols for a given task, not just fewer tokens. Precision and recall against answer keys will provide a more direct measure of retrieval quality.
-
-### Agent-success-rate experiments
-
-This plugin will measure overall agent task success rates across strategies, agents, and project sizes, going beyond token counts to measure whether agents actually complete tasks correctly.
-
-### Real-agent campaign hardening
-
-Improvements to real-agent campaign reliability: better timeout handling, retry logic, structured outcome reporting, and support for additional agent CLIs.
-
-### Richer gallery and report UX
-
-Interactive gallery with filtering, tagging, and side-by-side comparison views. Richer report sections with drill-down into individual runs.
-
-### Dependency maintenance
-
-Regular updates to Node.js, TypeScript, Playwright, and other dependencies.
-
----
-
-## Roadmap sequence
-
-```mermaid
-flowchart LR
-  A[Baseline\ncomplete] --> B[Plugin framework\nnext]
-  B --> C[Experiment track\nwarm-index reuse]
-  B --> D[Experiment track\nincremental change]
-  C --> E[Context-window\nscaling]
-  D --> E
-  E --> F[Retrieval\nprecision/recall]
-  F --> G[Agent success\nrate]
-  G --> H[Real-agent\nhardening]
-  H --> I[Richer gallery\nand report UX]
-  B --> J[Security phase 1\nmodel and matrix]
-  J --> K[Security phase 2\npackage and deps]
-  K --> L[Security phase 3\nCLI adversarial tests]
-  L --> M[Security phase 4\nstatic scans]
-  M --> N[Security phase 5\nfuzz smoke]
-  N --> O[Security phase 6\nrelease report]
-```
-
----
-
-## Project support
-
-Sponsorships and donations help support continued independent development, maintenance, documentation, and future experiment-framework work.
-
-- [Sponsor on GitHub](https://github.com/sponsors/dailephd)
-- [Support via PayPal](https://paypal.me/daile88)
+Do not let my-dev-kit-lab become an app generator, publisher, signer, or Play Store uploader.
