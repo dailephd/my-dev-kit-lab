@@ -2,11 +2,11 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [0.2.2] - Unreleased (release-prepared; not yet published to npm)
+## [0.2.2] - 2026-07-07
 
 ### Added
 
-- Implemented the `v0.2.2` automated security-validation fortification work; version bumped and release-preparation validation completed, but this version has not been published to npm.
+- Implemented the `v0.2.2` automated security-validation fortification work; version bumped and release-preparation validation completed.
 - Added `security:validate` support for `--checks`, `--profile`, `--format`, `--fail-on`, and `--out` while preserving backward-compatible no-flag and `--target` behavior.
 - Added the attack-scenario framework, reusable security profiles, payload/evidence models, and concrete boundary, subprocess, secrets, and network scenarios.
 - Added fail-on threshold behavior, profile-aware default check selection, scoped-run reporting, and verdict-reason summaries.
@@ -19,7 +19,7 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ### Documentation
 
-- Synchronized current-state, architecture, command, security-validation, and project-overview documentation with the `v0.2.2` implementation and package version, while keeping the wording clear that this version has not been published to npm.
+- Synchronized current-state, architecture, command, security-validation, and project-overview documentation with the `v0.2.2` implementation and package version.
 - Replaced the stale roadmap with a semantically ordered plan from v0.2.1 through v1.4.0, placing stable v1.0.0 after all prerequisite v0.x work.
 - Clarified that automated security validation is implemented, while the generic audit framework, code rot and quality detectors, unified audits, and manual pentest framework are planned.
 
