@@ -26,6 +26,7 @@ src/
     dependencies/                            npm and OSV checks
     packageChecks/                           npm package-content inspection
     cliAdversarial/                          CLI/path/read-only/malformed/subprocess checks
+    attackScenarios/                         adversarial scenario contracts, profiles, runner, scenarios, schema guard
     staticScans/                             CodeQL and Semgrep integration
     fuzz/                                    bounded deterministic fuzz smoke
     validate/                                targets, orchestration, and verdicts
@@ -100,7 +101,7 @@ Experiment and security commands distinguish the tool root from the target root.
 
 ## Automated security-validation architecture
 
-The current security framework is automated CLI/package validation. It combines dependency and package inspection, adversarial CLI tests, static-tool integrations, bounded fuzz smoke, and report/verdict generation. It is target-aware and preserves `npm run security:validate` self mode.
+The current security framework is automated CLI/package validation. It combines dependency and package inspection, adversarial CLI tests, static-tool integrations, bounded fuzz smoke, attack-scenario execution, and report/verdict generation. It is target-aware and preserves `npm run security:validate` self mode.
 
 ```mermaid
 flowchart LR
@@ -110,15 +111,25 @@ flowchart LR
   Resolve --> Static[CodeQL / Semgrep]
   Resolve --> CLI[Security test suite]
   Resolve --> Fuzz[Bounded fuzz smoke]
+  Resolve --> Scenarios[Attack scenarios + profiles]
   Deps --> Verdict[Normalize findings and verdict]
   Package --> Verdict
   Static --> Verdict
   CLI --> Verdict
   Fuzz --> Verdict
+  Scenarios --> Verdict
   Verdict --> Reports[Text + JSON reports]
 ```
 
 For an external target, dependency, package, and supported static checks use the target project. If the target declares `test:security`, validation runs that script in the target root. The framework records command cwd, exit status, and bounded output summaries. Tool-specific self-tests remain clearly labeled.
+
+`src/securityValidation/attackScenarios` is now part of the implemented validation layer. It contains the `AttackScenario` contract, `AttackResult` bridge model, reusable profiles, payload/evidence helpers, the integrated attack runner, and concrete scenarios for boundary, subprocess, secrets, and network checks.
+
+`src/securityValidation/attackScenarios/reportSchemaGuard.ts` protects JSON report structure against payload-created top-level injection by comparing a clean baseline render with a payload-bearing render. This is schema/report hardening for the current report format, not a general renderer-safety proof.
+
+`src/securityValidation/types.ts` defines `VerdictImpact`, which flows from `AttackScenario` to `AttackResult` to `SecurityCheckResult`. `src/securityValidation/validate/verdict.ts` reads that metadata directly when summarizing blocker categories, so the verdict layer no longer owns a hand-maintained scenario-impact map.
+
+Profile behavior remains intentionally narrow in the current implementation: profiles drive default check selection and scenario applicability filtering, but they do not yet introduce deeper per-profile scenario branching beyond that selection metadata.
 
 Optional local tools can be reported as skipped; absence alone does not make the framework crash. This automation is not equivalent to a complete manual pentest.
 

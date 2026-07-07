@@ -31,7 +31,7 @@ my-dev-kit is most useful when the repository is larger than the task. It helps 
 - First experiment plugin: `context-strategy-comparison`
 - Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
 - Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
-- Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, and release verdict — runnable against any local project via `security:validate --target <path>`
+- Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`
 
 ---
 
@@ -202,7 +202,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. v0.2.1 keeps the generic experiment-plugin framework, preserves `context-strategy-comparison` as the first plugin, and fixes target-aware security validation so installed-package checks run `npm run test:security` in the external target project root.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current package version remains `v0.2.1`; the current working tree implements the `v0.2.2` automated security-validation fortification work without claiming that `v0.2.2` has been released.
 
 ---
 
@@ -220,7 +220,7 @@ This is not a web application pentest framework. **my-dev-kit** is a local CLI/p
 - database-free
 - safe to run on local repositories
 
-The release gate is implemented as of v0.1.4. It combines static scans, dependency/package checks, adversarial CLI tests, bounded fuzz smoke tests, and a structured release security report with a four-category verdict.
+The automated validation gate is implemented. It combines static scans, dependency/package checks, adversarial CLI tests, bounded fuzz smoke tests, and attack-scenario checks with structured text/JSON reports and a four-category verdict.
 
 ### Security commands
 
@@ -232,17 +232,31 @@ The release gate is implemented as of v0.1.4. It combines static scans, dependen
 | `npm run security:semgrep` | Semgrep scan via local binary or npx; skipped gracefully when both absent |
 | `npm run test:security` | Automated security and adversarial CLI tests (path traversal, read-only boundaries, malformed artifacts, JSON safety, and related checks) |
 | `npm run test:fuzz:smoke` | 9 bounded fuzz targets, seeded PRNG, completes in under 1 second |
-| `npm run security:validate` | Full release gate — runs all checks and writes `reports/security/<prefix>-security-validation.{txt,json}` |
+| `npm run security:validate` | Runs selected security checks, applies profile-aware defaults when requested, and writes text/JSON reports according to `--format` |
 
-CodeQL, Semgrep, and OSV-Scanner are optional. When unavailable locally, they are recorded as `skipped` in the report — not as failures — and the verdict is `ready except optional manual checks` rather than `not ready`.
+CodeQL, Semgrep, and OSV-Scanner are optional. When unavailable locally, they are recorded as `skipped` in the report, not as passed. That can lead to `ready except optional manual checks`; it does not silently turn missing tooling into a clean pass.
 
-Each security command can validate my-dev-kit-lab itself or another local project via `--target <path>`. When `--target` is omitted, the framework performs self-validation. Target projects are inspected in place: their source files are not modified, generated artifacts stay under `reports/security/`, and external-target reports identify the tool root, target root, target package metadata, target git metadata, command cwd, exit code, and stdout/stderr summaries.
+Each security command can validate my-dev-kit-lab itself or another local project via `--target <path>`. When `--target` is omitted, the framework performs self-validation. Target projects are inspected in place: their source files are not modified by default, generated artifacts stay under `reports/security/` unless `--out` is used, and external-target reports identify the tool root, target root, target package metadata, target git metadata, command cwd, exit code, and stdout/stderr summaries.
+
+`security:validate` supports `--checks`, `--profile`, `--format`, `--fail-on`, `--out`, and `--report-prefix`. The no-flag path remains backward compatible and still runs the classic implemented check groups: `deps`, `package`, `static`, `cli-adversarial`, and `fuzz`. Supplying `--profile` without `--checks` swaps in that profile's default checks; supplying explicit `--checks` always wins over profile defaults.
+
+The current attack-scenario checks cover boundary, subprocess, secrets, and network assumptions. They are automated adversarial checks, not a manual pentest. `verdictImpact` metadata from each registered scenario drives blocker categorization in report reasoning, and narrowed `--checks` runs are labeled as scoped rather than described as a full release gate.
+
+JSON report poisoning/config-injection checks use a baseline-diff schema guard so legitimate additive JSON fields do not fail the guard while payload-created trusted top-level fields still do. Text reports are sanitized to strip ANSI/control-byte payloads before rendering.
+
+Known limits remain intentionally explicit: secret scanning is bounded rather than exhaustive, the network/local-first check is a bounded static assumption check rather than proof of runtime isolation, package-boundary severity is still result-level rather than per-evidence-item, and profile-specific scenario behavior is limited to profile-based scenario selection/default checks.
 
 For external-target validation, `security:validate` reads the target `package.json`, detects `scripts.test:security`, and runs `npm run test:security` in the target project root when that script exists. This behavior is validated both from the source checkout and from an installed packed tarball because published-package execution differs from local source execution.
 
 Generated security reports under `reports/security/` are excluded from git by default. They are produced locally or in CI as release-gate evidence and are not committed to the repository.
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) for full command options and [docs/security-validation-framework.md](docs/security-validation-framework.md) for the security model, implemented modules, and release verdicts.
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for the full text.
 
 ---
 

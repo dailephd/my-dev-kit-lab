@@ -52,7 +52,7 @@ The strongest product thesis remains:
 
 ## Planned v0.x development track
 
-### v0.2.2 — fortified automated security validation
+### v0.2.2 — fortified automated security validation (implemented in current working tree, unreleased package)
 
 Purpose:
 
@@ -62,18 +62,15 @@ Purpose:
 
 Features:
 
-* Add automated attack-scenario model.
-* Add reusable security profiles.
-* Add stronger payload corpus for CLI, package, and local-tool projects.
-* Add explicit exploit-evidence model.
-* Add stronger target sandbox and read-only validation guarantees.
-* Add secret leakage checks.
-* Add report poisoning checks.
-* Add package boundary checks.
-* Add generated-artifact boundary checks.
-* Add config/path injection checks.
-* Add network-free/local-first assumption checks where feasible.
-* Add clearer separation between scanner findings, adversarial failures, optional skipped tools, release blockers, and target-project blockers.
+* Add `security:validate` config-surface flags: `--checks`, `--profile`, `--format`, `--fail-on`, and `--out`, while preserving backward-compatible `--target` and no-flag behavior.
+* Add automated attack-scenario model, reusable security profiles, payload corpus, and explicit exploit-evidence model.
+* Add integrated attack runner and report support for attack scenarios.
+* Add concrete target sandbox, package boundary, output boundary, path traversal, config injection, subprocess injection, secret leakage, report poisoning, and network/local-first assumption scenarios.
+* Add profile-aware default check selection and scoped-run reporting.
+* Add fail-on threshold behavior plus clearer separation between scanner findings, adversarial failures, optional skipped tools, release blockers, target-project blockers, and tool-framework blockers.
+* Add metadata-driven `verdictImpact` categorization and remove the hand-maintained scenario-impact map.
+* Add `reportSchemaGuard` baseline-diff structural-injection protection for JSON report poisoning/config injection.
+* Add schema/report hardening, output-format/location consistency validation, text-report sanitization, and non-destructive target validation coverage.
 
 Command direction:
 
@@ -82,33 +79,34 @@ Command direction:
   * `npm run security:validate`
   * `npm run security:validate -- --target <path>`
 
-* Add multi-option flags:
+* Current flags:
 
   * `--checks deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network`
-  * `--profile node-cli-package,local-tool,npm-package`
-  * `--format text,json`
-  * `--fail-on blocker,high,medium,low`
+  * `--profile node-cli-package|local-tool|npm-package`
+  * `--format text|json|text,json`
+  * `--fail-on blocker|high|medium|low`
   * `--out <path>`
 
-Suggested architecture:
+Current architecture:
 
 * `src/securityValidation/attackScenarios/`
 * `src/securityValidation/attackScenarios/profiles/`
 * `src/securityValidation/attackScenarios/scenarios/`
+* `src/securityValidation/attackScenarios/reportSchemaGuard.ts`
 * `src/securityValidation/cliAdversarial/`
 * `src/securityValidation/validate/`
 * `src/securityValidation/report/`
 * `scripts/security/validate.ts`
 * `tests/security/attackScenarios/`
 
-Acceptance:
+Current status:
 
 * Existing `security:validate` behavior remains backward compatible.
 * Existing dependency, package, static-scan, fuzz, and CLI adversarial checks still work.
-* New attack scenarios produce structured evidence.
-* Target project files are not modified.
+* All 9 accepted `--checks` ids have implementation coverage.
+* New attack scenarios produce structured evidence and report metadata.
+* Target project files are not modified by default.
 * Optional unavailable tools are reported as skipped, not passed.
-* Cross-platform CI passes on Ubuntu, macOS, and Windows with Node 20 and Node 22.
 * Existing experiment framework behavior is unchanged.
 
 ### v0.3.0 — generic audit framework and code rot detector

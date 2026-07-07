@@ -80,6 +80,36 @@ export const SECURITY_CHECK_CATEGORIES: readonly SecurityCheckCategory[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Verdict impact (v0.2.2 Batch 6)
+//
+// Declared by an AttackScenario (attackScenario.ts) as static metadata,
+// carried through AttackResult and toSecurityCheckResult() into
+// SecurityCheckResult.verdictImpact, and read directly by
+// verdict.ts's categorizeCheck() — this is the single source of truth for
+// "what kind of blocker is this scenario if it fails", replacing the
+// previously hand-maintained SCENARIO_BLOCKER_IMPACT map in verdict.ts.
+// Defined here (not in attackScenario.ts or verdict.ts) so both can import it
+// without creating a circular dependency between the scenario layer and the
+// verdict layer. A subset of verdict.ts's broader VerdictReasonCategory —
+// only the values a scenario's static declaration can meaningfully assert.
+// ---------------------------------------------------------------------------
+
+export type VerdictImpact =
+  | "release-blocker"
+  | "target-project-blocker"
+  | "tool-framework-blocker"
+  | "adversarial-scenario-failure"
+  | "informational-evidence";
+
+export const VERDICT_IMPACTS: readonly VerdictImpact[] = [
+  "release-blocker",
+  "target-project-blocker",
+  "tool-framework-blocker",
+  "adversarial-scenario-failure",
+  "informational-evidence",
+];
+
+// ---------------------------------------------------------------------------
 // Finding
 // ---------------------------------------------------------------------------
 
@@ -135,6 +165,11 @@ export type SecurityCheckResult = {
   stdoutPath?: string;
   stderrPath?: string;
   artifactPaths?: string[];
+  // v0.2.2 Batch 6 — carried through from an AttackScenario's declared
+  // verdictImpact (via AttackResult) so verdict.ts can categorize the check
+  // without owning a separate scenario-id map. Undefined for non-scenario
+  // checks and for scenarios that don't declare an impact.
+  verdictImpact?: VerdictImpact;
 };
 
 // ---------------------------------------------------------------------------
@@ -160,4 +195,18 @@ export type SecurityValidationSummary = {
   findings: SecurityFinding[];
   verdict: ReleaseVerdict;
   recommendedNextStep: string;
+  // v0.2.2 Batch 2 — structured attack-scenario results (empty array when no
+  // attack-scenario-shaped checks were selected). Each result is also folded
+  // into `checks`/`findings` via toSecurityCheckResult() for verdict purposes.
+  attackResults: import("./attackScenarios/attackResult.js").AttackResult[];
+  // v0.2.2 Batch 5 — additive verdict-reasoning fields. Optional so any
+  // existing test/consumer that constructs a summary without them is
+  // unaffected.
+  verdictReasonSummary?: import("./validate/verdict.js").VerdictReasonSummary;
+  // True when selectedChecks includes all of the classic release-gate check
+  // groups (deps/package/static/cli-adversarial/fuzz) — i.e. this run was
+  // not narrowed away from the traditional full gate. Attack-scenario checks
+  // (boundary/subprocess/secrets/network) are additional coverage and don't
+  // affect this flag, since they were never part of the pre-v0.2.2 gate.
+  isFullReleaseGate?: boolean;
 };

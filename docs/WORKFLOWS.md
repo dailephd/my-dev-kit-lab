@@ -218,6 +218,109 @@ npm run verify
 
 ---
 
+## Workflow 6: Default security validation
+
+Use this workflow when you want the backward-compatible default validation run. With no `--profile` and no `--checks`, the command runs the classic implemented check groups: `deps`, `package`, `static`, `cli-adversarial`, and `fuzz`.
+
+```bash
+npm run security:validate
+```
+
+Read the result as follows:
+- Optional tools such as CodeQL, Semgrep, or OSV-Scanner can be `skipped`; a skip is not a pass
+- The default `--fail-on` threshold is `blocker`
+- `not ready: security blocker remains` still exits nonzero even without a custom `--fail-on`
+- The text report and JSON report are both written by default
+
+---
+
+## Workflow 7: Targeted project validation
+
+Use this workflow to validate another local project without modifying that target by default.
+
+```powershell
+npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+```
+
+Read the result as follows:
+- The lab remains the tool root and the selected project becomes the target root
+- Reports record target package/git metadata when available
+- If the target defines `scripts.test:security`, the CLI adversarial suite runs `npm run test:security` in the target root
+- Generated reports stay under `reports/security/` unless `--out` is supplied
+
+---
+
+## Workflow 8: Focused scoped checks
+
+Use this workflow when you want a narrow validation pass instead of the full classic gate.
+
+```bash
+npm run security:validate -- --checks boundary,subprocess,secrets,network --format text,json
+```
+
+Read the result as follows:
+- Explicit `--checks` narrows the run to the requested check groups
+- The report marks this as a narrowed/scoped run
+- A scoped run is useful for focused evidence gathering, but it is not the same as a full release gate
+
+---
+
+## Workflow 9: Profile-based validation
+
+Use this workflow when you want profile-aware default check selection.
+
+```bash
+npm run security:validate -- --profile local-tool --format json
+```
+
+Read the result as follows:
+- `node-cli-package` defaults to `deps,package,static,cli-adversarial,fuzz`
+- `local-tool` defaults to `deps,static,cli-adversarial,fuzz`
+- `npm-package` defaults to `deps,package,static`
+- Explicit `--checks` overrides any profile default
+- Profile behavior is currently limited to default-check selection and scenario applicability filtering
+
+---
+
+## Workflow 10: Thresholded validation
+
+Use this workflow when you want stricter exit behavior than the default blocker-only threshold.
+
+```bash
+npm run security:validate -- --checks boundary,subprocess,secrets,network --fail-on high --format json
+```
+
+Read the result as follows:
+- Default `--fail-on` is `blocker`
+- `--fail-on high` exits `1` for blocker or major findings
+- `--fail-on medium` also exits `1` for minor findings
+- `--fail-on low` also exits `1` for informational findings
+- Inconclusive runs still exit `2`
+
+---
+
+## Workflow 11: Reading security reports
+
+Use this workflow after a security-validation run to interpret the generated artifacts.
+
+Read the text report for:
+- Selected profile and checks
+- Whether the run was a full classic gate or narrowed scope
+- Verdict reasoning summary, including release blockers, target-project blockers, and tool-framework blockers
+- Attack-scenario evidence previews with redacted/sanitized content
+
+Read the JSON report for:
+- `metadata.selectedChecks`, `metadata.profile`, `metadata.failOnThreshold`, and `metadata.isFullReleaseGate`
+- `attackScenarios.count` and `attackScenarios.results`
+- `verdictReasonSummary`
+
+Remember:
+- Text reports are sanitized against ANSI/control-byte and report-poisoning payloads
+- JSON schema guards protect the current report structure against payload-created structural injection
+- These guards strengthen the automated reports; they are not a complete pentest or universal renderer-safety proof
+
+---
+
 ## Future workflow: Warm-index reuse experiment
 
 This workflow is not yet implemented. It will measure the amortized cost of my-dev-kit indexing when the index is reused across multiple queries.

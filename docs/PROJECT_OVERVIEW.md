@@ -14,7 +14,7 @@ The current package is version `0.2.1`. The generic experiment-plugin runtime in
 
 That plugin preserves the established raw-full-file versus my-dev-kit-guided experiment through the generic registry and runner. It supports self and explicit local-project targets, plugin-aware reports, deterministic fake-agent runs, and optional Codex or Claude campaigns. Existing legacy commands and artifacts remain supported.
 
-Automated security validation is also implemented. It supports dependency and package checks, adversarial CLI checks, static scanning integrations, bounded fuzz smoke, structured verdicts, and explicit local-project targets. It is not a complete manual pentest framework.
+Automated security validation is also implemented. It supports dependency and package checks, adversarial CLI checks, static scanning integrations, bounded fuzz smoke, structured verdicts, explicit local-project targets, and an attack-scenario layer with profiles, evidence, and report hardening. It is not a complete manual pentest framework.
 
 ## Product flow
 
@@ -27,7 +27,7 @@ flowchart LR
   Evidence --> Reports[Reports, plots, screenshots, gallery]
 
   Target --> Security[Automated security validation]
-  Security --> SecurityEvidence[Findings, skips, verdict, reports]
+  Security --> SecurityEvidence[Findings, skips, verdict, attack-scenario evidence, reports]
 ```
 
 ## Users
@@ -48,7 +48,7 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 The immediate direction is:
 
-1. fortify automated security validation while preserving `security:validate`
+1. carry the implemented `v0.2.2` security-validation fortification through separate pre-release readiness work
 2. add a generic audit framework and code rot detector
 3. add code quality detection
 4. integrate security results into unified audit reports

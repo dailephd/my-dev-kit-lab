@@ -12,6 +12,7 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Benchmark metadata, prompt variants, fake-agent, Codex, and Claude adapters.
 - Correctness, token, duration, status, reliability, plot, screenshot, visualization, gallery, and final-demo workflows.
 - Automated security validation in `src/securityValidation`, covering dependency and package checks, CLI adversarial checks, CodeQL/Semgrep integration, bounded fuzz smoke, structured reports, and release verdicts.
+- Attack-scenario security validation in `src/securityValidation/attackScenarios`, covering boundary, subprocess, secrets, and network checks with reusable profiles, payload/evidence models, report-schema guarding, and verdict-impact metadata.
 - Self and explicit local-project security-validation targets.
 
 ## Current commands
@@ -22,6 +23,8 @@ npm run experiment:describe -- --experiment context-strategy-comparison
 npm run experiment:run -- --experiment context-strategy-comparison --target <path>
 npm run security:validate
 npm run security:validate -- --target <path>
+npm run security:validate -- --checks boundary,subprocess,secrets,network --format text,json
+npm run security:validate -- --profile local-tool --format json
 ```
 
 `npm run run-controlled-experiment` and the demo/report/plot/gallery commands remain supported. See [COMMANDS.md](COMMANDS.md) for the complete package-script inventory.
@@ -58,6 +61,9 @@ The following are planned, not implemented:
 ## Limitations
 
 - The implemented security framework is automated CLI/package validation with adversarial checks; it is not a complete manual pentest framework.
+- Profile behavior is currently limited to default check selection and scenario applicability filtering.
+- Secret leakage and network/local-first checks are bounded automated checks, not exhaustive proofs.
+- Package-boundary scenario severity is still result-level rather than per-evidence-item.
 - Some security tools are optional and may be reported as skipped when unavailable.
 - Fake-agent token totals are estimates. Provider telemetry differs by adapter and can be unavailable.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
@@ -65,4 +71,4 @@ The following are planned, not implemented:
 
 ## Next planned work
 
-The `v0.2.1` line fortifies automated security validation while preserving `security:validate`. The next feature version, `v0.3.0`, adds the generic audit framework and code rot detector. See [ROADMAP.md](ROADMAP.md) for the complete semantically ordered sequence.
+The current package version remains `v0.2.1`, while the checked-out working tree implements the planned `v0.2.2` security-validation fortification work. The next feature version after that remains `v0.3.0`, which adds the generic audit framework and code rot detector. See [ROADMAP.md](ROADMAP.md) for the complete semantically ordered sequence.

@@ -564,7 +564,7 @@ Screenshot capture uses Playwright and requires a browser runtime. When Playwrig
 
 ## Security validation commands
 
-These commands implement the planned release-security validation track for **my-dev-kit**. They do not replace the experiment pipeline and do not require internet access for their core logic (though `npm audit` and `npm ls` do contact the npm registry).
+These commands implement the current automated security-validation track for **my-dev-kit**. They do not replace the experiment pipeline and do not require internet access for their core logic, though `npm audit` and `npm ls` do contact the npm registry.
 
 ### `npm run security:deps`
 
@@ -650,7 +650,7 @@ Runs all security-validation unit tests without network access or external tools
 
 **When to use:** As part of regular development to verify the security types, test matrix, parser logic, CLI adversarial boundary checks, static scan parsers, and the validate gate are correct.
 
-Tests included (v0.1.4):
+Tests included (current `v0.2.2` working-tree implementation):
 - `securityValidationTypes.test.ts` — type and enumeration completeness
 - `securityValidationTestMatrix.test.ts` — test matrix structure and uniqueness
 - `dependencyChecks.test.ts` — dependency parser unit tests
@@ -664,6 +664,14 @@ Tests included (v0.1.4):
 - `staticScanChecks.test.ts` — CodeQL/Semgrep skip gracefully when unavailable; Semgrep JSON parser
 - `securityValidateGate.test.ts` — verdict calculation, report rendering (text and JSON)
 - `cliSecuritySuiteCheck.test.ts` — external target `test:security` cwd, pass/fail behavior, and path-with-spaces coverage
+- `securityValidateCliOptions.test.ts` — `--checks`, `--profile`, `--format`, `--fail-on`, and `--out`
+- `securityFailOnThreshold.test.ts` — threshold parsing and exit-threshold mapping
+- `securityReportSummary.test.ts` — scoped-run metadata, selected checks/profile metadata, and verdict reasoning summaries
+- `securityScenarioCoverage.test.ts` — all 9 supported `--checks` ids have implementation coverage
+- `securityReportSchemaStability.test.ts` — JSON schema fields, output format/location behavior, and baseline-diff injection guard
+- `securityTextReportSafety.test.ts` — ANSI/control-byte stripping and report poisoning sanitization
+- `securityProfileSelectionIntegration.test.ts` — profile-aware default check selection and scoped-run labeling
+- `attackScenarios/*.test.ts` — attack runner, profiles, payloads, metadata, and all registered scenarios
 
 By default, adversarial tests run against a deterministic fake CLI fixture — no my-dev-kit installation required. To run against a real CLI, set `MY_DEV_KIT_SECURITY_TARGET_COMMAND=<path>` before running.
 
@@ -785,46 +793,79 @@ npm run test:fuzz:smoke
 
 ### `npm run security:validate`
 
-Orchestrates all security-validation checks and writes a release security report.
+Runs the current automated security-validation workflow and writes the selected report formats.
 
-**When to use:** Before release preparation to get a single verdict and actionable report. Can validate the current project (self-validation) or any local project directory via `--target`.
+**When to use:** For self-validation or explicit local-project validation when you want one command to run the selected checks, collect structured evidence, and calculate the current verdict.
 
 **Options:**
 - `--target <path>` / `-t <path>` — path to the project to validate (default: self-validation of my-dev-kit-lab)
+- `--checks <ids>` — comma-separated subset of `deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network`
+- `--profile <id>` — one of `node-cli-package`, `local-tool`, `npm-package`
+- `--format <ids>` — `text`, `json`, or `text,json` (default)
+- `--fail-on <level>` — one of `blocker`, `high`, `medium`, `low`
 - `--out <dir>` — report output directory (default: `reports/security/`)
 - `--report-prefix <name>` — override the generated filename prefix
 
-**Checks orchestrated:**
-- dependency audit — `npm audit` and `npm outdated` against the target (mandatory)
-- package tarball inspection — `npm pack --dry-run` against the target (mandatory if target has package.json)
-- CodeQL availability check — optional, skipped if CLI absent
-- Semgrep static analysis — optional, skipped if unavailable
-- target security test suite — runs `npm run test:security` in the target root for external validation when the target defines `scripts.test:security`; self-validation still runs the lab's own `test:security` suite in the tool root
-- fuzz smoke — bounded fuzz targets against tool root (mandatory)
+**Check groups:**
+- `deps` — dependency audit and package-metadata inspection against the target
+- `package` — `npm pack --dry-run` parsing and forbidden-content detection
+- `static` — CodeQL availability check plus Semgrep integration
+- `cli-adversarial` — target/tool `test:security` suite execution
+- `fuzz` — bounded deterministic fuzz smoke against tool-root helpers
+- `boundary` — attack scenarios for target sandbox, package/output boundaries, path traversal, config injection, and report poisoning
+- `subprocess` — attack scenario for subprocess/shell-injection safety
+- `secrets` — attack scenario for bounded secret leakage detection and redaction behavior
+- `network` — attack scenario for local-first/network-assumption evidence
+
+**Profile defaults:**
+- No `--profile` and no `--checks`: backward-compatible default run = `deps,package,static,cli-adversarial,fuzz`
+- `--profile node-cli-package` with no `--checks`: `deps,package,static,cli-adversarial,fuzz`
+- `--profile local-tool` with no `--checks`: `deps,static,cli-adversarial,fuzz`
+- `--profile npm-package` with no `--checks`: `deps,package,static`
+- Explicit `--checks` always overrides the profile defaults
+
+**Scope behavior:**
+- Attack-scenario checks are part of the current implementation and all 9 accepted `--checks` ids have implementation coverage
+- A narrowed `--checks` run is useful for focused validation but is labeled as a scoped run
+- A scoped run is not the same as a full classic release gate unless the classic implemented check set is included
 
 **Mandatory checks:** npm audit, package tarball inspection (when target has package.json), target/tool security test suite, fuzz smoke.
 
 **Optional checks:** CodeQL CLI local availability, Semgrep, OSV-Scanner. Skipped with a structured reason when tools are absent.
+- A skipped optional tool is not treated as passed
+- Optional-tool skips can yield `ready except optional manual checks`
 
 **Report outputs:**
-- `reports/security/<prefix>-security-validation.txt` — human-readable full report
-- `reports/security/<prefix>-security-validation.json` — machine-readable structured report
+- `text` writes `reports/security/<prefix>-security-validation.txt`
+- `json` writes `reports/security/<prefix>-security-validation.json`
+- `text,json` writes both
+- JSON includes `schemaVersion`, `metadata`, `summary`, `verdict`, `verdictLabel`, `recommendedNextStep`, `checks`, `findings`, `attackScenarios`, and `verdictReasonSummary`
 
 Where `<prefix>` is derived automatically: `v0.2.1` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
 
-External-target reports include both the tool root (`my-dev-kit-lab`) and the target root, plus target package and git metadata when available. The target security suite check records the executed command, command cwd, exit code, and stdout/stderr summaries. Target project files are not modified during validation.
+External-target reports include both the tool root (`my-dev-kit-lab`) and the target root, plus target package and git metadata when available. The target security suite check records the executed command, command cwd, exit code, and stdout/stderr summaries. Target project files are not modified by default during validation.
 
-Installed-package validation must be smoke-tested from a packed tarball before publish. This catches cases where source-checkout execution differs from the npm package layout.
-
-Generated reports are not committed by default (see `.gitignore`). To preserve a report for a release handoff, copy it to a versioned location explicitly.
+**Schema/report safety behavior:**
+- Text reports strip ANSI/control-byte payload content before rendering
+- JSON report poisoning/config injection scenarios use a baseline-diff structural-injection guard
+- Legitimate additive JSON fields do not fail that guard
+- The guard is meaningful for this report shape, not a claim that every downstream renderer is safe
 
 **Verdict options:**
-- `ready for release preparation` — all mandatory checks passed, no blocker/major findings
+- `ready for release preparation` — no blocker/major findings and no skipped optional tools
 - `ready except optional manual checks` — mandatory checks passed but some optional tools were absent
-- `not ready: security blocker remains` — blocker or mandatory check failure
+- `not ready: security blocker remains` — blocker finding, major finding, or mandatory-check failure
 - `inconclusive: audit environment incomplete` — too many mandatory checks were skipped
 
-**Exit codes:** `0` = ready or ready-except-optional, `1` = blocker, `2` = inconclusive.
+**Exit behavior:**
+- Default `--fail-on` is `blocker`
+- Verdict-based blocker results exit `1`
+- Inconclusive results exit `2`
+- Otherwise, `--fail-on` can still force exit `1` when findings meet the configured threshold
+- `--fail-on blocker` only breaches on blocker findings
+- `--fail-on high` breaches on blocker or major findings
+- `--fail-on medium` breaches on blocker, major, or minor findings
+- `--fail-on low` breaches on blocker, major, minor, or informational findings
 
 ```bash
 # Self-validation (default)
@@ -832,6 +873,18 @@ npm run security:validate
 
 # Validate an external project
 npm run security:validate -- --target /path/to/my-dev-kit
+
+# Focused classic checks with both report formats
+npm run security:validate -- --checks deps,package,static,cli-adversarial,fuzz --format text,json
+
+# Profile-driven selection
+npm run security:validate -- --profile node-cli-package --format json
+
+# Attack-scenario-focused run
+npm run security:validate -- --profile local-tool --checks boundary,subprocess,secrets,network --format text,json
+
+# Escalate exit code for high-severity findings
+npm run security:validate -- --checks boundary,subprocess,secrets,network --fail-on high --format json
 
 # Custom output directory and prefix
 npm run security:validate -- --target /path/to/project --out /tmp/reports --report-prefix my-project-v1
@@ -844,10 +897,13 @@ npm run security:validate
 # Validate an external project on Windows
 npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 
+# Profile-driven run on Windows
+npm run security:validate -- --profile npm-package --format json
+
 # Invalid target — fails cleanly with an error message
 npm run security:validate -- --target "Z:\does\not\exist"
 ```
 
 ## Planned commands
 
-There is currently no `npm run audit` or `npm run security:pentest` script. Those command surfaces are planned with the generic audit framework and manual pentest framework; they must not be used as current examples.
+There is currently no `npm run audit`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script. Those command surfaces are planned in later roadmap versions and must not be used as current examples.

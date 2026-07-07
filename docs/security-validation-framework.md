@@ -13,6 +13,8 @@ Current security properties include:
 - parseable machine output and stderr/stdout separation
 - package-content and dependency hygiene
 - bounded handling of malformed or large inputs
+- profile-aware check selection and scoped-run reporting
+- text-report sanitization and JSON structural-injection guarding
 
 ## Implemented validation layers
 
@@ -21,9 +23,10 @@ Current security properties include:
 | Dependency checks | `npm audit`, runtime-only audit, `npm ls`, `npm outdated`, and optional OSV-Scanner |
 | Package checks | `npm pack --dry-run` parsing and forbidden-content detection |
 | CLI adversarial checks | path boundaries, read-only boundaries, malformed artifacts, JSON output, subprocess/DOT safety, and bounded data-volume scenarios |
+| Attack scenarios | boundary, subprocess, secrets, and network scenarios with profile filtering, payload corpus, evidence, and redaction |
 | Static scans | CodeQL availability/execution integration and Semgrep integration |
 | Fuzz smoke | deterministic bounded targets for security-sensitive parsers and helpers |
-| Validation gate | normalized findings, skips, four-category verdict, and text/JSON reports |
+| Validation gate | normalized findings, skips, four-category verdict, fail-on thresholds, verdict-impact reasoning, and text/JSON reports |
 
 ```mermaid
 flowchart LR
@@ -32,11 +35,13 @@ flowchart LR
   Target --> Static[CodeQL / Semgrep]
   Target --> CLI[CLI security suite]
   Target --> Fuzz[Bounded fuzz smoke]
+  Target --> Scenarios[Attack scenarios]
   Dependency --> Gate[security:validate]
   Package --> Gate
   Static --> Gate
   CLI --> Gate
   Fuzz --> Gate
+  Scenarios --> Gate
   Gate --> Report[Text + JSON report]
 ```
 
@@ -72,6 +77,19 @@ Target-aware behavior is implemented in:
 
 See [COMMANDS.md](COMMANDS.md) for arguments and examples.
 
+`security:validate` accepts:
+- `--checks deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network`
+- `--profile node-cli-package|local-tool|npm-package`
+- `--format text|json|text,json`
+- `--fail-on blocker|high|medium|low`
+- `--out <path>`
+- `--report-prefix <name>`
+
+Default behavior is intentionally split:
+- No `--profile` and no `--checks`: `deps,package,static,cli-adversarial,fuzz`
+- `--profile` without `--checks`: uses that profile's default checks
+- Explicit `--checks`: always overrides profile defaults
+
 ## Module map
 
 ```text
@@ -90,6 +108,17 @@ src/securityValidation/
     runCliSecuritySuiteCheck.ts
     runSecurityValidation.ts
     verdict.ts
+    cliOptions.ts
+  attackScenarios/
+    attackScenario.ts
+    attackResult.ts
+    attackProfile.ts
+    attackRunner.ts
+    payloadCorpus.ts
+    exploitEvidence.ts
+    reportSchemaGuard.ts
+    profiles/
+    scenarios/
   report/
 
 scripts/security/
@@ -120,9 +149,30 @@ Supported verdicts are:
 
 Optional scanners can be recorded as skipped. A skip is not silently converted into a pass, and its effect is reflected in the verdict and report.
 
+Current attack-scenario coverage:
+- `boundary`: target sandbox, package boundary, output boundary, path traversal, config injection, report poisoning
+- `subprocess`: subprocess injection
+- `secrets`: secret leakage
+- `network`: network/local-first assumption
+
+Current profiles:
+- `node-cli-package`
+- `local-tool`
+- `npm-package`
+
+Current report/schema details:
+- JSON report includes `attackScenarios` and `verdictReasonSummary`
+- `verdictImpact` metadata flows from each scenario into the verdict-reason summary
+- JSON structural-injection checks compare a clean baseline report with a payload-bearing report, so legitimate additive fields are allowed while payload-created trusted top-level fields are still flagged
+- Text report rendering strips ANSI/control-byte content from evidence and recommendations before printing
+
 ## Current limitations
 
 - The adversarial suite provides meaningful automated CLI/package coverage, but it is not exhaustive attack simulation.
+- Secret scanning is bounded and cannot prove exhaustive secret absence across every possible file or encoding.
+- The network/local-first scenario is a bounded static assumption check, not proof of runtime network isolation.
+- Profile-specific behavior beyond profile-based selection/default checks is not implemented.
+- Package-boundary severity is currently applied at the result level, not per evidence item.
 - Some checks depend on locally installed tools or network-backed package metadata.
 - CodeQL's full analysis can depend on the configured environment; availability checks and CI integration do not guarantee identical local coverage.
 - Symlink and junction scenarios can be operating-system dependent.
@@ -131,7 +181,7 @@ Optional scanners can be recorded as skipped. A skip is not silently converted i
 
 ## Planned fortification and manual testing
 
-The `v0.2.1` direction is to strengthen attack scenarios, target coverage, and security evidence while keeping `security:validate` backward compatible.
+The current `v0.2.2` working-tree direction strengthens attack scenarios, target coverage, schema/report hardening, and security evidence while keeping `security:validate` backward compatible.
 
 The audit track planned for `v0.3.x` will consume current security results in unified audit reports without replacing this standalone gate. The manual pentest framework planned for `v0.4.0` will sit beside automated validation and must label human procedures and evidence separately from automated checks.
 

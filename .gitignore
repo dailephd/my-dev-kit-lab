@@ -66,16 +66,9 @@ docs/REAL_AGENT_BENCHMARK_CAMPAIGN_REPORT.txt
 my-dev-kit-lab-security-check-template.txt
 
 # Security validation generated artifacts (not committed by default)
-reports/security/raw/*
-!reports/security/raw/.gitkeep
-reports/security/*.json
-reports/security/*.txt
-reports/security/npm-*.json
-reports/security/osv-*.json
+reports/
 
 # Legacy: top-level security-validate reports (superseded by reports/security/)
-reports/v*-security-validation.txt
-reports/v*-security-validation.json
 AGENTS.md
 agents.txt
 CLAUDE.md

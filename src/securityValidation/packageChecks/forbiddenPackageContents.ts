@@ -77,7 +77,10 @@ export function detectForbiddenContents(options: {
   return { matches, findings };
 }
 
-function isCriticalForbidden(file: string): boolean {
+// Exported for reuse by packageBoundaryScenario.ts, which needs the same
+// critical/major distinction to set its AttackResult severity correctly
+// (v0.2.2 Batch 5).
+export function isCriticalForbidden(file: string): boolean {
   const f = file.toLowerCase();
   return (
     f.includes(".env") ||
