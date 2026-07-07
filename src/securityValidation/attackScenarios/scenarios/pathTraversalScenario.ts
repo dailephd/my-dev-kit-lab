@@ -42,6 +42,17 @@ export const PATH_TRAVERSAL_SCENARIO: AttackScenario = {
     // character, not a separator). These correctly resolve *inside* root and
     // are recorded as informational evidence only, not a rejection failure.
     const payloadsNotApplicableToRawPathResolution = new Set(["path-traversal-encoded"]);
+    // On POSIX (Linux/macOS), "\" is a literal filename character, not a
+    // path separator — Node's posix path implementation never parses
+    // "..\\..\\Windows\\..." as parent-directory components, so it
+    // legitimately resolves inside root there. On win32, "\" IS a separator
+    // and the payload must still be rejected, so this exclusion only applies
+    // off-Windows (verified by the CI cross-platform matrix: this scenario
+    // was passing on windows-latest but failing on ubuntu-latest/macos-latest
+    // for exactly this platform-semantics reason before this fix).
+    if (process.platform !== "win32") {
+      payloadsNotApplicableToRawPathResolution.add("path-traversal-windows-parent");
+    }
 
     const traversalPayloads = getPayloadsForGroup("path-traversal");
     for (const p of traversalPayloads) {

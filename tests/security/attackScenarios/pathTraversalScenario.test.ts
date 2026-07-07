@@ -46,4 +46,26 @@ describe("PATH_TRAVERSAL_SCENARIO", () => {
     expect(outcome.evidence.length).toBeGreaterThan(0);
     expect(() => JSON.stringify(outcome.evidence)).not.toThrow();
   });
+
+  // v0.2.2 pre-release readiness: cross-platform CI caught that the
+  // "windows-parent" (backslash-style) payload only escapes on win32 — "\"
+  // is a path separator there, but a literal filename character on POSIX
+  // (Linux/macOS), so resolveWithinRoot() legitimately resolves it inside
+  // root on non-Windows platforms. This test self-verifies the
+  // platform-conditional exclusion behaves correctly on whatever OS actually
+  // runs it, rather than asserting one hardcoded expectation for all OSes.
+  it("windows-parent payload rejection is platform-consistent", async () => {
+    const outcome = await PATH_TRAVERSAL_SCENARIO.run(makeCtx());
+    const windowsParentEvidence = outcome.evidence.find((e) => e.source?.includes("windows-parent"));
+    expect(windowsParentEvidence).toBeDefined();
+    if (process.platform === "win32") {
+      expect(windowsParentEvidence?.observedBehavior).toMatch(/rejected/i);
+    } else {
+      expect(windowsParentEvidence?.observedBehavior).toMatch(/resolved to/i);
+    }
+    // Regardless of platform, the scenario as a whole must still pass —
+    // the platform-conditional exclusion set keeps this payload from being
+    // misclassified as an unrejected escape on POSIX.
+    expect(outcome.status).toBe("passed");
+  });
 });
