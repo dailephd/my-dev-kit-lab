@@ -8,8 +8,8 @@ The roadmap follows semantic version order. `v1.0.0` is the stable release after
 
 ```mermaid
 flowchart LR
-  A[v0.2.0<br/>plugin framework] --> B[v0.2.1<br/>current baseline]
-  B --> C[v0.2.2<br/>security fortification]
+  A[v0.2.0<br/>plugin framework] --> B[v0.2.1<br/>previous baseline]
+  B --> C[v0.2.2<br/>current baseline, release-prepared]
   C --> D[v0.3.x<br/>audit framework]
   D --> E[v0.4.0<br/>manual pentest]
   E --> F[v0.4.1-v0.4.5<br/>mobile validation profiles]
@@ -43,16 +43,14 @@ The strongest product thesis remains:
 * Backward-compatible `experiment:list`, `experiment:describe`, `experiment:run`, and legacy controlled-experiment workflows.
 * Reusable target-aware automated security validation carried forward from earlier security work.
 
-### v0.2.1 — current package baseline
+### v0.2.1 — previous package baseline
 
 * Correct target-project execution of `test:security` during external-target validation, including installed-package execution.
 * Documentation synchronized with the implemented plugin and security-validation architecture.
 * Fortification continues after this baseline without changing the backward-compatible `security:validate` command.
 * The current package baseline is not the final security, audit, mobile, or pentest architecture.
 
-## Planned v0.x development track
-
-### v0.2.2 — fortified automated security validation (implemented in current working tree, unreleased package)
+### v0.2.2 — fortified automated security validation (current package baseline, release-prepared; not yet published)
 
 Purpose:
 
@@ -108,6 +106,8 @@ Current status:
 * Target project files are not modified by default.
 * Optional unavailable tools are reported as skipped, not passed.
 * Existing experiment framework behavior is unchanged.
+
+## Planned v0.x development track
 
 ### v0.3.0 — generic audit framework and code rot detector
 

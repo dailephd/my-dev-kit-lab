@@ -2,7 +2,7 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and future audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, and performs automated CLI/package security validation.
 
-The current package is v0.2.1. Its generic experiment-plugin framework was introduced in v0.2.0. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+The current package is v0.2.2, release-prepared but not yet published to npm. Its generic experiment-plugin framework was introduced in v0.2.0. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
 
 my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
@@ -202,7 +202,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current package version remains `v0.2.1`; the current working tree implements the `v0.2.2` automated security-validation fortification work without claiming that `v0.2.2` has been released.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current package version is `v0.2.2`, which implements the automated security-validation fortification work described below and has passed pre-release readiness and cross-platform validation. `v0.2.2` has not yet been published to npm.
 
 ---
 

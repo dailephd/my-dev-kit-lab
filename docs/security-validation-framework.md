@@ -179,9 +179,9 @@ Current report/schema details:
 - Informational architectural assertions are not equivalent to dynamic network or secret-leakage proofs.
 - A human-led manual pentest workflow is planned for `v0.4.0`, not implemented.
 
-## Planned fortification and manual testing
+## Fortification status and planned manual testing
 
-The current `v0.2.2` working-tree direction strengthens attack scenarios, target coverage, schema/report hardening, and security evidence while keeping `security:validate` backward compatible.
+The `v0.2.2` release (release-prepared; not yet published to npm) strengthens attack scenarios, target coverage, schema/report hardening, and security evidence while keeping `security:validate` backward compatible.
 
 The audit track planned for `v0.3.x` will consume current security results in unified audit reports without replacing this standalone gate. The manual pentest framework planned for `v0.4.0` will sit beside automated validation and must label human procedures and evidence separately from automated checks.
 

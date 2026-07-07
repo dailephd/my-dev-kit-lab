@@ -1,6 +1,6 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The current package is `@dailephd/my-dev-kit-lab` version `0.2.1`.
+This file is the concise source of truth for the checked-in implementation. The current package is `@dailephd/my-dev-kit-lab` version `0.2.2`, release-prepared but not yet published to npm.
 
 ## Implemented
 
@@ -71,4 +71,4 @@ The following are planned, not implemented:
 
 ## Next planned work
 
-The current package version remains `v0.2.1`, while the checked-out working tree implements the planned `v0.2.2` security-validation fortification work. The next feature version after that remains `v0.3.0`, which adds the generic audit framework and code rot detector. See [ROADMAP.md](ROADMAP.md) for the complete semantically ordered sequence.
+The current package version is `v0.2.2`, implementing the security-validation fortification work and release-prepared, but not yet published to npm. The next feature version after that remains `v0.3.0`, which adds the generic audit framework and code rot detector. See [ROADMAP.md](ROADMAP.md) for the complete semantically ordered sequence.

@@ -10,7 +10,7 @@ The lab supplies controlled benchmarks, agent adapters, metrics, reports, plots,
 
 ## Current baseline
 
-The current package is version `0.2.1`. The generic experiment-plugin runtime introduced in `v0.2.0` is implemented. Its first and currently only registered plugin is `context-strategy-comparison`.
+The current package is version `0.2.2`, release-prepared but not yet published to npm. The generic experiment-plugin runtime introduced in `v0.2.0` is implemented. Its first and currently only registered plugin is `context-strategy-comparison`.
 
 That plugin preserves the established raw-full-file versus my-dev-kit-guided experiment through the generic registry and runner. It supports self and explicit local-project targets, plugin-aware reports, deterministic fake-agent runs, and optional Codex or Claude campaigns. Existing legacy commands and artifacts remain supported.
 
@@ -46,14 +46,13 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-The immediate direction is:
+The implemented `v0.2.2` security-validation fortification has completed pre-release readiness and cross-platform validation and is release-prepared; publishing to npm requires a separate explicit step. After that, the immediate direction is:
 
-1. carry the implemented `v0.2.2` security-validation fortification through separate pre-release readiness work
-2. add a generic audit framework and code rot detector
-3. add code quality detection
-4. integrate security results into unified audit reports
-5. add a project-wide audit command
-6. add a separate manual pentest framework
+1. add a generic audit framework and code rot detector
+2. add code quality detection
+3. integrate security results into unified audit reports
+4. add a project-wide audit command
+5. add a separate manual pentest framework
 
 The experiment evidence track then expands through warm-index reuse, freshness and stale-index detection, context-window scaling, retrieval precision/recall, agent success, normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication.
 

@@ -2,20 +2,24 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased]
+## [0.2.2] - Unreleased (release-prepared; not yet published to npm)
 
 ### Added
 
-- Implemented the `v0.2.2` automated security-validation fortification work in the current working tree without declaring a release.
+- Implemented the `v0.2.2` automated security-validation fortification work; version bumped and release-preparation validation completed, but this version has not been published to npm.
 - Added `security:validate` support for `--checks`, `--profile`, `--format`, `--fail-on`, and `--out` while preserving backward-compatible no-flag and `--target` behavior.
 - Added the attack-scenario framework, reusable security profiles, payload/evidence models, and concrete boundary, subprocess, secrets, and network scenarios.
 - Added fail-on threshold behavior, profile-aware default check selection, scoped-run reporting, and verdict-reason summaries.
 - Added metadata-driven `verdictImpact` categorization and `reportSchemaGuard` baseline-diff structural-injection protection.
 - Added schema/report hardening, text-report sanitization regression coverage, and output format/location consistency validation.
 
+### Fixed
+
+- Fixed a cross-platform bug in the path-traversal attack scenario where a backslash-style traversal payload was incorrectly expected to be rejected on POSIX platforms (Linux/macOS), where `\` is a literal filename character rather than a path separator. Verified via the project's own CI matrix (ubuntu-latest/macos-latest/windows-latest x Node 20/22).
+
 ### Documentation
 
-- Synchronized current-state, architecture, command, security-validation, and project-overview documentation with the current `v0.2.2` working-tree implementation while keeping the package version documented as `0.2.1`.
+- Synchronized current-state, architecture, command, security-validation, and project-overview documentation with the `v0.2.2` implementation and package version, while keeping the wording clear that this version has not been published to npm.
 - Replaced the stale roadmap with a semantically ordered plan from v0.2.1 through v1.4.0, placing stable v1.0.0 after all prerequisite v0.x work.
 - Clarified that automated security validation is implemented, while the generic audit framework, code rot and quality detectors, unified audits, and manual pentest framework are planned.
 
