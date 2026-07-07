@@ -55,3 +55,22 @@ artifacts/
 reports/generated/
 playwright-report/
 test-results/
+docs/coding_generation_guideline.md
+docs/DOCUMENTATION_AUDIT_REPORT.txt
+docs/EXPERIMENT_REPORT_MIGRATION_PLAN.md
+docs/FINAL_BATCH_HANDOFF.txt
+docs/FINAL_VERIFICATION_REPORT.txt
+docs/PUBLIC_RELEASE_CHECKLIST.md
+docs/PUBLISHING.md
+docs/REAL_AGENT_BENCHMARK_CAMPAIGN_REPORT.txt
+my-dev-kit-lab-security-check-template.txt
+
+# Security validation generated artifacts (not committed by default)
+reports/
+
+# Legacy: top-level security-validate reports (superseded by reports/security/)
+AGENTS.md
+agents.txt
+CLAUDE.md
+claude.txt
+project_tree.txt

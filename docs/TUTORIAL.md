@@ -196,6 +196,10 @@ The small Todo projects are used in the fake-agent demo. The medium and large pr
 
 ## Next steps
 
+- Discover the current plugin with `npm run experiment:list`
+- Inspect it with `npm run experiment:describe -- --experiment context-strategy-comparison`
+- Run it against a local project with `npm run experiment:run -- --experiment context-strategy-comparison --target <path>`
+- Run automated self-validation with `npm run security:validate`, or add `-- --target <path>` for another local project
 - Read [docs/METRICS.md](docs/METRICS.md) for full metric definitions
 - Read [docs/WORKFLOWS.md](docs/WORKFLOWS.md) for detailed workflow diagrams
 - Read [docs/COMMANDS.md](docs/COMMANDS.md) for all command options

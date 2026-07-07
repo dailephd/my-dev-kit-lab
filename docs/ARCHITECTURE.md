@@ -1,232 +1,166 @@
 # Architecture
 
-## Current architecture
+## Current implemented architecture
 
-my-dev-kit-lab is organized as a layered pipeline. Each layer has a focused responsibility and writes structured artifacts that the next layer consumes.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, and automated security-validation companion for my-dev-kit. The generic experiment-plugin architecture is implemented; it is not a future migration.
 
 ### Module map
 
-| Module | Path | Responsibility |
-|---|---|---|
-| Benchmarks | `benchmarks/` | Deterministic benchmark projects, contracts, and answer keys |
-| Core utilities | `src/core/` | Token counting, safe paths, file glob collection, subprocess execution |
-| Evaluation | `src/evaluation/` | File tree building, complexity scoring, benchmark metadata validation |
-| Prompts | `src/prompts/` | Raw-full-file and my-dev-kit-guided prompt generation, prompt complexity metrics |
-| Agents | `src/agents/` | fake-agent, Codex, and Claude adapter interfaces |
-| Experiment runner | `src/commands/` | Controlled experiment orchestration, correctness scoring, artifact writing |
-| Report | `src/report/` | Experiment report input model, HTML rendering, artifact writing |
-| Screenshot | `src/screenshot/` | Optional PNG capture from generated local HTML reports |
-| Plots | `src/plots/` | Plot-ready data generation and deterministic SVG chart rendering |
-| Visualization demos | `src/visualizationDemos/` | Bounded my-dev-kit visualization command demos |
-| Gallery | `src/gallery/` | Gallery manifest types and writer |
-| Scripts | `scripts/` | Command entrypoints and verification helpers |
-| Tests | `tests/` | Validation and parity tests |
+```text
+src/
+  core/                                      shared process, path, token, and target utilities
+  experiments/                               plugin runtime
+    config.ts                                shared configuration loading
+    defaultRegistry.ts                       built-in plugin registration
+    registry.ts                              plugin lookup and uniqueness
+    runner.ts                                generic execution lifecycle
+    target.ts                                self/external-local target resolution
+    types.ts                                 plugin contracts and normalized results
+    plugins/contextStrategyComparison/       first implemented plugin
+  evaluation/                                benchmark, controlled-run, scoring, and metrics logic
+  agents/                                    fake-agent, Codex, and Claude adapters
+  report/
+    experiments/                             plugin-aware JSON/HTML report support
+    ...                                      shared and legacy report infrastructure
+  securityValidation/                        automated security validation
+    dependencies/                            npm and OSV checks
+    packageChecks/                           npm package-content inspection
+    cliAdversarial/                          CLI/path/read-only/malformed/subprocess checks
+    attackScenarios/                         adversarial scenario contracts, profiles, runner, scenarios, schema guard
+    staticScans/                             CodeQL and Semgrep integration
+    fuzz/                                    bounded deterministic fuzz smoke
+    validate/                                targets, orchestration, and verdicts
+    report/                                  text and JSON security reports
+  plots/ screenshot/ gallery/                evidence presentation
+  visualizationDemos/                        my-dev-kit visualization runs
 
----
-
-### Current architecture diagram
-
-```mermaid
-graph TD
-  subgraph Benchmarks
-    BP[Benchmark Projects]
-    BC[Benchmark Contracts\nand Answer Keys]
-    PP[Project Profiles\nComplexity Scores]
-  end
-
-  subgraph Prompts
-    PV[Prompt Variant Generator]
-    PM[Prompt Complexity Metrics]
-  end
-
-  subgraph Agents
-    FA[fake-agent]
-    CX[Codex adapter]
-    CL[Claude adapter]
-  end
-
-  subgraph Experiment
-    ER[Controlled Experiment Runner]
-    CS[Correctness Scorer]
-    EA[Experiment Artifacts\nJSON]
-  end
-
-  subgraph Reporting
-    RR[Report Renderer]
-    PG[Plot Generator]
-    VD[Visualization Demos]
-    SC[Screenshot Capture]
-  end
-
-  subgraph Gallery
-    GM[Gallery Manifest]
-    GI[Gallery Index HTML]
-  end
-
-  BP --> PV
-  BC --> PV
-  PP --> PV
-  PV --> FA
-  PV --> CX
-  PV --> CL
-  FA --> ER
-  CX --> ER
-  CL --> ER
-  BC --> CS
-  ER --> CS
-  CS --> EA
-  EA --> RR
-  EA --> PG
-  EA --> VD
-  RR --> SC
-  RR --> GM
-  PG --> GM
-  VD --> GM
-  SC --> GM
-  GM --> GI
+scripts/
+  experiments/                               experiment:list, experiment:describe, experiment:run
+  security/                                  security checks and security:validate
+  ...                                        legacy/demo/report/plot/gallery entrypoints
 ```
 
----
-
-## How data moves through the system
-
-### 1. Benchmark layer
-
-Benchmark projects under `benchmarks/projects/` provide stable, version-controlled source trees at different complexity levels. Benchmark contracts in `benchmarks/contracts/` define task descriptions, expected files, expected symbols, and answer keys. Project profiles in `benchmarks/contracts/benchmark-project-profiles.json` store complexity metrics and complexity scores.
-
-### 2. Prompt layer
-
-The prompt variant generator reads benchmark cases and produces instruction text at `short`, `medium`, `long`, and `multi-step` complexity levels. Each variant is either a `raw-full-file` prompt (full file contents inlined) or a `my-dev-kit-guided` prompt (instructions to use my-dev-kit retrieval commands). Prompt complexity metrics are computed alongside each variant.
-
-### 3. Agent layer
-
-Agent adapters execute a single prompt against a benchmark case and return a structured result. The fake-agent adapter returns deterministic outputs without any external CLI. The Codex and Claude adapters invoke local CLI tools and capture stdout, stderr, token totals (when available), and duration. Runs that time out, produce invalid output, or hit session limits are recorded as structured outcomes.
-
-### 4. Experiment runner
-
-The controlled experiment runner pairs `raw-full-file` and `my-dev-kit-guided` runs for each combination of case, agent, and complexity level. It scores correctness against answer keys, computes token and duration comparisons for matched pairs, and writes `experiment-summary.json`, `experiment-runs.json`, and `experiment-comparisons.json`.
-
-### 5. Reporting layer
-
-The report renderer reads experiment artifacts and produces `experiment-report.json` and `experiment-report.html`. The plot generator reads experiment artifacts and produces `plot-data.json` and SVG charts. Visualization demos run bounded my-dev-kit commands against a benchmark project and write demo artifacts. Screenshot capture optionally produces a PNG from the HTML report.
-
-### 6. Gallery layer
-
-The gallery writer collects report, plot, visualization demo, and screenshot artifacts into a `gallery-manifest.json` and a static `gallery-index.html`.
-
----
-
-## Raw-vs-indexed experiment data path
+### System diagram
 
 ```mermaid
 flowchart TD
-  A[Benchmark Case\nand Answer Key] --> B[Generate Prompt Variants\nraw-full-file + my-dev-kit-guided]
-  B --> C[Run raw-full-file\nvia agent adapter]
-  B --> D[Run my-dev-kit-guided\nvia agent adapter]
-  C --> E[raw run result JSON]
-  D --> F[guided run result JSON]
-  E --> G[Pair Runs\nby case + agent + complexity]
-  F --> G
-  G --> H[Score Correctness\nfrom answer key]
-  G --> I[Compare Tokens\nand Duration]
-  H --> J[experiment-comparisons.json]
-  I --> J
-  J --> K[Report Renderer]
-  K --> L[experiment-report.html]
+  CLI[scripts/experiments] --> Registry[default plugin registry]
+  Registry --> Runner[src/experiments runner]
+  Runner --> Target[self or external-local target]
+  Runner --> Plugin[context-strategy-comparison plugin]
+  Plugin --> Evaluation[src/evaluation]
+  Evaluation --> Agents[fake-agent / Codex / Claude]
+  Plugin --> Results[normalized plugin result + legacy artifacts]
+  Results --> PluginReports[src/report/experiments]
+  Results --> SharedReports[shared reports / plots / screenshots]
+  PluginReports --> Gallery[gallery and evidence outputs]
+  SharedReports --> Gallery
+
+  SecurityCLI[scripts/security] --> Security[src/securityValidation]
+  Security --> SecurityReports[automated validation reports and verdict]
 ```
 
----
+## Experiment-plugin runtime
 
-## Future experiment-plugin architecture
+`src/experiments/defaultRegistry.ts` registers `context-strategy-comparison`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
-The next major development phase refactors my-dev-kit-lab into a generic experiment framework. The current pipeline becomes the first experiment plugin.
+The current plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
-### Plugin model
-
-Each experiment plugin declares:
-- **Trial plan** — which cases, agents, strategies, and complexity levels to run
-- **Agent execution** — how to invoke agents and collect results
-- **Metric collection** — which metrics to record per run
-- **Scoring** — how to evaluate run outputs
-- **Report sections** — which sections to include in the HTML report
-- **Plot sections** — which charts to generate
-- **Screenshot capture** — whether to capture a PNG
-- **Gallery publishing** — which artifacts to include in the gallery
-
-### Future plugin architecture diagram
+- `raw-full-file` and `my-dev-kit-guided` variants
+- benchmark cases and answer-key correctness
+- fake-agent and real-agent adapters
+- partial-outcome handling
+- legacy experiment summary, run, and comparison artifacts
+- `run-controlled-experiment` compatibility
 
 ```mermaid
-graph TD
-  subgraph Runtime
-    TP[Trial Planner]
-    AE[Agent Executor]
-    MC[Metric Collector]
-    SC[Scorer]
-    RP[Report Builder]
-    PL[Plot Builder]
-    SS[Screenshot Capture]
-    GP[Gallery Publisher]
-  end
+sequenceDiagram
+  participant User
+  participant Command as experiment:run
+  participant Runtime as Plugin runtime
+  participant Plugin as context-strategy-comparison
+  participant Legacy as Controlled experiment foundations
+  participant Report as Plugin report support
 
-  subgraph Plugins
-    P1[context-strategy-comparison\ncurrent raw-vs-indexed]
-    P2[warm-index-reuse]
-    P3[incremental-change-staleness]
-    P4[context-window-scaling]
-    P5[retrieval-precision-recall]
-    P6[agent-success-rate]
-  end
-
-  P1 --> TP
-  P2 --> TP
-  P3 --> TP
-  P4 --> TP
-  P5 --> TP
-  P6 --> TP
-  TP --> AE
-  AE --> MC
-  MC --> SC
-  SC --> RP
-  SC --> PL
-  RP --> SS
-  RP --> GP
-  PL --> GP
-  SS --> GP
+  User->>Command: experiment id, target, options
+  Command->>Runtime: runExperiment(...)
+  Runtime->>Runtime: resolve plugin, target, config
+  Runtime->>Plugin: execute context strategy comparison
+  Plugin->>Legacy: run raw and guided trials
+  Legacy-->>Plugin: runs, comparisons, artifacts
+  Plugin-->>Runtime: normalized result
+  Runtime->>Report: write JSON and HTML reports
+  Report-->>User: plugin-aware and legacy outputs
 ```
 
-### Migration path
+## Target model
+
+Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project. Experiment outputs remain in lab-controlled output directories by default; security reports remain under `reports/security` unless an explicit output directory is provided.
+
+`src/core/localProjectTarget.ts` supplies shared local-project metadata. Experiment target resolution lives in `src/experiments/target.ts`; security target resolution lives in `src/securityValidation/validate/resolveTarget.ts`.
+
+## Automated security-validation architecture
+
+The current security framework is automated CLI/package validation. It combines dependency and package inspection, adversarial CLI tests, static-tool integrations, bounded fuzz smoke, attack-scenario execution, and report/verdict generation. It is target-aware and preserves `npm run security:validate` self mode.
 
 ```mermaid
-flowchart TD
-  A[Current: hardcoded\nraw-vs-indexed pipeline] --> B[Extract shared runtime\nfrom current pipeline]
-  B --> C[Wrap current experiment\nas context-strategy-comparison plugin]
-  C --> D[Validate plugin produces\nsame artifacts as current pipeline]
-  D --> E[Add warm-index-reuse plugin]
-  E --> F[Add incremental-change plugin]
-  F --> G[Add context-window-scaling plugin]
-  G --> H[Add retrieval-precision-recall plugin]
+flowchart LR
+  Command[security:validate] --> Resolve[Resolve self or external target]
+  Resolve --> Deps[Dependency checks]
+  Resolve --> Package[Package checks]
+  Resolve --> Static[CodeQL / Semgrep]
+  Resolve --> CLI[Security test suite]
+  Resolve --> Fuzz[Bounded fuzz smoke]
+  Resolve --> Scenarios[Attack scenarios + profiles]
+  Deps --> Verdict[Normalize findings and verdict]
+  Package --> Verdict
+  Static --> Verdict
+  CLI --> Verdict
+  Fuzz --> Verdict
+  Scenarios --> Verdict
+  Verdict --> Reports[Text + JSON reports]
 ```
 
----
+For an external target, dependency, package, and supported static checks use the target project. If the target declares `test:security`, validation runs that script in the target root. The framework records command cwd, exit status, and bounded output summaries. Tool-specific self-tests remain clearly labeled.
 
-## Benchmark projects
+`src/securityValidation/attackScenarios` is now part of the implemented validation layer. It contains the `AttackScenario` contract, `AttackResult` bridge model, reusable profiles, payload/evidence helpers, the integrated attack runner, and concrete scenarios for boundary, subprocess, secrets, and network checks.
 
-| Project | Size | Languages |
-|---|---|---|
-| `todo-ts` | small | TypeScript |
-| `todo-js` | small | JavaScript |
-| `todo-python` | small | Python |
-| `todo-mixed-ts-py` | small | TypeScript + Python |
-| `task-workflow-medium-ts` | medium | TypeScript |
-| `task-analytics-large-mixed` | large | TypeScript + Python |
+`src/securityValidation/attackScenarios/reportSchemaGuard.ts` protects JSON report structure against payload-created top-level injection by comparing a clean baseline render with a payload-bearing render. This is schema/report hardening for the current report format, not a general renderer-safety proof.
 
----
+`src/securityValidation/types.ts` defines `VerdictImpact`, which flows from `AttackScenario` to `AttackResult` to `SecurityCheckResult`. `src/securityValidation/validate/verdict.ts` reads that metadata directly when summarizing blocker categories, so the verdict layer no longer owns a hand-maintained scenario-impact map.
 
-## Key contract files
+Profile behavior remains intentionally narrow in the current implementation: profiles drive default check selection and scenario applicability filtering, but they do not yet introduce deeper per-profile scenario branching beyond that selection metadata.
 
-| File | Purpose |
+Optional local tools can be reported as skipped; absence alone does not make the framework crash. This automation is not equivalent to a complete manual pentest.
+
+## Shared report and evidence infrastructure
+
+`src/report` remains the shared report layer. `src/report/experiments` extends it for plugin metadata rather than creating a parallel reporting product. Plots, screenshots, visualization demos, and gallery output consume experiment artifacts and remain reusable across future plugins.
+
+## Future architecture
+
+The following layers are planned and must not be treated as current:
+
+- generic audit contracts and detector registry
+- code rot and code quality detectors
+- adapters that include current security results in unified audit reports
+- a project-wide audit command
+- a human-led manual pentest framework beside automated validation
+- additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success
+- normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
+
+Future audit and pentest work should reuse `src/core`, current target metadata, normalized findings, and shared report infrastructure. It should not replace the experiment plugin runtime or duplicate report/gallery systems.
+
+## Key contracts
+
+| Contract | Location |
 |---|---|
-| `benchmarks/contracts/benchmark-project-profiles.json` | Project descriptions, complexity metrics, complexity scores |
-| `benchmarks/contracts/todo-benchmark-case.json` | Task definitions, expected files, expected symbols, answer keys |
-| `examples/real-agent-campaign-cases.json` | Bounded real-agent campaign evaluation cases |
-| `docs/METRICS.md` | Canonical metric glossary |
+| Plugin and result types | `src/experiments/types.ts` |
+| Plugin registry | `src/experiments/registry.ts` |
+| Generic runner | `src/experiments/runner.ts` |
+| Current plugin | `src/experiments/plugins/contextStrategyComparison/plugin.ts` |
+| Plugin report model | `src/report/experiments/experimentReportModel.ts` |
+| Controlled experiment types | `src/evaluation/controlledExperimentTypes.ts` |
+| Shared local target metadata | `src/core/localProjectTarget.ts` |
+| Security result types | `src/securityValidation/types.ts` |
+| Security orchestrator | `src/securityValidation/validate/runSecurityValidation.ts` |

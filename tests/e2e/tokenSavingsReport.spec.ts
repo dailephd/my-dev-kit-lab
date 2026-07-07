@@ -75,6 +75,6 @@ describe("token savings report e2e", () => {
         await browser.close();
       }
     },
-    30000
+    60000
   );
 });

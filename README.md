@@ -1,6 +1,10 @@
 # my-dev-kit-lab
 
-my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [my-dev-kit](https://github.com/your-org/my-dev-kit). It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, and builds gallery outputs.
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and future audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, and performs automated CLI/package security validation.
+
+The current package is v0.2.2, release-prepared but not yet published to npm. Its generic experiment-plugin framework was introduced in v0.2.0. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+
+my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
 **my-dev-kit** is the repo indexing and graph-guided retrieval engine.
 **my-dev-kit-lab** is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
@@ -23,6 +27,11 @@ my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [m
 - Gallery manifest and static gallery index output
 - Visualization demos using my-dev-kit commands against benchmark projects
 - Final demo workflow combining all pipeline stages
+- Generic experiment-plugin command surface: `experiment:list`, `experiment:describe`, and `experiment:run`
+- First experiment plugin: `context-strategy-comparison`
+- Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
+- Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
+- Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`
 
 ---
 
@@ -30,19 +39,14 @@ my-dev-kit-lab is the experiment, evidence, reporting, and demo companion for [m
 
 ```mermaid
 flowchart TD
-  A[Benchmark Projects] --> B[Prompt Variants]
-  B --> C[Agent Adapters\nfake-agent / Codex / Claude]
-  C --> D[Controlled Experiment Runner]
-  D --> E[Experiment Artifacts\nJSON]
-  E --> F[Report Renderer]
-  E --> G[Plot Generator]
-  E --> H[Visualization Demos]
-  F --> I[HTML Report + optional PNG]
-  G --> J[SVG Charts]
-  H --> K[Demo Artifacts]
-  I --> L[Gallery]
-  J --> L
-  K --> L
+  A[scripts/experiments] --> B[Experiment plugin registry + runner]
+  B --> C[context-strategy-comparison]
+  C --> D[Controlled experiment foundations]
+  D --> E[Plugin + legacy artifacts]
+  E --> F[Plugin-aware reports]
+  E --> G[Plots / screenshots / gallery]
+  H[scripts/security] --> I[Automated security validation]
+  I --> J[Security reports + verdict]
 ```
 
 ---
@@ -54,6 +58,12 @@ flowchart TD
 ```bash
 npm install
 ```
+
+```powershell
+npm install
+```
+
+`cmd.exe` users should run the same command on one line.
 
 ### Build
 
@@ -79,6 +89,22 @@ npm run run-final-demo -- \
   --no-screenshot
 ```
 
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+```bat
+npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
+```
+
+The lab resolves Windows `.cmd` and `.ps1` CLI shims, supports command paths with spaces, and keeps generated artifacts inside the requested output directory.
+
 This runs a full pipeline: controlled experiment → report → plots → visualization demos → gallery.
 
 ### Run a real-agent campaign (requires Codex or Claude CLI)
@@ -97,6 +123,32 @@ npm run run-controlled-experiment -- \
 
 Real-agent runs require local Codex or Claude CLI setup and available usage capacity. Runs that time out, produce invalid output, or hit session limits are recorded as structured outcomes rather than failures.
 
+### List, describe, and run experiment plugins
+
+```bash
+npm run experiment:list
+npm run experiment:describe -- --experiment context-strategy-comparison
+npm run experiment:run -- \
+  --experiment context-strategy-comparison \
+  --target /path/to/local/project \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
+```
+
+```powershell
+npm run experiment:list
+npm run experiment:describe -- --experiment context-strategy-comparison
+npm run experiment:run -- `
+  --experiment context-strategy-comparison `
+  --target "Z:\Users\newuser\Projects\my-dev-kit-v1" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+When `--target` is omitted, the experiment runs in self mode against my-dev-kit-lab. When `--target <path>` is provided, the lab remains the tool root and the target project is inspected separately. Generated experiment outputs stay under lab-controlled output directories by default, not inside the target project.
+
 ---
 
 ## Where to find outputs
@@ -109,6 +161,8 @@ Real-agent runs require local Codex or Claude CLI setup and available usage capa
 | HTML report | `lab-output/<report>/experiment-report.html` |
 | Report JSON | `lab-output/<report>/experiment-report.json` |
 | Report screenshot | `lab-output/<report>/experiment-report.png` |
+| Plugin experiment report JSON | `lab-output/experiments/<plugin>/<target>/<run>/report.json` |
+| Plugin experiment report HTML | `lab-output/experiments/<plugin>/<target>/<run>/report.html` |
 | Plot data | `lab-output/<plots>/plot-data.json` |
 | SVG charts | `lab-output/<plots>/charts/*.svg` |
 | Gallery manifest | `lab-output/<gallery>/gallery-manifest.json` |
@@ -140,14 +194,69 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Claude does not expose token totals; token savings comparisons are unavailable for Claude runs
 - Codex may expose token totals but can produce timeouts or invalid-output runs
 - Small projects may make raw-full-file cheaper than my-dev-kit-guided; larger localized tasks are where my-dev-kit is expected to become more useful
-- The current baseline does not yet prove every future value claim; stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling
+- The generic experiment-plugin framework currently ships one plugin, `context-strategy-comparison`; future plugins such as warm-index reuse, incremental-change, and context-window scaling are not implemented yet
+- The current baseline does not prove token savings are guaranteed; it produces auditable evidence for specific cases, targets, agents, and strategies
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
 
 ---
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The next major development phase is a generic experiment-plugin framework that will make it straightforward to add new experiment types without rebuilding the pipeline.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current package version is `v0.2.2`, which implements the automated security-validation fortification work described below and has passed pre-release readiness and cross-platform validation. `v0.2.2` has not yet been published to npm.
+
+---
+
+## Security validation
+
+my-dev-kit-lab owns a release-security validation track for **my-dev-kit**. This work is separate from the experiment pipeline and does not replace the generic experiment-plugin roadmap. Its purpose is to generate release-validation evidence for the local CLI/package before release preparation.
+
+This is not a web application pentest framework. **my-dev-kit** is a local CLI/package, so the validation model is CLI/package adversarial testing focused on whether it remains:
+
+- local-first
+- deterministic
+- read-only with respect to user source files
+- network-free during normal CLI operation
+- LLM-free
+- database-free
+- safe to run on local repositories
+
+The automated validation gate is implemented. It combines static scans, dependency/package checks, adversarial CLI tests, bounded fuzz smoke tests, and attack-scenario checks with structured text/JSON reports and a four-category verdict.
+
+### Security commands
+
+| Command | Description |
+|---|---|
+| `npm run security:deps` | npm audit, OSV-Scanner (if available), outdated packages |
+| `npm run security:package` | npm pack --dry-run, forbidden content detection |
+| `npm run security:codeql` | CodeQL CLI availability check; skipped gracefully when absent |
+| `npm run security:semgrep` | Semgrep scan via local binary or npx; skipped gracefully when both absent |
+| `npm run test:security` | Automated security and adversarial CLI tests (path traversal, read-only boundaries, malformed artifacts, JSON safety, and related checks) |
+| `npm run test:fuzz:smoke` | 9 bounded fuzz targets, seeded PRNG, completes in under 1 second |
+| `npm run security:validate` | Runs selected security checks, applies profile-aware defaults when requested, and writes text/JSON reports according to `--format` |
+
+CodeQL, Semgrep, and OSV-Scanner are optional. When unavailable locally, they are recorded as `skipped` in the report, not as passed. That can lead to `ready except optional manual checks`; it does not silently turn missing tooling into a clean pass.
+
+Each security command can validate my-dev-kit-lab itself or another local project via `--target <path>`. When `--target` is omitted, the framework performs self-validation. Target projects are inspected in place: their source files are not modified by default, generated artifacts stay under `reports/security/` unless `--out` is used, and external-target reports identify the tool root, target root, target package metadata, target git metadata, command cwd, exit code, and stdout/stderr summaries.
+
+`security:validate` supports `--checks`, `--profile`, `--format`, `--fail-on`, `--out`, and `--report-prefix`. The no-flag path remains backward compatible and still runs the classic implemented check groups: `deps`, `package`, `static`, `cli-adversarial`, and `fuzz`. Supplying `--profile` without `--checks` swaps in that profile's default checks; supplying explicit `--checks` always wins over profile defaults.
+
+The current attack-scenario checks cover boundary, subprocess, secrets, and network assumptions. They are automated adversarial checks, not a manual pentest. `verdictImpact` metadata from each registered scenario drives blocker categorization in report reasoning, and narrowed `--checks` runs are labeled as scoped rather than described as a full release gate.
+
+JSON report poisoning/config-injection checks use a baseline-diff schema guard so legitimate additive JSON fields do not fail the guard while payload-created trusted top-level fields still do. Text reports are sanitized to strip ANSI/control-byte payloads before rendering.
+
+Known limits remain intentionally explicit: secret scanning is bounded rather than exhaustive, the network/local-first check is a bounded static assumption check rather than proof of runtime isolation, package-boundary severity is still result-level rather than per-evidence-item, and profile-specific scenario behavior is limited to profile-based scenario selection/default checks.
+
+For external-target validation, `security:validate` reads the target `package.json`, detects `scripts.test:security`, and runs `npm run test:security` in the target project root when that script exists. This behavior is validated both from the source checkout and from an installed packed tarball because published-package execution differs from local source execution.
+
+Generated security reports under `reports/security/` are excluded from git by default. They are produced locally or in CI as release-gate evidence and are not committed to the repository.
+
+See [docs/COMMANDS.md](docs/COMMANDS.md) for full command options and [docs/security-validation-framework.md](docs/security-validation-framework.md) for the security model, implemented modules, and release verdicts.
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for the full text.
 
 ---
 

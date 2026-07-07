@@ -28,6 +28,7 @@ const windowsExtensionPreference = [".cmd", ".exe", ".bat", ".ps1", ""];
 
 export function resolveCommand(command: string, options: ResolveCommandOptions = {}): ResolvedCommand {
   const platform = options.platform ?? process.platform;
+  const env = options.env ?? process.env;
   if (platform !== "win32") {
     return {
       originalCommand: command,
@@ -39,7 +40,6 @@ export function resolveCommand(command: string, options: ResolveCommandOptions =
     };
   }
 
-  const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
   const candidate = findWindowsCommandCandidate(command, env, cwd);
   if (!candidate) {
@@ -52,10 +52,15 @@ export function resolveCommand(command: string, options: ResolveCommandOptions =
     };
   }
 
-  return commandForWindowsCandidate(command, candidate, options.allowPowerShellShim ?? true);
+  return commandForWindowsCandidate(command, candidate, env, options.allowPowerShellShim ?? true);
 }
 
-function commandForWindowsCandidate(originalCommand: string, resolvedPath: string, allowPowerShellShim: boolean): ResolvedCommand {
+function commandForWindowsCandidate(
+  originalCommand: string,
+  resolvedPath: string,
+  env: NodeJS.ProcessEnv,
+  allowPowerShellShim: boolean
+): ResolvedCommand {
   const extension = path.extname(resolvedPath).toLowerCase();
   if (extension === ".ps1") {
     if (!allowPowerShellShim) {
@@ -81,8 +86,8 @@ function commandForWindowsCandidate(originalCommand: string, resolvedPath: strin
   if (extension === ".cmd" || extension === ".bat") {
     return {
       originalCommand,
-      command: process.env.ComSpec ?? "cmd.exe",
-      argsPrefix: ["/d", "/s", "/c", resolvedPath],
+      command: env.ComSpec ?? env.COMSPEC ?? process.env.ComSpec ?? process.env.COMSPEC ?? "cmd.exe",
+      argsPrefix: ["/d", "/s", "/c", "call"],
       resolutionKind: "windows-cmd-shim",
       resolvedPath,
       warnings: []

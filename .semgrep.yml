@@ -1,0 +1,99 @@
+rules:
+  # ---------------------------------------------------------------------------
+  # Subprocess safety — my-dev-kit is local-first and must not use unsafe shell
+  # ---------------------------------------------------------------------------
+  - id: no-shell-true-in-spawn
+    patterns:
+      - pattern: spawn($CMD, $ARGS, {shell: true, ...})
+      - pattern: execFile($CMD, $ARGS, {shell: true, ...})
+    message: "spawn/execFile with shell:true allows shell injection. Use shell:false."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: subprocess-safety
+      cwe: CWE-78
+
+  - id: no-exec-with-string-concat
+    patterns:
+      - pattern: exec($A + $B)
+      - pattern: exec(`...`)
+    message: "exec() with string interpolation is vulnerable to shell injection. Use spawn() with shell:false."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: subprocess-safety
+      cwe: CWE-78
+
+  - id: no-execsync-with-interpolation
+    patterns:
+      - pattern: execSync($A + $B)
+      - pattern: execSync(`...`)
+    message: "execSync() with string interpolation. Use spawnSync() with shell:false."
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: subprocess-safety
+
+  # ---------------------------------------------------------------------------
+  # Path traversal — all user-controlled paths must be validated
+  # ---------------------------------------------------------------------------
+  - id: path-join-user-input
+    patterns:
+      - pattern: path.join($BASE, $USER_INPUT)
+      - pattern-not: path.join(__dirname, ...)
+      - pattern-not: path.join(process.cwd(), ...)
+      - pattern-not: path.join($CONST, "...")
+    message: "path.join() with user-controlled input. Validate that the resolved path stays within the allowed base."
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: path-traversal
+      cwe: CWE-22
+
+  # ---------------------------------------------------------------------------
+  # Unsafe fs.rm / recursive deletion
+  # ---------------------------------------------------------------------------
+  - id: unsafe-fs-rm-recursive
+    patterns:
+      - pattern: fs.rm($PATH, {recursive: true, ...})
+      - pattern: fs.rmSync($PATH, {recursive: true, ...})
+    message: "Recursive fs.rm on a user-controlled path can delete unintended files. Validate path is within the expected directory."
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: filesystem-safety
+      cwe: CWE-73
+
+  - id: unsafe-fs-rmdir-recursive
+    patterns:
+      - pattern: fs.rmdirSync($PATH, {recursive: true, ...})
+    message: "Recursive rmdir on user-controlled path. Validate path boundaries first."
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: filesystem-safety
+
+  # ---------------------------------------------------------------------------
+  # Unbounded file reads
+  # ---------------------------------------------------------------------------
+  - id: readfilesync-no-size-check
+    patterns:
+      - pattern: fs.readFileSync($PATH)
+      - pattern: fs.readFile($PATH, ...)
+    message: "readFile without a size check may read arbitrarily large files. Add a size guard for user-controlled paths."
+    languages: [typescript, javascript]
+    severity: INFO
+    metadata:
+      category: resource-exhaustion
+
+  # ---------------------------------------------------------------------------
+  # Secret leakage — environment variables in artifacts
+  # ---------------------------------------------------------------------------
+  - id: process-env-in-output
+    pattern: JSON.stringify({..., $KEY: process.env.$VAR, ...})
+    message: "Embedding process.env values in JSON output may leak secrets. Review what gets serialized."
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: secret-leakage
+      cwe: CWE-532

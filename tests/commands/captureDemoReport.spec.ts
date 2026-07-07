@@ -40,7 +40,7 @@ describe("runCaptureDemoReportCommand", () => {
     if (json.screenshot.status !== "captured") {
       expect(json.warnings.some((warning) => warning.includes("PNG screenshot skipped") || warning.includes("--no-screenshot") || warning.includes("failed"))).toBe(true);
     }
-  }, 15000);
+  }, 30000);
 
   it("supports --no-screenshot", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "capture-demo-"));

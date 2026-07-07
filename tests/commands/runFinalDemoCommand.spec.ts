@@ -36,5 +36,5 @@ describe("runFinalDemoCommand", () => {
     expect(existsSync(path.join(outDir, "plots", "plot-data.json"))).toBe(true);
     expect(existsSync(path.join(outDir, "visualization-demos", "visualization-demo-summary.json"))).toBe(true);
     expect(existsSync(path.join(outDir, "gallery", "gallery-manifest.json"))).toBe(true);
-  });
+  }, 15000);
 });

@@ -1,12 +1,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { parseCommandString } from "./commandLine.js";
 import { resolveCommand, type ResolvedCommand } from "./resolveCommand.js";
 
-export type ParsedCommand = {
-  executable: string;
-  args: string[];
-};
+export { parseCommandString } from "./commandLine.js";
 
 export type MeasuredCommandResult = {
   commandId: string;
@@ -27,17 +25,6 @@ export type MeasuredCommandResult = {
   error?: string;
   resolvedCommand?: ResolvedCommand;
 };
-
-export function parseCommandString(command: string): ParsedCommand {
-  const parts = command.match(/"[^"]*"|'[^']*'|\S+/g)?.map((part) => part.replace(/^['"]|['"]$/g, "")) ?? [];
-  if (parts.length === 0) {
-    throw new Error("Command string is empty.");
-  }
-  return {
-    executable: parts[0],
-    args: parts.slice(1)
-  };
-}
 
 export async function runMeasuredCommand(options: {
   commandId: string;
@@ -68,7 +55,11 @@ export async function runMeasuredCommand(options: {
           allowPowerShellShim: options.allowPowerShellShim
         });
   const executable = resolution.command;
-  const args = [...resolution.argsPrefix, ...parsed.args, ...(options.extraArgs ?? [])];
+  const trailingArgs = [...parsed.args, ...(options.extraArgs ?? [])];
+  const args =
+    resolution.resolutionKind === "windows-cmd-shim" && resolution.resolvedPath
+      ? [...resolution.argsPrefix, resolution.resolvedPath, ...trailingArgs]
+      : [...resolution.argsPrefix, ...trailingArgs];
   const stdoutPath = path.join(options.outDir, `${options.commandId}.stdout.txt`);
   const stderrPath = path.join(options.outDir, `${options.commandId}.stderr.txt`);
   const telemetryPath = path.join(options.outDir, `${options.commandId}.telemetry.json`);
@@ -114,9 +105,9 @@ export async function runMeasuredCommand(options: {
         resolvedCommand: resolution
       };
       void Promise.all([
-        writeFile(stdoutPath, stdout, "utf8"),
-        writeFile(stderrPath, stderr, "utf8"),
-        writeFile(telemetryPath, JSON.stringify(measured, null, 2), "utf8")
+        writeArtifact(stdoutPath, stdout),
+        writeArtifact(stderrPath, stderr),
+        writeArtifact(telemetryPath, JSON.stringify(measured, null, 2))
       ]).then(() => resolve(measured));
       return;
     }
@@ -143,8 +134,8 @@ export async function runMeasuredCommand(options: {
       }
       const endedAt = new Date().toISOString();
       const durationMs = Date.now() - started;
-      await writeFile(stdoutPath, stdout, "utf8");
-      await writeFile(stderrPath, stderr, "utf8");
+      await writeArtifact(stdoutPath, stdout);
+      await writeArtifact(stderrPath, stderr);
       const measured: MeasuredCommandResult = {
         commandId: options.commandId,
         commandString: options.commandString,
@@ -164,12 +155,17 @@ export async function runMeasuredCommand(options: {
         error: spawnError,
         resolvedCommand: resolution
       };
-      await writeFile(telemetryPath, JSON.stringify(measured, null, 2), "utf8");
+      await writeArtifact(telemetryPath, JSON.stringify(measured, null, 2));
       resolve(measured);
     });
   });
 
   return result;
+}
+
+async function writeArtifact(filePath: string, value: string): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, value, "utf8");
 }
 
 function killProcessTree(pid: number | undefined): void {

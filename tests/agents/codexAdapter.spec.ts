@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +13,16 @@ afterEach(async () => {
 });
 
 describe("codexAdapter", () => {
+  function writeHostCodexExecutable(filePath: string, totalTokens: number): void {
+    const output = `console.log('{\\\"usage\\\":{\\\"input_tokens\\\":${Math.max(totalTokens - 3, 1)},\\\"output_tokens\\\":3,\\\"total_tokens\\\":${totalTokens}}}')`;
+    if (process.platform === "win32") {
+      writeFileSync(filePath, `@echo off\r\n"${process.execPath}" -e "${output}"\r\n`, "utf8");
+      return;
+    }
+    writeFileSync(filePath, `#!/usr/bin/env node\n${output}\n`, "utf8");
+    chmodSync(filePath, 0o755);
+  }
+
   it("builds default command template", async () => {
     const promptVariant = await loadPromptVariant();
     const command = codexAdapter.buildCommand({
@@ -97,13 +107,17 @@ describe("codexAdapter", () => {
     expect(result.errors[0]).toContain("not available");
   });
 
-  it("runs through a simulated Windows npm codex.cmd shim via command template", async () => {
+  it("runs through a host-platform codex executable via command template", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "codex-agent-"));
-    const binDir = mkdtempSync(path.join(os.tmpdir(), "codex-bin-"));
-    tempDirs.push(outDir, binDir);
-    const shimPath = path.join(binDir, "codex.cmd");
-    writeFileSync(shimPath, `@echo off\r\n"${process.execPath}" -e "console.log('{\\\"usage\\\":{\\\"input_tokens\\\":7,\\\"output_tokens\\\":3,\\\"total_tokens\\\":10}}')"\r\n`, "utf8");
+    const binRoot = mkdtempSync(path.join(os.tmpdir(), "codex-bin-"));
+    const binDir = path.join(binRoot, "bin with spaces");
+    tempDirs.push(outDir, binRoot);
+    mkdirSync(binDir, { recursive: true });
+    const shimName = process.platform === "win32" ? "codex.cmd" : "codex";
+    writeHostCodexExecutable(path.join(binDir, shimName), 10);
     const promptVariant = await loadPromptVariant();
+    const nodeBinDir = path.dirname(process.execPath);
+    const joinedPath = `${binDir}${path.delimiter}${nodeBinDir}`;
     const result = await codexAdapter.runPrompt({
       runId: "codex-cmd",
       agentId: "codex",
@@ -112,33 +126,47 @@ describe("codexAdapter", () => {
       cwd: process.cwd(),
       outDir,
       commandTemplate: parseAgentCommandTemplate("codex {prompt}"),
-      env: { Path: binDir, PATH: binDir }
+      env: { Path: joinedPath, PATH: joinedPath }
     });
-    expect(result.command.toLowerCase()).toContain("cmd");
-    expect(result.args.some((arg) => arg.endsWith("codex.cmd"))).toBe(true);
     expect(result.status).toBe("completed");
     expect(result.tokenUsage.totalTokens).toBe(10);
+    if (process.platform === "win32") {
+      expect(result.command.toLowerCase()).toContain("cmd");
+      expect(result.args.some((arg) => arg.includes("codex.cmd"))).toBe(true);
+    } else {
+      expect(result.command).toBe("codex");
+      expect(result.args.some((arg) => arg.includes("codex.cmd"))).toBe(false);
+    }
   });
 
-  it("resolves a simulated Windows npm codex.ps1 shim through PowerShell", async () => {
+  it("runs through a host-platform codex executable stored in a path with spaces", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "codex-agent-"));
-    const binDir = mkdtempSync(path.join(os.tmpdir(), "codex-bin-"));
-    tempDirs.push(outDir, binDir);
+    const rootDir = mkdtempSync(path.join(os.tmpdir(), "codex bin root-"));
+    const binDir = path.join(rootDir, "bin with spaces");
+    tempDirs.push(outDir, rootDir);
     mkdirSync(binDir, { recursive: true });
-    writeFileSync(path.join(binDir, "codex.ps1"), "Write-Output 'fake codex'\n", "utf8");
+    const shimName = process.platform === "win32" ? "codex.cmd" : "codex";
+    writeHostCodexExecutable(path.join(binDir, shimName), 13);
     const promptVariant = await loadPromptVariant();
+    const nodeBinDir = path.dirname(process.execPath);
+    const joinedPath = `${binDir}${path.delimiter}${nodeBinDir}`;
     const result = await codexAdapter.runPrompt({
-      runId: "codex-ps1",
+      runId: "codex-cmd-space",
       agentId: "codex",
       promptVariant,
       promptText: promptVariant.promptText,
       cwd: process.cwd(),
       outDir,
       commandTemplate: parseAgentCommandTemplate("codex {prompt}"),
-      env: { Path: binDir, PATH: binDir }
+      env: { Path: joinedPath, PATH: joinedPath }
     });
-    expect(result.command.toLowerCase()).toContain("powershell");
-    expect(result.args).toContain("-File");
-    expect(result.args.some((arg) => arg.endsWith("codex.ps1"))).toBe(true);
+
+    expect(result.status).toBe("completed");
+    expect(result.tokenUsage.totalTokens).toBe(13);
+    if (process.platform === "win32") {
+      expect(result.args.some((arg) => arg.includes("codex.cmd"))).toBe(true);
+    } else {
+      expect(result.command).toBe("codex");
+    }
   });
 });

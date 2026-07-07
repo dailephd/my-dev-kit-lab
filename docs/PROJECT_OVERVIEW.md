@@ -2,85 +2,58 @@
 
 ## What is my-dev-kit-lab?
 
-my-dev-kit-lab is the experiment and evidence companion for my-dev-kit. It provides a reproducible environment for running controlled experiments, collecting metrics, rendering reports, and publishing gallery outputs that demonstrate how my-dev-kit's graph-guided retrieval compares with raw full-file context strategies.
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and future audit companion for my-dev-kit.
 
-**my-dev-kit** indexes a code repository and provides graph-guided retrieval so that coding agents can locate relevant source context without reading every file.
+my-dev-kit is a local-first repository indexing and graph-guided retrieval CLI. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Its strongest use case is when the repository is larger than the task; the project does not assume or claim that guided retrieval always saves tokens.
 
-**my-dev-kit-lab** feeds benchmark inputs to that retrieval engine, runs agents against those benchmarks under controlled conditions, and records structured evaluation outputs.
+The lab supplies controlled benchmarks, agent adapters, metrics, reports, plots, screenshots, galleries, and automated CLI/package security checks.
 
----
+## Current baseline
 
-## Target users
+The current package is version `0.2.2`, release-prepared but not yet published to npm. The generic experiment-plugin runtime introduced in `v0.2.0` is implemented. Its first and currently only registered plugin is `context-strategy-comparison`.
 
-- Developers evaluating whether my-dev-kit improves agent workflows on their codebase
-- Researchers comparing context strategies across different project sizes and task types
-- Teams building evidence for adopting or extending my-dev-kit in their toolchain
+That plugin preserves the established raw-full-file versus my-dev-kit-guided experiment through the generic registry and runner. It supports self and explicit local-project targets, plugin-aware reports, deterministic fake-agent runs, and optional Codex or Claude campaigns. Existing legacy commands and artifacts remain supported.
 
----
-
-## Problems my-dev-kit-lab helps solve
-
-### Reproducibility
-Benchmark projects, answer keys, and experiment configurations are version-controlled. Anyone can re-run the same experiment and get the same structured outputs.
-
-### Controlled comparison
-The raw-vs-indexed experiment pairs each agent run under `raw-full-file` and `my-dev-kit-guided` strategies so comparisons are fair: same task, same agent, same complexity level, different context strategy.
-
-### Evidence collection
-Experiment artifacts — JSON summaries, HTML reports, SVG plots, PNG screenshots, and gallery indexes — provide shareable evidence of how the two strategies compare on correctness, token usage, and duration.
-
-### Scalable benchmarking
-Benchmark projects range from small Todo fixtures to medium and large multi-language projects, so experiments can be run at meaningfully different complexity levels.
-
----
+Automated security validation is also implemented. It supports dependency and package checks, adversarial CLI checks, static scanning integrations, bounded fuzz smoke, structured verdicts, explicit local-project targets, and an attack-scenario layer with profiles, evidence, and report hardening. It is not a complete manual pentest framework.
 
 ## Product flow
 
 ```mermaid
-flowchart TD
-  A[Benchmark Projects\nand Answer Keys] --> B[Prompt Variant Generator]
-  B --> C[Agent Execution\nfake-agent / Codex / Claude]
-  C --> D[Experiment Runner\nraw-full-file vs my-dev-kit-guided]
-  D --> E[Structured JSON Artifacts]
-  E --> F[Report Renderer]
-  E --> G[Plot Generator]
-  E --> H[Visualization Demos]
-  F --> I[HTML Report]
-  G --> J[SVG Charts]
-  H --> K[Demo Artifacts]
-  I --> L[Gallery Index]
-  J --> L
-  K --> L
+flowchart LR
+  Target[Repository or benchmark target] --> Experiment[Experiment plugin runtime]
+  Experiment --> Plugin[context-strategy-comparison]
+  Plugin --> Agents[Fake or real agent adapters]
+  Agents --> Evidence[Runs, metrics, correctness, artifacts]
+  Evidence --> Reports[Reports, plots, screenshots, gallery]
+
+  Target --> Security[Automated security validation]
+  Security --> SecurityEvidence[Findings, skips, verdict, attack-scenario evidence, reports]
 ```
 
----
+## Users
 
-## Why raw-vs-indexed is only the first experiment
+- maintainers evaluating my-dev-kit behavior
+- coding-agent workflow researchers
+- teams comparing context-selection strategies
+- release engineers collecting local CLI/package security evidence
+- contributors adding future experiment or audit capabilities
 
-The raw-vs-indexed experiment establishes the infrastructure and shows how the two strategies compare on a cold start. It does not yet capture the full value of my-dev-kit because:
+## What the evidence can establish
 
-- **Warm-index reuse** — the cost of indexing is paid once; subsequent queries reuse the index. Cold-start comparisons do not reflect this amortized benefit.
-- **Incremental-change experiments** — real codebases change incrementally. Experiments that measure how well a stale or partially updated index still guides retrieval are not yet implemented.
-- **Context-window scaling** — as projects grow, raw full-file context eventually exceeds agent context windows. Experiments that measure this boundary are not yet implemented.
-- **Retrieval precision and recall** — measuring whether my-dev-kit retrieves the right files and symbols, not just fewer tokens, requires dedicated precision/recall experiments.
+The lab can compare matched strategies for a defined target, task, agent, and configuration. It can record correctness, context size, reported or estimated tokens, duration, status, and partial outcomes. It can also preserve the retrieval and report artifacts needed to audit a result.
 
-The current baseline does not yet prove every future value claim. It establishes the experiment infrastructure and shows how to run reproducible comparisons. Stronger evidence will come from the future experiment types described in [docs/ROADMAP.md](docs/ROADMAP.md).
+Results are scoped evidence, not a universal performance claim. Small repositories or broad tasks may favor raw reading. Reused indexes and localized tasks in larger repositories are stronger candidates for graph-guided retrieval.
 
----
+## Next phases
 
-## Why a generic experiment-plugin framework matters
+The implemented `v0.2.2` security-validation fortification has completed pre-release readiness and cross-platform validation and is release-prepared; publishing to npm requires a separate explicit step. After that, the immediate direction is:
 
-The next major development phase refactors my-dev-kit-lab into a generic experiment framework. Instead of a single hardcoded pipeline, each experiment type becomes a plugin that declares its trial plan, agent execution parameters, metric collection, scoring logic, and report sections. The current raw-vs-indexed experiment becomes the first plugin under this framework.
+1. add a generic audit framework and code rot detector
+2. add code quality detection
+3. integrate security results into unified audit reports
+4. add a project-wide audit command
+5. add a separate manual pentest framework
 
-This makes it straightforward to add warm-index reuse, incremental-change, context-window scaling, and retrieval precision experiments without rebuilding the pipeline each time.
+The experiment evidence track then expands through warm-index reuse, freshness and stale-index detection, context-window scaling, retrieval precision/recall, agent success, normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication.
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap.
-
----
-
-## Support
-
-my-dev-kit-lab is developed independently as part of the dailephd LLC toolchain. Users who want to support continued development can sponsor the project through GitHub Sponsors or PayPal.
-
-- [Sponsor on GitHub](https://github.com/sponsors/dailephd)
-- [Support via PayPal](https://paypal.me/daile88)
+See [CURRENT_STATE.md](CURRENT_STATE.md) for implemented-versus-planned status and [ROADMAP.md](ROADMAP.md) for semantic version ordering.

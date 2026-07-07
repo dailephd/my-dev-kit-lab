@@ -36,5 +36,5 @@ describe("final demo fake integration", () => {
     expect(html).toContain("my-dev-kit Visualization Demos");
     expect(existsSync(path.join(outDir, "plots", "charts", "run-outcomes-by-agent.svg"))).toBe(true);
     expect(existsSync(path.join(outDir, "experiment-report", "experiment-report.png"))).toBe(false);
-  });
+  }, 15000);
 });

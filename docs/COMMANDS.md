@@ -16,6 +16,10 @@ Installs all dependencies. Use `npm ci` in CI environments for a clean, reproduc
 npm install
 ```
 
+```powershell
+npm install
+```
+
 ### `npm run build`
 
 Compiles TypeScript sources to `dist/`. Run this before executing any lab commands.
@@ -27,6 +31,27 @@ npm run build
 ---
 
 ## Validation commands
+
+The following list matches the current `package.json` validation scripts. The focused scripts overlap by design; `verify` runs the complete repository sequence.
+
+| Script | Scope |
+|---|---|
+| `npm run typecheck` | TypeScript checking without emitting files |
+| `npm run test` | Full Vitest suite |
+| `npm run test:benchmarks` | Benchmark and script tests |
+| `npm run test:report` | Report and command tests |
+| `npm run test:screenshot` | Screenshot tests |
+| `npm run test:evaluation` | Core, evaluation, and related command tests |
+| `npm run test:gallery` | Gallery tests |
+| `npm run test:demo` | Demo command and integration tests |
+| `npm run test:integration` | Integration tests |
+| `npm run test:e2e` | End-to-end tests |
+| `npm run test:agents` | Agent adapter and command tests |
+| `npm run test:experiments` | Controlled-experiment compatibility suite |
+| `npm run test:plots` | Plot and plot-command tests |
+| `npm run test:visualization-demos` | Visualization demo tests |
+| `npm run verify:benchmarks` | Benchmark contract validation |
+| `npm run verify` | Build plus all test and benchmark verification stages |
 
 ### `npm run test`
 
@@ -95,6 +120,114 @@ npm run verify
 ---
 
 ## Lab commands
+
+### `npm run experiment:list`
+
+Lists registered experiment plugins. The v0.2.0 command surface includes `context-strategy-comparison`, the first plugin built from the existing raw-full-file vs my-dev-kit-guided workflow.
+
+**When to use:** To discover available local experiment plugins before describing or running one.
+
+**Options:**
+- `--json` — print structured JSON instead of readable console output
+
+**Examples:**
+```bash
+npm run experiment:list
+npm run --silent experiment:list -- --json
+```
+
+**Output includes:**
+- plugin id
+- plugin name and description
+- status
+- supported variants
+- supported output types
+
+---
+
+### `npm run experiment:describe`
+
+Prints metadata and usage details for a registered experiment plugin.
+
+**When to use:** Before running an experiment, to inspect its purpose, supported variants, config fields, target behavior, reports, and examples.
+
+**Options:**
+- `--experiment` — plugin id, for example `context-strategy-comparison`
+- `--json` — print structured JSON
+
+**Examples:**
+```bash
+npm run experiment:describe -- --experiment context-strategy-comparison
+npm run --silent experiment:describe -- --experiment context-strategy-comparison --json
+```
+
+Unknown plugin ids fail cleanly with a nonzero exit code and no stack trace unless `DEBUG` is set.
+
+---
+
+### `npm run experiment:run`
+
+Runs an experiment plugin through the generic target-aware runner and writes plugin-aware reports.
+
+The first plugin is `context-strategy-comparison`. It preserves the existing raw-full-file vs my-dev-kit-guided controlled experiment behavior while adding plugin metadata, target metadata, and normalized report outputs.
+
+**When to use:** To run a plugin against my-dev-kit-lab itself or against an explicit local target project.
+
+**Options:**
+- `--experiment` — plugin id, for example `context-strategy-comparison`
+- `--target` — optional local target project path; omitted means self mode
+- `--out` — optional output directory; defaults to `lab-output/experiments/<plugin>/<target>/<run>`
+- `--cases` — benchmark case JSON, default `examples/token-savings-cases.json`
+- `--project-profiles` — benchmark project profile JSON
+- `--case` — one or more comma-separated case ids
+- `--benchmark-project` — one or more comma-separated benchmark project ids
+- `--agents` — comma-separated agents: `fake-agent`, `codex`, `claude`
+- `--strategies` — comma-separated variants: `raw-full-file`, `my-dev-kit-guided`
+- `--complexities` — comma-separated complexity levels: `short`, `medium`, `long`, `multi-step`
+- `--timeout-ms` — per-run timeout in milliseconds
+- `--max-runs` — maximum run count
+- `--continue-on-failure` / `--no-continue-on-failure` — partial outcome behavior
+- `--include-real-agents` — allow Codex or Claude runs
+- `--command-template-codex` / `--command-template-claude` — override real-agent command templates
+- `--no-screenshot` — accepted for compatibility with demo smoke commands; plugin-aware reports do not capture screenshots yet
+
+**Examples:**
+```bash
+# Self-target fake-agent smoke
+npm run experiment:run -- \
+  --experiment context-strategy-comparison \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
+
+# External local target
+npm run experiment:run -- \
+  --experiment context-strategy-comparison \
+  --target /path/to/local/project \
+  --case todo-ts-create-task \
+  --agents fake-agent \
+  --complexities short \
+  --no-screenshot
+```
+
+```powershell
+npm run experiment:run -- `
+  --experiment context-strategy-comparison `
+  --target "Z:\Users\newuser\Projects\my-dev-kit-v1" `
+  --case todo-ts-create-task `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+**Outputs:**
+- legacy controlled-experiment artifacts: `experiment-summary.json`, `experiment-runs.json`, `experiment-comparisons.json`, `experiment-config.json`
+- plugin result metadata: `experiment-plugin-result.json`
+- plugin-aware reports: `report.json`, `report.html`
+
+Reports include plugin, target, variant, case, metric, artifact, warning, skip, and failure metadata. Target projects are not modified; generated artifacts stay under lab-owned output paths unless an explicit lab output path is provided.
+
+---
 
 ### `npm run generate-prompt-variants`
 
@@ -341,6 +474,20 @@ npm run run-final-demo -- \
   --no-screenshot
 ```
 
+```powershell
+npm run run-final-demo -- `
+  --cases examples/token-savings-cases.json `
+  --out lab-output/final-demo `
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+  --agents fake-agent `
+  --complexities short `
+  --no-screenshot
+```
+
+- `--kit-command` should be passed as one command string such as `node tests/fixtures/fake-my-dev-kit-cli.js`.
+- Paths with spaces are supported on Windows, macOS, and Linux.
+- `cmd.exe` users should run the same arguments on one line instead of using line continuations.
+
 ---
 
 ### `npm run evaluate-token-savings`
@@ -412,3 +559,351 @@ npm run capture-demo-report -- \
 ## Screenshot capture notes
 
 Screenshot capture uses Playwright and requires a browser runtime. When Playwright or the browser runtime is unavailable, JSON and HTML artifacts are still written and the command succeeds with a warning. Pass `--no-screenshot` to skip capture explicitly.
+
+---
+
+## Security validation commands
+
+These commands implement the current automated security-validation track for **my-dev-kit**. They do not replace the experiment pipeline and do not require internet access for their core logic, though `npm audit` and `npm ls` do contact the npm registry.
+
+### `npm run security:deps`
+
+Runs dependency audit checks and writes structured results to `reports/security/`.
+
+Checks performed:
+- `npm audit --json` — full audit including devDependencies
+- `npm audit --omit=dev --json` — runtime dependencies only
+- `npm outdated --json` — outdated package detection (informational)
+- `npm ls --all --json` — dependency tree resolution
+- OSV-Scanner — if installed; skipped with a clear reason if not available
+
+**Options:**
+- `--target <path>` - audit a different project directory instead of the current one
+
+**Target behavior:** Reads package metadata and dependency state from the target project without modifying target files. Generated artifacts stay under this tool's `reports/security/` directory.
+
+**When to use:** Before release preparation to check for known dependency vulnerabilities.
+
+**Outputs:**
+- `reports/security/dependency-checks.json` — combined summary
+- `reports/security/npm-audit-full.json`
+- `reports/security/npm-audit-runtime.json`
+- `reports/security/npm-outdated.json`
+- `reports/security/npm-ls.json`
+- `reports/security/osv-scanner.json`
+- `reports/security/raw/` — raw stdout/stderr captured from each command
+
+**Exit code:** Non-zero when any blocker-severity finding is detected. Zero when only informational, minor, or skipped checks exist.
+
+```bash
+npm run security:deps
+```
+
+```powershell
+npm run security:deps
+```
+
+```powershell
+npm run security:deps -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+```
+
+---
+
+### `npm run security:package`
+
+Runs `npm pack --dry-run` and inspects the tarball file list for forbidden contents. Does not publish anything.
+
+Checks performed:
+- Detects lab-output/, .my-dev-kit/, .env files, private planning docs, node_modules/, tarballs, and other unsafe inclusions
+
+**Options:**
+- `--target <path>` - inspect a different project's tarball instead of the current one
+
+**Target behavior:** Runs `npm pack --dry-run` in the target project without publishing or modifying target files. Generated artifacts stay under this tool's `reports/security/` directory.
+
+**When to use:** Before release preparation to verify the npm tarball does not include generated artifacts, secrets, or internal files.
+
+**Outputs:**
+- `reports/security/package-checks.json` — combined summary
+- `reports/security/npm-pack-dry-run.json`
+- `reports/security/raw/` — raw stdout/stderr from npm pack
+
+**Exit code:** Non-zero when any blocker or major finding is detected.
+
+```bash
+npm run security:package
+```
+
+```powershell
+npm run security:package
+```
+
+```powershell
+npm run security:package -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+```
+
+---
+
+### `npm run test:security`
+
+Runs all security-validation unit tests without network access or external tools.
+
+**When to use:** As part of regular development to verify the security types, test matrix, parser logic, CLI adversarial boundary checks, static scan parsers, and the validate gate are correct.
+
+Tests included (current `v0.2.2` working-tree implementation):
+- `securityValidationTypes.test.ts` — type and enumeration completeness
+- `securityValidationTestMatrix.test.ts` — test matrix structure and uniqueness
+- `dependencyChecks.test.ts` — dependency parser unit tests
+- `packageContentChecks.test.ts` — forbidden-content detection unit tests
+- `cliAdversarialPathBoundary.test.ts` — path traversal, safe paths, escape detection
+- `cliAdversarialReadOnlyBoundary.test.ts` — source not modified, write containment, cleanup safety
+- `cliAdversarialMalformedArtifacts.test.ts` — malformed JSON artifacts, unsupported schema versions
+- `cliAdversarialJsonStdout.test.ts` — JSON stdout/stderr safety
+- `cliAdversarialSubprocessSafety.test.ts` — DOT label escaping, shell metacharacter injection
+- `cliAdversarialDataVolume.test.ts` — huge source file, many files, deep nesting
+- `staticScanChecks.test.ts` — CodeQL/Semgrep skip gracefully when unavailable; Semgrep JSON parser
+- `securityValidateGate.test.ts` — verdict calculation, report rendering (text and JSON)
+- `cliSecuritySuiteCheck.test.ts` — external target `test:security` cwd, pass/fail behavior, and path-with-spaces coverage
+- `securityValidateCliOptions.test.ts` — `--checks`, `--profile`, `--format`, `--fail-on`, and `--out`
+- `securityFailOnThreshold.test.ts` — threshold parsing and exit-threshold mapping
+- `securityReportSummary.test.ts` — scoped-run metadata, selected checks/profile metadata, and verdict reasoning summaries
+- `securityScenarioCoverage.test.ts` — all 9 supported `--checks` ids have implementation coverage
+- `securityReportSchemaStability.test.ts` — JSON schema fields, output format/location behavior, and baseline-diff injection guard
+- `securityTextReportSafety.test.ts` — ANSI/control-byte stripping and report poisoning sanitization
+- `securityProfileSelectionIntegration.test.ts` — profile-aware default check selection and scoped-run labeling
+- `attackScenarios/*.test.ts` — attack runner, profiles, payloads, metadata, and all registered scenarios
+
+By default, adversarial tests run against a deterministic fake CLI fixture — no my-dev-kit installation required. To run against a real CLI, set `MY_DEV_KIT_SECURITY_TARGET_COMMAND=<path>` before running.
+
+```bash
+npm run test:security
+```
+
+```powershell
+$env:MY_DEV_KIT_SECURITY_TARGET_COMMAND = "node path/to/my-dev-kit/dist/cli.js"
+npm run test:security
+```
+
+---
+
+### `npm run security:codeql`
+
+Checks if the CodeQL CLI is available locally and verifies it is functional.
+
+**When CodeQL is present:** Runs `codeql version --format terse` to confirm the CLI works. Full database creation and analysis is delegated to the GitHub Actions code-scanning workflow.
+
+**When CodeQL is absent:** Returns a structured `skipped` result with a clear reason. CodeQL absence does not fail `security:validate`.
+
+**Note:** This is an optional check. The GitHub Actions workflow at `.github/workflows/codeql.yml` runs the full CodeQL analysis on push. Local validation is a best-effort availability check only.
+
+**Options:**
+- `--target <path>` - resolve and label a different validation target while keeping the local CLI availability check anchored to the tool root
+
+**Target behavior:** External-target mode does not modify target files. It preserves target-aware context for the validation workflow while the local CodeQL check remains an availability/functionality probe.
+
+```bash
+npm run security:codeql
+```
+
+```powershell
+npm run security:codeql
+```
+
+```powershell
+npm run security:codeql -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+```
+
+---
+
+### `npm run security:semgrep`
+
+Runs Semgrep static analysis using the project's `.semgrep.yml` configuration.
+
+**When Semgrep is available (local or npx):** Runs rules covering subprocess safety, path traversal, unsafe `fs.rm`, secret leakage, and similar patterns. Returns structured findings.
+
+**When Semgrep is unavailable:** Returns a structured `skipped` result with a clear reason. Semgrep absence does not fail `security:validate`.
+
+**Options:**
+- `--target <path>` - scan a different project's source files; scans `<target>/src/` if present, else `<target>/` directly
+
+**Target behavior:** Semgrep reads the target project in place and does not modify target files. Rules come from the tool root's `.semgrep.yml`; generated artifacts stay under `reports/security/`.
+
+Semgrep rules focus on:
+- `spawn/exec` with `shell: true`
+- `exec()` with string interpolation
+- `path.join()` with user-controlled input
+- Recursive `fs.rm` on unvalidated paths
+- `process.env` values serialized into JSON output
+
+**Configuration:** `.semgrep.yml` at repo root.
+
+```bash
+npm run security:semgrep
+```
+
+```powershell
+npm run security:semgrep
+```
+
+```powershell
+npm run security:semgrep -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+```
+
+---
+
+### `npm run test:fuzz:smoke`
+
+Runs bounded, deterministic fuzz smoke tests against security-sensitive parsers and helpers.
+
+**When to use:** Before release to verify that no parser crashes on malformed input.
+
+**Design:**
+- Seeded PRNG (default seed: `0xDEADBEEF`) for reproducibility.
+- Default: 50 iterations per target.
+- Completes in under 1 second.
+- Does not require network access, external tools, or a my-dev-kit installation.
+- Does not write outside temp directories.
+- Does not mutate source files.
+
+**Fuzz targets:**
+- `manifest-reader` — manifest JSON parsing
+- `code-graph-reader` — code-graph JSON parsing
+- `npm-audit-parser` — npm audit JSON parsing
+- `npm-ls-parser` — npm ls JSON parsing
+- `npm-outdated-parser` — npm outdated JSON parsing
+- `npm-pack-dry-run-parser` — npm pack dry-run output parsing
+- `dot-label-escaping` — DOT label escaping helper (arbitrary string input)
+- `path-normalization` — path.normalize/resolve with traversal inputs
+- `source-windowing` — source retrieval window size edge cases
+
+**Environment variables:**
+- `FUZZ_SEED` — override the PRNG seed (hex, default: `0xDEADBEEF`)
+- `FUZZ_ITERATIONS` — override iterations per target (default: `50`)
+
+```bash
+npm run test:fuzz:smoke
+```
+
+```powershell
+$env:FUZZ_ITERATIONS = "200"
+npm run test:fuzz:smoke
+```
+
+---
+
+### `npm run security:validate`
+
+Runs the current automated security-validation workflow and writes the selected report formats.
+
+**When to use:** For self-validation or explicit local-project validation when you want one command to run the selected checks, collect structured evidence, and calculate the current verdict.
+
+**Options:**
+- `--target <path>` / `-t <path>` — path to the project to validate (default: self-validation of my-dev-kit-lab)
+- `--checks <ids>` — comma-separated subset of `deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network`
+- `--profile <id>` — one of `node-cli-package`, `local-tool`, `npm-package`
+- `--format <ids>` — `text`, `json`, or `text,json` (default)
+- `--fail-on <level>` — one of `blocker`, `high`, `medium`, `low`
+- `--out <dir>` — report output directory (default: `reports/security/`)
+- `--report-prefix <name>` — override the generated filename prefix
+
+**Check groups:**
+- `deps` — dependency audit and package-metadata inspection against the target
+- `package` — `npm pack --dry-run` parsing and forbidden-content detection
+- `static` — CodeQL availability check plus Semgrep integration
+- `cli-adversarial` — target/tool `test:security` suite execution
+- `fuzz` — bounded deterministic fuzz smoke against tool-root helpers
+- `boundary` — attack scenarios for target sandbox, package/output boundaries, path traversal, config injection, and report poisoning
+- `subprocess` — attack scenario for subprocess/shell-injection safety
+- `secrets` — attack scenario for bounded secret leakage detection and redaction behavior
+- `network` — attack scenario for local-first/network-assumption evidence
+
+**Profile defaults:**
+- No `--profile` and no `--checks`: backward-compatible default run = `deps,package,static,cli-adversarial,fuzz`
+- `--profile node-cli-package` with no `--checks`: `deps,package,static,cli-adversarial,fuzz`
+- `--profile local-tool` with no `--checks`: `deps,static,cli-adversarial,fuzz`
+- `--profile npm-package` with no `--checks`: `deps,package,static`
+- Explicit `--checks` always overrides the profile defaults
+
+**Scope behavior:**
+- Attack-scenario checks are part of the current implementation and all 9 accepted `--checks` ids have implementation coverage
+- A narrowed `--checks` run is useful for focused validation but is labeled as a scoped run
+- A scoped run is not the same as a full classic release gate unless the classic implemented check set is included
+
+**Mandatory checks:** npm audit, package tarball inspection (when target has package.json), target/tool security test suite, fuzz smoke.
+
+**Optional checks:** CodeQL CLI local availability, Semgrep, OSV-Scanner. Skipped with a structured reason when tools are absent.
+- A skipped optional tool is not treated as passed
+- Optional-tool skips can yield `ready except optional manual checks`
+
+**Report outputs:**
+- `text` writes `reports/security/<prefix>-security-validation.txt`
+- `json` writes `reports/security/<prefix>-security-validation.json`
+- `text,json` writes both
+- JSON includes `schemaVersion`, `metadata`, `summary`, `verdict`, `verdictLabel`, `recommendedNextStep`, `checks`, `findings`, `attackScenarios`, and `verdictReasonSummary`
+
+Where `<prefix>` is derived automatically: `v0.2.2` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
+
+External-target reports include both the tool root (`my-dev-kit-lab`) and the target root, plus target package and git metadata when available. The target security suite check records the executed command, command cwd, exit code, and stdout/stderr summaries. Target project files are not modified by default during validation.
+
+**Schema/report safety behavior:**
+- Text reports strip ANSI/control-byte payload content before rendering
+- JSON report poisoning/config injection scenarios use a baseline-diff structural-injection guard
+- Legitimate additive JSON fields do not fail that guard
+- The guard is meaningful for this report shape, not a claim that every downstream renderer is safe
+
+**Verdict options:**
+- `ready for release preparation` — no blocker/major findings and no skipped optional tools
+- `ready except optional manual checks` — mandatory checks passed but some optional tools were absent
+- `not ready: security blocker remains` — blocker finding, major finding, or mandatory-check failure
+- `inconclusive: audit environment incomplete` — too many mandatory checks were skipped
+
+**Exit behavior:**
+- Default `--fail-on` is `blocker`
+- Verdict-based blocker results exit `1`
+- Inconclusive results exit `2`
+- Otherwise, `--fail-on` can still force exit `1` when findings meet the configured threshold
+- `--fail-on blocker` only breaches on blocker findings
+- `--fail-on high` breaches on blocker or major findings
+- `--fail-on medium` breaches on blocker, major, or minor findings
+- `--fail-on low` breaches on blocker, major, minor, or informational findings
+
+```bash
+# Self-validation (default)
+npm run security:validate
+
+# Validate an external project
+npm run security:validate -- --target /path/to/my-dev-kit
+
+# Focused classic checks with both report formats
+npm run security:validate -- --checks deps,package,static,cli-adversarial,fuzz --format text,json
+
+# Profile-driven selection
+npm run security:validate -- --profile node-cli-package --format json
+
+# Attack-scenario-focused run
+npm run security:validate -- --profile local-tool --checks boundary,subprocess,secrets,network --format text,json
+
+# Escalate exit code for high-severity findings
+npm run security:validate -- --checks boundary,subprocess,secrets,network --fail-on high --format json
+
+# Custom output directory and prefix
+npm run security:validate -- --target /path/to/project --out /tmp/reports --report-prefix my-project-v1
+```
+
+```powershell
+# Self-validation (default)
+npm run security:validate
+
+# Validate an external project on Windows
+npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+
+# Profile-driven run on Windows
+npm run security:validate -- --profile npm-package --format json
+
+# Invalid target — fails cleanly with an error message
+npm run security:validate -- --target "Z:\does\not\exist"
+```
+
+## Planned commands
+
+There is currently no `npm run audit`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script. Those command surfaces are planned in later roadmap versions and must not be used as current examples.

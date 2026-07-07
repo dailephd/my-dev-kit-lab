@@ -1,11 +1,47 @@
 {
-  "name": "my-dev-kit-lab",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@dailephd/my-dev-kit-lab",
+  "version": "0.2.2",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
+  "bin": {
+    "my-dev-kit-lab": "dist/scripts/run-final-demo.js"
+  },
+  "files": [
+    "dist/scripts/",
+    "dist/src/",
+    "benchmarks/",
+    "docs/METRICS.md",
+    "examples/",
+    "tests/fixtures/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dailephd/my-dev-kit-lab.git"
+  },
+  "homepage": "https://github.com/dailephd/my-dev-kit-lab#readme",
+  "bugs": {
+    "url": "https://github.com/dailephd/my-dev-kit-lab/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "funding": [
+    "https://github.com/sponsors/dailephd",
+    "https://paypal.me/daile88"
+  ],
+  "keywords": [
+    "benchmark",
+    "evaluation",
+    "reporting",
+    "graph-retrieval",
+    "codex",
+    "claude"
+  ],
+  "author": "Dai Le",
+  "license": "MIT",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:benchmarks": "vitest run tests/benchmarks tests/scripts",
     "test:report": "vitest run tests/report tests/commands",
@@ -24,6 +60,9 @@
     "build-gallery": "tsx scripts/build-gallery.ts",
     "lab-demo": "tsx scripts/run-lab-demo.ts",
     "render-experiment-report": "tsx scripts/render-experiment-report.ts",
+    "experiment:list": "tsx scripts/experiments/listExperiments.ts",
+    "experiment:describe": "tsx scripts/experiments/describeExperiment.ts",
+    "experiment:run": "tsx scripts/experiments/runExperiment.ts",
     "run-final-demo": "tsx scripts/run-final-demo.ts",
     "run-agent-prompt": "tsx scripts/run-agent-prompt.ts",
     "run-controlled-experiment": "tsx scripts/run-controlled-experiment.ts",
@@ -31,7 +70,14 @@
     "test:plots": "vitest run tests/plots tests/commands/generateExperimentPlotsCommand.spec.ts",
     "test:visualization-demos": "vitest run tests/visualizationDemos tests/commands/runVisualizationDemosCommand.spec.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
-    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:agents && npm run test:experiments && npm run test:plots && npm run test:visualization-demos && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks"
+    "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:agents && npm run test:experiments && npm run test:plots && npm run test:visualization-demos && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks",
+    "security:deps": "tsx scripts/security/runDependencyChecks.ts",
+    "security:package": "tsx scripts/security/runPackageChecks.ts",
+    "security:codeql": "tsx scripts/security/runCodeql.ts",
+    "security:semgrep": "tsx scripts/security/runSemgrep.ts",
+    "test:security": "vitest run tests/security/",
+    "test:fuzz:smoke": "tsx scripts/security/runFuzzSmoke.ts",
+    "security:validate": "tsx scripts/security/validate.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -39,5 +85,11 @@
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "vite": "7.3.6"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

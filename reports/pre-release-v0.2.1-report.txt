@@ -1,0 +1,200 @@
+# Pre-Release Report — my-dev-kit-lab v0.2.1
+
+## Summary
+Strict Windows-led pre-release validation for `@dailephd/my-dev-kit-lab@0.2.1` completed on audit branch `audit/v0.2.1-pre-release-readiness`. The original v0.2.0 external-target validator bug was fixed before this audit; this checklist revalidated the fixed package from source checkout, packed tarball, path-with-spaces target paths, and GitHub Actions cross-platform CI.
+
+## Branch checked
+Audit branch: `audit/v0.2.1-pre-release-readiness`
+Starting fix branch context: `fix/security-validator-target-script-cwd`
+
+## Commit checked
+Final audited commit: `475038dc8ebfe55e42fbb08b7c320ff5e86f2799`
+Key earlier fix commit: `7465035`
+
+## Package metadata
+Package name: `@dailephd/my-dev-kit-lab`
+Package version: `0.2.1`
+Lockfile root version: `0.2.1`
+CLI bin: `my-dev-kit-lab -> dist/scripts/run-final-demo.js`
+
+## Documentation readiness
+Updated and verified:
+- `README.md`
+- `docs/COMMANDS.md`
+- `docs/security-validation-framework.md`
+
+Documentation now accurately states:
+- target-aware validation runs `npm run test:security` in the target project cwd
+- external validation must not modify target project files
+- reports record target metadata plus command cwd, exit code, and stdout/stderr summaries
+- packed-package validation is required for this validator class
+- optional Semgrep/CodeQL absence is reported as skipped rather than silently passed
+
+## Local validation results
+Passed:
+- `npm ci`
+- `npm run typecheck`
+- `npm run build`
+- `npm run test`
+- `npm run verify`
+
+Final local test result on audited branch:
+- `97/97` test files passed
+- `477/477` tests passed
+
+## Self-security validation result
+Passed:
+- `npm run security:validate`
+
+Self-validation correctly reported lab metadata for `@dailephd/my-dev-kit-lab@0.2.1`.
+
+## Target-aware validation result
+Passed:
+- `npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"`
+
+Verified behavior:
+- command executed: `npm run test:security`
+- command cwd: `Z:\Users\newuser\Projects\my-dev-kit-v1`
+- exit code: `0`
+- target metadata resolved as `@dailephd/my-dev-kit@1.4.0`
+- no false `cli-adversarial-suite-failed`
+
+Relevant report outputs:
+- `reports/security/v0.2.1-security-validation.txt`
+- `reports/security/v0.2.1-security-validation.json`
+- `reports/security/my-dev-kit-v1.4.0-security-validation.txt`
+- `reports/security/my-dev-kit-v1.4.0-security-validation.json`
+
+## Individual target-aware security checks
+Passed:
+- `npm run security:deps -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"`
+- `npm run security:package -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"`
+- `npm run security:semgrep -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"`
+- `npm run security:codeql -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"`
+
+Optional unavailable static-analysis tools were reported as skipped when absent, consistent with current policy.
+
+## Target project git status before and after
+Target project:
+- branch: `audit/v1.4.0-pre-release-readiness`
+- commit: `814389f2d541c7ffc4f4857b5a35b3afe5ef68f6`
+- package: `@dailephd/my-dev-kit`
+- version: `1.4.0`
+
+Target `git status --short` before validation:
+- `M README.md`
+- `M docs/ARCHITECTURE.md`
+- `M docs/PROJECT_OVERVIEW.md`
+- `M docs/RELEASE.md`
+- `M docs/ROADMAP.md`
+- `M examples/basic-react-tsx/README.md`
+- `M package.json`
+- `M src/indexing/runIndexCommand.ts`
+- `M src/version.ts`
+- `M tests/index/indexCommand.spec.ts`
+- `?? revised-graph-guided-orchestrated-workflow.txt`
+
+Target `git status --short` after validation:
+- unchanged from before validation
+
+## Packed package dry-run result
+Passed:
+- `npm pack --dry-run`
+
+Dry-run package on audited commit:
+- tarball: `dailephd-my-dev-kit-lab-0.2.1.tgz`
+- package size: `151.4 kB`
+- unpacked size: `708.4 kB`
+- total files: `252`
+
+Package contents reviewed as acceptable for current package policy:
+- expected built `dist/` outputs included
+- public docs and benchmark assets included
+- no `node_modules`, temp smoke outputs, `.env` files, credentials, or local tarballs included
+- shipped test fixtures are intentional and used by packaged validation/demo flows
+
+## Packed tarball installed validation result
+Passed:
+- packed tarball installed into a clean temp directory
+- installed package metadata resolved as `@dailephd/my-dev-kit-lab@0.2.1`
+- installed validator executed against `Z:\Users\newuser\Projects\my-dev-kit-v1`
+
+Verified packaged behavior:
+- tool root resolved to installed package root rather than caller cwd
+- target metadata resolved correctly
+- target `npm run test:security` executed in target cwd
+- exit code recorded as `0`
+- no false `cli-adversarial-suite-failed`
+
+## Path-with-spaces validation result
+Passed:
+- copied target project under a temp path containing spaces
+- ran `npm run security:validate -- --target "<temp path with spaces>\my-dev-kit-v1"`
+- validation succeeded and recorded target command cwd correctly
+
+## npm audit --omit=dev result
+Passed:
+- `npm audit --omit=dev`
+- result: `0` vulnerabilities
+
+## npm audit result
+Passed:
+- `npm audit`
+- result: `0` vulnerabilities
+
+## Cross-platform CI result
+Passed on GitHub Actions workflow `CI`
+Run ID: `28194168435`
+Branch: `audit/v0.2.1-pre-release-readiness`
+Commit: `475038dc8ebfe55e42fbb08b7c320ff5e86f2799`
+
+Matrix results:
+- `ubuntu-latest / Node 20` passed
+- `ubuntu-latest / Node 22` passed
+- `macos-latest / Node 20` passed
+- `macos-latest / Node 22` passed
+- `windows-latest / Node 20` passed
+- `windows-latest / Node 22` passed
+
+Run URL:
+- `https://github.com/dailephd/my-dev-kit-lab/actions/runs/28194168435`
+
+Non-blocking annotations observed:
+- GitHub-hosted Actions Node 20 deprecation warnings from action runtimes
+- GitHub macOS image migration notice for `macos-latest`
+
+## Package contents result
+Current package contents are release-acceptable for v0.2.1.
+No unwanted local artifacts, secrets, temp smoke folders, or dependency directories were included in the reviewed dry-run tarball.
+
+## Files changed during pre-release
+- `.github/workflows/ci.yml`
+- `README.md`
+- `docs/COMMANDS.md`
+- `docs/security-validation-framework.md`
+- `package-lock.json`
+- `package.json`
+- `scripts/security/resolveToolRoot.ts`
+- `scripts/security/runCodeql.ts`
+- `scripts/security/runDependencyChecks.ts`
+- `scripts/security/runPackageChecks.ts`
+- `scripts/security/runSemgrep.ts`
+- `scripts/security/validate.ts`
+- `src/core/runMeasuredCommand.ts`
+- `tests/benchmarks/benchmarkBehaviorParity.spec.ts`
+- `tests/commands/captureDemoReport.spec.ts`
+- `tests/commands/experimentCommands.spec.ts`
+- `tests/commands/runFinalDemoCommand.spec.ts`
+- `tests/e2e/tokenSavingsReport.spec.ts`
+- `tests/experiments/contextStrategyComparisonPlugin.test.ts`
+- `tests/experiments/experimentTarget.test.ts`
+- `tests/integration/finalDemoFake.spec.ts`
+- `tests/report/buildExperimentReportInput.spec.ts`
+- `tests/security/cliSecuritySuiteCheck.test.ts`
+- `tests/visualizationDemos/runVisualizationDemos.spec.ts`
+
+## Remaining blockers
+None.
+
+## Final verdict
+READY_FOR_PUBLISH_PROMPT
