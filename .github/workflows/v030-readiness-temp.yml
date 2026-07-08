@@ -1,0 +1,70 @@
+name: v0.3.0 Readiness (temporary)
+
+# Temporary, one-off validation workflow for the v0.3.0 pre-release
+# readiness pass. Scoped only to the audit/v0.3.0-readiness branch so it
+# never runs against main/release/PR traffic. Intended to be deleted
+# once the readiness matrix results have been recorded -- see the
+# readiness report for removal status.
+
+on:
+  push:
+    branches:
+      - audit/v0.3.0-readiness
+
+jobs:
+  validate:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        node-version:
+          - 26
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
+      - name: Test security
+        run: npm run test:security
+
+      - name: Audit tests
+        run: npx vitest run tests/audits/
+
+      - name: Audit (fail-on none)
+        run: npm run audit -- --fail-on none
+
+      - name: Audit (json)
+        run: npm run audit -- --format json --fail-on none
+
+      - name: Security validate
+        run: npm run security:validate
+
+      - name: Experiment list
+        run: npm run experiment:list
+
+      - name: Experiment describe
+        run: npm run experiment:describe -- --experiment context-strategy-comparison
