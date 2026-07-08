@@ -10,7 +10,7 @@ The roadmap follows semantic version order. `v1.0.0` is the stable release after
 flowchart LR
   A[v0.2.0<br/>plugin framework] --> B[v0.2.1<br/>previous baseline]
   B --> C[v0.2.2<br/>current baseline, release-prepared]
-  C --> D[v0.3.x<br/>audit framework]
+  C --> D[v0.3.0<br/>audit framework, implemented in working tree, not released]
   D --> E[v0.4.0<br/>manual pentest]
   E --> F[v0.4.1-v0.4.5<br/>mobile validation profiles]
   F --> G[v0.5.x-v0.9.x<br/>experiment evidence track]
@@ -109,7 +109,9 @@ Current status:
 
 ## Planned v0.x development track
 
-### v0.3.0 — generic audit framework and code rot detector
+### v0.3.0 — generic audit framework and code rot detector (implemented in working tree; not released or published)
+
+The generic audit framework and code-rot detector described below are implemented in the current development branch's working tree. This work has not been committed as a numbered release, tagged, or published to npm — it sits on top of the `v0.2.2` baseline as in-progress `v0.3.0` implementation. Once released, this section documents what `v0.3.0` will ship.
 
 Purpose:
 
@@ -175,6 +177,17 @@ Acceptance:
 * Windows paths work.
 * Existing experiment commands still work.
 * Existing `security:validate` still works.
+
+Current status (working-tree implementation, not yet released):
+
+* `npm run audit` is implemented; `--types code-rot` is the only implemented audit type.
+* `--types quality`, `--types security`, `--types project`, and `--types all` are recognized but fail cleanly with exit code `2` rather than running.
+* All 10 code-rot detector families are implemented and registered: `stale-command-reference`, `docs-code-mismatch`, `package-release-rot`, `duplicate-implementation-candidate`, `dead-code-candidate`, `test-rot`, `architecture-drift`, `dependency-environment-rot`, `cross-platform-rot`, `security-validation-assumption-rot`.
+* Target resolution, project inventory scanning, and source-of-truth collection are implemented in `src/audits/core`.
+* The audit report schema is stable at `schemaVersion` `"1.0"` with 13 top-level fields; `metadata.auditTypes` is included.
+* Reports are written under `reports/audits/code-rot/` by default.
+* External-target audits are non-destructive.
+* This work has not been committed as a release, tagged, or published to npm.
 
 ### v0.3.1 — code quality detector
 
@@ -1324,7 +1337,7 @@ my-dev-kit-lab mobile support does not mean:
 
 * `context-strategy-comparison` is the implemented experiment plugin.
 * Automated security validation is implemented; a complete manual pentest framework is planned.
-* Generic audit, code rot, code quality, unified audit reports, and project-wide audit commands are planned.
+* The generic audit framework and code-rot detector are implemented in the current development branch's working tree (`v0.3.0`, not yet released or published). Code quality detection, unified audit reports (security results folded in), and a project-wide audit command remain planned.
 * Android/mobile validation profiles are planned.
 * Warm-index reuse, index freshness, context scaling, retrieval precision/recall, and agent-success plugins are planned.
 * The evidence does not establish that my-dev-kit always saves tokens.

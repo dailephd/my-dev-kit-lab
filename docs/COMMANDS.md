@@ -904,6 +904,72 @@ npm run security:validate -- --profile npm-package --format json
 npm run security:validate -- --target "Z:\does\not\exist"
 ```
 
+## Audit commands
+
+These commands implement the current generic audit framework (`v0.3.0`, implemented in the current development branch's working tree; not yet released or published). The audit framework is separate from the experiment pipeline and separate from `security:validate`: it does not call `security:validate`, and `security:validate` does not call it. Audit detectors are heuristic and conservative — findings are candidates, not proof of a defect. Audit does not modify target files, does not auto-fix issues, and does not perform release-readiness determination.
+
+### `npm run audit`
+
+Runs the audit framework against a target (self by default) and writes text and/or JSON reports.
+
+**Options** (confirmed from `src/audits/core/auditConfig.ts`):
+- `--target <path>` — optional local target project path; omitted means self-audit of my-dev-kit-lab
+- `--types <ids>` — comma-separated audit types. Only `code-rot` is implemented. `quality`, `security`, `project`, and `all` are recognized as valid identifiers but are rejected with a clear error and exit code `2` ("planned but not implemented ... Only \"code-rot\" is implemented in this version.") rather than run — see `parseTypesOption()` in `auditConfig.ts`. Default: `code-rot`.
+- `--include <ids>` — comma-separated include areas: `docs,tests,package,architecture,cli`. Default: all of them.
+- `--format <ids>` — `text`, `json`, or `text,json`. Default: `text,json`.
+- `--fail-on <level>` — one of `blocker`, `high`, `medium`, `low`, `none`. Default: `blocker`.
+- `--out <path>` — report output directory. Default: `reports/audits/<primary-type>/` under the tool root (e.g. `reports/audits/code-rot/`).
+
+**Code-rot detector families** (10, in registry order — see `src/audits/core/auditRegistry.ts`):
+1. `stale-command-reference`
+2. `docs-code-mismatch`
+3. `package-release-rot`
+4. `duplicate-implementation-candidate`
+5. `dead-code-candidate`
+6. `test-rot`
+7. `architecture-drift`
+8. `dependency-environment-rot`
+9. `cross-platform-rot`
+10. `security-validation-assumption-rot`
+
+**Exit codes** (`src/audits/core/auditExitCode.ts`):
+- `0` — no issue met or exceeded the `--fail-on` threshold (audit completed cleanly)
+- `1` — at least one issue met or exceeded the `--fail-on` threshold
+- `2` — invalid config, invalid target, or a runtime failure (invalid `--types`/`--include`/`--format`/`--fail-on`/`--out` values, an unresolvable target, or an unexpected `runAudit()` failure)
+
+**Examples:**
+```bash
+# Self-audit, default code-rot type, both report formats
+npm run audit
+
+# Non-blocking investigation run
+npm run audit -- --fail-on none --format text,json
+
+# Scoped include areas
+npm run audit -- --types code-rot --include docs,tests,package,architecture,cli
+
+# External local target
+npm run audit -- --target /path/to/local/project --types code-rot --fail-on none
+```
+
+```powershell
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
+```
+
+**Planned, not implemented — fail cleanly instead of running:**
+```bash
+npm run audit -- --types quality    # exit 2, clear message, no stack trace
+npm run audit -- --types security   # exit 2, clear message, no stack trace
+npm run audit -- --types project    # exit 2, clear message, no stack trace
+npm run audit -- --types all        # exit 2, clear message, no stack trace
+```
+
+**Outputs:**
+- `reports/audits/code-rot/code-rot-audit.json` (schema: `schemaVersion` `"1.0"`, 13 top-level fields — `schemaVersion`, `metadata`, `target`, `config`, `summary`, `inventory`, `sourceOfTruth`, `detectors`, `issues`, `skippedDetectors`, `detectorErrors`, `recommendations`, `exit`; `metadata` includes both `auditType` and `metadata.auditTypes`)
+- `reports/audits/code-rot/code-rot-audit.txt` (sanitized text report; a summary is also printed to the console)
+
+Keep this section separate from the security-validation commands above — `npm run audit` and `npm run security:validate` are independent tools with independent flags, reports, and exit-code policies.
+
 ## Planned commands
 
-There is currently no `npm run audit`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script. Those command surfaces are planned in later roadmap versions and must not be used as current examples.
+There is currently no `npm run audit:all`, `npm run audit:quality`, `npm run audit:security`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script. Those command surfaces are planned in later roadmap versions and must not be used as current examples. `npm run audit` itself is implemented (code-rot audit type only, see above); the `--types quality|security|project|all` values are recognized but fail cleanly rather than running.

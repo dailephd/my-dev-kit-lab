@@ -2,7 +2,7 @@
 
 ## What is my-dev-kit-lab?
 
-my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and future audit companion for my-dev-kit.
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It now includes three areas of validated capability: experiment/evidence, automated security validation, and a generic audit framework (code-rot audit type, implemented in the current development branch and not yet released).
 
 my-dev-kit is a local-first repository indexing and graph-guided retrieval CLI. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Its strongest use case is when the repository is larger than the task; the project does not assume or claim that guided retrieval always saves tokens.
 
@@ -15,6 +15,8 @@ The current package is version `0.2.2`, release-prepared but not yet published t
 That plugin preserves the established raw-full-file versus my-dev-kit-guided experiment through the generic registry and runner. It supports self and explicit local-project targets, plugin-aware reports, deterministic fake-agent runs, and optional Codex or Claude campaigns. Existing legacy commands and artifacts remain supported.
 
 Automated security validation is also implemented. It supports dependency and package checks, adversarial CLI checks, static scanning integrations, bounded fuzz smoke, structured verdicts, explicit local-project targets, and an attack-scenario layer with profiles, evidence, and report hardening. It is not a complete manual pentest framework.
+
+The `v0.3.0` generic audit framework is implemented in the current development branch's working tree (not yet released or published). It adds `npm run audit`, which currently supports one audit type, `code-rot`, covering 10 heuristic detector families and writing stable text/JSON reports. Audit is a separate tool from both the experiment pipeline and `security:validate`: it does not call `security:validate`, and later audit phases — a code-quality detector, security results folded into unified audit reports, a project-wide combined audit command, and manual pentest/mobile validation — remain planned, not implemented.
 
 ## Product flow
 
@@ -46,13 +48,12 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-The implemented `v0.2.2` security-validation fortification has completed pre-release readiness and cross-platform validation and is release-prepared; publishing to npm requires a separate explicit step. After that, the immediate direction is:
+The implemented `v0.2.2` security-validation fortification has completed pre-release readiness and cross-platform validation and is release-prepared; publishing to npm requires a separate explicit step. The `v0.3.0` generic audit framework and code-rot detector are implemented in the current development branch's working tree, ahead of any release/publish step for that work. After that, the immediate direction is:
 
-1. add a generic audit framework and code rot detector
-2. add code quality detection
-3. integrate security results into unified audit reports
-4. add a project-wide audit command
-5. add a separate manual pentest framework
+1. add a code quality detector
+2. integrate security results into unified audit reports
+3. add a project-wide audit command
+4. add a separate manual pentest framework
 
 The experiment evidence track then expands through warm-index reuse, freshness and stale-index detection, context-window scaling, retrieval precision/recall, agent success, normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication.
 

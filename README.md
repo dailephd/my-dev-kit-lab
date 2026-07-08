@@ -32,6 +32,7 @@ my-dev-kit is most useful when the repository is larger than the task. It helps 
 - Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
 - Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
 - Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`
+- Generic audit framework (`v0.3.0`, implemented in the current development branch; not yet released or published): `npm run audit` runs heuristic, conservative code-rot detectors and writes text/JSON reports under `reports/audits/code-rot/` by default. Only the `code-rot` audit type is currently implemented; `quality`, `security`, `project`, and `all` audit types are planned and fail cleanly instead of running. `npm run audit` supports `--target`, `--types code-rot`, and other flags — see [docs/COMMANDS.md](docs/COMMANDS.md). Audit does not modify target files, does not auto-fix issues, does not run `security:validate`, and does not perform release-readiness determination.
 
 ---
 

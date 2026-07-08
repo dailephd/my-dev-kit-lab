@@ -2,6 +2,28 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased] - v0.3.0 audit framework (in progress, not published)
+
+Generic audit framework and code-rot detector, implemented in the current development branch's working tree. Not yet committed as a release, not tagged, and not published to npm.
+
+### Added
+
+- Added `npm run audit` command (`scripts/audits/runAudit.ts`) as the audit framework CLI entrypoint.
+- Added the generic audit framework in `src/audits`: target resolution, config/flag parsing (`--target`, `--types`, `--include`, `--format`, `--fail-on`, `--out`), detector registry, and exit-code policy (`0`/`1`/`2`).
+- Added a project inventory scanner and a source-of-truth collector so detectors read pre-collected, consistent project state instead of re-scanning.
+- Added the code-rot detector family: `stale-command-reference`, `docs-code-mismatch`, `package-release-rot`, `duplicate-implementation-candidate`, `dead-code-candidate`, `test-rot`, `architecture-drift`, `dependency-environment-rot`, `cross-platform-rot`, `security-validation-assumption-rot` (10 detectors).
+- Added a stable, versioned audit report schema (`schemaVersion` `"1.0"`, 13 top-level fields) with text and JSON renderers and a sanitized text-report writer.
+- Added fail-on severity policy (`blocker`, `high`, `medium`, `low`, `none`) shared between the runner and the report model.
+- Added external-target-safe report writing: audits against a local target project do not modify target files; generated reports stay under the tool root's `reports/audits/` unless `--out` redirects them.
+- Added integration hardening and regression test coverage under `tests/audits/` and `tests/audits/codeRot/` (CLI options, target resolution, inventory, source-of-truth, detectors, report schema/writer, fail-on behavior, external targets, self-audit smoke, detector-error hardening).
+- Kept the audit framework and `security:validate` independent: `npm run audit` does not call `security:validate`, and `security:validate` does not call the audit framework.
+
+### Limitations
+
+- Only the `code-rot` audit type is implemented. `quality`, `security`, `project`, and `all` audit types are recognized as valid `--types` identifiers but are rejected with a clear message and exit code `2` rather than running.
+- Audit findings are heuristic and conservative; they are candidates for review, not proof of a defect.
+- This entry does not represent a published release. No version bump, tag, or npm publish has occurred for this work.
+
 ## [0.2.2] - 2026-07-07
 
 ### Added
