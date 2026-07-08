@@ -22,7 +22,7 @@ function fakeTarget(): SecurityValidationTarget {
   };
 }
 
-describe("SCENARIO_REGISTRY — metadata consistency guard (v0.2.2 Batch 6)", () => {
+describe("SCENARIO_REGISTRY — metadata consistency guard (Batch 6)", () => {
   it("every registered scenario has a non-empty, deterministic id and checkId", () => {
     for (const scenario of SCENARIO_REGISTRY) {
       expect(typeof scenario.id).toBe("string");
@@ -49,7 +49,7 @@ describe("SCENARIO_REGISTRY — metadata consistency guard (v0.2.2 Batch 6)", ()
     }
   });
 
-  it("every registered scenario declares verdictImpact metadata (v0.2.2 Batch 6)", () => {
+  it("every registered scenario declares verdictImpact metadata (Batch 6)", () => {
     const missing = SCENARIO_REGISTRY.filter((s) => s.verdictImpact === undefined).map((s) => s.id);
     expect(missing).toEqual([]);
   });
@@ -112,7 +112,7 @@ describe("scenario registration fallback behavior (a scenario without verdictImp
   });
 });
 
-describe("attack scenario result consistency (v0.2.2 Batch 6)", () => {
+describe("attack scenario result consistency (Batch 6)", () => {
   it("all 9 concrete-scenario results (real run against self) are internally consistent", async () => {
     const results = await runAttackScenarios({
       selectedChecks: ["boundary", "subprocess", "secrets", "network"],

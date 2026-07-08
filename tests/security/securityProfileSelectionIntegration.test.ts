@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   parseSecurityValidateArgs,
   normalizeSecurityValidateConfig,
@@ -19,7 +22,7 @@ function buildEffectiveConfig(argv: string[]) {
   return config;
 }
 
-describe("selected-check/profile consistency guard (v0.2.2 Batch 6)", () => {
+describe("selected-check/profile consistency guard (Batch 6)", () => {
   it("no --profile and no --checks preserves current default behavior", () => {
     const config = buildEffectiveConfig([]);
     expect(config.checks).toEqual([...DEFAULT_SECURITY_CHECKS]);
@@ -39,16 +42,50 @@ describe("selected-check/profile consistency guard (v0.2.2 Batch 6)", () => {
   });
 
   it("selected checks are present in report metadata", async () => {
-    const summary = await runSecurityValidation({
-      cwd: toolRoot,
-      selectedChecks: ["deps", "package"],
-      profile: "node-cli-package",
-    });
-    // Metadata population happens in scripts/security/validate.ts from
-    // config.checks; here we confirm the underlying summary carries enough
-    // information (isFullReleaseGate) to derive that reporting correctly.
-    expect(summary.isFullReleaseGate).toBe(false);
-  }, 30_000);
+    // Flake investigation (v0.3.0 readiness pass): this test runs real
+    // "deps" + "package" checks (npm audit x2, npm outdated, npm ls,
+    // osv-scanner, npm pack --dry-run) against the tool root. Every sibling
+    // test file in tests/security/ that also selects "deps"/"package"
+    // (e.g. securityValidateAttackScenarios.test.ts,
+    // securityValidateVerdictIntegration.test.ts) calls runSecurityValidation
+    // with the *default* config, which resolves reportDir/rawOutputDir to
+    // the same fixed path: <toolRoot>/reports/security. Under `npm run
+    // test:security`, vitest runs test files concurrently in separate
+    // worker processes, so many of those files write to the exact same
+    // reports/security/*.json files at the same time. That collision, plus
+    // ordinary CPU/subprocess contention from ~40 concurrent test files
+    // spawning real npm processes, measurably slows this test down (observed
+    // ~9s in isolation vs ~15s under full-suite load in this environment,
+    // and comparable sibling tests ranged 8.7s-15.9s under load) even
+    // without any assertion actually depending on the written files. A
+    // fixed 30s timeout combined with that variance is a plausible source
+    // of the one-off failure under parallel load on a busier machine/CI.
+    // Fix: give this test its own isolated report/raw output directories
+    // (mkdtempSync) so it never shares a destination file with a
+    // concurrently-running sibling test file, and bring the timeout in
+    // line with the 60s precedent already used by equivalent-weight
+    // sibling checks (see securityValidateAttackScenarios.test.ts).
+    const isolatedReportDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "sec-profile-selection-report-")
+    );
+    try {
+      const summary = await runSecurityValidation({
+        cwd: toolRoot,
+        selectedChecks: ["deps", "package"],
+        profile: "node-cli-package",
+        config: {
+          reportDir: isolatedReportDir,
+          rawOutputDir: path.join(isolatedReportDir, "raw"),
+        },
+      });
+      // Metadata population happens in scripts/security/validate.ts from
+      // config.checks; here we confirm the underlying summary carries enough
+      // information (isFullReleaseGate) to derive that reporting correctly.
+      expect(summary.isFullReleaseGate).toBe(false);
+    } finally {
+      fs.rmSync(isolatedReportDir, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it("scoped-run warning appears in text report for a narrowed run", () => {
     const report = makeReportWithScope(false);

@@ -29,18 +29,29 @@ const windowsExtensionPreference = [".cmd", ".exe", ".bat", ".ps1", ""];
 export function resolveCommand(command: string, options: ResolveCommandOptions = {}): ResolvedCommand {
   const platform = options.platform ?? process.platform;
   const env = options.env ?? process.env;
+  const cwd = options.cwd ?? process.cwd();
+
   if (platform !== "win32") {
+    const posixCandidate = findPosixCommandCandidate(command, env, cwd);
+    if (!posixCandidate) {
+      return {
+        originalCommand: command,
+        command,
+        argsPrefix: [],
+        resolutionKind: "unavailable",
+        warnings: [`Command was not found on PATH: ${command}`]
+      };
+    }
     return {
       originalCommand: command,
       command,
       argsPrefix: [],
       resolutionKind: "direct",
-      resolvedPath: command,
+      resolvedPath: posixCandidate,
       warnings: []
     };
   }
 
-  const cwd = options.cwd ?? process.cwd();
   const candidate = findWindowsCommandCandidate(command, env, cwd);
   if (!candidate) {
     return {
@@ -102,6 +113,50 @@ function commandForWindowsCandidate(
     resolvedPath,
     warnings: []
   };
+}
+
+// POSIX (Linux/macOS) command resolution. Unlike the Windows branch above,
+// there is no extension-guessing -- a bare command name must match exactly
+// one PATH entry, and the match must actually be executable (checked via
+// X_OK, not just file existence, so a non-executable regular file with a
+// matching name is correctly treated as absent). This mirrors the Windows
+// branch's "search PATH, report unavailable if nothing matches" contract:
+// previously this platform branch unconditionally reported "direct" without
+// ever checking PATH, so a genuinely-missing command (e.g. codeql, semgrep)
+// was only discovered as absent when the downstream spawn failed with
+// ENOENT -- which staticScans/codeql.ts and staticScans/semgrep.ts
+// misclassify as a MAJOR/failed finding rather than a graceful skip,
+// causing security:validate to falsely report a release blocker on
+// Linux/macOS whenever an optional static-analysis tool is not installed.
+function findPosixCommandCandidate(command: string, env: NodeJS.ProcessEnv, cwd: string): string | undefined {
+  if (hasPathSeparator(command) || path.isAbsolute(command)) {
+    const resolved = path.resolve(cwd, command);
+    return isExecutablePosixFile(resolved) ? resolved : undefined;
+  }
+
+  for (const searchDir of getPosixPathEntries(env)) {
+    const candidate = path.join(searchDir, command);
+    if (isExecutablePosixFile(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function getPosixPathEntries(env: NodeJS.ProcessEnv): string[] {
+  const pathValue = env.PATH ?? env.Path ?? "";
+  return pathValue.split(path.delimiter).filter(Boolean);
+}
+
+function isExecutablePosixFile(candidatePath: string): boolean {
+  try {
+    if (!fs.statSync(candidatePath).isFile()) return false;
+    fs.accessSync(candidatePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function findWindowsCommandCandidate(command: string, env: NodeJS.ProcessEnv, cwd: string): string | undefined {

@@ -1,0 +1,376 @@
+import fs from "node:fs";
+import path from "node:path";
+import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
+import type { AuditIssue } from "../../core/auditIssue.js";
+import { readBoundedFileText } from "../utils/boundedRead.js";
+import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
+import { splitLines } from "../utils/textLines.js";
+
+// ---------------------------------------------------------------------------
+// v0.3.0 Batch 4 — test-rot detector.
+//
+// Bounded (per-file MAX_READ_BYTES skip), regex/structural only.
+//
+// Two spec bullets are intentionally SKIPPED here to avoid duplicate
+// reporting with other detectors (documented in the Batch 4 spec itself):
+//   - "fixtures not referenced by tests" is implemented once, in
+//     deadCodeCandidateDetector.ts's findUnreferencedFixtures(), not here.
+//   - "test commands documented in docs but missing from package.json
+//     scripts" overlaps with staleCommandReferenceDetector.ts's existing
+//     doc-command check and is intentionally not re-implemented here.
+// ---------------------------------------------------------------------------
+
+const DETECTOR_ID = "test-rot";
+const MAX_READ_BYTES = 200_000;
+const RELATIVE_IMPORT_PATTERN = /(?:from|require\()\s*["'](\.\.?\/[^"']+)["']/g;
+const NPM_RUN_PATTERN = /npm run ([\w:.-]+)/g;
+const SKIP_PATTERN = /\b(describe|it|test)\.skip\s*\(/g;
+const ONLY_PATTERN = /\b(describe|it|test)\.only\s*\(/g;
+const TEST_TITLE_VERSION_PATTERN = /\b(describe|it|test)\s*\(\s*["'`][^"'`]*\bv(\d+\.\d+\.\d+)\b/;
+const HISTORICAL_HEDGE_PATTERN = /\b(regression|historical|legacy)\b/i;
+const RESOLVE_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".mjs", ".cjs"];
+const VITEST_RUN_ARG_PATTERN = /vitest run ([^\s&|]+)/g;
+
+export const TEST_ROT_DETECTOR: AuditDetector = {
+  id: DETECTOR_ID,
+  auditType: "code-rot",
+  title: "Test rot",
+  description:
+    "Detects test files importing missing source files, stale npm-run references, committed .skip/.only usage, stale version mentions in test titles, and package scripts referencing missing test paths.",
+  supportedIncludeAreas: ["tests", "cli", "package"],
+  shouldSkip: (ctx: AuditDetectorContext) => {
+    if (!ctx.config.include.includes("tests")) {
+      return { skip: true, reason: "--include does not select tests; this detector's checks are test-file-based." };
+    }
+    return { skip: false };
+  },
+  run: (ctx: AuditDetectorContext): AuditIssue[] => {
+    const issues: AuditIssue[] = [];
+    const scriptNames = new Set(ctx.sourceOfTruth.commands.allScriptNames);
+    const currentVersion = ctx.sourceOfTruth.package?.version ?? null;
+
+    for (const testFile of ctx.inventory.testFiles) {
+      const content = readBoundedFileText(ctx.target.rootPath, testFile.relativePath, testFile.sizeBytes, MAX_READ_BYTES);
+      if (content === null) continue;
+
+      // tests/audits/codeRot/ is this project's own audit-detector test
+      // suite. Its whole purpose is to construct FIXTURE content (via
+      // writeFile() string arguments) that mimics the exact textual
+      // patterns this file's checks look for -- fake relative imports,
+      // fake "npm run <command>" references, "describe.skip("/"it.only(",
+      // and version-numbered test titles like `it("... v0.2.1 ...")`.
+      // Scanning those fixture strings as if they were real test-file
+      // content produces false positives against this repo's own accurate
+      // tests (confirmed via self-testing on every one of the checks
+      // below). This whole subdirectory is therefore excluded from this
+      // detector's per-file checks -- a project without an audit-detector
+      // test suite of its own would never hit this exclusion.
+      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
+
+      issues.push(...findMissingSourceImports(ctx, testFile.relativePath, content));
+      issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
+      issues.push(...findSkipUsage(testFile.relativePath, content));
+      issues.push(...findOnlyUsage(testFile.relativePath, content));
+      if (currentVersion) issues.push(...findStaleVersionMentions(testFile.relativePath, content, currentVersion));
+    }
+
+    if (ctx.config.include.includes("package") && ctx.sourceOfTruth.package) {
+      issues.push(...findScriptsReferencingMissingTestPaths(ctx));
+    }
+
+    return deduplicateIssuesById(issues);
+  },
+};
+
+function findMissingSourceImports(ctx: AuditDetectorContext, testRelativePath: string, content: string): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const testDir = path.dirname(testRelativePath);
+
+  RELATIVE_IMPORT_PATTERN.lastIndex = 0;
+  for (const match of content.matchAll(RELATIVE_IMPORT_PATTERN)) {
+    const specifier = match[1];
+    const resolvedBase = path.join(testDir, specifier).replace(/\\/g, "/");
+    const strippedBase = resolvedBase.replace(/\.[cm]?[jt]sx?$/, "");
+
+    const resolved = RESOLVE_EXTENSIONS.some((ext) => fs.existsSync(path.join(ctx.target.rootPath, `${strippedBase}${ext}`)));
+    if (resolved) continue;
+
+    issues.push(
+      makeCodeRotIssue({
+        auditType: "code-rot",
+        detectorId: DETECTOR_ID,
+        idCues: [testRelativePath, "missing-source-import", specifier],
+        title: `Test "${testRelativePath}" imports a missing source file: "${specifier}"`,
+        description: `${testRelativePath} imports "${specifier}", which does not resolve to an existing file on disk (checked common TS/JS extensions relative to the test file).`,
+        severity: "medium",
+        confidence: "high",
+        falsePositiveRisk: "low",
+        category: "test-rot",
+        recommendedAction: "Fix or remove the stale import.",
+        suggestedFixStrategy: `Update the import specifier "${specifier}" in ${testRelativePath} to point to an existing file.`,
+        validationCommands: [`npx vitest run ${testRelativePath}`],
+        releaseBlocking: false,
+        implementationBlocking: false,
+        autoFixEligible: false,
+        evidence: [
+          {
+            kind: "file",
+            message: "Relative import specifier does not resolve to an existing file.",
+            filePath: testRelativePath,
+            excerpt: specifier,
+            source: DETECTOR_ID,
+            confidence: "high",
+          },
+        ],
+        affectedFiles: [testRelativePath],
+      })
+    );
+  }
+  return issues;
+}
+
+function findStaleNpmRunReferences(testRelativePath: string, content: string, scriptNames: Set<string>): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const seen = new Set<string>();
+
+  // Scanned per-line (not whole-content) so a line can be cheaply excluded
+  // when it's clearly constructing FIXTURE content for another detector's
+  // test (e.g. `writeFile(root, "README.md", "Run \`npm run fake-cmd\`
+  // ...")`) rather than a real reference to an npm command. This is the
+  // exact shape used throughout this repo's own audit-detector test files
+  // (see tests/audits/codeRot/*.test.ts) -- without this exclusion, this
+  // detector flags this repo's own accurate test suite as if its
+  // synthetic fixture strings were real stale command references, a false
+  // positive confirmed via self-testing.
+  const lines = splitLines(content);
+  for (const line of lines) {
+    if (/\bwriteFile\s*\(/.test(line)) continue;
+
+    NPM_RUN_PATTERN.lastIndex = 0;
+    for (const match of line.matchAll(NPM_RUN_PATTERN)) {
+      const scriptName = match[1];
+      if (scriptNames.has(scriptName) || seen.has(scriptName)) continue;
+      seen.add(scriptName);
+
+      issues.push(
+        makeCodeRotIssue({
+          auditType: "code-rot",
+          detectorId: DETECTOR_ID,
+          idCues: [testRelativePath, "stale-npm-run-reference", scriptName],
+          title: `Test "${testRelativePath}" references "npm run ${scriptName}", which is not a current package.json script`,
+          description: `${testRelativePath} references "npm run ${scriptName}" but no such script exists in package.json.`,
+          severity: "medium",
+          confidence: "medium",
+          falsePositiveRisk: "medium",
+          category: "test-rot",
+          recommendedAction: "Update the test to reference a current script name, or add the missing script.",
+          suggestedFixStrategy: `Correct the "npm run ${scriptName}" reference in ${testRelativePath}.`,
+          validationCommands: [`npx vitest run ${testRelativePath}`],
+          releaseBlocking: false,
+          implementationBlocking: false,
+          autoFixEligible: false,
+          evidence: [
+            {
+              kind: "file",
+              message: `Referenced command "npm run ${scriptName}" not found in package.json scripts.`,
+              filePath: testRelativePath,
+              source: DETECTOR_ID,
+              confidence: "medium",
+            },
+          ],
+          affectedFiles: [testRelativePath],
+        })
+      );
+    }
+  }
+  return issues;
+}
+
+function findSkipUsage(testRelativePath: string, content: string): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const lines = splitLines(content);
+  for (let i = 0; i < lines.length; i++) {
+    SKIP_PATTERN.lastIndex = 0;
+    const match = SKIP_PATTERN.exec(lines[i]);
+    if (!match) continue;
+
+    issues.push(
+      makeCodeRotIssue({
+        auditType: "code-rot",
+        detectorId: DETECTOR_ID,
+        idCues: [testRelativePath, "skip-usage", String(i + 1)],
+        title: `Committed "${match[1]}.skip(" in "${testRelativePath}"`,
+        description: `${testRelativePath}:${i + 1} uses "${match[1]}.skip(" -- confirm this is intentional and not accidentally committed.`,
+        severity: "medium",
+        confidence: "high",
+        falsePositiveRisk: "low",
+        category: "test-rot",
+        recommendedAction: "Remove .skip if the test should run, or add a comment explaining why it is skipped.",
+        suggestedFixStrategy: `Remove "${match[1]}.skip(" at ${testRelativePath}:${i + 1} or document why it is intentionally skipped.`,
+        validationCommands: [`npx vitest run ${testRelativePath}`],
+        releaseBlocking: false,
+        implementationBlocking: false,
+        autoFixEligible: false,
+        evidence: [
+          {
+            kind: "file",
+            message: `Found "${match[1]}.skip(" usage.`,
+            filePath: testRelativePath,
+            line: i + 1,
+            excerpt: lines[i].trim().slice(0, 200),
+            source: DETECTOR_ID,
+            confidence: "high",
+          },
+        ],
+        affectedFiles: [testRelativePath],
+      })
+    );
+  }
+  return issues;
+}
+
+function findOnlyUsage(testRelativePath: string, content: string): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const lines = splitLines(content);
+  for (let i = 0; i < lines.length; i++) {
+    ONLY_PATTERN.lastIndex = 0;
+    const match = ONLY_PATTERN.exec(lines[i]);
+    if (!match) continue;
+
+    issues.push(
+      makeCodeRotIssue({
+        auditType: "code-rot",
+        detectorId: DETECTOR_ID,
+        idCues: [testRelativePath, "only-usage", String(i + 1)],
+        title: `Committed "${match[1]}.only(" in "${testRelativePath}"`,
+        description: `${testRelativePath}:${i + 1} uses "${match[1]}.only(" -- this silently excludes every other test in a CI run and is almost always accidental.`,
+        severity: "high",
+        confidence: "high",
+        falsePositiveRisk: "low",
+        category: "test-rot",
+        recommendedAction: "Remove .only before committing/merging.",
+        suggestedFixStrategy: `Remove "${match[1]}.only(" at ${testRelativePath}:${i + 1}.`,
+        validationCommands: [`npx vitest run ${testRelativePath}`],
+        releaseBlocking: true,
+        implementationBlocking: false,
+        autoFixEligible: false,
+        evidence: [
+          {
+            kind: "file",
+            message: `Found "${match[1]}.only(" usage.`,
+            filePath: testRelativePath,
+            line: i + 1,
+            excerpt: lines[i].trim().slice(0, 200),
+            source: DETECTOR_ID,
+            confidence: "high",
+          },
+        ],
+        affectedFiles: [testRelativePath],
+      })
+    );
+  }
+  return issues;
+}
+
+function findStaleVersionMentions(testRelativePath: string, content: string, currentVersion: string): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const lines = splitLines(content);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line.match(TEST_TITLE_VERSION_PATTERN);
+    if (!match) continue;
+    const mentionedVersion = match[2];
+    if (mentionedVersion === currentVersion) continue;
+    if (HISTORICAL_HEDGE_PATTERN.test(line)) continue;
+
+    issues.push(
+      makeCodeRotIssue({
+        auditType: "code-rot",
+        detectorId: DETECTOR_ID,
+        idCues: [testRelativePath, "stale-version-mention", String(i + 1), mentionedVersion],
+        title: `Test title in "${testRelativePath}" mentions version v${mentionedVersion}, not the current package version`,
+        description: `${testRelativePath}:${i + 1} mentions "v${mentionedVersion}" in a test title, but the current package version is "${currentVersion}". If this is intentionally a historical/regression reference, mention that in the title.`,
+        severity: "low",
+        confidence: "low",
+        falsePositiveRisk: "medium",
+        category: "test-rot",
+        recommendedAction: "Confirm whether the version mention should be updated or is intentionally historical.",
+        suggestedFixStrategy: `Update the test title in ${testRelativePath} or add "regression"/"historical" wording if intentional.`,
+        validationCommands: [`npx vitest run ${testRelativePath}`],
+        releaseBlocking: false,
+        implementationBlocking: false,
+        autoFixEligible: false,
+        evidence: [
+          {
+            kind: "file",
+            message: `Test title mentions "v${mentionedVersion}", current package version is "${currentVersion}".`,
+            filePath: testRelativePath,
+            line: i + 1,
+            excerpt: line.trim().slice(0, 200),
+            source: DETECTOR_ID,
+            confidence: "low",
+          },
+        ],
+        affectedFiles: [testRelativePath],
+      })
+    );
+  }
+  return issues;
+}
+
+function findScriptsReferencingMissingTestPaths(ctx: AuditDetectorContext): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const pkg = ctx.sourceOfTruth.package;
+  if (!pkg) return issues;
+
+  const knownPaths = new Set(ctx.inventory.files.map((f) => f.relativePath));
+  const knownDirPrefixes = new Set(
+    ctx.inventory.files.flatMap((f) => {
+      const parts = f.relativePath.split("/");
+      const prefixes: string[] = [];
+      for (let i = 1; i < parts.length; i++) prefixes.push(parts.slice(0, i).join("/"));
+      return prefixes;
+    })
+  );
+
+  for (const [scriptName, command] of Object.entries(pkg.scripts)) {
+    VITEST_RUN_ARG_PATTERN.lastIndex = 0;
+    for (const match of command.matchAll(VITEST_RUN_ARG_PATTERN)) {
+      const referencedPath = match[1].replace(/^["']|["']$/g, "");
+      if (knownPaths.has(referencedPath) || knownDirPrefixes.has(referencedPath)) continue;
+      if (fs.existsSync(path.join(ctx.target.rootPath, referencedPath))) continue;
+
+      issues.push(
+        makeCodeRotIssue({
+          auditType: "code-rot",
+          detectorId: DETECTOR_ID,
+          idCues: ["script-references-missing-test-path", scriptName, referencedPath],
+          title: `Script "${scriptName}" references a test path that does not exist: "${referencedPath}"`,
+          description: `package.json script "${scriptName}" runs "vitest run ${referencedPath}", but "${referencedPath}" does not exist in the project.`,
+          severity: "medium",
+          confidence: "high",
+          falsePositiveRisk: "low",
+          category: "test-rot",
+          recommendedAction: "Fix the script's test path, or restore/remove the referenced tests.",
+          suggestedFixStrategy: `Edit package.json's "${scriptName}" script to reference an existing test path.`,
+          validationCommands: [`npm run ${scriptName}`],
+          releaseBlocking: false,
+          implementationBlocking: false,
+          autoFixEligible: false,
+          evidence: [
+            {
+              kind: "file",
+              message: `Script command references a test path that does not exist.`,
+              filePath: "package.json",
+              excerpt: `"${scriptName}": "... vitest run ${referencedPath} ..."`,
+              source: DETECTOR_ID,
+              confidence: "high",
+            },
+          ],
+          affectedFiles: ["package.json"],
+        })
+      );
+    }
+  }
+  return issues;
+}

@@ -2,7 +2,7 @@
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, and automated security-validation companion for my-dev-kit. The generic experiment-plugin architecture is implemented; it is not a future migration.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework (code-rot audit type only) is implemented; package.json now specifies version `v0.3.0`, which is release-prepared but has not been released or published to npm yet.
 
 ### Module map
 
@@ -19,6 +19,13 @@ src/
     plugins/contextStrategyComparison/       first implemented plugin
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
   agents/                                    fake-agent, Codex, and Claude adapters
+  prompts/                                   prompt variant generation and prompt complexity metrics
+  audits/                                    generic audit framework (v0.3.0, code-rot audit type only)
+    core/                                    target resolution, config, registry, inventory, source-of-truth, exit-code policy, runner
+    codeRot/                                 code-rot audit type
+      detectors/                             10 code-rot detector families
+      utils/                                 shared detector helpers (bounded reads, doc-claim/command-reference parsing, text-line utilities)
+    report/                                  audit report model, JSON/text renderers, writer, text sanitizer
   report/
     experiments/                             plugin-aware JSON/HTML report support
     ...                                      shared and legacy report infrastructure
@@ -37,6 +44,7 @@ src/
 scripts/
   experiments/                               experiment:list, experiment:describe, experiment:run
   security/                                  security checks and security:validate
+  audits/                                    runAudit.ts — npm run audit entrypoint
   ...                                        legacy/demo/report/plot/gallery entrypoints
 ```
 
@@ -133,6 +141,54 @@ Profile behavior remains intentionally narrow in the current implementation: pro
 
 Optional local tools can be reported as skipped; absence alone does not make the framework crash. This automation is not equivalent to a complete manual pentest.
 
+## Audit framework architecture
+
+`src/audits/` is the implemented generic project-audit framework (package.json now at v0.3.0; release-prepared, not yet published to npm). It is a separate framework from experiments and from automated security validation; it does not call `security:validate` and `security:validate` does not call it. Only the `code-rot` audit type is implemented. `quality`, `security`, `project`, and `all` audit types remain planned — supplying them to `--types` fails cleanly with exit code 2 and a clear message rather than running.
+
+```mermaid
+flowchart LR
+  Command[npm run audit] --> Config[Parse args / normalize config]
+  Config --> Target[Resolve self or external target]
+  Target --> Inventory[Project inventory scanner]
+  Target --> SoT[Source-of-truth collector]
+  Inventory --> Registry[Detector registry: 10 code-rot detectors]
+  SoT --> Registry
+  Registry --> Runner[auditRunner]
+  Runner --> Model[Audit report model]
+  Model --> Reports[Text + JSON reports]
+```
+
+`src/audits/core/` supplies:
+- `auditConfig.ts` — `--target`, `--types`, `--include`, `--format`, `--fail-on`, `--out` flag parsing and normalization
+- `auditTarget.ts` — target resolution (self or external local project), non-destructive with respect to the target
+- `projectInventory.ts` — project inventory scanner (files by category/extension, excluded directories)
+- `sourceOfTruth.ts` — source-of-truth collector (package metadata, scripts, docs, CI, build tooling, tests, security, experiment truth)
+- `auditRegistry.ts` — `DEFAULT_AUDIT_REGISTRY`, detector contract, and `selectDetectors()` filtering by type/include area
+- `auditRunner.ts` — executes selected detectors against the collected inventory/source-of-truth
+- `auditExitCode.ts` — exit-code policy: `0` no issue met the `--fail-on` threshold, `1` at least one issue met or exceeded it, `2` invalid config/target or a runtime failure (never returned by the pure exit-code calculator itself; the CLI script's own try/catch blocks return it directly)
+
+`src/audits/codeRot/detectors/` implements the 10 registered code-rot detector families, in registry order:
+1. `stale-command-reference` — stale command/workflow references in docs
+2. `docs-code-mismatch` — documentation/code mismatch
+3. `package-release-rot` — package/release metadata rot
+4. `duplicate-implementation-candidate` — duplicate or parallel implementation candidates
+5. `dead-code-candidate` — dead-code candidates from deterministic evidence
+6. `test-rot` — test rot signals
+7. `architecture-drift` — architecture drift between docs and implemented modules
+8. `dependency-environment-rot` — dependency/environment rot
+9. `cross-platform-rot` — cross-platform rot
+10. `security-validation-assumption-rot` — stale documentation *claims* about security-validation (this detector checks claims about security-validation; it does not itself perform security validation)
+
+`src/audits/report/` builds and writes the stable, versioned report:
+- `auditReportModel.ts` — pure `AuditResult -> AuditReportModel` transform; `AUDIT_REPORT_SCHEMA_VERSION = "1.0"`; 13 top-level fields (`schemaVersion`, `metadata`, `target`, `config`, `summary`, `inventory`, `sourceOfTruth`, `detectors`, `issues`, `skippedDetectors`, `detectorErrors`, `recommendations`, `exit`); `metadata.auditType` (joined string) and `metadata.auditTypes` (string array) are both present
+- `renderAuditJsonReport.ts` / `renderAuditTextReport.ts` — JSON and text renderers; the text renderer sanitizes all issue/recommendation text through `sanitizeAuditText.ts` before printing
+- `writeAuditReports.ts` — writes the selected `--format` outputs
+- Reports are written under `reports/audits/code-rot/` by default (`code-rot-audit.json`, `code-rot-audit.txt`), or under `--out <path>` when supplied
+
+`scripts/audits/runAudit.ts` is a thin CLI entrypoint: parse args → normalize config → resolve target → `runAudit()` → `buildAuditReportModel()` → `writeAuditReports()` → console summary → set `process.exitCode`. It mirrors the structure of `scripts/security/validate.ts` but shares no code with it.
+
+Fail-on policy: `--fail-on blocker|high|medium|low|none` (default `blocker`; see `docs/COMMANDS.md` for full threshold semantics). External-target audits are non-destructive — target resolution and the runner do not write or delete files inside the target root; generated reports stay under the tool root's `reports/audits/` unless `--out` redirects them.
+
 ## Shared report and evidence infrastructure
 
 `src/report` remains the shared report layer. `src/report/experiments` extends it for plugin metadata rather than creating a parallel reporting product. Plots, screenshots, visualization demos, and gallery output consume experiment artifacts and remain reusable across future plugins.
@@ -141,15 +197,15 @@ Optional local tools can be reported as skipped; absence alone does not make the
 
 The following layers are planned and must not be treated as current:
 
-- generic audit contracts and detector registry
-- code rot and code quality detectors
-- adapters that include current security results in unified audit reports
-- a project-wide audit command
+- a code-quality detector family (broader "quality" audit type)
+- adapters that include current security-validation results in unified audit reports (`--types security`)
+- a project-wide combined audit command (`--types code-rot,quality,security` / `--types all`)
 - a human-led manual pentest framework beside automated validation
+- Android/mobile validation profiles
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 
-Future audit and pentest work should reuse `src/core`, current target metadata, normalized findings, and shared report infrastructure. It should not replace the experiment plugin runtime or duplicate report/gallery systems.
+Future audit and pentest work should reuse `src/audits/core`, current target metadata, the normalized audit issue schema, and shared report infrastructure. It should not replace the experiment plugin runtime, duplicate report/gallery systems, or fold `security:validate` into the audit framework prematurely.
 
 ## Key contracts
 
@@ -164,3 +220,6 @@ Future audit and pentest work should reuse `src/core`, current target metadata, 
 | Shared local target metadata | `src/core/localProjectTarget.ts` |
 | Security result types | `src/securityValidation/types.ts` |
 | Security orchestrator | `src/securityValidation/validate/runSecurityValidation.ts` |
+| Audit issue / result types | `src/audits/core/auditIssue.ts` / `src/audits/core/auditRunner.ts` |
+| Audit detector registry | `src/audits/core/auditRegistry.ts` |
+| Audit report model | `src/audits/report/auditReportModel.ts` |

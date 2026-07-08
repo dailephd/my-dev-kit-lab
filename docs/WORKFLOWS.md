@@ -321,6 +321,89 @@ Remember:
 
 ---
 
+## Workflow 12: Default code-rot audit
+
+Use this workflow to run the implemented audit framework (package.json now specifies version `v0.3.0`; release-prepared but not yet released or published to npm) against my-dev-kit-lab itself. This is not the same as `security:validate`, it is not a pre-release readiness check, and it does not auto-fix anything — it surfaces heuristic, conservative candidate findings for review.
+
+```bash
+npm run audit
+```
+
+Read the result as follows:
+- Default `--types` is `code-rot` (the only implemented audit type)
+- Default `--fail-on` is `blocker`
+- Default `--format` is `text,json`
+- Reports are written under `reports/audits/code-rot/` by default
+
+---
+
+## Workflow 13: External-target audit
+
+Use this workflow to audit another local project without modifying it.
+
+```powershell
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
+```
+
+Read the result as follows:
+- The lab remains the tool root; the selected project becomes the audit target
+- Target resolution and the detector runner do not write or delete files inside the target root
+- Generated reports stay under the tool root's `reports/audits/` unless `--out` is supplied
+
+---
+
+## Workflow 14: Scoped and format-focused audit runs
+
+Use these variants for narrower or format-specific audit passes.
+
+```bash
+# Scoped include areas
+npm run audit -- --types code-rot --include docs,tests,package,architecture,cli --format text,json --fail-on none
+
+# Non-blocking investigation (never exits nonzero on findings)
+npm run audit -- --fail-on none
+
+# Text-only report
+npm run audit -- --format text --fail-on none
+
+# JSON-only report
+npm run audit -- --format json --fail-on none
+
+# Stricter gating: exit 1 if any high-or-worse issue is found
+npm run audit -- --fail-on high
+```
+
+Read the result as follows:
+- `--include` narrows which project areas detectors consider; it does not change which detectors are registered
+- `--fail-on none` is useful for investigation without blocking automation
+- `--fail-on blocker|high|medium|low` progressively tightens the exit-1 threshold
+
+---
+
+## Workflow 15: Reading audit reports
+
+Use this workflow after an audit run to interpret the generated artifacts.
+
+Read the text report and console summary for:
+- Issue counts by severity (`blocker`, `high`, `medium`, `low`, `info`)
+- Skipped detectors and detector errors, if any
+- The final verdict label and exit reason
+
+Read the JSON report (`reports/audits/code-rot/code-rot-audit.json`) for the full 13-field schema: `schemaVersion` (currently `"1.0"`), `metadata` (including `auditType` and `auditTypes`), `target`, `config`, `summary`, `inventory`, `sourceOfTruth`, `detectors`, `issues`, `skippedDetectors`, `detectorErrors`, `recommendations`, and `exit`.
+
+Interpreting findings:
+- Findings are heuristic candidates, not proof of a defect — each issue carries a `confidence` and `falsePositiveRisk` label
+- A skipped detector is not a pass; check `skippedDetectors` for the reason
+- A detector error does not stop the whole run; other detectors still execute, and the error is reported in `detectorErrors`
+
+Boundaries — the audit workflow is **not**:
+- a pre-release readiness check
+- the same as `npm run security:validate` (they are independent tools; audit never invokes security:validate)
+- a manual pentest
+- an auto-fix tool
+
+---
+
 ## Future workflow: Warm-index reuse experiment
 
 This workflow is not yet implemented. It will measure the amortized cost of my-dev-kit indexing when the index is reused across multiple queries.

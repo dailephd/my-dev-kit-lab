@@ -1,6 +1,6 @@
 {
   "name": "@dailephd/my-dev-kit-lab",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
@@ -77,7 +77,8 @@
     "security:semgrep": "tsx scripts/security/runSemgrep.ts",
     "test:security": "vitest run tests/security/",
     "test:fuzz:smoke": "tsx scripts/security/runFuzzSmoke.ts",
-    "security:validate": "tsx scripts/security/validate.ts"
+    "security:validate": "tsx scripts/security/validate.ts",
+    "audit": "tsx scripts/audits/runAudit.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

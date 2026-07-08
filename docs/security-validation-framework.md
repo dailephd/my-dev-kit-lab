@@ -181,9 +181,9 @@ Current report/schema details:
 
 ## Fortification status and planned manual testing
 
-The `v0.2.2` release (release-prepared; not yet published to npm) strengthens attack scenarios, target coverage, schema/report hardening, and security evidence while keeping `security:validate` backward compatible.
+The `v0.2.2` release (the latest published npm baseline) strengthens attack scenarios, target coverage, schema/report hardening, and security evidence while keeping `security:validate` backward compatible.
 
-The audit track planned for `v0.3.x` will consume current security results in unified audit reports without replacing this standalone gate. The manual pentest framework planned for `v0.4.0` will sit beside automated validation and must label human procedures and evidence separately from automated checks.
+The generic audit framework (package.json now specifies version `v0.3.0`; release-prepared but not yet released or published to npm) is a separate tool from `security:validate`. `npm run audit` does not currently call `security:validate`, and `security:validate` does not call the audit framework. The audit framework's implemented `code-rot` audit type includes a `security-validation-assumption-rot` detector, but that detector only checks whether documentation makes stale or inaccurate *claims* about the security-validation framework — it does not itself perform any security validation. Folding current security-validation results into unified audit reports (a future `--types security` audit type) remains planned, not implemented. The manual pentest framework planned for `v0.4.0` will sit beside automated validation and must label human procedures and evidence separately from automated checks.
 
 ## Relationship to experiments
 

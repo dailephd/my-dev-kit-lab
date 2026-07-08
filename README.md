@@ -2,7 +2,7 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and future audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, and performs automated CLI/package security validation.
 
-The current package is v0.2.2. Its generic experiment-plugin framework was introduced in v0.2.0. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+The current package version is `v0.3.0` (release-prepared; not yet published to npm, tagged, or released on GitHub). The latest published npm baseline is `v0.2.2`. Its generic experiment-plugin framework was introduced in v0.2.0. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
 
 my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
@@ -32,6 +32,7 @@ my-dev-kit is most useful when the repository is larger than the task. It helps 
 - Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
 - Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
 - Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`
+- Generic audit framework (package.json now specifies version `v0.3.0`; release-prepared but not yet published to npm, tagged, or released on GitHub): `npm run audit` runs heuristic, conservative code-rot detectors and writes text/JSON reports under `reports/audits/code-rot/` by default. Only the `code-rot` audit type is currently implemented; `quality`, `security`, `project`, and `all` audit types are planned and fail cleanly instead of running. `npm run audit` supports `--target`, `--types code-rot`, and other flags — see [docs/COMMANDS.md](docs/COMMANDS.md). Audit does not modify target files, does not auto-fix issues, does not run `security:validate`, and does not perform release-readiness determination.
 
 ---
 
@@ -202,7 +203,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current package version is `v0.2.2`, which implements the automated security-validation fortification work described below and has passed pre-release readiness and cross-platform validation. `v0.2.2` has not yet been published to npm.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The latest published npm baseline is `v0.2.2`, which implements the automated security-validation fortification work described below and has passed pre-release readiness and cross-platform validation. package.json now specifies version `v0.3.0`, which adds the generic audit framework described below; `v0.3.0` is release-prepared but has not yet been published to npm, tagged, or released on GitHub.
 
 ---
 
