@@ -1,6 +1,6 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The published/release-prepared package version remains `@dailephd/my-dev-kit-lab` `0.2.2`, release-prepared but not yet published to npm. In addition, the `v0.3.0` generic audit framework (code-rot audit type) is implemented in the current development branch's working tree. `v0.3.0` has not been committed, released, or published — it is uncommitted, in-progress implementation work layered on top of the `0.2.2` baseline.
+This file is the concise source of truth for the checked-in implementation. The latest published npm baseline is `@dailephd/my-dev-kit-lab` `0.2.2`. package.json now specifies version `0.3.0`, adding the generic audit framework (code-rot audit type). `v0.3.0` is release-prepared but has not been committed, tagged, released, or published to npm.
 
 ## Implemented
 
@@ -59,7 +59,7 @@ npm run audit -- --types code-rot --format text,json --fail-on none
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework and code-rot detector are implemented (`v0.3.0`, uncommitted working-tree state; not released or published).
+The generic audit framework and code-rot detector are implemented; package.json now specifies version `v0.3.0`, which is release-prepared but not yet committed as a release, tagged, or published to npm.
 
 The following remain planned, not implemented:
 
@@ -83,4 +83,4 @@ The following remain planned, not implemented:
 
 ## Next planned work
 
-The released/release-prepared package version remains `v0.2.2`, implementing the security-validation fortification work and release-prepared, but not yet published to npm. The `v0.3.0` audit framework is implemented in the current development branch's working tree — it is not yet committed, released, or published. Later audit phases (code-quality detector, security-integration into unified audit reports, project-wide audit command) remain planned. See [ROADMAP.md](ROADMAP.md) for the complete semantically ordered sequence.
+The latest published npm baseline is `v0.2.2`, implementing the security-validation fortification work. package.json now specifies version `v0.3.0`, which adds the audit framework; `v0.3.0` is release-prepared but not yet committed, tagged, released, or published to npm. Later audit phases (code-quality detector, security-integration into unified audit reports, project-wide audit command) remain planned. See [ROADMAP.md](ROADMAP.md) for the complete semantically ordered sequence.

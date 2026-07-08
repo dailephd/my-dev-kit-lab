@@ -650,7 +650,7 @@ Runs all security-validation unit tests without network access or external tools
 
 **When to use:** As part of regular development to verify the security types, test matrix, parser logic, CLI adversarial boundary checks, static scan parsers, and the validate gate are correct.
 
-Tests included (current `v0.2.2` working-tree implementation):
+Tests included (implemented as of the `v0.2.2` security-validation fortification):
 - `securityValidationTypes.test.ts` — type and enumeration completeness
 - `securityValidationTestMatrix.test.ts` — test matrix structure and uniqueness
 - `dependencyChecks.test.ts` — dependency parser unit tests
@@ -841,7 +841,7 @@ Runs the current automated security-validation workflow and writes the selected 
 - `text,json` writes both
 - JSON includes `schemaVersion`, `metadata`, `summary`, `verdict`, `verdictLabel`, `recommendedNextStep`, `checks`, `findings`, `attackScenarios`, and `verdictReasonSummary`
 
-Where `<prefix>` is derived automatically: `v0.2.2` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
+Where `<prefix>` is derived automatically from the current package.json version: `v0.3.0` for self, `my-dev-kit-v1.2.0` for scoped packages, `biolit-v1` for name-only packages, or directory basename for projects with no package.json.
 
 External-target reports include both the tool root (`my-dev-kit-lab`) and the target root, plus target package and git metadata when available. The target security suite check records the executed command, command cwd, exit code, and stdout/stderr summaries. Target project files are not modified by default during validation.
 

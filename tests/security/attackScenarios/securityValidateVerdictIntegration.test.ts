@@ -21,7 +21,7 @@ function buildEffectiveConfig(argv: string[]) {
   return config;
 }
 
-describe("profile-aware default checks (v0.2.2 Batch 5)", () => {
+describe("profile-aware default checks (Batch 5)", () => {
   it("no --profile and no --checks preserves current default behavior", () => {
     const config = buildEffectiveConfig([]);
     expect(config.checks).toEqual(["deps", "package", "static", "cli-adversarial", "fuzz"]);

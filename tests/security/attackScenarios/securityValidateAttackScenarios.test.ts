@@ -6,7 +6,7 @@ import type { AttackResult } from "../../../src/securityValidation/attackScenari
 
 const toolRoot = process.cwd();
 
-describe("runSecurityValidation — attack scenario integration (v0.2.2 Batch 2/3/4)", () => {
+describe("runSecurityValidation — attack scenario integration (Batch 2/3/4)", () => {
   it("selecting boundary/secrets runs concrete scenarios for both groups (Batch 4 registered secrets)", async () => {
     const summary = await runSecurityValidation({
       cwd: toolRoot,

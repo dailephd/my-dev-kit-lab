@@ -57,13 +57,13 @@ const REQUIRED_TOP_LEVEL_FIELDS = [
   "verdictReasonSummary",
 ];
 
-describe("JSON report schema stability (v0.2.2 Batch 6)", () => {
+describe("JSON report schema stability (Batch 6)", () => {
   it("JSON report parses successfully", () => {
     const json = renderJsonReport(makeReport());
     expect(() => JSON.parse(json)).not.toThrow();
   });
 
-  it("required v0.2.2 fields are present (required-field check, not exact allowlist)", () => {
+  it("required security-report fields are present (required-field check, not exact allowlist)", () => {
     const parsed = JSON.parse(renderJsonReport(makeReport())) as Record<string, unknown>;
     for (const field of REQUIRED_TOP_LEVEL_FIELDS) {
       expect(Object.prototype.hasOwnProperty.call(parsed, field)).toBe(true);
@@ -99,7 +99,7 @@ describe("JSON report schema stability (v0.2.2 Batch 6)", () => {
   });
 });
 
-describe("detectJsonStructuralInjection — baseline-diff guard mechanism (v0.2.2 Batch 6)", () => {
+describe("detectJsonStructuralInjection — baseline-diff guard mechanism (Batch 6)", () => {
   it("does not flag legitimate additive fields (same shape, no payload)", () => {
     const baseline = renderJsonReport(makeReport());
     const candidate = renderJsonReport(makeReport()); // identical shape
@@ -131,7 +131,7 @@ describe("detectJsonStructuralInjection — baseline-diff guard mechanism (v0.2.
 });
 
 // ---------------------------------------------------------------------------
-// v0.2.2 Batch 6 — real CLI output format/location consistency guard.
+// Batch 6 — real CLI output format/location consistency guard.
 // Exercises scripts/security/validate.ts's actual file-writing logic (not
 // unit-testable otherwise — it's a top-level script) via a real subprocess.
 // ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ function runValidateCli(args: string[]): { stdout: string; status: number } {
   }
 }
 
-describe("--out / --format output location consistency (v0.2.2 Batch 6, real CLI)", () => {
+describe("--out / --format output location consistency (Batch 6, real CLI)", () => {
   it("--out writes to the requested directory; --format json writes JSON only; written JSON contains attackScenarios and verdictReasonSummary", () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "b6-out-"));
     cleanupDirs.push(outDir);

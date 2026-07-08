@@ -22,7 +22,7 @@ function buildEffectiveConfig(argv: string[]) {
   return config;
 }
 
-describe("selected-check/profile consistency guard (v0.2.2 Batch 6)", () => {
+describe("selected-check/profile consistency guard (Batch 6)", () => {
   it("no --profile and no --checks preserves current default behavior", () => {
     const config = buildEffectiveConfig([]);
     expect(config.checks).toEqual([...DEFAULT_SECURITY_CHECKS]);

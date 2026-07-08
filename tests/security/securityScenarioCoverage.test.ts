@@ -20,7 +20,7 @@ function fakeTarget(): SecurityValidationTarget {
   };
 }
 
-describe("all 9 supported --checks ids have expected implementation coverage (v0.2.2 Batch 6)", () => {
+describe("all 9 supported --checks ids have expected implementation coverage (Batch 6)", () => {
   it("SECURITY_CHECK_IDS has exactly 9 ids: 5 implemented check-group + 4 attack-scenario", () => {
     expect(SECURITY_CHECK_IDS.length).toBe(9);
     expect(IMPLEMENTED_SECURITY_CHECK_IDS.length).toBe(5);

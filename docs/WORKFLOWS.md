@@ -323,7 +323,7 @@ Remember:
 
 ## Workflow 12: Default code-rot audit
 
-Use this workflow to run the implemented audit framework (`v0.3.0`, implemented in the current development branch; not yet released or published) against my-dev-kit-lab itself. This is not the same as `security:validate`, it is not a pre-release readiness check, and it does not auto-fix anything — it surfaces heuristic, conservative candidate findings for review.
+Use this workflow to run the implemented audit framework (package.json now specifies version `v0.3.0`; release-prepared but not yet released or published to npm) against my-dev-kit-lab itself. This is not the same as `security:validate`, it is not a pre-release readiness check, and it does not auto-fix anything — it surfaces heuristic, conservative candidate findings for review.
 
 ```bash
 npm run audit

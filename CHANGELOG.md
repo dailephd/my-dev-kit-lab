@@ -2,9 +2,9 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased] - v0.3.0 audit framework (in progress, not published)
+## [0.3.0] - Unreleased (release-prepared; not yet published to npm)
 
-Generic audit framework and code-rot detector, implemented in the current development branch's working tree. Not yet committed as a release, not tagged, and not published to npm.
+Generic audit framework and code-rot detector. package.json now specifies version `0.3.0`. Not yet committed as a release, not tagged, and not published to npm.
 
 ### Added
 
@@ -17,12 +17,18 @@ Generic audit framework and code-rot detector, implemented in the current develo
 - Added external-target-safe report writing: audits against a local target project do not modify target files; generated reports stay under the tool root's `reports/audits/` unless `--out` redirects them.
 - Added integration hardening and regression test coverage under `tests/audits/` and `tests/audits/codeRot/` (CLI options, target resolution, inventory, source-of-truth, detectors, report schema/writer, fail-on behavior, external targets, self-audit smoke, detector-error hardening).
 - Kept the audit framework and `security:validate` independent: `npm run audit` does not call `security:validate`, and `security:validate` does not call the audit framework.
+- Validated cross-platform behavior on the latest Node.js LTS-adjacent release (v26.4.0) across Windows, Linux, and macOS.
+
+### Fixed
+
+- Fixed a test flake in `securityProfileSelectionIntegration.test.ts`.
+- Fixed a cross-platform bug in `resolveCommand` (`src/core`): the POSIX branch never checked `PATH` for a matching executable, so `security:validate` could falsely report a blocker on Linux/macOS when optional static-analysis tools (e.g. Semgrep) were absent from expected locations but present on `PATH`.
 
 ### Limitations
 
 - Only the `code-rot` audit type is implemented. `quality`, `security`, `project`, and `all` audit types are recognized as valid `--types` identifiers but are rejected with a clear message and exit code `2` rather than running.
 - Audit findings are heuristic and conservative; they are candidates for review, not proof of a defect.
-- This entry does not represent a published release. No version bump, tag, or npm publish has occurred for this work.
+- This entry does not represent a published release. Version bump to `0.3.0` has occurred in package.json, but no tag or npm publish has occurred for this work.
 
 ## [0.2.2] - 2026-07-07
 

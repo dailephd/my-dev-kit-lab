@@ -2,7 +2,7 @@
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework (code-rot audit type only) is implemented in the current development branch's working tree; it has not been released or published yet.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework (code-rot audit type only) is implemented; package.json now specifies version `v0.3.0`, which is release-prepared but has not been released or published to npm yet.
 
 ### Module map
 
@@ -143,7 +143,7 @@ Optional local tools can be reported as skipped; absence alone does not make the
 
 ## Audit framework architecture
 
-`src/audits/` is the implemented generic project-audit framework (v0.3.0, working-tree state, not yet released). It is a separate framework from experiments and from automated security validation; it does not call `security:validate` and `security:validate` does not call it. Only the `code-rot` audit type is implemented. `quality`, `security`, `project`, and `all` audit types remain planned — supplying them to `--types` fails cleanly with exit code 2 and a clear message rather than running.
+`src/audits/` is the implemented generic project-audit framework (package.json now at v0.3.0; release-prepared, not yet published to npm). It is a separate framework from experiments and from automated security validation; it does not call `security:validate` and `security:validate` does not call it. Only the `code-rot` audit type is implemented. `quality`, `security`, `project`, and `all` audit types remain planned — supplying them to `--types` fails cleanly with exit code 2 and a clear message rather than running.
 
 ```mermaid
 flowchart LR

@@ -74,3 +74,8 @@ agents.txt
 CLAUDE.md
 claude.txt
 project_tree.txt
+
+.junie/
+
+# Generated npm pack --dry-run transcript (not source, not tracked).
+pack_files.txt
