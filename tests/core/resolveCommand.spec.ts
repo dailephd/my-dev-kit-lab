@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -20,6 +20,21 @@ function makeBin(files: string[]): string {
   return dir;
 }
 
+// Like makeBin, but sets the POSIX executable bit on every created file.
+// Required for any fixture that resolveCommand's POSIX branch should treat
+// as "found" -- a real POSIX shell (and this repo's resolveCommand, which
+// checks X_OK, not just file existence) will not execute a non-executable
+// regular file, and writeFileSync's default mode (0o644) is not executable.
+// chmodSync is a documented no-op-ish call on Windows filesystems (NTFS has
+// no POSIX exec bit), so this helper is safe to call regardless of host OS.
+function makePosixExecutableBin(files: string[]): string {
+  const dir = makeBin(files);
+  for (const file of files) {
+    chmodSync(path.join(dir, file), 0o755);
+  }
+  return dir;
+}
+
 describe("resolveCommand", () => {
   it("resolves non-Windows direct commands without shell behavior", () => {
     // Uses a controlled fake PATH (an extensionless "node" file, matching
@@ -30,7 +45,7 @@ describe("resolveCommand", () => {
     // which host OS is actually running it, which is exactly the mismatch
     // that caused a real cross-platform bug (see the "unavailable"/"exists"
     // tests below).
-    const bin = makeBin(["node"]);
+    const bin = makePosixExecutableBin(["node"]);
     const result = resolveCommand("node", { platform: "linux", env: { PATH: bin } });
     expect(result.command).toBe("node");
     expect(result.argsPrefix).toEqual([]);
@@ -98,21 +113,31 @@ describe("resolveCommand", () => {
     expect(result.warnings[0]).toContain("not found");
   });
 
-  it("resolves a non-Windows absolute path that exists and is executable", async () => {
+  it("resolves a non-Windows absolute path that exists and is executable", () => {
     const dir = mkdtempSync(path.join(os.tmpdir(), "resolver-posix-abs-"));
     tempDirs.push(dir);
     const binPath = path.join(dir, "fake-tool");
     writeFileSync(binPath, "#!/bin/sh\necho shim\n", "utf8");
-    try {
-      await import("node:fs/promises").then((fsp) => fsp.chmod(binPath, 0o755));
-    } catch {
-      // chmod is a no-op on some Windows filesystems; the executable-bit
-      // check below only matters on a real POSIX host.
-    }
+    chmodSync(binPath, 0o755);
     const result = resolveCommand(binPath, { platform: "linux" });
-    expect(result.resolutionKind === "direct" || result.resolutionKind === "unavailable").toBe(true);
-    if (result.resolutionKind === "direct") {
-      expect(result.resolvedPath).toBe(binPath);
-    }
+    expect(result.resolutionKind).toBe("direct");
+    expect(result.resolvedPath).toBe(binPath);
   });
+
+  // NTFS does not enforce a POSIX executable bit the way ext4/APFS do, so
+  // chmod 0o644 does not actually make a file non-executable when this
+  // suite runs on a real Windows host -- only meaningful (and only run) on
+  // a real POSIX filesystem, regardless of the simulated `platform` option.
+  it.skipIf(process.platform === "win32")(
+    "returns unavailable for a non-Windows absolute path that exists but is not executable",
+    () => {
+      const dir = mkdtempSync(path.join(os.tmpdir(), "resolver-posix-noexec-"));
+      tempDirs.push(dir);
+      const filePath = path.join(dir, "not-a-binary.txt");
+      writeFileSync(filePath, "just some text\n", "utf8");
+      chmodSync(filePath, 0o644);
+      const result = resolveCommand(filePath, { platform: "linux" });
+      expect(result.resolutionKind).toBe("unavailable");
+    }
+  );
 });
