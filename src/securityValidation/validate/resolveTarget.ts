@@ -31,7 +31,18 @@ export function resolveValidationTarget(
 // Returns the prefix to use for report filenames based on target metadata.
 // For self-validation: "v<version>" (preserves existing behavior).
 // For external targets: "<sanitized-name>-v<version>" or "<sanitized-dirname>".
-export function reportFilenamePrefix(target: SecurityValidationTarget): string {
+//
+// v0.3.2 Batch 4 — the parameter type is deliberately narrowed to a Pick of
+// SecurityValidationTarget (rather than the full type) so the audit security
+// adapter (src/audits/security/securityAuditAdapter.ts) can call this with a
+// plain object built from a SecurityValidationSummary (which carries these
+// same four fields but isn't itself a SecurityValidationTarget) instead of
+// re-resolving the target a second time. Every existing caller already passes
+// a full SecurityValidationTarget, which satisfies this narrower type
+// unchanged.
+export function reportFilenamePrefix(
+  target: Pick<SecurityValidationTarget, "isSelf" | "packageName" | "packageVersion" | "targetRoot">
+): string {
   if (target.isSelf && target.packageVersion) {
     return `v${target.packageVersion}`;
   }

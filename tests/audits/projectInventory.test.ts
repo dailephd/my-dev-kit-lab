@@ -354,6 +354,123 @@ describe("scanProjectInventory — normalized file-role classification", () => {
   });
 });
 
+describe("scanProjectInventory — Python file/role classification (Batch 1)", () => {
+  it("classifies .py source files as language python and role source", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/lib.py", "x = 1\n");
+      const inventory = scanProjectInventory(root);
+      const entry = inventory.files.find((f) => f.relativePath === "src/lib.py");
+      expect(entry?.language).toBe("python");
+      expect(entry?.category).toBe("source");
+      expect(entry?.role).toBe("source");
+      expect(inventory.filesByLanguage.python).toBeGreaterThan(0);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not disturb existing TypeScript/JavaScript classification alongside Python files", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/lib.py", "x = 1\n");
+      writeFile(root, "src/index.ts", "export const x = 1;\n");
+      const inventory = scanProjectInventory(root);
+      expect(inventory.files.find((f) => f.relativePath === "src/index.ts")?.language).toBe("typescript");
+      expect(inventory.filesByLanguage.typescript).toBeGreaterThan(0);
+      expect(inventory.filesByLanguage.python).toBeGreaterThan(0);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("classifies tests/**/*.py and test/**/*.py as role test", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "tests/test_widget.py", "def test_ok():\n    assert True\n");
+      writeFile(root, "test/test_other.py", "def test_ok():\n    assert True\n");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+      expect(roleOf("tests/test_widget.py")).toBe("test");
+      expect(roleOf("test/test_other.py")).toBe("test");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("classifies test_*.py and *_test.py naming conventions outside a tests/ directory as role test", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/test_widget.py", "def test_ok():\n    assert True\n");
+      writeFile(root, "src/widget_test.py", "def test_ok():\n    assert True\n");
+      writeFile(root, "src/widget.py", "def util():\n    return 1\n");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+      expect(roleOf("src/test_widget.py")).toBe("test");
+      expect(roleOf("src/widget_test.py")).toBe("test");
+      // A normal source file that merely contains "test" mid-name (not the
+      // test_*.py / *_test.py convention) must remain a plain source file.
+      expect(roleOf("src/widget.py")).toBe("source");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not misclassify a non-Python file merely for matching test_*/*_test naming", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/test_widget.ts", "export const x = 1;\n");
+      const inventory = scanProjectInventory(root);
+      // The Python-specific test_*.py/*_test.py conventions are gated to
+      // .py -- a .ts file with the same naming shape is unaffected and
+      // still governed only by the existing .test./.spec. TS/JS convention.
+      expect(inventory.files.find((f) => f.relativePath === "src/test_widget.ts")?.role).toBe("source");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("classifies recognized Python project/config metadata filenames as role config", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "pyproject.toml", "[project]\nname = \"fixture\"\n");
+      writeFile(root, "requirements.txt", "requests==2.0.0\n");
+      writeFile(root, "setup.py", "from setuptools import setup\nsetup(name='fixture')\n");
+      writeFile(root, "setup.cfg", "[metadata]\nname = fixture\n");
+      writeFile(root, "tox.ini", "[tox]\nenvlist = py311\n");
+      writeFile(root, "pytest.ini", "[pytest]\n");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+      const categoryOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.category;
+
+      for (const name of ["pyproject.toml", "requirements.txt", "setup.py", "setup.cfg", "tox.ini", "pytest.ini"]) {
+        expect(roleOf(name)).toBe("config");
+        expect(categoryOf(name)).toBe("config");
+      }
+      // setup.py must not be classified as a plain Python source file.
+      expect(categoryOf("setup.py")).not.toBe("source");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not overclassify an arbitrary .toml/.ini/.txt file as Python project metadata", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "notes.txt", "just some notes\n");
+      writeFile(root, "settings.ini", "[x]\n");
+      writeFile(root, "other.toml", "[x]\n");
+      const inventory = scanProjectInventory(root);
+      const categoryOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.category;
+      expect(categoryOf("notes.txt")).not.toBe("config");
+      expect(categoryOf("settings.ini")).not.toBe("config");
+      expect(categoryOf("other.toml")).not.toBe("config");
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("scanProjectInventory — determinism", () => {
   it("returns files in stable, sorted order across repeated scans", () => {
     const root = buildFixtureProject();

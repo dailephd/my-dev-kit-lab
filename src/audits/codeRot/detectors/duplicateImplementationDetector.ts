@@ -2,7 +2,12 @@ import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegist
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { DeclarationFactKind } from "../../core/sourceFacts.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
-import { firstPathSegment, GENERIC_DECLARATION_NAMES, GENERIC_INFRA_BASENAMES, baseNameNoExt } from "../utils/filePatternUtils.js";
+import {
+  firstPathSegment,
+  GENERIC_INFRA_BASENAMES,
+  baseNameNoExt,
+  isGenericOrTestPrefixedDeclarationName,
+} from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 import { indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 
@@ -243,12 +248,12 @@ function firstTopLevelUnderSrc(relativePath: string): string | null {
 // (function/class/interface/type/enum) -- "variable"/"constant"/"method"/
 // "unknown" are excluded as too noisy (methods repeat across unrelated
 // classes by convention; module-scope variables/constants repeat even more
-// often). Generic declaration names (run, init, handler, ...) are excluded
-// via GENERIC_DECLARATION_NAMES for the same reason
-// GENERIC_INFRA_BASENAMES excludes generic file basenames above. Requires
-// ctx.sourceFacts -- returns no issues when it is absent (e.g. existing
-// detector unit tests that build a literal AuditDetectorContext without
-// it), so this check is purely additive.
+// often). Generic/lifecycle declaration names (run, init, handler, __init__,
+// test_*, ...) are excluded via isGenericOrTestPrefixedDeclarationName() for
+// the same reason GENERIC_INFRA_BASENAMES excludes generic file basenames
+// above. Requires ctx.sourceFacts -- returns no issues when it is absent
+// (e.g. existing detector unit tests that build a literal
+// AuditDetectorContext without it), so this check is purely additive.
 const NOISY_DECLARATION_KINDS = new Set<DeclarationFactKind>(["variable", "constant", "method", "unknown"]);
 
 function findDuplicateDeclarationCandidates(ctx: AuditDetectorContext): AuditIssue[] {
@@ -264,9 +269,24 @@ function findDuplicateDeclarationCandidates(ctx: AuditDetectorContext): AuditIss
       if (!decl.exported) continue;
       if (NOISY_DECLARATION_KINDS.has(decl.kind)) continue;
       const nameLower = decl.name.toLowerCase();
-      if (GENERIC_DECLARATION_NAMES.has(nameLower)) continue;
+      if (isGenericOrTestPrefixedDeclarationName(nameLower)) continue;
 
-      const key = `${decl.kind}:${nameLower}`;
+      // v0.3.2 Batch 2 -- the key is scoped by `facts.analyzerId` (not
+      // `facts.language`) so a Python declaration is only ever compared
+      // against other Python declarations, never against a same-named
+      // TypeScript/JavaScript one. `analyzerId`, not `language`, is the
+      // right scope here: TypeScript and JavaScript are two different
+      // NormalizedLanguage values but share one analyzer
+      // (typescript-javascript-analyzer) and were already compared together
+      // before this batch -- scoping by `language` instead would have
+      // silently split that existing, still-desired TS/JS pairing in two
+      // (each side then below the "2+ files" threshold, so both would be
+      // dropped entirely), which is exactly the "preserve existing
+      // TypeScript/JavaScript duplicate behavior" regression this batch
+      // must not introduce. Scoping by `analyzerId` fixes the real
+      // cross-language bug (Python vs TS/JS) without touching TS/JS's own
+      // existing behavior at all.
+      const key = `${facts.analyzerId}:${decl.kind}:${nameLower}`;
       const entry = byKey.get(key) ?? { name: decl.name, kind: decl.kind, paths: new Set<string>() };
       entry.paths.add(facts.relativePath);
       byKey.set(key, entry);

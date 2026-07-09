@@ -2,9 +2,40 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.3.2] - Release prepared
+
+`v0.3.2` is release-prepared: Python code-rot support and a first security-validation audit adapter are implemented on top of the published `v0.3.1` baseline. Package metadata is now bumped for release preparation; publication has not happened yet.
+
+### Added
+
+- Added a dependency-free Python source-facts analyzer (`src/audits/core/pythonAnalyzer.ts`) that extracts imports (including relative dotted imports), `__all__`, and module-level/class-body declarations from `.py` files, registered in the language analyzer registry alongside the existing TypeScript/JavaScript analyzer.
+- Added Python project/config metadata collection (`src/audits/core/pythonProjectMetadata.ts`): presence detection for `pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `tox.ini`, and `pytest.ini`, plus a best-effort project name and pytest-configuration flag. Never executes Python/pip/pytest/tox tooling.
+- Added Python-aware signals to the existing `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` code-rot detectors, using an analyzer-id-scoped grouping key so the pre-existing TypeScript/JavaScript duplicate-declaration grouping is unaffected.
+- Added `sourceFacts.filesWithDiagnosticsCount` to the audit report's source-facts summary — a language-agnostic count of analyzed files carrying at least one per-file diagnostic.
+- Added `pythonProjectMetadata` as a top-level audit report field (JSON and text), populated unconditionally alongside `sourceFacts`.
+- Added the security-validation audit adapter (`src/audits/security/securityAuditAdapter.ts`, `mapSecurityFindingToAuditIssue.ts`, `securityAuditTypes.ts`): `npm run audit -- --types security` and `npm run audit -- --types code-rot,security` now run security validation through the shared audit/report surface by calling `runSecurityValidation()` directly (no shelling out to `security:validate`, no console-text parsing).
+- Added `securitySummary` as a top-level audit report field (JSON and text): verdict, check counts by status, finding counts by severity, mapped-issue count, and paths to the original `reports/security/*.txt`/`*.json` report.
+- Added mapping of `SecurityFinding` results into audit-issue-shaped entries (`auditType: "security"`), preserving severity (blocker/major/minor/informational → blocker/high/medium/info), affected files, recommendation text, and release/implementation-blocking semantics. Skipped optional security checks never appear as issues or as a passed result.
+- `security` is now an implemented `--types` value (`IMPLEMENTED_AUDIT_TYPES`), deliberately kept out of `DEFAULT_AUDIT_TYPES` so a default, no-flag `npm run audit` run is unchanged (still `code-rot` only).
+
+### Changed
+
+- Extracted the `SecurityReport`-object-assembly step out of `scripts/security/validate.ts` into `src/securityValidation/report/buildSecurityReport.ts` so the audit adapter can reuse it without duplicating logic. Output of `security:validate` is unchanged.
+- Widened `reportFilenamePrefix()`'s parameter type to a narrow `Pick<SecurityValidationTarget, ...>` so the audit adapter can call it without re-resolving the validation target a second time. All existing callers are unaffected.
+
+### Compatibility and limitations
+
+- `npm run security:validate` (self and `--target <path>`) is unchanged — verified against the full existing security test suite plus a live smoke run.
+- `npm run audit -- --types code-rot` is unchanged.
+- The audit report's top-level schema grows from 14 fields (`v0.3.1`) to 16 fields: `pythonProjectMetadata` and `securitySummary` are additive; `schemaVersion` stays `"1.0"`.
+- Python static analysis remains conservative: regex/line-based, dependency-free, single-file. It does not perform Python runtime execution, type checking, dependency resolution, or cross-file call-graph analysis. `references` are intentionally left empty for Python (no call/identifier tracking).
+- Java and Kotlin remain fallback-only; no analyzer is registered for them.
+- `quality`, `project`, and `all` audit types remain planned; `--types quality`/`project`/`all` still fail cleanly with exit code 2.
+- The security audit adapter runs the same default check groups `security:validate` uses with no flags (`deps`, `package`, `static`, `cli-adversarial`, `fuzz`); there is no `--checks`/`--profile` passthrough on the `audit` command.
+
 ## [0.3.1] - 2026-07-09
 
-Language-aware code-rot substrate plus TypeScript/JavaScript support. This version is release-prepared but is not published.
+Language-aware code-rot substrate plus TypeScript/JavaScript support. Published.
 
 ### Added
 
@@ -35,7 +66,7 @@ Language-aware code-rot substrate plus TypeScript/JavaScript support. This versi
 
 ## [0.3.0] - Published
 
-Generic audit framework and code-rot detector. `v0.3.0` is the current published baseline.
+Generic audit framework and code-rot detector. Published; superseded by `v0.3.1` as the current published baseline.
 
 ### Added
 

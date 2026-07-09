@@ -217,10 +217,175 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — source-facts-derived reference eviden
   });
 });
 
+describe("DEAD_CODE_CANDIDATE_DETECTOR — Python declaration candidates (Batch 2)", () => {
+  it("T2: flags an unreferenced module-level Python function/class as a low-confidence candidate, never as a proof-worded claim", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/widget.py", ["def unreferenced_fn():", "    return 1", "", "class UnreferencedClass:", "    pass"].join("\n") + "\n");
+      const issues = await runWithSourceFacts(root);
+      const fnIssue = issues.find((i) => i.title.includes('"unreferenced_fn"'));
+      const classIssue = issues.find((i) => i.title.includes('"UnreferencedClass"'));
+      expect(fnIssue).toBeDefined();
+      expect(classIssue).toBeDefined();
+      for (const issue of [fnIssue, classIssue]) {
+        expect(issue?.severity).toBe("info");
+        expect(issue?.confidence).toBe("low");
+        expect(issue?.falsePositiveRisk).toBe("high");
+        // Conservative wording requirement -- never claim the symbol is
+        // definitely unused/dead.
+        expect(issue?.title.toLowerCase()).not.toContain("is unused");
+        expect(issue?.title.toLowerCase()).not.toContain("is dead");
+        expect(issue?.description.toLowerCase()).not.toContain("definitely unreferenced");
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag a declaration that is imported elsewhere", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/widget.py", "def referenced_fn():\n    return 1\n");
+      writeFile(root, "src/consumer.py", "from src.widget import referenced_fn\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"referenced_fn"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag a declaration listed in __all__", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/widget.py", ["__all__ = [\"public_fn\"]", "", "def public_fn():", "    return 1"].join("\n") + "\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"public_fn"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag a leading-underscore (private-convention) declaration", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/widget.py", "def _private_fn():\n    return 1\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"_private_fn"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag any declaration in __init__.py", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/pkg/__init__.py", "def unreferenced_fn():\n    return 1\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"unreferenced_fn"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag a test file's declarations", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/test_widget.py", "def helper_fn():\n    return 1\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"helper_fn"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag common lifecycle/entry-point names (main, run, handler, setup, teardown, __init__, __call__, test_*)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/widget.py",
+        [
+          "def main():",
+          "    pass",
+          "",
+          "def run():",
+          "    pass",
+          "",
+          "def handler():",
+          "    pass",
+          "",
+          "def setup():",
+          "    pass",
+          "",
+          "def teardown():",
+          "    pass",
+          "",
+          "def test_something():",
+          "    pass",
+          "",
+          "class Widget:",
+          "    def __init__(self):",
+          "        pass",
+          "    def __call__(self):",
+          "        pass",
+        ].join("\n") + "\n"
+      );
+      const issues = await runWithSourceFacts(root);
+      for (const name of ["main", "run", "handler", "setup", "teardown", "test_something"]) {
+        expect(issues.some((i) => i.title.includes(`"${name}"`))).toBe(false);
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a class method (conservative -- no method-level dead-code evidence for any language)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/widget.py", "class Widget:\n    def unreferenced_method(self):\n        return 1\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"unreferenced_method"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag anything when sourceFacts is absent from the detector context", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/widget.py", "def unreferenced_fn():\n    return 1\n");
+      const issues = await run(root); // buildContext() with no sourceFacts field
+      expect(issues.some((i) => i.title.includes('"unreferenced_fn"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("DEAD_CODE_CANDIDATE_DETECTOR — real self-scan regression guard", () => {
   it("produces no medium+ severity findings against this repo's own current state", async () => {
     const issues = await run(process.cwd());
     const nonInfoLow = issues.filter((i) => i.severity !== "info" && i.severity !== "low");
     expect(nonInfoLow).toEqual([]);
+  });
+
+  // v0.3.2 Batch 2 -- the test above uses run() (no sourceFacts), which
+  // never exercises findPossiblyUnreferencedPythonDeclarations() against
+  // this repo's real Python fixtures (benchmarks/projects/*/py, todo-python,
+  // etc.). This is the real regression guard for that check.
+  it("keeps Python declaration candidates at info/low against this repo's own real source facts", async () => {
+    const issues = await runWithSourceFacts(process.cwd());
+    const pythonDeclIssues = issues.filter((i) => i.id.startsWith(`${"dead-code-candidate"}:unreferenced-python-declaration:`));
+    expect(pythonDeclIssues.every((i) => i.severity === "info")).toBe(true);
+    expect(pythonDeclIssues.every((i) => i.confidence === "low")).toBe(true);
   });
 });

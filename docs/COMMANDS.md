@@ -136,7 +136,7 @@ Current behavior:
 
 ## Audit commands
 
-The generic audit framework is implemented in the current published `v0.3.0` baseline. It is separate from `security:validate`.
+The generic audit framework is implemented. `code-rot` was implemented in `v0.3.0`; `security` is implemented in the checked-out `v0.3.2` release-prepared package state. The audit framework is separate from `security:validate`: `npm run audit -- --types security` adapts `security:validate`'s internals and report family into the audit report surface, but does not replace the standalone `security:validate` command.
 
 Current implemented command:
 
@@ -153,14 +153,15 @@ Current options:
 - `--fail-on blocker|high|medium|low|none`
 - `--out <path>`
 
-Current implemented audit type:
+Current implemented audit types:
 
 - `code-rot`
+- `security`
+- `code-rot,security` (combined; comma-separated multi-type selection)
 
 Current planned-but-not-implemented audit types:
 
 - `quality`
-- `security`
 - `project`
 - `all`
 
@@ -170,28 +171,42 @@ Examples:
 npm run audit
 npm run audit -- --types code-rot --fail-on none
 npm run audit -- --target /path/to/local/project --types code-rot --include docs,tests,package,architecture,cli
+npm run audit -- --types security --fail-on none
+npm run audit -- --target /path/to/local/project --types security --fail-on none
+npm run audit -- --types code-rot,security --fail-on none
+npm run audit -- --target /path/to/local/project --types code-rot,security --fail-on none
 ```
 
 ```powershell
 npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot,security --fail-on none
 ```
 
 Current behavior:
 
-- only `code-rot` runs today
-- `quality`, `security`, `project`, and `all` are recognized but fail cleanly instead of running
+- `code-rot` and `security` run today; `quality`, `project`, and `all` are recognized but fail cleanly instead of running
+- the default, no-flag `npm run audit` run is unchanged — it still runs `code-rot` only; `security` must be explicitly requested via `--types`
 - audit findings are heuristic candidates, not proof of defects
 - target files are not modified
 - audit does not auto-fix issues
-- reports are written under `reports/audits/code-rot/` by default as `code-rot-audit.txt` and/or `code-rot-audit.json`
-- the release-prepared `v0.3.1` package state adds source-facts summaries to audit reports without adding command flags
+- reports are written under `reports/audits/<type>/code-rot-audit.txt` and/or `code-rot-audit.json` by default (the report filename is fixed regardless of `--types`; only the containing directory changes, e.g. `reports/audits/security/` for `--types security`)
+- the `v0.3.1` package state added source-facts summaries to audit reports; the checked-out `v0.3.2` release-prepared state adds Python project metadata and the security summary described below, without adding new command flags
 
-Release-prepared `v0.3.1` report details:
+`v0.3.1` report details (published):
 
-- JSON reports include a top-level `sourceFacts` summary with `totalFilesAnalyzed`, `filesByLanguage`, `filesByParseStatus`, `analyzerDiagnosticCount`, and `warnings`.
+- JSON reports include a top-level `sourceFacts` summary with `totalFilesAnalyzed`, `filesByLanguage`, `filesByParseStatus`, `analyzerDiagnosticCount`, `filesWithDiagnosticsCount`, and `warnings`.
 - Text reports include a `Source facts` section with analyzed-file and parse-status counts.
 - Source-facts-derived issue evidence is still conservative candidate evidence. It can mention parsed TypeScript/JavaScript imports, exports, declarations, dynamic imports, or duplicate declaration candidates.
 - TypeScript/JavaScript source facts are syntax-only and single-file; they do not imply type-checking, full module resolution, `tsconfig` path alias resolution, runtime reachability, clone detection, or coverage analysis.
+
+Checked-out `v0.3.2` report details (release-prepared, not published):
+
+- JSON/text reports include a top-level `pythonProjectMetadata` field: presence booleans for `pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `tox.ini`, `pytest.ini`, plus a best-effort project name and a pytest-configuration flag. Populated (all-false/null where absent) regardless of `--types`.
+- Source-facts-derived evidence can also mention parsed Python imports, `__all__`, and module/class-level declarations. Python static analysis is regex/line-based and dependency-free; it does not execute Python, perform type checking, or resolve dependencies.
+- Running `--types security` (or `--types code-rot,security`) adds a top-level `securitySummary` field: `ran`, `verdict`/`verdictLabel`/`recommendedNextStep`, check counts (`totalChecks`/`checksPassed`/`checksWarning`/`checksFailed`/`checksSkipped`), `findingCounts` (`blocker`/`major`/`minor`/`informational`), `mappedIssueCount`, and `reportPaths` (`text`/`json`) pointing at the original `reports/security/*.txt`/`*.json` report. `securitySummary.ran` is `false` (all other fields null/zero) when `security` was not selected.
+- Security findings are mapped into the `issues` array with `auditType: "security"` and `detectorId: "security-validation-adapter"`. Severity maps blocker→blocker, major→high, minor→medium, informational→info. Skipped optional security checks (e.g. an unavailable static-scan tool) are represented only in `securitySummary`'s check counts — never as an issue, never as a passed check.
+- The security audit adapter runs the same default check groups `security:validate` runs with no flags (`deps`, `package`, `static`, `cli-adversarial`, `fuzz`); there is currently no `--checks`/`--profile` passthrough on the `audit` command itself.
 
 ## Planned command direction
 
@@ -207,8 +222,8 @@ Planned `v0.4.0` direction:
 - `npm run security:validate -- --target <path> --profile android`
 - `npm run security:validate -- --target <path> --profile android-compose`
 
-Planned optional `v0.4.2` direction:
+Planned optional `v0.4.2` direction (Android-specific extension of the already-implemented `--types security` adapter):
 
 - `npm run audit -- --target <path> --types security --profile android`
 
-There is currently no `npm run audit:all`, `npm run audit:quality`, `npm run audit:security`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script.
+There is currently no `--profile` flag on `npm run audit` (the security audit adapter always uses `security:validate`'s no-flag default check selection), and no `npm run audit:all`, `npm run audit:quality`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script.

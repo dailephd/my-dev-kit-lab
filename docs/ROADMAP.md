@@ -1,17 +1,17 @@
 # Roadmap
 
-This roadmap separates the current published baseline from release-prepared work, in-progress work, and planned work. A version listed here is not implemented unless its status says completed, current, or release-prepared.
+This roadmap separates the current published baseline from release-prepared work, in-progress work, and planned work. A version listed here is not implemented unless its status says completed, current, in progress, or release-prepared.
 
-`v0.3.0` is the current published baseline.
+`v0.3.1` is the current published baseline. `v0.3.2` is release-prepared on top of it (version-bumped, not yet published).
 
 ## Version sequence
 
 ```mermaid
 flowchart LR
   A[v0.2.0<br/>plugin framework] --> B[v0.2.2<br/>security-validation fortification]
-  B --> C[v0.3.0<br/>current published baseline]
-  C --> D[v0.3.1<br/>language-aware code-rot substrate + TS/JS]
-  D --> E[v0.3.2<br/>Python code-rot]
+  B --> C[v0.3.0<br/>generic audit framework]
+  C --> D[v0.3.1<br/>current published baseline: language-aware code-rot substrate + TS/JS]
+  D --> E[v0.3.2<br/>release-prepared: Python code-rot + first security audit adapter]
   E --> F[v0.3.3<br/>Java/Kotlin code-rot]
   F --> G[v0.3.4<br/>cross-language stability]
   G --> H[v0.4.0<br/>Android validation MVP]
@@ -63,7 +63,7 @@ Out of scope:
 ### v0.3.0 - generic audit framework and code-rot baseline
 
 Status:
-- current
+- completed; superseded by `v0.3.1` as the current published baseline
 
 Purpose:
 - Add the generic audit framework and the first implemented audit family, code rot.
@@ -92,7 +92,7 @@ Framework-aware code rot remains future/TBD after the language-aware track is st
 ### v0.3.1 - language-aware code-rot substrate + TypeScript/JavaScript support
 
 Status:
-- release-prepared; not published
+- completed; current published baseline
 
 Purpose:
 - Add the reusable language-aware substrate for code-rot detectors and prove it with TypeScript and JavaScript support.
@@ -122,28 +122,32 @@ Out of scope:
 - TypeScript Program semantic analysis, type checking, full module resolution, `tsconfig` path alias resolution, coverage analysis, clone detection, or runtime reachability proof
 - manual pentest
 
-### v0.3.2 - Python code-rot support
+### v0.3.2 - Python code-rot support + first security audit adapter
 
 Status:
-- planned
+- release-prepared; implemented on top of the published `v0.3.1` baseline (version-bumped, not yet published)
 
 Purpose:
 - Add Python-aware code-rot detection using the language-aware substrate from `v0.3.1`.
+- By explicit scope expansion, also pull in a first, general (non-Android-specific) security-validation audit adapter, originally anticipated as part of the `v0.4.2` Android audit bridge track. This is a scope decision, not a roadmap reorganization: `v0.4.2` remains a later, Android-specific extension of the same adapter (see its updated scope below), not a duplicate of this work.
 
 Scope:
 - Python file detection
-- Python source facts for imports, functions, classes, top-level symbols, and module structure where deterministic and feasible
-- Python package/project metadata detection from common Python project files
+- Python source facts for imports, functions, classes, top-level symbols, and module structure where deterministic and feasible (implemented as a dependency-free regex/line-based analyzer; no Python runtime, no third-party parser)
+- Python package/project metadata detection from common Python project files (`pyproject.toml`, `requirements.txt`, `setup.py`/`setup.cfg`, `tox.ini`, `pytest.ini`)
 - pytest-style test mapping
-- Python dead-code, duplicate implementation, test-rot, docs/code mismatch, and package/environment mismatch support
+- Python dead-code and duplicate-implementation candidate signals, and Python-aware test-rot missing-import detection
 - safe degraded behavior when Python parsing is unavailable or incomplete
+- a security-validation audit adapter (`src/audits/security/`) making `security` the second implemented audit type: `npm run audit -- --types security`, `npm run audit -- --types code-rot,security`, a `securitySummary` audit report field, security findings mapped into the audit issue list, and preservation of the original `reports/security/` output and the standalone `security:validate` command
 
 Out of scope:
 - Java/Kotlin support
 - Android validation
 - framework-aware profiles
 - code quality detector family
-- security audit integration
+- Python docs/code mismatch and package/environment mismatch detector extensions (deferred; not part of this batch's implemented scope)
+- an Android-specific security audit profile/extension (remains `v0.4.2`, described below)
+- project-wide combined audit defaults, `--checks`/`--profile` passthrough on `npm run audit`, and cross-audit-type issue deduplication or release-readiness aggregation
 - manual pentest
 
 ### v0.3.3 - Java/Kotlin code-rot support
@@ -258,27 +262,28 @@ Out of scope:
 - automatic fixes
 - non-Android mobile platform expansion unless explicitly planned later
 
-### v0.4.2 - optional Android security audit bridge
+### v0.4.2 - optional Android extension of the security audit adapter
 
 Status:
 - planned
 
 Purpose:
-- Let `npm run audit` summarize Android security validation findings without replacing `security:validate`.
+- Extend the general (non-Android) security-validation audit adapter delivered in `v0.3.2` (`src/audits/security/`, `npm run audit -- --types security`) so it can also summarize Android-specific security-validation findings once Android validation (`v0.4.0`/`v0.4.1`) exists, without replacing `security:validate` or the general adapter.
 
 Scope:
-- Android security report reader
-- mapping Android validation findings into the shared audit issue model
-- linked references to original Android security reports
-- correct representation of skipped checks
-- audit summary for Android validation status
-- planned Android security audit command direction after the bridge exists
+- Android-aware handling in the existing security audit adapter (or a narrow Android-specific extension of it), reusing the `v0.3.2` mapping/report-summary machinery rather than a new parallel adapter
+- mapping Android validation findings into the shared audit issue model via the same `SecurityFinding -> AuditIssue` path
+- linked references to original Android security reports, consistent with how the `v0.3.2` adapter links to `reports/security/`
+- correct representation of skipped Android checks
+- audit summary for Android validation status alongside the existing `securitySummary` field
+- planned Android security audit command direction (e.g. `--profile android` passthrough) after this exists
 
 Out of scope:
 - manual pentest
 - project-wide combined audit default behavior unless separately planned
 - automatic fixes
-- replacing `security:validate`
+- replacing `security:validate` or the general `v0.3.2` security audit adapter
+- re-implementing security-finding-to-audit-issue mapping from scratch
 
 ## Stable And Post-Stable Releases
 

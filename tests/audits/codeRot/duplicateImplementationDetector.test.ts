@@ -212,6 +212,126 @@ describe("DUPLICATE_IMPLEMENTATION_DETECTOR — source-facts-derived duplicate d
   });
 });
 
+describe("DUPLICATE_IMPLEMENTATION_DETECTOR — Python duplicate declaration candidates (Batch 2)", () => {
+  it("T4: flags the same exported Python class name parsed in two unrelated source files", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/widget.py", "class WidgetHandler:\n    pass\n");
+      writeFile(root, "src/featureB/widget.py", "class WidgetHandler:\n    pass\n");
+      const issues = await runWithSourceFacts(root);
+      const issue = issues.find((i) => i.title.includes('"WidgetHandler"'));
+      expect(issue).toBeDefined();
+      expect(issue?.category).toBe("duplicate-implementation-candidate");
+      expect(issue?.severity).toBe("info");
+      expect(issue?.confidence).toBe("low");
+      // Conservative wording -- never claim semantic/behavioral equivalence.
+      expect(issue?.description.toLowerCase()).not.toContain("duplicate implementation proof");
+      expect(issue?.description.toLowerCase()).not.toContain("identical behavior");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T4: flags the same exported Python function name parsed in two unrelated source files", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/service.py", "def compute_widget_score():\n    return 1\n");
+      writeFile(root, "src/featureB/service.py", "def compute_widget_score():\n    return 2\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"compute_widget_score"'))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T5: does not create a cross-language duplicate candidate between a Python and a TypeScript declaration with the same name", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/widget.py", "class SharedName:\n    pass\n");
+      writeFile(root, "src/featureB/widget.ts", "export class SharedName {}\n");
+      const issues = await runWithSourceFacts(root);
+      // Only one file declares "SharedName" per language -- since duplicate
+      // detection is now language-scoped, neither the Python nor the
+      // TypeScript declaration should form a cross-language pair, and
+      // within-language there is only one file each, so no finding at all.
+      expect(issues.some((i) => i.title.includes('"SharedName"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T5: does not merge a same-named Python declaration group with a same-named TypeScript group even when both independently have 2+ files", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/pyA/shared.py", "class SharedThing:\n    pass\n");
+      writeFile(root, "src/pyB/shared.py", "class SharedThing:\n    pass\n");
+      writeFile(root, "src/tsA/shared.ts", "export class SharedThing {}\n");
+      writeFile(root, "src/tsB/shared.ts", "export class SharedThing {}\n");
+      const issues = await runWithSourceFacts(root);
+      const sharedThingIssues = issues.filter((i) => i.title.includes('"SharedThing"'));
+      // Two separate candidates (one per language), each affecting exactly
+      // its own language's 2 files -- never one candidate spanning all 4.
+      expect(sharedThingIssues).toHaveLength(2);
+      for (const issue of sharedThingIssues) {
+        expect(issue.affectedFiles).toHaveLength(2);
+        const allPython = issue.affectedFiles.every((f) => f.endsWith(".py"));
+        const allTypeScript = issue.affectedFiles.every((f) => f.endsWith(".ts"));
+        expect(allPython || allTypeScript).toBe(true);
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T6: does not flag common low-signal Python lifecycle names (main, run, handler, setup, teardown, __init__, test_*)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/entry.py", "def main():\n    pass\ndef run():\n    pass\ndef setup():\n    pass\ndef test_thing():\n    pass\n");
+      writeFile(root, "src/featureB/entry.py", "def main():\n    pass\ndef run():\n    pass\ndef setup():\n    pass\ndef test_thing():\n    pass\n");
+      const issues = await runWithSourceFacts(root);
+      for (const name of ["main", "run", "setup", "test_thing"]) {
+        expect(issues.some((i) => i.title.includes(`"${name}"`))).toBe(false);
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("regression: a TypeScript and a JavaScript file with the same exported declaration name still form one candidate, not two dropped single-file groups", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/widget.ts", "export function sharedWidgetFn() { return 1; }\n");
+      writeFile(root, "src/featureB/widget.js", "export function sharedWidgetFn() { return 2; }\n");
+      const issues = await runWithSourceFacts(root);
+      const issue = issues.find((i) => i.title.includes('"sharedWidgetFn"'));
+      expect(issue).toBeDefined();
+      expect(issue?.affectedFiles.sort()).toEqual(["src/featureA/widget.ts", "src/featureB/widget.js"].sort());
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a Python declaration with the same name across more than 4 unrelated files (same 2-4 bound as TS/JS)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      for (const feature of ["featureA", "featureB", "featureC", "featureD", "featureE"]) {
+        writeFile(root, `src/${feature}/widget.py`, "class WidelySharedName:\n    pass\n");
+      }
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"WidelySharedName"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("DUPLICATE_IMPLEMENTATION_DETECTOR — real self-scan regression guard", () => {
   it("produces no findings above info severity against this repo's own current state", async () => {
     const issues = await run(process.cwd());

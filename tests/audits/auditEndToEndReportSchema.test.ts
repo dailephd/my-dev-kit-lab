@@ -66,6 +66,10 @@ const REQUIRED_TOP_LEVEL_KEYS = [
   "inventory",
   "sourceOfTruth",
   "sourceFacts",
+  // v0.3.2 Batch 3 -- 15th top-level field, alongside the existing 14.
+  "pythonProjectMetadata",
+  // v0.3.2 Batch 4 -- 16th top-level field.
+  "securitySummary",
   "detectors",
   "issues",
   "skippedDetectors",
@@ -92,8 +96,10 @@ describe("end-to-end audit report schema — real CLI, real fixture, real disk r
     const raw = fs.readFileSync(jsonPath, "utf8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
 
-    // 1. All 14 top-level fields present, nothing more/less (v0.3.1 Batch 2
-    // adds "sourceFacts" alongside the existing 13).
+    // 1. All 16 top-level fields present, nothing more/less (v0.3.1 Batch 2
+    // added "sourceFacts" to the original 13; v0.3.2 Batch 3 added
+    // "pythonProjectMetadata" as the 15th; v0.3.2 Batch 4 adds
+    // "securitySummary" as the 16th).
     expect(Object.keys(parsed).sort()).toEqual(REQUIRED_TOP_LEVEL_KEYS);
 
     // 2. schemaVersion.

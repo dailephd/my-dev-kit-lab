@@ -77,7 +77,7 @@ Current behavior:
 
 ## Workflow 6: Code-rot audit
 
-Use this workflow for the current implemented audit path. The published `v0.3.0` baseline provides the generic audit framework and code-rot detectors; the release-prepared `v0.3.1` package state adds language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence without adding command flags.
+Use this workflow for the current implemented code-rot audit path. The published `v0.3.0` baseline added the generic audit framework and code-rot detectors; the published `v0.3.1` baseline added language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence; the checked-out `v0.3.2` release-prepared package state adds a Python analyzer and Python-aware candidate evidence to the same detectors, without adding command flags.
 
 ```bash
 npm run audit
@@ -91,10 +91,69 @@ npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code
 
 Current behavior:
 
-- only `code-rot` runs today
+- `code-rot` runs today (this workflow); `security` runs via Workflow 6a below
 - audit is independent from `security:validate`
 - audit findings are heuristic candidates and do not auto-fix anything
-- active-branch source-facts evidence is conservative static-analysis evidence, not proof of dead code, semantic duplicate implementation, complete test coverage, full module resolution, or runtime reachability
+- source-facts evidence (TypeScript/JavaScript and Python) is conservative static-analysis evidence, not proof of dead code, semantic duplicate implementation, complete test coverage, full module resolution, runtime reachability, or (for Python) type-correctness or dependency resolution
+
+Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json` (or `--out <path>` when supplied).
+
+## Workflow 6a: Security-validation audit adapter
+
+Use this workflow for the checked-out `v0.3.2` security audit type, release-prepared on top of the published `v0.3.1` baseline. This adapts `security:validate`'s own internals into the shared audit/report surface — it does not replace `security:validate` (Workflow 5), which remains the standalone, focused security command.
+
+```bash
+npm run audit -- --types security --fail-on none
+```
+
+Targeted example:
+
+```powershell
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
+```
+
+```mermaid
+flowchart LR
+  Command[npm run audit --types security] --> Adapter[audits/security adapter]
+  Adapter --> Validation[securityValidation.runSecurityValidation]
+  Validation --> Checks[deps / package / static / cli-adversarial / fuzz]
+  Checks --> Findings[SecurityFinding list + verdict]
+  Findings --> Mapped[Mapped audit issues]
+  Findings --> OriginalReports[reports/security/*.txt / *.json - unchanged]
+  Mapped --> AuditReport[Audit report: issues + securitySummary]
+  OriginalReports -. linked from .-> AuditReport
+```
+
+Current behavior:
+
+- reuses the same default check groups `security:validate` runs with no flags; there is no `--checks`/`--profile` passthrough on `npm run audit` yet
+- adds a `securitySummary` field to the audit JSON/text report (verdict, check counts, finding counts, and links to the original security report)
+- skipped optional security checks are represented only in `securitySummary`'s counts — never as a passed check, never as an audit issue
+- the original `reports/security/` report family is generated exactly as `security:validate` would generate it
+- generated report location: audit report under `reports/audits/security/code-rot-audit.txt` / `.json`; original security report under `reports/security/<prefix>-security-validation.txt` / `.json`
+
+## Workflow 6b: Combined code-rot and security audit
+
+Use this workflow to run both implemented audit types together.
+
+```bash
+npm run audit -- --types code-rot,security --fail-on none
+```
+
+```mermaid
+flowchart LR
+  Command[npm run audit --types code-rot,security] --> CodeRot[10 code-rot detectors]
+  Command --> SecAdapter[Security audit adapter]
+  CodeRot --> Issues[Combined issues list: code-rot first, then security]
+  SecAdapter --> Issues
+  Issues --> FailOn[--fail-on threshold applied to combined list]
+  FailOn --> Report[Audit report: issues + securitySummary]
+```
+
+Current behavior:
+
+- code-rot issues are ordered first (detector registry order), followed by mapped security issues, deterministically
+- `--fail-on` applies to the combined issue list
 
 ## Workflow 7: Implementation completion
 
@@ -168,9 +227,9 @@ Planned behavior:
 - preserve non-destructive target handling
 - include report/schema stability inside each Android implementation version
 
-## Future workflow: Android audit bridge
+## Future workflow: Android extension of the security audit adapter
 
-This workflow is planned as the optional `v0.4.2` feature. It is not implemented today.
+The general (non-Android) security audit adapter is implemented in the checked-out `v0.3.2` release-prepared package state (Workflow 6a). An Android-specific extension of that same adapter is planned as the optional `v0.4.2` feature and is not implemented today.
 
 Planned direction:
 
@@ -178,7 +237,7 @@ Planned direction:
 npm run audit -- --target /path/to/android/project --types security --profile android
 ```
 
-This bridge will summarize Android validation findings without replacing `security:validate`.
+This extension will summarize Android validation findings through the same adapter/mapping path, without replacing `security:validate` or the general `v0.3.2` adapter.
 
 ## Future workflow: Manual pentest
 

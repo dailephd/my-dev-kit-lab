@@ -3,6 +3,7 @@ import path from "node:path";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { SourceFileFacts } from "../../core/sourceFacts.js";
+import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "../../core/pythonProjectMetadata.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 import { getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
@@ -51,6 +52,12 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
     const scriptNames = new Set(ctx.sourceOfTruth.commands.allScriptNames);
     const currentVersion = ctx.sourceOfTruth.package?.version ?? null;
     const sourceFactsIndex = indexSourceFactsByPath(ctx.sourceFacts);
+    // v0.3.2 Batch 2 -- computed once per run, not per test file. Presence-
+    // only/simple-text-extraction (see pythonProjectMetadata.ts); used below
+    // purely as weak supporting context on Python findings, never as a
+    // required condition -- its absence must not change whether a finding
+    // is emitted, only add or omit one extra evidence line.
+    const pythonMetadata = collectPythonProjectMetadata(ctx.target.rootPath, ctx.inventory);
 
     for (const testFile of ctx.inventory.testFiles) {
       const content = readBoundedFileText(ctx.target.rootPath, testFile.relativePath, testFile.sizeBytes, MAX_READ_BYTES);
@@ -79,7 +86,15 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // (testRelativePath, "missing-source-import", specifier), so an
       // identical id is deduplicated by deduplicateIssuesById() below.
       const parsedFacts = getParsedSourceFacts(sourceFactsIndex, testFile.relativePath);
-      if (parsedFacts) {
+      if (parsedFacts?.language === "python") {
+        // v0.3.2 Batch 2 -- Python relative imports use dotted-module
+        // notation (".module", "..pkg.module"), not TS/JS's path-like
+        // "./module" syntax. Routing Python facts through the TS/JS
+        // resolver below would misresolve every relative Python import and
+        // flag it as missing regardless of whether it actually exists --
+        // this guard is the fix for that latent cross-language bug.
+        issues.push(...findMissingPythonSourceImports(ctx, testFile.relativePath, parsedFacts, pythonMetadata));
+      } else if (parsedFacts) {
         issues.push(...findMissingSourceImportsFromSourceFacts(ctx, testFile.relativePath, parsedFacts));
       }
       issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
@@ -193,6 +208,119 @@ function findMissingSourceImportsFromSourceFacts(
             confidence: "high",
           },
         ],
+        affectedFiles: [testRelativePath],
+      })
+    );
+  }
+  return issues;
+}
+
+// v0.3.2 Batch 2 -- resolves a Python relative-import source (".module",
+// "..pkg.sub", or bare "."/".." paired with `from . import name`-style
+// imported names) to candidate local file paths, using Python's own
+// relative-import level semantics (one leading dot = the importing file's
+// own directory, each additional dot = one directory further up). This is a
+// conservative, path-based approximation -- it does not resolve namespace
+// packages, `sys.path` manipulation, editable installs, or anything beyond
+// simple on-disk file/package presence, so returning zero matches is a
+// candidate "may indicate a missing module" signal, not proof.
+function resolvePythonRelativeImportCandidatePaths(
+  testDir: string,
+  importSource: string,
+  importedNames: readonly string[] | undefined
+): string[] {
+  if (!importSource.startsWith(".")) return [];
+
+  let dotCount = 0;
+  while (dotCount < importSource.length && importSource[dotCount] === ".") dotCount += 1;
+  const remainder = importSource.slice(dotCount);
+  const upLevels = dotCount - 1;
+
+  let baseDir = testDir;
+  for (let i = 0; i < upLevels; i++) baseDir = path.dirname(baseDir);
+
+  const candidates: string[] = [];
+  const pushCandidatesFor = (moduleSegment: string) => {
+    candidates.push(path.join(baseDir, `${moduleSegment}.py`).replace(/\\/g, "/"));
+    candidates.push(path.join(baseDir, moduleSegment, "__init__.py").replace(/\\/g, "/"));
+  };
+
+  if (remainder) {
+    pushCandidatesFor(remainder.split(".").join("/"));
+  } else {
+    // Bare "." / ".." (e.g. `from . import sibling`) -- the module lives
+    // in `importedNames`, not in `importSource` itself.
+    for (const name of importedNames ?? []) pushCandidatesFor(name);
+  }
+  return candidates;
+}
+
+// v0.3.2 Batch 2 -- Python-specific counterpart to
+// findMissingSourceImportsFromSourceFacts() above. Only ever called for
+// facts with `language === "python"` (see caller) -- the two functions are
+// kept fully separate rather than parameterized by language, because their
+// resolution algorithms are genuinely different (dotted-module relative-
+// import-level semantics vs. path-like specifier semantics), and conflating
+// them risked silently misresolving one language or the other. Deliberately
+// lower severity/confidence than the TS/JS counterpart: this scan has no
+// real package/sys.path awareness, so it is weaker evidence than the
+// TS/JS analyzer's near-exact relative-path resolution.
+function findMissingPythonSourceImports(
+  ctx: AuditDetectorContext,
+  testRelativePath: string,
+  facts: SourceFileFacts,
+  pythonMetadata: PythonProjectMetadataSnapshot
+): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const testDir = path.dirname(testRelativePath);
+
+  for (const imp of facts.imports) {
+    if (!imp.source.startsWith(".")) continue; // conservative: only relative Python imports are checked
+    const candidates = resolvePythonRelativeImportCandidatePaths(testDir, imp.source, imp.importedNames);
+    if (candidates.length === 0) continue; // nothing checkable (e.g. bare "." with no imported names)
+
+    const resolved = candidates.some((candidate) => fs.existsSync(path.join(ctx.target.rootPath, candidate)));
+    if (resolved) continue;
+
+    const evidence: AuditIssue["evidence"] = [
+      {
+        kind: "file",
+        message:
+          "Analyzer-recorded relative Python import does not resolve to a candidate local module/package file. This is a best-effort, path-based check -- it does not resolve Python's real package/sys.path rules, so confirm manually before treating it as stale.",
+        filePath: testRelativePath,
+        excerpt: imp.source,
+        source: DETECTOR_ID,
+        confidence: "low",
+      },
+    ];
+    if (pythonMetadata.hasPytestConfiguration) {
+      evidence.push({
+        kind: "observation",
+        message:
+          "Weak supporting context: this project has a detected pytest configuration (pytest.ini, or a pyproject.toml/setup.cfg pytest section), consistent with pytest-style test conventions -- not a requirement for this finding.",
+        source: DETECTOR_ID,
+        confidence: "low",
+      });
+    }
+
+    issues.push(
+      makeCodeRotIssue({
+        auditType: "code-rot",
+        detectorId: DETECTOR_ID,
+        idCues: [testRelativePath, "missing-python-source-import", imp.source],
+        title: `Test "${testRelativePath}" imports a Python module that may not exist: "${imp.source}"`,
+        description: `${testRelativePath} imports "${imp.source}" (source-facts-derived via the Python analyzer). No candidate local module or package file was found relative to the test file. This is a deterministic source-facts signal from a conservative, non-semantic scan -- it does not resolve Python's real package/sys.path rules, namespace packages, or editable installs, so this may indicate a stale import but is not proof.`,
+        severity: "low",
+        confidence: "low",
+        falsePositiveRisk: "medium",
+        category: "test-rot",
+        recommendedAction: "Confirm the imported Python module exists (it may resolve via a path this scan cannot see) before treating this as stale.",
+        suggestedFixStrategy: `Update or remove the import "${imp.source}" in ${testRelativePath} if confirmed stale.`,
+        validationCommands: [`npx vitest run ${testRelativePath}`],
+        releaseBlocking: false,
+        implementationBlocking: false,
+        autoFixEligible: false,
+        evidence,
         affectedFiles: [testRelativePath],
       })
     );

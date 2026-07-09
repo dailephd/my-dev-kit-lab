@@ -8,6 +8,9 @@ import { scanProjectInventory, type ProjectInventorySnapshot } from "./projectIn
 import { collectSourceOfTruth, type SourceOfTruthSnapshot } from "./sourceOfTruth.js";
 import { collectSourceFacts } from "./collectSourceFacts.js";
 import type { SourceFactsSnapshot } from "./sourceFacts.js";
+import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "./pythonProjectMetadata.js";
+import { runSecurityAuditAdapter } from "../security/securityAuditAdapter.js";
+import { SECURITY_AUDIT_NOT_RUN_SUMMARY, type SecurityAuditReportSummary } from "../security/securityAuditTypes.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 1/2 — audit runner.
@@ -79,6 +82,18 @@ export type AuditResult = {
   // v0.3.1 Batch 2 -- source facts substrate (analyzer registry not yet
   // populated; see collectSourceFacts.ts for the fallback policy).
   sourceFacts: SourceFactsSnapshot;
+  // v0.3.2 Batch 3 -- presence-only/simple-text-extraction Python project
+  // metadata (see pythonProjectMetadata.ts). Collected unconditionally, same
+  // as sourceFacts above -- cheap, safe, and never executes Python tooling.
+  pythonProjectMetadata: PythonProjectMetadataSnapshot;
+  // v0.3.2 Batch 4 -- security-validation audit adapter summary. Unlike
+  // sourceFacts/pythonProjectMetadata above, this is NOT collected
+  // unconditionally: it only runs when config.types includes "security" (see
+  // runAudit() below), since it shells out to npm audit/CodeQL/Semgrep/fuzz
+  // and is far more expensive than the always-on collectors. Always present
+  // (never undefined) -- `ran: false` is how a run that didn't select
+  // "security" is distinguished from one that ran and found nothing.
+  securitySummary: SecurityAuditReportSummary;
   // True only when the selected registry has zero detectors for the
   // selected types/include areas -- lets callers (the report renderer)
   // state plainly that no code-rot detector coverage occurred, rather than
@@ -104,6 +119,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   const inventory = scanProjectInventory(target.rootPath);
   const sourceOfTruth = collectSourceOfTruth(target.rootPath, inventory);
   const sourceFacts = await collectSourceFacts(target.rootPath, inventory);
+  const pythonProjectMetadata = collectPythonProjectMetadata(target.rootPath, inventory);
 
   const selected = selectDetectors(registry, config.types, config.include);
   const ctx = { target, config, inventory, sourceOfTruth, sourceFacts };
@@ -133,6 +149,20 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     }
   }
 
+  // v0.3.2 Batch 4 -- security audit adapter. Conditional (see the
+  // AuditResult.securitySummary field comment above): only runs when --types
+  // explicitly includes "security", never as part of a default/code-rot-only
+  // run. Appended after the code-rot detector loop above, so combined
+  // `--types code-rot,security` runs keep a deterministic issue order:
+  // code-rot detector issues (registry order) first, then security findings
+  // (security-validation check-execution order).
+  let securitySummary: SecurityAuditReportSummary = SECURITY_AUDIT_NOT_RUN_SUMMARY;
+  if (config.types.includes("security")) {
+    const securityAudit = await runSecurityAuditAdapter({ toolRoot, config });
+    issues.push(...securityAudit.issues);
+    securitySummary = securityAudit.summary;
+  }
+
   const issueCounts = countIssuesBySeverity(issues);
   const { exitCode, reason } = calculateAuditExitCode(issues, config.failOn);
 
@@ -159,6 +189,8 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     inventory,
     sourceOfTruth,
     sourceFacts,
+    pythonProjectMetadata,
+    securitySummary,
     noDetectorsRegistered: selected.length === 0,
   };
 }

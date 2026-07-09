@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { runSecurityValidation } from "../../src/securityValidation/validate/runSecurityValidation.js";
 import { resolveValidationTarget, reportFilenamePrefix } from "../../src/securityValidation/validate/resolveTarget.js";
 import { renderTextReport, renderJsonReport } from "../../src/securityValidation/report/renderSecurityReport.js";
-import type { SecurityReport } from "../../src/securityValidation/report/securityReportTypes.js";
+import { buildSecurityReportFromSummary } from "../../src/securityValidation/report/buildSecurityReport.js";
 import {
   parseSecurityValidateArgs,
   normalizeSecurityValidateConfig,
@@ -93,36 +93,13 @@ const summary = await runSecurityValidation({
 const failOnBreached = findingsBreachFailOnThreshold(summary.findings, config.failOnThreshold);
 
 // Build report object
-const report: SecurityReport = {
-  metadata: {
-    toolRoot: summary.toolRoot,
-    toolPackageName: summary.toolPackageName,
-    toolPackageVersion: summary.toolPackageVersion,
-    targetRoot: summary.targetRoot,
-    targetDescription: summary.targetDescription,
-    packageName: summary.packageName,
-    packageVersion: summary.packageVersion,
-    branch: summary.auditedBranch,
-    commit: summary.auditedCommit,
-    isSelf: summary.isSelf,
-    generatedAt: summary.finishedAt,
-    totalDurationMs:
-      new Date(summary.finishedAt).getTime() - new Date(summary.startedAt).getTime(),
-    profile: config.profile,
-    selectedChecks: config.checks,
-    failOnThreshold: config.failOnThreshold,
-    formats: config.formats,
-    failOnBreached,
-    isFullReleaseGate: summary.isFullReleaseGate,
-  },
-  sections: [],
-  allChecks: summary.checks,
-  allFindings: summary.findings,
-  verdict: summary.verdict,
-  recommendedNextStep: summary.recommendedNextStep,
-  attackResults: summary.attackResults,
-  verdictReasonSummary: summary.verdictReasonSummary,
-};
+const report = buildSecurityReportFromSummary(summary, {
+  profile: config.profile,
+  selectedChecks: config.checks,
+  failOnThreshold: config.failOnThreshold,
+  formats: config.formats,
+  failOnBreached,
+});
 
 const textReport = renderTextReport(report);
 const jsonReport = renderJsonReport(report);

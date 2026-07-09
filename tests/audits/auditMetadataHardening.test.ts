@@ -21,6 +21,10 @@ const REQUIRED_TOP_LEVEL_KEYS = [
   "inventory",
   "sourceOfTruth",
   "sourceFacts",
+  // v0.3.2 Batch 3 -- 15th top-level field, alongside the existing 14.
+  "pythonProjectMetadata",
+  // v0.3.2 Batch 4 -- 16th top-level field.
+  "securitySummary",
   "detectors",
   "issues",
   "skippedDetectors",
@@ -74,7 +78,14 @@ describe("metadata.auditTypes — additive array field", () => {
     expect(parsed.metadata.auditTypes).toEqual(["code-rot"]);
   });
 
-  it("does not change the top-level 14-field schema and does not bump schemaVersion", async () => {
+  // v0.3.2 Batch 3 -- this test originally proved metadata.auditTypes (v0.3.0
+  // Batch 6) didn't change the top-level schema, back when it was 14 fields.
+  // Batch 3 separately and intentionally adds a 15th field
+  // ("pythonProjectMetadata") -- this test's purpose is unchanged (metadata.
+  // auditTypes itself still doesn't add/remove any top-level key, and
+  // schemaVersion still doesn't bump), just updated to the current field
+  // count.
+  it("does not change the top-level 15-field schema (as of pythonProjectMetadata's addition) and does not bump schemaVersion", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
     const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });

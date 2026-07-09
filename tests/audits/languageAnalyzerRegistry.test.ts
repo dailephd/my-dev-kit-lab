@@ -7,6 +7,7 @@ import {
 } from "../../src/audits/core/languageAnalyzerRegistry.js";
 import type { SourceFileFacts } from "../../src/audits/core/sourceFacts.js";
 import { TYPESCRIPT_JAVASCRIPT_ANALYZER_ID } from "../../src/audits/core/typescriptJavaScriptAnalyzer.js";
+import { PYTHON_ANALYZER_ID } from "../../src/audits/core/pythonAnalyzer.js";
 
 function makeAnalyzer(overrides: Partial<LanguageAnalyzer> = {}): LanguageAnalyzer {
   return {
@@ -30,11 +31,15 @@ function makeAnalyzer(overrides: Partial<LanguageAnalyzer> = {}): LanguageAnalyz
 
 describe("DEFAULT_LANGUAGE_ANALYZER_REGISTRY", () => {
   // v0.3.1 Batch 3 -- registers the TypeScript/JavaScript analyzer (see
-  // typescriptJavaScriptAnalyzer.ts). Python/Java/Kotlin remain unregistered
-  // (fallback-only) -- see collectSourceFacts.ts's fallback policy, exercised
-  // with an explicit empty registry in sourceFacts.test.ts.
-  it("includes the TypeScript/JavaScript analyzer", () => {
-    expect(DEFAULT_LANGUAGE_ANALYZER_REGISTRY.map((a) => a.id)).toEqual([TYPESCRIPT_JAVASCRIPT_ANALYZER_ID]);
+  // typescriptJavaScriptAnalyzer.ts). v0.3.2 Batch 1 adds the Python
+  // analyzer (see pythonAnalyzer.ts) alongside it. Java/Kotlin remain
+  // unregistered (fallback-only) -- see collectSourceFacts.ts's fallback
+  // policy, exercised with an explicit empty registry in sourceFacts.test.ts.
+  it("includes the TypeScript/JavaScript and Python analyzers", () => {
+    expect(DEFAULT_LANGUAGE_ANALYZER_REGISTRY.map((a) => a.id)).toEqual([
+      TYPESCRIPT_JAVASCRIPT_ANALYZER_ID,
+      PYTHON_ANALYZER_ID,
+    ]);
   });
 
   it("selects the TypeScript/JavaScript analyzer for typescript and javascript", () => {
@@ -46,8 +51,11 @@ describe("DEFAULT_LANGUAGE_ANALYZER_REGISTRY", () => {
     );
   });
 
-  it("still returns no analyzer for python/java/kotlin (fallback-only languages)", () => {
-    expect(selectLanguageAnalyzer(DEFAULT_LANGUAGE_ANALYZER_REGISTRY, "python", ".py")).toBeNull();
+  it("selects the Python analyzer for python", () => {
+    expect(selectLanguageAnalyzer(DEFAULT_LANGUAGE_ANALYZER_REGISTRY, "python", ".py")?.id).toBe(PYTHON_ANALYZER_ID);
+  });
+
+  it("still returns no analyzer for java/kotlin (fallback-only languages)", () => {
     expect(selectLanguageAnalyzer(DEFAULT_LANGUAGE_ANALYZER_REGISTRY, "java", ".java")).toBeNull();
     expect(selectLanguageAnalyzer(DEFAULT_LANGUAGE_ANALYZER_REGISTRY, "kotlin", ".kt")).toBeNull();
   });

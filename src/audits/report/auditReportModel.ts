@@ -27,6 +27,8 @@ import type {
   TestTruth,
 } from "../core/sourceOfTruth.js";
 import type { SourceFactParseStatus, SourceFactsSnapshot } from "../core/sourceFacts.js";
+import type { PythonProjectMetadataSnapshot } from "../core/pythonProjectMetadata.js";
+import type { SecurityAuditReportSummary } from "../security/securityAuditTypes.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 5 — stable, versioned audit report model.
@@ -133,6 +135,16 @@ export type SourceFactsReportSummary = {
   filesByLanguage: Record<NormalizedLanguage, number>;
   filesByParseStatus: Record<SourceFactParseStatus, number>;
   analyzerDiagnosticCount: number;
+  // v0.3.2 Batch 3 -- additive, language-agnostic count of analyzed files
+  // that carry at least one per-file diagnostic (e.g. a Python analyzer's
+  // "unterminated-triple-quoted-string"/"dynamic-import-pattern-unsupported"
+  // notice, or a TypeScript/JavaScript syntax-error diagnostic). Distinct
+  // from `analyzerDiagnosticCount` above, which only counts collector-level
+  // diagnostics (a thrown analyzer exception) -- per-file diagnostics
+  // recorded directly on each SourceFileFacts were previously collected but
+  // never surfaced anywhere in the report; this closes that gap generically
+  // for every language rather than adding a Python-only field.
+  filesWithDiagnosticsCount: number;
   warnings: string[];
 };
 
@@ -142,6 +154,7 @@ export function summarizeSourceFacts(sourceFacts: SourceFactsSnapshot): SourceFa
     filesByLanguage: sourceFacts.filesByLanguage,
     filesByParseStatus: sourceFacts.filesByParseStatus,
     analyzerDiagnosticCount: sourceFacts.analyzerDiagnostics.length,
+    filesWithDiagnosticsCount: sourceFacts.files.filter((f) => f.diagnostics.length > 0).length,
     warnings: sourceFacts.warnings,
   };
 }
@@ -328,6 +341,19 @@ export type AuditReportModel = {
   inventory: InventoryReportSummary;
   sourceOfTruth: SourceOfTruthReportSummary;
   sourceFacts: SourceFactsReportSummary;
+  // v0.3.2 Batch 3 -- additive, optional-in-spirit report surface for
+  // pythonProjectMetadata.ts (v0.3.2 Batch 1). Always present (never
+  // undefined) since it is cheap, presence-only/simple-text-extraction data
+  // collected once per run in auditRunner.ts, same as sourceFacts above --
+  // but every field on it is purely informational (file presence, a
+  // best-effort project name, pytest-configuration presence) and must never
+  // be read as a blocker/release-readiness signal. Absent Python content
+  // simply reports all-false/null, which is itself meaningful (not an
+  // error) for a non-Python project.
+  pythonProjectMetadata: PythonProjectMetadataSnapshot;
+  // v0.3.2 Batch 4 -- additive, always-present (see securitySummary.ran)
+  // security-validation audit adapter summary. 16th top-level field.
+  securitySummary: SecurityAuditReportSummary;
   detectors: AuditDetectorReportEntry[];
   issues: AuditIssue[];
   skippedDetectors: AuditSkippedDetector[];
@@ -424,6 +450,8 @@ export function buildAuditReportModel(result: AuditResult, opts: BuildAuditRepor
     inventory: summarizeInventory(result.inventory),
     sourceOfTruth: summarizeSourceOfTruth(result.sourceOfTruth),
     sourceFacts: summarizeSourceFacts(result.sourceFacts),
+    pythonProjectMetadata: result.pythonProjectMetadata,
+    securitySummary: result.securitySummary,
     detectors,
     issues,
     skippedDetectors: result.skippedDetectors,
