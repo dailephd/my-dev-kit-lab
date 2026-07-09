@@ -216,6 +216,12 @@ describe("--out / --format output location consistency (Batch 6, real CLI)", () 
   }, 30_000);
 
   it("default (no --out) still writes to reports/security", () => {
+    // Runs the CLI itself rather than relying on some other test file having
+    // already created reports/security as a side effect -- that assumption
+    // broke once reports/security/raw/.gitkeep stopped being a tracked file
+    // (a fresh checkout no longer has an empty reports/security/ directory
+    // present before any test runs).
+    runValidateCli(["--checks", "secrets", "--format", "json"]);
     expect(existsSync(path.join(toolRoot, "reports", "security"))).toBe(true);
-  });
+  }, 30_000);
 });
