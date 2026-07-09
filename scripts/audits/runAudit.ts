@@ -21,7 +21,7 @@ import { writeAuditReports } from "../../src/audits/report/writeAuditReports.js"
 // ---------------------------------------------------------------------------
 
 const USAGE =
-  "Usage: npm run audit -- [--target <path>] [--types code-rot] " +
+  "Usage: npm run audit -- [--target <path>] [--types code-rot,security] " +
   "[--include docs,tests,package,architecture,cli] [--format text,json] " +
   "[--fail-on blocker|high|medium|low|none] [--out <path>]";
 
@@ -88,8 +88,17 @@ if (model.summary.detectorErrorCount > 0) {
     console.log(`  [${e.id}] ${e.message}`);
   }
 }
-if (model.summary.noDetectorsRegistered) {
+if (model.summary.noDetectorsRegistered && !model.securitySummary.ran) {
   console.log(`Note: no code-rot detectors are registered for this run's --types/--include selection -- this run collected inventory/source-of-truth data only.`);
+}
+
+if (model.securitySummary.ran) {
+  console.log(
+    `\nSecurity validation: verdict=${model.securitySummary.verdictLabel} checks=${model.securitySummary.totalChecks} findings(blocker=${model.securitySummary.findingCounts.blocker} major=${model.securitySummary.findingCounts.major} minor=${model.securitySummary.findingCounts.minor} info=${model.securitySummary.findingCounts.informational})`
+  );
+  if (model.securitySummary.reportPaths.text) {
+    console.log(`  Full report: ${model.securitySummary.reportPaths.text}`);
+  }
 }
 
 console.log(`\nInventory: ${model.inventory.totalScannedFileCount} file(s) scanned, ${model.inventory.skippedFileCount} skipped`);

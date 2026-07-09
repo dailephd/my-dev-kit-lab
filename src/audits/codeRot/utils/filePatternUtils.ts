@@ -55,13 +55,17 @@ export const GENERIC_INFRA_BASENAMES = new Set([
 // expected to repeat across unrelated files legitimately (CLI entrypoints,
 // handler/lifecycle conventions, etc.) -- excluded from the source-facts
 // duplicate-declaration-candidate heuristic in duplicateImplementationDetector.ts
-// to keep false positives near zero.
+// to keep false positives near zero. v0.3.2 Batch 2 adds Python lifecycle/
+// dunder names ("teardown", "__init__", "__call__") for the same reason,
+// reused by both duplicateImplementationDetector.ts and
+// deadCodeCandidateDetector.ts's new Python-aware checks.
 export const GENERIC_DECLARATION_NAMES = new Set([
   "run",
   "main",
   "init",
   "initialize",
   "setup",
+  "teardown",
   "handler",
   "handle",
   "execute",
@@ -82,4 +86,19 @@ export const GENERIC_DECLARATION_NAMES = new Set([
   "get",
   "set",
   "default",
+  "__init__",
+  "__call__",
 ]);
+
+// v0.3.2 Batch 2 -- true for a generic/lifecycle declaration name (see
+// GENERIC_DECLARATION_NAMES above) or a pytest-style `test_*` name. Shared by
+// the Python-aware dead-code and duplicate-implementation checks so a
+// `test_*` helper/fixture function is never flagged as a candidate dead-code
+// symbol or a duplicate-implementation candidate merely for repeating across
+// unrelated test modules, a legitimate and extremely common pytest
+// convention. Comparison is case-insensitive; callers pass the already-
+// lowercased name where convenient.
+export function isGenericOrTestPrefixedDeclarationName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return GENERIC_DECLARATION_NAMES.has(lower) || lower.startsWith("test_");
+}

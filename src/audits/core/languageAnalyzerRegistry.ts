@@ -1,6 +1,7 @@
 import type { FileRole, InventoryFileEntry, NormalizedLanguage } from "./projectInventory.js";
 import type { SourceFileFacts } from "./sourceFacts.js";
 import { TYPESCRIPT_JAVASCRIPT_ANALYZER } from "./typescriptJavaScriptAnalyzer.js";
+import { PYTHON_ANALYZER } from "./pythonAnalyzer.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.1 Batch 2 -- language analyzer contract and registry.
@@ -64,9 +65,11 @@ export function selectLanguageAnalyzer(
   return null;
 }
 
-// v0.3.1 Batch 3 -- registers the TypeScript/JavaScript analyzer. Python,
-// Java, and Kotlin remain fallback-only (no analyzer registered for them) --
-// see collectSourceFacts.ts's fallback policy.
+// v0.3.1 Batch 3 -- registers the TypeScript/JavaScript analyzer. v0.3.2
+// Batch 1 adds the Python analyzer alongside it. Java and Kotlin remain
+// fallback-only (no analyzer registered for them) -- see
+// collectSourceFacts.ts's fallback policy.
 export const DEFAULT_LANGUAGE_ANALYZER_REGISTRY: readonly LanguageAnalyzer[] = createLanguageAnalyzerRegistry([
   TYPESCRIPT_JAVASCRIPT_ANALYZER,
+  PYTHON_ANALYZER,
 ]);

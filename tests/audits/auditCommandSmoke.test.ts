@@ -108,23 +108,33 @@ describe("npm run audit — defaults", () => {
 });
 
 describe("npm run audit — planned-but-not-implemented types fail cleanly", () => {
+  function expectImplementedTypesListed(combined: string): void {
+    expect(combined).toContain("Implemented audit types: code-rot, security.");
+    expect(combined).not.toMatch(/Only "code-rot" is implemented/i);
+  }
+
   it("--types quality exits 2 with a clear planned-but-not-implemented message", () => {
     const result = runAuditCli(["--types", "quality"]);
     expect(result.status).toBe(2);
     const combined = result.stdout + result.stderr;
     expect(combined).toMatch(/planned but not implemented/i);
+    expectImplementedTypesListed(combined);
     expect(combined).not.toMatch(/at Object\.|at Module\._compile|node:internal/);
   }, 15_000);
 
-  // v0.3.0 Batch 6 — spec 3.10 extends coverage to the other 3
-  // not-yet-implemented audit types (only "quality" was covered before this
-  // batch). All 4 share the same config-parse-time rejection path in
+  // v0.3.0 Batch 6 — spec 3.10 extends coverage to the other not-yet-
+  // implemented audit types (only "quality" was covered before this batch).
+  // v0.3.2 Batch 4 removes "security" from this list -- it is now a real,
+  // implemented type via the security-validation audit adapter (see
+  // tests/audits/security/auditSecurityIntegration.test.ts for its own
+  // coverage) and must no longer be rejected here. The remaining types share
+  // the same config-parse-time rejection path in
   // src/audits/core/auditConfig.ts's parseTypesOption(), so each gets the
   // same 3 assertions: exit 2, no raw Node stack trace on stderr, and no
   // report file written to a temp --out dir passed alongside the invalid
   // --types value (these are config-parse-time failures, before any
   // AuditResult/report model exists).
-  for (const plannedType of ["security", "project", "all"]) {
+  for (const plannedType of ["project", "all"]) {
     it(`--types ${plannedType} exits 2 with a clear planned-but-not-implemented message and writes no report file`, () => {
       const outDir = mkdtempSync(path.join(os.tmpdir(), `audit-smoke-planned-${plannedType}-`));
       cleanupDirs.push(outDir);
@@ -132,6 +142,7 @@ describe("npm run audit — planned-but-not-implemented types fail cleanly", () 
       expect(result.status).toBe(2);
       const combined = result.stdout + result.stderr;
       expect(combined).toMatch(/planned but not implemented/i);
+      expectImplementedTypesListed(combined);
       expect(combined).not.toMatch(/at Object\.|at Module\._compile|node:internal/);
       expect(existsSync(path.join(outDir, "code-rot-audit.json"))).toBe(false);
       expect(existsSync(path.join(outDir, "code-rot-audit.txt"))).toBe(false);

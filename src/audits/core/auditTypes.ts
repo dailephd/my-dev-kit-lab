@@ -8,16 +8,23 @@
 // vocabulary word (e.g. "blocker") happens to be shared.
 // ---------------------------------------------------------------------------
 
-// Recognized --types values. Only "code-rot" has real detector coverage in
-// Batch 1 — the rest are known, named future audit types that must fail
-// cleanly with a "planned but not implemented" message rather than being
-// silently accepted or treated as an unknown/garbage value.
+// Recognized --types values. "code-rot" (Batch 1) and "security" (v0.3.2
+// Batch 4, via the security-validation audit adapter) have real coverage —
+// the rest are known, named future audit types that must fail cleanly with a
+// "planned but not implemented" message rather than being silently accepted
+// or treated as an unknown/garbage value.
 export const AUDIT_TYPES = ["code-rot", "quality", "security", "project", "all"] as const;
 export type AuditType = (typeof AUDIT_TYPES)[number];
 
-export const IMPLEMENTED_AUDIT_TYPES: readonly AuditType[] = ["code-rot"];
-export const PLANNED_AUDIT_TYPES: readonly AuditType[] = ["quality", "security", "project", "all"];
-export const DEFAULT_AUDIT_TYPES: readonly AuditType[] = IMPLEMENTED_AUDIT_TYPES;
+export const IMPLEMENTED_AUDIT_TYPES: readonly AuditType[] = ["code-rot", "security"];
+export const PLANNED_AUDIT_TYPES: readonly AuditType[] = ["quality", "project", "all"];
+// v0.3.2 Batch 4 — deliberately NOT derived from IMPLEMENTED_AUDIT_TYPES.
+// "security" becomes selectable via --types security (and --types
+// code-rot,security) but must never join the *default* (no --types flag)
+// audit run, since it shells out to npm audit/CodeQL/Semgrep/fuzz and is far
+// more expensive than the always-on code-rot detectors — a default,
+// unqualified `npm run audit` must keep its existing code-rot-only behavior.
+export const DEFAULT_AUDIT_TYPES: readonly AuditType[] = ["code-rot"];
 
 export const AUDIT_INCLUDE_AREAS = ["docs", "tests", "package", "architecture", "cli"] as const;
 export type AuditIncludeArea = (typeof AUDIT_INCLUDE_AREAS)[number];

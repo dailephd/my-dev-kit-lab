@@ -328,18 +328,36 @@ describe("collectSourceFacts — with the real DEFAULT_LANGUAGE_ANALYZER_REGISTR
     }
   });
 
-  it("still produces file-level-only fallback facts for Python/Java/Kotlin", async () => {
+  it("still produces file-level-only fallback facts for Java/Kotlin", async () => {
+    const root = buildFixtureProject();
+    try {
+      const inventory = scanProjectInventory(root);
+      const snapshot = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
+      const java = snapshot.files.find((f) => f.relativePath === "src/Main.java");
+      const kt = snapshot.files.find((f) => f.relativePath === "src/Main.kt");
+      for (const entry of [java, kt]) {
+        expect(entry?.parseStatus).toBe("file-level-only");
+        expect(entry?.analyzerId).toBeNull();
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  // v0.3.2 Batch 1 -- Python is now parsed by the real default registry
+  // (see pythonAnalyzer.ts / languageAnalyzerRegistry.ts) instead of falling
+  // back to file-level-only. This is the T8 "source-facts collection
+  // integration" proof: the real collectSourceFacts() -> real
+  // DEFAULT_LANGUAGE_ANALYZER_REGISTRY path actually invokes the Python
+  // analyzer, not just a synthetic unit test of the analyzer in isolation.
+  it("parses Python files by default via the real registry", async () => {
     const root = buildFixtureProject();
     try {
       const inventory = scanProjectInventory(root);
       const snapshot = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
       const py = snapshot.files.find((f) => f.relativePath === "src/lib.py");
-      const java = snapshot.files.find((f) => f.relativePath === "src/Main.java");
-      const kt = snapshot.files.find((f) => f.relativePath === "src/Main.kt");
-      for (const entry of [py, java, kt]) {
-        expect(entry?.parseStatus).toBe("file-level-only");
-        expect(entry?.analyzerId).toBeNull();
-      }
+      expect(py?.parseStatus).toBe("parsed");
+      expect(py?.analyzerId).toBe("python-analyzer");
     } finally {
       cleanup(root);
     }

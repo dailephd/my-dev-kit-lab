@@ -5,7 +5,7 @@ import type { InventoryFileEntry } from "../../core/projectInventory.js";
 import type { PackageTruth } from "../../core/sourceOfTruth.js";
 import type { SourceFileFacts } from "../../core/sourceFacts.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
-import { baseNameNoExt } from "../utils/filePatternUtils.js";
+import { baseNameNoExt, isGenericOrTestPrefixedDeclarationName } from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 import { collectRelativeImportBasenames, getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 
@@ -62,6 +62,10 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
 
     if (ctx.config.include.includes("tests")) {
       issues.push(...findUnreferencedFixtures(ctx));
+    }
+
+    if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
+      issues.push(...findPossiblyUnreferencedPythonDeclarations(ctx));
     }
 
     return deduplicateIssuesById(issues);
@@ -262,6 +266,94 @@ function buildSourceFactsEvidence(facts: SourceFileFacts): AuditIssue["evidence"
     source: DETECTOR_ID,
     confidence: "medium",
   };
+}
+
+// v0.3.2 Batch 2 -- conservative, declaration-level Python dead-code
+// candidate check. TS/JS module-level "unused exported symbol" detection is
+// explicitly SKIPPED in this file's own header comment (no safe/cheap way
+// without a real type-checker) -- this Python-only check is narrower and
+// safer than that skipped TS/JS idea would be, because Python source facts
+// already carry declarations *and* a repo-wide cross-file "imported name"
+// index (unlike anything comparable for TS/JS bare specifiers), so the
+// false-positive surface is much smaller. Every one of the skip conditions
+// below is a deliberate, spec-required conservatism -- see the requirements
+// list in this batch's task description. Findings stay at the lowest
+// severity/confidence tier in this detector's own schema (matches
+// findUnreferencedFixtures()'s tier) and use "candidate"/"may indicate"
+// wording throughout, never "unused" or "dead".
+function findPossiblyUnreferencedPythonDeclarations(ctx: AuditDetectorContext): AuditIssue[] {
+  if (!ctx.sourceFacts) return [];
+  const index = indexSourceFactsByPath(ctx.sourceFacts);
+
+  // Cross-file "this name was imported somewhere" signal -- a declaration
+  // named here is referenced by at least one `from module import name`
+  // elsewhere in the scanned Python file set, which is the strongest signal
+  // this conservative scan can offer (Python source facts carry no
+  // call/identifier reference tracking -- see pythonAnalyzer.ts's header
+  // comment on why `references` stays empty by design).
+  const importedNamesAcrossProject = new Set<string>();
+  for (const facts of index.values()) {
+    if (facts.language !== "python" || facts.parseStatus !== "parsed") continue;
+    for (const imp of facts.imports) {
+      for (const name of imp.importedNames ?? []) importedNamesAcrossProject.add(name);
+    }
+  }
+
+  const issues: AuditIssue[] = [];
+  for (const facts of index.values()) {
+    if (facts.language !== "python" || facts.role !== "source" || facts.parseStatus !== "parsed") continue;
+    // __init__.py commonly exists only to re-export a package's public
+    // surface or to mark a directory as a package -- its declarations (if
+    // any) are conservatively excluded entirely rather than guessed at.
+    if (path.basename(facts.relativePath) === "__init__.py") continue;
+
+    for (const decl of facts.declarations) {
+      // Methods are excluded entirely -- this detector has no existing
+      // method-level dead-code evidence model for any language (TS/JS
+      // methods are never flagged either), and Python method visibility is
+      // even harder to infer safely (inherited/overridden/dispatched via
+      // duck typing).
+      if (decl.kind === "method") continue;
+      if (!decl.exported) continue; // leading-underscore convention already applied by pythonAnalyzer.ts
+      if (isGenericOrTestPrefixedDeclarationName(decl.name)) continue; // main/run/setup/teardown/__init__/__call__/test_*
+      // A name explicitly listed in a real `__all__` is the file's own
+      // strongest "this is public API" declaration -- skip rather than
+      // second-guess it.
+      if (facts.exports.some((e) => e.name === decl.name)) continue;
+      if (importedNamesAcrossProject.has(decl.name)) continue;
+
+      issues.push(
+        makeCodeRotIssue({
+          auditType: "code-rot",
+          detectorId: DETECTOR_ID,
+          idCues: ["unreferenced-python-declaration", facts.relativePath, decl.kind, decl.name],
+          title: `Python ${decl.kind} "${decl.name}" in "${facts.relativePath}" has no detected cross-file import (weak signal)`,
+          description: `"${decl.name}" (${decl.kind}) is declared in "${facts.relativePath}" and does not appear as an imported name in any other scanned Python file. This is a deterministic source-facts signal from a conservative, non-semantic scan -- it does not resolve dynamic imports, framework/plugin discovery, string-based dispatch, or usage from outside the scanned project, so it may indicate dead code but is not proof. Confirm manually before removing.`,
+          severity: "info",
+          confidence: "low",
+          falsePositiveRisk: "high",
+          category: "dead-code-candidate",
+          recommendedAction: "Confirm the declaration is genuinely unused before removing it.",
+          suggestedFixStrategy: `Remove "${decl.name}" from "${facts.relativePath}" if confirmed unused, or reference it from another module.`,
+          validationCommands: ["npm run audit -- --types code-rot --include cli"],
+          releaseBlocking: false,
+          implementationBlocking: false,
+          autoFixEligible: false,
+          evidence: [
+            {
+              kind: "reference",
+              message: `Source facts: the Python analyzer parsed this file and found no other scanned Python file importing the name "${decl.name}". Static-analysis limitation -- confidence reduced because this scan cannot see dynamic imports or usage outside the scanned file set.`,
+              filePath: facts.relativePath,
+              source: DETECTOR_ID,
+              confidence: "low",
+            },
+          ],
+          affectedFiles: [facts.relativePath],
+        })
+      );
+    }
+  }
+  return issues;
 }
 
 function findOldOrDeprecatedFilesNotInDocs(ctx: AuditDetectorContext, docsConcat: string): AuditIssue[] {

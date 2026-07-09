@@ -80,27 +80,44 @@ describe("normalizeAuditConfig — defaults (npm run audit with no flags)", () =
 });
 
 describe("normalizeAuditConfig — --types", () => {
+  function expectPlannedTypeMessage(value: string): void {
+    expect(() => normalizeAuditConfig({ types: value }, toolRoot)).toThrow(/planned but not implemented/i);
+    expect(() => normalizeAuditConfig({ types: value }, toolRoot)).toThrow(/Implemented audit types: code-rot, security/i);
+    expect(() => normalizeAuditConfig({ types: value }, toolRoot)).not.toThrow(/Only "code-rot" is implemented/i);
+  }
+
   it("accepts code-rot", () => {
     const config = normalizeAuditConfig({ types: "code-rot" }, toolRoot);
     expect(config.types).toEqual(["code-rot"]);
     expect(config.typesWereDefault).toBe(false);
   });
 
-  it("rejects quality as planned but not implemented", () => {
-    expect(() => normalizeAuditConfig({ types: "quality" }, toolRoot)).toThrow(/planned but not implemented/i);
+  it("rejects quality as planned but not implemented and lists all implemented audit types", () => {
+    expectPlannedTypeMessage("quality");
   });
 
-  it("rejects security as planned but not implemented", () => {
-    expect(() => normalizeAuditConfig({ types: "security" }, toolRoot)).toThrow(/planned but not implemented/i);
+  it("rejects project and all as planned but not implemented and lists all implemented audit types", () => {
+    expectPlannedTypeMessage("project");
+    expectPlannedTypeMessage("all");
   });
 
-  it("rejects project and all as planned but not implemented", () => {
-    expect(() => normalizeAuditConfig({ types: "project" }, toolRoot)).toThrow(/planned but not implemented/i);
-    expect(() => normalizeAuditConfig({ types: "all" }, toolRoot)).toThrow(/planned but not implemented/i);
+  // v0.3.2 Batch 4 -- security-validation audit adapter makes "security" a
+  // real, selectable --types value (still never part of the *default*
+  // no-flag run -- see DEFAULT_AUDIT_TYPES's own comment in auditTypes.ts).
+  it("accepts security as an implemented type, alone or combined with code-rot", () => {
+    expect(normalizeAuditConfig({ types: "security" }, toolRoot).types).toEqual(["security"]);
+    expect(normalizeAuditConfig({ types: "code-rot,security" }, toolRoot).types).toEqual(["code-rot", "security"]);
+    expect(normalizeAuditConfig({ types: "security,code-rot" }, toolRoot).types).toEqual(["code-rot", "security"]);
+  });
+
+  it("does not change the default (no --types flag) run away from code-rot only", () => {
+    const config = normalizeAuditConfig({}, toolRoot);
+    expect(config.types).toEqual(["code-rot"]);
   });
 
   it("rejects a genuinely unknown value distinctly from a planned one", () => {
     expect(() => normalizeAuditConfig({ types: "not-a-real-type" }, toolRoot)).toThrow(/Invalid --types value/);
+    expect(() => normalizeAuditConfig({ types: "not-a-real-type" }, toolRoot)).not.toThrow(/planned but not implemented/i);
   });
 
   it("rejects an empty --types value", () => {

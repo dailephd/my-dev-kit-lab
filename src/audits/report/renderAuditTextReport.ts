@@ -108,6 +108,23 @@ export function renderAuditTextReport(model: AuditReportModel): string {
   if (model.sourceFacts.analyzerDiagnosticCount > 0) {
     lines.push(`  analyzer diagnostics: ${model.sourceFacts.analyzerDiagnosticCount}`);
   }
+  if (model.sourceFacts.filesWithDiagnosticsCount > 0) {
+    lines.push(`  files with a per-file diagnostic: ${model.sourceFacts.filesWithDiagnosticsCount}`);
+  }
+  lines.push("");
+
+  // v0.3.2 Batch 3 -- informational only. Presence booleans and a
+  // best-effort project name/pytest-configuration flag, never a
+  // release-readiness or dependency-health signal -- see
+  // pythonProjectMetadata.ts's own header comment.
+  lines.push("Python project metadata");
+  lines.push(divider("-"));
+  const pm = model.pythonProjectMetadata;
+  lines.push(
+    `  pyproject.toml=${pm.hasPyprojectToml} requirements.txt=${pm.hasRequirementsTxt} setup.py=${pm.hasSetupPy} setup.cfg=${pm.hasSetupCfg} tox.ini=${pm.hasToxIni} pytest.ini=${pm.hasPytestIni}`
+  );
+  lines.push(`  project name detected: ${pm.projectName ?? "(none)"}`);
+  lines.push(`  pytest configuration detected: ${pm.hasPytestConfiguration}`);
   lines.push("");
 
   lines.push("Source-of-truth summary");
@@ -121,6 +138,36 @@ export function renderAuditTextReport(model: AuditReportModel): string {
   );
   if (model.sourceOfTruth.warnings.length > 0) {
     lines.push(`  warnings: ${model.sourceOfTruth.warnings.length}`);
+  }
+  lines.push("");
+
+  // v0.3.2 Batch 4 -- bounded summary only. Never dumps raw scanner
+  // output/full finding text here (that lives in the original security
+  // validation report at securitySummary.reportPaths) -- this section only
+  // links to it and shows counts, matching the same "reference, don't
+  // duplicate" convention docs/security section 5 of the task spec asks for.
+  lines.push("Security validation summary");
+  lines.push(divider("-"));
+  if (!model.securitySummary.ran) {
+    lines.push("  (not run -- add \"security\" to --types to include it, e.g. --types code-rot,security)");
+  } else {
+    const sec = model.securitySummary;
+    lines.push(`  Verdict: ${sec.verdictLabel ?? "(unknown)"}`);
+    lines.push(
+      `  Checks: total=${sec.totalChecks} passed=${sec.checksPassed} warning=${sec.checksWarning} failed=${sec.checksFailed} skipped=${sec.checksSkipped}`
+    );
+    lines.push(
+      `  Findings: blocker=${sec.findingCounts.blocker} major=${sec.findingCounts.major} minor=${sec.findingCounts.minor} informational=${sec.findingCounts.informational} (mapped to ${sec.mappedIssueCount} audit issue(s))`
+    );
+    if (sec.targetDescription) {
+      lines.push(`  Target: ${sanitizeLine(sec.targetDescription)}`);
+    }
+    if (sec.recommendedNextStep) {
+      lines.push(`  Next step: ${sanitizeLine(sec.recommendedNextStep)}`);
+    }
+    if (sec.reportPaths.text || sec.reportPaths.json) {
+      lines.push(`  Full report: ${sec.reportPaths.text ?? "(none)"} / ${sec.reportPaths.json ?? "(none)"}`);
+    }
   }
   lines.push("");
 

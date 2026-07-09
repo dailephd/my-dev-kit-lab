@@ -199,10 +199,144 @@ describe("TEST_ROT_DETECTOR — package scripts referencing missing test paths",
   });
 });
 
+describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
+  it("T7: does not flag a valid pytest-style test importing an existing source module (tests/test_foo.py -> src/pkg/foo.py)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/pkg/foo.py", "def do_thing():\n    return 1\n");
+      writeFile(root, "tests/test_foo.py", "from ..src.pkg.foo import do_thing\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T7: does not flag a same-directory pytest-style pair (test_foo.py -> foo.py)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/foo.py", "def do_thing():\n    return 1\n");
+      writeFile(root, "tests/test_foo.py", "from .foo import do_thing\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T8: flags a Python test importing a missing local module as a candidate, with path/import evidence and conservative wording", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issue = issues.find((i) => i.title.includes("may not exist"));
+      expect(issue).toBeDefined();
+      expect(issue?.title).toContain(".missing_module");
+      expect(issue?.severity).toBe("low");
+      expect(issue?.confidence).toBe("low");
+      expect(issue?.evidence.some((e) => e.filePath === "tests/test_foo.py" && e.excerpt === ".missing_module")).toBe(true);
+      // Conservative wording -- this is a candidate, not a proven-broken test.
+      expect(issue?.description.toLowerCase()).not.toContain("broken test");
+      expect(issue?.description.toLowerCase()).not.toContain("missing dependency");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T8: flags a Python test importing a missing sibling name via bare 'from . import name'", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/test_foo.py", "from . import missing_sibling\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("missing_sibling") || i.title.includes('"."'))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a Python test importing a non-relative (absolute/third-party) module", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/test_foo.py", "import os\nfrom pkg.module import Name\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not double-report a Python test-rot finding across repeated deduplication", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const matches = issues.filter((i) => i.title.includes(".missing_module"));
+      expect(matches).toHaveLength(1);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T9: adds pytest-configuration presence as weak supporting evidence when present, without changing severity/confidence", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "pytest.ini", "[pytest]\n");
+      writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issue = issues.find((i) => i.title.includes("may not exist"));
+      expect(issue).toBeDefined();
+      expect(issue?.severity).toBe("low");
+      expect(issue?.confidence).toBe("low");
+      expect(issue?.evidence.some((e) => e.message.includes("pytest configuration"))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T9: remains deterministic and does not overclaim when no pytest configuration is present", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issue = issues.find((i) => i.title.includes("may not exist"));
+      expect(issue).toBeDefined();
+      expect(issue?.evidence.some((e) => e.message.includes("pytest configuration"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
   it("produces no .only findings against this repo's own current test suite", async () => {
     const issues = await run(process.cwd());
     expect(issues.some((i) => i.title.includes(".only("))).toBe(false);
+  });
+
+  // v0.3.2 Batch 2 -- the test above uses run() (no sourceFacts), which
+  // never exercises findMissingPythonSourceImports() against this repo's
+  // real Python benchmark fixtures. This is the real regression guard.
+  it("does not crash and stays conservative for Python test-rot findings against this repo's own real source facts", async () => {
+    const ctx = await buildContextWithSourceFacts(process.cwd());
+    const issues = await TEST_ROT_DETECTOR.run(ctx);
+    const pythonImportIssues = issues.filter((i) => i.id.includes("missing-python-source-import"));
+    expect(pythonImportIssues.every((i) => i.severity === "low" || i.severity === "info")).toBe(true);
   });
 });
 

@@ -270,6 +270,135 @@ describe("buildAuditReportModel — source facts summary", () => {
       cleanup(root);
     }
   });
+
+  // v0.3.2 Batch 3 -- T1: a Python file appears in the same generic,
+  // language-agnostic sourceFacts summary as TypeScript/JavaScript, with no
+  // schema change required (see auditReportModel.ts's SourceFactsReportSummary,
+  // unchanged since v0.3.1 Batch 2 for this specific field).
+  it("T1: reflects a real parsed Python file's language/parse-status counts alongside TypeScript", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      writeFile(root, "src/index.ts", "export const x = 1;\n");
+      writeFile(root, "src/widget.py", "def do_thing():\n    return 1\n");
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const model = buildAuditReportModel(result, { target, registry: [] });
+
+      expect(model.sourceFacts.filesByLanguage.typescript).toBeGreaterThanOrEqual(1);
+      expect(model.sourceFacts.filesByLanguage.python).toBeGreaterThanOrEqual(1);
+      expect(model.sourceFacts.filesByParseStatus.parsed).toBeGreaterThanOrEqual(2);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  // v0.3.2 Batch 3 -- T2: filesWithDiagnosticsCount is the new, generic
+  // (not Python-only) field this batch adds to close a real visibility gap:
+  // per-file diagnostics (e.g. a Python analyzer's own degraded-parse
+  // notice) were previously collected but never surfaced anywhere in the
+  // report.
+  it("T2: counts a file that carries a per-file Python analyzer diagnostic (unterminated triple-quoted string)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      writeFile(root, "src/malformed.py", ['def broken():', '    """docstring that never closes', '    return 1'].join("\n") + "\n");
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const model = buildAuditReportModel(result, { target, registry: [] });
+
+      expect(model.sourceFacts.filesWithDiagnosticsCount).toBeGreaterThanOrEqual(1);
+      expect(model.sourceFacts.filesByParseStatus["parse-error"]).toBeGreaterThanOrEqual(1);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T2: reports zero filesWithDiagnosticsCount for an ordinary, fully-parsed project", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      writeFile(root, "src/index.ts", "export const x = 1;\n");
+      writeFile(root, "src/widget.py", "def do_thing():\n    return 1\n");
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const model = buildAuditReportModel(result, { target, registry: [] });
+
+      expect(model.sourceFacts.filesWithDiagnosticsCount).toBe(0);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+describe("buildAuditReportModel — Python project metadata (Batch 3)", () => {
+  it("T3: surfaces recognized Python metadata file presence, project name, and pytest configuration presence", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      writeFile(root, "pyproject.toml", ["[project]", 'name = "fixture-py"', 'version = "1.0.0"'].join("\n") + "\n");
+      writeFile(root, "requirements.txt", "requests==2.0.0\n");
+      writeFile(root, "setup.cfg", "[metadata]\nname = fixture-cfg\n");
+      writeFile(root, "pytest.ini", "[pytest]\n");
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const model = buildAuditReportModel(result, { target, registry: [] });
+
+      expect(model.pythonProjectMetadata.hasPyprojectToml).toBe(true);
+      expect(model.pythonProjectMetadata.hasRequirementsTxt).toBe(true);
+      expect(model.pythonProjectMetadata.hasSetupCfg).toBe(true);
+      expect(model.pythonProjectMetadata.hasPytestIni).toBe(true);
+      expect(model.pythonProjectMetadata.hasSetupPy).toBe(false);
+      expect(model.pythonProjectMetadata.hasToxIni).toBe(false);
+      // pyproject.toml's name takes precedence over setup.cfg's.
+      expect(model.pythonProjectMetadata.projectName).toBe("fixture-py");
+      expect(model.pythonProjectMetadata.hasPytestConfiguration).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("reports all-false/null pythonProjectMetadata for a project with no recognized Python metadata files, without crashing", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      writeFile(root, "README.md", "# fixture\n");
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const model = buildAuditReportModel(result, { target, registry: [] });
+
+      expect(model.pythonProjectMetadata.hasPyprojectToml).toBe(false);
+      expect(model.pythonProjectMetadata.hasRequirementsTxt).toBe(false);
+      expect(model.pythonProjectMetadata.hasSetupPy).toBe(false);
+      expect(model.pythonProjectMetadata.hasSetupCfg).toBe(false);
+      expect(model.pythonProjectMetadata.hasToxIni).toBe(false);
+      expect(model.pythonProjectMetadata.hasPytestIni).toBe(false);
+      expect(model.pythonProjectMetadata.hasPytestConfiguration).toBe(false);
+      expect(model.pythonProjectMetadata.projectName).toBeNull();
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not modify any target project file while collecting pythonProjectMetadata", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      const pyprojectContent = '[project]\nname = "fixture-py"\n';
+      writeFile(root, "pyproject.toml", pyprojectContent);
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      await runAudit({ config, toolRoot: root, target, registry: [] });
+      expect(fs.readFileSync(path.join(root, "pyproject.toml"), "utf8")).toBe(pyprojectContent);
+    } finally {
+      cleanup(root);
+    }
+  });
 });
 
 describe("buildRecommendations", () => {

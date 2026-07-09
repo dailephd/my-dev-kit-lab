@@ -2,9 +2,9 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, performs automated CLI/package security validation, and runs the generic audit framework.
 
-The current published baseline is `v0.3.0`. `v0.3.0` introduced the generic audit framework and the first implemented code-rot detector family. The generic experiment-plugin framework was introduced in `v0.2.0`. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+The current published baseline is `v0.3.1`. `v0.3.0` introduced the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate plus TypeScript/JavaScript support. The generic experiment-plugin framework was introduced in `v0.2.0`. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
 
-The checked-out package is release-prepared for `v0.3.1` on top of the published baseline: normalized language/file-role inventory, source-facts collection, a TypeScript/JavaScript analyzer, source-facts-aware code-rot signals, and source-facts summaries in text/JSON audit reports. `v0.3.1` is not published yet; Python, Java, Kotlin, Android validation, framework-aware profiles, and broader audit types remain future roadmap work.
+The checked-out package state is `v0.3.2` release-prepared on top of the published `v0.3.1` baseline: Python-aware code-rot support (a Python source-facts analyzer, Python project metadata, and Python-aware dead-code/duplicate-implementation/test-rot detector signals) and a security-validation audit adapter (`npm run audit -- --types security`, mapped security findings, and a `securitySummary` audit report field). Package metadata is bumped for release preparation, but `v0.3.2` is not published yet; Java, Kotlin, cross-language stability, Android validation, framework-aware profiles, and the `quality`/`project`/`all` audit types remain future roadmap work.
 
 my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
@@ -33,8 +33,10 @@ my-dev-kit is most useful when the repository is larger than the task. It helps 
 - First experiment plugin: `context-strategy-comparison`
 - Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
 - Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
-- Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`
-- Generic audit framework in the current published `v0.3.0` baseline: `npm run audit` runs heuristic, conservative code-rot detectors and writes text/JSON reports under `reports/audits/code-rot/` by default. Only the `code-rot` audit type is currently implemented; `quality`, `security`, `project`, and `all` audit types are planned and fail cleanly instead of running. `npm run audit` supports `--target`, `--types code-rot`, and other flags — see [docs/COMMANDS.md](docs/COMMANDS.md). Audit does not modify target files, does not auto-fix issues, does not run `security:validate`, and does not perform release-readiness determination.
+- Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`. `security:validate` remains the standalone, focused security-validation command; it is not replaced by the audit adapter below.
+- Generic audit framework, current published baseline: `npm run audit` runs heuristic, conservative code-rot detectors and writes text/JSON reports under `reports/audits/code-rot/` by default. `code-rot` and `security` are the currently implemented audit types (`--types code-rot`, `--types security`, or combined `--types code-rot,security`); `quality`, `project`, and `all` audit types are planned and fail cleanly instead of running. `npm run audit` supports `--target`, `--types`, and other flags — see [docs/COMMANDS.md](docs/COMMANDS.md). Audit does not modify target files and does not auto-fix issues.
+- Language-aware code-rot support, current checked-out package state: normalized language/file-role inventory, a source-facts model and collector, a TypeScript/JavaScript analyzer, and a Python analyzer. Source facts feed the `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` detectors with parsed-import/export/declaration evidence for both languages. Python project metadata (presence of `pyproject.toml`, `requirements.txt`, `setup.py`/`setup.cfg`, `tox.ini`, `pytest.ini`, and a best-effort project name) is collected and reported as its own audit report field. Java and Kotlin remain inventory-classified but fallback-only; no analyzer is registered for them yet.
+- Security-validation audit adapter, current checked-out package state: `npm run audit -- --types security` runs security validation through the shared audit/report surface by calling the same `runSecurityValidation()` internals `security:validate` uses, maps security findings into audit-issue-shaped entries, and adds a `securitySummary` field (verdict, check counts, finding counts, and links to the original `reports/security/*.txt`/`*.json` report) to audit JSON/text reports. `npm run audit -- --types code-rot,security` runs both audit types together. The original `security:validate` command and its `reports/security/` output are unchanged.
 
 ---
 
@@ -205,13 +207,13 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current published npm baseline is `v0.3.0`, which includes the generic audit framework and the first implemented code-rot detector family on top of the earlier experiment and automated security-validation work.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current published npm baseline is `v0.3.1`, which includes the generic audit framework, the code-rot detector family, and the language-aware code-rot substrate with TypeScript/JavaScript support, on top of the earlier experiment and automated security-validation work.
 
 Planned roadmap direction after the published baseline:
 
-- `v0.3.1`: language-aware code-rot substrate plus TypeScript/JavaScript support, release-prepared and not yet published
-- `v0.3.2` through `v0.3.4`: Python, Java/Kotlin, and cross-language stability for the language-aware code-rot track
-- `v0.4.0` through `v0.4.2`: Android automated security validation
+- `v0.3.2`: Python code-rot support plus a first security-validation audit adapter, release-prepared and not yet published
+- `v0.3.3` through `v0.3.4`: Java/Kotlin and cross-language stability for the language-aware code-rot track
+- `v0.4.0` through `v0.4.2`: Android automated security validation, including an Android-specific extension of the security audit adapter
 - manual pentest: post-v1 / version TBD
 
 ---
@@ -219,6 +221,8 @@ Planned roadmap direction after the published baseline:
 ## Security validation
 
 my-dev-kit-lab owns a release-security validation track for **my-dev-kit**. This work is separate from the experiment pipeline and does not replace the generic experiment-plugin roadmap. Its purpose is to generate release-validation evidence for the local CLI/package before release preparation.
+
+`security:validate` remains the standalone, focused command for this validation and is unaffected by the current checked-out state. `npm run audit -- --types security` additionally adapts the same `security:validate` internals into the shared audit/report surface (mapped issues, a `securitySummary` field, and links to the original `reports/security/` output) — it does not replace or duplicate `security:validate`'s own checks or reports.
 
 This is not a web application pentest framework. **my-dev-kit** is a local CLI/package, so the validation model is CLI/package adversarial testing focused on whether it remains:
 

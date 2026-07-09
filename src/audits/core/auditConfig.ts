@@ -8,6 +8,7 @@ import {
   DEFAULT_AUDIT_INCLUDE_AREAS,
   DEFAULT_AUDIT_OUTPUT_FORMATS,
   DEFAULT_AUDIT_TYPES,
+  IMPLEMENTED_AUDIT_TYPES,
   PLANNED_AUDIT_TYPES,
   type AuditFailOnThreshold,
   type AuditIncludeArea,
@@ -132,7 +133,7 @@ function parseTypesOption(raw?: string): { value: AuditType[]; wasDefault: boole
   const planned = parts.filter((p) => (PLANNED_AUDIT_TYPES as readonly string[]).includes(p));
   if (planned.length > 0) {
     throw new Error(
-      `--types value(s) planned but not implemented: ${planned.join(", ")}. Only "code-rot" is implemented in this version.`
+      `--types value(s) planned but not implemented: ${planned.join(", ")}. Implemented audit types: ${IMPLEMENTED_AUDIT_TYPES.join(", ")}.`
     );
   }
 

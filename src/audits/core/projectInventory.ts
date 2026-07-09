@@ -466,7 +466,7 @@ function classifyFile(relativePath: string, basename: string, extension: string)
     return "ci";
   }
 
-  if (isTestFile(relativePath, basename)) return "tests";
+  if (isTestFile(relativePath, basename, extension)) return "tests";
 
   // Top-level scripts/ directory -- classified before generic "source" so
   // scripts (which are also .ts/.js) land in their own category.
@@ -485,16 +485,46 @@ function classifyFile(relativePath: string, basename: string, extension: string)
   return "unknown";
 }
 
-function isTestFile(relativePath: string, basename: string): boolean {
-  if (relativePath.startsWith("tests/") || relativePath.includes("/tests/")) return true;
-  return /\.(test|spec)\.[jt]sx?$/.test(basename);
+// v0.3.2 Batch 1 -- conservative pytest naming conventions. Gated to .py so
+// this can never reclassify a non-Python file. "tests/**/*.py" and
+// "**/tests/**/*.py" are already covered by the generic, extension-agnostic
+// check above; only the singular "test/" directory and the test_*.py /
+// *_test.py filename conventions are Python-specific additions here.
+function isPythonTestFile(relativePath: string, basename: string): boolean {
+  if (relativePath.startsWith("test/") || relativePath.includes("/test/")) return true;
+  return /^test_.*\.py$/.test(basename) || /^.*_test\.py$/.test(basename);
 }
+
+function isTestFile(relativePath: string, basename: string, extension: string): boolean {
+  if (relativePath.startsWith("tests/") || relativePath.includes("/tests/")) return true;
+  if (/\.(test|spec)\.[jt]sx?$/.test(basename)) return true;
+  if (extension === ".py" && isPythonTestFile(relativePath, basename)) return true;
+  return false;
+}
+
+// v0.3.2 Batch 1 -- recognized Python project/config metadata filenames.
+// Matched by basename only (same convention as PACKAGE_FILE_NAMES above),
+// not restricted to root, since these are specific enough not to collide
+// with unrelated fixture/benchmark content. Deliberately narrow: does not
+// match arbitrary *.toml/*.ini/*.txt files, only these exact names.
+const PYTHON_PROJECT_METADATA_FILE_NAMES = new Set([
+  "pyproject.toml",
+  "requirements.txt",
+  "setup.cfg",
+  "tox.ini",
+  "pytest.ini",
+]);
 
 function isConfigFile(relativePath: string, basename: string, extension: string): boolean {
   if (/^tsconfig(\..+)?\.json$/.test(basename)) return true;
   if (/^vitest\.config\.[jt]s$/.test(basename) || basename === "vitest.workspace.ts") return true;
   if (/^\.eslintrc(\..+)?$/.test(basename) || /^eslint\.config\.[jt]s$/.test(basename)) return true;
   if (basename === ".editorconfig" || basename === ".gitignore" || basename === ".npmignore") return true;
+  // v0.3.2 Batch 1 -- setup.py has a .py extension and would otherwise fall
+  // through to the generic KNOWN_SOURCE_EXTENSIONS "source" classification
+  // below; the other names have no source-extension conflict but are listed
+  // here for the same "project metadata, not source" reasoning.
+  if (basename === "setup.py" || PYTHON_PROJECT_METADATA_FILE_NAMES.has(basename)) return true;
   // Root-level dotfile configs (e.g. .prettierrc, .babelrc) not already
   // covered above -- deliberately conservative (root-only, not recursive)
   // to avoid misclassifying dotfiles inside fixture/benchmark projects.

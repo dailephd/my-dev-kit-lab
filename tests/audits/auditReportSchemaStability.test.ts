@@ -26,6 +26,10 @@ const REQUIRED_TOP_LEVEL_KEYS = [
   "inventory",
   "sourceOfTruth",
   "sourceFacts",
+  // v0.3.2 Batch 3 -- 15th top-level field, alongside the existing 14.
+  "pythonProjectMetadata",
+  // v0.3.2 Batch 4 -- 16th top-level field.
+  "securitySummary",
   "detectors",
   "issues",
   "skippedDetectors",
