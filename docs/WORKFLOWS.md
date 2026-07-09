@@ -77,7 +77,7 @@ Current behavior:
 
 ## Workflow 6: Code-rot audit
 
-Use this workflow for the current implemented audit path. The published `v0.3.0` baseline provides the generic audit framework and code-rot detectors; the active `v0.3.1` branch adds language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence without adding command flags.
+Use this workflow for the current implemented audit path. The published `v0.3.0` baseline provides the generic audit framework and code-rot detectors; the release-prepared `v0.3.1` package state adds language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence without adding command flags.
 
 ```bash
 npm run audit

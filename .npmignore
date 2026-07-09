@@ -4,6 +4,7 @@ benchmarks/**/__pycache__/
 benchmarks/**/*.pyc
 dist/benchmarks/
 dist/tests/
+dist/scripts/docs/
 .claude/
 .idea/
 AGENTS.md

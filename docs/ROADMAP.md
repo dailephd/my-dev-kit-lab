@@ -1,6 +1,6 @@
 # Roadmap
 
-This roadmap separates the current published baseline from active-branch implemented work, in-progress work, and planned work. A version listed here is not implemented unless its status says completed, current, or implemented on active branch.
+This roadmap separates the current published baseline from release-prepared work, in-progress work, and planned work. A version listed here is not implemented unless its status says completed, current, or release-prepared.
 
 `v0.3.0` is the current published baseline.
 
@@ -92,7 +92,7 @@ Framework-aware code rot remains future/TBD after the language-aware track is st
 ### v0.3.1 - language-aware code-rot substrate + TypeScript/JavaScript support
 
 Status:
-- implemented on active branch; not published
+- release-prepared; not published
 
 Purpose:
 - Add the reusable language-aware substrate for code-rot detectors and prove it with TypeScript and JavaScript support.

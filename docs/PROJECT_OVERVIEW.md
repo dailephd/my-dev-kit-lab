@@ -18,7 +18,7 @@ Automated security validation is also implemented. It supports dependency and pa
 
 The `v0.3.0` generic audit framework is implemented in the current published baseline. It adds `npm run audit`, which currently supports one audit type, `code-rot`, covering 10 heuristic detector families and writing stable text/JSON reports. Audit is a separate tool from both the experiment pipeline and `security:validate`: it does not call `security:validate`.
 
-The active `v0.3.1` branch implements the language-aware code-rot substrate plus TypeScript/JavaScript support. It adds normalized language/file-role inventory, source facts, a TypeScript/JavaScript analyzer, source-facts-aware detector signals, and source-facts report summaries while preserving the existing audit command surface. Python, Java, Kotlin, Android automated security validation, framework-aware profiles, and broader audit types remain future roadmap work.
+The checked-out package is release-prepared for `v0.3.1` language-aware code-rot substrate plus TypeScript/JavaScript support. It adds normalized language/file-role inventory, source facts, a TypeScript/JavaScript analyzer, source-facts-aware detector signals, and source-facts report summaries while preserving the existing audit command surface. Python, Java, Kotlin, Android automated security validation, framework-aware profiles, and broader audit types remain future roadmap work.
 
 ## Product flow
 
@@ -52,7 +52,7 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 The current published npm baseline is `v0.3.0`. After that, the immediate direction is:
 
-1. complete the remaining language-aware code-rot track after active-branch `v0.3.1`: Python in `v0.3.2`, Java/Kotlin in `v0.3.3`, and cross-language stability in `v0.3.4`
+1. complete the remaining language-aware code-rot track after release-prepared `v0.3.1`: Python in `v0.3.2`, Java/Kotlin in `v0.3.3`, and cross-language stability in `v0.3.4`
 2. add Android validation MVP in `v0.4.0`
 3. add advanced Android security checks in `v0.4.1`
 4. optionally add the Android audit bridge in `v0.4.2`

@@ -184,9 +184,9 @@ Current behavior:
 - target files are not modified
 - audit does not auto-fix issues
 - reports are written under `reports/audits/code-rot/` by default as `code-rot-audit.txt` and/or `code-rot-audit.json`
-- the active `v0.3.1` branch adds source-facts summaries to audit reports without adding command flags
+- the release-prepared `v0.3.1` package state adds source-facts summaries to audit reports without adding command flags
 
-Active-branch `v0.3.1` report details:
+Release-prepared `v0.3.1` report details:
 
 - JSON reports include a top-level `sourceFacts` summary with `totalFilesAnalyzed`, `filesByLanguage`, `filesByParseStatus`, `analyzerDiagnosticCount`, and `warnings`.
 - Text reports include a `Source facts` section with analyzed-file and parse-status counts.

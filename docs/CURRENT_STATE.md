@@ -16,14 +16,14 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Self and explicit local-project security-validation targets.
 - Generic audit framework in `src/audits`, with `npm run audit` as the CLI entrypoint (`scripts/audits/runAudit.ts`). Only the `code-rot` audit type is implemented; `quality`, `security`, and `project` audit types are planned and fail cleanly (exit code 2) rather than running.
 - 10 code-rot detector families are implemented and registered: `stale-command-reference`, `docs-code-mismatch`, `package-release-rot`, `duplicate-implementation-candidate`, `dead-code-candidate`, `test-rot`, `architecture-drift`, `dependency-environment-rot`, `cross-platform-rot`, `security-validation-assumption-rot`.
-- A stable, versioned audit report schema (`schemaVersion` `"1.0"`) with text and JSON renderers; `metadata.auditTypes` is included alongside `metadata.auditType`. The active `v0.3.1` branch includes the `sourceFacts` summary field in addition to the `v0.3.0` top-level report fields.
+- A stable, versioned audit report schema (`schemaVersion` `"1.0"`) with text and JSON renderers; `metadata.auditTypes` is included alongside `metadata.auditType`. The release-prepared `v0.3.1` package state includes the `sourceFacts` summary field in addition to the `v0.3.0` top-level report fields.
 - Audit reports are written under `reports/audits/code-rot/` by default, or under `--out <path>` when supplied.
 - Self and explicit local-project (non-destructive) audit targets.
 - The audit framework does not call `security:validate`, and `security:validate` does not call the audit framework; the two remain separate, independently runnable tools.
 
 ## Active branch status
 
-`v0.3.1` is implemented on the checked-out branch but is not published. It adds normalized language/file-role inventory, a source facts model, source facts collection, a language analyzer registry, a TypeScript/JavaScript syntax analyzer, and source-facts-aware detector/report integration.
+`v0.3.1` is release-prepared in the checked-out package state but is not published. It adds normalized language/file-role inventory, a source facts model, source facts collection, a language analyzer registry, a TypeScript/JavaScript syntax analyzer, and source-facts-aware detector/report integration.
 
 The TypeScript/JavaScript analyzer supports `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files where files are within the analyzer size bound and parse without syntax diagnostics. Python, Java, and Kotlin are classified by inventory but remain fallback-only: no parser/analyzer is registered for them in `v0.3.1`.
 
@@ -73,7 +73,7 @@ npm run audit -- --types code-rot --format text,json --fail-on none
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework and code-rot detector are implemented in the current published `v0.3.0` baseline. The active branch also implements the `v0.3.1` TypeScript/JavaScript language-aware code-rot substrate described above.
+The generic audit framework and code-rot detector are implemented in the current published `v0.3.0` baseline. The checked-out package is release-prepared for the `v0.3.1` TypeScript/JavaScript language-aware code-rot substrate described above.
 
 The following remain planned, not implemented:
 
@@ -99,4 +99,4 @@ The following remain planned, not implemented:
 
 ## Next planned work
 
-The current published npm baseline is `v0.3.0`. The active branch implements `v0.3.1` language-aware code-rot substrate plus TypeScript/JavaScript support. Python, Java/Kotlin, and cross-language stability remain planned for `v0.3.2` through `v0.3.4`. Android automated security validation follows in `v0.4.0` through optional `v0.4.2`. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.
+The current published npm baseline is `v0.3.0`. The checked-out package is release-prepared for `v0.3.1` language-aware code-rot substrate plus TypeScript/JavaScript support. Python, Java/Kotlin, and cross-language stability remain planned for `v0.3.2` through `v0.3.4`. Android automated security validation follows in `v0.4.0` through optional `v0.4.2`. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.

@@ -2,9 +2,9 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [0.3.1] - Unreleased
+## [0.3.1] - 2026-07-09
 
-Language-aware code-rot substrate plus TypeScript/JavaScript support. This version is implemented on the active branch but is not published.
+Language-aware code-rot substrate plus TypeScript/JavaScript support. This version is release-prepared but is not published.
 
 ### Added
 
@@ -17,11 +17,13 @@ Language-aware code-rot substrate plus TypeScript/JavaScript support. This versi
   - `test-rot` uses analyzer-recorded relative imports, including dynamic `import()`, to find missing targets missed by regex-only scanning.
 - Added source-facts summaries to JSON and text audit reports. JSON reports include top-level `sourceFacts`; text reports include a `Source facts` section.
 - Added end-to-end and focused tests for source facts collection, TypeScript/JavaScript analyzer behavior, detector integration, report model/rendering, and the real audit registry path.
+- Added the latest-Node cross-platform readiness workflow for `windows-latest`, `macos-latest`, and `ubuntu-latest` on Node `26.5.0`.
 
 ### Fixed
 
 - Fixed `.mts` and `.cts` source-role eligibility for source-facts collection.
 - Fixed audit text rendering so an evidence entry with both `message` and `excerpt` renders both.
+- Fixed the audit validation reliability issue by isolating the expensive `security:validate` smoke path in the audit command tests and pinning Vitest worker settings with `vitest.config.ts`.
 
 ### Compatibility and limitations
 

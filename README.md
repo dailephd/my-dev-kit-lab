@@ -4,7 +4,7 @@ my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and 
 
 The current published baseline is `v0.3.0`. `v0.3.0` introduced the generic audit framework and the first implemented code-rot detector family. The generic experiment-plugin framework was introduced in `v0.2.0`. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
 
-The checked-out `v0.3.1` branch implements the language-aware code-rot substrate on top of the published baseline: normalized language/file-role inventory, source-facts collection, a TypeScript/JavaScript analyzer, source-facts-aware code-rot signals, and source-facts summaries in text/JSON audit reports. This branch is not a published package version; Python, Java, Kotlin, Android validation, framework-aware profiles, and broader audit types remain future roadmap work.
+The checked-out package is release-prepared for `v0.3.1` on top of the published baseline: normalized language/file-role inventory, source-facts collection, a TypeScript/JavaScript analyzer, source-facts-aware code-rot signals, and source-facts summaries in text/JSON audit reports. `v0.3.1` is not published yet; Python, Java, Kotlin, Android validation, framework-aware profiles, and broader audit types remain future roadmap work.
 
 my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
@@ -209,7 +209,7 @@ my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline 
 
 Planned roadmap direction after the published baseline:
 
-- `v0.3.1`: language-aware code-rot substrate plus TypeScript/JavaScript support, implemented on the active branch but not yet published
+- `v0.3.1`: language-aware code-rot substrate plus TypeScript/JavaScript support, release-prepared and not yet published
 - `v0.3.2` through `v0.3.4`: Python, Java/Kotlin, and cross-language stability for the language-aware code-rot track
 - `v0.4.0` through `v0.4.2`: Android automated security validation
 - manual pentest: post-v1 / version TBD

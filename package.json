@@ -1,6 +1,6 @@
 {
   "name": "@dailephd/my-dev-kit-lab",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
@@ -8,6 +8,7 @@
   },
   "files": [
     "dist/scripts/",
+    "!dist/scripts/docs/",
     "dist/src/",
     "benchmarks/",
     "docs/METRICS.md",

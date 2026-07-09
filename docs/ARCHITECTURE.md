@@ -2,7 +2,7 @@
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework (code-rot audit type only) is implemented in the current published `v0.3.0` baseline. The checked-out branch implements `v0.3.1` language-aware code-rot substrate work; it is not published.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework (code-rot audit type only) is implemented in the current published `v0.3.0` baseline. The checked-out package is release-prepared for `v0.3.1` language-aware code-rot substrate work; it is not published.
 
 ### Module map
 
@@ -184,7 +184,7 @@ flowchart LR
 10. `security-validation-assumption-rot` — stale documentation *claims* about security-validation (this detector checks claims about security-validation; it does not itself perform security validation)
 
 `src/audits/report/` builds and writes the stable, versioned report:
-- `auditReportModel.ts` — pure `AuditResult -> AuditReportModel` transform; `AUDIT_REPORT_SCHEMA_VERSION = "1.0"`; the active `v0.3.1` branch includes 14 top-level fields (`schemaVersion`, `metadata`, `target`, `config`, `summary`, `inventory`, `sourceOfTruth`, `sourceFacts`, `detectors`, `issues`, `skippedDetectors`, `detectorErrors`, `recommendations`, `exit`); `metadata.auditType` (joined string) and `metadata.auditTypes` (string array) are both present
+- `auditReportModel.ts` — pure `AuditResult -> AuditReportModel` transform; `AUDIT_REPORT_SCHEMA_VERSION = "1.0"`; the release-prepared `v0.3.1` package state includes 14 top-level fields (`schemaVersion`, `metadata`, `target`, `config`, `summary`, `inventory`, `sourceOfTruth`, `sourceFacts`, `detectors`, `issues`, `skippedDetectors`, `detectorErrors`, `recommendations`, `exit`); `metadata.auditType` (joined string) and `metadata.auditTypes` (string array) are both present
 - `renderAuditJsonReport.ts` / `renderAuditTextReport.ts` — JSON and text renderers; the text renderer sanitizes all issue/recommendation text through `sanitizeAuditText.ts` before printing and renders both an evidence message and excerpt when both are present
 - `writeAuditReports.ts` — writes the selected `--format` outputs
 - Reports are written under `reports/audits/code-rot/` by default (`code-rot-audit.json`, `code-rot-audit.txt`), or under `--out <path>` when supplied
@@ -195,7 +195,7 @@ Fail-on policy: `--fail-on blocker|high|medium|low|none` (default `blocker`; see
 
 ### v0.3.1 audit substrate
 
-The checked-out branch implements language-aware code-rot substrate work for `v0.3.1`. It extends the audit core with normalized language/file-role inventory, a language analyzer registry, a source facts model, source facts collection, and TypeScript/JavaScript analyzer support. This work is part of the active branch and is not part of the published `v0.3.0` package until `v0.3.1` is released.
+The checked-out package is release-prepared for language-aware code-rot substrate work in `v0.3.1`. It extends the audit core with normalized language/file-role inventory, a language analyzer registry, a source facts model, source facts collection, and TypeScript/JavaScript analyzer support. This work is not part of the published `v0.3.0` package until `v0.3.1` is published.
 
 The TypeScript/JavaScript analyzer is syntax-only and single-file. It uses the TypeScript compiler API to parse supported TS/JS extensions and records imports, exports, declarations, bare call references, line counts, diagnostics, and parse status. Files over 1 MB fall back to file-level facts. Files with syntax diagnostics are marked `parse-error` while retaining best-effort facts. Python, Java, and Kotlin are inventory-classified but fallback-only in `v0.3.1`; no analyzer is registered for them.
 
