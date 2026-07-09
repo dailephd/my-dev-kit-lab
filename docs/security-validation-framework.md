@@ -181,7 +181,7 @@ Current report/schema details:
 
 ## Fortification status and audit relationship
 
-`v0.3.1` is the current published npm baseline. It keeps the `v0.2.2` security-validation fortification and the `v0.3.0` generic audit framework as a separate tool, and adds the language-aware TypeScript/JavaScript code-rot substrate. The checked-out package state additionally implements `v0.3.2` release-prepared work: a security-validation audit adapter. Package metadata is version-bumped, but publication has not happened yet.
+`v0.3.2` is the current published npm baseline. It keeps the `v0.2.2` security-validation fortification and the `v0.3.0` generic audit framework as a separate tool, adds the `v0.3.1` language-aware TypeScript/JavaScript code-rot substrate, and adds a security-validation audit adapter.
 
 `security:validate` remains standalone and is the primary, focused command for security validation. `npm run audit -- --types security` is now implemented as an *adapter*, not a new security-scanner family: it calls `runSecurityValidation()` (the same exported function `security:validate` calls) directly, maps the resulting findings into the shared audit issue model, and adds a `securitySummary` field to the audit JSON/text report. Security reports under `reports/security/` remain the original, unchanged output — the audit report links to them (via `securitySummary.reportPaths`) rather than duplicating their contents. `npm run audit` does not shell out to `security:validate`, and `security:validate` does not call the audit framework; the two commands remain independently runnable, and the adapter does not replace or redesign `security:validate`.
 

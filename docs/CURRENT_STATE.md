@@ -1,6 +1,6 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.1`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support. The checked-out package state is `v0.3.2` release-prepared (version-bumped, not published): Python code-rot support and a first security-validation audit adapter.
+This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.2`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support; `v0.3.2` added Python code-rot support and a first security-validation audit adapter.
 
 ## Implemented
 
@@ -17,16 +17,16 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Generic audit framework in `src/audits`, with `npm run audit` as the CLI entrypoint (`scripts/audits/runAudit.ts`). `code-rot` and `security` audit types are implemented; `quality`, `project`, and `all` audit types are planned and fail cleanly (exit code 2) rather than running.
 - 10 code-rot detector families are implemented and registered: `stale-command-reference`, `docs-code-mismatch`, `package-release-rot`, `duplicate-implementation-candidate`, `dead-code-candidate`, `test-rot`, `architecture-drift`, `dependency-environment-rot`, `cross-platform-rot`, `security-validation-assumption-rot`.
 - A security-validation audit adapter in `src/audits/security` implements the `security` audit type: it calls `runSecurityValidation()` directly, maps findings into audit issues, and preserves the original `reports/security/*.txt`/`*.json` report family. `security:validate` remains a separate, independently runnable, unmodified command.
-- A stable, versioned audit report schema (`schemaVersion` `"1.0"`) with text and JSON renderers; `metadata.auditTypes` is included alongside `metadata.auditType`. The published `v0.3.1` package state added the `sourceFacts` summary field; the checked-out `v0.3.2` release-prepared state adds `pythonProjectMetadata` and `securitySummary`, for 16 top-level report fields.
+- A stable, versioned audit report schema (`schemaVersion` `"1.0"`) with text and JSON renderers; `metadata.auditTypes` is included alongside `metadata.auditType`. `v0.3.1` added the `sourceFacts` summary field; `v0.3.2` adds `pythonProjectMetadata` and `securitySummary`, for 16 top-level report fields.
 - Audit reports are written under `reports/audits/<type>/` by default (`code-rot-audit.txt`/`code-rot-audit.json`), or under `--out <path>` when supplied.
 - Self and explicit local-project (non-destructive) audit targets.
 - The audit framework does not shell out to `security:validate`; the security audit adapter reuses `securityValidation`'s exported functions directly, and `security:validate` does not call the audit framework.
 
 ## Active branch status
 
-The current published npm baseline is `v0.3.1`. It added normalized language/file-role inventory, a source facts model, source facts collection, a language analyzer registry, a TypeScript/JavaScript syntax analyzer, and source-facts-aware detector/report integration.
+The current published npm baseline is `v0.3.2`. `v0.3.1` added normalized language/file-role inventory, a source facts model, source facts collection, a language analyzer registry, a TypeScript/JavaScript syntax analyzer, and source-facts-aware detector/report integration.
 
-The checked-out package state adds `v0.3.2` release-prepared work (version-bumped, not published):
+`v0.3.2` adds:
 
 - a dependency-free Python source-facts analyzer (imports including relative dotted imports, `__all__`, module-level/class-body declarations)
 - Python project metadata collection (`pyproject.toml`, `requirements.txt`, `setup.py`/`setup.cfg`, `tox.ini`, `pytest.ini` presence, best-effort project name, pytest-configuration flag)
@@ -84,7 +84,7 @@ npm run audit -- --types code-rot,security --format text,json --fail-on none
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework, code-rot detector family, and TypeScript/JavaScript language-aware substrate are implemented in the current published `v0.3.1` baseline. The checked-out package state adds `v0.3.2` release-prepared work: Python code-rot support and the security-validation audit adapter described above.
+The generic audit framework, code-rot detector family, TypeScript/JavaScript and Python language-aware substrate, and the security-validation audit adapter are all implemented in the current published `v0.3.2` baseline.
 
 The following remain planned, not implemented:
 
@@ -112,4 +112,4 @@ The following remain planned, not implemented:
 
 ## Next planned work
 
-The current published npm baseline is `v0.3.1`. The checked-out package state is `v0.3.2` release-prepared: Python code-rot support and a first security-validation audit adapter. Java/Kotlin and cross-language stability remain planned for `v0.3.3` through `v0.3.4`. Android automated security validation follows in `v0.4.0` through `v0.4.1`, with an Android-specific extension of the security audit adapter as optional `v0.4.2` work. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.
+The current published npm baseline is `v0.3.2`, which added Python code-rot support and a first security-validation audit adapter. Java/Kotlin and cross-language stability remain planned for `v0.3.3` through `v0.3.4`. Android automated security validation follows in `v0.4.0` through `v0.4.1`, with an Android-specific extension of the security audit adapter as optional `v0.4.2` work. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.

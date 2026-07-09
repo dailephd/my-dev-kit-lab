@@ -2,9 +2,9 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [0.3.2] - Release prepared
+## [0.3.2] - 2026-07-09
 
-`v0.3.2` is release-prepared: Python code-rot support and a first security-validation audit adapter are implemented on top of the published `v0.3.1` baseline. Package metadata is now bumped for release preparation; publication has not happened yet.
+Python code-rot support and a first security-validation audit adapter, implemented on top of the published `v0.3.1` baseline. Published.
 
 ### Added
 

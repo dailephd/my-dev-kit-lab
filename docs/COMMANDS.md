@@ -136,7 +136,7 @@ Current behavior:
 
 ## Audit commands
 
-The generic audit framework is implemented. `code-rot` was implemented in `v0.3.0`; `security` is implemented in the checked-out `v0.3.2` release-prepared package state. The audit framework is separate from `security:validate`: `npm run audit -- --types security` adapts `security:validate`'s internals and report family into the audit report surface, but does not replace the standalone `security:validate` command.
+The generic audit framework is implemented. `code-rot` was implemented in `v0.3.0`; `security` is implemented in the published `v0.3.2` package state. The audit framework is separate from `security:validate`: `npm run audit -- --types security` adapts `security:validate`'s internals and report family into the audit report surface, but does not replace the standalone `security:validate` command.
 
 Current implemented command:
 
@@ -191,7 +191,7 @@ Current behavior:
 - target files are not modified
 - audit does not auto-fix issues
 - reports are written under `reports/audits/<type>/code-rot-audit.txt` and/or `code-rot-audit.json` by default (the report filename is fixed regardless of `--types`; only the containing directory changes, e.g. `reports/audits/security/` for `--types security`)
-- the `v0.3.1` package state added source-facts summaries to audit reports; the checked-out `v0.3.2` release-prepared state adds Python project metadata and the security summary described below, without adding new command flags
+- the `v0.3.1` package state added source-facts summaries to audit reports; the published `v0.3.2` state adds Python project metadata and the security summary described below, without adding new command flags
 
 `v0.3.1` report details (published):
 
@@ -200,7 +200,7 @@ Current behavior:
 - Source-facts-derived issue evidence is still conservative candidate evidence. It can mention parsed TypeScript/JavaScript imports, exports, declarations, dynamic imports, or duplicate declaration candidates.
 - TypeScript/JavaScript source facts are syntax-only and single-file; they do not imply type-checking, full module resolution, `tsconfig` path alias resolution, runtime reachability, clone detection, or coverage analysis.
 
-Checked-out `v0.3.2` report details (release-prepared, not published):
+`v0.3.2` report details (published):
 
 - JSON/text reports include a top-level `pythonProjectMetadata` field: presence booleans for `pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `tox.ini`, `pytest.ini`, plus a best-effort project name and a pytest-configuration flag. Populated (all-false/null where absent) regardless of `--types`.
 - Source-facts-derived evidence can also mention parsed Python imports, `__all__`, and module/class-level declarations. Python static analysis is regex/line-based and dependency-free; it does not execute Python, perform type checking, or resolve dependencies.

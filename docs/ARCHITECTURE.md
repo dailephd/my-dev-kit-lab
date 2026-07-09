@@ -2,7 +2,7 @@
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types, in the current published `v0.3.1` baseline (which also added the language-aware code-rot substrate and TypeScript/JavaScript analyzer on top of `v0.3.0`'s original code-rot-only audit framework). The checked-out package state adds `v0.3.2` release-prepared work: a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`); package metadata is version-bumped, but publication has not happened yet.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types, in the current published `v0.3.2` baseline. `v0.3.0` introduced the original code-rot-only audit framework; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer; `v0.3.2` adds a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`).
 
 ### Module map
 
@@ -153,7 +153,7 @@ Optional local tools can be reported as skipped; absence alone does not make the
 
 ## Audit framework architecture
 
-`src/audits/` is the implemented generic project-audit framework. `code-rot` (since `v0.3.0`) and `security` (since `v0.3.2`, checked-out state) are the currently implemented audit types. `quality`, `project`, and `all` audit types remain planned — supplying them to `--types` fails cleanly with exit code 2 and a clear message rather than running.
+`src/audits/` is the implemented generic project-audit framework. `code-rot` (since `v0.3.0`) and `security` (since `v0.3.2`) are the currently implemented audit types. `quality`, `project`, and `all` audit types remain planned — supplying them to `--types` fails cleanly with exit code 2 and a clear message rather than running.
 
 The audit framework and automated security validation (`src/securityValidation`) remain two distinct systems. `src/audits/security` is an *adapter*, not a new security-scanner family: it calls `runSecurityValidation()` (the same internals `security:validate` uses) directly, maps the resulting `SecurityFinding`s into audit issues, and writes the same `reports/security/*.txt`/`*.json` report family `security:validate` already writes. `security:validate` is never called by the audit framework as a subprocess, and it does not call the audit framework — the adapter only reuses `securityValidation`'s exported functions.
 
@@ -204,7 +204,7 @@ flowchart LR
 10. `security-validation-assumption-rot` — stale documentation *claims* about security-validation (this detector checks claims about security-validation; it does not itself perform security validation)
 
 `src/audits/report/` builds and writes the stable, versioned report:
-- `auditReportModel.ts` — pure `AuditResult -> AuditReportModel` transform; `AUDIT_REPORT_SCHEMA_VERSION = "1.0"`; the checked-out package state includes 16 top-level fields (`schemaVersion`, `metadata`, `target`, `config`, `summary`, `inventory`, `sourceOfTruth`, `sourceFacts`, `pythonProjectMetadata`, `securitySummary`, `detectors`, `issues`, `skippedDetectors`, `detectorErrors`, `recommendations`, `exit`) — the published `v0.3.1` baseline has 14 (no `pythonProjectMetadata`/`securitySummary`); `metadata.auditType` (joined string) and `metadata.auditTypes` (string array) are both present
+- `auditReportModel.ts` — pure `AuditResult -> AuditReportModel` transform; `AUDIT_REPORT_SCHEMA_VERSION = "1.0"`; the published `v0.3.2` package state includes 16 top-level fields (`schemaVersion`, `metadata`, `target`, `config`, `summary`, `inventory`, `sourceOfTruth`, `sourceFacts`, `pythonProjectMetadata`, `securitySummary`, `detectors`, `issues`, `skippedDetectors`, `detectorErrors`, `recommendations`, `exit`) — `v0.3.1` had 14 (no `pythonProjectMetadata`/`securitySummary`); `metadata.auditType` (joined string) and `metadata.auditTypes` (string array) are both present
 - `renderAuditJsonReport.ts` / `renderAuditTextReport.ts` — JSON and text renderers; the text renderer sanitizes all issue/recommendation text through `sanitizeAuditText.ts` before printing and renders both an evidence message and excerpt when both are present
 - `writeAuditReports.ts` — writes the selected `--format` outputs
 - Reports are written under `reports/audits/code-rot/` by default (`code-rot-audit.json`, `code-rot-audit.txt`), or under `--out <path>` when supplied
@@ -221,13 +221,13 @@ The TypeScript/JavaScript analyzer is syntax-only and single-file. It uses the T
 
 The code-rot integrations use source facts as additional conservative evidence only. They do not prove unused code, semantic duplicate implementations, test coverage, full module resolution, `tsconfig` path alias resolution, type-checker semantics, or runtime reachability.
 
-### v0.3.2 audit substrate (checked-out, release-prepared)
+### v0.3.2 audit substrate (published)
 
-The checked-out package state adds a Python analyzer alongside the `v0.3.1` TypeScript/JavaScript analyzer. It is dependency-free and regex/line-based (no Python runtime, no `ast` module, no third-party parser): it extracts `import`/`from...import` statements (including relative dotted imports), `__all__`, and module-level/class-body `def`/`class` declarations. It leaves `references` empty (no call/identifier tracking) to avoid overclaiming. `pythonProjectMetadata.ts` separately collects presence/simple-text-extraction metadata from common Python project files. Java and Kotlin remain inventory-classified but fallback-only; no analyzer is registered for them.
+`v0.3.2` adds a Python analyzer alongside the `v0.3.1` TypeScript/JavaScript analyzer. It is dependency-free and regex/line-based (no Python runtime, no `ast` module, no third-party parser): it extracts `import`/`from...import` statements (including relative dotted imports), `__all__`, and module-level/class-body `def`/`class` declarations. It leaves `references` empty (no call/identifier tracking) to avoid overclaiming. `pythonProjectMetadata.ts` separately collects presence/simple-text-extraction metadata from common Python project files. Java and Kotlin remain inventory-classified but fallback-only; no analyzer is registered for them.
 
 The same source-facts-aware `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` detectors extended in `v0.3.1` for TypeScript/JavaScript now also consume Python source facts (a Python-specific relative-import resolver for `test-rot`, and an analyzer-id-scoped grouping key for `duplicate-implementation-candidate` so the pre-existing TypeScript/JavaScript grouping is unaffected). Python-derived findings use the same conservative "candidate"/"may indicate" wording as the rest of the code-rot family.
 
-The checked-out state also adds the security-validation audit adapter described above (`src/audits/security/`), making `security` the second implemented audit type alongside `code-rot`.
+`v0.3.2` also adds the security-validation audit adapter described above (`src/audits/security/`), making `security` the second implemented audit type alongside `code-rot`.
 
 ## Shared report and evidence infrastructure
 

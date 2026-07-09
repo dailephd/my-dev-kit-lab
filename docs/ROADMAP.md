@@ -2,7 +2,7 @@
 
 This roadmap separates the current published baseline from release-prepared work, in-progress work, and planned work. A version listed here is not implemented unless its status says completed, current, in progress, or release-prepared.
 
-`v0.3.1` is the current published baseline. `v0.3.2` is release-prepared on top of it (version-bumped, not yet published).
+`v0.3.2` is the current published baseline.
 
 ## Version sequence
 
@@ -10,8 +10,8 @@ This roadmap separates the current published baseline from release-prepared work
 flowchart LR
   A[v0.2.0<br/>plugin framework] --> B[v0.2.2<br/>security-validation fortification]
   B --> C[v0.3.0<br/>generic audit framework]
-  C --> D[v0.3.1<br/>current published baseline: language-aware code-rot substrate + TS/JS]
-  D --> E[v0.3.2<br/>release-prepared: Python code-rot + first security audit adapter]
+  C --> D[v0.3.1<br/>language-aware code-rot substrate + TS/JS]
+  D --> E[v0.3.2<br/>current published baseline: Python code-rot + first security audit adapter]
   E --> F[v0.3.3<br/>Java/Kotlin code-rot]
   F --> G[v0.3.4<br/>cross-language stability]
   G --> H[v0.4.0<br/>Android validation MVP]
@@ -92,7 +92,7 @@ Framework-aware code rot remains future/TBD after the language-aware track is st
 ### v0.3.1 - language-aware code-rot substrate + TypeScript/JavaScript support
 
 Status:
-- completed; current published baseline
+- completed; superseded by `v0.3.2` as the current published baseline
 
 Purpose:
 - Add the reusable language-aware substrate for code-rot detectors and prove it with TypeScript and JavaScript support.
@@ -125,7 +125,7 @@ Out of scope:
 ### v0.3.2 - Python code-rot support + first security audit adapter
 
 Status:
-- release-prepared; implemented on top of the published `v0.3.1` baseline (version-bumped, not yet published)
+- completed; current published baseline
 
 Purpose:
 - Add Python-aware code-rot detection using the language-aware substrate from `v0.3.1`.

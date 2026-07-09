@@ -2,9 +2,9 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, performs automated CLI/package security validation, and runs the generic audit framework.
 
-The current published baseline is `v0.3.1`. `v0.3.0` introduced the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate plus TypeScript/JavaScript support. The generic experiment-plugin framework was introduced in `v0.2.0`. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+The current published baseline is `v0.3.2`. `v0.3.0` introduced the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate plus TypeScript/JavaScript support; `v0.3.2` added Python-aware code-rot support and a first security-validation audit adapter. The generic experiment-plugin framework was introduced in `v0.2.0`. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
 
-The checked-out package state is `v0.3.2` release-prepared on top of the published `v0.3.1` baseline: Python-aware code-rot support (a Python source-facts analyzer, Python project metadata, and Python-aware dead-code/duplicate-implementation/test-rot detector signals) and a security-validation audit adapter (`npm run audit -- --types security`, mapped security findings, and a `securitySummary` audit report field). Package metadata is bumped for release preparation, but `v0.3.2` is not published yet; Java, Kotlin, cross-language stability, Android validation, framework-aware profiles, and the `quality`/`project`/`all` audit types remain future roadmap work.
+`v0.3.2` adds, on top of the published `v0.3.1` baseline: Python-aware code-rot support (a Python source-facts analyzer, Python project metadata, and Python-aware dead-code/duplicate-implementation/test-rot detector signals) and a security-validation audit adapter (`npm run audit -- --types security`, mapped security findings, and a `securitySummary` audit report field). Java, Kotlin, cross-language stability, Android validation, framework-aware profiles, and the `quality`/`project`/`all` audit types remain future roadmap work.
 
 my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
@@ -207,11 +207,10 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current published npm baseline is `v0.3.1`, which includes the generic audit framework, the code-rot detector family, and the language-aware code-rot substrate with TypeScript/JavaScript support, on top of the earlier experiment and automated security-validation work.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current published npm baseline is `v0.3.2`, which includes the generic audit framework, the code-rot detector family, the language-aware code-rot substrate with TypeScript/JavaScript and Python support, and a first security-validation audit adapter, on top of the earlier experiment and automated security-validation work.
 
 Planned roadmap direction after the published baseline:
 
-- `v0.3.2`: Python code-rot support plus a first security-validation audit adapter, release-prepared and not yet published
 - `v0.3.3` through `v0.3.4`: Java/Kotlin and cross-language stability for the language-aware code-rot track
 - `v0.4.0` through `v0.4.2`: Android automated security validation, including an Android-specific extension of the security audit adapter
 - manual pentest: post-v1 / version TBD

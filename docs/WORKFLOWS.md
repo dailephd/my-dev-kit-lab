@@ -77,7 +77,7 @@ Current behavior:
 
 ## Workflow 6: Code-rot audit
 
-Use this workflow for the current implemented code-rot audit path. The published `v0.3.0` baseline added the generic audit framework and code-rot detectors; the published `v0.3.1` baseline added language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence; the checked-out `v0.3.2` release-prepared package state adds a Python analyzer and Python-aware candidate evidence to the same detectors, without adding command flags.
+Use this workflow for the current implemented code-rot audit path. The `v0.3.0` baseline added the generic audit framework and code-rot detectors; `v0.3.1` added language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence; the published `v0.3.2` baseline adds a Python analyzer and Python-aware candidate evidence to the same detectors, without adding command flags.
 
 ```bash
 npm run audit
@@ -100,7 +100,7 @@ Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json
 
 ## Workflow 6a: Security-validation audit adapter
 
-Use this workflow for the checked-out `v0.3.2` security audit type, release-prepared on top of the published `v0.3.1` baseline. This adapts `security:validate`'s own internals into the shared audit/report surface — it does not replace `security:validate` (Workflow 5), which remains the standalone, focused security command.
+Use this workflow for the `v0.3.2` security audit type. This adapts `security:validate`'s own internals into the shared audit/report surface — it does not replace `security:validate` (Workflow 5), which remains the standalone, focused security command.
 
 ```bash
 npm run audit -- --types security --fail-on none
@@ -229,7 +229,7 @@ Planned behavior:
 
 ## Future workflow: Android extension of the security audit adapter
 
-The general (non-Android) security audit adapter is implemented in the checked-out `v0.3.2` release-prepared package state (Workflow 6a). An Android-specific extension of that same adapter is planned as the optional `v0.4.2` feature and is not implemented today.
+The general (non-Android) security audit adapter is implemented in the published `v0.3.2` baseline (Workflow 6a). An Android-specific extension of that same adapter is planned as the optional `v0.4.2` feature and is not implemented today.
 
 Planned direction:
 
