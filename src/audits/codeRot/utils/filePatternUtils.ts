@@ -50,3 +50,36 @@ export const GENERIC_INFRA_BASENAMES = new Set([
   "errors",
   "error",
 ]);
+
+// v0.3.1 Batch 4 -- common, generic exported-declaration names that are
+// expected to repeat across unrelated files legitimately (CLI entrypoints,
+// handler/lifecycle conventions, etc.) -- excluded from the source-facts
+// duplicate-declaration-candidate heuristic in duplicateImplementationDetector.ts
+// to keep false positives near zero.
+export const GENERIC_DECLARATION_NAMES = new Set([
+  "run",
+  "main",
+  "init",
+  "initialize",
+  "setup",
+  "handler",
+  "handle",
+  "execute",
+  "process",
+  "validate",
+  "parse",
+  "format",
+  "render",
+  "build",
+  "create",
+  "start",
+  "stop",
+  "load",
+  "save",
+  "update",
+  "remove",
+  "apply",
+  "get",
+  "set",
+  "default",
+]);

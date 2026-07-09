@@ -208,6 +208,152 @@ describe("scanProjectInventory — Windows/paths-with-spaces support", () => {
   });
 });
 
+describe("scanProjectInventory — normalized language classification", () => {
+  it("classifies each known extension to its normalized language", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "a.ts", "");
+      writeFile(root, "a.tsx", "");
+      writeFile(root, "a.mts", "");
+      writeFile(root, "a.cts", "");
+      writeFile(root, "a.js", "");
+      writeFile(root, "a.jsx", "");
+      writeFile(root, "a.mjs", "");
+      writeFile(root, "a.cjs", "");
+      writeFile(root, "a.py", "");
+      writeFile(root, "a.java", "");
+      writeFile(root, "a.kt", "");
+      writeFile(root, "a.kts", "");
+      writeFile(root, "a.json", "{}");
+      writeFile(root, "a.md", "");
+      writeFile(root, "a.yaml", "");
+      writeFile(root, "a.yml", "");
+      writeFile(root, "a.xml", "");
+      writeFile(root, "a.toml", "");
+      writeFile(root, "a.weird", "");
+
+      const inventory = scanProjectInventory(root);
+      const languageOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.language;
+
+      expect(languageOf("a.ts")).toBe("typescript");
+      expect(languageOf("a.tsx")).toBe("typescript");
+      expect(languageOf("a.mts")).toBe("typescript");
+      expect(languageOf("a.cts")).toBe("typescript");
+      expect(languageOf("a.js")).toBe("javascript");
+      expect(languageOf("a.jsx")).toBe("javascript");
+      expect(languageOf("a.mjs")).toBe("javascript");
+      expect(languageOf("a.cjs")).toBe("javascript");
+      expect(languageOf("a.py")).toBe("python");
+      expect(languageOf("a.java")).toBe("java");
+      expect(languageOf("a.kt")).toBe("kotlin");
+      expect(languageOf("a.kts")).toBe("kotlin");
+      expect(languageOf("a.json")).toBe("json");
+      expect(languageOf("a.md")).toBe("markdown");
+      expect(languageOf("a.yaml")).toBe("yaml");
+      expect(languageOf("a.yml")).toBe("yaml");
+      expect(languageOf("a.xml")).toBe("xml");
+      expect(languageOf("a.toml")).toBe("toml");
+      expect(languageOf("a.weird")).toBe("unknown");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("summarizes filesByLanguage counts", () => {
+    const root = buildFixtureProject();
+    try {
+      const inventory = scanProjectInventory(root);
+      expect(inventory.filesByLanguage.typescript).toBeGreaterThan(0);
+      expect(inventory.filesByLanguage.markdown).toBeGreaterThan(0);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+describe("scanProjectInventory — normalized file-role classification", () => {
+  it("classifies source, test, docs, config, and package roles", () => {
+    const root = buildFixtureProject();
+    try {
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+
+      expect(roleOf("src/index.ts")).toBe("source");
+      expect(roleOf("tests/index.test.ts")).toBe("test");
+      expect(roleOf("README.md")).toBe("docs");
+      expect(roleOf("docs/GUIDE.md")).toBe("docs");
+      expect(roleOf("tsconfig.json")).toBe("config");
+      expect(roleOf(".github/workflows/ci.yml")).toBe("config");
+      expect(roleOf("package.json")).toBe("package");
+      expect(roleOf("package-lock.json")).toBe("package");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("classifies report-output paths for stray audit/security-validation report files", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "v1.0.0-security-validation.json", "{}");
+      writeFile(root, "v1.0.0-audit.txt", "");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+      expect(roleOf("v1.0.0-security-validation.json")).toBe("report-output");
+      expect(roleOf("v1.0.0-audit.txt")).toBe("report-output");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("classifies build-output, vendor, and generated paths not already excluded from traversal", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "packages/app/target/Main.class", "");
+      writeFile(root, "packages/app/vendor/lib.js", "");
+      writeFile(root, "packages/app/generated/schema.ts", "");
+      writeFile(root, "packages/app/app.tsbuildinfo", "{}");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+
+      expect(roleOf("packages/app/target/Main.class")).toBe("build-output");
+      expect(roleOf("packages/app/vendor/lib.js")).toBe("vendor");
+      expect(roleOf("packages/app/generated/schema.ts")).toBe("generated");
+      expect(roleOf("packages/app/app.tsbuildinfo")).toBe("build-output");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("summarizes filesByRole counts", () => {
+    const root = buildFixtureProject();
+    try {
+      const inventory = scanProjectInventory(root);
+      expect(inventory.filesByRole.source).toBeGreaterThan(0);
+      expect(inventory.filesByRole.test).toBeGreaterThan(0);
+      expect(inventory.filesByRole.docs).toBeGreaterThan(0);
+      expect(inventory.filesByRole.package).toBeGreaterThan(0);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("sets isGenerated/isBuildOutput/isVendor/isReportOutput booleans consistent with role", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "packages/app/vendor/lib.js", "");
+      const inventory = scanProjectInventory(root);
+      const entry = inventory.files.find((f) => f.relativePath === "packages/app/vendor/lib.js");
+      expect(entry?.role).toBe("vendor");
+      expect(entry?.isVendor).toBe(true);
+      expect(entry?.isGenerated).toBe(false);
+      expect(entry?.isBuildOutput).toBe(false);
+      expect(entry?.isReportOutput).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("scanProjectInventory — determinism", () => {
   it("returns files in stable, sorted order across repeated scans", () => {
     const root = buildFixtureProject();
@@ -228,6 +374,18 @@ describe("scanProjectInventory — determinism", () => {
       const first = scanProjectInventory(root);
       const second = scanProjectInventory(root);
       expect(first.filesByCategory).toEqual(second.filesByCategory);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("language and role counts are stable across repeated scans", () => {
+    const root = buildFixtureProject();
+    try {
+      const first = scanProjectInventory(root);
+      const second = scanProjectInventory(root);
+      expect(first.filesByLanguage).toEqual(second.filesByLanguage);
+      expect(first.filesByRole).toEqual(second.filesByRole);
     } finally {
       cleanup(root);
     }

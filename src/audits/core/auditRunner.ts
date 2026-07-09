@@ -6,6 +6,8 @@ import { resolveAuditTarget, type AuditTarget } from "./auditTarget.js";
 import type { AuditSeverity } from "./auditTypes.js";
 import { scanProjectInventory, type ProjectInventorySnapshot } from "./projectInventory.js";
 import { collectSourceOfTruth, type SourceOfTruthSnapshot } from "./sourceOfTruth.js";
+import { collectSourceFacts } from "./collectSourceFacts.js";
+import type { SourceFactsSnapshot } from "./sourceFacts.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 1/2 — audit runner.
@@ -17,8 +19,12 @@ import { collectSourceOfTruth, type SourceOfTruthSnapshot } from "./sourceOfTrut
 // while it resolves the target internally) is a fatal error, which is the
 // caller's responsibility to map to exit code 2.
 //
-// Batch 2: collects a ProjectInventorySnapshot and SourceOfTruthSnapshot
-// before running detectors. These calls are intentionally left unguarded
+// Batch 2 (v0.3.0): collects a ProjectInventorySnapshot and
+// SourceOfTruthSnapshot before running detectors. v0.3.1 Batch 2 adds a third
+// collection step, collectSourceFacts(), which never throws itself (analyzer
+// failures are caught per-file and recorded as parse-error diagnostics) --
+// but it is still not individually try/catch-wrapped here, for the same
+// reason as the calls below. These calls are intentionally left unguarded
 // here (not wrapped in their own try/catch) -- by the time runAudit() is
 // called, the target has already been resolved and validated, so any
 // exception here is a genuine runtime failure. It propagates as a rejected
@@ -70,6 +76,9 @@ export type AuditResult = {
   // zero-value shape until a later batch registers real detectors.
   inventory: ProjectInventorySnapshot;
   sourceOfTruth: SourceOfTruthSnapshot;
+  // v0.3.1 Batch 2 -- source facts substrate (analyzer registry not yet
+  // populated; see collectSourceFacts.ts for the fallback policy).
+  sourceFacts: SourceFactsSnapshot;
   // True only when the selected registry has zero detectors for the
   // selected types/include areas -- lets callers (the report renderer)
   // state plainly that no code-rot detector coverage occurred, rather than
@@ -94,9 +103,10 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
 
   const inventory = scanProjectInventory(target.rootPath);
   const sourceOfTruth = collectSourceOfTruth(target.rootPath, inventory);
+  const sourceFacts = await collectSourceFacts(target.rootPath, inventory);
 
   const selected = selectDetectors(registry, config.types, config.include);
-  const ctx = { target, config, inventory, sourceOfTruth };
+  const ctx = { target, config, inventory, sourceOfTruth, sourceFacts };
 
   const issues: AuditIssue[] = [];
   const skippedDetectors: AuditSkippedDetector[] = [];
@@ -148,6 +158,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     exitReason: reason,
     inventory,
     sourceOfTruth,
+    sourceFacts,
     noDetectorsRegistered: selected.length === 0,
   };
 }

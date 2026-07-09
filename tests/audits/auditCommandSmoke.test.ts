@@ -155,30 +155,41 @@ describe("npm run audit — invalid config/target exit code 2", () => {
 });
 
 describe("npm run audit — regression: existing commands still work", () => {
-  it("npm run security:validate still works (scoped to a fast check, full coverage lives in tests/security/)", () => {
+  it("npm run security:validate still works (scoped command smoke; full coverage lives in tests/security/)", () => {
     const resolved = resolveCommand("npx", { cwd: toolRoot });
     const needsResolvedPathArg =
       resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
+    const reportPrefix = "audit-regression-secval";
     const fullArgs = [
       ...resolved.argsPrefix,
       ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
       "tsx",
       "scripts/security/validate.ts",
       "--checks",
-      "deps",
+      "boundary",
       "--format",
       "json",
+      "--report-prefix",
+      reportPrefix,
     ];
     const outDir = mkdtempSync(path.join(os.tmpdir(), "audit-regression-secval-"));
     cleanupDirs.push(outDir);
     let status = 0;
     try {
-      execFileSync(resolved.command, [...fullArgs, "--out", outDir], { cwd: toolRoot, encoding: "utf8" });
+      execFileSync(resolved.command, [...fullArgs, "--out", outDir], { cwd: toolRoot, encoding: "utf8", timeout: 25_000 });
     } catch (err) {
       status = (err as { status?: number }).status ?? 1;
     }
     // security:validate exits 0/1/2 depending on verdict; only a genuine
     // crash (an unrecognized exit code) should fail this regression check.
     expect([0, 1, 2]).toContain(status);
-  }, 30_000);
+
+    const jsonReportPath = path.join(outDir, `${reportPrefix}-security-validation.json`);
+    expect(existsSync(jsonReportPath)).toBe(true);
+
+    const jsonReport = JSON.parse(readFileSync(jsonReportPath, "utf8")) as {
+      metadata?: { selectedChecks?: string[] };
+    };
+    expect(jsonReport.metadata?.selectedChecks).toEqual(["boundary"]);
+  }, 35_000);
 });

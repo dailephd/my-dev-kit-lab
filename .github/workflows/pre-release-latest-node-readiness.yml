@@ -1,0 +1,74 @@
+name: Pre-release latest Node readiness
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/v0.3.1-language-aware-code-rot
+
+jobs:
+  latest-node-readiness:
+    name: ${{ matrix.os }} / Node 26.5.0
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+          - ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26.5.0
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Print runtime versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit tests
+        run: npx vitest run tests/audits
+
+      - name: Test
+        run: npm run test
+
+      - name: Verify
+        run: npm run verify
+
+      - name: Code rot audit
+        run: npm run audit -- --types code-rot --format text,json --fail-on none
+
+      - name: Security validation
+        run: npm run security:validate -- --format text,json
+
+      - name: Package dry run
+        run: npm pack --dry-run
+
+      - name: Upload readiness reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: readiness-reports-${{ matrix.os }}-node-26.5.0
+          path: |
+            reports/audits/code-rot/
+            reports/security/
+          if-no-files-found: warn
+          retention-days: 7

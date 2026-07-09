@@ -1,8 +1,10 @@
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
+import type { DeclarationFactKind } from "../../core/sourceFacts.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
-import { firstPathSegment, GENERIC_INFRA_BASENAMES, baseNameNoExt } from "../utils/filePatternUtils.js";
+import { firstPathSegment, GENERIC_DECLARATION_NAMES, GENERIC_INFRA_BASENAMES, baseNameNoExt } from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
+import { indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 4 — duplicate/parallel implementation candidate detector.
@@ -69,6 +71,7 @@ export const DUPLICATE_IMPLEMENTATION_DETECTOR: AuditDetector = {
     if (ctx.config.include.includes("architecture")) {
       issues.push(...findParallelDirectories(ctx.inventory.files.map((f) => f.relativePath)));
       issues.push(...findDuplicateBasenamesAcrossRoots(ctx.inventory.sourceFiles.map((f) => f.relativePath)));
+      issues.push(...findDuplicateDeclarationCandidates(ctx));
     }
 
     issues.push(...findDuplicateDetectorRegistryIds(ctx));
@@ -229,6 +232,83 @@ function firstTopLevelUnderSrc(relativePath: string): string | null {
   if (parts.length < 3) return null; // need at least src/<dir>/file
   if (parts[0] !== "src" && parts[0] !== "scripts") return null;
   return `${parts[0]}/${parts[1]}`;
+}
+
+// v0.3.1 Batch 4 -- source-facts-aware duplicate-declaration candidate
+// check. Weak/low-confidence signal, same spirit as
+// findDuplicateBasenamesAcrossRoots(): the same exported declaration name
+// and kind (e.g. two exported `class Logger`) appears in 2-4 distinct
+// "source"-role files that a registered analyzer actually parsed. Bounded
+// to declaration kinds that carry real implementation weight
+// (function/class/interface/type/enum) -- "variable"/"constant"/"method"/
+// "unknown" are excluded as too noisy (methods repeat across unrelated
+// classes by convention; module-scope variables/constants repeat even more
+// often). Generic declaration names (run, init, handler, ...) are excluded
+// via GENERIC_DECLARATION_NAMES for the same reason
+// GENERIC_INFRA_BASENAMES excludes generic file basenames above. Requires
+// ctx.sourceFacts -- returns no issues when it is absent (e.g. existing
+// detector unit tests that build a literal AuditDetectorContext without
+// it), so this check is purely additive.
+const NOISY_DECLARATION_KINDS = new Set<DeclarationFactKind>(["variable", "constant", "method", "unknown"]);
+
+function findDuplicateDeclarationCandidates(ctx: AuditDetectorContext): AuditIssue[] {
+  if (!ctx.sourceFacts) return [];
+  const index = indexSourceFactsByPath(ctx.sourceFacts);
+  const byKey = new Map<string, { name: string; kind: DeclarationFactKind; paths: Set<string> }>();
+
+  for (const facts of index.values()) {
+    if (facts.role !== "source") continue;
+    if (facts.parseStatus !== "parsed") continue;
+
+    for (const decl of facts.declarations) {
+      if (!decl.exported) continue;
+      if (NOISY_DECLARATION_KINDS.has(decl.kind)) continue;
+      const nameLower = decl.name.toLowerCase();
+      if (GENERIC_DECLARATION_NAMES.has(nameLower)) continue;
+
+      const key = `${decl.kind}:${nameLower}`;
+      const entry = byKey.get(key) ?? { name: decl.name, kind: decl.kind, paths: new Set<string>() };
+      entry.paths.add(facts.relativePath);
+      byKey.set(key, entry);
+    }
+  }
+
+  const issues: AuditIssue[] = [];
+  for (const entry of byKey.values()) {
+    if (entry.paths.size < 2 || entry.paths.size > 4) continue;
+    const sortedPaths = [...entry.paths].sort((a, b) => a.localeCompare(b));
+
+    issues.push(
+      makeCodeRotIssue({
+        auditType: "code-rot",
+        detectorId: DETECTOR_ID,
+        idCues: ["duplicate-declaration-candidate", entry.kind, entry.name.toLowerCase(), ...sortedPaths],
+        title: `Exported ${entry.kind} "${entry.name}" is declared in ${sortedPaths.length} unrelated files (weak signal)`,
+        description: `An exported ${entry.kind} named "${entry.name}" is declared in: ${sortedPaths.join(", ")}. This is a source-facts-derived candidate signal (same declaration name and kind, not a semantic-equivalence check) for parallel implementations -- inspect manually before consolidating.`,
+        severity: "info",
+        confidence: "low",
+        falsePositiveRisk: "high",
+        category: "duplicate-implementation-candidate",
+        recommendedAction: "Manually confirm whether these declarations serve genuinely different purposes before taking any action.",
+        suggestedFixStrategy: "No automatic action -- rename or consolidate only after manual review.",
+        validationCommands: ["npm run audit -- --types code-rot --include architecture"],
+        releaseBlocking: false,
+        implementationBlocking: false,
+        autoFixEligible: false,
+        evidence: [
+          {
+            kind: "reference",
+            message: `Source facts: an exported ${entry.kind} named "${entry.name}" was parsed in ${sortedPaths.length} distinct files.`,
+            excerpt: sortedPaths.join(", "),
+            source: DETECTOR_ID,
+            confidence: "low",
+          },
+        ],
+        affectedFiles: sortedPaths,
+      })
+    );
+  }
+  return issues;
 }
 
 // Cheap regex scan (not a semantic parse) of already-small detector source

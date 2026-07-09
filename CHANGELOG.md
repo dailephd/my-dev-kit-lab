@@ -2,9 +2,40 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [0.3.0] - Unreleased (release-prepared; not yet published to npm)
+## [0.3.1] - 2026-07-09
 
-Generic audit framework and code-rot detector. package.json now specifies version `0.3.0`. Not yet committed as a release, not tagged, and not published to npm.
+Language-aware code-rot substrate plus TypeScript/JavaScript support. This version is release-prepared but is not published.
+
+### Added
+
+- Added normalized language and file-role metadata to the audit inventory scanner, including `filesByLanguage` and `filesByRole` report summaries.
+- Added the source facts model, source facts collector, language analyzer registry, and fallback behavior for eligible source/test files without a registered analyzer.
+- Added the syntax-only TypeScript/JavaScript analyzer for `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files.
+- Added source-facts-aware code-rot signals:
+  - `dead-code-candidate` merges parsed relative import/re-export basenames into reverse-reference checks.
+  - `duplicate-implementation-candidate` adds source-facts-derived duplicate exported declaration candidate signals.
+  - `test-rot` uses analyzer-recorded relative imports, including dynamic `import()`, to find missing targets missed by regex-only scanning.
+- Added source-facts summaries to JSON and text audit reports. JSON reports include top-level `sourceFacts`; text reports include a `Source facts` section.
+- Added end-to-end and focused tests for source facts collection, TypeScript/JavaScript analyzer behavior, detector integration, report model/rendering, and the real audit registry path.
+- Added the latest-Node cross-platform readiness workflow for `windows-latest`, `macos-latest`, and `ubuntu-latest` on Node `26.5.0`.
+
+### Fixed
+
+- Fixed `.mts` and `.cts` source-role eligibility for source-facts collection.
+- Fixed audit text rendering so an evidence entry with both `message` and `excerpt` renders both.
+- Fixed the audit validation reliability issue by isolating the expensive `security:validate` smoke path in the audit command tests and pinning Vitest worker settings with `vitest.config.ts`.
+
+### Compatibility and limitations
+
+- No audit command flags were added or changed.
+- Audit issue shape remains unchanged.
+- Python, Java, and Kotlin remain fallback-only in `v0.3.1`; no parser/analyzer is registered for them.
+- TypeScript/JavaScript analysis is syntax-only and single-file. It does not perform TypeScript Program semantic analysis, type checking, full module resolution, `tsconfig` path alias resolution, coverage analysis, clone detection, runtime reachability analysis, or target-file modification.
+- Audit findings remain heuristic and conservative; they are candidates for review, not proof of a defect.
+
+## [0.3.0] - Published
+
+Generic audit framework and code-rot detector. `v0.3.0` is the current published baseline.
 
 ### Added
 
@@ -28,7 +59,6 @@ Generic audit framework and code-rot detector. package.json now specifies versio
 
 - Only the `code-rot` audit type is implemented. `quality`, `security`, `project`, and `all` audit types are recognized as valid `--types` identifiers but are rejected with a clear message and exit code `2` rather than running.
 - Audit findings are heuristic and conservative; they are candidates for review, not proof of a defect.
-- This entry does not represent a published release. Version bump to `0.3.0` has occurred in package.json, but no tag or npm publish has occurred for this work.
 
 ## [0.2.2] - 2026-07-07
 

@@ -31,6 +31,127 @@ export const INVENTORY_FILE_CATEGORIES = [
 ] as const;
 export type InventoryFileCategory = (typeof INVENTORY_FILE_CATEGORIES)[number];
 
+// ---------------------------------------------------------------------------
+// v0.3.1 Batch 1 — normalized language and file-role metadata.
+//
+// Purely additive to the v0.3.0 category model above: `category` keeps its
+// existing meaning and existing consumers (detectors, report model) are
+// untouched. `language` and `role` are deterministic, extension/path-based
+// classifications layered on top so later v0.3.1 batches (language analyzer
+// registry, per-language code-rot detectors) can select files by language
+// without re-deriving it from extensions themselves. Language detection is
+// classification-only here -- it does not imply parsing/analysis support for
+// python/java/kotlin exists yet.
+// ---------------------------------------------------------------------------
+
+export const NORMALIZED_LANGUAGES = [
+  "typescript",
+  "javascript",
+  "python",
+  "java",
+  "kotlin",
+  "json",
+  "markdown",
+  "yaml",
+  "xml",
+  "toml",
+  "unknown",
+] as const;
+export type NormalizedLanguage = (typeof NORMALIZED_LANGUAGES)[number];
+
+const EXTENSION_TO_LANGUAGE: Record<string, NormalizedLanguage> = {
+  ".ts": "typescript",
+  ".tsx": "typescript",
+  ".mts": "typescript",
+  ".cts": "typescript",
+  ".js": "javascript",
+  ".jsx": "javascript",
+  ".mjs": "javascript",
+  ".cjs": "javascript",
+  ".py": "python",
+  ".java": "java",
+  ".kt": "kotlin",
+  ".kts": "kotlin",
+  ".json": "json",
+  ".md": "markdown",
+  ".markdown": "markdown",
+  ".yml": "yaml",
+  ".yaml": "yaml",
+  ".xml": "xml",
+  ".toml": "toml",
+};
+
+function classifyLanguage(extension: string): NormalizedLanguage {
+  return EXTENSION_TO_LANGUAGE[extension] ?? "unknown";
+}
+
+export const FILE_ROLES = [
+  "source",
+  "test",
+  "docs",
+  "config",
+  "package",
+  "generated",
+  "build-output",
+  "vendor",
+  "report-output",
+  "unknown",
+] as const;
+export type FileRole = (typeof FILE_ROLES)[number];
+
+// Path-segment markers used only when a file wasn't already excluded from
+// traversal entirely (EXCLUDED_DIR_NAMES below) -- e.g. paths reachable from
+// nested benchmark/fixture projects, or directories not yet in the hard
+// exclusion set. Deliberately conservative: matched as whole path segments,
+// not substrings.
+const VENDOR_PATH_SEGMENTS = new Set(["node_modules", "vendor"]);
+const BUILD_OUTPUT_PATH_SEGMENTS = new Set(["dist", "build", "out", ".next", ".turbo", "target", ".gradle"]);
+const GENERATED_PATH_SEGMENTS = new Set([
+  "generated",
+  ".cache",
+  ".my-dev-kit",
+  ".my-dev-kit-v1",
+  ".my-dev-kit-lab",
+]);
+const REPORT_OUTPUT_PATH_SEGMENTS = new Set(["reports", "lab-output"]);
+
+function classifyFileRole(
+  relativePath: string,
+  basename: string,
+  extension: string,
+  category: InventoryFileCategory
+): FileRole {
+  const segments = relativePath.split("/");
+
+  if (
+    category === "report" ||
+    isStrayReportFile(basename) ||
+    segments.some((s) => REPORT_OUTPUT_PATH_SEGMENTS.has(s))
+  ) {
+    return "report-output";
+  }
+  if (segments.some((s) => VENDOR_PATH_SEGMENTS.has(s))) return "vendor";
+  if (extension === ".tsbuildinfo" || segments.some((s) => BUILD_OUTPUT_PATH_SEGMENTS.has(s))) return "build-output";
+  if (extension === ".map" || segments.some((s) => GENERATED_PATH_SEGMENTS.has(s))) return "generated";
+
+  switch (category) {
+    case "tests":
+      return "test";
+    case "docs":
+      return "docs";
+    case "package":
+      return "package";
+    case "config":
+    case "ci":
+      return "config";
+    case "source":
+    case "scripts":
+      return "source";
+    default:
+      return "unknown";
+  }
+}
+
 // Directory names excluded from traversal entirely -- never descended into.
 const EXCLUDED_DIR_NAMES = new Set([
   "node_modules",
@@ -104,6 +225,24 @@ const KNOWN_SOURCE_EXTENSIONS = new Set([
   ".go",
   ".rs",
   ".java",
+  // v0.3.1 Batch 2 fix: .kt/.kts were classified as a NormalizedLanguage
+  // ("kotlin") since Batch 1 but were missing here, so a Kotlin file under
+  // src/ got category "unknown" (role "unknown") instead of "source" --
+  // silently excluding it from source-facts collection. .go/.rs above are
+  // intentionally left as "source" despite having no NormalizedLanguage
+  // mapping yet (they normalize to language "unknown"), which is the
+  // legitimate "known role, unknown language" case collectSourceFacts.ts's
+  // fallback policy handles.
+  ".kt",
+  ".kts",
+  // v0.3.1 Batch 3 fix: same class of gap as the .kt/.kts fix above -- .mts
+  // and .cts were mapped to NormalizedLanguage "typescript" since Batch 1
+  // but were missing here, so a .mts/.cts file under src/ got category
+  // "unknown" (role "unknown") and would never reach the Batch 3
+  // TypeScript/JavaScript analyzer's eligibility filter (role source/test
+  // only, see collectSourceFacts.ts).
+  ".mts",
+  ".cts",
 ]);
 
 // A file this large or larger is skipped entirely (not even stat'd into the
@@ -124,6 +263,13 @@ export type InventoryFileEntry = {
   normalizedPath: string;
   extension: string;
   category: InventoryFileCategory;
+  // v0.3.1 Batch 1 -- additive normalized metadata (see block above).
+  language: NormalizedLanguage;
+  role: FileRole;
+  isGenerated: boolean;
+  isBuildOutput: boolean;
+  isVendor: boolean;
+  isReportOutput: boolean;
   sizeBytes: number;
   likelyGenerated: boolean;
   likelyConfig: boolean;
@@ -146,6 +292,9 @@ export type ProjectInventorySnapshot = {
   skippedFileCount: number;
   filesByCategory: Record<InventoryFileCategory, number>;
   filesByExtension: Record<string, number>;
+  // v0.3.1 Batch 1 -- additive normalized summaries alongside filesByCategory.
+  filesByLanguage: Record<NormalizedLanguage, number>;
+  filesByRole: Record<FileRole, number>;
   packageFiles: InventoryFileEntry[];
   docsFiles: InventoryFileEntry[];
   sourceFiles: InventoryFileEntry[];
@@ -193,6 +342,8 @@ export function scanProjectInventory(
 
   const filesByCategory = countByCategory(files);
   const filesByExtension = countByExtension(files);
+  const filesByLanguage = countByLanguage(files);
+  const filesByRole = countByRole(files);
 
   const excludedDirectorySummary = [...excludedDirCounts.entries()]
     .map(([name, occurrences]) => ({ name, occurrences }))
@@ -206,6 +357,8 @@ export function scanProjectInventory(
     skippedFileCount,
     filesByCategory,
     filesByExtension,
+    filesByLanguage,
+    filesByRole,
     packageFiles: files.filter((f) => f.category === "package"),
     docsFiles: files.filter((f) => f.category === "docs"),
     sourceFiles: files.filter((f) => f.category === "source"),
@@ -272,12 +425,20 @@ export function scanProjectInventory(
       const relativePath = relativeWithinRoot(resolvedRoot, fullPath);
       const extension = path.extname(entry.name).toLowerCase();
       const category = classifyFile(relativePath, entry.name, extension);
+      const language = classifyLanguage(extension);
+      const role = classifyFileRole(relativePath, entry.name, extension, category);
 
       const entryResult: InventoryFileEntry = {
         relativePath,
         normalizedPath: relativePath.toLowerCase(),
         extension,
         category,
+        language,
+        role,
+        isGenerated: role === "generated",
+        isBuildOutput: role === "build-output",
+        isVendor: role === "vendor",
+        isReportOutput: role === "report-output",
         sizeBytes: stat.size,
         likelyGenerated: category === "generated" || category === "report",
         likelyConfig: category === "config" || category === "package",
@@ -379,6 +540,22 @@ function countByCategory(files: readonly InventoryFileEntry[]): Record<Inventory
   >;
   for (const file of files) {
     counts[file.category] += 1;
+  }
+  return counts;
+}
+
+function countByLanguage(files: readonly InventoryFileEntry[]): Record<NormalizedLanguage, number> {
+  const counts = Object.fromEntries(NORMALIZED_LANGUAGES.map((l) => [l, 0])) as Record<NormalizedLanguage, number>;
+  for (const file of files) {
+    counts[file.language] += 1;
+  }
+  return counts;
+}
+
+function countByRole(files: readonly InventoryFileEntry[]): Record<FileRole, number> {
+  const counts = Object.fromEntries(FILE_ROLES.map((r) => [r, 0])) as Record<FileRole, number>;
+  for (const file of files) {
+    counts[file.role] += 1;
   }
   return counts;
 }

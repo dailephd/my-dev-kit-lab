@@ -99,6 +99,9 @@ console.log(
 console.log(
   `Source of truth: package=${model.sourceOfTruth.packageName ?? "(none)"}@${model.sourceOfTruth.packageVersion ?? "?"} readme=${model.sourceOfTruth.hasReadme} changelog=${model.sourceOfTruth.hasChangelog} ciWorkflows=${model.sourceOfTruth.ciWorkflowCount}`
 );
+console.log(
+  `Source facts: ${model.sourceFacts.totalFilesAnalyzed} file(s) analyzed (parsed=${model.sourceFacts.filesByParseStatus.parsed} file-level-only=${model.sourceFacts.filesByParseStatus["file-level-only"]} unsupported=${model.sourceFacts.filesByParseStatus.unsupported})`
+);
 
 if (writtenPaths.length > 0) {
   console.log(`\nReports written:`);

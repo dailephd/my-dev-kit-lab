@@ -47,11 +47,24 @@ function fakeTarget(): AuditTarget {
   };
 }
 
+function makeDetector(overrides: Partial<AuditDetector> = {}): AuditDetector {
+  return {
+    id: "test-detector",
+    auditType: "code-rot",
+    title: "Test detector",
+    description: "Test description",
+    supportedIncludeAreas: ["docs"],
+    run: () => [makeIssue()],
+    ...overrides,
+  };
+}
+
 const REQUIRED_SECTIONS = [
   "Target",
   "Config",
   "Detectors",
   "Inventory summary",
+  "Source facts summary",
   "Source-of-truth summary",
   "Issue summary",
   "Skipped detectors",
@@ -72,6 +85,94 @@ describe("renderAuditTextReport — 0 issues", () => {
     expect(text.length).toBeGreaterThan(0);
     expect(text).not.toMatch(/no issues found|clean\b/i);
     expect(text).toContain("(no issues in this run)");
+  });
+});
+
+describe("renderAuditTextReport — source facts summary", () => {
+  it("renders a readable, bounded parse-status line (not a per-file dump)", async () => {
+    const config = normalizeAuditConfig({}, toolRoot);
+    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
+    const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });
+    const text = renderAuditTextReport(model);
+
+    expect(text).toMatch(/analyzed=\d+/);
+    expect(text).toMatch(/parsed=\d+ file-level-only=\d+ unsupported=\d+ parse-error=\d+ skipped=\d+/);
+    // Bounded: no full source text or per-file paths from the source-facts
+    // snapshot leak into the summary section itself.
+    const summarySection = text.split("Source facts summary")[1]?.split("Source-of-truth summary")[0] ?? "";
+    expect(summarySection.length).toBeLessThan(500);
+  });
+
+  it("renders a source-facts-derived evidence message in a bounded, readable issue block", async () => {
+    const config = normalizeAuditConfig({}, toolRoot);
+    const detector = makeDetector({
+      run: () => [
+        makeIssue({
+          // Mirrors deadCodeCandidateDetector.ts's findUnreferencedSourceFiles():
+          // a basename-observation entry (index 0) followed by a source-facts
+          // evidence entry (index 1) -- exactly at MAX_EVIDENCE_PER_ISSUE (2),
+          // plus a third that must NOT render.
+          evidence: [
+            {
+              kind: "observation",
+              message: "No relative import/require specifier resolves to this file's basename.",
+              filePath: "src/example.ts",
+              source: "test-detector",
+              confidence: "low",
+            },
+            {
+              kind: "reference",
+              message: "Source facts: the TypeScript/JavaScript analyzer parsed this file and recorded 1 export(s), 0 declaration(s), and 0 import(s).",
+              filePath: "src/example.ts",
+              source: "test-detector",
+              confidence: "medium",
+            },
+            {
+              kind: "reference",
+              message: "THIRD_EVIDENCE_SHOULD_NOT_RENDER",
+              source: "test-detector",
+              confidence: "low",
+            },
+          ],
+        }),
+      ],
+    });
+    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
+    const text = renderAuditTextReport(model);
+
+    expect(text).toContain("Source facts:");
+    expect(text).not.toContain("THIRD_EVIDENCE_SHOULD_NOT_RENDER");
+  });
+
+  it("renders an evidence entry's message even when it also carries an excerpt (e.g. duplicateImplementationDetector's source-facts-derived findings)", async () => {
+    const config = normalizeAuditConfig({}, toolRoot);
+    const detector = makeDetector({
+      run: () => [
+        makeIssue({
+          // Mirrors duplicateImplementationDetector.ts's
+          // findDuplicateDeclarationCandidates(): a "Source facts: ..."
+          // message paired with a file-path-list excerpt on the SAME
+          // evidence entry -- previously the excerpt silently suppressed
+          // the message entirely in text output.
+          evidence: [
+            {
+              kind: "reference",
+              message: 'Source facts: an exported class named "Logger" was parsed in 2 distinct files.',
+              excerpt: "src/featureA/logger.ts, src/featureB/logger.ts",
+              source: "test-detector",
+              confidence: "low",
+            },
+          ],
+        }),
+      ],
+    });
+    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
+    const text = renderAuditTextReport(model);
+
+    expect(text).toContain('Source facts: an exported class named "Logger"');
+    expect(text).toContain("src/featureA/logger.ts, src/featureB/logger.ts");
   });
 });
 

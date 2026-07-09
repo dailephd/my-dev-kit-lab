@@ -88,8 +88,25 @@ export function renderAuditTextReport(model: AuditReportModel): string {
   lines.push(
     `  source=${model.inventory.filesByCategory.source} tests=${model.inventory.filesByCategory.tests} docs=${model.inventory.filesByCategory.docs} package=${model.inventory.filesByCategory.package} config=${model.inventory.filesByCategory.config} scripts=${model.inventory.filesByCategory.scripts} ci=${model.inventory.filesByCategory.ci} generated=${model.inventory.filesByCategory.generated} report=${model.inventory.filesByCategory.report} unknown=${model.inventory.filesByCategory.unknown}`
   );
+  lines.push(
+    `  languages: typescript=${model.inventory.filesByLanguage.typescript} javascript=${model.inventory.filesByLanguage.javascript} python=${model.inventory.filesByLanguage.python} java=${model.inventory.filesByLanguage.java} kotlin=${model.inventory.filesByLanguage.kotlin} json=${model.inventory.filesByLanguage.json} markdown=${model.inventory.filesByLanguage.markdown} yaml=${model.inventory.filesByLanguage.yaml} xml=${model.inventory.filesByLanguage.xml} toml=${model.inventory.filesByLanguage.toml} unknown=${model.inventory.filesByLanguage.unknown}`
+  );
+  lines.push(
+    `  roles: source=${model.inventory.filesByRole.source} test=${model.inventory.filesByRole.test} docs=${model.inventory.filesByRole.docs} config=${model.inventory.filesByRole.config} package=${model.inventory.filesByRole.package} generated=${model.inventory.filesByRole.generated} build-output=${model.inventory.filesByRole["build-output"]} vendor=${model.inventory.filesByRole.vendor} report-output=${model.inventory.filesByRole["report-output"]} unknown=${model.inventory.filesByRole.unknown}`
+  );
   if (model.inventory.warnings.length > 0) {
     lines.push(`  warnings: ${model.inventory.warnings.length}`);
+  }
+  lines.push("");
+
+  lines.push("Source facts summary");
+  lines.push(divider("-"));
+  lines.push(`  analyzed=${model.sourceFacts.totalFilesAnalyzed}`);
+  lines.push(
+    `  parsed=${model.sourceFacts.filesByParseStatus.parsed} file-level-only=${model.sourceFacts.filesByParseStatus["file-level-only"]} unsupported=${model.sourceFacts.filesByParseStatus.unsupported} parse-error=${model.sourceFacts.filesByParseStatus["parse-error"]} skipped=${model.sourceFacts.filesByParseStatus.skipped}`
+  );
+  if (model.sourceFacts.analyzerDiagnosticCount > 0) {
+    lines.push(`  analyzer diagnostics: ${model.sourceFacts.analyzerDiagnosticCount}`);
   }
   lines.push("");
 
@@ -190,10 +207,17 @@ function renderIssueBlock(issue: AuditIssue): string[] {
   lines.push(`      severity=${issue.severity} confidence=${issue.confidence} category=${sanitizeLine(issue.category)}`);
   lines.push(`      detector=${issue.detectorId} id=${issue.id}`);
   for (const evidence of issue.evidence.slice(0, MAX_EVIDENCE_PER_ISSUE)) {
+    // v0.3.1 Batch 5 -- an evidence entry's `message` (the human-readable
+    // "why") and `excerpt` (a quoted snippet/reference list) are
+    // independent fields on the same entry -- render both when both are
+    // present. Previously an `excerpt` silently suppressed `message`
+    // entirely, which dropped the only readable explanation for
+    // source-facts-derived findings (e.g. duplicateImplementationDetector's
+    // "Source facts: an exported ... was parsed in N distinct files.") and
+    // left only a bare file-path excerpt in text output.
+    lines.push(`      > ${sanitizeLine(evidence.message)}`);
     if (evidence.excerpt) {
       lines.push(...renderQuotedExcerpt(evidence.excerpt, "      "));
-    } else {
-      lines.push(`      > ${sanitizeLine(evidence.message)}`);
     }
   }
   lines.push(`      recommendedAction: ${sanitizeLine(issue.recommendedAction)}`);
