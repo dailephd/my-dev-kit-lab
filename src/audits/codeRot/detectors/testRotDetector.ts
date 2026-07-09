@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
+import type { SourceFileFacts } from "../../core/sourceFacts.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
+import { getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 import { splitLines } from "../utils/textLines.js";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +50,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
     const issues: AuditIssue[] = [];
     const scriptNames = new Set(ctx.sourceOfTruth.commands.allScriptNames);
     const currentVersion = ctx.sourceOfTruth.package?.version ?? null;
+    const sourceFactsIndex = indexSourceFactsByPath(ctx.sourceFacts);
 
     for (const testFile of ctx.inventory.testFiles) {
       const content = readBoundedFileText(ctx.target.rootPath, testFile.relativePath, testFile.sizeBytes, MAX_READ_BYTES);
@@ -68,6 +71,17 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
 
       issues.push(...findMissingSourceImports(ctx, testFile.relativePath, content));
+      // v0.3.1 Batch 4 -- when the TypeScript/JavaScript analyzer actually
+      // parsed this test file, also check its structured import facts.
+      // This catches import forms the regex above misses (e.g. multi-line
+      // import statements) without duplicate-reporting a specifier both
+      // checks already found: idCues use the same shape
+      // (testRelativePath, "missing-source-import", specifier), so an
+      // identical id is deduplicated by deduplicateIssuesById() below.
+      const parsedFacts = getParsedSourceFacts(sourceFactsIndex, testFile.relativePath);
+      if (parsedFacts) {
+        issues.push(...findMissingSourceImportsFromSourceFacts(ctx, testFile.relativePath, parsedFacts));
+      }
       issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
       issues.push(...findSkipUsage(testFile.relativePath, content));
       issues.push(...findOnlyUsage(testFile.relativePath, content));
@@ -118,6 +132,63 @@ function findMissingSourceImports(ctx: AuditDetectorContext, testRelativePath: s
             message: "Relative import specifier does not resolve to an existing file.",
             filePath: testRelativePath,
             excerpt: specifier,
+            source: DETECTOR_ID,
+            confidence: "high",
+          },
+        ],
+        affectedFiles: [testRelativePath],
+      })
+    );
+  }
+  return issues;
+}
+
+// v0.3.1 Batch 4 -- source-facts-derived counterpart to
+// findMissingSourceImports() above. Uses the TypeScript/JavaScript
+// analyzer's already-parsed ImportFact list instead of a regex scan of raw
+// content, so it also catches relative import specifiers the regex above
+// misses. Only called for facts with parseStatus "parsed" (see caller) --
+// file-level-only/parse-error facts carry an empty imports array that
+// would otherwise silently look like "no imports" rather than "unknown".
+function findMissingSourceImportsFromSourceFacts(
+  ctx: AuditDetectorContext,
+  testRelativePath: string,
+  facts: SourceFileFacts
+): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const testDir = path.dirname(testRelativePath);
+
+  for (const imp of facts.imports) {
+    if (!imp.source.startsWith(".")) continue;
+    const resolvedBase = path.join(testDir, imp.source).replace(/\\/g, "/");
+    const strippedBase = resolvedBase.replace(/\.[cm]?[jt]sx?$/, "");
+
+    const resolved = RESOLVE_EXTENSIONS.some((ext) => fs.existsSync(path.join(ctx.target.rootPath, `${strippedBase}${ext}`)));
+    if (resolved) continue;
+
+    issues.push(
+      makeCodeRotIssue({
+        auditType: "code-rot",
+        detectorId: DETECTOR_ID,
+        idCues: [testRelativePath, "missing-source-import", imp.source],
+        title: `Test "${testRelativePath}" imports a missing source file: "${imp.source}"`,
+        description: `${testRelativePath} imports "${imp.source}" (source-facts-derived via the TypeScript/JavaScript analyzer), which does not resolve to an existing file on disk (checked common TS/JS extensions relative to the test file).`,
+        severity: "medium",
+        confidence: "high",
+        falsePositiveRisk: "low",
+        category: "test-rot",
+        recommendedAction: "Fix or remove the stale import.",
+        suggestedFixStrategy: `Update the import specifier "${imp.source}" in ${testRelativePath} to point to an existing file.`,
+        validationCommands: [`npx vitest run ${testRelativePath}`],
+        releaseBlocking: false,
+        implementationBlocking: false,
+        autoFixEligible: false,
+        evidence: [
+          {
+            kind: "file",
+            message: "Analyzer-recorded relative import specifier does not resolve to an existing file.",
+            filePath: testRelativePath,
+            excerpt: imp.source,
             source: DETECTOR_ID,
             confidence: "high",
           },

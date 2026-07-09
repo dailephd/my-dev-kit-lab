@@ -25,6 +25,7 @@ const REQUIRED_TOP_LEVEL_KEYS = [
   "summary",
   "inventory",
   "sourceOfTruth",
+  "sourceFacts",
   "detectors",
   "issues",
   "skippedDetectors",

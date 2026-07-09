@@ -75,6 +75,7 @@ describe("renderAuditJsonReport", () => {
       "summary",
       "inventory",
       "sourceOfTruth",
+      "sourceFacts",
       "detectors",
       "issues",
       "skippedDetectors",
@@ -127,5 +128,43 @@ describe("renderAuditJsonReport", () => {
     expect("files" in parsed.inventory).toBe(false);
     expect("sourceFiles" in parsed.inventory).toBe(false);
     expect("docsFiles" in parsed.inventory).toBe(false);
+  });
+
+  it("sourceFacts summary has the condensed field shape (counts, not a per-file array)", async () => {
+    const config = normalizeAuditConfig({}, toolRoot);
+    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
+    const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });
+    const parsed = JSON.parse(renderAuditJsonReport(model));
+
+    expect(parsed.sourceFacts).toHaveProperty("totalFilesAnalyzed");
+    expect(parsed.sourceFacts).toHaveProperty("filesByLanguage");
+    expect(parsed.sourceFacts).toHaveProperty("filesByParseStatus");
+    expect(parsed.sourceFacts).toHaveProperty("analyzerDiagnosticCount");
+    expect("files" in parsed.sourceFacts).toBe(false);
+  });
+
+  it("preserves a source-facts-derived evidence entry (v0.3.1 Batch 4 detector output) verbatim", async () => {
+    const config = normalizeAuditConfig({}, toolRoot);
+    const detector = makeDetector({
+      run: () => [
+        makeIssue({
+          evidence: [
+            {
+              kind: "reference",
+              message: "Source facts: the TypeScript/JavaScript analyzer parsed this file and recorded 1 export(s), 0 declaration(s), and 0 import(s).",
+              filePath: "src/example.ts",
+              source: "test-detector",
+              confidence: "medium",
+            },
+          ],
+        }),
+      ],
+    });
+    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
+    const parsed = JSON.parse(renderAuditJsonReport(model));
+
+    expect(parsed.issues[0].evidence[0].message).toContain("Source facts:");
+    expect(parsed.issues[0].evidence[0].filePath).toBe("src/example.ts");
   });
 });

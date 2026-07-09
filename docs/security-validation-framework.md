@@ -2,7 +2,7 @@
 
 ## Scope
 
-The implemented framework performs automated security validation for local CLI/package projects. It checks whether the target remains safe to inspect and package and whether CLI boundaries fail safely. It is not a hosted-web-application scanner and is not a complete manual pentest framework.
+The implemented framework performs automated security validation for local CLI/package projects. It checks whether the target remains safe to inspect and package and whether CLI boundaries fail safely. It is not a hosted-web-application scanner and it is not a manual pentest framework.
 
 Current security properties include:
 
@@ -177,13 +177,13 @@ Current report/schema details:
 - CodeQL's full analysis can depend on the configured environment; availability checks and CI integration do not guarantee identical local coverage.
 - Symlink and junction scenarios can be operating-system dependent.
 - Informational architectural assertions are not equivalent to dynamic network or secret-leakage proofs.
-- A human-led manual pentest workflow is planned for `v0.4.0`, not implemented.
+- Manual pentest is deferred until after `v1.0.0`. It is a human-led workflow and is not required for automated Android security validation.
 
-## Fortification status and planned manual testing
+## Fortification status and audit relationship
 
-The `v0.2.2` release (the latest published npm baseline) strengthens attack scenarios, target coverage, schema/report hardening, and security evidence while keeping `security:validate` backward compatible.
+The `v0.3.0` release is the current published npm baseline. It keeps the `v0.2.2` security-validation fortification and adds the generic audit framework as a separate tool.
 
-The generic audit framework (package.json now specifies version `v0.3.0`; release-prepared but not yet released or published to npm) is a separate tool from `security:validate`. `npm run audit` does not currently call `security:validate`, and `security:validate` does not call the audit framework. The audit framework's implemented `code-rot` audit type includes a `security-validation-assumption-rot` detector, but that detector only checks whether documentation makes stale or inaccurate *claims* about the security-validation framework — it does not itself perform any security validation. Folding current security-validation results into unified audit reports (a future `--types security` audit type) remains planned, not implemented. The manual pentest framework planned for `v0.4.0` will sit beside automated validation and must label human procedures and evidence separately from automated checks.
+The generic audit framework in the current published `v0.3.0` baseline is a separate tool from `security:validate`. `npm run audit` does not currently call `security:validate`, and `security:validate` does not call the audit framework. The audit framework's implemented `code-rot` audit type includes a `security-validation-assumption-rot` detector, but that detector only checks whether documentation makes stale or inaccurate claims about the security-validation framework; it does not itself perform any security validation. Android automated security validation is planned for `v0.4.x`. Any future audit bridge for Android validation remains optional and planned, not implemented.
 
 ## Relationship to experiments
 

@@ -13,7 +13,9 @@ import type {
 } from "../core/auditTypes.js";
 import type {
   ExcludedDirectorySummaryEntry,
+  FileRole,
   InventoryFileCategory,
+  NormalizedLanguage,
   ProjectInventorySnapshot,
 } from "../core/projectInventory.js";
 import type {
@@ -24,6 +26,7 @@ import type {
   SourceOfTruthSnapshot,
   TestTruth,
 } from "../core/sourceOfTruth.js";
+import type { SourceFactParseStatus, SourceFactsSnapshot } from "../core/sourceFacts.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 5 — stable, versioned audit report model.
@@ -55,6 +58,9 @@ export type InventoryReportSummary = {
   skippedFileCount: number;
   filesByCategory: Record<InventoryFileCategory, number>;
   filesByExtension: Record<string, number>;
+  // v0.3.1 Batch 1 -- additive normalized language/role summaries.
+  filesByLanguage: Record<NormalizedLanguage, number>;
+  filesByRole: Record<FileRole, number>;
   excludedDirectorySummary: ExcludedDirectorySummaryEntry[];
   warnings: string[];
 };
@@ -67,6 +73,8 @@ export function summarizeInventory(inventory: ProjectInventorySnapshot): Invento
     skippedFileCount: inventory.skippedFileCount,
     filesByCategory: inventory.filesByCategory,
     filesByExtension: inventory.filesByExtension,
+    filesByLanguage: inventory.filesByLanguage,
+    filesByRole: inventory.filesByRole,
     excludedDirectorySummary: inventory.excludedDirectorySummary,
     warnings: inventory.warnings,
   };
@@ -111,6 +119,30 @@ export function summarizeSourceOfTruth(sourceOfTruth: SourceOfTruthSnapshot): So
     security: sourceOfTruth.security,
     experiment: sourceOfTruth.experiment,
     warnings: sourceOfTruth.warnings,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// v0.3.1 Batch 2 -- condensed source facts summary. Same "condensed, no raw
+// per-file array" shape as InventoryReportSummary above -- callers get
+// counts/diagnostics, not the full SourceFileFacts[] list.
+// ---------------------------------------------------------------------------
+
+export type SourceFactsReportSummary = {
+  totalFilesAnalyzed: number;
+  filesByLanguage: Record<NormalizedLanguage, number>;
+  filesByParseStatus: Record<SourceFactParseStatus, number>;
+  analyzerDiagnosticCount: number;
+  warnings: string[];
+};
+
+export function summarizeSourceFacts(sourceFacts: SourceFactsSnapshot): SourceFactsReportSummary {
+  return {
+    totalFilesAnalyzed: sourceFacts.files.length,
+    filesByLanguage: sourceFacts.filesByLanguage,
+    filesByParseStatus: sourceFacts.filesByParseStatus,
+    analyzerDiagnosticCount: sourceFacts.analyzerDiagnostics.length,
+    warnings: sourceFacts.warnings,
   };
 }
 
@@ -249,8 +281,10 @@ export type AuditReportModel = {
     // an actual string array (result.configSummary.types, not joined) for
     // consumers that want to iterate the selected audit types without
     // re-parsing the joined string. Purely additive: does not change the
-    // top-level 13-field schema (metadata is a nested object) and does not
-    // bump schemaVersion.
+    // top-level schema (metadata is a nested object) and does not bump
+    // schemaVersion. (Top-level field count was 13 as of v0.3.0 Batch 6;
+    // v0.3.1 Batch 2 added a 14th, "sourceFacts" -- see AuditReportModel
+    // below.)
     auditTypes: string[];
   };
   target: {
@@ -293,6 +327,7 @@ export type AuditReportModel = {
   };
   inventory: InventoryReportSummary;
   sourceOfTruth: SourceOfTruthReportSummary;
+  sourceFacts: SourceFactsReportSummary;
   detectors: AuditDetectorReportEntry[];
   issues: AuditIssue[];
   skippedDetectors: AuditSkippedDetector[];
@@ -388,6 +423,7 @@ export function buildAuditReportModel(result: AuditResult, opts: BuildAuditRepor
     },
     inventory: summarizeInventory(result.inventory),
     sourceOfTruth: summarizeSourceOfTruth(result.sourceOfTruth),
+    sourceFacts: summarizeSourceFacts(result.sourceFacts),
     detectors,
     issues,
     skippedDetectors: result.skippedDetectors,

@@ -1,6 +1,6 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The latest published npm baseline is `@dailephd/my-dev-kit-lab` `0.2.2`. package.json now specifies version `0.3.0`, adding the generic audit framework (code-rot audit type). `v0.3.0` is release-prepared but has not been committed, tagged, released, or published to npm.
+This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.0`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family.
 
 ## Implemented
 
@@ -16,10 +16,24 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Self and explicit local-project security-validation targets.
 - Generic audit framework in `src/audits`, with `npm run audit` as the CLI entrypoint (`scripts/audits/runAudit.ts`). Only the `code-rot` audit type is implemented; `quality`, `security`, and `project` audit types are planned and fail cleanly (exit code 2) rather than running.
 - 10 code-rot detector families are implemented and registered: `stale-command-reference`, `docs-code-mismatch`, `package-release-rot`, `duplicate-implementation-candidate`, `dead-code-candidate`, `test-rot`, `architecture-drift`, `dependency-environment-rot`, `cross-platform-rot`, `security-validation-assumption-rot`.
-- A stable, versioned audit report schema (`schemaVersion` `"1.0"`, 13 top-level fields) with text and JSON renderers; `metadata.auditTypes` is included alongside `metadata.auditType`.
+- A stable, versioned audit report schema (`schemaVersion` `"1.0"`) with text and JSON renderers; `metadata.auditTypes` is included alongside `metadata.auditType`. The active `v0.3.1` branch includes the `sourceFacts` summary field in addition to the `v0.3.0` top-level report fields.
 - Audit reports are written under `reports/audits/code-rot/` by default, or under `--out <path>` when supplied.
 - Self and explicit local-project (non-destructive) audit targets.
 - The audit framework does not call `security:validate`, and `security:validate` does not call the audit framework; the two remain separate, independently runnable tools.
+
+## Active branch status
+
+`v0.3.1` is implemented on the checked-out branch but is not published. It adds normalized language/file-role inventory, a source facts model, source facts collection, a language analyzer registry, a TypeScript/JavaScript syntax analyzer, and source-facts-aware detector/report integration.
+
+The TypeScript/JavaScript analyzer supports `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files where files are within the analyzer size bound and parse without syntax diagnostics. Python, Java, and Kotlin are classified by inventory but remain fallback-only: no parser/analyzer is registered for them in `v0.3.1`.
+
+The source-facts-aware code-rot behavior is conservative:
+
+- `dead-code-candidate` merges parsed relative import/re-export basenames into reverse-reference checks.
+- `duplicate-implementation-candidate` adds source-facts-derived duplicate exported declaration candidate signals for selected non-generic declaration kinds.
+- `test-rot` uses analyzer-recorded relative imports, including dynamic `import()`, to find missing targets missed by regex-only scanning.
+
+The implementation does not perform TypeScript Program semantic analysis, type checking, full module resolution, `tsconfig` path alias resolution, coverage analysis, clone detection, runtime reachability analysis, or target-file modification.
 
 ## Current commands
 
@@ -59,20 +73,22 @@ npm run audit -- --types code-rot --format text,json --fail-on none
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework and code-rot detector are implemented; package.json now specifies version `v0.3.0`, which is release-prepared but not yet committed as a release, tagged, or published to npm.
+The generic audit framework and code-rot detector are implemented in the current published `v0.3.0` baseline. The active branch also implements the `v0.3.1` TypeScript/JavaScript language-aware code-rot substrate described above.
 
 The following remain planned, not implemented:
 
-- code quality detector (broader `quality` audit type)
-- security results folded into unified audit reports (`security` audit type)
-- project-wide combined audit command (`project`/`all` audit types)
-- manual pentest framework
+- Python source-facts analyzer support in `v0.3.2`
+- Java/Kotlin source-facts analyzer support in `v0.3.3`
+- cross-language stability and fixture coverage in `v0.3.4`
+- Android automated security validation in `v0.4.0` through optional `v0.4.2`
+- framework-aware code-rot profiles after the language-aware track is stable
+- manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
 - warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
 ## Limitations
 
-- The implemented security framework is automated CLI/package validation with adversarial checks; it is not a complete manual pentest framework.
+- The implemented security framework is automated CLI/package validation with adversarial checks; it is not a manual pentest framework.
 - Profile behavior is currently limited to default check selection and scenario applicability filtering.
 - Secret leakage and network/local-first checks are bounded automated checks, not exhaustive proofs.
 - Package-boundary scenario severity is still result-level rather than per-evidence-item.
@@ -83,4 +99,4 @@ The following remain planned, not implemented:
 
 ## Next planned work
 
-The latest published npm baseline is `v0.2.2`, implementing the security-validation fortification work. package.json now specifies version `v0.3.0`, which adds the audit framework; `v0.3.0` is release-prepared but not yet committed, tagged, released, or published to npm. Later audit phases (code-quality detector, security-integration into unified audit reports, project-wide audit command) remain planned. See [ROADMAP.md](ROADMAP.md) for the complete semantically ordered sequence.
+The current published npm baseline is `v0.3.0`. The active branch implements `v0.3.1` language-aware code-rot substrate plus TypeScript/JavaScript support. Python, Java/Kotlin, and cross-language stability remain planned for `v0.3.2` through `v0.3.4`. Android automated security validation follows in `v0.4.0` through optional `v0.4.2`. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.

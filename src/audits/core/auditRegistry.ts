@@ -4,6 +4,7 @@ import type { AuditTarget } from "./auditTarget.js";
 import type { AuditIncludeArea, AuditType } from "./auditTypes.js";
 import type { ProjectInventorySnapshot } from "./projectInventory.js";
 import type { SourceOfTruthSnapshot } from "./sourceOfTruth.js";
+import type { SourceFactsSnapshot } from "./sourceFacts.js";
 import {
   STALE_COMMAND_REFERENCE_DETECTOR,
   DOCS_CODE_MISMATCH_DETECTOR,
@@ -38,6 +39,11 @@ export type AuditDetectorContext = {
   // re-scanning the project or re-collecting source-of-truth themselves.
   inventory: ProjectInventorySnapshot;
   sourceOfTruth: SourceOfTruthSnapshot;
+  // v0.3.1 Batch 2 -- optional/additive: the runner always populates this
+  // (see auditRunner.ts), but it stays optional here so existing detector
+  // tests that build a literal AuditDetectorContext without it keep
+  // type-checking unchanged. No current detector reads this field yet.
+  sourceFacts?: SourceFactsSnapshot;
 };
 
 export type AuditDetectorSkip = { skip: true; reason: string } | { skip: false };

@@ -3,9 +3,11 @@ import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegist
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { InventoryFileEntry } from "../../core/projectInventory.js";
 import type { PackageTruth } from "../../core/sourceOfTruth.js";
+import type { SourceFileFacts } from "../../core/sourceFacts.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
 import { baseNameNoExt } from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
+import { collectRelativeImportBasenames, getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 4 — dead-code candidate detector.
@@ -152,7 +154,13 @@ function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: PackageTrut
 }
 
 function buildReverseReferenceIndex(ctx: AuditDetectorContext): Set<string> {
-  const referencedBasenames = new Set<string>();
+  // v0.3.1 Batch 4 -- seeded with basenames the TypeScript/JavaScript
+  // analyzer already resolved from real import declarations (parsed files
+  // only). This only ever adds references, never removes them, so it can
+  // only reduce false positives relative to the regex-only scan below --
+  // safe even though ctx.sourceFacts is optional (returns an empty set when
+  // absent, e.g. in existing detector-only unit tests).
+  const referencedBasenames = collectRelativeImportBasenames(ctx.sourceFacts);
   const allCandidateFiles: InventoryFileEntry[] = [
     ...ctx.inventory.sourceFiles,
     ...ctx.inventory.testFiles,
@@ -177,6 +185,7 @@ function buildReverseReferenceIndex(ctx: AuditDetectorContext): Set<string> {
 function findUnreferencedSourceFiles(ctx: AuditDetectorContext, pkg: PackageTruth | null, docsConcat: string): AuditIssue[] {
   const referencedBasenames = buildReverseReferenceIndex(ctx);
   const binCandidates = pkg ? binTargetsAsSourceCandidates(pkg) : new Set<string>();
+  const sourceFactsIndex = indexSourceFactsByPath(ctx.sourceFacts);
   const issues: AuditIssue[] = [];
 
   for (const file of ctx.inventory.sourceFiles) {
@@ -195,6 +204,27 @@ function findUnreferencedSourceFiles(ctx: AuditDetectorContext, pkg: PackageTrut
     if (docsDescribeAsPlanned(docsConcat, file.relativePath)) continue;
     if (referencedBasenames.has(base.toLowerCase())) continue;
 
+    const evidence: AuditIssue["evidence"] = [
+      {
+        kind: "observation",
+        message: "No relative import/require specifier in the scanned source/test/script set resolves to this file's basename.",
+        filePath: file.relativePath,
+        source: DETECTOR_ID,
+        confidence: "low",
+      },
+    ];
+    // v0.3.1 Batch 4 -- when the TypeScript/JavaScript analyzer actually
+    // parsed this file, surface its export count as extra candidate
+    // evidence (an exported symbol with zero detected external references
+    // is more suspicious than an unexported one). This never changes
+    // whether the issue is emitted, only its evidence -- the flagging
+    // decision above is unchanged from the existing basename-reference
+    // heuristic.
+    const facts = getParsedSourceFacts(sourceFactsIndex, file.relativePath);
+    if (facts) {
+      evidence.push(buildSourceFactsEvidence(facts));
+    }
+
     issues.push(
       makeCodeRotIssue({
         auditType: "code-rot",
@@ -212,20 +242,26 @@ function findUnreferencedSourceFiles(ctx: AuditDetectorContext, pkg: PackageTrut
         releaseBlocking: false,
         implementationBlocking: false,
         autoFixEligible: false,
-        evidence: [
-          {
-            kind: "observation",
-            message: "No relative import/require specifier in the scanned source/test/script set resolves to this file's basename.",
-            filePath: file.relativePath,
-            source: DETECTOR_ID,
-            confidence: "low",
-          },
-        ],
+        evidence,
         affectedFiles: [file.relativePath],
       })
     );
   }
   return issues;
+}
+
+// v0.3.1 Batch 4 -- describes a parsed file's source-facts shape as an
+// evidence entry. Only called for parseStatus "parsed" facts (see callers),
+// since file-level-only/parse-error facts carry empty fact arrays that
+// would misleadingly read as "zero exports" rather than "unknown".
+function buildSourceFactsEvidence(facts: SourceFileFacts): AuditIssue["evidence"][number] {
+  return {
+    kind: "reference",
+    message: `Source facts: the TypeScript/JavaScript analyzer parsed this file and recorded ${facts.exports.length} export(s), ${facts.declarations.length} declaration(s), and ${facts.imports.length} import(s).`,
+    filePath: facts.relativePath,
+    source: DETECTOR_ID,
+    confidence: "medium",
+  };
 }
 
 function findOldOrDeprecatedFilesNotInDocs(ctx: AuditDetectorContext, docsConcat: string): AuditIssue[] {

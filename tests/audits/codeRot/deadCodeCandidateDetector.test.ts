@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { scanProjectInventory } from "../../../src/audits/core/projectInventory.js";
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
+import { collectSourceFacts } from "../../../src/audits/core/collectSourceFacts.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { DEAD_CODE_CANDIDATE_DETECTOR } from "../../../src/audits/codeRot/detectors/deadCodeCandidateDetector.js";
@@ -40,6 +41,12 @@ function buildContext(root: string): AuditDetectorContext {
 async function run(root: string) {
   const ctx = buildContext(root);
   return DEAD_CODE_CANDIDATE_DETECTOR.run(ctx);
+}
+
+async function runWithSourceFacts(root: string) {
+  const ctx = buildContext(root);
+  const sourceFacts = await collectSourceFacts(root, ctx.inventory);
+  return DEAD_CODE_CANDIDATE_DETECTOR.run({ ...ctx, sourceFacts });
 }
 
 describe("DEAD_CODE_CANDIDATE_DETECTOR — unreferenced scripts/ files", () => {
@@ -167,6 +174,43 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — orphaned generated-looking files", ()
       writeFile(root, "src/normal.ts", "export {};\n");
       const issues = await run(root);
       expect(issues.some((i) => i.category === "dead-code-candidate" && i.title.includes("Orphaned generated"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+describe("DEAD_CODE_CANDIDATE_DETECTOR — source-facts-derived reference evidence", () => {
+  it("suppresses a flag for a file only referenced via a dynamic import, when sourceFacts is available", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      // A dynamic import has no "from"/"require(" token, so the regex-based
+      // reverse-reference scan (IMPORT_SPECIFIER_PATTERN) never sees it --
+      // only the TypeScript/JavaScript analyzer's structured ImportFact
+      // (kind "dynamic") records this reference.
+      writeFile(root, "src/main.ts", 'export async function load() { return import("./helper.js"); }\n');
+      writeFile(root, "src/helper.ts", "export function helper() {}\n");
+
+      const withoutFacts = await run(root);
+      expect(withoutFacts.some((i) => i.title.includes("helper.ts"))).toBe(true);
+
+      const withFacts = await runWithSourceFacts(root);
+      expect(withFacts.some((i) => i.title.includes("helper.ts"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("adds source-facts evidence to a flagged issue when the candidate file was parsed", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/orphanModule.ts", "export const x = 1;\n");
+      const issues = await runWithSourceFacts(root);
+      const issue = issues.find((i) => i.title.includes("orphanModule.ts"));
+      expect(issue).toBeDefined();
+      expect(issue?.evidence.some((e) => e.message.startsWith("Source facts:"))).toBe(true);
     } finally {
       cleanup(root);
     }

@@ -20,6 +20,7 @@ const REQUIRED_TOP_LEVEL_KEYS = [
   "summary",
   "inventory",
   "sourceOfTruth",
+  "sourceFacts",
   "detectors",
   "issues",
   "skippedDetectors",
@@ -73,7 +74,7 @@ describe("metadata.auditTypes — additive array field", () => {
     expect(parsed.metadata.auditTypes).toEqual(["code-rot"]);
   });
 
-  it("does not change the top-level 13-field schema and does not bump schemaVersion", async () => {
+  it("does not change the top-level 14-field schema and does not bump schemaVersion", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
     const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });

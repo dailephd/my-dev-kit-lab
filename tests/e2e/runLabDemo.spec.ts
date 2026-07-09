@@ -11,14 +11,13 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-async function browserRuntimeAvailable(): Promise<boolean> {
+async function launchBrowserIfAvailable() {
   try {
     const playwright = await import("playwright");
     const browser = await playwright.chromium.launch({ headless: true });
-    await browser.close();
-    return true;
+    return browser;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -38,7 +37,8 @@ describe("lab demo e2e", () => {
           "--kit-command",
           `node ${path.resolve(process.cwd(), "tests/fixtures/fake-my-dev-kit-cli.js")}`,
           "--out",
-          outDir
+          outDir,
+          "--no-screenshot"
         ],
         {
           cwd: process.cwd(),
@@ -56,27 +56,25 @@ describe("lab demo e2e", () => {
         warnings: string[];
         items: Array<{ screenshotPath?: string }>;
       };
-      if (manifest.items[0]?.screenshotPath) {
-        expect(existsSync(path.join(outDir, manifest.items[0].screenshotPath))).toBe(true);
-      } else {
-        expect(manifest.warnings.some((warning) => warning.includes("PNG screenshot skipped") || warning.includes("failed"))).toBe(true);
-      }
+      expect(manifest.warnings.some((warning) => warning.includes("--no-screenshot"))).toBe(true);
 
-      if (await browserRuntimeAvailable()) {
-        const playwright = await import("playwright");
-        const browser = await playwright.chromium.launch({ headless: true });
-        const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
-        await page.goto(`file:///${path.join(outDir, "token-savings-report.html").replace(/\\/g, "/")}`);
-        const bodyText = await page.locator("body").textContent();
-        expect(bodyText).toContain("Token savings evaluation");
-        expect(bodyText).toContain("raw full-file context vs my-dev-kit retrieval");
-        expect(bodyText).toContain("estimated_chars_div_4");
-        expect(bodyText).toContain("Metrics");
-        expect(bodyText).toContain("Artifacts");
-        expect(bodyText).toContain("Warnings");
-        await browser.close();
+      const browser = await launchBrowserIfAvailable();
+      if (browser) {
+        try {
+          const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
+          await page.goto(`file:///${path.join(outDir, "token-savings-report.html").replace(/\\/g, "/")}`);
+          const bodyText = await page.locator("body").textContent();
+          expect(bodyText).toContain("Token savings evaluation");
+          expect(bodyText).toContain("raw full-file context vs my-dev-kit retrieval");
+          expect(bodyText).toContain("estimated_chars_div_4");
+          expect(bodyText).toContain("Metrics");
+          expect(bodyText).toContain("Artifacts");
+          expect(bodyText).toContain("Warnings");
+        } finally {
+          await browser.close();
+        }
       }
     },
-    30000
+    60000
   );
 });

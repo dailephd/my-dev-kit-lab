@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
@@ -78,6 +80,7 @@ describe("buildAuditReportModel — top-level shape", () => {
     expect(model.summary).toBeDefined();
     expect(model.inventory).toBeDefined();
     expect(model.sourceOfTruth).toBeDefined();
+    expect(model.sourceFacts).toBeDefined();
     expect(model.detectors).toBeDefined();
     expect(model.issues).toBeDefined();
     expect(model.skippedDetectors).toBeDefined();
@@ -186,6 +189,86 @@ describe("buildAuditReportModel — verdict labels", () => {
     const breaching = makeDetector({ id: "breaching", run: () => [makeIssue({ severity: "high", detectorId: "breaching" })] });
     const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [throwing, breaching] });
     expect(computeVerdictLabel(result, true)).toBe("fail-on threshold breached");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v0.3.1 Batch 5 -- buildAuditReportModel()'s sourceFacts field (populated
+// via summarizeSourceFacts(), added in v0.3.1 Batch 2) had no dedicated unit
+// test in this file -- schema-shape coverage existed elsewhere
+// (auditReportSchemaStability.test.ts, auditEndToEndReportSchema.test.ts)
+// but not a test proving the summary's actual field values track a real,
+// small fixture project. Uses the same temp-dir fixture pattern as the
+// codeRot detector tests (fs.mkdtempSync + writeFile + cleanup).
+// ---------------------------------------------------------------------------
+
+function makeTempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "audit-report-model-source-facts-"));
+}
+
+function cleanup(...dirs: string[]): void {
+  for (const d of dirs) {
+    try {
+      fs.rmSync(d, { recursive: true, force: true });
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+function writeFile(root: string, relativePath: string, content = ""): void {
+  const fullPath = path.join(root, relativePath);
+  fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+  fs.writeFileSync(fullPath, content, "utf8");
+}
+
+function fakeTargetFor(root: string): AuditTarget {
+  return {
+    rootPath: root,
+    displayName: "fixture",
+    exists: true,
+    isDirectory: true,
+    packageJsonPath: path.join(root, "package.json"),
+    gitRoot: null,
+    isSelf: false,
+    safeReportOutputRoot: path.join(root, "reports", "audits"),
+  };
+}
+
+describe("buildAuditReportModel — source facts summary", () => {
+  it("reflects a real parsed TypeScript file's language/parse-status counts", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      writeFile(root, "src/index.ts", "export const x = 1;\n");
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const model = buildAuditReportModel(result, { target, registry: [] });
+
+      expect(model.sourceFacts.totalFilesAnalyzed).toBeGreaterThan(0);
+      expect(model.sourceFacts.filesByLanguage.typescript).toBeGreaterThanOrEqual(1);
+      expect(model.sourceFacts.filesByParseStatus.parsed).toBeGreaterThanOrEqual(1);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not crash and reports zero analyzed files for a project with no source/test files", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      writeFile(root, "README.md", "# fixture\n");
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const model = buildAuditReportModel(result, { target, registry: [] });
+
+      expect(model.sourceFacts.totalFilesAnalyzed).toBe(0);
+      expect(model.sourceFacts.filesByParseStatus.parsed).toBe(0);
+    } finally {
+      cleanup(root);
+    }
   });
 });
 

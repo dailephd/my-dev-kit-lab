@@ -65,6 +65,7 @@ const REQUIRED_TOP_LEVEL_KEYS = [
   "summary",
   "inventory",
   "sourceOfTruth",
+  "sourceFacts",
   "detectors",
   "issues",
   "skippedDetectors",
@@ -91,7 +92,8 @@ describe("end-to-end audit report schema — real CLI, real fixture, real disk r
     const raw = fs.readFileSync(jsonPath, "utf8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
 
-    // 1. All 13 top-level fields present, nothing more/less.
+    // 1. All 14 top-level fields present, nothing more/less (v0.3.1 Batch 2
+    // adds "sourceFacts" alongside the existing 13).
     expect(Object.keys(parsed).sort()).toEqual(REQUIRED_TOP_LEVEL_KEYS);
 
     // 2. schemaVersion.

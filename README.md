@@ -1,8 +1,10 @@
 # my-dev-kit-lab
 
-my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and future audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, and performs automated CLI/package security validation.
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, performs automated CLI/package security validation, and runs the generic audit framework.
 
-The current package version is `v0.3.0` (release-prepared; not yet published to npm, tagged, or released on GitHub). The latest published npm baseline is `v0.2.2`. Its generic experiment-plugin framework was introduced in v0.2.0. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+The current published baseline is `v0.3.0`. `v0.3.0` introduced the generic audit framework and the first implemented code-rot detector family. The generic experiment-plugin framework was introduced in `v0.2.0`. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
+
+The checked-out `v0.3.1` branch implements the language-aware code-rot substrate on top of the published baseline: normalized language/file-role inventory, source-facts collection, a TypeScript/JavaScript analyzer, source-facts-aware code-rot signals, and source-facts summaries in text/JSON audit reports. This branch is not a published package version; Python, Java, Kotlin, Android validation, framework-aware profiles, and broader audit types remain future roadmap work.
 
 my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
@@ -32,7 +34,7 @@ my-dev-kit is most useful when the repository is larger than the task. It helps 
 - Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
 - Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
 - Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`
-- Generic audit framework (package.json now specifies version `v0.3.0`; release-prepared but not yet published to npm, tagged, or released on GitHub): `npm run audit` runs heuristic, conservative code-rot detectors and writes text/JSON reports under `reports/audits/code-rot/` by default. Only the `code-rot` audit type is currently implemented; `quality`, `security`, `project`, and `all` audit types are planned and fail cleanly instead of running. `npm run audit` supports `--target`, `--types code-rot`, and other flags — see [docs/COMMANDS.md](docs/COMMANDS.md). Audit does not modify target files, does not auto-fix issues, does not run `security:validate`, and does not perform release-readiness determination.
+- Generic audit framework in the current published `v0.3.0` baseline: `npm run audit` runs heuristic, conservative code-rot detectors and writes text/JSON reports under `reports/audits/code-rot/` by default. Only the `code-rot` audit type is currently implemented; `quality`, `security`, `project`, and `all` audit types are planned and fail cleanly instead of running. `npm run audit` supports `--target`, `--types code-rot`, and other flags — see [docs/COMMANDS.md](docs/COMMANDS.md). Audit does not modify target files, does not auto-fix issues, does not run `security:validate`, and does not perform release-readiness determination.
 
 ---
 
@@ -203,7 +205,14 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Current baseline release positioning
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The latest published npm baseline is `v0.2.2`, which implements the automated security-validation fortification work described below and has passed pre-release readiness and cross-platform validation. package.json now specifies version `v0.3.0`, which adds the generic audit framework described below; `v0.3.0` is release-prepared but has not yet been published to npm, tagged, or released on GitHub.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current published npm baseline is `v0.3.0`, which includes the generic audit framework and the first implemented code-rot detector family on top of the earlier experiment and automated security-validation work.
+
+Planned roadmap direction after the published baseline:
+
+- `v0.3.1`: language-aware code-rot substrate plus TypeScript/JavaScript support, implemented on the active branch but not yet published
+- `v0.3.2` through `v0.3.4`: Python, Java/Kotlin, and cross-language stability for the language-aware code-rot track
+- `v0.4.0` through `v0.4.2`: Android automated security validation
+- manual pentest: post-v1 / version TBD
 
 ---
 
@@ -241,7 +250,7 @@ Each security command can validate my-dev-kit-lab itself or another local projec
 
 `security:validate` supports `--checks`, `--profile`, `--format`, `--fail-on`, `--out`, and `--report-prefix`. The no-flag path remains backward compatible and still runs the classic implemented check groups: `deps`, `package`, `static`, `cli-adversarial`, and `fuzz`. Supplying `--profile` without `--checks` swaps in that profile's default checks; supplying explicit `--checks` always wins over profile defaults.
 
-The current attack-scenario checks cover boundary, subprocess, secrets, and network assumptions. They are automated adversarial checks, not a manual pentest. `verdictImpact` metadata from each registered scenario drives blocker categorization in report reasoning, and narrowed `--checks` runs are labeled as scoped rather than described as a full release gate.
+The current attack-scenario checks cover boundary, subprocess, secrets, and network assumptions. They are automated adversarial checks, not a manual pentest. Manual pentest is deferred until after `v1.0.0`. `verdictImpact` metadata from each registered scenario drives blocker categorization in report reasoning, and narrowed `--checks` runs are labeled as scoped rather than described as a full release gate.
 
 JSON report poisoning/config-injection checks use a baseline-diff schema guard so legitimate additive JSON fields do not fail the guard while payload-created trusted top-level fields still do. Text reports are sanitized to strip ANSI/control-byte payloads before rendering.
 

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { scanProjectInventory } from "../../../src/audits/core/projectInventory.js";
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
+import { collectSourceFacts } from "../../../src/audits/core/collectSourceFacts.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { TEST_ROT_DETECTOR } from "../../../src/audits/codeRot/detectors/testRotDetector.js";
@@ -40,6 +41,12 @@ function buildContext(root: string): AuditDetectorContext {
 async function run(root: string) {
   const ctx = buildContext(root);
   return TEST_ROT_DETECTOR.run(ctx);
+}
+
+async function buildContextWithSourceFacts(root: string): Promise<AuditDetectorContext> {
+  const ctx = buildContext(root);
+  const sourceFacts = await collectSourceFacts(root, ctx.inventory);
+  return { ...ctx, sourceFacts };
 }
 
 describe("TEST_ROT_DETECTOR — missing source imports", () => {
@@ -196,5 +203,72 @@ describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
   it("produces no .only findings against this repo's own current test suite", async () => {
     const issues = await run(process.cwd());
     expect(issues.some((i) => i.title.includes(".only("))).toBe(false);
+  });
+});
+
+describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
+  it("flags a dynamic import to a missing source file that the regex-based check cannot see", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      // A dynamic import has no "from"/"require(" token, so
+      // RELATIVE_IMPORT_PATTERN never matches it -- only the
+      // TypeScript/JavaScript analyzer's structured ImportFact (kind
+      // "dynamic") can see this specifier.
+      writeFile(
+        root,
+        "tests/example.test.ts",
+        'it("loads", async () => { const mod = await import("../src/missingDynamic.js"); expect(mod).toBeDefined(); });\n'
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("missing source file") && i.title.includes("missingDynamic.js"))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a dynamic import that resolves to an existing source file", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/thing.ts", "export const thing = () => {};\n");
+      writeFile(
+        root,
+        "tests/example.test.ts",
+        'it("loads", async () => { const mod = await import("../src/thing.js"); expect(mod).toBeDefined(); });\n'
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("missing source file"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not crash and falls back to the regex-only check when sourceFacts is absent", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/example.test.ts", 'import { thing } from "../src/doesNotExist.js";\nthing();\n');
+      const issues = await run(root); // buildContext() with no sourceFacts field
+      expect(issues.some((i) => i.title.includes("missing source file"))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not double-report the same missing specifier when both the regex and source-facts checks match it", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/example.test.ts", 'import { thing } from "../src/doesNotExist.js";\nthing();\n');
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const matches = issues.filter((i) => i.title.includes("missing source file") && i.title.includes("doesNotExist.js"));
+      expect(matches).toHaveLength(1);
+    } finally {
+      cleanup(root);
+    }
   });
 });

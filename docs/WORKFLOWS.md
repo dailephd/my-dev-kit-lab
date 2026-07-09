@@ -1,432 +1,187 @@
 # Workflows
 
-This document describes the main workflows available in my-dev-kit-lab. Each workflow is a sequence of commands that produces a set of artifacts. See [docs/COMMANDS.md](docs/COMMANDS.md) for full command options.
+This document separates implementation workflows, documentation reconciliation, pre-release readiness, release preparation, and future planned workflows.
 
----
+## Workflow 1: Fake-agent final demo
 
-## Workflow 1: Fake-agent demo (deterministic, no external CLIs required)
+Use this workflow to validate the full experiment pipeline locally without external agent CLIs.
 
-Use this workflow to validate the full pipeline locally without Codex or Claude. The fake-agent adapter returns deterministic outputs so results are reproducible on any machine.
-
-```mermaid
-flowchart TD
-  A[npm run build] --> B[npm run run-final-demo]
-  B --> C[Controlled experiment\nfake-agent runs]
-  C --> D[experiment-summary.json\nexperiment-runs.json\nexperiment-comparisons.json]
-  D --> E[npm run render-experiment-report]
-  E --> F[experiment-report.html\nexperiment-report.json]
-  D --> G[npm run generate-experiment-plots]
-  G --> H[SVG charts]
-  D --> I[npm run run-visualization-demos]
-  I --> J[Demo artifacts]
-  F --> K[npm run build-gallery]
-  H --> K
-  J --> K
-  K --> L[gallery-manifest.json\ngallery-index.html]
-```
-
-**Command:**
 ```bash
-npm run run-final-demo -- \
-  --cases examples/token-savings-cases.json \
-  --out lab-output/final-demo \
-  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
-  --agents fake-agent \
-  --complexities short \
-  --no-screenshot
+npm run build
+npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
 ```
 
-```powershell
-npm run run-final-demo -- `
-  --cases examples/token-savings-cases.json `
-  --out lab-output/final-demo `
-  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
-  --agents fake-agent `
-  --complexities short `
-  --no-screenshot
-```
+Outputs:
 
-- Bash and zsh examples use `\` line continuations.
-- PowerShell examples use the backtick continuation shown above.
-- `cmd.exe` users should run the same arguments on one line.
+- experiment summary artifacts
+- HTML/JSON report
+- plots
+- visualization demo artifacts
+- gallery artifacts
 
-**Outputs:**
-- `lab-output/final-demo/experiment-summary.json`
-- `lab-output/final-demo/experiment-runs.json`
-- `lab-output/final-demo/experiment-comparisons.json`
-- `lab-output/final-demo/experiment-report.html`
-- `lab-output/final-demo/charts/*.svg`
-- `lab-output/final-demo/gallery-manifest.json`
-- `lab-output/final-demo/gallery-index.html`
+## Workflow 2: Context-strategy experiment run
 
----
+Use the implemented `context-strategy-comparison` plugin to compare `raw-full-file` and `my-dev-kit-guided`.
 
-## Workflow 2: Context-strategy-comparison plugin
-
-Use the implemented `context-strategy-comparison` plugin to compare `raw-full-file` and `my-dev-kit-guided`. Each case is run under both strategies with the same agent and complexity level so results are directly comparable.
-
-```mermaid
-flowchart TD
-  A[Select target\ncases\nagents\nstrategies\ncomplexities] --> B[npm run experiment:run]
-  B --> C{For each case}
-  C --> D[Run raw-full-file\nvia agent]
-  C --> E[Run my-dev-kit-guided\nvia agent]
-  D --> F[Pair runs\nby case + agent + complexity]
-  E --> F
-  F --> G[Score correctness\nfrom answer key]
-  F --> H[Compare tokens\nand duration]
-  G --> I[experiment-comparisons.json]
-  H --> I
-  I --> J[npm run render-experiment-report]
-  J --> K[experiment-report.html]
-```
-
-**Command (fake-agent):**
 ```bash
-npm run experiment:run -- \
-  --experiment context-strategy-comparison \
-  --agents fake-agent \
-  --strategies raw-full-file,my-dev-kit-guided \
-  --complexities short \
-  --out lab-output/controlled-experiment-fake
+npm run experiment:run -- --experiment context-strategy-comparison --target /path/to/local/project --agents fake-agent --complexities short --no-screenshot
 ```
 
-Add `--target /path/to/local/project` to select an explicit local target. Omitting it uses self mode. The legacy `npm run run-controlled-experiment` command remains supported for backward compatibility.
+Current behavior:
 
-**Then render the report:**
+- omitting `--target` uses self mode
+- explicit targets are inspected without modifying target files
+
+## Workflow 3: Real-agent campaign
+
+Use this workflow for Codex or Claude runs when local CLIs are configured.
+
 ```bash
-npm run render-experiment-report -- \
-  --experiment lab-output/controlled-experiment-fake \
-  --out lab-output/experiment-report-fake \
-  --no-screenshot
+npm run run-controlled-experiment -- --cases examples/real-agent-campaign-cases.json --agents codex,claude --strategies raw-full-file,my-dev-kit-guided --complexities medium,multi-step --out lab-output/real-agent-campaign --include-real-agents --continue-on-failure --timeout-ms 240000
 ```
 
-**Outputs:**
-- `lab-output/controlled-experiment-fake/experiment-summary.json`
-- `lab-output/controlled-experiment-fake/experiment-runs.json`
-- `lab-output/controlled-experiment-fake/experiment-comparisons.json`
-- `lab-output/experiment-report-fake/experiment-report.html`
-- `lab-output/experiment-report-fake/experiment-report.json`
+Current behavior:
 
----
-
-## Workflow 3: Real-agent campaign (Codex or Claude)
-
-Use this workflow to run a campaign with real Codex or Claude agents. This requires local CLI setup and available usage capacity. Runs that time out, produce invalid output, or hit session limits are recorded as structured outcomes.
-
-```mermaid
-flowchart TD
-  A[Verify Codex/Claude CLI available] --> B[npm run run-controlled-experiment\nwith --include-real-agents]
-  B --> C{For each run}
-  C --> D[completed]
-  C --> E[timeout]
-  C --> F[invalid-output]
-  C --> G[limit-reached]
-  D --> H[experiment-runs.json\nwith structured outcomes]
-  E --> H
-  F --> H
-  G --> H
-  H --> I[npm run render-experiment-report]
-  I --> J[experiment-report.html\nwith partial results and warnings]
-```
-
-**Command:**
-```bash
-npm run run-controlled-experiment -- \
-  --cases examples/real-agent-campaign-cases.json \
-  --agents codex,claude \
-  --strategies raw-full-file,my-dev-kit-guided \
-  --complexities medium,multi-step \
-  --out lab-output/real-agent-campaign \
-  --include-real-agents \
-  --continue-on-failure \
-  --timeout-ms 240000
-```
-
-**Important limitations:**
-- Claude does not expose token totals; token savings comparisons are unavailable for Claude runs
-- Codex may expose token totals but can produce timeouts or invalid-output runs
-- Results may be partial; the report shows warnings for missing token totals or incomplete runs
-
----
+- partial outcomes are preserved
+- missing token totals and timeouts are reported explicitly
 
 ## Workflow 4: Report, plots, and gallery
 
-Use this workflow to render a report, generate plots, and build a gallery from existing experiment artifacts.
+Use this workflow to render outputs from existing experiment artifacts.
 
-```mermaid
-flowchart TD
-  A[experiment artifacts\nJSON] --> B[npm run render-experiment-report]
-  A --> C[npm run generate-experiment-plots]
-  A --> D[npm run run-visualization-demos]
-  B --> E[experiment-report.html\nexperiment-report.json]
-  B --> F[optional: npm run render-experiment-report\nwith --screenshot]
-  F --> G[experiment-report.png]
-  C --> H[plot-data.json\ncharts/*.svg]
-  D --> I[demo artifacts]
-  E --> J[npm run build-gallery]
-  G --> J
-  H --> J
-  I --> J
-  J --> K[gallery-manifest.json\ngallery-index.html]
-```
-
-**Commands:**
 ```bash
-npm run render-experiment-report -- \
-  --experiment lab-output/controlled-experiment-fake \
-  --out lab-output/experiment-report-fake \
-  --no-screenshot
-
-npm run generate-experiment-plots -- \
-  --experiment lab-output/controlled-experiment-fake \
-  --out lab-output/experiment-plots
-
-npm run run-visualization-demos -- \
-  --project benchmarks/projects/todo-ts \
-  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
-  --out lab-output/visualization-demos
-
-npm run build-gallery -- \
-  --report lab-output/experiment-report-fake \
-  --plots lab-output/experiment-plots \
-  --visualizations lab-output/visualization-demos \
-  --out lab-output/gallery
+npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot
+npm run generate-experiment-plots -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-plots
+npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-output/experiment-plots --visualizations lab-output/visualization-demos --out lab-output/gallery
 ```
 
----
+## Workflow 5: Automated security validation
 
-## Workflow 5: Benchmark validation
-
-Use this workflow to verify that benchmark projects, contracts, profiles, and answer keys are all consistent.
-
-```mermaid
-flowchart TD
-  A[npm run build] --> B[npm run test:benchmarks]
-  B --> C[npm run verify:benchmarks]
-  C --> D[npm run verify]
-  D --> E[All checks pass]
-```
-
-**Commands:**
-```bash
-npm run build
-npm run test:benchmarks
-npm run verify:benchmarks
-npm run verify
-```
-
----
-
-## Workflow 6: Default security validation
-
-Use this workflow when you want the backward-compatible default validation run. With no `--profile` and no `--checks`, the command runs the classic implemented check groups: `deps`, `package`, `static`, `cli-adversarial`, and `fuzz`.
+Use this workflow for the current implemented `security:validate` path.
 
 ```bash
 npm run security:validate
 ```
 
-Read the result as follows:
-- Optional tools such as CodeQL, Semgrep, or OSV-Scanner can be `skipped`; a skip is not a pass
-- The default `--fail-on` threshold is `blocker`
-- `not ready: security blocker remains` still exits nonzero even without a custom `--fail-on`
-- The text report and JSON report are both written by default
-
----
-
-## Workflow 7: Targeted project validation
-
-Use this workflow to validate another local project without modifying that target by default.
+Targeted example:
 
 ```powershell
 npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 ```
 
-Read the result as follows:
-- The lab remains the tool root and the selected project becomes the target root
-- Reports record target package/git metadata when available
-- If the target defines `scripts.test:security`, the CLI adversarial suite runs `npm run test:security` in the target root
-- Generated reports stay under `reports/security/` unless `--out` is supplied
+Current behavior:
 
----
+- optional tools are skipped, not treated as passed
+- target files are not modified by default
+- this is automated validation, not manual pentest
 
-## Workflow 8: Focused scoped checks
+## Workflow 6: Code-rot audit
 
-Use this workflow when you want a narrow validation pass instead of the full classic gate.
-
-```bash
-npm run security:validate -- --checks boundary,subprocess,secrets,network --format text,json
-```
-
-Read the result as follows:
-- Explicit `--checks` narrows the run to the requested check groups
-- The report marks this as a narrowed/scoped run
-- A scoped run is useful for focused evidence gathering, but it is not the same as a full release gate
-
----
-
-## Workflow 9: Profile-based validation
-
-Use this workflow when you want profile-aware default check selection.
-
-```bash
-npm run security:validate -- --profile local-tool --format json
-```
-
-Read the result as follows:
-- `node-cli-package` defaults to `deps,package,static,cli-adversarial,fuzz`
-- `local-tool` defaults to `deps,static,cli-adversarial,fuzz`
-- `npm-package` defaults to `deps,package,static`
-- Explicit `--checks` overrides any profile default
-- Profile behavior is currently limited to default-check selection and scenario applicability filtering
-
----
-
-## Workflow 10: Thresholded validation
-
-Use this workflow when you want stricter exit behavior than the default blocker-only threshold.
-
-```bash
-npm run security:validate -- --checks boundary,subprocess,secrets,network --fail-on high --format json
-```
-
-Read the result as follows:
-- Default `--fail-on` is `blocker`
-- `--fail-on high` exits `1` for blocker or major findings
-- `--fail-on medium` also exits `1` for minor findings
-- `--fail-on low` also exits `1` for informational findings
-- Inconclusive runs still exit `2`
-
----
-
-## Workflow 11: Reading security reports
-
-Use this workflow after a security-validation run to interpret the generated artifacts.
-
-Read the text report for:
-- Selected profile and checks
-- Whether the run was a full classic gate or narrowed scope
-- Verdict reasoning summary, including release blockers, target-project blockers, and tool-framework blockers
-- Attack-scenario evidence previews with redacted/sanitized content
-
-Read the JSON report for:
-- `metadata.selectedChecks`, `metadata.profile`, `metadata.failOnThreshold`, and `metadata.isFullReleaseGate`
-- `attackScenarios.count` and `attackScenarios.results`
-- `verdictReasonSummary`
-
-Remember:
-- Text reports are sanitized against ANSI/control-byte and report-poisoning payloads
-- JSON schema guards protect the current report structure against payload-created structural injection
-- These guards strengthen the automated reports; they are not a complete pentest or universal renderer-safety proof
-
----
-
-## Workflow 12: Default code-rot audit
-
-Use this workflow to run the implemented audit framework (package.json now specifies version `v0.3.0`; release-prepared but not yet released or published to npm) against my-dev-kit-lab itself. This is not the same as `security:validate`, it is not a pre-release readiness check, and it does not auto-fix anything — it surfaces heuristic, conservative candidate findings for review.
+Use this workflow for the current implemented audit path. The published `v0.3.0` baseline provides the generic audit framework and code-rot detectors; the active `v0.3.1` branch adds language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence without adding command flags.
 
 ```bash
 npm run audit
 ```
 
-Read the result as follows:
-- Default `--types` is `code-rot` (the only implemented audit type)
-- Default `--fail-on` is `blocker`
-- Default `--format` is `text,json`
-- Reports are written under `reports/audits/code-rot/` by default
-
----
-
-## Workflow 13: External-target audit
-
-Use this workflow to audit another local project without modifying it.
+Targeted example:
 
 ```powershell
 npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
 ```
 
-Read the result as follows:
-- The lab remains the tool root; the selected project becomes the audit target
-- Target resolution and the detector runner do not write or delete files inside the target root
-- Generated reports stay under the tool root's `reports/audits/` unless `--out` is supplied
+Current behavior:
 
----
+- only `code-rot` runs today
+- audit is independent from `security:validate`
+- audit findings are heuristic candidates and do not auto-fix anything
+- active-branch source-facts evidence is conservative static-analysis evidence, not proof of dead code, semantic duplicate implementation, complete test coverage, full module resolution, or runtime reachability
 
-## Workflow 14: Scoped and format-focused audit runs
+## Workflow 7: Implementation completion
 
-Use these variants for narrower or format-specific audit passes.
+Every implementation version ends with these stages before pre-release readiness:
+
+1. implementation-completeness review
+2. documentation source-of-truth reconciliation
+3. validation commands
+4. pre-release readiness review
+
+Documentation reconciliation is a required workflow stage. It is not its own semantic version.
+
+## Workflow 8: Documentation reconciliation
+
+Use this workflow after implementation work and before pre-release readiness.
+
+Required actions:
+
+1. reconcile README, roadmap, architecture, workflows, commands, and current-state docs with the checked-in implementation
+2. confirm current versus planned behavior is clearly separated
+3. remove stale roadmap assignments or relabel them as future/historical as appropriate
+4. run the required validation commands for the repository
+
+This workflow does not create a separate product version.
+
+## Workflow 9: Pre-release readiness
+
+Use this workflow after implementation completion and documentation reconciliation.
+
+Typical commands:
 
 ```bash
-# Scoped include areas
-npm run audit -- --types code-rot --include docs,tests,package,architecture,cli --format text,json --fail-on none
-
-# Non-blocking investigation (never exits nonzero on findings)
-npm run audit -- --fail-on none
-
-# Text-only report
-npm run audit -- --format text --fail-on none
-
-# JSON-only report
-npm run audit -- --format json --fail-on none
-
-# Stricter gating: exit 1 if any high-or-worse issue is found
-npm run audit -- --fail-on high
+npm run typecheck
+npm run build
+npm run test
+npm run verify
 ```
 
-Read the result as follows:
-- `--include` narrows which project areas detectors consider; it does not change which detectors are registered
-- `--fail-on none` is useful for investigation without blocking automation
-- `--fail-on blocker|high|medium|low` progressively tightens the exit-1 threshold
+If a release-specific validation workflow exists for the implemented feature set, run it here as well.
 
----
+## Workflow 10: Release preparation and publication
 
-## Workflow 15: Reading audit reports
+These are separate from implementation and documentation reconciliation.
 
-Use this workflow after an audit run to interpret the generated artifacts.
+Release preparation includes:
 
-Read the text report and console summary for:
-- Issue counts by severity (`blocker`, `high`, `medium`, `low`, `info`)
-- Skipped detectors and detector errors, if any
-- The final verdict label and exit reason
+- changelog verification
+- package/release hygiene checks
+- final readiness review
 
-Read the JSON report (`reports/audits/code-rot/code-rot-audit.json`) for the full 13-field schema: `schemaVersion` (currently `"1.0"`), `metadata` (including `auditType` and `auditTypes`), `target`, `config`, `summary`, `inventory`, `sourceOfTruth`, `detectors`, `issues`, `skippedDetectors`, `detectorErrors`, `recommendations`, and `exit`.
+Publication includes:
 
-Interpreting findings:
-- Findings are heuristic candidates, not proof of a defect — each issue carries a `confidence` and `falsePositiveRisk` label
-- A skipped detector is not a pass; check `skippedDetectors` for the reason
-- A detector error does not stop the whole run; other detectors still execute, and the error is reported in `detectorErrors`
+- publish/tag/release steps when explicitly authorized
 
-Boundaries — the audit workflow is **not**:
-- a pre-release readiness check
-- the same as `npm run security:validate` (they are independent tools; audit never invokes security:validate)
-- a manual pentest
-- an auto-fix tool
+Do not collapse these stages into implementation work.
 
----
+## Future workflow: Android validation
 
-## Future workflow: Warm-index reuse experiment
+This workflow is planned for `v0.4.x`. It is not implemented today.
 
-This workflow is not yet implemented. It will measure the amortized cost of my-dev-kit indexing when the index is reused across multiple queries.
+Planned direction:
 
-```mermaid
-flowchart TD
-  A[Index benchmark project\none time] --> B[Run multiple queries\nagainst warm index]
-  B --> C[Measure per-query\ntoken and duration cost]
-  C --> D[Compare with\ncold-start raw-full-file]
-  D --> E[warm-index-reuse\nexperiment report]
+```bash
+npm run security:validate -- --target /path/to/android/project --profile android
+npm run security:validate -- --target /path/to/android/project --profile android-compose
 ```
 
----
+Planned behavior:
 
-## Future workflow: Incremental-change experiment
+- validate existing Android projects
+- preserve non-destructive target handling
+- include report/schema stability inside each Android implementation version
 
-This workflow is not yet implemented. It will measure how well a partially stale index still guides retrieval after incremental code changes.
+## Future workflow: Android audit bridge
 
-```mermaid
-flowchart TD
-  A[Index benchmark project\nat version N] --> B[Apply incremental changes\nto project]
-  B --> C[Run retrieval queries\nagainst stale index]
-  C --> D[Measure correctness\nand token cost]
-  D --> E[Re-index and compare\nwith fresh index]
-  E --> F[incremental-change\nexperiment report]
+This workflow is planned as the optional `v0.4.2` feature. It is not implemented today.
+
+Planned direction:
+
+```bash
+npm run audit -- --target /path/to/android/project --types security --profile android
 ```
+
+This bridge will summarize Android validation findings without replacing `security:validate`.
+
+## Future workflow: Manual pentest
+
+Manual pentest is deferred until after `v1.0.0`.
+
+It is a human-led workflow and is not required for automated Android security validation.
