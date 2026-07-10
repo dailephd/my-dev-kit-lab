@@ -61,19 +61,20 @@ export async function collectSourceFacts(
   const eligible = inventory.files.filter((entry) => ANALYZABLE_ROLES.has(entry.role));
 
   for (const entry of eligible) {
+    const relativePath = normalizeRelativePath(entry.relativePath);
     const analyzer = selectLanguageAnalyzer(registry, entry.language, entry.extension);
 
     if (!analyzer) {
-      files.push(buildFallbackFacts(entry));
+      files.push(buildFallbackFacts(entry, relativePath));
       continue;
     }
 
-    const absolutePath = path.join(resolvedRoot, entry.relativePath);
+    const absolutePath = resolveInventoryFilePath(resolvedRoot, relativePath);
     try {
       const content = fs.readFileSync(absolutePath, "utf8");
       const facts = await analyzer.analyzeFile({
         targetRoot: resolvedRoot,
-        relativePath: entry.relativePath,
+        relativePath,
         absolutePath,
         content,
         inventoryEntry: entry,
@@ -86,13 +87,13 @@ export async function collectSourceFacts(
       const diagnostic: SourceFactDiagnostic = {
         severity: "error",
         code: "analyzer-error",
-        message: `Analyzer "${analyzer.id}" failed on "${entry.relativePath}": ${message}`,
-        path: entry.relativePath,
+        message: `Analyzer "${analyzer.id}" failed on "${relativePath}": ${message}`,
+        path: relativePath,
         analyzerId: analyzer.id,
       };
       analyzerDiagnostics.push(diagnostic);
       files.push({
-        relativePath: entry.relativePath,
+        relativePath,
         language: entry.language,
         role: entry.role,
         parseStatus: "parse-error",
@@ -117,7 +118,7 @@ export async function collectSourceFacts(
   };
 }
 
-function buildFallbackFacts(entry: InventoryFileEntry): SourceFileFacts {
+function buildFallbackFacts(entry: InventoryFileEntry, relativePath: string): SourceFileFacts {
   const known = KNOWN_LANGUAGES.has(entry.language);
   const parseStatus: SourceFactParseStatus = known ? "file-level-only" : "unsupported";
   const diagnostic: SourceFactDiagnostic = known
@@ -125,19 +126,19 @@ function buildFallbackFacts(entry: InventoryFileEntry): SourceFileFacts {
         severity: "info",
         code: "no-analyzer-registered",
         message: `No language analyzer is registered for "${entry.language}" yet; only inventory-level facts are available.`,
-        path: entry.relativePath,
+        path: relativePath,
         analyzerId: null,
       }
     : {
         severity: "info",
         code: "unsupported-language",
         message: `Language "${entry.language}" is not supported for source-fact extraction.`,
-        path: entry.relativePath,
+        path: relativePath,
         analyzerId: null,
       };
 
   return {
-    relativePath: entry.relativePath,
+    relativePath,
     language: entry.language,
     role: entry.role,
     parseStatus,
@@ -149,6 +150,17 @@ function buildFallbackFacts(entry: InventoryFileEntry): SourceFileFacts {
     references: [],
     diagnostics: [diagnostic],
   };
+}
+
+function normalizeRelativePath(relativePath: string): string {
+  const normalized = path.posix.normalize(relativePath.replace(/\\/g, "/"));
+  if (normalized === ".") return "";
+  return normalized.replace(/^\/+/, "").replace(/^\.\//, "");
+}
+
+function resolveInventoryFilePath(root: string, relativePath: string): string {
+  const parts = relativePath.split("/").filter((part) => part.length > 0);
+  return parts.length === 0 ? root : path.resolve(root, ...parts);
 }
 
 function countByLanguage(files: readonly SourceFileFacts[]): Record<NormalizedLanguage, number> {

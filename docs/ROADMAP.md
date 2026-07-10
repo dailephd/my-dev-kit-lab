@@ -187,7 +187,7 @@ Out of scope:
 ### v0.3.4 - cross-language code-rot fixture and stability pass
 
 Status:
-- planned
+- release-prepared; package metadata bumped to 0.3.4, not yet published, not tagged
 
 Purpose:
 - Stabilize language-aware code-rot detection across the required languages.
@@ -197,9 +197,11 @@ Scope:
 - JSON and text report stability for implemented language-aware behavior
 - detector error isolation and skipped/degraded detector reporting
 - cross-platform path behavior
+- CRLF/LF parser and docs-code-mismatch stability
 - generated, vendor, and build-output exclusion coverage
 - false-positive, confidence, and severity calibration
 - implementation-completeness validation for the `v0.3.x` code-rot track
+- final documentation reconciliation for the local implementation state
 
 Out of scope:
 - standalone documentation release

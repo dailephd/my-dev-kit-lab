@@ -2,7 +2,7 @@
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types, in the current published `v0.3.3` baseline. `v0.3.0` introduced the original code-rot-only audit framework; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer; `v0.3.2` added a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`); `v0.3.3` extends that same audit substrate with Java/Kotlin analyzers, JVM metadata collection, and Java/Kotlin/JVM-aware detector support, with package metadata `0.3.3`.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types. `v0.3.0` introduced the original code-rot-only audit framework; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer; `v0.3.2` added a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`); `v0.3.3` extends that same audit substrate with Java/Kotlin analyzers, JVM metadata collection, and Java/Kotlin/JVM-aware detector support, and is the previously published baseline with package metadata `0.3.3`. `v0.3.4` is release-prepared (package metadata bumped to `0.3.4`, not yet published) and hardens source-fact path normalization, report stability, cross-platform/path coverage, CRLF/LF parsing coverage, and documentation accuracy without changing the command surface.
 
 ### Module map
 
@@ -255,7 +255,6 @@ No audit command changed and no report schema field was added for `v0.3.3`. `pyt
 
 The following layers are planned and must not be treated as current published or checked-out behavior:
 
-- completion of the `v0.3.x` language-aware code-rot track for cross-language stability (`v0.3.4`)
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - Android/mobile validation profiles for `v0.4.x`

@@ -1,11 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveCommand } from "../../src/core/resolveCommand.js";
 import { renderJsonReport } from "../../src/securityValidation/report/renderSecurityReport.js";
+import { writeSecurityReportFiles } from "../../src/securityValidation/report/writeSecurityReportFiles.js";
 import type { SecurityReport } from "../../src/securityValidation/report/securityReportTypes.js";
 import {
   SAFE_BASELINE_CONTENT,
@@ -221,7 +222,115 @@ describe("--out / --format output location consistency (Batch 6, real CLI)", () 
     // broke once reports/security/raw/.gitkeep stopped being a tracked file
     // (a fresh checkout no longer has an empty reports/security/ directory
     // present before any test runs).
-    runValidateCli(["--checks", "secrets", "--format", "json"]);
-    expect(existsSync(path.join(toolRoot, "reports", "security"))).toBe(true);
+    //
+    // scripts/security/validate.ts derives its toolRoot from its own file
+    // location (resolveToolRoot.ts walks up from import.meta.url to the
+    // nearest package.json), not from this subprocess's cwd -- so there is
+    // no way to redirect this specific real-CLI invocation to an isolated
+    // directory without weakening the exact default-output-location
+    // guarantee this test exists to prove. That means this test's
+    // `--checks secrets` smoke run necessarily writes to the SAME fixed,
+    // non-run-scoped stable path (reports/security/v<version>-security-
+    // validation.json/.txt) that a real `npm run security:validate`
+    // invocation and human/CI consumers read as the canonical release-
+    // readiness snapshot (see securityAuditAdapter.ts's run-scoped suffix
+    // for how the audit-linked reports avoid this by contrast). Left
+    // unguarded, this narrow secrets-only run silently overwrote that
+    // canonical snapshot every time this test executed -- the confirmed
+    // root cause of the v0.3.4 pre-release-readiness "stale stable security
+    // report" correction. The stable prefix is read from package.json at
+    // test time (not hardcoded to one version string) so this protection
+    // survives every future version bump, not just the version current when
+    // the fix was written. Snapshotting and restoring the stable files
+    // around this test preserves its real assertion (the CLI still creates
+    // reports/security and writes into it by default) without leaving
+    // collateral staleness for whoever reads the stable snapshot next.
+    const currentVersion = JSON.parse(readFileSync(path.join(toolRoot, "package.json"), "utf8")).version as string;
+    const stableJsonPath = path.join(toolRoot, "reports", "security", `v${currentVersion}-security-validation.json`);
+    const stableTxtPath = path.join(toolRoot, "reports", "security", `v${currentVersion}-security-validation.txt`);
+    const previousJson = existsSync(stableJsonPath) ? readFileSync(stableJsonPath, "utf8") : null;
+    const previousTxt = existsSync(stableTxtPath) ? readFileSync(stableTxtPath, "utf8") : null;
+
+    try {
+      runValidateCli(["--checks", "secrets", "--format", "json"]);
+      expect(existsSync(path.join(toolRoot, "reports", "security"))).toBe(true);
+    } finally {
+      if (previousJson !== null) writeFileSync(stableJsonPath, previousJson, "utf8");
+      else if (existsSync(stableJsonPath)) rmSync(stableJsonPath);
+      if (previousTxt !== null) writeFileSync(stableTxtPath, previousTxt, "utf8");
+      else if (existsSync(stableTxtPath)) rmSync(stableTxtPath);
+    }
   }, 30_000);
+});
+
+// ---------------------------------------------------------------------------
+// v0.3.4 pre-release-readiness correction -- unit-level regression for
+// writeSecurityReportFiles()'s stable (no reportPathSuffix) write contract.
+// The real-CLI test above proves the *directory* default; this proves the
+// underlying *refresh* contract directly against the pure writer function
+// (fast, no subprocess), which is the actual property the v0.3.4 "stale
+// stable security report" correction depends on: every standalone
+// security:validate invocation must overwrite the SAME fixed-name stable
+// file with that run's own content, never leave a prior run's content
+// sitting underneath a fresher one.
+// ---------------------------------------------------------------------------
+describe("writeSecurityReportFiles — stable (non-run-scoped) write contract", () => {
+  it("refreshes the same stable JSON/text files on each call (no reportPathSuffix)", () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "stable-report-refresh-"));
+    try {
+      const first = writeSecurityReportFiles({
+        outDir,
+        prefix: "v0.3.3",
+        report: makeReport({ verdict: "not-ready-security-blocker-remains" }),
+        formats: ["text", "json"],
+      });
+      const second = writeSecurityReportFiles({
+        outDir,
+        prefix: "v0.3.3",
+        report: makeReport({ verdict: "ready-for-release-preparation" }),
+        formats: ["text", "json"],
+      });
+
+      // Same path both times -- "stable" means fixed filename, not a new
+      // file per call.
+      expect(second.jsonPath).toBe(first.jsonPath);
+      expect(second.textPath).toBe(first.textPath);
+
+      const finalJson = JSON.parse(readFileSync(second.jsonPath!, "utf8"));
+      expect(finalJson.verdict).toBe("ready-for-release-preparation");
+      const finalText = readFileSync(second.textPath!, "utf8");
+      expect(finalText).not.toContain("not-ready-security-blocker-remains");
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps a run-scoped write (reportPathSuffix set) on a distinct path from the stable write", () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "stable-vs-timestamped-"));
+    try {
+      const stable = writeSecurityReportFiles({
+        outDir,
+        prefix: "v0.3.3",
+        report: makeReport(),
+        formats: ["json"],
+      });
+      const timestamped = writeSecurityReportFiles({
+        outDir,
+        prefix: "v0.3.3",
+        report: makeReport(),
+        formats: ["json"],
+        reportPathSuffix: "20260710120000-20260710120010-1234",
+      });
+
+      expect(timestamped.jsonPath).not.toBe(stable.jsonPath);
+      expect(existsSync(stable.jsonPath!)).toBe(true);
+      expect(existsSync(timestamped.jsonPath!)).toBe(true);
+      // The stable write from before this second call must still be intact
+      // -- a run-scoped write must never overwrite the stable path.
+      const stableContent = JSON.parse(readFileSync(stable.jsonPath!, "utf8"));
+      expect(stableContent.verdict).toBe("ready-except-optional-manual-checks");
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
 });
