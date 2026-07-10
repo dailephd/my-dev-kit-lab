@@ -1,6 +1,6 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.2`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support; `v0.3.2` added Python code-rot support and a first security-validation audit adapter. The checked-out `v0.3.3` work extends that baseline and is now release-prepared; package metadata is `0.3.3`, but publication has not happened yet.
+This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.3`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support; `v0.3.2` added Python code-rot support and a first security-validation audit adapter; `v0.3.3` adds Java/Kotlin code-rot support. Package metadata is `0.3.3`, and the npm registry contains `0.3.3`.
 
 ## Implemented
 
@@ -21,11 +21,11 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Audit reports are written under `reports/audits/<type>/` by default (`code-rot-audit.txt`/`code-rot-audit.json`), or under `--out <path>` when supplied.
 - Self and explicit local-project (non-destructive) audit targets.
 - The audit framework does not shell out to `security:validate`; the security audit adapter reuses `securityValidation`'s exported functions directly, and `security:validate` does not call the audit framework.
-- Release-prepared `v0.3.3` Java/Kotlin implementation: dependency-free Java and Kotlin source-facts analyzers, JVM project metadata collection (Gradle/Maven/wrapper/source-set presence only), Java/Kotlin detector integration for `dead-code-candidate`, `duplicate-implementation-candidate`, `test-rot`, and Java/Kotlin/Gradle/Maven docs-code-mismatch support.
+- Published `v0.3.3` Java/Kotlin implementation: dependency-free Java and Kotlin source-facts analyzers, JVM project metadata collection (Gradle/Maven/wrapper/source-set presence only), Java/Kotlin detector integration for `dead-code-candidate`, `duplicate-implementation-candidate`, `test-rot`, and Java/Kotlin/Gradle/Maven docs-code-mismatch support.
 
 ## Active branch status
 
-The current published npm baseline is `v0.3.2`. `v0.3.1` added normalized language/file-role inventory, a source facts model, source facts collection, a language analyzer registry, a TypeScript/JavaScript syntax analyzer, and source-facts-aware detector/report integration.
+The current published npm baseline is `v0.3.3`. `v0.3.1` added normalized language/file-role inventory, a source facts model, source facts collection, a language analyzer registry, a TypeScript/JavaScript syntax analyzer, and source-facts-aware detector/report integration.
 
 `v0.3.2` adds:
 
@@ -34,7 +34,7 @@ The current published npm baseline is `v0.3.2`. `v0.3.1` added normalized langua
 - Python-aware signals in the `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` detectors
 - the security-validation audit adapter (`--types security`, `--types code-rot,security`) described above
 
-The checked-out, release-prepared `v0.3.3` work adds:
+The published `v0.3.3` work adds:
 
 - a dependency-free Java analyzer for `.java`
 - a dependency-free Kotlin analyzer for `.kt` and `.kts`
@@ -97,7 +97,7 @@ npm run audit -- --types code-rot,security --format text,json --fail-on none
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework, code-rot detector family, TypeScript/JavaScript and Python language-aware substrate, and the security-validation audit adapter are all implemented in the current published `v0.3.2` baseline.
+The generic audit framework, code-rot detector family, TypeScript/JavaScript, Python, Java, and Kotlin language-aware substrate, and the security-validation audit adapter are all implemented in the current published `v0.3.3` baseline.
 
 The following remain planned, not implemented:
 
@@ -125,4 +125,4 @@ The following remain planned, not implemented:
 
 ## Next planned work
 
-The current published npm baseline is `v0.3.2`, which added Python code-rot support and a first security-validation audit adapter. The checked-out `v0.3.3` implementation adds Java/Kotlin code-rot support and is now release-prepared with package metadata `0.3.3`, but it is still not published. Cross-language stability follows in `v0.3.4`. Android automated security validation follows in `v0.4.0` through `v0.4.1`, with an Android-specific extension of the security audit adapter as optional `v0.4.2` work. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.
+The current published npm baseline is `v0.3.3`, which added Java/Kotlin code-rot support on top of the previously published `v0.3.2` baseline (Python code-rot support and a first security-validation audit adapter). Cross-language stability follows in `v0.3.4`. Android automated security validation follows in `v0.4.0` through `v0.4.1`, with an Android-specific extension of the security audit adapter as optional `v0.4.2` work. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.

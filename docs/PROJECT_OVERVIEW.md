@@ -2,7 +2,7 @@
 
 ## What is my-dev-kit-lab?
 
-my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It now includes three areas of validated capability: experiment/evidence, automated security validation, and a generic audit framework in the current published `v0.3.2` baseline (`code-rot` audit type with language-aware TypeScript/JavaScript and Python source facts, plus a `security` audit type via the security-validation audit adapter). The checked-out, release-prepared `v0.3.3` implementation extends the code-rot track to Java/Kotlin and static JVM metadata without changing the command surface. The audit framework does not perform code-quality analysis; that remains a planned, unimplemented audit type.
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It now includes three areas of validated capability: experiment/evidence, automated security validation, and a generic audit framework in the current published `v0.3.3` baseline (`code-rot` audit type with language-aware TypeScript/JavaScript, Python, Java, and Kotlin source facts, plus a `security` audit type via the security-validation audit adapter). `v0.3.3` extends the code-rot track to Java/Kotlin and static JVM metadata without changing the command surface. The audit framework does not perform code-quality analysis; that remains a planned, unimplemented audit type.
 
 my-dev-kit is a local-first repository indexing and graph-guided retrieval CLI. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Its strongest use case is when the repository is larger than the task; the project does not assume or claim that guided retrieval always saves tokens.
 
@@ -10,7 +10,7 @@ The lab supplies controlled benchmarks, agent adapters, metrics, reports, plots,
 
 ## Current baseline
 
-The current published npm baseline is version `0.3.2`. The generic experiment-plugin runtime introduced in `v0.2.0` is implemented. Its first and currently only registered plugin is `context-strategy-comparison`.
+The current published npm baseline is version `0.3.3`. The generic experiment-plugin runtime introduced in `v0.2.0` is implemented. Its first and currently only registered plugin is `context-strategy-comparison`.
 
 That plugin preserves the established raw-full-file versus my-dev-kit-guided experiment through the generic registry and runner. It supports self and explicit local-project targets, plugin-aware reports, deterministic fake-agent runs, and optional Codex or Claude campaigns. Existing legacy commands and artifacts remain supported.
 
@@ -20,7 +20,7 @@ The generic audit framework is implemented in the current published baseline. `v
 
 `v0.3.2` adds a Python analyzer and Python project metadata extending the language-aware source-facts substrate to Python, and a security-validation audit adapter that makes `security` the second implemented audit type. The adapter calls `security:validate`'s internals directly, maps its findings into audit issues, adds a `securitySummary` report field, and preserves `security:validate`'s original `reports/security/` output unchanged. It does not replace or duplicate that command.
 
-The checked-out `v0.3.3` implementation adds Java and Kotlin analyzers, JVM project metadata detection for static Gradle/Maven/source-set shape, Java/Kotlin support in the existing code-rot detectors, and Java/Kotlin/Gradle/Maven docs-code-mismatch checks. This work is release-prepared but not yet published: package metadata is `0.3.3`, `v0.3.2` remains the previous published baseline until publication completes, and the same `npm run audit` / `--types code-rot|security|code-rot,security` command surface is preserved. Java/Kotlin support is conservative and static only: no compiler parsing, no type/classpath resolution, no Gradle/Maven execution, no Android validation, and no target-project test execution.
+`v0.3.3` adds Java and Kotlin analyzers, JVM project metadata detection for static Gradle/Maven/source-set shape, Java/Kotlin support in the existing code-rot detectors, and Java/Kotlin/Gradle/Maven docs-code-mismatch checks. This is the current published package state: package metadata is `0.3.3`, `v0.3.2` remains the previous published baseline, and the same `npm run audit` / `--types code-rot|security|code-rot,security` command surface is preserved. Java/Kotlin support is conservative and static only: no compiler parsing, no type/classpath resolution, no Gradle/Maven execution, no Android validation, and no target-project test execution.
 
 Code-quality audit, project-wide combined audit defaults, Android automated security validation, framework-aware profiles, JVM package/environment rot, Gradle/Maven dependency freshness checks, and manual pentest remain future roadmap work.
 
@@ -54,9 +54,9 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-The current published npm baseline is `v0.3.2`. After that, the immediate direction is:
+The current published npm baseline is `v0.3.3`. After that, the immediate direction is:
 
-1. publish the already release-prepared `v0.3.3` Java/Kotlin code-rot work when explicitly authorized, then continue with cross-language stability in `v0.3.4`
+1. continue with cross-language stability in `v0.3.4`
 2. add Android validation MVP in `v0.4.0`
 3. add advanced Android security checks in `v0.4.1`
 4. optionally add an Android-specific extension of the security audit adapter in `v0.4.2`

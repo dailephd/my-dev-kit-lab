@@ -2,7 +2,7 @@
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types, in the current published `v0.3.2` baseline. `v0.3.0` introduced the original code-rot-only audit framework; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer; `v0.3.2` adds a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`). The checked-out, release-prepared `v0.3.3` implementation extends that same audit substrate with Java/Kotlin analyzers, JVM metadata collection, and Java/Kotlin/JVM-aware detector support while package metadata is `0.3.3`.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types, in the current published `v0.3.3` baseline. `v0.3.0` introduced the original code-rot-only audit framework; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer; `v0.3.2` added a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`); `v0.3.3` extends that same audit substrate with Java/Kotlin analyzers, JVM metadata collection, and Java/Kotlin/JVM-aware detector support, with package metadata `0.3.3`.
 
 ### Module map
 
@@ -232,9 +232,9 @@ The same source-facts-aware `dead-code-candidate`, `duplicate-implementation-can
 
 `v0.3.2` also adds the security-validation audit adapter described above (`src/audits/security/`), making `security` the second implemented audit type alongside `code-rot`.
 
-### v0.3.3 audit substrate (release-prepared, not yet published)
+### v0.3.3 audit substrate (published, current baseline)
 
-The checked-out `v0.3.3` implementation adds Java and Kotlin analyzers alongside the `v0.3.1` TypeScript/JavaScript analyzer and the `v0.3.2` Python analyzer. Both JVM analyzers are conservative, dependency-free scanners: they record package/import/declaration facts with regex and brace-depth tracking, not compiler or AST-backed semantic analysis. Java supports `.java`; Kotlin supports `.kt` and `.kts`.
+The published `v0.3.3` implementation adds Java and Kotlin analyzers alongside the `v0.3.1` TypeScript/JavaScript analyzer and the `v0.3.2` Python analyzer. Both JVM analyzers are conservative, dependency-free scanners: they record package/import/declaration facts with regex and brace-depth tracking, not compiler or AST-backed semantic analysis. Java supports `.java`; Kotlin supports `.kt` and `.kts`.
 
 `jvmProjectMetadata.ts` separately collects static JVM project metadata: Gradle build/settings/wrapper presence, Maven `pom.xml` presence, conventional `src/main|test/{java,kotlin}` source-set directories, and a best-effort project name. This is presence/simple-text-extraction only. It never executes Gradle, Maven, Java, Kotlin, Android tooling, or target-project tests.
 
@@ -255,7 +255,7 @@ No audit command changed and no report schema field was added for `v0.3.3`. `pyt
 
 The following layers are planned and must not be treated as current published or checked-out behavior:
 
-- completion of the `v0.3.x` language-aware code-rot track for Java, Kotlin, and cross-language stability
+- completion of the `v0.3.x` language-aware code-rot track for cross-language stability (`v0.3.4`)
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - Android/mobile validation profiles for `v0.4.x`

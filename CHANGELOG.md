@@ -2,9 +2,9 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [0.3.3] - Release-prepared
+## [0.3.3] - 2026-07-10
 
-Java/Kotlin code-rot support is release-prepared on top of the published `v0.3.2` baseline. Package metadata is now `0.3.3`; `v0.3.2` remains the previously published baseline until npm publication is completed. `v0.3.3` is not published yet.
+Java/Kotlin code-rot support, published on top of the previously published `v0.3.2` baseline. Package metadata is `0.3.3`; the npm registry now contains `0.3.3`. `v0.3.2` remains the previous published baseline.
 
 ### Added
 

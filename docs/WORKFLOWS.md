@@ -77,7 +77,7 @@ Current behavior:
 
 ## Workflow 6: Code-rot audit
 
-Use this workflow for the current implemented code-rot audit path. The `v0.3.0` baseline added the generic audit framework and code-rot detectors; `v0.3.1` added language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence; the published `v0.3.2` baseline adds a Python analyzer and Python-aware candidate evidence to the same detectors, without adding command flags. The checked-out, release-prepared `v0.3.3` implementation extends the same workflow to Java/Kotlin using static source-facts analyzers and JVM metadata, still without adding command flags.
+Use this workflow for the current implemented code-rot audit path. The `v0.3.0` baseline added the generic audit framework and code-rot detectors; `v0.3.1` added language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence; the previously published `v0.3.2` baseline added a Python analyzer and Python-aware candidate evidence to the same detectors, without adding command flags. The published `v0.3.3` implementation extends the same workflow to Java/Kotlin using static source-facts analyzers and JVM metadata, still without adding command flags.
 
 ```bash
 npm run audit
@@ -178,7 +178,7 @@ Required actions:
 3. remove stale roadmap assignments or relabel them as future/historical as appropriate
 4. run the required validation commands for the repository
 
-For `v0.3.3`, this specifically includes documenting Java/Kotlin support as release-prepared, not-yet-published checked-out behavior while preserving `v0.3.2` as the previously published baseline and keeping Android, quality/project/all, and JVM package/environment rot deferred.
+For `v0.3.3`, this specifically includes documenting Java/Kotlin support as the current published baseline while preserving `v0.3.2` as the previous published baseline and keeping Android, quality/project/all, and JVM package/environment rot deferred.
 
 This workflow does not create a separate product version.
 

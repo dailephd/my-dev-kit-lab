@@ -2,7 +2,7 @@
 
 This roadmap separates the current published baseline from release-prepared work, in-progress work, and planned work. A version listed here is not implemented unless its status says completed, current, in progress, or release-prepared.
 
-`v0.3.2` is the current published baseline.
+`v0.3.3` is the current published baseline.
 
 ## Version sequence
 
@@ -11,8 +11,8 @@ flowchart LR
   A[v0.2.0<br/>plugin framework] --> B[v0.2.2<br/>security-validation fortification]
   B --> C[v0.3.0<br/>generic audit framework]
   C --> D[v0.3.1<br/>language-aware code-rot substrate + TS/JS]
-  D --> E[v0.3.2<br/>current published baseline: Python code-rot + first security audit adapter]
-  E --> F[v0.3.3<br/>Java/Kotlin code-rot]
+  D --> E[v0.3.2<br/>Python code-rot + first security audit adapter]
+  E --> F[v0.3.3<br/>current published baseline: Java/Kotlin code-rot]
   F --> G[v0.3.4<br/>cross-language stability]
   G --> H[v0.4.0<br/>Android validation MVP]
   H --> I[v0.4.1<br/>advanced Android security]
@@ -125,7 +125,7 @@ Out of scope:
 ### v0.3.2 - Python code-rot support + first security audit adapter
 
 Status:
-- completed; current published baseline
+- completed; previous published baseline
 
 Purpose:
 - Add Python-aware code-rot detection using the language-aware substrate from `v0.3.1`.
@@ -153,7 +153,7 @@ Out of scope:
 ### v0.3.3 - Java/Kotlin code-rot support
 
 Status:
-- release-prepared; package metadata is `0.3.3`; not yet published
+- completed; current published baseline
 
 Purpose:
 - Add Java and Kotlin code-rot support in one version.

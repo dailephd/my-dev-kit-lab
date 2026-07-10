@@ -136,7 +136,7 @@ Current behavior:
 
 ## Audit commands
 
-The generic audit framework is implemented. `code-rot` was implemented in `v0.3.0`; `security` is implemented in the published `v0.3.2` package state. The checked-out, release-prepared `v0.3.3` implementation extends `code-rot` with Java/Kotlin support without changing the command surface. The audit framework is separate from `security:validate`: `npm run audit -- --types security` adapts `security:validate`'s internals and report family into the audit report surface, but does not replace the standalone `security:validate` command.
+The generic audit framework is implemented. `code-rot` was implemented in `v0.3.0`; `security` is implemented in the previously published `v0.3.2` package state. The published `v0.3.3` implementation extends `code-rot` with Java/Kotlin support without changing the command surface. The audit framework is separate from `security:validate`: `npm run audit -- --types security` adapts `security:validate`'s internals and report family into the audit report surface, but does not replace the standalone `security:validate` command.
 
 Current implemented command:
 
@@ -191,8 +191,8 @@ Current behavior:
 - target files are not modified
 - audit does not auto-fix issues
 - reports are written under `reports/audits/<type>/code-rot-audit.txt` and/or `code-rot-audit.json` by default (the report filename is fixed regardless of `--types`; only the containing directory changes, e.g. `reports/audits/security/` for `--types security`)
-- the `v0.3.1` package state added source-facts summaries to audit reports; the published `v0.3.2` state adds Python project metadata and the security summary described below, without adding new command flags
-- the release-prepared, not-yet-published `v0.3.3` implementation extends code-rot analysis to Java/Kotlin and static JVM metadata without adding new command flags or new top-level report fields
+- the `v0.3.1` package state added source-facts summaries to audit reports; the previously published `v0.3.2` state adds Python project metadata and the security summary described below, without adding new command flags
+- the published `v0.3.3` implementation extends code-rot analysis to Java/Kotlin and static JVM metadata without adding new command flags or new top-level report fields
 
 `v0.3.1` report details (published):
 
@@ -209,7 +209,7 @@ Current behavior:
 - Security findings are mapped into the `issues` array with `auditType: "security"` and `detectorId: "security-validation-adapter"`. Severity maps blocker→blocker, major→high, minor→medium, informational→info. Skipped optional security checks (e.g. an unavailable static-scan tool) are represented only in `securitySummary`'s check counts — never as an issue, never as a passed check.
 - The security audit adapter runs the same default check groups `security:validate` runs with no flags (`deps`, `package`, `static`, `cli-adversarial`, `fuzz`); there is currently no `--checks`/`--profile` passthrough on the `audit` command itself.
 
-`v0.3.3` checked-out behavior (release-prepared, not yet published):
+`v0.3.3` behavior (published):
 
 - `npm run audit -- --types code-rot` uses the same command and report paths while adding Java and Kotlin analyzer support behind the existing source-facts pipeline.
 - Java/Kotlin source-facts evidence can now appear in `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` findings. This is conservative static-analysis evidence only: no compiler parsing, no type/classpath resolution, no Gradle/Maven execution, and no target-project test execution.
