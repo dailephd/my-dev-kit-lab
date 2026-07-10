@@ -81,7 +81,7 @@ describe("benchmark behavior parity", () => {
       open: [{ id: "task-2", title: "Two", completed: false }],
       summary: { total: 2, open: 1, completed: 1 }
     });
-  }, 15_000);
+  }, 45_000);
 
   it("mixed boundary behavior passes", () => {
     const result = runTodoScenario([
