@@ -214,6 +214,44 @@ Publication includes:
 
 Do not collapse these stages into implementation work.
 
+### Publication-order invariant
+
+`npm publish --access public` must be the final state-changing command of the full release workflow. All GitHub repository work must finish before npm publication. Specifically, the following must all complete before `npm publish` runs:
+
+- release docs (CHANGELOG, README, docs) committed
+- release-prep and merge commits made
+- the default/publication branch pushed
+- required GitHub Actions passed
+- the git tag in place, local and remote
+- a GitHub Release in place and verified against that tag/commit
+- `npm pack --dry-run` inspected
+- the release-channel parity gate below verified
+
+After `npm publish` succeeds, only read-only verification commands are allowed:
+
+- `npm view <package>@<version> version`
+- `npm view <package> versions --json`
+- `gh release view <tag>`
+- `git status --short`
+
+No commits, tags, pushes, or GitHub Release creation may happen after `npm publish`. If docs need to be updated to reflect the now-published state, that update is a separate, explicit follow-up commit — it does not change the invariant that no further GitHub-side release work happens before `npm publish` in the same release.
+
+### Release-channel parity gate
+
+Before any future `npm publish`, verify:
+
+- package.json target version
+- package-lock.json target version (and `packages[""].version`, if applicable)
+- the npm target version does not already exist on the registry
+- the default/publication branch is pushed
+- required GitHub Actions passed
+- the local and remote git tag exist (or are created before `npm publish`, per repo policy)
+- a GitHub Release is in place and points to the correct tag/commit before `npm publish`
+- `npm pack --dry-run` passes with expected contents
+- `git status --short` is clean
+
+Do not treat a GitHub Release as optional when the GitHub CLI is authenticated and available — create it and verify it before publishing.
+
 ## Future workflow: Android validation
 
 This workflow is planned for `v0.4.x`. It is not implemented today.
