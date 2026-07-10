@@ -38,6 +38,9 @@ export const ANDROID_NON_PASSING_STATUSES: readonly AndroidCheckStatus[] = [
 // v0.4.0 Batch 3 — added "android-intent-filters" (additive) so the intent-
 // filter audit has its own category distinct from "android-components",
 // which covers exported-component evidence generally.
+// v0.4.0 Batch 5 — added "android-target-immutability" (additive) for the
+// required target mutation/immutability check (agents.txt Batch 5 section
+// 10.1).
 export const ANDROID_CHECK_CATEGORIES = [
   "android-detection",
   "android-manifest",
@@ -48,6 +51,7 @@ export const ANDROID_CHECK_CATEGORIES = [
   "android-deep-links",
   "android-release-metadata",
   "android-play-readiness",
+  "android-target-immutability",
 ] as const;
 export type AndroidCheckCategory = (typeof ANDROID_CHECK_CATEGORIES)[number];
 

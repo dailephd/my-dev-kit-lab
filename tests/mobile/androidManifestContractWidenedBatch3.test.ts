@@ -73,6 +73,11 @@ describe("AndroidManifest contract widening — Batch 3 inherited-contract regre
     ]) {
       expect(ANDROID_CHECK_CATEGORIES).toContain(original);
     }
-    expect(ANDROID_CHECK_CATEGORIES).toHaveLength(9);
+    // v0.4.0 Batch 5 additively appended "android-target-immutability"
+    // (see tests/mobile/androidGradleContractWidenedBatch4.test.ts-style
+    // regression pattern) — length grew from 9 to 10; the exact-length
+    // assertion here is intentionally updated rather than removed so any
+    // future accidental duplicate/removal is still caught.
+    expect(ANDROID_CHECK_CATEGORIES).toHaveLength(10);
   });
 });

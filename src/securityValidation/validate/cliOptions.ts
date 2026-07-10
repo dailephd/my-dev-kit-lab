@@ -42,7 +42,15 @@ export const PLANNED_SECURITY_CHECK_IDS = [
 
 export const DEFAULT_SECURITY_CHECKS: readonly SecurityCheckId[] = IMPLEMENTED_SECURITY_CHECK_IDS;
 
-export const SECURITY_PROFILE_IDS = ["node-cli-package", "local-tool", "npm-package"] as const;
+// v0.4.0 Batch 5 — "android" added additively. Unlike the other three
+// profiles (which select --checks defaults for the classic
+// check-group/attack-scenario pipeline), "android" routes to an entirely
+// separate orchestrator (src/mobile/android/validate/validateAndroidTarget.ts)
+// because the Android check/finding/status vocabulary established in
+// Batches 1-4 does not fit SecurityCheckId/SecurityCheckResult — seeagents.txt
+// Batch 5 section 6.1-6.2. The CLI still exposes it through the same
+// --profile flag on the same security:validate command (no second CLI).
+export const SECURITY_PROFILE_IDS = ["node-cli-package", "local-tool", "npm-package", "android"] as const;
 export type SecurityProfileId = (typeof SECURITY_PROFILE_IDS)[number];
 export const DEFAULT_SECURITY_PROFILE: SecurityProfileId = "node-cli-package";
 
@@ -68,6 +76,7 @@ export type RawSecurityValidateArgs = {
   profile?: string;
   format?: string;
   failOn?: string;
+  androidGradleOperations?: string;
 };
 
 const FLAGS_WITH_VALUE: Record<string, keyof RawSecurityValidateArgs> = {
@@ -79,7 +88,17 @@ const FLAGS_WITH_VALUE: Record<string, keyof RawSecurityValidateArgs> = {
   "--profile": "profile",
   "--format": "format",
   "--fail-on": "failOn",
+  "--android-gradle-operations": "androidGradleOperations",
 };
+
+// v0.4.0 Batch 5 — the exact allowlisted optional Gradle operation ids
+// (agents.txt Batch 5 section 7.3). Deliberately re-declared here rather than
+// imported from src/mobile/android/gradle/validate/operations.ts: this keeps
+// the foundational CLI-parsing module free of a new securityValidation ->
+// mobile dependency direction for five short string literals. Both lists
+// must stay in sync; a regression test in tests/security/ asserts they do.
+export const ANDROID_GRADLE_OPERATION_IDS = ["wrapper-version", "tasks", "assemble-debug", "unit-test-debug", "lint-debug"] as const;
+export type AndroidGradleOperationCliId = (typeof ANDROID_GRADLE_OPERATION_IDS)[number];
 
 export function parseSecurityValidateArgs(argv: string[]): RawSecurityValidateArgs {
   const result: RawSecurityValidateArgs = {};
@@ -114,6 +133,7 @@ export type NormalizedSecurityValidateConfig = {
   formatsWereDefault: boolean;
   failOnThreshold: SecurityFailOnThreshold;
   failOnWasDefault: boolean;
+  androidGradleOperationIds: AndroidGradleOperationCliId[];
 };
 
 export function normalizeSecurityValidateConfig(
@@ -125,6 +145,7 @@ export function normalizeSecurityValidateConfig(
   const formats = parseFormatOption(raw.format);
   const failOn = parseFailOnOption(raw.failOn);
   const out = raw.out !== undefined ? resolveOutDir(raw.out) : path.join(toolRoot, "reports", "security");
+  const androidGradleOperationIds = parseAndroidGradleOperationsOption(raw.androidGradleOperations, profile.value);
 
   return {
     target: raw.target,
@@ -143,7 +164,29 @@ export function normalizeSecurityValidateConfig(
     formatsWereDefault: formats.wasDefault,
     failOnThreshold: failOn.value,
     failOnWasDefault: failOn.wasDefault,
+    androidGradleOperationIds,
   };
+}
+
+// Parses --android-gradle-operations. Absent by default (empty array — zero
+// Gradle execution). Rejects unknown operation ids and non-"android"-profile
+// usage before any validation work begins (agents.txt Batch 5 section 7.3).
+function parseAndroidGradleOperationsOption(raw: string | undefined, profile: SecurityProfileId): AndroidGradleOperationCliId[] {
+  if (raw === undefined) return [];
+
+  if (profile !== "android") {
+    throw new Error(`--android-gradle-operations requires --profile android (got --profile ${profile}).`);
+  }
+
+  const parts = splitAndNormalizeList(raw, "--android-gradle-operations");
+  const invalid = parts.filter((p) => !(ANDROID_GRADLE_OPERATION_IDS as readonly string[]).includes(p));
+  if (invalid.length > 0) {
+    throw new Error(
+      `Invalid --android-gradle-operations value(s): ${invalid.join(", ")}. Valid values are: ${ANDROID_GRADLE_OPERATION_IDS.join(", ")}.`
+    );
+  }
+  const unique = new Set(parts as AndroidGradleOperationCliId[]);
+  return ANDROID_GRADLE_OPERATION_IDS.filter((id) => unique.has(id));
 }
 
 // ---------------------------------------------------------------------------

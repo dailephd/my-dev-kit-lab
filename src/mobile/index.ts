@@ -125,9 +125,14 @@ export {
 export type {
   AndroidReportMetadata,
   AndroidReportSummarySection,
+  AndroidReportModuleSummary,
   AndroidReportModel,
+  ToAndroidReportModelOptions,
 } from "./android/report/model.js";
 export { toAndroidReportModel, serializeAndroidReportModel } from "./android/report/model.js";
+export { renderAndroidTextReport } from "./android/report/renderAndroidReport.js";
+export { writeAndroidReportFiles } from "./android/report/writeAndroidReportFiles.js";
+export type { WriteAndroidReportFilesOptions, WriteAndroidReportFilesResult } from "./android/report/writeAndroidReportFiles.js";
 
 export { makeAndroidFinding } from "./android/audit/androidFinding.js";
 export type { AndroidFindingInput } from "./android/audit/androidFinding.js";
@@ -137,3 +142,19 @@ export { auditAndroidPermissions } from "./android/audit/permissionAudit.js";
 export { auditAndroidExportedComponents } from "./android/audit/exportedComponentAudit.js";
 export { auditAndroidIntentFilters } from "./android/audit/intentFilterAudit.js";
 export { auditAndroidDeepLinks } from "./android/audit/deepLinkAudit.js";
+
+export type {
+  AndroidPlayReadinessItemStatus,
+  AndroidPlayReadinessItem,
+  AndroidPlayReadinessChecklist,
+} from "./android/validate/playReadinessChecklist.js";
+export { ANDROID_PLAY_READINESS_ITEM_STATUSES, buildAndroidPlayReadinessChecklist } from "./android/validate/playReadinessChecklist.js";
+export { calculateAndroidVerdict, androidVerdictToHumanLabel } from "./android/validate/androidVerdict.js";
+export type { CalculateAndroidVerdictInput, CalculateAndroidVerdictResult } from "./android/validate/androidVerdict.js";
+export {
+  buildAndroidDetectionCheckResult,
+  buildAndroidManifestParsingCheckResult,
+  buildAndroidTargetImmutabilityCheckResult,
+} from "./android/validate/detectionAndImmutabilityCheckResults.js";
+export { validateAndroidTarget } from "./android/validate/validateAndroidTarget.js";
+export type { ValidateAndroidTargetOptions } from "./android/validate/validateAndroidTarget.js";
