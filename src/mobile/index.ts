@@ -11,6 +11,23 @@ export type {
 } from "./android/detection.js";
 export { ANDROID_PROJECT_KINDS, ANDROID_UI_TOOLKITS } from "./android/detection.js";
 
+export { detectAndroidProject } from "./android/detect/detectAndroidProject.js";
+export { detectAndroidTarget } from "./android/detect/androidTargetDetection.js";
+export type { AndroidTargetDetectionResult } from "./android/detect/androidTargetDetection.js";
+export { parseDeclaredModules } from "./android/detect/settingsModules.js";
+export type { ParsedSettingsModules } from "./android/detect/settingsModules.js";
+export { extractBuildFileEvidence } from "./android/detect/buildFileEvidence.js";
+export type { BuildFileEvidence } from "./android/detect/buildFileEvidence.js";
+export { extractVersionCatalogEvidence } from "./android/detect/versionCatalogEvidence.js";
+export type { VersionCatalogEvidence } from "./android/detect/versionCatalogEvidence.js";
+export {
+  classifyModule,
+  classifyModuleUiToolkit,
+  combineProjectKind,
+  combineProjectUiToolkit,
+  combineProjectConfidence,
+} from "./android/detect/classify.js";
+
 export type {
   AndroidGradleWrapperMetadataPlaceholder,
   AndroidReleaseMetadataPlaceholder,
