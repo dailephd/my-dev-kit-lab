@@ -140,10 +140,11 @@ describe("language-aware code-rot integration — real registry, real source fac
 // ---------------------------------------------------------------------------
 // v0.3.2 Batch 3 -- T5/T6 mixed-language cross-layer regression.
 //
-// A single fixture with TypeScript, JavaScript, Python, and Java (unsupported
-// fallback) files, run through the real registry end to end, proving:
+// A single fixture with TypeScript, JavaScript, Python, and Java files, run
+// through the real registry end to end, proving:
 //   - sourceFacts summary reports each language's file count correctly.
-//   - Java stays file-level-only fallback (analyzerId null), unchanged.
+//   - Java is parsed by its own analyzer (v0.3.3 Batch 1) alongside the
+//     other languages without disrupting any of them.
 //   - the analyzerId-scoped duplicate-declaration grouping (v0.3.2 Batch 2)
 //     keeps the TS/JS pair and the Python pair as two SEPARATE candidates,
 //     never one merged cross-language group and never silently dropped.
@@ -166,7 +167,9 @@ describe("language-aware code-rot integration — mixed TypeScript/JavaScript/Py
       writeFile(root, "src/featureA/widget.py", "class SharedThing:\n    pass\n");
       writeFile(root, "src/featureB/widget.py", "class SharedThing:\n    pass\n");
 
-      // Java file -- unsupported/fallback, must remain untouched by any of this.
+      // Java file -- now parsed by its own analyzer (v0.3.3 Batch 1); must
+      // coexist safely alongside the other languages without disrupting any
+      // of the assertions below.
       writeFile(root, "src/Main.java", "class Main {}\n");
 
       const config = normalizeAuditConfig({}, root);
@@ -179,10 +182,10 @@ describe("language-aware code-rot integration — mixed TypeScript/JavaScript/Py
       expect(result.sourceFacts.filesByLanguage.python).toBeGreaterThanOrEqual(2);
       expect(result.sourceFacts.filesByLanguage.java).toBeGreaterThanOrEqual(1);
 
-      // 2. Java fallback behavior is unchanged.
+      // 2. Java is now parsed by its own analyzer (v0.3.3 Batch 1).
       const javaEntry = result.sourceFacts.files.find((f) => f.relativePath === "src/Main.java");
-      expect(javaEntry?.parseStatus).toBe("file-level-only");
-      expect(javaEntry?.analyzerId).toBeNull();
+      expect(javaEntry?.parseStatus).toBe("parsed");
+      expect(javaEntry?.analyzerId).toBe("java-analyzer");
 
       const model = buildAuditReportModel(result, { target });
 

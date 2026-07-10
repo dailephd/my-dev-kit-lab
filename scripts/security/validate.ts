@@ -3,8 +3,9 @@ import path from "node:path";
 import fs from "node:fs";
 import { runSecurityValidation } from "../../src/securityValidation/validate/runSecurityValidation.js";
 import { resolveValidationTarget, reportFilenamePrefix } from "../../src/securityValidation/validate/resolveTarget.js";
-import { renderTextReport, renderJsonReport } from "../../src/securityValidation/report/renderSecurityReport.js";
 import { buildSecurityReportFromSummary } from "../../src/securityValidation/report/buildSecurityReport.js";
+import { renderTextReport } from "../../src/securityValidation/report/renderSecurityReport.js";
+import { writeSecurityReportFiles } from "../../src/securityValidation/report/writeSecurityReportFiles.js";
 import {
   parseSecurityValidateArgs,
   normalizeSecurityValidateConfig,
@@ -100,30 +101,19 @@ const report = buildSecurityReportFromSummary(summary, {
   formats: config.formats,
   failOnBreached,
 });
-
 const textReport = renderTextReport(report);
-const jsonReport = renderJsonReport(report);
 
 // Determine output directory
 const reportsDir = config.out;
-if (!fs.existsSync(reportsDir)) {
-  fs.mkdirSync(reportsDir, { recursive: true });
-}
 
 // Determine report filename prefix
 const prefix = args.reportPrefix ?? reportFilenamePrefix(target);
-const txtPath = path.join(reportsDir, `${prefix}-security-validation.txt`);
-const jsonPath = path.join(reportsDir, `${prefix}-security-validation.json`);
-
-const writtenPaths: string[] = [];
-if (config.formats.includes("text")) {
-  fs.writeFileSync(txtPath, textReport, "utf8");
-  writtenPaths.push(txtPath);
-}
-if (config.formats.includes("json")) {
-  fs.writeFileSync(jsonPath, jsonReport, "utf8");
-  writtenPaths.push(jsonPath);
-}
+const { textPath: txtPath, jsonPath, writtenPaths } = writeSecurityReportFiles({
+  outDir: reportsDir,
+  prefix,
+  report,
+  formats: config.formats,
+});
 
 // Print report to stdout
 console.log(textReport);

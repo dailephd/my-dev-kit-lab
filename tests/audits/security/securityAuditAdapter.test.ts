@@ -1,40 +1,27 @@
-import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
-import { runSecurityAuditAdapter } from "../../../src/audits/security/securityAuditAdapter.js";
+import type { SecurityValidationSummary } from "../../../src/securityValidation/types.js";
 
-// ---------------------------------------------------------------------------
-// v0.3.2 Batch 4 -- T2/T4/T10: security audit adapter behavior.
-//
-// Runs the REAL adapter (real runSecurityValidation() call -- npm audit,
-// npm outdated, npm ls, package checks, static-scan availability probes,
-// fuzz smoke all actually execute) against a minimal EXTERNAL fixture
-// project so most check groups resolve quickly:
-//   - dependency/package checks run real, fast npm subprocess calls against
-//     a tiny fixture with no dependencies.
-//   - the cli-adversarial-suite check short-circuits immediately (no
-//     subprocess at all) because the external fixture has no
-//     scripts.test:security -- see runCliSecuritySuiteCheck.ts's early
-//     return for `!isSelf && !hasSecurityTestScript`. This is also the
-//     concrete "skipped/degraded, never passed" case T4 asks for.
-//   - static scans (CodeQL/Semgrep) resolve to skipped quickly when the
-//     tools aren't installed, same as the rest of tests/security already
-//     relies on.
-// Generous timeout, matching the precedent already established by
-// full-pipeline tests in tests/security/ (e.g.
-// securityProfileSelectionIntegration.test.ts uses 60s for a lighter
-// deps+package-only run).
-// ---------------------------------------------------------------------------
+const runSecurityValidationMock = vi.fn();
 
-const toolRoot = process.cwd();
+vi.mock("../../../src/securityValidation/validate/runSecurityValidation.js", () => ({
+  runSecurityValidation: runSecurityValidationMock,
+}));
+
+const { runSecurityAuditAdapter } = await import("../../../src/audits/security/securityAuditAdapter.js");
+
 const cleanupDirs: string[] = [];
 
-afterEach(() => {
+beforeEach(() => {
+  runSecurityValidationMock.mockReset();
+});
+
+afterEach(async () => {
   for (const dir of cleanupDirs.splice(0)) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    await fs.promises.rm(dir, { recursive: true, force: true });
   }
 });
 
@@ -50,105 +37,204 @@ function writeFile(root: string, relativePath: string, content: string): void {
   fs.writeFileSync(fullPath, content, "utf8");
 }
 
-function makeMinimalExternalFixture(root: string): void {
-  // Deliberately no scripts.test:security -- exercises the
-  // "target security suite missing script" degraded/skipped-shaped finding
-  // without needing a real subprocess.
-  writeFile(root, "package.json", JSON.stringify({ name: "sec-adapter-fixture", version: "1.0.0", scripts: {} }, null, 2));
+function makeFixtureToolRoot(): string {
+  const root = makeTempDir("sec-adapter-tool-");
+  writeFile(
+    root,
+    "package.json",
+    JSON.stringify(
+      {
+        name: "@dailephd/my-dev-kit-lab",
+        version: "0.3.2",
+        scripts: {},
+      },
+      null,
+      2
+    )
+  );
+  return root;
+}
+
+function makeFixtureTargetRoot(): string {
+  const root = makeTempDir("sec-adapter-target-");
+  writeFile(root, "package.json", JSON.stringify({ name: "fixture-target", version: "1.0.0", scripts: {} }, null, 2));
   writeFile(root, "src/index.js", "module.exports = 1;\n");
+  return root;
 }
 
-function sha256OfFile(filePath: string): string {
-  return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
-}
-
-function hashAllFiles(root: string): Map<string, string> {
-  const hashes = new Map<string, string>();
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-      } else if (entry.isFile()) {
-        hashes.set(path.relative(root, full), sha256OfFile(full));
-      }
-    }
+function makeSummary(overrides: Partial<SecurityValidationSummary> = {}): SecurityValidationSummary {
+  return {
+    toolRoot: overrides.toolRoot ?? "Z:/tool-root",
+    toolPackageName: overrides.toolPackageName ?? "@dailephd/my-dev-kit-lab",
+    toolPackageVersion: overrides.toolPackageVersion ?? "0.3.2",
+    targetRoot: overrides.targetRoot ?? "Z:/target-root",
+    targetDescription: overrides.targetDescription ?? "fixture-target",
+    packageName: overrides.packageName ?? "fixture-target",
+    packageVersion: overrides.packageVersion ?? "1.0.0",
+    auditedBranch: overrides.auditedBranch ?? "feature/v0.3.3-java-kotlin-code-rot",
+    auditedCommit: overrides.auditedCommit ?? "abc1234",
+    isSelf: overrides.isSelf ?? false,
+    startedAt: overrides.startedAt ?? "2026-07-09T12:00:00.000Z",
+    finishedAt: overrides.finishedAt ?? "2026-07-09T12:00:01.000Z",
+    checks: overrides.checks ?? [
+      {
+        id: "cli-adversarial-suite",
+        name: "Target security test suite",
+        category: "cli-adversarial",
+        status: "failed",
+        severity: "major",
+        startedAt: "2026-07-09T12:00:00.000Z",
+        finishedAt: "2026-07-09T12:00:01.000Z",
+        durationMs: 1000,
+        command: "npm run test:security",
+        commandCwd: overrides.targetRoot ?? "Z:/target-root",
+        exitCode: null,
+        findings: [],
+      },
+    ],
+    findings: overrides.findings ?? [
+      {
+        id: "target-security-suite-missing-script",
+        title: "Target test:security script is missing",
+        severity: "major",
+        category: "cli-adversarial",
+        description: "The target package.json does not define scripts.test:security.",
+        recommendation: "Add a target test:security script and rerun security:validate.",
+        releaseImpact: "Should fix before release",
+      },
+    ],
+    verdict: overrides.verdict ?? "not-ready-security-blocker-remains",
+    recommendedNextStep: overrides.recommendedNextStep ?? "Fix failing security checks before release.",
+    attackResults: overrides.attackResults ?? [],
+    verdictReasonSummary: overrides.verdictReasonSummary,
+    isFullReleaseGate: overrides.isFullReleaseGate ?? true,
   };
-  walk(root);
-  return hashes;
 }
 
-describe("runSecurityAuditAdapter — reuses runSecurityValidation directly (T2)", () => {
-  it("returns issues derived from real SecurityFinding output, plus a populated summary", async () => {
-    const externalRoot = makeTempDir("sec-adapter-fixture-");
-    makeMinimalExternalFixture(externalRoot);
+describe("runSecurityAuditAdapter", () => {
+  it("maps security findings into audit issues without running the real security gate", async () => {
+    const toolRoot = makeFixtureToolRoot();
+    const targetRoot = makeFixtureTargetRoot();
+    runSecurityValidationMock.mockResolvedValue(
+      makeSummary({
+        toolRoot,
+        targetRoot,
+      })
+    );
 
-    const config = normalizeAuditConfig({ target: externalRoot, types: "security" }, toolRoot);
+    const config = normalizeAuditConfig({ target: targetRoot, types: "security" }, toolRoot);
     const result = await runSecurityAuditAdapter({ toolRoot, config });
 
+    expect(runSecurityValidationMock).toHaveBeenCalledTimes(1);
+    expect(runSecurityValidationMock).toHaveBeenCalledWith({
+      cwd: toolRoot,
+      targetPath: targetRoot,
+    });
     expect(result.summary.ran).toBe(true);
-    expect(result.summary.totalChecks).toBeGreaterThan(0);
-    expect(result.summary.verdict).not.toBeNull();
-    expect(result.summary.verdictLabel).not.toBeNull();
-    // Every returned issue must be an audit-shaped issue with auditType
-    // "security" and the shared adapter detector id.
-    for (const issue of result.issues) {
-      expect(issue.auditType).toBe("security");
-      expect(issue.detectorId).toBe("security-validation-adapter");
-    }
-  }, 60_000);
+    expect(result.summary.totalChecks).toBe(1);
+    expect(result.summary.mappedIssueCount).toBe(1);
+    expect(result.summary.findingCounts.major).toBe(1);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0]?.auditType).toBe("security");
+    expect(result.issues[0]?.detectorId).toBe("security-validation-adapter");
+  });
 
-  it("the missing test:security script surfaces as a real, mapped issue (never silently passed)", async () => {
-    const externalRoot = makeTempDir("sec-adapter-fixture-");
-    makeMinimalExternalFixture(externalRoot);
+  it("keeps skipped optional checks out of the mapped issue list", async () => {
+    const toolRoot = makeFixtureToolRoot();
+    const targetRoot = makeFixtureTargetRoot();
+    runSecurityValidationMock.mockResolvedValue(
+      makeSummary({
+        toolRoot,
+        targetRoot,
+        checks: [
+          {
+            id: "codeql-scan",
+            name: "CodeQL",
+            category: "static-scan",
+            status: "skipped",
+            severity: "skipped",
+            startedAt: "2026-07-09T12:00:00.000Z",
+            finishedAt: "2026-07-09T12:00:01.000Z",
+            durationMs: 5,
+            findings: [],
+            skippedReason: "Tool not installed",
+          },
+        ],
+        findings: [],
+        verdict: "ready-except-optional-manual-checks",
+        recommendedNextStep: "Optional checks were skipped.",
+      })
+    );
 
-    const config = normalizeAuditConfig({ target: externalRoot, types: "security" }, toolRoot);
+    const config = normalizeAuditConfig({ target: targetRoot, types: "security" }, toolRoot);
     const result = await runSecurityAuditAdapter({ toolRoot, config });
 
-    const missingScriptIssue = result.issues.find((i) => i.id.includes("target-security-suite-missing-script"));
-    expect(missingScriptIssue).toBeDefined();
-    expect(missingScriptIssue!.severity).toBe("high"); // major -> high
-    expect(missingScriptIssue!.releaseBlocking).toBe(true);
-  }, 60_000);
-});
+    expect(result.issues).toHaveLength(0);
+    expect(result.summary.checksSkipped).toBe(1);
+    expect(result.summary.checksPassed).toBe(0);
+    expect(result.summary.mappedIssueCount).toBe(0);
+  });
 
-describe("runSecurityAuditAdapter — skipped optional checks are never represented as passed (T4)", () => {
-  it("no issue in the mapped list ever originates from a skipped check", async () => {
-    const externalRoot = makeTempDir("sec-adapter-fixture-");
-    makeMinimalExternalFixture(externalRoot);
+  it("writes run-scoped security reports under the tool root and never touches the external target", async () => {
+    const toolRoot = makeFixtureToolRoot();
+    const targetRoot = makeFixtureTargetRoot();
+    const beforeTargetFiles = new Set(fs.readdirSync(targetRoot));
+    runSecurityValidationMock.mockResolvedValue(
+      makeSummary({
+        toolRoot,
+        targetRoot,
+      })
+    );
 
-    const config = normalizeAuditConfig({ target: externalRoot, types: "security" }, toolRoot);
-    const result = await runSecurityAuditAdapter({ toolRoot, config });
-
-    // checksSkipped is tracked distinctly from checksPassed -- a skipped
-    // check (e.g. an unavailable static-scan tool) contributes to
-    // checksSkipped, never to checksPassed, and produces no finding at all
-    // (skippedCheck() in runSecurityValidation.ts always sets findings: []).
-    expect(result.summary.checksSkipped).toBeGreaterThanOrEqual(0);
-    expect(result.summary.checksPassed + result.summary.checksSkipped).toBeLessThanOrEqual(result.summary.totalChecks);
-  }, 60_000);
-});
-
-describe("runSecurityAuditAdapter — report generation and target safety (T10)", () => {
-  it("writes the original security report under toolRoot/reports/security and never touches the external target", async () => {
-    const externalRoot = makeTempDir("sec-adapter-fixture-");
-    makeMinimalExternalFixture(externalRoot);
-    const beforeHashes = hashAllFiles(externalRoot);
-
-    const config = normalizeAuditConfig({ target: externalRoot, types: "security" }, toolRoot);
+    const config = normalizeAuditConfig({ target: targetRoot, types: "security" }, toolRoot);
     const result = await runSecurityAuditAdapter({ toolRoot, config });
 
     expect(result.summary.reportPaths.text).not.toBeNull();
     expect(result.summary.reportPaths.json).not.toBeNull();
     expect(fs.existsSync(result.summary.reportPaths.text!)).toBe(true);
     expect(fs.existsSync(result.summary.reportPaths.json!)).toBe(true);
-    expect(path.resolve(result.summary.reportPaths.text!).startsWith(path.resolve(toolRoot, "reports", "security"))).toBe(
-      true
+    expect(path.resolve(result.summary.reportPaths.text!).startsWith(path.resolve(toolRoot, "reports", "security"))).toBe(true);
+    expect(path.basename(result.summary.reportPaths.text!)).toMatch(
+      /^fixture-target-v1\.0\.0-\d{14}-\d{14}-\d+-security-validation\.txt$/
     );
+    expect(fs.existsSync(path.join(targetRoot, "reports"))).toBe(false);
+    expect(new Set(fs.readdirSync(targetRoot))).toEqual(beforeTargetFiles);
+  });
 
-    const afterHashes = hashAllFiles(externalRoot);
-    expect(afterHashes).toEqual(beforeHashes);
-    // No new file was ever written into the external target root.
-    expect(fs.existsSync(path.join(externalRoot, "reports"))).toBe(false);
-  }, 60_000);
+  it("keeps repeated audit runs on distinct security report files", async () => {
+    const toolRoot = makeFixtureToolRoot();
+    const targetRoot = makeFixtureTargetRoot();
+    runSecurityValidationMock
+      .mockResolvedValueOnce(
+        makeSummary({
+          toolRoot,
+          targetRoot,
+          startedAt: "2026-07-09T12:00:00.000Z",
+          finishedAt: "2026-07-09T12:00:01.000Z",
+          auditedCommit: "first-run",
+        })
+      )
+      .mockResolvedValueOnce(
+        makeSummary({
+          toolRoot,
+          targetRoot,
+          startedAt: "2026-07-09T12:05:00.000Z",
+          finishedAt: "2026-07-09T12:05:01.000Z",
+          auditedCommit: "second-run",
+        })
+      );
+
+    const config = normalizeAuditConfig({ target: targetRoot, types: "security" }, toolRoot);
+    const first = await runSecurityAuditAdapter({ toolRoot, config });
+    const firstText = fs.readFileSync(first.summary.reportPaths.text!, "utf8");
+    const firstJson = fs.readFileSync(first.summary.reportPaths.json!, "utf8");
+    const second = await runSecurityAuditAdapter({ toolRoot, config });
+
+    expect(first.summary.reportPaths.text).not.toBe(second.summary.reportPaths.text);
+    expect(first.summary.reportPaths.json).not.toBe(second.summary.reportPaths.json);
+    expect(fs.readFileSync(first.summary.reportPaths.text!, "utf8")).toBe(firstText);
+    expect(fs.readFileSync(first.summary.reportPaths.json!, "utf8")).toBe(firstJson);
+    expect(fs.readFileSync(second.summary.reportPaths.text!, "utf8")).toContain("second-run");
+    expect(fs.readFileSync(second.summary.reportPaths.json!, "utf8")).toContain("second-run");
+  });
 });

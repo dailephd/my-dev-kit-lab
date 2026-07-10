@@ -4,10 +4,17 @@ import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegist
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { SourceFileFacts } from "../../core/sourceFacts.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "../../core/pythonProjectMetadata.js";
+import { collectJvmProjectMetadata, type JvmProjectMetadataSnapshot } from "../../core/jvmProjectMetadata.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
+import { baseNameNoExt } from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 import { getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 import { splitLines } from "../utils/textLines.js";
+import {
+  jvmImportCandidatePaths,
+  jvmImportLooksPossiblyLocal,
+  jvmImportSimpleName,
+} from "../utils/jvmSourceFactsUtils.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 4 — test-rot detector.
@@ -58,6 +65,9 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
     // required condition -- its absence must not change whether a finding
     // is emitted, only add or omit one extra evidence line.
     const pythonMetadata = collectPythonProjectMetadata(ctx.target.rootPath, ctx.inventory);
+    // v0.3.3 Batch 2 -- same "computed once, weak supporting context only"
+    // treatment as pythonMetadata above.
+    const jvmMetadata = collectJvmProjectMetadata(ctx.target.rootPath, ctx.inventory);
 
     for (const testFile of ctx.inventory.testFiles) {
       const content = readBoundedFileText(ctx.target.rootPath, testFile.relativePath, testFile.sizeBytes, MAX_READ_BYTES);
@@ -94,6 +104,14 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         // flag it as missing regardless of whether it actually exists --
         // this guard is the fix for that latent cross-language bug.
         issues.push(...findMissingPythonSourceImports(ctx, testFile.relativePath, parsedFacts, pythonMetadata));
+      } else if (parsedFacts?.language === "java" || parsedFacts?.language === "kotlin") {
+        // v0.3.3 Batch 2 -- Java/Kotlin imports are fully-qualified dotted
+        // package names ("com.example.Foo"), neither TS/JS's path-like
+        // "./module" syntax nor Python's dotted-relative-import syntax.
+        // Routing them through either existing resolver would misresolve
+        // every import -- this guard is the JVM analogue of the Python
+        // guard immediately above.
+        issues.push(...findMissingJvmSourceImports(ctx, testFile.relativePath, parsedFacts, jvmMetadata));
       } else if (parsedFacts) {
         issues.push(...findMissingSourceImportsFromSourceFacts(ctx, testFile.relativePath, parsedFacts));
       }
@@ -326,6 +344,129 @@ function findMissingPythonSourceImports(
     );
   }
   return issues;
+}
+
+// v0.3.3 Batch 2 -- Java/Kotlin-specific counterpart to
+// findMissingSourceImportsFromSourceFacts()/findMissingPythonSourceImports()
+// above. Only ever called for facts with `language === "java"` or
+// `"kotlin"` (see caller) -- kept fully separate from both existing
+// resolvers for the same reason the Python resolver is kept separate from
+// the TS/JS one: the resolution algorithm (fully-qualified dotted package
+// names -> conventional Gradle/Maven source-set paths) is genuinely
+// different from either.
+//
+// Deliberately lower severity/confidence than the TS/JS counterpart, same
+// tier as the Python counterpart: this scan has no real classpath/build
+// awareness (no Gradle/Maven execution, no compiler), so it is weaker
+// evidence than the TS/JS analyzer's near-exact relative-path resolution.
+// Standard-library, common third-party test-framework, and wildcard
+// imports are skipped entirely via jvmImportLooksPossiblyLocal() -- see
+// jvmSourceFactsUtils.ts for the full skip-prefix list and rationale.
+function findMissingJvmSourceImports(
+  ctx: AuditDetectorContext,
+  testRelativePath: string,
+  facts: SourceFileFacts,
+  jvmMetadata: JvmProjectMetadataSnapshot
+): AuditIssue[] {
+  const issues: AuditIssue[] = [];
+  const isKotlin = facts.language === "kotlin";
+  const languageLabel = isKotlin ? "Kotlin" : "Java";
+  // Kotlin may legitimately import Java source in a mixed JVM project;
+  // Java never imports Kotlin-only source through a plain `import`
+  // statement in the way this conservative scan can see, so a Java test
+  // only ever checks .java candidates.
+  const extensions = isKotlin ? ["kt", "java"] : ["java"];
+  // Both recognized main and test source-set directories are checked --
+  // the latter specifically covers the "importing a test-scoped helper
+  // from another test-set file" case (the importing file here is, by
+  // definition, already test-scoped, since this function is only ever
+  // called from the per-test-file loop above).
+  const candidateDirs = [...jvmMetadata.recognizedSourceDirectories, ...jvmMetadata.recognizedTestDirectories];
+  const inventoryBasenameIndex = buildJvmInventoryBasenameIndex(ctx, extensions);
+
+  for (const imp of facts.imports) {
+    if (!jvmImportLooksPossiblyLocal(imp)) continue;
+
+    // A Java `import static com.example.Foo.bar;` (or a Kotlin top-level
+    // member import) has its *member* name as the last dotted segment, not
+    // a class name -- this analyzer's ImportFact model (shared across
+    // every language) does not distinguish "static import of a member"
+    // from "plain class import", so both interpretations are tried: the
+    // full dotted path as-is (the common, plain-class-import case), and
+    // with its last segment dropped (the static/member-import case). This
+    // is a detector-side fix, not a change to javaAnalyzer.ts/
+    // kotlinAnalyzer.ts's ImportFact shape.
+    const parentSource = imp.source.includes(".") ? imp.source.slice(0, imp.source.lastIndexOf(".")) : null;
+
+    const conventionalCandidates = [
+      ...jvmImportCandidatePaths(imp.source, candidateDirs, extensions),
+      ...(parentSource ? jvmImportCandidatePaths(parentSource, candidateDirs, extensions) : []),
+    ];
+    const resolved =
+      conventionalCandidates.some((candidate) => fs.existsSync(path.join(ctx.target.rootPath, candidate))) ||
+      inventoryBasenameIndex.has(jvmImportSimpleName(imp.source)) ||
+      (parentSource !== null && inventoryBasenameIndex.has(jvmImportSimpleName(parentSource)));
+    if (resolved) continue;
+
+    const evidence: AuditIssue["evidence"] = [
+      {
+        kind: "file",
+        message: `Analyzer-recorded ${languageLabel} import does not resolve to a candidate local source file under a recognized source-set directory, nor to any inventoried file with a matching basename. This is a best-effort, path-based check -- no compiler/classpath analysis was performed, and no Gradle/Maven execution was performed, so confirm manually before treating it as stale.`,
+        filePath: testRelativePath,
+        excerpt: imp.source,
+        source: DETECTOR_ID,
+        confidence: "low",
+      },
+    ];
+    if (candidateDirs.length > 0) {
+      evidence.push({
+        kind: "observation",
+        message: `Weak supporting context: recognized source-set directories for this project are: ${candidateDirs.join(", ")}.`,
+        source: DETECTOR_ID,
+        confidence: "low",
+      });
+    }
+
+    issues.push(
+      makeCodeRotIssue({
+        auditType: "code-rot",
+        detectorId: DETECTOR_ID,
+        idCues: [testRelativePath, `missing-${facts.language}-source-import`, imp.source],
+        title: `Test "${testRelativePath}" imports a ${languageLabel} class that may not exist: "${imp.source}"`,
+        description: `${testRelativePath} imports "${imp.source}" (source-facts-derived via the ${languageLabel} analyzer). No candidate local source file was found under a recognized source-set directory, and no inventoried file shares its simple name. This is a deterministic source-facts signal from a conservative, non-semantic scan -- no compiler/classpath analysis was performed, and no Gradle/Maven execution was performed, so this does not resolve the real classpath, package visibility, or multi-module project layout. It may indicate a stale import but is not proof.`,
+        severity: "low",
+        confidence: "low",
+        falsePositiveRisk: "medium",
+        category: "test-rot",
+        recommendedAction: "Confirm the imported class exists (it may resolve via a module/classpath this scan cannot see) before treating this as stale.",
+        suggestedFixStrategy: `Update or remove the import "${imp.source}" in ${testRelativePath} if confirmed stale.`,
+        validationCommands: [`npx vitest run ${testRelativePath}`],
+        releaseBlocking: false,
+        implementationBlocking: false,
+        autoFixEligible: false,
+        evidence,
+        affectedFiles: [testRelativePath],
+      })
+    );
+  }
+  return issues;
+}
+
+// Lowercased-basename index (without extension) of every inventoried
+// Java/Kotlin file matching the given extensions -- the lenient,
+// last-resort fallback used by findMissingJvmSourceImports() above so a
+// real (if unconventionally placed) local file is never flagged as
+// missing merely because the project doesn't follow the conventional
+// src/main/{java,kotlin} source-set layout (mirrors
+// jvmProjectMetadata.ts's own "non-conventional layout" reasoning).
+function buildJvmInventoryBasenameIndex(ctx: AuditDetectorContext, extensions: readonly string[]): Set<string> {
+  const extSet = new Set(extensions.map((e) => `.${e}`));
+  const basenames = new Set<string>();
+  for (const file of ctx.inventory.files) {
+    if (!extSet.has(file.extension)) continue;
+    basenames.add(baseNameNoExt(file.relativePath));
+  }
+  return basenames;
 }
 
 function findStaleNpmRunReferences(testRelativePath: string, content: string, scriptNames: Set<string>): AuditIssue[] {

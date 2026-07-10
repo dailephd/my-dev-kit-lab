@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -69,7 +69,7 @@ function hashAllFiles(root: string): Map<string, string> {
   return hashes;
 }
 
-function runScriptCli(scriptRelativePath: string, args: string[]): { stdout: string; stderr: string; status: number } {
+function runScriptCli(scriptRelativePath: string, args: string[]): Promise<{ stdout: string; stderr: string; status: number }> {
   const resolved = resolveCommand("npx", { cwd: toolRoot });
   const needsResolvedPathArg =
     resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
@@ -80,31 +80,36 @@ function runScriptCli(scriptRelativePath: string, args: string[]): { stdout: str
     scriptRelativePath,
     ...args,
   ];
-  try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" });
-    return { stdout, stderr: "", status: 0 };
-  } catch (err) {
-    const e = err as { stdout?: string; stderr?: string; status?: number };
-    return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", status: e.status ?? 1 };
-  }
+  return new Promise((resolve) => {
+    execFile(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" }, (error, stdout, stderr) => {
+      const exitError = error as { code?: number | string | null } | null;
+      const status =
+        typeof exitError?.code === "number"
+          ? exitError.code
+          : error
+            ? 1
+            : 0;
+      resolve({ stdout, stderr, status });
+    });
+  });
 }
 
-function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
+function runAuditCli(args: string[]): Promise<{ stdout: string; stderr: string; status: number }> {
   return runScriptCli("scripts/audits/runAudit.ts", args);
 }
 
-function runSecurityValidateCli(args: string[]): { stdout: string; stderr: string; status: number } {
+function runSecurityValidateCli(args: string[]): Promise<{ stdout: string; stderr: string; status: number }> {
   return runScriptCli("scripts/security/validate.ts", args);
 }
 
 describe("audit --types security — real CLI integration (T1/T6/T10)", () => {
-  it("accepts --types security, generates/references a security report, and never modifies the target", () => {
+  it("accepts --types security, generates/references a security report, and never modifies the target", async () => {
     const externalRoot = makeTempDir("audit-security-e2e-");
     makeFixtureWithCodeRotAndSecurityFindings(externalRoot);
     const beforeHashes = hashAllFiles(externalRoot);
 
     const outDir = makeTempDir("audit-security-e2e-out-");
-    const result = runAuditCli([
+    const result = await runAuditCli([
       "--target",
       externalRoot,
       "--types",
@@ -152,12 +157,12 @@ describe("audit --types security — real CLI integration (T1/T6/T10)", () => {
 });
 
 describe("audit --types code-rot,security — combined mode (T8/T9)", () => {
-  it("carries both code-rot and security issues, deterministically ordered, with fail-on applied to the combined list", () => {
+  it("carries both code-rot and security issues, deterministically ordered, with fail-on applied to the combined list", async () => {
     const externalRoot = makeTempDir("audit-combined-e2e-");
     makeFixtureWithCodeRotAndSecurityFindings(externalRoot);
 
     const outDir = makeTempDir("audit-combined-e2e-out-");
-    const result = runAuditCli([
+    const result = await runAuditCli([
       "--target",
       externalRoot,
       "--types",
@@ -197,7 +202,7 @@ describe("audit --types code-rot,security — combined mode (T8/T9)", () => {
     // Re-running with --fail-on high must apply to the combined list and
     // breach given the seeded high-severity mapped security issue (a
     // missing test:security script maps major -> high, releaseBlocking).
-    const breachResult = runAuditCli([
+    const breachResult = await runAuditCli([
       "--target",
       externalRoot,
       "--types",
@@ -214,12 +219,12 @@ describe("audit --types code-rot,security — combined mode (T8/T9)", () => {
 });
 
 describe("security:validate backward compatibility (T7)", () => {
-  it("still runs standalone against the same external target after the audit adapter is wired in", () => {
+  it("still runs standalone against the same external target after the audit adapter is wired in", async () => {
     const externalRoot = makeTempDir("security-validate-e2e-");
     makeFixtureWithCodeRotAndSecurityFindings(externalRoot);
 
     const outDir = makeTempDir("security-validate-e2e-out-");
-    const result = runSecurityValidateCli(["--target", externalRoot, "--out", outDir, "--format", "json"]);
+    const result = await runSecurityValidateCli(["--target", externalRoot, "--out", outDir, "--format", "json"]);
 
     // Exit 0/1/2 are all legitimate outcomes of security:validate depending
     // on verdict (blocker/inconclusive/ready) -- this test only proves the

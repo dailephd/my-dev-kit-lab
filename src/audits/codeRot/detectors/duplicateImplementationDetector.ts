@@ -10,6 +10,7 @@ import {
 } from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 import { indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
+import { isJvmCommonLowSignalDeclarationName } from "../utils/jvmSourceFactsUtils.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 4 — duplicate/parallel implementation candidate detector.
@@ -270,6 +271,16 @@ function findDuplicateDeclarationCandidates(ctx: AuditDetectorContext): AuditIss
       if (NOISY_DECLARATION_KINDS.has(decl.kind)) continue;
       const nameLower = decl.name.toLowerCase();
       if (isGenericOrTestPrefixedDeclarationName(nameLower)) continue;
+      // v0.3.3 Batch 2 -- Java/Kotlin-specific common/low-signal name
+      // suppression (Main, App, Config, Service, Controller, test*, ...).
+      // Gated to java/kotlin so existing TS/JS/Python behavior is
+      // unaffected -- a TS/JS file exporting `class Service {}` (a very
+      // ordinary, non-generic name in that ecosystem) must keep being
+      // considered, unlike the JVM ecosystem where these names are
+      // conventionally near-meaningless boilerplate labels.
+      if ((facts.language === "java" || facts.language === "kotlin") && isJvmCommonLowSignalDeclarationName(nameLower)) {
+        continue;
+      }
 
       // v0.3.2 Batch 2 -- the key is scoped by `facts.analyzerId` (not
       // `facts.language`) so a Python declaration is only ever compared
@@ -285,7 +296,14 @@ function findDuplicateDeclarationCandidates(ctx: AuditDetectorContext): AuditIss
       // TypeScript/JavaScript duplicate behavior" regression this batch
       // must not introduce. Scoping by `analyzerId` fixes the real
       // cross-language bug (Python vs TS/JS) without touching TS/JS's own
-      // existing behavior at all.
+      // existing behavior at all. v0.3.3 Batch 2 -- this same scoping is
+      // why Java ("java-analyzer") and Kotlin ("kotlin-analyzer") never
+      // group with each other, TS/JS, or Python: they are two distinct
+      // analyzers with two distinct ids, deliberately not unified into one
+      // "JVM" scope in this batch (a same-named Java class and Kotlin
+      // class are not the same declaration in the same language, and
+      // conflating them risks a false "duplicate" signal across languages
+      // that don't even share syntax).
       const key = `${facts.analyzerId}:${decl.kind}:${nameLower}`;
       const entry = byKey.get(key) ?? { name: decl.name, kind: decl.kind, paths: new Set<string>() };
       entry.paths.add(facts.relativePath);

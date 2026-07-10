@@ -495,10 +495,27 @@ function isPythonTestFile(relativePath: string, basename: string): boolean {
   return /^test_.*\.py$/.test(basename) || /^.*_test\.py$/.test(basename);
 }
 
+// v0.3.3 Batch 1 -- conservative JVM (Java/Kotlin) test naming/source-set
+// conventions. Gated to .java/.kt so this can never reclassify an unrelated
+// file. "tests/**/*.java" and "tests/**/*.kt" are already covered by the
+// generic, extension-agnostic check above; this adds the Gradle/Maven
+// standard "src/test/{java,kotlin}" source-set layout, the singular "test/"
+// directory convention (same style as isPythonTestFile's "test/" check
+// above), and the "*Test(s).java" / "*Test(s).kt" / "*Spec.kt" filename
+// conventions.
+function isJvmTestFile(relativePath: string, basename: string, extension: string): boolean {
+  if (relativePath.includes("src/test/java/") || relativePath.includes("src/test/kotlin/")) return true;
+  if (relativePath.startsWith("test/") || relativePath.includes("/test/")) return true;
+  if (extension === ".java") return /Tests?\.java$/.test(basename);
+  if (extension === ".kt") return /Tests?\.kt$/.test(basename) || /Spec\.kt$/.test(basename);
+  return false;
+}
+
 function isTestFile(relativePath: string, basename: string, extension: string): boolean {
   if (relativePath.startsWith("tests/") || relativePath.includes("/tests/")) return true;
   if (/\.(test|spec)\.[jt]sx?$/.test(basename)) return true;
   if (extension === ".py" && isPythonTestFile(relativePath, basename)) return true;
+  if ((extension === ".java" || extension === ".kt") && isJvmTestFile(relativePath, basename, extension)) return true;
   return false;
 }
 
@@ -515,6 +532,25 @@ const PYTHON_PROJECT_METADATA_FILE_NAMES = new Set([
   "pytest.ini",
 ]);
 
+// v0.3.3 Batch 1 -- recognized JVM (Gradle/Maven) project/build metadata
+// filenames. Same narrow, basename-only convention as
+// PYTHON_PROJECT_METADATA_FILE_NAMES above: does not match arbitrary *.xml/
+// *.properties files, only these exact names. `build.gradle.kts` and
+// `settings.gradle.kts` matter in particular: without this, a Gradle Kotlin
+// DSL build script would otherwise fall through to the generic
+// KNOWN_SOURCE_EXTENSIONS ".kts" -> "source" classification below and be fed
+// to the Kotlin source-facts analyzer as if it were application code.
+const JVM_PROJECT_METADATA_FILE_NAMES = new Set([
+  "build.gradle",
+  "build.gradle.kts",
+  "settings.gradle",
+  "settings.gradle.kts",
+  "pom.xml",
+  "gradle.properties",
+  "gradlew",
+  "gradlew.bat",
+]);
+
 function isConfigFile(relativePath: string, basename: string, extension: string): boolean {
   if (/^tsconfig(\..+)?\.json$/.test(basename)) return true;
   if (/^vitest\.config\.[jt]s$/.test(basename) || basename === "vitest.workspace.ts") return true;
@@ -525,6 +561,7 @@ function isConfigFile(relativePath: string, basename: string, extension: string)
   // below; the other names have no source-extension conflict but are listed
   // here for the same "project metadata, not source" reasoning.
   if (basename === "setup.py" || PYTHON_PROJECT_METADATA_FILE_NAMES.has(basename)) return true;
+  if (JVM_PROJECT_METADATA_FILE_NAMES.has(basename)) return true;
   // Root-level dotfile configs (e.g. .prettierrc, .babelrc) not already
   // covered above -- deliberately conservative (root-only, not recursive)
   // to avoid misclassifying dotfiles inside fixture/benchmark projects.

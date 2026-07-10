@@ -2,6 +2,34 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.3.3] - Release-prepared
+
+Java/Kotlin code-rot support is release-prepared on top of the published `v0.3.2` baseline. Package metadata is now `0.3.3`; `v0.3.2` remains the previously published baseline until npm publication is completed. `v0.3.3` is not published yet.
+
+### Added
+
+- Added dependency-free Java and Kotlin source-facts analyzers (`src/audits/core/javaAnalyzer.ts`, `src/audits/core/kotlinAnalyzer.ts`) and registered them in the language analyzer registry alongside the existing TypeScript/JavaScript and Python analyzers.
+- Added JVM project metadata collection (`src/audits/core/jvmProjectMetadata.ts`) for static Gradle/Maven/wrapper/source-set presence and a best-effort project name. It never executes Gradle, Maven, compilers, or target tests.
+- Added shared JVM source-facts helpers (`src/audits/codeRot/utils/jvmSourceFactsUtils.ts`) reused by Java/Kotlin detector integrations.
+- Added Java/Kotlin source-facts-aware signals to the existing `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` detectors, with conservative JVM-specific evidence wording.
+- Added Java/Kotlin docs-code-mismatch support for backtick-quoted FQCN-shaped symbol claims and static Gradle/Maven command/feature claims. Android current-state mismatch detection remains part of the existing docs-code-mismatch mechanism only.
+- Added focused Java/Kotlin analyzer, JVM metadata, detector, and mixed-language integration coverage under `tests/audits/`.
+
+### Changed
+
+- Preserved the existing audit command surface: `npm run audit -- --types code-rot`, `--types security`, and `--types code-rot,security` remain the implemented audit paths, with `code-rot` still the only default audit type.
+- Preserved the existing audit report schema: no `SourceFacts` schema change, no new top-level audit report field, and no new audit type were added for `v0.3.3`.
+
+### Compatibility and limitations
+
+- Java/Kotlin analysis is conservative and scanner-based. It does not perform compiler parsing, type resolution, classpath/symbol resolution, runtime reachability analysis, or target-project test execution.
+- Java/Kotlin support does not execute Gradle, Maven, Android tooling, or network-backed dependency checks. Static JVM metadata is presence/simple-text-extraction only.
+- Java/Kotlin field/property extraction, Java text-block special handling, Kotlin extension-function receiver semantics, and method/constructor-level dead-code detection are not implemented.
+- JVM package/environment rot remains deferred because the existing `dependency-environment-rot` detector is still npm/Node-specific.
+- `security:validate` remains preserved and unchanged from `v0.3.2`.
+- `quality`, `project`, and `all` audit types remain planned; `--types quality`/`project`/`all` still fail cleanly with exit code 2.
+- Android validation remains planned and out of scope for `v0.3.3`.
+
 ## [0.3.2] - 2026-07-09
 
 Python code-rot support and a first security-validation audit adapter, implemented on top of the published `v0.3.1` baseline. Published.

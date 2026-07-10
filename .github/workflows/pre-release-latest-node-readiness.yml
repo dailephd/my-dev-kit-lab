@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feature/v0.3.1-language-aware-code-rot
+      - feature/v*
+      - release/**
 
 jobs:
   latest-node-readiness:

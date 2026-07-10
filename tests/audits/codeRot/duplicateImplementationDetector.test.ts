@@ -332,6 +332,177 @@ describe("DUPLICATE_IMPLEMENTATION_DETECTOR — Python duplicate declaration can
   });
 });
 
+describe("DUPLICATE_IMPLEMENTATION_DETECTOR — Java/Kotlin duplicate declaration candidates (v0.3.3 Batch 2)", () => {
+  it("T6: flags the same exported Java class name declared in two unrelated source files", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/com/example/WidgetHandler.java", "package com.example;\n\npublic class WidgetHandler {\n}\n");
+      writeFile(root, "src/featureB/com/example/WidgetHandler.java", "package com.example;\n\npublic class WidgetHandler {\n}\n");
+      const issues = await runWithSourceFacts(root);
+      const issue = issues.find((i) => i.title.includes('"WidgetHandler"'));
+      expect(issue).toBeDefined();
+      expect(issue?.category).toBe("duplicate-implementation-candidate");
+      expect(issue?.severity).toBe("info");
+      expect(issue?.confidence).toBe("low");
+      expect(issue?.description.toLowerCase()).not.toContain("duplicate implementation proof");
+      expect(issue?.description.toLowerCase()).not.toContain("identical behavior");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T7: flags the same exported Kotlin class name declared in two unrelated source files", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/com/example/WidgetHandler.kt", "package com.example\n\nclass WidgetHandler\n");
+      writeFile(root, "src/featureB/com/example/WidgetHandler.kt", "package com.example\n\nclass WidgetHandler\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"WidgetHandler"'))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T7: flags the same exported top-level Kotlin function name declared in two unrelated source files", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/computeWidgetScore.kt", "fun computeWidgetScore(): Int {\n    return 1\n}\n");
+      writeFile(root, "src/featureB/computeWidgetScore.kt", "fun computeWidgetScore(): Int {\n    return 2\n}\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"computeWidgetScore"'))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T8: does not create a cross-language duplicate candidate between a Java and a Kotlin declaration with the same name", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/SharedName.java", "public class SharedName {\n}\n");
+      writeFile(root, "src/featureB/SharedName.kt", "class SharedName\n");
+      const issues = await runWithSourceFacts(root);
+      // Only one file declares "SharedName" per language -- Java and
+      // Kotlin are two distinct analyzer scopes, so neither forms a
+      // cross-language pair, and within-language there is only one file
+      // each, so no finding at all.
+      expect(issues.some((i) => i.title.includes('"SharedName"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T8: does not merge a same-named Java declaration group with a same-named Kotlin group even when both independently have 2+ files", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/javaA/SharedThing.java", "public class SharedThing {\n}\n");
+      writeFile(root, "src/javaB/SharedThing.java", "public class SharedThing {\n}\n");
+      writeFile(root, "src/ktA/SharedThing.kt", "class SharedThing\n");
+      writeFile(root, "src/ktB/SharedThing.kt", "class SharedThing\n");
+      const issues = await runWithSourceFacts(root);
+      const sharedThingIssues = issues.filter((i) => i.title.includes('"SharedThing"'));
+      // Two separate candidates (one per language), never one candidate
+      // spanning all 4 files, and never merged with the existing TS/JS/
+      // Python groups exercised by the tests above.
+      expect(sharedThingIssues).toHaveLength(2);
+      for (const issue of sharedThingIssues) {
+        expect(issue.affectedFiles).toHaveLength(2);
+        const allJava = issue.affectedFiles.every((f) => f.endsWith(".java"));
+        const allKotlin = issue.affectedFiles.every((f) => f.endsWith(".kt"));
+        expect(allJava || allKotlin).toBe(true);
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T8: a same-named Java, Kotlin, Python, TypeScript, and JavaScript declaration each forms its own separate candidate", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/javaA/MultiLang.java", "public class MultiLang {\n}\n");
+      writeFile(root, "src/javaB/MultiLang.java", "public class MultiLang {\n}\n");
+      writeFile(root, "src/ktA/MultiLang.kt", "class MultiLang\n");
+      writeFile(root, "src/ktB/MultiLang.kt", "class MultiLang\n");
+      writeFile(root, "src/pyA/multi_lang.py", "class MultiLang:\n    pass\n");
+      writeFile(root, "src/pyB/multi_lang.py", "class MultiLang:\n    pass\n");
+      writeFile(root, "src/tsA/multiLang.ts", "export class MultiLang {}\n");
+      writeFile(root, "src/tsB/multiLang.js", "export class MultiLang {}\n");
+      const issues = await runWithSourceFacts(root);
+      const multiLangIssues = issues.filter((i) => i.title.includes('"MultiLang"'));
+      // Java (own group), Kotlin (own group), Python (own group), and
+      // TS+JS (one shared group, since they share one analyzer) -- 4
+      // groups total, never fewer (merged) or more (over-split).
+      expect(multiLangIssues).toHaveLength(4);
+      for (const issue of multiLangIssues) {
+        const exts = issue.affectedFiles.map((f) => path.extname(f));
+        const allSameFamily =
+          exts.every((e) => e === ".java") ||
+          exts.every((e) => e === ".kt") ||
+          exts.every((e) => e === ".py") ||
+          exts.every((e) => e === ".ts" || e === ".js");
+        expect(allSameFamily).toBe(true);
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T9: does not flag common low-signal JVM names (Main, App, Config, Service, Controller, test*, setup, tearDown)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/featureA/Widget.java",
+        [
+          "public class Main {}",
+          "class App {}",
+          "class Config {}",
+          "class Service {}",
+          "class Controller {}",
+          "class testHelper {}",
+        ].join("\n") + "\n"
+      );
+      writeFile(
+        root,
+        "src/featureB/Widget.java",
+        [
+          "public class Main {}",
+          "class App {}",
+          "class Config {}",
+          "class Service {}",
+          "class Controller {}",
+          "class testHelper {}",
+        ].join("\n") + "\n"
+      );
+      const issues = await runWithSourceFacts(root);
+      for (const name of ["Main", "App", "Config", "Service", "Controller", "testHelper"]) {
+        expect(issues.some((i) => i.title.includes(`"${name}"`))).toBe(false);
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a Java/Kotlin method (methods are excluded entirely, same as every other language)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/featureA/Widget.java", "public class WidgetA {\n    public void sharedMethodName() {}\n}\n");
+      writeFile(root, "src/featureB/Widget.java", "public class WidgetB {\n    public void sharedMethodName() {}\n}\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"sharedMethodName"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("DUPLICATE_IMPLEMENTATION_DETECTOR — real self-scan regression guard", () => {
   it("produces no findings above info severity against this repo's own current state", async () => {
     const issues = await run(process.cwd());
