@@ -60,11 +60,41 @@ export { parseXmlDocument, findChildren, getAttribute, ANDROID_NAMESPACE_URI } f
 export type { XmlElement, XmlAttribute, XmlSourceLocation, XmlParseResult } from "./android/manifest/xml/parseXml.js";
 
 export type {
+  AndroidGradleDistributionType,
   AndroidGradleWrapperInfo,
   AndroidGradleModuleInfo,
   AndroidGradlePluginEvidence,
+  AndroidGradleMetadataConflict,
   AndroidGradleMetadata,
 } from "./android/gradle/types.js";
+
+export { parseWrapperProperties } from "./android/gradle/wrapperMetadata.js";
+export type { ParsedWrapperProperties } from "./android/gradle/wrapperMetadata.js";
+export { parseVersionCatalog, resolveCatalogVersion, accessorSuffixToCatalogAlias } from "./android/gradle/versionCatalogMetadata.js";
+export type { CatalogEntry, ParsedVersionCatalog } from "./android/gradle/versionCatalogMetadata.js";
+export { extractModuleGradleMetadata } from "./android/gradle/moduleMetadataExtractor.js";
+export type { ModuleMetadataExtractionResult } from "./android/gradle/moduleMetadataExtractor.js";
+export { resolvePluginVersion } from "./android/gradle/pluginVersionExtractor.js";
+export type { PluginVersionResult } from "./android/gradle/pluginVersionExtractor.js";
+export { parseSettingsMetadata } from "./android/gradle/settingsMetadata.js";
+export type { SettingsMetadata } from "./android/gradle/settingsMetadata.js";
+export { readAndroidGradleMetadata } from "./android/gradle/readAndroidGradleMetadata.js";
+export { buildAndroidGradleMetadataCheckResult } from "./android/gradle/gradleMetadataCheckResult.js";
+export { buildAndroidReleaseMetadataSummary } from "./android/gradle/releaseMetadataSummary.js";
+export type { AndroidReleaseMetadataSummary } from "./android/gradle/releaseMetadataSummary.js";
+
+export { ALLOWLISTED_OPERATION_IDS, isAllowlistedOperationId, GRADLE_OPERATIONS } from "./android/gradle/validate/operations.js";
+export type { GradleOperationId, GradleOperationDefinition } from "./android/gradle/validate/operations.js";
+export { buildGradleCommandPlan } from "./android/gradle/validate/planner.js";
+export type { GradleCommandPlan, GradleCommandPlanRejection, GradleCommandPlanResult } from "./android/gradle/validate/planner.js";
+export { createRealGradleCommandExecutor } from "./android/gradle/validate/executor.js";
+export type { GradleCommandExecutor } from "./android/gradle/validate/executor.js";
+export { parseGradleTaskNames, isGradleTaskAvailable } from "./android/gradle/validate/taskListParser.js";
+export { buildTargetMutationReport, isExpectedAndroidGeneratedPath, captureTargetSnapshot } from "./android/gradle/validate/targetMutation.js";
+export type { TargetMutationReport, TargetSnapshot } from "./android/gradle/validate/targetMutation.js";
+export { buildGradleOperationCheckResult } from "./android/gradle/validate/operationCheckResult.js";
+export { runOptionalGradleValidation } from "./android/gradle/validate/runOptionalGradleValidation.js";
+export type { RunOptionalGradleValidationOptions } from "./android/gradle/validate/runOptionalGradleValidation.js";
 
 export type {
   AndroidCheckStatus,
