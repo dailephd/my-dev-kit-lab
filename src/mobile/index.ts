@@ -42,11 +42,22 @@ export type {
   AndroidIntentFilter,
   AndroidManifestComponentKind,
   AndroidManifestComponent,
+  AndroidPermissionSourceElement,
   AndroidPermissionDeclaration,
   AndroidUsesFeatureDeclaration,
   AndroidManifestApplicationAttributes,
   AndroidManifestModel,
 } from "./android/manifest/types.js";
+
+export {
+  parseAndroidManifestSource,
+  parseAndroidManifestFile,
+  parseAllAndroidManifests,
+} from "./android/manifest/parseAndroidManifest.js";
+export type { AndroidManifestSourceSetKind, AndroidManifestParseEntry } from "./android/manifest/parseAndroidManifest.js";
+
+export { parseXmlDocument, findChildren, getAttribute, ANDROID_NAMESPACE_URI } from "./android/manifest/xml/parseXml.js";
+export type { XmlElement, XmlAttribute, XmlSourceLocation, XmlParseResult } from "./android/manifest/xml/parseXml.js";
 
 export type {
   AndroidGradleWrapperInfo,
@@ -87,3 +98,12 @@ export type {
   AndroidReportModel,
 } from "./android/report/model.js";
 export { toAndroidReportModel, serializeAndroidReportModel } from "./android/report/model.js";
+
+export { makeAndroidFinding } from "./android/audit/androidFinding.js";
+export type { AndroidFindingInput } from "./android/audit/androidFinding.js";
+export { buildAndroidManifestCheckResult } from "./android/audit/checkResultBuilder.js";
+export type { BuildAndroidManifestCheckResultInput } from "./android/audit/checkResultBuilder.js";
+export { auditAndroidPermissions } from "./android/audit/permissionAudit.js";
+export { auditAndroidExportedComponents } from "./android/audit/exportedComponentAudit.js";
+export { auditAndroidIntentFilters } from "./android/audit/intentFilterAudit.js";
+export { auditAndroidDeepLinks } from "./android/audit/deepLinkAudit.js";
