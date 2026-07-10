@@ -2,6 +2,27 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.3.4] - release-prepared, not yet published
+
+`v0.3.4` is release-prepared: package metadata has been bumped to `0.3.4`, but it is not yet published to npm, not tagged, and no GitHub release has been created. `v0.3.3` remains the previously published baseline until `v0.3.4` publication completes.
+
+### Added
+
+- Added mixed-language audit stability coverage across the committed Batch 1 fixture corpus and full detector registry.
+- Added repeated-run audit report determinism coverage for JSON/text output, security-summary isolation, and run-order stability.
+- Added focused cross-platform/path and CRLF/LF stability coverage in `tests/audits/crossPlatformPathStability.test.ts`, including separator normalization, paths with spaces, report output safety, security report filename-prefix sanitization, and Java/Kotlin/docs-code-mismatch line-ending robustness.
+
+### Changed
+
+- Hardened `collectSourceFacts()` to normalize inventory `relativePath` values before reading files or returning source-fact identities, so separator-only path variants do not leak into analyzer inputs, report evidence, or downstream lookups.
+- Reconciled README/current-state/roadmap/architecture/commands/workflows/project-overview/security docs with the release-prepared `v0.3.4` state while preserving `v0.3.3` as the latest published baseline until `v0.3.4` publication completes.
+
+### Compatibility and limitations
+
+- `v0.3.4` preserves the existing command surface: it does not change audit/security command names, add new CLI commands, or modify the audit report schema or `SourceFacts` schema.
+- `v0.3.4` keeps `quality`, `project`, and `all` audit types planned and not implemented.
+- `v0.3.4` keeps Android validation, Gradle/Maven execution, Java/Kotlin compiler execution, JVM dependency freshness checks, and JVM package/environment rot detection out of scope.
+
 ## [0.3.3] - 2026-07-10
 
 Java/Kotlin code-rot support, published on top of the previously published `v0.3.2` baseline. Package metadata is `0.3.3`; the npm registry now contains `0.3.3`. `v0.3.2` remains the previous published baseline.

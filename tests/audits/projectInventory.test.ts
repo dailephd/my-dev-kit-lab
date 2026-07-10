@@ -704,6 +704,79 @@ describe("scanProjectInventory — does not write target files", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// v0.3.4 Batch 1 -- mixed-language fixture corpus inventory checks.
+//
+// The describe blocks above build a single-purpose temp-dir fixture per
+// test. This block instead scans the static, committed fixture corpus under
+// tests/fixtures/audits/mixed-language/ directly (read-only, same as every
+// other test here) to prove the corpus itself matches this file's existing
+// classification policy across a mixed-language, JVM-conventional project
+// layout -- not a new policy, just a regression proof against real fixture
+// files instead of ad hoc inline ones.
+// ---------------------------------------------------------------------------
+describe("scanProjectInventory — mixed-language fixture corpus (Batch 1)", () => {
+  const FIXTURE_ROOT = path.resolve(process.cwd(), "tests/fixtures/audits/mixed-language");
+
+  it("recognizes Java/Kotlin main and test source-set directories in mixed-java-kotlin", () => {
+    const inventory = scanProjectInventory(path.join(FIXTURE_ROOT, "mixed-java-kotlin"));
+    const roleOf = (p: string) => inventory.files.find((f) => f.relativePath === p)?.role;
+
+    expect(roleOf("src/main/java/com/example/FooService.java")).toBe("source");
+    expect(roleOf("src/main/kotlin/com/example/BarService.kt")).toBe("source");
+    expect(roleOf("src/test/java/com/example/FooServiceTest.java")).toBe("test");
+    expect(roleOf("src/test/kotlin/com/example/BarServiceTest.kt")).toBe("test");
+  });
+
+  it("recognizes Gradle Kotlin DSL config files as role config in mixed-java-kotlin", () => {
+    const inventory = scanProjectInventory(path.join(FIXTURE_ROOT, "mixed-java-kotlin"));
+    const roleOf = (p: string) => inventory.files.find((f) => f.relativePath === p)?.role;
+    const categoryOf = (p: string) => inventory.files.find((f) => f.relativePath === p)?.category;
+
+    expect(roleOf("build.gradle.kts")).toBe("config");
+    expect(roleOf("settings.gradle.kts")).toBe("config");
+    expect(categoryOf("build.gradle.kts")).not.toBe("source");
+    expect(categoryOf("settings.gradle.kts")).not.toBe("source");
+  });
+
+  it("includes every current language family in mixed-ts-python-jvm without cross-contamination", () => {
+    const inventory = scanProjectInventory(path.join(FIXTURE_ROOT, "mixed-ts-python-jvm"));
+    expect(inventory.filesByLanguage.typescript).toBeGreaterThan(0);
+    expect(inventory.filesByLanguage.javascript).toBeGreaterThan(0);
+    expect(inventory.filesByLanguage.python).toBeGreaterThan(0);
+    expect(inventory.filesByLanguage.java).toBeGreaterThan(0);
+    expect(inventory.filesByLanguage.kotlin).toBeGreaterThan(0);
+    // Python test file recognized as role test via the test_*.py convention.
+    expect(inventory.files.find((f) => f.relativePath === "pytests/test_app.py")?.role).toBe("test");
+  });
+
+  it("classifies generated/vendor roles and excludes dist/build from traversal in mixed-generated-vendor", () => {
+    const inventory = scanProjectInventory(path.join(FIXTURE_ROOT, "mixed-generated-vendor"));
+    const roleOf = (p: string) => inventory.files.find((f) => f.relativePath === p)?.role;
+
+    expect(roleOf("src/index.ts")).toBe("source");
+    expect(roleOf("generated/schema.ts")).toBe("generated");
+    expect(roleOf("vendor/lib.py")).toBe("vendor");
+    expect(inventory.files.some((f) => f.relativePath.startsWith("dist/"))).toBe(false);
+    expect(inventory.files.some((f) => f.relativePath.startsWith("build/"))).toBe(false);
+  });
+
+  it("scans each mixed-language fixture without warnings or crashes", () => {
+    for (const name of [
+      "mixed-ts-js",
+      "mixed-python-ts",
+      "mixed-java-kotlin",
+      "mixed-ts-python-jvm",
+      "mixed-docs-claims",
+      "mixed-generated-vendor",
+    ]) {
+      const inventory = scanProjectInventory(path.join(FIXTURE_ROOT, name));
+      expect(inventory.warnings).toEqual([]);
+      expect(inventory.files.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 function walkAll(dir: string): string[] {
   const result: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

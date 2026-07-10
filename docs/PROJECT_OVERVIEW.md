@@ -2,7 +2,7 @@
 
 ## What is my-dev-kit-lab?
 
-my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It now includes three areas of validated capability: experiment/evidence, automated security validation, and a generic audit framework in the current published `v0.3.3` baseline (`code-rot` audit type with language-aware TypeScript/JavaScript, Python, Java, and Kotlin source facts, plus a `security` audit type via the security-validation audit adapter). `v0.3.3` extends the code-rot track to Java/Kotlin and static JVM metadata without changing the command surface. The audit framework does not perform code-quality analysis; that remains a planned, unimplemented audit type.
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It now includes three areas of validated capability: experiment/evidence, automated security validation, and a generic audit framework in the previously published `v0.3.3` baseline (`code-rot` audit type with language-aware TypeScript/JavaScript, Python, Java, and Kotlin source facts, plus a `security` audit type via the security-validation audit adapter). `v0.3.3` extends the code-rot track to Java/Kotlin and static JVM metadata without changing the command surface. `v0.3.4` is release-prepared (package metadata bumped to `0.3.4`, not yet published) and hardens cross-language/path/line-ending behavior on top of that baseline. The audit framework does not perform code-quality analysis; that remains a planned, unimplemented audit type.
 
 my-dev-kit is a local-first repository indexing and graph-guided retrieval CLI. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Its strongest use case is when the repository is larger than the task; the project does not assume or claim that guided retrieval always saves tokens.
 
@@ -54,9 +54,9 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-The current published npm baseline is `v0.3.3`. After that, the immediate direction is:
+The previously published npm baseline is `v0.3.3`. The `v0.3.4` implementation is release-prepared (package metadata bumped to `0.3.4`, not yet published). After `v0.3.4` publication completes, the immediate direction is:
 
-1. continue with cross-language stability in `v0.3.4`
+1. publish `v0.3.4` cross-language stability hardening
 2. add Android validation MVP in `v0.4.0`
 3. add advanced Android security checks in `v0.4.1`
 4. optionally add an Android-specific extension of the security audit adapter in `v0.4.2`
