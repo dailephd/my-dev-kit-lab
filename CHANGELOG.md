@@ -2,9 +2,9 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [0.3.4] - release-prepared, not yet published
+## [0.3.4] - 2026-07-10
 
-`v0.3.4` is release-prepared: package metadata has been bumped to `0.3.4`, but it is not yet published to npm, not tagged, and no GitHub release has been created. `v0.3.3` remains the previously published baseline until `v0.3.4` publication completes.
+Package metadata is `0.3.4`, and the npm registry now contains `0.3.4`. `v0.3.3` is the previous published baseline.
 
 ### Added
 
@@ -15,7 +15,7 @@ All notable changes to my-dev-kit-lab are documented here.
 ### Changed
 
 - Hardened `collectSourceFacts()` to normalize inventory `relativePath` values before reading files or returning source-fact identities, so separator-only path variants do not leak into analyzer inputs, report evidence, or downstream lookups.
-- Reconciled README/current-state/roadmap/architecture/commands/workflows/project-overview/security docs with the release-prepared `v0.3.4` state while preserving `v0.3.3` as the latest published baseline until `v0.3.4` publication completes.
+- Reconciled README/current-state/roadmap/architecture/commands/workflows/project-overview/security docs with the published `v0.3.4` state, with `v0.3.3` documented as the previous published baseline.
 
 ### Compatibility and limitations
 

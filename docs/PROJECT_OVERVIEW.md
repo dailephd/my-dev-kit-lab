@@ -2,7 +2,7 @@
 
 ## What is my-dev-kit-lab?
 
-my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It now includes three areas of validated capability: experiment/evidence, automated security validation, and a generic audit framework in the previously published `v0.3.3` baseline (`code-rot` audit type with language-aware TypeScript/JavaScript, Python, Java, and Kotlin source facts, plus a `security` audit type via the security-validation audit adapter). `v0.3.3` extends the code-rot track to Java/Kotlin and static JVM metadata without changing the command surface. `v0.3.4` is release-prepared (package metadata bumped to `0.3.4`, not yet published) and hardens cross-language/path/line-ending behavior on top of that baseline. The audit framework does not perform code-quality analysis; that remains a planned, unimplemented audit type.
+my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It now includes three areas of validated capability: experiment/evidence, automated security validation, and a generic audit framework in the current published `v0.3.4` baseline (`code-rot` audit type with language-aware TypeScript/JavaScript, Python, Java, and Kotlin source facts, plus a `security` audit type via the security-validation audit adapter). `v0.3.3` (previous published baseline) extends the code-rot track to Java/Kotlin and static JVM metadata without changing the command surface. `v0.3.4` (package metadata `0.3.4`) hardens cross-language/path/line-ending behavior on top of that baseline. The audit framework does not perform code-quality analysis; that remains a planned, unimplemented audit type.
 
 my-dev-kit is a local-first repository indexing and graph-guided retrieval CLI. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Its strongest use case is when the repository is larger than the task; the project does not assume or claim that guided retrieval always saves tokens.
 
@@ -10,7 +10,7 @@ The lab supplies controlled benchmarks, agent adapters, metrics, reports, plots,
 
 ## Current baseline
 
-The current published npm baseline is version `0.3.3`. The generic experiment-plugin runtime introduced in `v0.2.0` is implemented. Its first and currently only registered plugin is `context-strategy-comparison`.
+The current published npm baseline is version `0.3.4`. The generic experiment-plugin runtime introduced in `v0.2.0` is implemented. Its first and currently only registered plugin is `context-strategy-comparison`.
 
 That plugin preserves the established raw-full-file versus my-dev-kit-guided experiment through the generic registry and runner. It supports self and explicit local-project targets, plugin-aware reports, deterministic fake-agent runs, and optional Codex or Claude campaigns. Existing legacy commands and artifacts remain supported.
 
@@ -54,13 +54,12 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-The previously published npm baseline is `v0.3.3`. The `v0.3.4` implementation is release-prepared (package metadata bumped to `0.3.4`, not yet published). After `v0.3.4` publication completes, the immediate direction is:
+The current published npm baseline is `v0.3.4` (package metadata `0.3.4`); `v0.3.3` is the previous published baseline. The immediate direction is:
 
-1. publish `v0.3.4` cross-language stability hardening
-2. add Android validation MVP in `v0.4.0`
-3. add advanced Android security checks in `v0.4.1`
-4. optionally add an Android-specific extension of the security audit adapter in `v0.4.2`
-5. keep manual pentest deferred until after `v1.0.0`
+1. add Android validation MVP in `v0.4.0`
+2. add advanced Android security checks in `v0.4.1`
+3. optionally add an Android-specific extension of the security audit adapter in `v0.4.2`
+4. keep manual pentest deferred until after `v1.0.0`
 
 The experiment evidence track then expands through warm-index reuse, freshness and stale-index detection, context-window scaling, retrieval precision/recall, agent success, normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication.
 

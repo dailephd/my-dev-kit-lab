@@ -1,6 +1,6 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The previously published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.3`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support; `v0.3.2` added Python code-rot support and a first security-validation audit adapter; `v0.3.3` adds Java/Kotlin code-rot support. `v0.3.4` is release-prepared: package metadata has been bumped to `0.3.4`, but the npm registry still contains only `0.3.3` — `v0.3.4` is not yet published, not tagged, and no GitHub release exists.
+This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.4`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support; `v0.3.2` added Python code-rot support and a first security-validation audit adapter; `v0.3.3` added Java/Kotlin code-rot support and is the previous published baseline; `v0.3.4` hardens cross-language audit stability. Package metadata is `0.3.4`, and the npm registry now contains `0.3.4`.
 
 ## Implemented
 
@@ -22,7 +22,7 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Self and explicit local-project (non-destructive) audit targets.
 - The audit framework does not shell out to `security:validate`; the security audit adapter reuses `securityValidation`'s exported functions directly, and `security:validate` does not call the audit framework.
 - Published `v0.3.3` Java/Kotlin implementation: dependency-free Java and Kotlin source-facts analyzers, JVM project metadata collection (Gradle/Maven/wrapper/source-set presence only), Java/Kotlin detector integration for `dead-code-candidate`, `duplicate-implementation-candidate`, `test-rot`, and Java/Kotlin/Gradle/Maven docs-code-mismatch support.
-- Release-prepared `v0.3.4` hardening on top of the previously published baseline (package metadata bumped to `0.3.4`; not yet published): mixed-language fixture corpus and invariant coverage, full-registry mixed-language detector stability tests, repeated-run audit report determinism tests, cross-platform/path normalization coverage, CRLF/LF source parsing coverage, and final documentation reconciliation.
+- Published `v0.3.4` hardening on top of the previous baseline (package metadata `0.3.4`): mixed-language fixture corpus and invariant coverage, full-registry mixed-language detector stability tests, repeated-run audit report determinism tests, cross-platform/path normalization coverage, CRLF/LF source parsing coverage, and final documentation reconciliation.
 
 ## Active branch status
 
@@ -98,7 +98,7 @@ npm run audit -- --types code-rot,security --format text,json --fail-on none
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework, code-rot detector family, TypeScript/JavaScript, Python, Java, and Kotlin language-aware substrate, and the security-validation audit adapter are all implemented in the current published `v0.3.3` baseline.
+The generic audit framework, code-rot detector family, TypeScript/JavaScript, Python, Java, and Kotlin language-aware substrate, and the security-validation audit adapter are all implemented in the current published `v0.3.4` baseline.
 
 The following remain planned, not implemented:
 
@@ -125,4 +125,4 @@ The following remain planned, not implemented:
 
 ## Next planned work
 
-The previously published npm baseline is `v0.3.3`, which added Java/Kotlin code-rot support on top of the published `v0.3.2` baseline (Python code-rot support and a first security-validation audit adapter). The `v0.3.4` implementation is release-prepared (package metadata bumped to `0.3.4`; not yet published) and hardens cross-language/path/line-ending behavior. Android automated security validation still follows in `v0.4.0` through `v0.4.1`, with an Android-specific extension of the security audit adapter as optional `v0.4.2` work. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.
+The current published npm baseline is `v0.3.4` (package metadata `0.3.4`), which hardens cross-language/path/line-ending behavior on top of `v0.3.3` (Java/Kotlin code-rot support, previous published baseline). Android automated security validation still follows in `v0.4.0` through `v0.4.1`, with an Android-specific extension of the security audit adapter as optional `v0.4.2` work. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.

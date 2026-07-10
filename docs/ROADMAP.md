@@ -187,7 +187,7 @@ Out of scope:
 ### v0.3.4 - cross-language code-rot fixture and stability pass
 
 Status:
-- release-prepared; package metadata bumped to 0.3.4, not yet published, not tagged
+- published; package metadata is 0.3.4
 
 Purpose:
 - Stabilize language-aware code-rot detection across the required languages.

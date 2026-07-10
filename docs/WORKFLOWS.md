@@ -1,6 +1,6 @@
 # Workflows
 
-This document separates implementation workflows, documentation reconciliation, pre-release readiness, release preparation, and future planned workflows. The previously published baseline is `v0.3.3`; `v0.3.4` is release-prepared (package metadata bumped to `0.3.4`, not yet published) and does not change command names.
+This document separates implementation workflows, documentation reconciliation, pre-release readiness, release preparation, and future planned workflows. The current published baseline is `v0.3.4` (package metadata `0.3.4`); `v0.3.3` is the previous published baseline. `v0.3.4` does not change command names.
 
 ## Workflow 1: Fake-agent final demo
 
@@ -77,7 +77,7 @@ Current behavior:
 
 ## Workflow 6: Code-rot audit
 
-Use this workflow for the current implemented code-rot audit path. The `v0.3.0` baseline added the generic audit framework and code-rot detectors; `v0.3.1` added language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence; the previously published `v0.3.2` baseline added a Python analyzer and Python-aware candidate evidence to the same detectors, without adding command flags. The published `v0.3.3` implementation extends the same workflow to Java/Kotlin using static source-facts analyzers and JVM metadata, still without adding command flags. The release-prepared `v0.3.4` work (package metadata bumped to `0.3.4`, not yet published) hardens the same workflow with mixed-language, report-determinism, cross-platform/path, and CRLF/LF stability coverage only.
+Use this workflow for the current implemented code-rot audit path. The `v0.3.0` baseline added the generic audit framework and code-rot detectors; `v0.3.1` added language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence; the `v0.3.2` baseline added a Python analyzer and Python-aware candidate evidence to the same detectors, without adding command flags. The `v0.3.3` implementation extended the same workflow to Java/Kotlin using static source-facts analyzers and JVM metadata, still without adding command flags. The current published `v0.3.4` work (package metadata `0.3.4`) hardens the same workflow with mixed-language, report-determinism, cross-platform/path, and CRLF/LF stability coverage only.
 
 ```bash
 npm run audit
@@ -178,7 +178,7 @@ Required actions:
 3. remove stale roadmap assignments or relabel them as future/historical as appropriate
 4. run the required validation commands for the repository
 
-For `v0.3.4` release-prep work, this specifically includes preserving `v0.3.3` as the previously published baseline until `v0.3.4` publication completes, documenting `v0.3.4` as release-prepared/not-yet-published with package metadata bumped to `0.3.4`, and keeping Android, quality/project/all, and JVM package/environment rot deferred.
+For the `v0.3.4` release, this specifically included documenting `v0.3.3` as the previous published baseline, `v0.3.4` as the current published baseline with package metadata `0.3.4`, and keeping Android, quality/project/all, and JVM package/environment rot deferred.
 
 This workflow does not create a separate product version.
 

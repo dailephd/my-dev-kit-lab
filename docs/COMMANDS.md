@@ -1,6 +1,6 @@
 # Commands
 
-This document describes the current command surface in my-dev-kit-lab and the limited planned command direction that is relevant to the roadmap. The previously published package metadata is `0.3.3`; `v0.3.4` is release-prepared (package metadata bumped to `0.3.4`, not yet published) and does not add or rename commands.
+This document describes the current command surface in my-dev-kit-lab and the limited planned command direction that is relevant to the roadmap. The current published package metadata is `0.3.4`; `v0.3.4` does not add or rename commands.
 
 Current rule: do not treat planned commands or planned flags as implemented behavior.
 
@@ -136,7 +136,7 @@ Current behavior:
 
 ## Audit commands
 
-The generic audit framework is implemented. `code-rot` was implemented in `v0.3.0`; `security` is implemented in the previously published `v0.3.2` package state. The published `v0.3.3` implementation extends `code-rot` with Java/Kotlin support without changing the command surface. The release-prepared `v0.3.4` implementation (package metadata bumped to `0.3.4`, not yet published) further hardens mixed-language, report-determinism, cross-platform/path, and CRLF/LF behavior without adding new flags or audit types. The audit framework is separate from `security:validate`: `npm run audit -- --types security` adapts `security:validate`'s internals and report family into the audit report surface, but does not replace the standalone `security:validate` command.
+The generic audit framework is implemented. `code-rot` was implemented in `v0.3.0`; `security` is implemented in the previously published `v0.3.2` package state. The `v0.3.3` implementation extended `code-rot` with Java/Kotlin support without changing the command surface. The current published `v0.3.4` implementation (package metadata `0.3.4`) further hardens mixed-language, report-determinism, cross-platform/path, and CRLF/LF behavior without adding new flags or audit types. The audit framework is separate from `security:validate`: `npm run audit -- --types security` adapts `security:validate`'s internals and report family into the audit report surface, but does not replace the standalone `security:validate` command.
 
 Current implemented command:
 
