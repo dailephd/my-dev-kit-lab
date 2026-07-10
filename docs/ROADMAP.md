@@ -153,7 +153,7 @@ Out of scope:
 ### v0.3.3 - Java/Kotlin code-rot support
 
 Status:
-- planned
+- release-prepared; package metadata is `0.3.3`; not yet published
 
 Purpose:
 - Add Java and Kotlin code-rot support in one version.
@@ -161,10 +161,11 @@ Purpose:
 Scope:
 - Java and Kotlin file detection
 - JVM/Gradle/Maven project shape detection needed for source/test mapping
-- Java source facts for packages, imports, classes, interfaces, methods, and public declarations where deterministic and feasible
-- Kotlin source facts for packages, imports, classes, objects, functions, top-level declarations, and public declarations where deterministic and feasible
+- Java source facts for packages, imports, classes, interfaces, enums/records, methods, constructors, and public declarations where deterministic and feasible
+- Kotlin source facts for packages, imports, classes, objects, enum classes, functions, top-level declarations, and public declarations where deterministic and feasible
 - Gradle/Maven source-set detection for test mapping
 - Java/Kotlin dead-code, duplicate implementation, test-rot, and docs/code mismatch support
+- static Gradle/Maven feature and command-claim docs-code-mismatch checks using JVM metadata only
 - conservative findings with confidence and false-positive labels
 
 Out of scope:
@@ -172,7 +173,13 @@ Out of scope:
 - full Android mobile validation
 - framework-aware profiles
 - compiler-level semantic analysis
+- type resolution
+- symbol/classpath resolution
 - Gradle build success claims
+- Gradle or Maven execution
+- target-project test execution
+- JVM dependency freshness checks
+- JVM package/environment rot
 - runtime behavior claims
 - code quality detector family
 - manual pentest

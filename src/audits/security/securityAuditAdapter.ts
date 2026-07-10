@@ -1,9 +1,8 @@
-import fs from "node:fs";
 import path from "node:path";
 import { runSecurityValidation } from "../../securityValidation/validate/runSecurityValidation.js";
 import { reportFilenamePrefix } from "../../securityValidation/validate/resolveTarget.js";
-import { renderJsonReport, renderTextReport } from "../../securityValidation/report/renderSecurityReport.js";
 import { buildSecurityReportFromSummary } from "../../securityValidation/report/buildSecurityReport.js";
+import { writeSecurityReportFiles } from "../../securityValidation/report/writeSecurityReportFiles.js";
 import { DEFAULT_SECURITY_CHECKS, DEFAULT_SECURITY_PROFILE } from "../../securityValidation/validate/cliOptions.js";
 import { verdictToHumanLabel } from "../../securityValidation/validate/verdict.js";
 import type { AuditConfig } from "../core/auditConfig.js";
@@ -58,23 +57,21 @@ export async function runSecurityAuditAdapter(
     formats: ["text", "json"],
   });
 
-  // Always under my-dev-kit-lab's own reports/ tree (toolRoot), never under
-  // the audited target's root — matches the target-safety guarantee
-  // AuditTarget.safeReportOutputRoot already documents for code-rot reports.
   const reportDir = path.join(toolRoot, "reports", "security");
-  if (!fs.existsSync(reportDir)) {
-    fs.mkdirSync(reportDir, { recursive: true });
-  }
   const prefix = reportFilenamePrefix({
     isSelf: summary.isSelf,
     packageName: summary.packageName,
     packageVersion: summary.packageVersion,
     targetRoot: summary.targetRoot,
   });
-  const textPath = path.join(reportDir, `${prefix}-security-validation.txt`);
-  const jsonPath = path.join(reportDir, `${prefix}-security-validation.json`);
-  fs.writeFileSync(textPath, renderTextReport(report), "utf8");
-  fs.writeFileSync(jsonPath, renderJsonReport(report), "utf8");
+  const runSuffix = buildRunScopedReportSuffix(summary.startedAt, summary.finishedAt);
+  const { textPath, jsonPath } = writeSecurityReportFiles({
+    outDir: reportDir,
+    prefix,
+    report,
+    formats: ["text", "json"],
+    reportPathSuffix: runSuffix,
+  });
 
   const findingCounts = {
     blocker: summary.findings.filter((f) => f.severity === "blocker").length,
@@ -102,4 +99,12 @@ export async function runSecurityAuditAdapter(
   };
 
   return { issues, summary: securitySummary };
+}
+
+function buildRunScopedReportSuffix(startedAt: string, finishedAt: string): string {
+  return `${sanitizeTimestamp(startedAt)}-${sanitizeTimestamp(finishedAt)}-${process.pid}`;
+}
+
+function sanitizeTimestamp(value: string): string {
+  return value.replace(/[^0-9]/g, "").slice(0, 14) || "run";
 }

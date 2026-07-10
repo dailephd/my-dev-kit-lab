@@ -1,6 +1,6 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.2`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support; `v0.3.2` added Python code-rot support and a first security-validation audit adapter.
+This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.3.2`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support; `v0.3.2` added Python code-rot support and a first security-validation audit adapter. The checked-out `v0.3.3` work extends that baseline and is now release-prepared; package metadata is `0.3.3`, but publication has not happened yet.
 
 ## Implemented
 
@@ -21,6 +21,7 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Audit reports are written under `reports/audits/<type>/` by default (`code-rot-audit.txt`/`code-rot-audit.json`), or under `--out <path>` when supplied.
 - Self and explicit local-project (non-destructive) audit targets.
 - The audit framework does not shell out to `security:validate`; the security audit adapter reuses `securityValidation`'s exported functions directly, and `security:validate` does not call the audit framework.
+- Release-prepared `v0.3.3` Java/Kotlin implementation: dependency-free Java and Kotlin source-facts analyzers, JVM project metadata collection (Gradle/Maven/wrapper/source-set presence only), Java/Kotlin detector integration for `dead-code-candidate`, `duplicate-implementation-candidate`, `test-rot`, and Java/Kotlin/Gradle/Maven docs-code-mismatch support.
 
 ## Active branch status
 
@@ -33,15 +34,27 @@ The current published npm baseline is `v0.3.2`. `v0.3.1` added normalized langua
 - Python-aware signals in the `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` detectors
 - the security-validation audit adapter (`--types security`, `--types code-rot,security`) described above
 
-The TypeScript/JavaScript analyzer supports `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files where files are within the analyzer size bound and parse without syntax diagnostics. The Python analyzer is regex/line-based and dependency-free. Java and Kotlin are classified by inventory but remain fallback-only: no parser/analyzer is registered for them.
+The checked-out, release-prepared `v0.3.3` work adds:
+
+- a dependency-free Java analyzer for `.java`
+- a dependency-free Kotlin analyzer for `.kt` and `.kts`
+- JVM project metadata collection for static Gradle/Maven/source-set/wrapper detection and a best-effort project name
+- Java/Kotlin support in `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot`
+- Java/Kotlin symbol-claim support and static Gradle/Maven command/feature-claim support in `docs-code-mismatch`
+
+The TypeScript/JavaScript analyzer supports `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files where files are within the analyzer size bound and parse without syntax diagnostics. The Python analyzer is regex/line-based and dependency-free. The Java and Kotlin analyzers are also conservative and dependency-free: they use scanners/regex plus brace-depth tracking, not compiler parsing or symbol resolution.
 
 The source-facts-aware code-rot behavior is conservative:
 
 - `dead-code-candidate` merges parsed relative import/re-export basenames into reverse-reference checks (Python: cross-file `from module import name` reference checks).
 - `duplicate-implementation-candidate` adds source-facts-derived duplicate exported declaration candidate signals for selected non-generic declaration kinds, grouped per-analyzer so TypeScript/JavaScript and Python candidates never merge into one group.
 - `test-rot` uses analyzer-recorded relative imports, including dynamic `import()` (TypeScript/JavaScript) and dotted relative imports (Python), to find missing targets missed by regex-only scanning.
+- `dead-code-candidate` adds Java/Kotlin declaration candidate checks only for top-level declarations with conservative JVM naming/lifecycle exclusions; it does not attempt method/constructor-level dead-code detection.
+- `duplicate-implementation-candidate` keeps Java, Kotlin, Python, and TypeScript/JavaScript declaration groups analyzer-scoped rather than merging same-named declarations across languages.
+- `test-rot` uses JVM import facts plus recognized `src/main/{java,kotlin}` and `src/test/{java,kotlin}` directories for best-effort Java/Kotlin missing-import checks, without compiler/classpath awareness.
+- `docs-code-mismatch` now checks Java/Kotlin backtick-quoted FQCN-shaped symbol claims and static Gradle/Maven command/feature claims against scanned JVM metadata, while keeping Android validation as planned/out-of-scope.
 
-The implementation does not perform TypeScript Program semantic analysis, type checking, full module resolution, `tsconfig` path alias resolution, coverage analysis, clone detection, runtime reachability analysis, Python runtime execution, Python dependency resolution, or target-file modification.
+The implementation does not perform TypeScript Program semantic analysis, type checking, full module resolution, `tsconfig` path alias resolution, coverage analysis, clone detection, runtime reachability analysis, Python runtime execution, Python dependency resolution, Java/Kotlin compiler parsing, Java/Kotlin type/classpath resolution, Gradle/Maven execution, target-project test execution, JVM dependency freshness checks, Android validation, or target-file modification.
 
 ## Current commands
 
@@ -91,9 +104,9 @@ The following remain planned, not implemented:
 - the `quality` code-quality detector family and audit type
 - project-wide default audit behavior combining multiple audit types (`project`/`all` audit types)
 - cross-type issue deduplication or release-readiness aggregation across audit families
-- Java/Kotlin source-facts analyzer support in `v0.3.3`
-- cross-language stability and fixture coverage in `v0.3.4`
+- cross-language stability and broader mixed-language fixture hardening in `v0.3.4`
 - Android automated security validation in `v0.4.0` through `v0.4.1`, and an Android-specific extension of the security audit adapter in optional `v0.4.2`
+- JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
 - warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins
@@ -112,4 +125,4 @@ The following remain planned, not implemented:
 
 ## Next planned work
 
-The current published npm baseline is `v0.3.2`, which added Python code-rot support and a first security-validation audit adapter. Java/Kotlin and cross-language stability remain planned for `v0.3.3` through `v0.3.4`. Android automated security validation follows in `v0.4.0` through `v0.4.1`, with an Android-specific extension of the security audit adapter as optional `v0.4.2` work. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.
+The current published npm baseline is `v0.3.2`, which added Python code-rot support and a first security-validation audit adapter. The checked-out `v0.3.3` implementation adds Java/Kotlin code-rot support and is now release-prepared with package metadata `0.3.3`, but it is still not published. Cross-language stability follows in `v0.3.4`. Android automated security validation follows in `v0.4.0` through `v0.4.1`, with an Android-specific extension of the security audit adapter as optional `v0.4.2` work. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.

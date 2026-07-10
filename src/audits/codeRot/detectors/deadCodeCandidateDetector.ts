@@ -8,6 +8,7 @@ import { readBoundedFileText } from "../utils/boundedRead.js";
 import { baseNameNoExt, isGenericOrTestPrefixedDeclarationName } from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 import { collectRelativeImportBasenames, getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
+import { isJvmLifecycleOrConventionalDeclarationName, jvmImportSimpleName } from "../utils/jvmSourceFactsUtils.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 4 — dead-code candidate detector.
@@ -66,6 +67,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
 
     if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
       issues.push(...findPossiblyUnreferencedPythonDeclarations(ctx));
+      issues.push(...findPossiblyUnreferencedJvmDeclarations(ctx));
     }
 
     return deduplicateIssuesById(issues);
@@ -343,6 +345,98 @@ function findPossiblyUnreferencedPythonDeclarations(ctx: AuditDetectorContext): 
             {
               kind: "reference",
               message: `Source facts: the Python analyzer parsed this file and found no other scanned Python file importing the name "${decl.name}". Static-analysis limitation -- confidence reduced because this scan cannot see dynamic imports or usage outside the scanned file set.`,
+              filePath: facts.relativePath,
+              source: DETECTOR_ID,
+              confidence: "low",
+            },
+          ],
+          affectedFiles: [facts.relativePath],
+        })
+      );
+    }
+  }
+  return issues;
+}
+
+// v0.3.3 Batch 2 -- conservative, declaration-level Java/Kotlin dead-code
+// candidate check. Same spirit and lowest severity/confidence tier as
+// findPossiblyUnreferencedPythonDeclarations() above, adapted for the two
+// key differences in what Java/Kotlin source facts can safely support:
+//
+//   - Method/constructor declarations (DeclarationFactKind "method") are
+//     EXCLUDED ENTIRELY, for both languages. There is no call-tracking
+//     evidence in this project's source-facts model for any language
+//     (`references` stays empty everywhere -- see javaAnalyzer.ts's and
+//     kotlinAnalyzer.ts's own header comments), so a method-level check
+//     would have zero real evidence behind it and would flag nearly every
+//     method with equal (lack of) signal -- pure noise. This mirrors the
+//     existing Python check's own "methods are excluded entirely" rule
+//     exactly (see above), just extended to two more languages. This also
+//     conservatively covers Java constructors without needing a dedicated
+//     constructor detector, since javaAnalyzer.ts represents constructors
+//     as kind "method" too.
+//   - Kotlin top-level `fun` declarations (kind "function") ARE
+//     considered, the direct analogue of Python's module-level `def` --
+//     but Java has no equivalent (every Java method lives inside a
+//     class/interface/enum), so only class/interface/enum kinds are
+//     considered for Java.
+//
+// `exported` already folds Java's public/protected/private/package-private
+// and Kotlin's public/internal/protected/private visibility into a single
+// boolean (see both analyzers' "Visibility mapping" header comments) --
+// exported (public) declarations are skipped entirely here, since a public
+// API is expected to be used from outside the scanned file set and this
+// scan has no way to see that.
+function findPossiblyUnreferencedJvmDeclarations(ctx: AuditDetectorContext): AuditIssue[] {
+  if (!ctx.sourceFacts) return [];
+  const index = indexSourceFactsByPath(ctx.sourceFacts);
+
+  // Cross-file "this simple name was imported somewhere" signal, combined
+  // across Java and Kotlin since either language can import the other in a
+  // mixed JVM project -- the strongest signal this conservative scan can
+  // offer, same role as Python's importedNamesAcrossProject above.
+  const importedSimpleNamesAcrossProject = new Set<string>();
+  for (const facts of index.values()) {
+    if ((facts.language !== "java" && facts.language !== "kotlin") || facts.parseStatus !== "parsed") continue;
+    for (const imp of facts.imports) {
+      importedSimpleNamesAcrossProject.add(jvmImportSimpleName(imp.source));
+    }
+  }
+
+  const issues: AuditIssue[] = [];
+  for (const facts of index.values()) {
+    if (facts.language !== "java" && facts.language !== "kotlin") continue;
+    if (facts.role !== "source" || facts.parseStatus !== "parsed") continue;
+
+    for (const decl of facts.declarations) {
+      if (decl.kind === "method") continue; // methods/constructors -- see header comment
+      if (facts.language === "java" && decl.kind === "function") continue; // never produced by javaAnalyzer.ts, defensive
+      if (decl.exported) continue; // public (Java) / public-by-default-or-explicit (Kotlin)
+      if (isJvmLifecycleOrConventionalDeclarationName(decl.name)) continue;
+      if (importedSimpleNamesAcrossProject.has(decl.name)) continue;
+
+      const languageLabel = facts.language === "java" ? "Java" : "Kotlin";
+      issues.push(
+        makeCodeRotIssue({
+          auditType: "code-rot",
+          detectorId: DETECTOR_ID,
+          idCues: [`unreferenced-${facts.language}-declaration`, facts.relativePath, decl.kind, decl.name],
+          title: `${languageLabel} ${decl.kind} "${decl.name}" in "${facts.relativePath}" has no detected cross-file import (weak signal)`,
+          description: `"${decl.name}" (${decl.kind}) is declared in "${facts.relativePath}" and is not exported/public, and does not appear as an imported simple name in any other scanned Java/Kotlin file. This is a deterministic static source-facts signal from a conservative, non-semantic scan -- no compiler/classpath analysis was performed, and no Gradle/Maven execution was performed, so this cannot see reflection-based access, dependency-injection wiring, framework/plugin discovery, or usage from outside the scanned project. It may indicate a candidate for removal but is not proof. Confirm manually before removing.`,
+          severity: "info",
+          confidence: "low",
+          falsePositiveRisk: "high",
+          category: "dead-code-candidate",
+          recommendedAction: "Confirm the declaration is genuinely unused before removing it.",
+          suggestedFixStrategy: `Remove "${decl.name}" from "${facts.relativePath}" if confirmed unused, or reference it from another module.`,
+          validationCommands: ["npm run audit -- --types code-rot --include cli"],
+          releaseBlocking: false,
+          implementationBlocking: false,
+          autoFixEligible: false,
+          evidence: [
+            {
+              kind: "reference",
+              message: `Source facts: the ${languageLabel} analyzer parsed this file and found no other scanned Java/Kotlin file importing the simple name "${decl.name}". Static-analysis limitation -- confidence reduced because this scan cannot see reflection/DI usage, framework discovery, or usage outside the scanned file set, and no compiler/classpath analysis was performed.`,
               filePath: facts.relativePath,
               source: DETECTOR_ID,
               confidence: "low",

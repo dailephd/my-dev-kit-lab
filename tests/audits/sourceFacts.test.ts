@@ -328,17 +328,26 @@ describe("collectSourceFacts — with the real DEFAULT_LANGUAGE_ANALYZER_REGISTR
     }
   });
 
-  it("still produces file-level-only fallback facts for Java/Kotlin", async () => {
+  // v0.3.3 Batch 1 -- Java and Kotlin are now parsed by the real default
+  // registry (see javaAnalyzer.ts/kotlinAnalyzer.ts/languageAnalyzerRegistry.ts)
+  // instead of falling back to file-level-only. This is the T9
+  // "source-facts collection integration" proof: the real
+  // collectSourceFacts() -> real DEFAULT_LANGUAGE_ANALYZER_REGISTRY path
+  // actually invokes the Java/Kotlin analyzers, not just a synthetic unit
+  // test of each analyzer in isolation.
+  it("parses Java and Kotlin files by default via the real registry", async () => {
     const root = buildFixtureProject();
     try {
       const inventory = scanProjectInventory(root);
       const snapshot = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
       const java = snapshot.files.find((f) => f.relativePath === "src/Main.java");
       const kt = snapshot.files.find((f) => f.relativePath === "src/Main.kt");
-      for (const entry of [java, kt]) {
-        expect(entry?.parseStatus).toBe("file-level-only");
-        expect(entry?.analyzerId).toBeNull();
-      }
+      expect(java?.parseStatus).toBe("parsed");
+      expect(java?.analyzerId).toBe("java-analyzer");
+      expect(java?.declarations.some((d) => d.name === "Main" && d.kind === "class")).toBe(true);
+      expect(kt?.parseStatus).toBe("parsed");
+      expect(kt?.analyzerId).toBe("kotlin-analyzer");
+      expect(kt?.declarations.some((d) => d.name === "main" && d.kind === "function")).toBe(true);
     } finally {
       cleanup(root);
     }

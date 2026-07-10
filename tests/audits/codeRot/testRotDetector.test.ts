@@ -323,6 +323,239 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
   });
 });
 
+describe("TEST_ROT_DETECTOR — Java test/source mapping (v0.3.3 Batch 2)", () => {
+  it("T10: does not flag a valid Java test importing an existing source class (src/test/java -> src/main/java)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/java/com/example/Foo.java", "package com.example;\n\npublic class Foo {\n}\n");
+      writeFile(
+        root,
+        "src/test/java/com/example/FooTest.java",
+        "package com.example;\n\nimport com.example.Foo;\n\nclass FooTest {\n}\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T11: flags a Java test importing a missing local class as a candidate, with path/import evidence and conservative wording", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/test/java/com/example/FooTest.java",
+        "package com.example;\n\nimport com.example.MissingThing;\n\nclass FooTest {\n}\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issue = issues.find((i) => i.title.includes("may not exist"));
+      expect(issue).toBeDefined();
+      expect(issue?.title).toContain("com.example.MissingThing");
+      expect(issue?.severity).toBe("low");
+      expect(issue?.confidence).toBe("low");
+      expect(issue?.evidence.some((e) => e.excerpt === "com.example.MissingThing")).toBe(true);
+      // Conservative wording -- this is a candidate, not a proven-broken test.
+      expect(issue?.description.toLowerCase()).not.toContain("broken test");
+      expect(issue?.description.toLowerCase()).not.toContain("missing dependency");
+      expect(issue?.description).toContain("no compiler/classpath analysis was performed");
+      expect(issue?.description).toContain("no Gradle/Maven execution was performed");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a Java static import resolving to an existing local class", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/java/com/example/Foo.java", "package com.example;\n\npublic class Foo {\n    public static int bar() { return 1; }\n}\n");
+      writeFile(
+        root,
+        "src/test/java/com/example/FooTest.java",
+        "package com.example;\n\nimport static com.example.Foo.bar;\n\nclass FooTest {\n}\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+describe("TEST_ROT_DETECTOR — Kotlin test/source mapping (v0.3.3 Batch 2)", () => {
+  it("T12: does not flag a valid Kotlin test importing an existing source class (src/test/kotlin -> src/main/kotlin)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/kotlin/com/example/Foo.kt", "package com.example\n\nclass Foo\n");
+      writeFile(root, "src/test/kotlin/com/example/FooSpec.kt", "package com.example\n\nimport com.example.Foo\n\nclass FooSpec\n");
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T13: flags a Kotlin test importing a missing local class/function as a candidate, with path/import evidence and conservative wording", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/test/kotlin/com/example/FooSpec.kt",
+        "package com.example\n\nimport com.example.MissingThing\n\nclass FooSpec\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issue = issues.find((i) => i.title.includes("may not exist"));
+      expect(issue).toBeDefined();
+      expect(issue?.title).toContain("com.example.MissingThing");
+      expect(issue?.severity).toBe("low");
+      expect(issue?.confidence).toBe("low");
+      expect(issue?.description.toLowerCase()).not.toContain("broken test");
+      expect(issue?.description.toLowerCase()).not.toContain("missing dependency");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a Kotlin test importing an aliased existing local class", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/kotlin/com/example/Foo.kt", "package com.example\n\nclass Foo\n");
+      writeFile(
+        root,
+        "src/test/kotlin/com/example/FooSpec.kt",
+        "package com.example\n\nimport com.example.Foo as Bar\n\nclass FooSpec\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a Kotlin test importing an existing Java class in a mixed JVM project", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/java/com/example/JavaHelper.java", "package com.example;\n\npublic class JavaHelper {\n}\n");
+      writeFile(
+        root,
+        "src/test/kotlin/com/example/FooSpec.kt",
+        "package com.example\n\nimport com.example.JavaHelper\n\nclass FooSpec\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+describe("TEST_ROT_DETECTOR — JVM standard-library/third-party import suppression (T14)", () => {
+  it("does not flag Java standard-library and common test-framework imports", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/test/java/com/example/FooTest.java",
+        [
+          "package com.example;",
+          "",
+          "import java.util.List;",
+          "import javax.annotation.Nullable;",
+          "import jakarta.inject.Inject;",
+          "import org.junit.Test;",
+          "import org.assertj.core.api.Assertions;",
+          "import org.mockito.Mockito;",
+          "import org.hamcrest.Matchers;",
+          "",
+          "class FooTest {",
+          "}",
+        ].join("\n") + "\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag Kotlin standard-library and common test-framework imports", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/test/kotlin/com/example/FooSpec.kt",
+        [
+          "package com.example",
+          "",
+          "import kotlin.collections.List",
+          "import kotlinx.coroutines.runBlocking",
+          "import java.util.UUID",
+          "import io.kotest.matchers.shouldBe",
+          "",
+          "class FooSpec",
+        ].join("\n") + "\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not flag a wildcard JVM import", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/test/java/com/example/FooTest.java",
+        "package com.example;\n\nimport com.example.other.*;\n\nclass FooTest {\n}\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not double-report a JVM test-rot finding across repeated deduplication", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/test/java/com/example/FooTest.java",
+        "package com.example;\n\nimport com.example.MissingThing;\n\nclass FooTest {\n}\n"
+      );
+      const ctx = await buildContextWithSourceFacts(root);
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const matches = issues.filter((i) => i.title.includes("com.example.MissingThing"));
+      expect(matches).toHaveLength(1);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
   it("produces no .only findings against this repo's own current test suite", async () => {
     const issues = await run(process.cwd());

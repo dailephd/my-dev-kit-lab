@@ -471,6 +471,148 @@ describe("scanProjectInventory — Python file/role classification (Batch 1)", (
   });
 });
 
+describe("scanProjectInventory — Java/Kotlin file/role classification (Batch 1)", () => {
+  it("classifies .java and .kt source files under their normalized language and role source (T1)", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/main/java/com/example/Widget.java", "package com.example;\npublic class Widget {}\n");
+      writeFile(root, "src/main/kotlin/com/example/Helper.kt", "package com.example\nclass Helper\n");
+      const inventory = scanProjectInventory(root);
+      const javaEntry = inventory.files.find((f) => f.relativePath === "src/main/java/com/example/Widget.java");
+      const kotlinEntry = inventory.files.find((f) => f.relativePath === "src/main/kotlin/com/example/Helper.kt");
+
+      expect(javaEntry?.language).toBe("java");
+      expect(javaEntry?.category).toBe("source");
+      expect(javaEntry?.role).toBe("source");
+
+      expect(kotlinEntry?.language).toBe("kotlin");
+      expect(kotlinEntry?.category).toBe("source");
+      expect(kotlinEntry?.role).toBe("source");
+
+      expect(inventory.filesByLanguage.java).toBeGreaterThan(0);
+      expect(inventory.filesByLanguage.kotlin).toBeGreaterThan(0);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not disturb existing TypeScript/JavaScript/Python classification alongside Java/Kotlin files (T1)", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/Widget.java", "public class Widget {}\n");
+      writeFile(root, "src/Helper.kt", "class Helper\n");
+      writeFile(root, "src/index.ts", "export const x = 1;\n");
+      writeFile(root, "src/lib.py", "x = 1\n");
+      const inventory = scanProjectInventory(root);
+      expect(inventory.filesByLanguage.typescript).toBeGreaterThan(0);
+      expect(inventory.filesByLanguage.python).toBeGreaterThan(0);
+      expect(inventory.filesByLanguage.java).toBeGreaterThan(0);
+      expect(inventory.filesByLanguage.kotlin).toBeGreaterThan(0);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("classifies conventional Gradle/Maven test source-set files as role test (T2)", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/test/java/com/example/FooTest.java", "public class FooTest {}\n");
+      writeFile(root, "src/test/kotlin/com/example/FooSpec.kt", "class FooSpec\n");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+      expect(roleOf("src/test/java/com/example/FooTest.java")).toBe("test");
+      expect(roleOf("src/test/kotlin/com/example/FooSpec.kt")).toBe("test");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("classifies test/**/*.java, test/**/*.kt, and *Test(s)/*Spec naming conventions as role test (T2)", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "test/FooTest.java", "public class FooTest {}\n");
+      writeFile(root, "tests/FooTests.kt", "class FooTests\n");
+      writeFile(root, "src/BarTest.java", "public class BarTest {}\n");
+      writeFile(root, "src/BarTests.kt", "class BarTests\n");
+      writeFile(root, "src/BarSpec.kt", "class BarSpec\n");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+      expect(roleOf("test/FooTest.java")).toBe("test");
+      expect(roleOf("tests/FooTests.kt")).toBe("test");
+      expect(roleOf("src/BarTest.java")).toBe("test");
+      expect(roleOf("src/BarTests.kt")).toBe("test");
+      expect(roleOf("src/BarSpec.kt")).toBe("test");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("keeps a normal (non-test-named) source file as role source (T2)", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/main/java/com/example/Widget.java", "public class Widget {}\n");
+      writeFile(root, "src/main/kotlin/com/example/Helper.kt", "class Helper\n");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+      expect(roleOf("src/main/java/com/example/Widget.java")).toBe("source");
+      expect(roleOf("src/main/kotlin/com/example/Helper.kt")).toBe("source");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("classifies recognized JVM build/wrapper metadata filenames as role config, not source", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "build.gradle", "plugins { id 'java' }\n");
+      writeFile(root, "build.gradle.kts", 'plugins {\n    kotlin("jvm")\n}\n');
+      writeFile(root, "settings.gradle", "rootProject.name = 'fixture'\n");
+      writeFile(root, "settings.gradle.kts", 'rootProject.name = "fixture"\n');
+      writeFile(root, "pom.xml", "<project></project>\n");
+      writeFile(root, "gradle.properties", "org.gradle.jvmargs=-Xmx1g\n");
+      writeFile(root, "gradlew", "#!/bin/sh\n");
+      writeFile(root, "gradlew.bat", "@echo off\n");
+      const inventory = scanProjectInventory(root);
+      const roleOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.role;
+      const categoryOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.category;
+
+      for (const name of [
+        "build.gradle",
+        "build.gradle.kts",
+        "settings.gradle",
+        "settings.gradle.kts",
+        "pom.xml",
+        "gradle.properties",
+        "gradlew",
+        "gradlew.bat",
+      ]) {
+        expect(roleOf(name)).toBe("config");
+        expect(categoryOf(name)).toBe("config");
+      }
+      // In particular, the two .kts build scripts must never be classified
+      // as plain Kotlin source and fed to the Kotlin analyzer.
+      expect(categoryOf("build.gradle.kts")).not.toBe("source");
+      expect(categoryOf("settings.gradle.kts")).not.toBe("source");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("does not overclassify an arbitrary .xml/.properties file as JVM project metadata", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "config/data.xml", "<data></data>\n");
+      writeFile(root, "app.properties", "key=value\n");
+      const inventory = scanProjectInventory(root);
+      const categoryOf = (name: string) => inventory.files.find((f) => f.relativePath === name)?.category;
+      expect(categoryOf("config/data.xml")).not.toBe("config");
+      expect(categoryOf("app.properties")).not.toBe("config");
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("scanProjectInventory — determinism", () => {
   it("returns files in stable, sorted order across repeated scans", () => {
     const root = buildFixtureProject();

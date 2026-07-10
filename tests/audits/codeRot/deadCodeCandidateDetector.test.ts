@@ -371,6 +371,222 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — Python declaration candidates (Batch 
   });
 });
 
+describe("DEAD_CODE_CANDIDATE_DETECTOR — Java declaration candidates (v0.3.3 Batch 2)", () => {
+  it("T2: flags an unreferenced package-private Java class as a low-confidence candidate, never as a proof-worded claim", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/java/com/example/Unreferenced.java", "package com.example;\n\nclass Unreferenced {\n}\n");
+      const issues = await runWithSourceFacts(root);
+      const issue = issues.find((i) => i.title.includes('"Unreferenced"'));
+      expect(issue).toBeDefined();
+      expect(issue?.severity).toBe("info");
+      expect(issue?.confidence).toBe("low");
+      expect(issue?.falsePositiveRisk).toBe("high");
+      expect(issue?.title.toLowerCase()).not.toContain("is unused");
+      expect(issue?.title.toLowerCase()).not.toContain("is dead");
+      expect(issue?.description.toLowerCase()).not.toContain("definitely unreferenced");
+      expect(issue?.description).toContain("no compiler/classpath analysis was performed");
+      expect(issue?.description).toContain("no Gradle/Maven execution was performed");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag a public Java class", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/java/com/example/PublicThing.java", "package com.example;\n\npublic class PublicThing {\n}\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"PublicThing"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag a Java constructor (represented as kind 'method', excluded entirely)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/main/java/com/example/Widget.java",
+        "package com.example;\n\nclass Widget {\n    Widget(String name) {\n    }\n}\n"
+      );
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"Widget"') && i.title.includes("method"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag common lifecycle/Object-override/bean-accessor names (main, toString, equals, hashCode, get*, set*, is*)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/main/java/com/example/Widget.java",
+        [
+          "package com.example;",
+          "",
+          "class Widget {",
+          "    void main() {}",
+          "    String toString() { return \"\"; }",
+          "    boolean equals(Object o) { return false; }",
+          "    int hashCode() { return 0; }",
+          "    String getName() { return null; }",
+          "    void setName(String n) {}",
+          "    boolean isReady() { return false; }",
+          "}",
+        ].join("\n") + "\n"
+      );
+      const issues = await runWithSourceFacts(root);
+      // All of these are kind "method" and therefore already excluded
+      // entirely, but this test protects the intent directly (never
+      // flagged by name, regardless of kind-based exclusion changing).
+      for (const name of ["main", "toString", "equals", "hashCode", "getName", "setName", "isReady"]) {
+        expect(issues.some((i) => i.title.includes(`"${name}"`))).toBe(false);
+      }
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag a test file's Java declarations", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/test/java/com/example/HelperTest.java", "package com.example;\n\nclass HelperInTest {\n}\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"HelperInTest"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T3: does not flag a declaration referenced by an import elsewhere in the project", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/java/com/example/Referenced.java", "package com.example;\n\nclass Referenced {\n}\n");
+      writeFile(root, "src/main/java/com/example/Consumer.java", "package com.example;\n\nimport com.example.Referenced;\n\nclass Consumer {\n}\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"Referenced"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
+describe("DEAD_CODE_CANDIDATE_DETECTOR — Kotlin declaration candidates (v0.3.3 Batch 2)", () => {
+  it("T4: flags an unreferenced internal top-level Kotlin function as a low-confidence candidate, never as a proof-worded claim", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/kotlin/com/example/Widget.kt", "package com.example\n\ninternal fun unreferencedFn() {\n}\n");
+      const issues = await runWithSourceFacts(root);
+      const issue = issues.find((i) => i.title.includes('"unreferencedFn"'));
+      expect(issue).toBeDefined();
+      expect(issue?.severity).toBe("info");
+      expect(issue?.confidence).toBe("low");
+      expect(issue?.falsePositiveRisk).toBe("high");
+      expect(issue?.title.toLowerCase()).not.toContain("is unused");
+      expect(issue?.title.toLowerCase()).not.toContain("is dead");
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T4: flags an unreferenced private top-level Kotlin class as a low-confidence candidate", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/kotlin/com/example/Widget.kt", "package com.example\n\nprivate class UnreferencedThing\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"UnreferencedThing"'))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T5: does not flag a public-by-default Kotlin class", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/kotlin/com/example/PublicThing.kt", "package com.example\n\nclass PublicThing\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"PublicThing"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T5: does not flag data-class generated-like member names (copy, component1)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/main/kotlin/com/example/Point.kt",
+        ["package com.example", "", "class Point {", "    fun copy(): Point { return this }", "    fun component1(): Int { return 0 }", "}"].join(
+          "\n"
+        ) + "\n"
+      );
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"copy"'))).toBe(false);
+      expect(issues.some((i) => i.title.includes('"component1"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T5: does not flag common lifecycle names (main, test*) or a test file's declarations", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/kotlin/com/example/Widget.kt", "package com.example\n\ninternal fun main() {\n}\n\ninternal fun testHelper() {\n}\n");
+      writeFile(root, "src/test/kotlin/com/example/WidgetSpec.kt", "package com.example\n\ninternal class HelperInTest\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"main"'))).toBe(false);
+      expect(issues.some((i) => i.title.includes('"testHelper"'))).toBe(false);
+      expect(issues.some((i) => i.title.includes('"HelperInTest"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T5: does not flag a Kotlin member function (conservative -- no method-level dead-code evidence for any language)", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(
+        root,
+        "src/main/kotlin/com/example/Widget.kt",
+        "package com.example\n\nclass Widget {\n    internal fun unreferencedMember() {\n    }\n}\n"
+      );
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"unreferencedMember"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("T5: does not flag a declaration referenced by an import elsewhere in the project", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/main/kotlin/com/example/Referenced.kt", "package com.example\n\ninternal class Referenced\n");
+      writeFile(root, "src/main/kotlin/com/example/Consumer.kt", "package com.example\n\nimport com.example.Referenced\n\nclass Consumer\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some((i) => i.title.includes('"Referenced"'))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+});
+
 describe("DEAD_CODE_CANDIDATE_DETECTOR — real self-scan regression guard", () => {
   it("produces no medium+ severity findings against this repo's own current state", async () => {
     const issues = await run(process.cwd());

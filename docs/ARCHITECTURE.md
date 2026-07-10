@@ -2,7 +2,7 @@
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types, in the current published `v0.3.2` baseline. `v0.3.0` introduced the original code-rot-only audit framework; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer; `v0.3.2` adds a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`).
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types, in the current published `v0.3.2` baseline. `v0.3.0` introduced the original code-rot-only audit framework; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer; `v0.3.2` adds a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`). The checked-out, release-prepared `v0.3.3` implementation extends that same audit substrate with Java/Kotlin analyzers, JVM metadata collection, and Java/Kotlin/JVM-aware detector support while package metadata is `0.3.3`.
 
 ### Module map
 
@@ -21,10 +21,10 @@ src/
   agents/                                    fake-agent, Codex, and Claude adapters
   prompts/                                   prompt variant generation and prompt complexity metrics
   audits/                                    generic audit framework (code-rot and security audit types implemented)
-    core/                                    target resolution, config, registry, inventory, source-of-truth, source facts, language analyzer registry, Python project metadata, exit-code policy, runner
+    core/                                    target resolution, config, registry, inventory, source-of-truth, source facts, language analyzer registry, Python + JVM project metadata, exit-code policy, runner
     codeRot/                                 code-rot audit type
-      detectors/                             10 code-rot detector families (Python- and TypeScript/JavaScript-aware where source facts are available)
-      utils/                                 shared detector helpers (bounded reads, doc-claim/command-reference parsing, text-line utilities)
+      detectors/                             10 code-rot detector families (TS/JS-, Python-, and Java/Kotlin-aware where source facts are available)
+      utils/                                 shared detector helpers (bounded reads, doc-claim/command-reference parsing, JVM source-facts helpers, text-line utilities)
     security/                                security audit adapter: adapts securityValidation results into audit issues/report summary (v0.3.2)
     report/                                  audit report model, JSON/text renderers, writer, text sanitizer
   report/
@@ -162,12 +162,14 @@ flowchart LR
   Command[npm run audit] --> Config[Parse args / normalize config]
   Config --> Target[Resolve self or external target]
   Target --> Inventory[Project inventory scanner]
-  Inventory --> Facts[Source facts collector: TS/JS + Python analyzers]
+  Inventory --> Facts[Source facts collector: TS/JS + Python + Java + Kotlin analyzers]
   Target --> SoT[Source-of-truth collector]
   Target --> PyMeta[Python project metadata collector]
+  Target --> JvmMeta[JVM project metadata collector]
   Inventory --> Registry[Detector registry: 10 code-rot detectors]
   Facts --> Registry
   SoT --> Registry
+  JvmMeta --> Registry
   Registry --> Runner[auditRunner]
   Runner -- "--types includes security" --> SecAdapter[audits/security adapter]
   SecAdapter --> SecValidation[securityValidation.runSecurityValidation]
@@ -185,8 +187,9 @@ flowchart LR
 - `projectInventory.ts` — project inventory scanner (files by category/extension, normalized language, file role, excluded directories)
 - `sourceOfTruth.ts` — source-of-truth collector (package metadata, scripts, docs, CI, build tooling, tests, security, experiment truth)
 - `sourceFacts.ts` / `collectSourceFacts.ts` — source facts model and collector for source/test files
-- `languageAnalyzerRegistry.ts` / `typescriptJavaScriptAnalyzer.ts` / `pythonAnalyzer.ts` — language analyzer registry with the TypeScript/JavaScript analyzer registered for `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, and a dependency-free Python analyzer registered for `.py`
+- `languageAnalyzerRegistry.ts` / `typescriptJavaScriptAnalyzer.ts` / `pythonAnalyzer.ts` / `javaAnalyzer.ts` / `kotlinAnalyzer.ts` — language analyzer registry with TypeScript/JavaScript, Python, Java, and Kotlin analyzers registered for their supported extensions
 - `pythonProjectMetadata.ts` — presence/simple-text-extraction collector for Python project/config files (`pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `tox.ini`, `pytest.ini`); never executes Python tooling
+- `jvmProjectMetadata.ts` — static Gradle/Maven/wrapper/source-set presence detection and best-effort project-name extraction; never executes Gradle, Maven, compilers, or target tests
 - `auditRegistry.ts` — `DEFAULT_AUDIT_REGISTRY`, detector contract, and `selectDetectors()` filtering by type/include area
 - `auditRunner.ts` — executes selected detectors against the collected inventory/source-of-truth
 - `auditExitCode.ts` — exit-code policy: `0` no issue met the `--fail-on` threshold, `1` at least one issue met or exceeded it, `2` invalid config/target or a runtime failure (never returned by the pure exit-code calculator itself; the CLI script's own try/catch blocks return it directly)
@@ -223,11 +226,26 @@ The code-rot integrations use source facts as additional conservative evidence o
 
 ### v0.3.2 audit substrate (published)
 
-`v0.3.2` adds a Python analyzer alongside the `v0.3.1` TypeScript/JavaScript analyzer. It is dependency-free and regex/line-based (no Python runtime, no `ast` module, no third-party parser): it extracts `import`/`from...import` statements (including relative dotted imports), `__all__`, and module-level/class-body `def`/`class` declarations. It leaves `references` empty (no call/identifier tracking) to avoid overclaiming. `pythonProjectMetadata.ts` separately collects presence/simple-text-extraction metadata from common Python project files. Java and Kotlin remain inventory-classified but fallback-only; no analyzer is registered for them.
+`v0.3.2` adds a Python analyzer alongside the `v0.3.1` TypeScript/JavaScript analyzer. It is dependency-free and regex/line-based (no Python runtime, no `ast` module, no third-party parser): it extracts `import`/`from...import` statements (including relative dotted imports), `__all__`, and module-level/class-body `def`/`class` declarations. It leaves `references` empty (no call/identifier tracking) to avoid overclaiming. `pythonProjectMetadata.ts` separately collects presence/simple-text-extraction metadata from common Python project files.
 
 The same source-facts-aware `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` detectors extended in `v0.3.1` for TypeScript/JavaScript now also consume Python source facts (a Python-specific relative-import resolver for `test-rot`, and an analyzer-id-scoped grouping key for `duplicate-implementation-candidate` so the pre-existing TypeScript/JavaScript grouping is unaffected). Python-derived findings use the same conservative "candidate"/"may indicate" wording as the rest of the code-rot family.
 
 `v0.3.2` also adds the security-validation audit adapter described above (`src/audits/security/`), making `security` the second implemented audit type alongside `code-rot`.
+
+### v0.3.3 audit substrate (release-prepared, not yet published)
+
+The checked-out `v0.3.3` implementation adds Java and Kotlin analyzers alongside the `v0.3.1` TypeScript/JavaScript analyzer and the `v0.3.2` Python analyzer. Both JVM analyzers are conservative, dependency-free scanners: they record package/import/declaration facts with regex and brace-depth tracking, not compiler or AST-backed semantic analysis. Java supports `.java`; Kotlin supports `.kt` and `.kts`.
+
+`jvmProjectMetadata.ts` separately collects static JVM project metadata: Gradle build/settings/wrapper presence, Maven `pom.xml` presence, conventional `src/main|test/{java,kotlin}` source-set directories, and a best-effort project name. This is presence/simple-text-extraction only. It never executes Gradle, Maven, Java, Kotlin, Android tooling, or target-project tests.
+
+The existing code-rot detectors are extended conservatively rather than replaced:
+
+- `dead-code-candidate` adds Java/Kotlin top-level declaration checks using import simple-name evidence and JVM naming/lifecycle exclusions; it does not attempt method- or constructor-level dead-code detection.
+- `duplicate-implementation-candidate` adds Java/Kotlin duplicate declaration candidate checks while keeping duplicate groups analyzer-scoped, so Java, Kotlin, Python, and TypeScript/JavaScript findings do not merge into one cross-language group.
+- `test-rot` adds best-effort Java/Kotlin missing-import checks using analyzer-recorded JVM imports plus recognized source/test-set directories, without compiler/classpath resolution.
+- `docs-code-mismatch` adds Java/Kotlin symbol-claim checks and static Gradle/Maven command/feature-claim checks against JVM metadata. Android remains a planned boundary only through this detector; no Android validation layer exists here.
+
+No audit command changed and no report schema field was added for `v0.3.3`. `pythonProjectMetadata` and `securitySummary` remain the additive top-level fields from `v0.3.2`; JVM metadata is detector input, not a new report field.
 
 ## Shared report and evidence infrastructure
 
@@ -238,6 +256,7 @@ The same source-facts-aware `dead-code-candidate`, `duplicate-implementation-can
 The following layers are planned and must not be treated as current published or checked-out behavior:
 
 - completion of the `v0.3.x` language-aware code-rot track for Java, Kotlin, and cross-language stability
+- JVM package/environment rot or Gradle/Maven dependency freshness checks
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - Android/mobile validation profiles for `v0.4.x`
 - an Android-specific extension of the security audit adapter, planned as optional `v0.4.2` work, building on the general (non-Android) adapter already implemented in `v0.3.2`
@@ -268,6 +287,9 @@ Future audit and Android-validation work should reuse `src/audits/core`, `src/au
 | Language analyzer registry | `src/audits/core/languageAnalyzerRegistry.ts` |
 | TypeScript/JavaScript analyzer | `src/audits/core/typescriptJavaScriptAnalyzer.ts` |
 | Python analyzer | `src/audits/core/pythonAnalyzer.ts` |
+| Java analyzer | `src/audits/core/javaAnalyzer.ts` |
+| Kotlin analyzer | `src/audits/core/kotlinAnalyzer.ts` |
 | Python project metadata | `src/audits/core/pythonProjectMetadata.ts` |
+| JVM project metadata | `src/audits/core/jvmProjectMetadata.ts` |
 | Security audit adapter | `src/audits/security/securityAuditAdapter.ts` |
 | Security finding → audit issue mapping | `src/audits/security/mapSecurityFindingToAuditIssue.ts` |
