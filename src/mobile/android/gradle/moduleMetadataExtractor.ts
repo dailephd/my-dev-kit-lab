@@ -14,7 +14,10 @@ import type { AndroidGradleBuildTypeInfo, AndroidGradleLiteralBooleanState, Andr
 // commented-out assignment never becomes active metadata (ANDROID-B4-05).
 // ---------------------------------------------------------------------------
 
-function stripComments(text: string): string {
+// v0.4.1 Batch 4 — exported (was module-private) so the new signing-
+// configuration module can reuse the exact same comment-stripping/literal-
+// extraction/brace-matching technique instead of a second implementation.
+export function stripComments(text: string): string {
   // Replaces comment characters with spaces (not empty string) so any
   // surviving line/column-independent offsets are not shifted — this batch
   // does not track per-field locations, but keeping length stable is cheap
@@ -26,7 +29,7 @@ function stripComments(text: string): string {
 
 const STRING_OR_INT = `(?:'([^']*)'|"([^"]*)"|(-?\\d+))`;
 
-function extractLiteral(text: string, keyAlternatives: string[]): { value?: string; raw?: string } {
+export function extractLiteral(text: string, keyAlternatives: string[]): { value?: string; raw?: string } {
   const keyPattern = keyAlternatives.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   // Anchored to the start of a line (allowing leading indentation) so a key
   // name that merely appears as a word inside an unrelated string literal —
@@ -55,7 +58,7 @@ function extractLiteral(text: string, keyAlternatives: string[]): { value?: stri
 // bounded by brace-depth matching (not a full parser). Shared by
 // findNamedBlockEntries (names only) and extractNamedSubBlocks (v0.4.1
 // Batch 3 — names plus each entry's own block content).
-function findBlockBody(text: string, blockKeyword: string): string | undefined {
+export function findBlockBody(text: string, blockKeyword: string): string | undefined {
   const blockStart = text.search(new RegExp(`\\b${blockKeyword}\\s*\\{`));
   if (blockStart === -1) return undefined;
   const openBraceIndex = text.indexOf("{", blockStart);
@@ -64,7 +67,7 @@ function findBlockBody(text: string, blockKeyword: string): string | undefined {
 
 // Given the index of an opening `{`, returns the text between it and its
 // matching `}` (brace-depth bounded), or undefined if unterminated.
-function sliceBlockAt(text: string, openBraceIndex: number): string | undefined {
+export function sliceBlockAt(text: string, openBraceIndex: number): string | undefined {
   if (text[openBraceIndex] !== "{") return undefined;
   let depth = 0;
   for (let i = openBraceIndex; i < text.length; i++) {
@@ -103,7 +106,7 @@ function findNamedBlockEntries(text: string, blockKeyword: string): string[] {
 // minifyEnabled, etc.) can be extracted. Reuses the exact same bounded
 // brace-matching technique and the same two name-pattern forms — not a
 // second parser, just returning more of what was already being scanned.
-function extractNamedSubBlocks(text: string, blockKeyword: string): Array<{ name: string; content: string }> {
+export function extractNamedSubBlocks(text: string, blockKeyword: string): Array<{ name: string; content: string }> {
   const block = findBlockBody(text, blockKeyword);
   if (block === undefined) return [];
 
@@ -140,7 +143,7 @@ const BOOLEAN_TOKEN = `(true|false)`;
 // matches quoted-string/integer literals — Gradle boolean assignments like
 // `debuggable true` or `isMinifyEnabled = true` are bare tokens, not quoted).
 // Same anchoring/fallback strategy as extractLiteral for consistency.
-function extractBooleanLiteral(text: string, keyAlternatives: string[]): { value?: boolean; raw?: string } {
+export function extractBooleanLiteral(text: string, keyAlternatives: string[]): { value?: boolean; raw?: string } {
   const keyPattern = keyAlternatives.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   const literalPattern = new RegExp(`^[ \\t]*(?:${keyPattern})\\b\\s*[=(]?\\s*${BOOLEAN_TOKEN}\\)?`, "m");
   const literalMatch = text.match(literalPattern);
