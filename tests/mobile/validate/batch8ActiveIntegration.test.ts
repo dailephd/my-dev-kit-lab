@@ -68,7 +68,7 @@ describe("Batch 8 — active internal-check integration", () => {
   });
 
   it("does not run advanced Android checks for a non-Android target", async () => {
-    const nonAndroidRoot = fs.mkdtempSync(fs.realpathSync(os.tmpdir()));
+    const nonAndroidRoot = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "batch8-non-android-"));
     roots.push(nonAndroidRoot);
     fs.writeFileSync(path.join(nonAndroidRoot, "package.json"), "{}");
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: nonAndroidRoot });
