@@ -40,6 +40,16 @@ export type XmlElement = {
   attributes: XmlAttribute[];
   children: XmlElement[];
   location: XmlSourceLocation;
+  // v0.4.1 Batch 2 — direct text content of this element (concatenation of
+  // plain text and CDATA sections that are direct children, entity-decoded;
+  // excludes descendant elements' own text). Added additively because
+  // Network Security Config XML (<domain>example.com</domain>,
+  // <pin digest="SHA-256">base64==</pin>) is meaningful only through element
+  // text content, which this parser previously discarded entirely (manifest
+  // parsing never needed it). Empty string, never undefined, when an element
+  // has no text content — existing manifest-parsing consumers that don't
+  // read this field are unaffected.
+  textContent: string;
 };
 
 export type XmlParseWarning = { message: string; location: XmlSourceLocation };
@@ -129,6 +139,18 @@ class Scanner {
       throw new XmlSyntaxError(`Unterminated construct, expected "${literal}"`, this.loc());
     }
     this.expect(literal);
+  }
+
+  // Like skipUntil, but returns the consumed text before `literal` instead of
+  // discarding it. Used to capture CDATA section content as element text.
+  captureUntil(literal: string): string {
+    let captured = "";
+    while (!this.eof() && !this.startsWith(literal)) captured += this.advance();
+    if (this.eof()) {
+      throw new XmlSyntaxError(`Unterminated construct, expected "${literal}"`, this.loc());
+    }
+    this.expect(literal);
+    return captured;
   }
 }
 
@@ -277,14 +299,15 @@ function parseElement(scanner: Scanner, parentScope: NamespaceScope, warnings: X
 
   if (scanner.startsWith("/>")) {
     scanner.expect("/>");
-    return { tagName, prefix, localName, namespaceUri, attributes, children: [], location };
+    return { tagName, prefix, localName, namespaceUri, attributes, children: [], location, textContent: "" };
   }
 
   scanner.expect(">");
   const children: XmlElement[] = [];
+  const textParts: string[] = [];
 
   for (;;) {
-    skipTextAndMisc(scanner, warnings);
+    skipTextAndMisc(scanner, warnings, textParts);
     if (scanner.startsWith("</")) {
       scanner.expect("</");
       const closingName = readName(scanner);
@@ -307,17 +330,23 @@ function parseElement(scanner: Scanner, parentScope: NamespaceScope, warnings: X
     throw new XmlSyntaxError("Unexpected content while looking for a child element or closing tag", scanner.loc());
   }
 
-  return { tagName, prefix, localName, namespaceUri, attributes, children, location };
+  return { tagName, prefix, localName, namespaceUri, attributes, children, location, textContent: decodeXmlEntities(textParts.join("")) };
 }
 
-function skipTextAndMisc(scanner: Scanner, warnings: XmlParseWarning[]): void {
+// v0.4.1 Batch 2 — `textParts` accumulates direct text/CDATA content so
+// callers needing element text content (e.g. Network Security Config's
+// <domain>/<pin> elements) can read it via XmlElement.textContent. Comments,
+// processing instructions, and DOCTYPE are still skipped, never counted as
+// text — only true character data and CDATA sections are captured.
+function skipTextAndMisc(scanner: Scanner, warnings: XmlParseWarning[], textParts: string[]): void {
   for (;;) {
     if (scanner.startsWith("<!--")) {
       scanner.skipUntil("-->");
       continue;
     }
     if (scanner.startsWith("<![CDATA[")) {
-      scanner.skipUntil("]]>");
+      scanner.expect("<![CDATA[");
+      textParts.push(scanner.captureUntil("]]>"));
       continue;
     }
     if (scanner.startsWith("<?")) {
@@ -326,10 +355,7 @@ function skipTextAndMisc(scanner: Scanner, warnings: XmlParseWarning[]): void {
     }
     if (scanner.peek() === "<") break;
     if (scanner.eof()) break;
-    // Plain text content between elements — not meaningful for manifest
-    // structure, so it is discarded rather than stored.
-    scanner.advance();
-    continue;
+    textParts.push(scanner.advance());
   }
 }
 

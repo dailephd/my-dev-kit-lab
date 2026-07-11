@@ -249,6 +249,10 @@ export function parseAndroidManifestSource(xmlText: string, manifestPath: string
     parseWarnings.push(`Manifest declares ${applicationElements.length} <application> elements; only the first was used.`);
   }
 
+  const usesCleartextTrafficResult = applicationEl
+    ? parseBooleanAttr(applicationEl, "usesCleartextTraffic", parseWarnings, "<application>")
+    : undefined;
+
   const application = applicationEl
     ? {
         name: androidAttr(applicationEl, "name"),
@@ -258,8 +262,10 @@ export function parseAndroidManifestSource(xmlText: string, manifestPath: string
         permission: androidAttr(applicationEl, "permission"),
         allowBackup: parseBooleanAttr(applicationEl, "allowBackup", parseWarnings, "<application>").value,
         debuggable: parseBooleanAttr(applicationEl, "debuggable", parseWarnings, "<application>").value,
-        usesCleartextTraffic: parseBooleanAttr(applicationEl, "usesCleartextTraffic", parseWarnings, "<application>").value,
+        usesCleartextTraffic: usesCleartextTrafficResult?.value,
+        usesCleartextTrafficRaw: usesCleartextTrafficResult?.raw,
         networkSecurityConfigRef: androidAttr(applicationEl, "networkSecurityConfig"),
+        location: toLocation(applicationEl.location),
       }
     : {};
 

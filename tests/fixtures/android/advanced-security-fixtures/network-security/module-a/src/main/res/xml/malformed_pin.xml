@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config>
+        <domain>example.org</domain>
+        <pin-set expiration="not-a-date">
+            <pin>MISSING_DIGEST_ATTRIBUTE_FAKE_PIN=</pin>
+            <pin digest="SHA-1">UNSUPPORTED_DIGEST_FAKE_PIN=</pin>
+            <pin digest="SHA-256"></pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>

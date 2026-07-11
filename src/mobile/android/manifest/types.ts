@@ -101,7 +101,17 @@ export type AndroidManifestApplicationAttributes = {
   allowBackup?: boolean;
   debuggable?: boolean;
   usesCleartextTraffic?: boolean;
+  // v0.4.1 Batch 2 — preserves the literal android:usesCleartextTraffic text
+  // (undefined when the attribute is absent) so a malformed/unresolved value
+  // can be distinguished from "unspecified"; usesCleartextTraffic itself
+  // stays undefined in both cases, mirroring the exportedRaw convention on
+  // AndroidManifestComponent.
+  usesCleartextTrafficRaw?: string;
   networkSecurityConfigRef?: string;
+  // v0.4.1 Batch 2 — location of the <application> element itself, so later
+  // network-security evidence can report a source location without the
+  // manifest model needing per-attribute location tracking.
+  location?: AndroidManifestSourceLocation;
 };
 
 export type AndroidManifestModel = {
