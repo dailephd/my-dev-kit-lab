@@ -1,5 +1,6 @@
 import type { CommandExecutionResult, SecurityFinding } from "../../../securityValidation/types.js";
 import type { MobileConfidence } from "../../types.js";
+import { ANDROID_ADVANCED_CHECK_CATEGORIES } from "../advancedSecurity/ruleIds.js";
 
 // ---------------------------------------------------------------------------
 // v0.4.0 Batch 1 — Android check-result and skip-representation contracts.
@@ -41,6 +42,11 @@ export const ANDROID_NON_PASSING_STATUSES: readonly AndroidCheckStatus[] = [
 // v0.4.0 Batch 5 — added "android-target-immutability" (additive) for the
 // required target mutation/immutability check (agents.txt Batch 5 section
 // 10.1).
+// v0.4.1 Batch 1 — added the advanced-security check-category families
+// (network/backup/release/secrets/signing/webview/file-provider/sensitive-
+// storage/sensitive-logging/clipboard/firebase/optional-tool) required by
+// later v0.4.1 batches. These categories are additive only: no check in this
+// batch is registered against them yet (see advancedSecurity/ruleIds.ts).
 export const ANDROID_CHECK_CATEGORIES = [
   "android-detection",
   "android-manifest",
@@ -52,6 +58,7 @@ export const ANDROID_CHECK_CATEGORIES = [
   "android-release-metadata",
   "android-play-readiness",
   "android-target-immutability",
+  ...ANDROID_ADVANCED_CHECK_CATEGORIES,
 ] as const;
 export type AndroidCheckCategory = (typeof ANDROID_CHECK_CATEGORIES)[number];
 
