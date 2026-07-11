@@ -145,8 +145,17 @@ function parseComponent(kind: AndroidManifestComponentKind, element: XmlElement,
     component.readPermission = androidAttr(element, "readPermission");
     component.writePermission = androidAttr(element, "writePermission");
     const authoritiesRaw = androidAttr(element, "authorities");
+    component.authoritiesRaw = authoritiesRaw;
     component.authorities = authoritiesRaw ? authoritiesRaw.split(";").map((s) => s.trim()).filter(Boolean) : undefined;
-    component.grantUriPermissions = parseBooleanAttr(element, "grantUriPermissions", warnings, context).value;
+    const grantUriPermissions = parseBooleanAttr(element, "grantUriPermissions", warnings, context);
+    component.grantUriPermissions = grantUriPermissions.value;
+    component.grantUriPermissionsRaw = grantUriPermissions.raw;
+    component.metadata = findChildren(element, "meta-data").map((metadata) => ({
+      name: androidAttr(metadata, "name"),
+      resource: androidAttr(metadata, "resource"),
+      value: androidAttr(metadata, "value"),
+      location: toLocation(metadata.location),
+    }));
   }
 
   return component;

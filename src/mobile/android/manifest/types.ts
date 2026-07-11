@@ -69,8 +69,14 @@ export type AndroidManifestComponent = {
   permission?: string;
   readPermission?: string;
   writePermission?: string;
+  authoritiesRaw?: string;
   authorities?: string[];
   grantUriPermissions?: boolean;
+  grantUriPermissionsRaw?: string;
+  // Provider <meta-data> is retained additively for consumers such as the
+  // standalone FileProvider audit. Values remain raw manifest evidence; no
+  // resource resolution or manifest merging occurs here.
+  metadata?: Array<{ name?: string; resource?: string; value?: string; location?: AndroidManifestSourceLocation }>;
   intentFilters: AndroidIntentFilter[];
   isLauncherActivity?: boolean;
   location?: AndroidManifestSourceLocation;
