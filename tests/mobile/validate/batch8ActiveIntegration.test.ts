@@ -127,6 +127,12 @@ describe("Batch 8 — fake multi-tool smoke (all four external tools)", () => {
     };
     const fakeGradleExecutor: GradleCommandExecutor = async (plan) => baseCommandResult({ command: plan.wrapperExecutablePath, args: plan.args, cwd: plan.cwd, exitCode: 1 });
 
+    // Real semgrep/osv/dependency-check binaries are never installed in CI
+    // (or reliably in any dev sandbox) — discovery is injected
+    // deterministically so this test actually exercises execution rather
+    // than incidentally passing/failing based on the runner's PATH.
+    const fakeDiscover = (basename: string) => () => ({ available: true as const, command: basename, basename });
+
     const result = await validateAndroidTarget({
       toolRoot: TOOL_ROOT,
       targetPath: targetRoot,
@@ -139,10 +145,20 @@ describe("Batch 8 — fake multi-tool smoke (all four external tools)", () => {
         androidLint: fakeGradleExecutor,
         dependencyCheck: fakeExternalExecutor,
       },
+      externalToolDiscover: {
+        semgrep: fakeDiscover("semgrep"),
+        osv: fakeDiscover("osv-scanner"),
+        dependencyCheck: fakeDiscover("dependency-check"),
+      },
     });
 
     const externalIds = result.checks.filter((c) => c.id.startsWith("android-") && ["android-semgrep-audit", "android-osv-audit", "android-lint-audit", "android-dependency-check-audit"].includes(c.id)).map((c) => c.id);
     expect(externalIds).toEqual(["android-semgrep-audit", "android-osv-audit", "android-lint-audit", "android-dependency-check-audit"]);
+
+    const semgrepCheck = result.checks.find((c) => c.id === "android-semgrep-audit");
+    const osvCheck = result.checks.find((c) => c.id === "android-osv-audit");
+    expect(semgrepCheck?.status).toBe("passed");
+    expect(osvCheck?.status).toBe("passed");
 
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain("FakeToolLeakedSecretMarker");
@@ -180,12 +196,19 @@ describe("Batch 8 — Gradle/Android Lint deduplication", () => {
 });
 
 describe("Batch 8 — OSV network policy integration", () => {
+  // OSV-Scanner is never installed in CI (or reliably in any dev sandbox),
+  // so discovery is injected deterministically rather than relying on real
+  // PATH lookup — otherwise this suite is flaky/environment-dependent (it
+  // passed locally by incidental PATH contents but failed on every CI OS).
+  const fakeOsvDiscover = () => ({ available: true as const, command: "osv-scanner", basename: "osv-scanner" });
+
   it("skips OSV when requested with deny (default)", async () => {
     const result = await validateAndroidTarget({
       toolRoot: TOOL_ROOT,
       targetPath: fixture("compose-app"),
       requestedExternalToolIds: ["osv"],
       externalToolExecutors: { osv: async () => baseCommandResult({ stdout: "2.0.0\n" }) },
+      externalToolDiscover: { osv: fakeOsvDiscover },
     });
     const osvCheck = result.checks.find((c) => c.id === "android-osv-audit");
     expect(osvCheck?.status).toBe("skipped");
@@ -200,6 +223,7 @@ describe("Batch 8 — OSV network policy integration", () => {
       externalToolExecutors: {
         osv: async (input) => (input.args.includes("--version") ? baseCommandResult({ stdout: "2.0.0\n" }) : baseCommandResult({ stdout: JSON.stringify({ results: [] }) })),
       },
+      externalToolDiscover: { osv: fakeOsvDiscover },
     });
     const osvCheck = result.checks.find((c) => c.id === "android-osv-audit");
     expect(osvCheck?.status).toBe("passed");

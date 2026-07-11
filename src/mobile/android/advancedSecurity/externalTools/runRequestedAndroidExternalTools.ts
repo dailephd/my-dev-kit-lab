@@ -6,6 +6,7 @@ import { auditAndroidOsv } from "./osv/checkResult.js";
 import { auditAndroidLint } from "./androidLint/checkResult.js";
 import { auditAndroidDependencyCheck } from "./dependencyCheck/checkResult.js";
 import { normalizeAndroidExternalToolRequest, type AndroidExternalToolRequest, type ExternalToolExecutor } from "./types.js";
+import type { DiscoveredExecutable } from "./discoverExecutable.js";
 
 // ---------------------------------------------------------------------------
 // v0.4.1 Batch 7 — deterministic multi-tool dispatcher.
@@ -27,6 +28,15 @@ export type RunRequestedAndroidExternalToolsOptions = {
     androidLint?: GradleCommandExecutor;
     dependencyCheck?: ExternalToolExecutor;
   };
+  // Injectable executable discovery, mirroring executor injection — lets a
+  // test (or a caller with its own discovery policy) bypass real PATH
+  // lookup for semgrep/osv/dependency-check without needing the actual
+  // binary installed. Omitted means real PATH discovery, as before.
+  discover?: {
+    semgrep?: () => DiscoveredExecutable;
+    osv?: () => DiscoveredExecutable;
+    dependencyCheck?: () => DiscoveredExecutable;
+  };
   javaAvailable?: boolean;
   lintTaskAvailable?: boolean;
 };
@@ -42,7 +52,14 @@ export async function runRequestedAndroidExternalTools(options: RunRequestedAndr
 
   for (const toolId of normalized.value.tools) {
     if (toolId === "semgrep" && options.executors.semgrep) {
-      results.push(await auditAndroidSemgrep({ targetRoot: normalized.value.targetRoot, artifactRoot: normalized.value.artifactRoot, executor: options.executors.semgrep }));
+      results.push(
+        await auditAndroidSemgrep({
+          targetRoot: normalized.value.targetRoot,
+          artifactRoot: normalized.value.artifactRoot,
+          executor: options.executors.semgrep,
+          discover: options.discover?.semgrep,
+        })
+      );
       continue;
     }
     if (toolId === "osv" && options.executors.osv) {
@@ -51,6 +68,7 @@ export async function runRequestedAndroidExternalTools(options: RunRequestedAndr
           targetRoot: normalized.value.targetRoot,
           executor: options.executors.osv,
           networkPolicy: normalized.value.networkPolicy,
+          discover: options.discover?.osv,
         })
       );
       continue;
@@ -74,6 +92,7 @@ export async function runRequestedAndroidExternalTools(options: RunRequestedAndr
           artifactRoot: normalized.value.artifactRoot,
           executor: options.executors.dependencyCheck,
           javaAvailable: options.javaAvailable,
+          discover: options.discover?.dependencyCheck,
         })
       );
     }

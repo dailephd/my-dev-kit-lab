@@ -45,6 +45,7 @@ import { runRequestedAndroidExternalTools } from "../advancedSecurity/externalTo
 import { createRealExternalToolExecutor } from "../advancedSecurity/externalTools/runBoundedExternalTool.js";
 import { createRealGradleCommandExecutor } from "../gradle/validate/executor.js";
 import type { AndroidExternalToolNetworkPolicy, ExternalToolExecutor } from "../advancedSecurity/externalTools/types.js";
+import type { DiscoveredExecutable } from "../advancedSecurity/externalTools/discoverExecutable.js";
 import type { AndroidManifestParseEntry } from "../manifest/parseAndroidManifest.js";
 import type { AndroidDetectionResult } from "../detection.js";
 
@@ -161,6 +162,15 @@ export type ValidateAndroidTargetOptions = {
     osv?: ExternalToolExecutor;
     androidLint?: GradleCommandExecutor;
     dependencyCheck?: ExternalToolExecutor;
+  };
+  // Injectable executable discovery (mirrors externalToolExecutors) — lets a
+  // caller/test bypass real PATH lookup for semgrep/osv/dependency-check
+  // without needing the actual binary installed. Omitted means real PATH
+  // discovery, exactly as before this option existed.
+  externalToolDiscover?: {
+    semgrep?: () => DiscoveredExecutable;
+    osv?: () => DiscoveredExecutable;
+    dependencyCheck?: () => DiscoveredExecutable;
   };
   javaAvailable?: boolean;
   lintTaskAvailable?: boolean;
@@ -283,6 +293,7 @@ export async function validateAndroidTarget(options: ValidateAndroidTargetOption
           androidLint: options.externalToolExecutors?.androidLint ?? sharedGradleExecutor,
           dependencyCheck: options.externalToolExecutors?.dependencyCheck ?? createRealExternalToolExecutor(),
         },
+        discover: options.externalToolDiscover,
         javaAvailable: options.javaAvailable,
         lintTaskAvailable: options.lintTaskAvailable,
       });
