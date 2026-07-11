@@ -99,7 +99,12 @@ export type AndroidManifestApplicationAttributes = {
   enabled?: boolean;
   permission?: string;
   allowBackup?: boolean;
+  // v0.4.1 Batch 3 — preserves the literal android:allowBackup text, same
+  // rationale/convention as usesCleartextTrafficRaw below.
+  allowBackupRaw?: string;
   debuggable?: boolean;
+  // v0.4.1 Batch 3 — preserves the literal android:debuggable text.
+  debuggableRaw?: string;
   usesCleartextTraffic?: boolean;
   // v0.4.1 Batch 2 — preserves the literal android:usesCleartextTraffic text
   // (undefined when the attribute is absent) so a malformed/unresolved value
@@ -108,6 +113,18 @@ export type AndroidManifestApplicationAttributes = {
   // AndroidManifestComponent.
   usesCleartextTrafficRaw?: string;
   networkSecurityConfigRef?: string;
+  // v0.4.1 Batch 3 — android:fullBackupContent and android:dataExtractionRules
+  // can each be a literal boolean ("true"/"false", legacy full-backup-content
+  // only), an @xml/... resource reference, or an unresolved/malformed value;
+  // the raw text is preserved verbatim and classified by the Batch 3
+  // manifest-evidence layer rather than here (this parser stays a raw
+  // extractor, consistent with networkSecurityConfigRef's existing
+  // convention of never resolving resource references itself).
+  fullBackupContentRef?: string;
+  dataExtractionRulesRef?: string;
+  testOnly?: boolean;
+  // v0.4.1 Batch 3 — preserves the literal android:testOnly text.
+  testOnlyRaw?: string;
   // v0.4.1 Batch 2 — location of the <application> element itself, so later
   // network-security evidence can report a source location without the
   // manifest model needing per-attribute location tracking.

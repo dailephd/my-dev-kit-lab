@@ -1,0 +1,7 @@
+android {
+    buildTypes {
+        release {
+            debuggable rootProject.ext.fakeIsDebugFlag
+        }
+    }
+}

@@ -252,6 +252,9 @@ export function parseAndroidManifestSource(xmlText: string, manifestPath: string
   const usesCleartextTrafficResult = applicationEl
     ? parseBooleanAttr(applicationEl, "usesCleartextTraffic", parseWarnings, "<application>")
     : undefined;
+  const allowBackupResult = applicationEl ? parseBooleanAttr(applicationEl, "allowBackup", parseWarnings, "<application>") : undefined;
+  const debuggableResult = applicationEl ? parseBooleanAttr(applicationEl, "debuggable", parseWarnings, "<application>") : undefined;
+  const testOnlyResult = applicationEl ? parseBooleanAttr(applicationEl, "testOnly", parseWarnings, "<application>") : undefined;
 
   const application = applicationEl
     ? {
@@ -260,11 +263,17 @@ export function parseAndroidManifestSource(xmlText: string, manifestPath: string
         iconRef: androidAttr(applicationEl, "icon"),
         enabled: parseBooleanAttr(applicationEl, "enabled", parseWarnings, "<application>").value,
         permission: androidAttr(applicationEl, "permission"),
-        allowBackup: parseBooleanAttr(applicationEl, "allowBackup", parseWarnings, "<application>").value,
-        debuggable: parseBooleanAttr(applicationEl, "debuggable", parseWarnings, "<application>").value,
+        allowBackup: allowBackupResult?.value,
+        allowBackupRaw: allowBackupResult?.raw,
+        debuggable: debuggableResult?.value,
+        debuggableRaw: debuggableResult?.raw,
         usesCleartextTraffic: usesCleartextTrafficResult?.value,
         usesCleartextTrafficRaw: usesCleartextTrafficResult?.raw,
         networkSecurityConfigRef: androidAttr(applicationEl, "networkSecurityConfig"),
+        fullBackupContentRef: androidAttr(applicationEl, "fullBackupContent"),
+        dataExtractionRulesRef: androidAttr(applicationEl, "dataExtractionRules"),
+        testOnly: testOnlyResult?.value,
+        testOnlyRaw: testOnlyResult?.raw,
         location: toLocation(applicationEl.location),
       }
     : {};
