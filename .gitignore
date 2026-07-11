@@ -76,6 +76,7 @@ claude.txt
 project_tree.txt
 
 .junie/
+.my-dev-kit/
 
 # Generated npm pack --dry-run transcript (not source, not tracked).
 pack_files.txt
