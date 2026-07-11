@@ -1,78 +1,27 @@
 # my-dev-kit-lab
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, and security-validation companion for my-dev-kit. It provides controlled raw-full-file versus graph-guided retrieval experiments, deterministic fake-agent demonstrations, reports, plots, gallery artifacts, generic audits, and local security-validation workflows.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, audit, and security-validation companion for my-dev-kit. It provides controlled retrieval experiments, deterministic demonstrations, reports, plots, galleries, generic audits, and local security-validation workflows.
 
-The current published baseline is `v0.3.4`. The v0.4.0 Android validation implementation is release-prepared on `release/v0.4.0`; publication is pending. It is not published, and the npm registry latest version remains `0.3.4`.
+## Version state
 
-## Current capabilities
-
-- Controlled experiment plugins, reports, plots, screenshots, and gallery artifacts.
-- Generic code-rot and general security audit types through `npm run audit`.
-- Standalone CLI/package security validation through `npm run security:validate`.
-- Android security validation through the canonical `android` profile on the v0.4.0 feature branch.
+`v0.4.0` is the published baseline. The `v0.4.1` advanced Android implementation is implementation-complete on `feature/v0.4.1-advanced-android-security` but unreleased. Package metadata remains `0.4.0` until a separate release-preparation workflow. `v0.4.2` remains future work.
 
 ## Android validation
-
-Run static Android validation with:
 
 ```powershell
 npm run security:validate -- --target "<android-project-path>" --profile android
 ```
 
-This default path executes **no Gradle commands**. It detects/classifies Android projects and UI evidence, parses discovered manifests independently, audits permissions/exported components/intent filters/deep links, extracts static Gradle metadata, assembles release metadata and Play-readiness placeholders, calculates an Android verdict, and writes bounded text and JSON reports.
+The default Android profile runs nineteen checks: the original eight checks plus eleven advanced internal checks for Network Security Config, backup/data extraction, release configuration, secret candidates, signing configuration, WebView, FileProvider, sensitive storage, sensitive logging, clipboard, and Firebase/Google services. It runs zero Gradle operations, zero external tools, and zero network operations by default.
 
-Reports use the existing `reports/security/` root unless `--out` is supplied. Android report files use the `<prefix>-android-security-validation.txt` and `.json` convention.
+`SecurityFinding` records confirmed conservative evidence. `CandidateEvidence` remains separate review or unresolved evidence and is not a confirmed vulnerability. Text and JSON reports under `reports/security/` include advanced-security checks, external-tool results, candidate-evidence summaries, artifacts, mutation evidence, verdict reasons, and limitations.
 
-Optional Gradle validation is explicit:
+Optional Gradle operations use `--android-gradle-operations` and only accept `wrapper-version`, `tasks`, `assemble-debug`, `unit-test-debug`, and `lint-debug`. They are environment-dependent, record mutations, and never perform cleanup or arbitrary tasks.
 
-```powershell
-npm run security:validate -- --target "<android-project-path>" --profile android --android-gradle-operations wrapper-version,tasks
-```
+Optional external tools use `--android-external-tools semgrep,osv,android-lint,dependency-check`. Network defaults to `--android-external-network deny`; `allow-requested` authorizes only requested supported network-capable tools. Semgrep uses package-owned local rules, Android Lint reuses the closed offline Gradle path, Dependency-Check disables updates, and OSV requires explicit network authorization. Tools are never installed automatically; unavailable requested tools are skipped or inconclusive, not clean passes.
 
-The only allowed operation IDs are:
+Verdicts are `not-ready-security-blocker-remains`, `inconclusive-audit-environment-incomplete`, `ready-except-optional-manual-checks`, and `ready-for-release-preparation`. They are evidence states, not runtime, Play, publication, or pentest guarantees.
 
-- `wrapper-version`
-- `tasks`
-- `assemble-debug`
-- `unit-test-debug`
-- `lint-debug`
+Selected local references such as supported `@xml` resources are resolved conservatively. Manifests are not merged, full overlay precedence and Gradle evaluation are not implemented, whole-program flow is not performed, and APK/AAB, signing, emulator/device, remote Firebase, live Play policy, and manual pentest validation remain outside scope.
 
-Unknown or empty lists, arbitrary tasks, and use with a non-Android profile are rejected. Optional operations can require Java, Android SDK components, wrapper distributions, and cached dependencies; environment gaps can produce skipped or inconclusive evidence.
-
-### Verdicts
-
-- `not-ready-security-blocker-remains`: a blocker remains.
-- `inconclusive-audit-environment-incomplete`: required evidence/environment is incomplete.
-- `ready-except-optional-manual-checks`: advisory or manual follow-up remains.
-- `ready-for-release-preparation`: required static evidence passed.
-
-These are validation-evidence states, not claims that an app is published, Play-ready, Play-compliant, runtime-secure, or signing-valid.
-
-### Important Android limitations
-
-- Static analysis does not prove runtime behavior.
-- Manifests are not merged; placeholders and resource references are not resolved.
-- Gradle scripts are not evaluated; dynamic metadata can stay unresolved; same-file duplicate assignment extraction uses the first match.
-- Optional Gradle execution is disabled by default and environment-dependent.
-- APK/AAB contents, signing, emulator/device behavior, Digital Asset Links, domain ownership, and live Google Play policy are not validated.
-- Play Console items such as privacy policy, Data Safety, permissions declarations, store listing, release notes, content rating, and policy review remain manual placeholders.
-
-## Development
-
-```powershell
-npm run typecheck
-npm run build
-npm run test
-npm run verify
-```
-
-Use `npm run security:validate -- --help` for command usage. Help does not run validation or write reports.
-
-## Roadmap status
-
-- `v0.4.0`: Android validation MVP — release-prepared; publication pending.
-- `v0.4.1`: planned advanced Android security checks.
-- `v0.4.2`: planned Android extension of the existing security audit adapter; it will not replace `security:validate`.
-- Manual pentest: deferred post-v1 / version TBD; not part of v0.4.x.
-
-See [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md), [docs/COMMANDS.md](docs/COMMANDS.md), [docs/WORKFLOWS.md](docs/WORKFLOWS.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/ROADMAP.md](docs/ROADMAP.md).
+See [Project overview](docs/PROJECT_OVERVIEW.md), [Commands](docs/COMMANDS.md), [Workflows](docs/WORKFLOWS.md), [Architecture](docs/ARCHITECTURE.md), and [Roadmap](docs/ROADMAP.md).

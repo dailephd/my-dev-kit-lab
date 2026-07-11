@@ -1,10 +1,24 @@
 # Changelog
 
+## [0.4.1] - Unreleased
+
+### Added
+
+- Added the advanced Android rule/evidence substrate and eleven internal advanced check families covering network configuration, backup/release configuration, secrets/signing, WebView/FileProvider, sensitive storage/logging/clipboard, and Firebase/Google services.
+- Added opt-in Semgrep, OSV-Scanner, Android Lint, and OWASP Dependency-Check evidence with closed tool IDs, bounded artifacts, and default network denial.
+- Activated nineteen default Android checks and added `--android-external-tools` and `--android-external-network`.
+- Added CandidateEvidence presentation plus advanced-security, external-tool, artifact, and candidate summaries to text/JSON reports.
+
+### Boundaries
+
+- Default Android validation starts zero Gradle, external-tool, and network processes.
+- Android AuditIssue mapping remains future v0.4.2 work. This is an unreleased implementation entry without a release date.
+
 All notable changes to my-dev-kit-lab are documented here.
 
 ## [0.4.0] - 2026-07-11
 
-Android/mobile validation MVP, release-prepared on top of the previously published `v0.3.4` baseline. Package metadata is `0.4.0` on `release/v0.4.0`; the npm registry latest remains `0.3.4` pending publication.
+Android/mobile validation MVP published as `v0.4.0`.
 
 ### Added
 
@@ -19,7 +33,7 @@ Android/mobile validation MVP, release-prepared on top of the previously publish
 ### Compatibility and limitations
 
 - `v0.4.0` preserves the existing `security:validate` command surface and report root; it adds the `android` profile and `--android-gradle-operations` option without changing any other profile's behavior.
-- Android manifests are parsed independently and are not merged; placeholders and Android resources are not resolved; Gradle files are parsed statically and are not evaluated; dynamic Gradle values may remain unresolved; same-file duplicate Gradle assignments use first-match extraction.
+- Android manifests are parsed independently and are not merged; selected local references are resolved conservatively while full overlays are not; Gradle files are parsed statically and are not evaluated; dynamic Gradle values may remain unresolved.
 - `v0.4.0` does not inspect APK/AAB contents, validate signing, run emulators/devices, verify Digital Asset Links or domain ownership, check live Google Play policy, upload applications, or provide automatic fixes.
 - `v0.4.1` advanced Android checks and `v0.4.2` Android audit-adapter mapping remain planned and out of scope. Manual pentest remains a deferred, post-v1 / version-TBD workflow, not assigned to v0.4.x.
 

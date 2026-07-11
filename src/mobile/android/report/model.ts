@@ -101,7 +101,7 @@ const EXTERNAL_TOOL_CHECK_ID_ORDER = ["android-semgrep-audit", "android-osv-audi
 const STATIC_ANALYSIS_LIMITATIONS = [
   "Static Android project analysis does not prove runtime behavior.",
   "Manifests are parsed independently and are not merged.",
-  "Manifest placeholders and resource references are not resolved.",
+  "Selected local resource references are resolved conservatively; manifest placeholders, full resource merging, and overlay precedence are not resolved.",
   "Gradle files are not evaluated (no Groovy/Kotlin execution).",
   "Dynamic Gradle values may remain unresolved.",
   "Same-file duplicate Gradle assignments use first-match extraction (a known limitation — see agents.txt Batch 4/5 notes).",
