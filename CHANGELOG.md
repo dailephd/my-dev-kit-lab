@@ -2,6 +2,18 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## Unreleased
+
+### Added
+
+- Android validation MVP implementation on the v0.4.0 feature branch: the canonical `security:validate --profile android` path, static detection/classification, independent manifest parsing, initial Android audits, static Gradle metadata, opt-in allowlisted Gradle validation, Android reports/verdicts, release metadata, and Play-readiness placeholders.
+- `security:validate --help` / `-h` no-work help handling and unknown top-level option rejection.
+
+### Compatibility and limitations
+
+- This is unreleased feature-branch work. Package metadata remains `0.3.4`; no npm publication, GitHub Release, tag, or main-branch release is implied.
+- v0.4.1 advanced checks, v0.4.2 Android audit-adapter mapping, manual pentest, signing/APK/device validation, and live Google Play policy checks remain out of scope.
+
 ## [0.3.4] - 2026-07-10
 
 Package metadata is `0.3.4`, and the npm registry now contains `0.3.4`. `v0.3.3` is the previous published baseline.

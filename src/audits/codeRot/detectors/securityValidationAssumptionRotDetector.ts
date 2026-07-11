@@ -74,6 +74,9 @@ export const SECURITY_VALIDATION_ASSUMPTION_ROT_DETECTOR: AuditDetector = {
     const pkgVersion = ctx.sourceOfTruth.package?.version ?? null;
     const hasSecurityValidationSourceDir = ctx.sourceOfTruth.security.hasSecurityValidationSourceDir;
     const hasAttackScenariosDir = fs.existsSync(path.join(ctx.target.rootPath, "src", "securityValidation", "attackScenarios"));
+    const hasAndroidValidationSource = fs.existsSync(
+      path.join(ctx.target.rootPath, "src", "mobile", "android", "validate", "validateAndroidTarget.ts")
+    );
 
     for (const docFile of ctx.inventory.docsFiles) {
       const content = readBoundedFileText(ctx.target.rootPath, docFile.relativePath, docFile.sizeBytes, MAX_READ_BYTES);
@@ -83,7 +86,7 @@ export const SECURITY_VALIDATION_ASSUMPTION_ROT_DETECTOR: AuditDetector = {
       issues.push(...findSkippedEqualsPassed(docFile.relativePath, content));
       issues.push(...findExhaustiveSecretClaim(docFile.relativePath, content));
       issues.push(...findCompleteNetworkIsolationClaim(docFile.relativePath, content));
-      issues.push(...findUnsupportedCurrentClaims(docFile.relativePath, content));
+      issues.push(...findUnsupportedCurrentClaims(docFile.relativePath, content, hasAndroidValidationSource));
       if (pkgVersion) issues.push(...findStaleV021SecurityMention(docFile.relativePath, content, pkgVersion));
       if (hasSecurityValidationSourceDir && hasAttackScenariosDir) {
         issues.push(...findAttackScenariosDescribedAsPlanned(docFile.relativePath, content));
@@ -244,7 +247,7 @@ function findCompleteNetworkIsolationClaim(relativePath: string, content: string
   ];
 }
 
-function findUnsupportedCurrentClaims(relativePath: string, content: string): AuditIssue[] {
+function findUnsupportedCurrentClaims(relativePath: string, content: string, hasAndroidValidationSource: boolean): AuditIssue[] {
   const issues: AuditIssue[] = [];
   const subjects: { id: string; label: string; pattern: string }[] = [
     { id: "manual-pentest", label: "manual pentest", pattern: "manual pentest" },
@@ -252,6 +255,7 @@ function findUnsupportedCurrentClaims(relativePath: string, content: string): Au
   ];
 
   for (const subject of subjects) {
+    if (subject.id === "android-validation" && hasAndroidValidationSource) continue;
     const match = currentClaimPatternFor(subject.pattern).exec(content);
     if (!match) continue;
 

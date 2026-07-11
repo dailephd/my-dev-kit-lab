@@ -48,6 +48,9 @@ export const ARCHITECTURE_DRIFT_DETECTOR: AuditDetector = {
   },
   run: (ctx: AuditDetectorContext): AuditIssue[] => {
     const issues: AuditIssue[] = [];
+    const hasAndroidValidationSource = fs.existsSync(
+      path.join(ctx.target.rootPath, "src", "mobile", "android", "validate", "validateAndroidTarget.ts")
+    );
     const currentStateDocs = ctx.inventory.docsFiles.filter((f) => CURRENT_STATE_DOC_BASENAMES.has(path.basename(f.relativePath).toLowerCase()));
 
     for (const docFile of currentStateDocs) {
@@ -70,7 +73,7 @@ export const ARCHITECTURE_DRIFT_DETECTOR: AuditDetector = {
     for (const docFile of ctx.inventory.docsFiles) {
       const content = readBoundedFileText(ctx.target.rootPath, docFile.relativePath, docFile.sizeBytes, MAX_READ_BYTES);
       if (content === null) continue;
-      issues.push(...findUnsupportedCurrentClaims(docFile.relativePath, content));
+      issues.push(...findUnsupportedCurrentClaims(docFile.relativePath, content, hasAndroidValidationSource));
     }
 
     return deduplicateIssuesById(issues);
@@ -246,7 +249,7 @@ function findMajorDirsAbsentFromArchitectureDoc(ctx: AuditDetectorContext, docRe
   return issues;
 }
 
-function findUnsupportedCurrentClaims(docRelativePath: string, content: string): AuditIssue[] {
+function findUnsupportedCurrentClaims(docRelativePath: string, content: string, hasAndroidValidationSource: boolean): AuditIssue[] {
   const issues: AuditIssue[] = [];
   const subjects: { id: string; label: string; pattern: string }[] = [
     { id: "manual-pentest", label: "manual pentest", pattern: "manual pentest" },
@@ -254,6 +257,7 @@ function findUnsupportedCurrentClaims(docRelativePath: string, content: string):
   ];
 
   for (const subject of subjects) {
+    if (subject.id === "android-validation" && hasAndroidValidationSource) continue;
     const pattern = currentClaimPatternFor(subject.pattern);
     const match = pattern.exec(content);
     if (!match) continue;
