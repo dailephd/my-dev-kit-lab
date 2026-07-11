@@ -18,7 +18,7 @@ flowchart LR
 
 ### v0.4.0 — Android validation MVP
 
-**Status: implementation complete; pending pre-release readiness and release preparation.** It is implemented on `feature/v0.4.0-android-validation-mvp`, not published.
+**Status: release-prepared; publication pending.** It is implemented on `release/v0.4.0`, not published.
 
 - Android/mobile substrate, canonical profile, target/detection/manifest/Gradle/check/result/report contracts.
 - Android detection and classification, module/source/manifest discovery, Compose/XML/mixed UI evidence.

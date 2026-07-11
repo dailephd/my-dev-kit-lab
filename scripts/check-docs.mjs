@@ -41,7 +41,7 @@ requireText("README.md", readme, "--android-gradle-operations");
 requireText("README.md", readme, "reports/security/");
 requireText("docs/COMMANDS.md", commands, "npm run security:validate -- --target \"<android-project-path>\" --profile android");
 requireText("docs/COMMANDS.md", commands, "zero Gradle processes");
-requireText("docs/ROADMAP.md", roadmap, "implementation complete; pending pre-release readiness and release preparation");
+requireText("docs/ROADMAP.md", roadmap, "release-prepared; publication pending");
 requireText("docs/ROADMAP.md", roadmap, "### v0.4.1");
 requireText("docs/ROADMAP.md", roadmap, "### v0.4.2");
 requireText("docs/CURRENT_STATE.md", currentState, "not published");

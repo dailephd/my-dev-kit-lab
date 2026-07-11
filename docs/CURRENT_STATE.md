@@ -6,7 +6,7 @@ The current published package baseline is `v0.3.4` (`package.json` version `0.3.
 
 ## Active branch status
 
-`feature/v0.4.0-android-validation-mvp` contains the completed v0.4.0 Android validation implementation, including the `security:validate --profile android` path and its focused CLI help correction. Status: **implementation complete and documentation reconciled; pending pre-release readiness and release preparation**.
+`release/v0.4.0` contains the completed v0.4.0 Android validation implementation, including the `security:validate --profile android` path and its focused CLI help correction. Status: **release-prepared; publication pending**.
 
 ## Implemented Android validation
 
@@ -31,7 +31,7 @@ The first command is static-only and executes zero Gradle processes. `npm run se
 - `v0.4.1` advanced Android checks remain planned.
 - `v0.4.2` Android audit-adapter extension remains planned; Android findings are not mapped into `AuditIssue` today.
 - Manual pentest is deferred post-v1 / version TBD.
-- Pre-release readiness, release preparation, version bump, release branch/PR, merge, tag, GitHub Release, and npm publication remain separate work.
+- Pre-release readiness and release preparation (version bump, release branch) are complete. The release PR, merge, tag, GitHub Release, and npm publication remain separate work.
 
 ## Limitations
 

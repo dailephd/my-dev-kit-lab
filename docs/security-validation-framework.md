@@ -4,7 +4,7 @@
 
 my-dev-kit-lab provides automated, local CLI/package and Android static-validation evidence. It is not a hosted-web scanner or a manual pentest framework.
 
-The current published baseline is `v0.3.4`; Android validation is implemented on the v0.4.0 feature branch and pending pre-release readiness and release preparation.
+The current published baseline is `v0.3.4`; Android validation is release-prepared on `release/v0.4.0` and publication is pending.
 
 ## Android profile
 

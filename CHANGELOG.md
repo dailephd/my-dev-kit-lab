@@ -2,17 +2,26 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## Unreleased
+## [0.4.0] - 2026-07-11
+
+Android/mobile validation MVP, release-prepared on top of the previously published `v0.3.4` baseline. Package metadata is `0.4.0` on `release/v0.4.0`; the npm registry latest remains `0.3.4` pending publication.
 
 ### Added
 
-- Android validation MVP implementation on the v0.4.0 feature branch: the canonical `security:validate --profile android` path, static detection/classification, independent manifest parsing, initial Android audits, static Gradle metadata, opt-in allowlisted Gradle validation, Android reports/verdicts, release metadata, and Play-readiness placeholders.
-- `security:validate --help` / `-h` no-work help handling and unknown top-level option rejection.
+- Added the Android/mobile validation substrate and the canonical `security:validate --profile android` path.
+- Added Android project detection and classification (application, library, multi-module, mixed, partial, and non-Android targets) and Compose/XML/mixed/uncertain UI-toolkit classification.
+- Added independent `AndroidManifest.xml` parsing across modules, with permission, exported-component, intent-filter, and deep-link audit families producing conservative `SecurityFinding` evidence.
+- Added static Gradle wrapper and module metadata extraction: namespace, applicationId, versionCode/versionName, minSdk/targetSdk/compileSdk, build-type/source-set metadata, Android Gradle Plugin/Kotlin Android/Compose evidence, and version-catalog evidence.
+- Added an explicitly opt-in, five-operation allowlisted Gradle validation path (`--android-gradle-operations wrapper-version,tasks,assemble-debug,unit-test-debug,lint-debug`) that never executes arbitrary Gradle tasks and is disabled by default.
+- Added Android text and JSON reports under the existing `reports/security/` root, an Android verdict policy, release-metadata summaries, Play-readiness checklist placeholders, and target-mutation evidence.
+- Added `security:validate --help` / `-h` no-work help handling and unknown top-level option rejection.
 
 ### Compatibility and limitations
 
-- This is unreleased feature-branch work. Package metadata remains `0.3.4`; no npm publication, GitHub Release, tag, or main-branch release is implied.
-- v0.4.1 advanced checks, v0.4.2 Android audit-adapter mapping, manual pentest, signing/APK/device validation, and live Google Play policy checks remain out of scope.
+- `v0.4.0` preserves the existing `security:validate` command surface and report root; it adds the `android` profile and `--android-gradle-operations` option without changing any other profile's behavior.
+- Android manifests are parsed independently and are not merged; placeholders and Android resources are not resolved; Gradle files are parsed statically and are not evaluated; dynamic Gradle values may remain unresolved; same-file duplicate Gradle assignments use first-match extraction.
+- `v0.4.0` does not inspect APK/AAB contents, validate signing, run emulators/devices, verify Digital Asset Links or domain ownership, check live Google Play policy, upload applications, or provide automatic fixes.
+- `v0.4.1` advanced Android checks and `v0.4.2` Android audit-adapter mapping remain planned and out of scope. Manual pentest remains a deferred, post-v1 / version-TBD workflow, not assigned to v0.4.x.
 
 ## [0.3.4] - 2026-07-10
 

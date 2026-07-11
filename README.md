@@ -2,7 +2,7 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, visualization, and security-validation companion for my-dev-kit. It provides controlled raw-full-file versus graph-guided retrieval experiments, deterministic fake-agent demonstrations, reports, plots, gallery artifacts, generic audits, and local security-validation workflows.
 
-The current published baseline is `v0.3.4`. The v0.4.0 Android validation implementation is complete on `feature/v0.4.0-android-validation-mvp`, validated on that branch, and pending pre-release readiness and release preparation. It is not published and package metadata remains `0.3.4`.
+The current published baseline is `v0.3.4`. The v0.4.0 Android validation implementation is release-prepared on `release/v0.4.0`; publication is pending. It is not published, and the npm registry latest version remains `0.3.4`.
 
 ## Current capabilities
 
@@ -70,7 +70,7 @@ Use `npm run security:validate -- --help` for command usage. Help does not run v
 
 ## Roadmap status
 
-- `v0.4.0`: Android validation MVP — implementation complete on the feature branch; pending pre-release readiness and release preparation.
+- `v0.4.0`: Android validation MVP — release-prepared; publication pending.
 - `v0.4.1`: planned advanced Android security checks.
 - `v0.4.2`: planned Android extension of the existing security audit adapter; it will not replace `security:validate`.
 - Manual pentest: deferred post-v1 / version TBD; not part of v0.4.x.
