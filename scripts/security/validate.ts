@@ -40,6 +40,15 @@ const USAGE =
 const rawArgs = process.argv.slice(2);
 const toolRoot = resolveToolRoot(import.meta.url);
 
+// Help deliberately wins over every other argument. It must remain a
+// no-work path: no target/default resolution, option normalization, report
+// directory creation, validation orchestration, or subprocess execution.
+if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+  console.log(USAGE);
+  process.exitCode = 0;
+  process.exit(0);
+}
+
 let args: ReturnType<typeof parseSecurityValidateArgs>;
 let config: ReturnType<typeof normalizeSecurityValidateConfig>;
 try {
@@ -57,8 +66,8 @@ try {
   const msg = err instanceof Error ? err.message : String(err);
   console.error(`\nERROR: ${msg}`);
   console.error(USAGE);
-  process.exitCode = 1;
-  process.exit(1);
+  process.exitCode = 2;
+  process.exit(2);
 }
 
 // Resolve and validate target early so we can fail fast with a clean error.

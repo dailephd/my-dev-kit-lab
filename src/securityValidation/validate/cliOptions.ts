@@ -105,7 +105,16 @@ export function parseSecurityValidateArgs(argv: string[]): RawSecurityValidateAr
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const key = FLAGS_WITH_VALUE[arg];
-    if (!key) continue;
+    if (!key) {
+      // Keep the conventional argument separator harmless while rejecting
+      // misspelled or unsupported top-level options before any validation
+      // configuration, target resolution, or report work begins.
+      if (arg === "--") continue;
+      if (arg.startsWith("-")) {
+        throw new Error(`Unknown option: ${arg}.`);
+      }
+      continue;
+    }
     if (i + 1 >= argv.length) {
       throw new Error(`Missing value for ${arg}. Expected a value after ${arg}.`);
     }

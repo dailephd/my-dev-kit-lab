@@ -47,6 +47,20 @@ describe("parseSecurityValidateArgs", () => {
     expect(() => parseSecurityValidateArgs(["--checks"])).toThrow(/Missing value/);
     expect(() => parseSecurityValidateArgs(["--target"])).toThrow(/Missing value/);
   });
+
+  it("rejects unknown top-level options without consuming a following value", () => {
+    expect(() => parseSecurityValidateArgs(["--definitely-unknown-option", "value", "--profile", "android"])).toThrow(
+      /Unknown option: --definitely-unknown-option/
+    );
+  });
+
+  it("continues to accept values beginning with a dash for known options", () => {
+    expect(parseSecurityValidateArgs(["--out", "-reports"])).toEqual({ out: "-reports" });
+  });
+
+  it("keeps a conventional argument separator harmless", () => {
+    expect(parseSecurityValidateArgs(["--", "--profile", "android"])).toEqual({ profile: "android" });
+  });
 });
 
 describe("normalizeSecurityValidateConfig — no flags (backward compatibility)", () => {
