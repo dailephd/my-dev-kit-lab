@@ -1,5 +1,6 @@
 import { stripUnsafeControlChars } from "../../../securityValidation/attackScenarios/exploitEvidence.js";
 import type { AndroidReportModel } from "./model.js";
+import type { AndroidCheckResult } from "../validation/checkResult.js";
 
 // ---------------------------------------------------------------------------
 // v0.4.0 Batch 5 — Android text report rendering (agents.txt Batch 5 section
@@ -20,6 +21,22 @@ function sanitize(raw: string): string {
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+// v0.4.1 Batch 8 — shared per-check rendering for the new ADVANCED SECURITY
+// CHECKS and EXTERNAL TOOL RESULTS sections. Bounded: prints counts and
+// identifiers, never raw stdout/stderr/environment/complete source (that
+// bound is already enforced by each check builder before evidence reaches
+// this report — this function does not itself receive raw tool output).
+function renderCheckSummaryLines(lines: string[], c: AndroidCheckResult): void {
+  lines.push(`  ${c.id} [${c.status}] — ${sanitize(c.title)}`);
+  lines.push(`    category: ${c.category}  findings: ${c.findings.length}  candidates: ${c.candidateEvidence?.length ?? 0}`);
+  if (c.evidence.length > 0) lines.push(`    evidence: ${c.evidence.map(sanitize).join(" | ")}`);
+  if (c.durationMs !== undefined) lines.push(`    duration: ${formatDuration(c.durationMs)}`);
+  if (c.skipInfo) lines.push(`    skip reason: ${sanitize(c.skipInfo.reason)}`);
+  for (const w of c.warnings) lines.push(`    warning: ${sanitize(w)}`);
+  for (const e of c.errors) lines.push(`    error: ${sanitize(e)}`);
+  if (c.environmentRequirements.length > 0) lines.push(`    limitations: ${c.environmentRequirements.map(sanitize).join(" | ")}`);
 }
 
 export function renderAndroidTextReport(model: AndroidReportModel): string {
@@ -151,6 +168,51 @@ export function renderAndroidTextReport(model: AndroidReportModel): string {
       if (op.durationMs !== undefined) lines.push(`    duration: ${formatDuration(op.durationMs)}`);
       if (op.skipInfo) lines.push(`    skip reason: ${sanitize(op.skipInfo.reason)}`);
       for (const w of op.warnings) lines.push(`    warning: ${sanitize(w)}`);
+    }
+  }
+  lines.push("");
+
+  // 15b. Advanced security checks (v0.4.1 Batch 8)
+  lines.push(divider());
+  lines.push("ADVANCED SECURITY CHECKS");
+  lines.push(divider());
+  if (model.advancedSecurityChecks.length === 0) {
+    lines.push("(none ran — not applicable to this target)");
+  } else {
+    for (const c of model.advancedSecurityChecks) {
+      renderCheckSummaryLines(lines, c);
+    }
+  }
+  lines.push("");
+
+  // 15c. External tool results (v0.4.1 Batch 8)
+  lines.push(divider());
+  lines.push("EXTERNAL TOOL RESULTS");
+  lines.push(divider());
+  lines.push(
+    `Requested external tools: ${model.metadata.requestedExternalTools.length > 0 ? model.metadata.requestedExternalTools.join(", ") : "(none — zero external-tool process execution)"}`
+  );
+  if (model.metadata.requestedExternalTools.length > 0) {
+    lines.push(`Effective network policy: ${model.metadata.externalNetworkPolicy}`);
+  }
+  if (model.externalToolChecks.length === 0) {
+    lines.push("No external tools were requested.");
+  } else {
+    for (const c of model.externalToolChecks) {
+      renderCheckSummaryLines(lines, c);
+    }
+  }
+  lines.push("");
+
+  // 15d. Candidate evidence (review required, distinct from confirmed findings)
+  lines.push(divider());
+  lines.push("CANDIDATE EVIDENCE (REVIEW REQUIRED — NOT CONFIRMED FINDINGS)");
+  lines.push(divider());
+  lines.push(sanitize(model.candidateEvidenceSummary.summary));
+  for (const c of [...model.advancedSecurityChecks, ...model.externalToolChecks]) {
+    for (const candidate of c.candidateEvidence ?? []) {
+      lines.push(`  [${candidate.confidence}/${candidate.resolutionState}] ${candidate.ruleId} — ${sanitize(candidate.summary)}`);
+      lines.push(`    location: ${candidate.location.path}${candidate.location.line !== undefined ? `:${candidate.location.line}` : ""}`);
     }
   }
   lines.push("");

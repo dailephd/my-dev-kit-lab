@@ -23,18 +23,35 @@ const USAGE =
   "Usage: npm run security:validate -- [--target <path>] [--out <dir>] [--report-prefix <name>] " +
   "[--checks deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network] " +
   "[--profile node-cli-package|local-tool|npm-package|android] [--format text,json] [--fail-on blocker|high|medium|low] " +
-  "[--android-gradle-operations wrapper-version,tasks,assemble-debug,unit-test-debug,lint-debug]\n" +
+  "[--android-gradle-operations wrapper-version,tasks,assemble-debug,unit-test-debug,lint-debug] " +
+  "[--android-external-tools semgrep,osv,android-lint,dependency-check] " +
+  "[--android-external-network deny|allow-requested]\n" +
   "\n" +
   "Android profile:\n" +
   "  --profile android performs static, read-only Android project detection, manifest parsing,\n" +
-  "  permission/exported-component/intent-filter/deep-link audits, and static Gradle metadata\n" +
-  "  extraction. Gradle is never executed by default.\n" +
+  "  permission/exported-component/intent-filter/deep-link audits, static Gradle metadata\n" +
+  "  extraction, and (as of v0.4.1 Batch 8) eleven internal advanced security checks (network\n" +
+  "  security config, backup/release configuration, hardcoded secrets, signing configuration,\n" +
+  "  WebView, FileProvider, sensitive storage/logging, clipboard, and Firebase/Google services).\n" +
+  "  Gradle and external tools are never executed by default.\n" +
   "  --android-gradle-operations explicitly opts into running ONLY the listed allowlisted Gradle\n" +
   "  operations (wrapper-version, tasks, assemble-debug, unit-test-debug, lint-debug) via the\n" +
   "  project's own Gradle wrapper. Arbitrary Gradle tasks cannot be passed. This option is only\n" +
   "  valid together with --profile android.\n" +
+  "  --android-external-tools explicitly opts into running ONLY the listed allowlisted optional\n" +
+  "  external security tools (semgrep, osv, android-lint, dependency-check). No arbitrary tool\n" +
+  "  names, commands, or arguments can be passed. This option is only valid together with\n" +
+  "  --profile android.\n" +
+  "  --android-external-network controls whether a requested tool may use network access.\n" +
+  "  Defaults to deny (osv is skipped unless supported offline data is available; semgrep,\n" +
+  "  android-lint, and dependency-check always run offline/no-update regardless of this flag).\n" +
+  "  allow-requested authorizes network only for an explicitly requested tool whose Batch 7\n" +
+  "  contract supports it (currently only osv). This option is only valid together with\n" +
+  "  --profile android.\n" +
   "  Example: npm run security:validate -- --target \"<android-project-path>\" --profile android\n" +
-  "  Example: npm run security:validate -- --target \"<android-project-path>\" --profile android --android-gradle-operations wrapper-version,tasks";
+  "  Example: npm run security:validate -- --target \"<android-project-path>\" --profile android --android-gradle-operations wrapper-version,tasks\n" +
+  "  Example: npm run security:validate -- --target \"<android-project-path>\" --profile android --android-external-tools semgrep,android-lint\n" +
+  "  Example: npm run security:validate -- --target \"<android-project-path>\" --profile android --android-external-tools osv --android-external-network allow-requested";
 
 // Parse CLI arguments from process.argv (after the node/tsx and script path).
 const rawArgs = process.argv.slice(2);
@@ -108,7 +125,18 @@ if (config.profile === "android") {
   } else {
     console.log(`Gradle ops : (none requested — static-only validation, zero Gradle process execution)`);
   }
+  // v0.4.1 Batch 8 — external tools remain explicit opt-in, mirroring Gradle
+  // operations exactly. "allow-requested" (the CLI-facing value) maps to the
+  // Batch 7 dispatcher's "allow-for-requested-tool" network policy value.
+  const externalNetworkPolicy = config.androidExternalNetworkPolicy === "allow-requested" ? "allow-for-requested-tool" : "deny";
+  if (config.androidExternalToolIds.length > 0) {
+    console.log(`External   : ${config.androidExternalToolIds.join(", ")} (explicitly requested — network policy: ${config.androidExternalNetworkPolicy})`);
+  } else {
+    console.log(`External   : (none requested — zero external-tool process execution)`);
+  }
   console.log("");
+
+  const reportsDir = config.out;
 
   let result: Awaited<ReturnType<typeof validateAndroidTarget>>;
   try {
@@ -116,6 +144,9 @@ if (config.profile === "android") {
       toolRoot,
       targetPath: args.target,
       requestedGradleOperationIds: config.androidGradleOperationIds,
+      requestedExternalToolIds: config.androidExternalToolIds,
+      externalNetworkPolicy: externalNetworkPolicy,
+      externalToolArtifactRoot: path.join(reportsDir, "external-tools"),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -127,10 +158,10 @@ if (config.profile === "android") {
   const reportModel = toAndroidReportModel(result, {
     profile: config.profile,
     requestedGradleOperations: config.androidGradleOperationIds,
+    requestedExternalTools: config.androidExternalToolIds,
+    externalNetworkPolicy: config.androidExternalNetworkPolicy,
   });
   const textReport = renderAndroidTextReport(reportModel);
-
-  const reportsDir = config.out;
   const prefix =
     args.reportPrefix ??
     reportFilenamePrefix({

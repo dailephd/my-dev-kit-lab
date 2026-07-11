@@ -98,22 +98,25 @@ describe("Batch 3 — bounded evidence (release configuration)", () => {
   });
 });
 
-// ANDROID-V041-B3-44 — Batch 2 (network-security) regression.
-describe("Batch 3 does not affect Batch 2 network-security behavior", () => {
-  it("network-security check id is still absent from active validation", async () => {
+// ANDROID-V041-B3-44 — Batch 2 (network-security) regression. Updated for
+// v0.4.1 Batch 8, which activates all internal advanced checks by default
+// (agents.txt Batch 8 section 9.1) — the network-security check is now
+// expected to be present.
+describe("Batch 3 does not disturb Batch 2 network-security behavior", () => {
+  it("network-security check id is present in active validation alongside Batch 3", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const ids = result.checks.map((c) => c.id);
-    expect(ids).not.toContain(ANDROID_NETWORK_SECURITY_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_NETWORK_SECURITY_AUDIT_CHECK_ID);
   });
 });
 
-// ANDROID-V041-B3-43/45 — no active registration, v0.4.0 regression.
-describe("Batch 3 does not affect active Android validation, reports, or existing audits", () => {
-  it("validateAndroidTarget never runs or reports the Batch 3 check ids", async () => {
+// ANDROID-V041-B3-43/45 — updated for Batch 8 active integration.
+describe("Batch 3 is active in Android validation and reports as of Batch 8", () => {
+  it("validateAndroidTarget now runs and reports the Batch 3 check ids", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const ids = result.checks.map((c) => c.id);
-    expect(ids).not.toContain(ANDROID_BACKUP_CONFIGURATION_AUDIT_CHECK_ID);
-    expect(ids).not.toContain(ANDROID_RELEASE_CONFIGURATION_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_BACKUP_CONFIGURATION_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_RELEASE_CONFIGURATION_AUDIT_CHECK_ID);
   });
 
   it("validateAndroidTarget still runs exactly the same v0.4.0 checks", async () => {
@@ -128,24 +131,24 @@ describe("Batch 3 does not affect active Android validation, reports, or existin
     expect(ids).toContain("android-gradle-metadata");
   });
 
-  it("still produces a valid, unchanged verdict for the Compose fixture", async () => {
+  it("still produces a valid verdict for the Compose fixture", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     expect(["ready-for-release-preparation", "ready-except-optional-manual-checks"]).toContain(result.verdict);
   });
 
-  it("renders a text report that never claims the Batch 3 checks ran", async () => {
+  it("renders a text report that now includes the Batch 3 check ids", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const model = toAndroidReportModel(result);
     const text = renderAndroidTextReport(model);
-    expect(text).not.toContain(ANDROID_BACKUP_CONFIGURATION_AUDIT_CHECK_ID);
-    expect(text).not.toContain(ANDROID_RELEASE_CONFIGURATION_AUDIT_CHECK_ID);
+    expect(text).toContain(ANDROID_BACKUP_CONFIGURATION_AUDIT_CHECK_ID);
+    expect(text).toContain(ANDROID_RELEASE_CONFIGURATION_AUDIT_CHECK_ID);
   });
 
-  it("keeps result.checks free of android-backup-configuration/android-release-configuration categories in normal validation", async () => {
+  it("includes the android-backup-configuration/android-release-configuration categories in normal validation", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const categories = new Set(result.checks.map((c) => c.category));
-    expect(categories.has("android-backup-configuration")).toBe(false);
-    expect(categories.has("android-release-configuration")).toBe(false);
+    expect(categories.has("android-backup-configuration")).toBe(true);
+    expect(categories.has("android-release-configuration")).toBe(true);
   });
 });
 

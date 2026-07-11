@@ -242,10 +242,12 @@ describe("validateAndroidTarget — optional Gradle environment limitation — A
       const op = result.checks.find((c) => c.id === "android-gradle-tasks");
       expect(op?.status).toBe("inconclusive");
       // compose-app always contributes one baseline informational finding
-      // (the expected-launcher-activity-exported note); no reportable
-      // (non-informational) finding should be produced by the Gradle
-      // operation outcome itself.
-      expect(result.findings.every((f) => f.severity === "informational")).toBe(true);
+      // (the expected-launcher-activity-exported note) plus, since Batch 8
+      // activated the eleven advanced checks by default, one minor
+      // android:allowBackup="true" finding from the backup-configuration
+      // audit — neither is produced by the Gradle operation outcome itself,
+      // so the operation must not have escalated anything to blocker/major.
+      expect(result.findings.every((f) => f.severity === "informational" || f.severity === "minor")).toBe(true);
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });
     }
@@ -281,10 +283,12 @@ describe("validateAndroidTarget — optional operation failure — ANDROID-B5-33
       const op = result.checks.find((c) => c.id === "android-gradle-unit-test-debug");
       expect(op?.status).toBe("failed");
       // compose-app always contributes one baseline informational finding
-      // (the expected-launcher-activity-exported note); no reportable
-      // (non-informational) finding should be produced by the Gradle
-      // operation outcome itself.
-      expect(result.findings.every((f) => f.severity === "informational")).toBe(true);
+      // (the expected-launcher-activity-exported note) plus, since Batch 8
+      // activated the eleven advanced checks by default, one minor
+      // android:allowBackup="true" finding from the backup-configuration
+      // audit — neither is produced by the Gradle operation outcome itself,
+      // so the operation must not have escalated anything to blocker/major.
+      expect(result.findings.every((f) => f.severity === "informational" || f.severity === "minor")).toBe(true);
       expect(result.verdict).not.toBe("not-ready-security-blocker-remains");
     } finally {
       fs.rmSync(tempRoot, { recursive: true, force: true });

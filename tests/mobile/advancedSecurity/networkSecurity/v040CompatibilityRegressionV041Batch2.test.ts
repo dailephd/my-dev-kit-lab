@@ -12,14 +12,15 @@ function fixture(name: string): string {
   return path.join(FIXTURES_ROOT, name);
 }
 
-// ANDROID-V041-B2-37/38/39 — Batch 2 must not be registered in active
-// orchestration, must not appear in reports, and must not change existing
-// v0.4.0 audit behavior.
-describe("Batch 2 does not affect active Android validation, reports, or existing audits", () => {
-  it("validateAndroidTarget never runs or reports the Batch 2 check id", async () => {
+// ANDROID-V041-B2-37/38/39 — originally asserted Batch 2 was disconnected
+// from active orchestration. v0.4.1 Batch 8 activates it by default for
+// --profile android (agents.txt Batch 8 section 9.1); updated to assert the
+// current, intentional active behavior.
+describe("Batch 2 is active in Android validation and reports as of Batch 8", () => {
+  it("validateAndroidTarget now runs and reports the Batch 2 check id by default", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const ids = result.checks.map((c) => c.id);
-    expect(ids).not.toContain(ANDROID_NETWORK_SECURITY_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_NETWORK_SECURITY_AUDIT_CHECK_ID);
   });
 
   it("validateAndroidTarget still runs exactly the same v0.4.0 checks", async () => {
@@ -34,22 +35,21 @@ describe("Batch 2 does not affect active Android validation, reports, or existin
     expect(ids).toContain("android-gradle-metadata");
   });
 
-  it("still produces a valid, unchanged verdict for the Compose fixture", async () => {
+  it("still produces a valid verdict for the Compose fixture", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     expect(["ready-for-release-preparation", "ready-except-optional-manual-checks"]).toContain(result.verdict);
   });
 
-  it("renders a text report that never claims the Batch 2 check ran", async () => {
+  it("renders a text report that now includes the Batch 2 check id", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const model = toAndroidReportModel(result);
     const text = renderAndroidTextReport(model);
-    expect(text).not.toContain(ANDROID_NETWORK_SECURITY_AUDIT_CHECK_ID);
-    expect(text.toLowerCase()).not.toContain("network security config");
+    expect(text).toContain(ANDROID_NETWORK_SECURITY_AUDIT_CHECK_ID);
   });
 
-  it("keeps result.checks free of the android-network-security category in normal validation", async () => {
+  it("includes the android-network-security category in normal validation", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const categories = new Set(result.checks.map((c) => c.category));
-    expect(categories.has("android-network-security")).toBe(false);
+    expect(categories.has("android-network-security")).toBe(true);
   });
 });

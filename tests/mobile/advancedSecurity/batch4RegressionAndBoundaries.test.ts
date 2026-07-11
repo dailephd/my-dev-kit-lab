@@ -17,16 +17,17 @@ function fixture(name: string): string {
   return path.join(FIXTURES_ROOT, name);
 }
 
-// ANDROID-V041-B4-55/56/57/58 — no active registration; Batch 2/3/v0.4.0 regression.
-describe("Batch 4 does not affect active Android validation, reports, Batch 2, or Batch 3", () => {
-  it("validateAndroidTarget never runs or reports any Batch 2/3/4 standalone check id", async () => {
+// ANDROID-V041-B4-55/56/57/58 — updated for v0.4.1 Batch 8, which activates
+// all internal advanced checks by default (agents.txt Batch 8 section 9.1).
+describe("Batch 4 is active in Android validation alongside Batch 2 and Batch 3", () => {
+  it("validateAndroidTarget now runs and reports every Batch 2/3/4 standalone check id", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const ids = result.checks.map((c) => c.id);
-    expect(ids).not.toContain(ANDROID_NETWORK_SECURITY_AUDIT_CHECK_ID);
-    expect(ids).not.toContain(ANDROID_BACKUP_CONFIGURATION_AUDIT_CHECK_ID);
-    expect(ids).not.toContain(ANDROID_RELEASE_CONFIGURATION_AUDIT_CHECK_ID);
-    expect(ids).not.toContain(ANDROID_SECRET_CANDIDATES_AUDIT_CHECK_ID);
-    expect(ids).not.toContain(ANDROID_SIGNING_CONFIGURATION_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_NETWORK_SECURITY_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_BACKUP_CONFIGURATION_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_RELEASE_CONFIGURATION_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_SECRET_CANDIDATES_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_SIGNING_CONFIGURATION_AUDIT_CHECK_ID);
   });
 
   it("validateAndroidTarget still runs exactly the same v0.4.0 checks", async () => {
@@ -41,12 +42,12 @@ describe("Batch 4 does not affect active Android validation, reports, Batch 2, o
     expect(ids).toContain("android-gradle-metadata");
   });
 
-  it("still produces a valid, unchanged verdict for the Compose fixture", async () => {
+  it("still produces a valid verdict for the Compose fixture", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     expect(["ready-for-release-preparation", "ready-except-optional-manual-checks"]).toContain(result.verdict);
   });
 
-  it("renders a text report that never claims any Batch 2/3/4 check ran", async () => {
+  it("renders a text report that now includes every Batch 2/3/4 check id", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const model = toAndroidReportModel(result);
     const text = renderAndroidTextReport(model);
@@ -57,15 +58,15 @@ describe("Batch 4 does not affect active Android validation, reports, Batch 2, o
       ANDROID_SECRET_CANDIDATES_AUDIT_CHECK_ID,
       ANDROID_SIGNING_CONFIGURATION_AUDIT_CHECK_ID,
     ]) {
-      expect(text).not.toContain(checkId);
+      expect(text).toContain(checkId);
     }
   });
 
-  it("keeps result.checks free of android-secret-candidates/android-signing-configuration categories in normal validation", async () => {
+  it("includes the android-secret-candidates/android-signing-configuration categories in normal validation", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const categories = new Set(result.checks.map((c) => c.category));
-    expect(categories.has("android-secret-candidates")).toBe(false);
-    expect(categories.has("android-signing-configuration")).toBe(false);
+    expect(categories.has("android-secret-candidates")).toBe(true);
+    expect(categories.has("android-signing-configuration")).toBe(true);
   });
 
   it("Batch 3's buildTypeDetails/signingConfigRef extraction remains unchanged (Batch 3 regression)", async () => {

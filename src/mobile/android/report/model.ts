@@ -19,6 +19,9 @@ export type AndroidReportMetadata = {
   target: AndroidTargetMetadata;
   profile: string;
   requestedGradleOperations: string[];
+  // v0.4.1 Batch 8 — additive external-tool integration metadata.
+  requestedExternalTools: string[];
+  externalNetworkPolicy: string;
   generatedAt: string;
   totalDurationMs: number;
 };
@@ -49,6 +52,13 @@ export type AndroidReportModel = {
   gradleMetadataSummary: AndroidReportSummarySection;
   gradleCheckSummary?: AndroidReportSummarySection;
   gradleOperationResults: AndroidCheckResult[];
+  // v0.4.1 Batch 8 — additive: fixed-order views over `checks` (below) for
+  // the eleven internal advanced checks and any requested Batch 7 external
+  // tools, mirroring how gradleOperationResults is already a filtered view
+  // rather than a duplicate data source.
+  advancedSecurityChecks: AndroidCheckResult[];
+  externalToolChecks: AndroidCheckResult[];
+  candidateEvidenceSummary: AndroidReportSummarySection;
   releaseMetadataSummary: AndroidReportSummarySection;
   playReadinessSummary: AndroidReportSummarySection;
   playReadinessItems: { id: string; title: string; status: string; detail: string }[];
@@ -67,6 +77,26 @@ export type AndroidReportModel = {
 
 const GRADLE_OPERATION_CHECK_PREFIX = "android-gradle-";
 const GRADLE_METADATA_CHECK_ID = "android-gradle-metadata";
+
+// v0.4.1 Batch 8 — fixed check-id order for the eleven internal advanced
+// checks and four external tools (agents.txt Batch 8 sections 9.1/10.5).
+// Re-declared here (not imported from each check's checkResult.ts) to avoid
+// a report -> advancedSecurity/externalTools import-fan-out; each id is a
+// stable literal already asserted by that check's own regression tests.
+const ADVANCED_SECURITY_CHECK_ID_ORDER = [
+  "android-network-security-audit",
+  "android-backup-configuration-audit",
+  "android-release-configuration-audit",
+  "android-secret-candidates-audit",
+  "android-signing-configuration-audit",
+  "android-webview-security-audit",
+  "android-file-provider-audit",
+  "android-sensitive-storage-audit",
+  "android-sensitive-logging-audit",
+  "android-clipboard-security-audit",
+  "android-firebase-google-services-audit",
+];
+const EXTERNAL_TOOL_CHECK_ID_ORDER = ["android-semgrep-audit", "android-osv-audit", "android-lint-audit", "android-dependency-check-audit"];
 
 const STATIC_ANALYSIS_LIMITATIONS = [
   "Static Android project analysis does not prove runtime behavior.",
@@ -96,6 +126,8 @@ function groupFindingsBySeverity(findings: SecurityFinding[]): Record<string, Se
 export type ToAndroidReportModelOptions = {
   profile?: string;
   requestedGradleOperations?: string[];
+  requestedExternalTools?: string[];
+  externalNetworkPolicy?: string;
 };
 
 // Builds the report model from a complete AndroidValidationResult (Batch 5).
@@ -114,6 +146,11 @@ export function toAndroidReportModel(result: AndroidValidationResult, options: T
   const gradleOperationResults = result.checks.filter((c) => c.id.startsWith(GRADLE_OPERATION_CHECK_PREFIX) && c.id !== GRADLE_METADATA_CHECK_ID);
   const gradleMetadataCheck = result.checks.find((c) => c.id === GRADLE_METADATA_CHECK_ID);
 
+  const checksById = new Map(result.checks.map((c) => [c.id, c] as const));
+  const advancedSecurityChecks = ADVANCED_SECURITY_CHECK_ID_ORDER.map((id) => checksById.get(id)).filter((c): c is AndroidCheckResult => Boolean(c));
+  const externalToolChecks = EXTERNAL_TOOL_CHECK_ID_ORDER.map((id) => checksById.get(id)).filter((c): c is AndroidCheckResult => Boolean(c));
+  const candidateEvidenceCount = result.checks.reduce((sum, c) => sum + (c.candidateEvidence?.length ?? 0), 0);
+
   const verdict = String(result.verdict);
   const isRealVerdict = result.verdict !== "not-calculated";
 
@@ -124,6 +161,8 @@ export function toAndroidReportModel(result: AndroidValidationResult, options: T
       target: result.target,
       profile: options.profile ?? "android",
       requestedGradleOperations: options.requestedGradleOperations ?? [],
+      requestedExternalTools: options.requestedExternalTools ?? [],
+      externalNetworkPolicy: options.externalNetworkPolicy ?? "deny",
       generatedAt: result.finishedAt,
       totalDurationMs: result.durationMs,
     },
@@ -147,6 +186,12 @@ export function toAndroidReportModel(result: AndroidValidationResult, options: T
     },
     gradleCheckSummary: gradleMetadataCheck ? { title: "Gradle metadata check", summary: `status: ${gradleMetadataCheck.status}` } : undefined,
     gradleOperationResults,
+    advancedSecurityChecks,
+    externalToolChecks,
+    candidateEvidenceSummary: {
+      title: "Candidate evidence (review required, not confirmed findings)",
+      summary: `${candidateEvidenceCount} candidate evidence item(s) across all checks`,
+    },
     releaseMetadataSummary: {
       title: "Release metadata",
       summary: result.releaseMetadata

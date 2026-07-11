@@ -22,7 +22,7 @@ function fixture(name: string): string {
 
 const ALL_BATCH_7_TOOL_CHECK_IDS = [ANDROID_SEMGREP_AUDIT_CHECK_ID, ANDROID_OSV_AUDIT_CHECK_ID, ANDROID_LINT_AUDIT_CHECK_ID, ANDROID_DEPENDENCY_CHECK_AUDIT_CHECK_ID];
 
-describe("Batch 7 does not affect active Android validation or reports", () => {
+describe("Batch 7 external tools remain opt-in even after Batch 8 activates internal checks", () => {
   it("validateAndroidTarget never runs or reports any Batch 7 external-tool check id", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const ids = result.checks.map((c) => c.id);
@@ -54,13 +54,16 @@ describe("Batch 7 does not affect active Android validation or reports", () => {
     expect(["ready-for-release-preparation", "ready-except-optional-manual-checks"]).toContain(result.verdict);
   });
 
-  it("Batch 2-6 checks remain inactive alongside Batch 7 (combined non-integration regression)", async () => {
+  it("Batch 2-6 internal checks are active by default (Batch 8 activation) while Batch 7 external tools stay opt-in", async () => {
     const result = await validateAndroidTarget({ toolRoot: TOOL_ROOT, targetPath: fixture("compose-app") });
     const ids = result.checks.map((c) => c.id);
-    expect(ids).not.toContain(ANDROID_SENSITIVE_STORAGE_AUDIT_CHECK_ID);
-    expect(ids).not.toContain(ANDROID_SENSITIVE_LOGGING_AUDIT_CHECK_ID);
-    expect(ids).not.toContain(ANDROID_CLIPBOARD_SECURITY_AUDIT_CHECK_ID);
-    expect(ids).not.toContain(ANDROID_FIREBASE_GOOGLE_SERVICES_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_SENSITIVE_STORAGE_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_SENSITIVE_LOGGING_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_CLIPBOARD_SECURITY_AUDIT_CHECK_ID);
+    expect(ids).toContain(ANDROID_FIREBASE_GOOGLE_SERVICES_AUDIT_CHECK_ID);
+    for (const checkId of ALL_BATCH_7_TOOL_CHECK_IDS) {
+      expect(ids).not.toContain(checkId);
+    }
   });
 });
 
