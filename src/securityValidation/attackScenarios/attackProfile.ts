@@ -3,6 +3,7 @@ import { SECURITY_PROFILE_IDS } from "../validate/cliOptions.js";
 import { NODE_CLI_PACKAGE_PROFILE } from "./profiles/nodeCliPackageProfile.js";
 import { LOCAL_TOOL_PROFILE } from "./profiles/localToolProfile.js";
 import { NPM_PACKAGE_PROFILE } from "./profiles/npmPackageProfile.js";
+import { ANDROID_PROFILE } from "./profiles/androidProfile.js";
 
 // ---------------------------------------------------------------------------
 // v0.2.2 Batch 2 — reusable security profile definitions.
@@ -29,6 +30,7 @@ const PROFILE_REGISTRY: Record<SecurityProfileId, AttackProfileDefinition> = {
   "node-cli-package": NODE_CLI_PACKAGE_PROFILE,
   "local-tool": LOCAL_TOOL_PROFILE,
   "npm-package": NPM_PACKAGE_PROFILE,
+  android: ANDROID_PROFILE,
 };
 
 // Resolves a profile id to its definition. Throws a clean, descriptive Error

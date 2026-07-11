@@ -1,6 +1,6 @@
 {
   "name": "@dailephd/my-dev-kit-lab",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
@@ -71,6 +71,7 @@
     "test:plots": "vitest run tests/plots tests/commands/generateExperimentPlotsCommand.spec.ts",
     "test:visualization-demos": "vitest run tests/visualizationDemos tests/commands/runVisualizationDemosCommand.spec.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
+    "docs:check": "node scripts/check-docs.mjs",
     "verify": "npm run build && npm run test && npm run test:benchmarks && npm run test:report && npm run test:screenshot && npm run test:evaluation && npm run test:agents && npm run test:experiments && npm run test:plots && npm run test:visualization-demos && npm run test:gallery && npm run test:demo && npm run test:integration && npm run test:e2e && npm run verify:benchmarks",
     "security:deps": "tsx scripts/security/runDependencyChecks.ts",
     "security:package": "tsx scripts/security/runPackageChecks.ts",

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.risky">
+
+    <application>
+
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".UnprotectedExportedActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.risky.CUSTOM_ACTION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".ProtectedExportedActivity"
+            android:exported="true"
+            android:permission="com.example.risky.permission.ADMIN" />
+
+        <activity android:name=".UnspecifiedExportedActivity">
+            <intent-filter>
+                <action android:name="com.example.risky.ANOTHER_ACTION" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".NotExportedActivity" android:exported="false" />
+
+        <service android:name=".UnprotectedExportedService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.risky.SERVICE_ACTION" />
+            </intent-filter>
+        </service>
+
+        <receiver android:name=".UnprotectedExportedReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.risky.RECEIVER_ACTION" />
+            </intent-filter>
+        </receiver>
+
+        <provider android:name=".UnprotectedExportedProvider"
+            android:authorities="com.example.risky.provider"
+            android:exported="true" />
+
+        <provider android:name=".PartiallyProtectedProvider"
+            android:authorities="com.example.risky.provider2"
+            android:exported="true"
+            android:readPermission="com.example.risky.permission.READ" />
+
+        <provider android:name=".FullyProtectedProvider"
+            android:authorities="com.example.risky.provider3"
+            android:exported="true"
+            android:readPermission="com.example.risky.permission.READ"
+            android:writePermission="com.example.risky.permission.WRITE" />
+
+    </application>
+
+</manifest>
