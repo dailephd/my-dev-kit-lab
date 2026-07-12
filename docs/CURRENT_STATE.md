@@ -100,7 +100,7 @@ npm run audit -- --types code-rot,security --format text,json --fail-on none
 
 The generic audit framework, code-rot detector family, TypeScript/JavaScript, Python, Java, and Kotlin language-aware substrate, and the security-validation audit adapter are all implemented in the published `v0.3.4` audit baseline.
 
-The v0.4.2 feature branch also implements the opt-in Android-aware extension of the existing security audit adapter: `audit --types security --android`, direct programmatic validation, confirmed-finding mapping, Android status/completeness and CandidateEvidence summaries, and text/JSON report references. It remains unreleased.
+v0.4.2 also implements the opt-in Android-aware extension of the existing security audit adapter: `audit --types security --android`, direct programmatic validation, confirmed-finding mapping, Android status/completeness and CandidateEvidence summaries, and text/JSON report references. It is implementation-complete and release-prepared (package metadata `0.4.2`) but not yet published.
 
 The following remain planned, not implemented:
 
@@ -126,4 +126,4 @@ The following remain planned, not implemented:
 
 ## Next planned work
 
-The current published npm baseline is `v0.4.1` (package metadata `0.4.1`). Android validation shipped in v0.4.0 and advanced Android security shipped in v0.4.1. The Android-aware audit-adapter extension is implemented on the v0.4.2 feature branch but remains unreleased. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.
+The current published npm baseline is `v0.4.1`; package metadata is now `0.4.2` (release-prepared, not yet published). Android validation shipped in v0.4.0 and advanced Android security shipped in v0.4.1. The Android-aware audit-adapter extension is implementation-complete in `v0.4.2` and awaits publication. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.

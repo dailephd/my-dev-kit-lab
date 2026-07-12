@@ -2,9 +2,9 @@
 
 ## Current command families
 
-Implemented public families include `npm run experiment:list`, `npm run experiment:describe`, `npm run experiment:run`, `npm run audit`, and `npm run security:validate`, plus build, typecheck, test, verify, and `docs:check`. Android validation uses the existing security command with profile and opt-in Gradle/external-tool/network flags. The v0.4.2 feature branch adds an opt-in Android path to the existing audit command; it remains unreleased.
+Implemented public families include `npm run experiment:list`, `npm run experiment:describe`, `npm run experiment:run`, `npm run audit`, and `npm run security:validate`, plus build, typecheck, test, verify, and `docs:check`. Android validation uses the existing security command with profile and opt-in Gradle/external-tool/network flags. v0.4.2 adds an opt-in Android path to the existing audit command; it is release-prepared but not yet published.
 
-This document describes the current command surface in my-dev-kit-lab and the limited planned command direction that is relevant to the roadmap. The current published package metadata is `0.4.1`; v0.4.0 and v0.4.1 add Android validation through the existing security command family.
+This document describes the current command surface in my-dev-kit-lab and the limited planned command direction that is relevant to the roadmap. Package metadata is now `0.4.2` (release-prepared); `0.4.1` remains the current published npm baseline. v0.4.0 and v0.4.1 add Android validation through the existing security command family.
 
 Current rule: do not treat planned commands or planned flags as implemented behavior.
 
@@ -234,7 +234,7 @@ Implemented Android validation command:
 - `npm run security:validate -- --target <path> --profile android`
 - Android Compose/XML/mixed classification is selected by detection; `android-compose` is not a separate accepted profile.
 
-Implemented v0.4.2 feature-branch audit opt-in:
+Implemented v0.4.2 audit opt-in (release-prepared, not yet published):
 
 - `npm run audit -- --target <path> --types security --android --format text,json --fail-on none`
 - `--android` requires `--types` to include `security` and invokes the validator programmatically through the existing adapter.
