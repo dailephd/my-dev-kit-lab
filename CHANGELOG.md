@@ -1,20 +1,24 @@
 # Changelog
 
-## [0.4.1] - Unreleased
+All notable changes to my-dev-kit-lab are documented here.
+
+## [0.4.1] - 2026-07-12
+
+Advanced Android security validation, published on top of the previously published `v0.4.0` baseline. `v0.4.1` is the current published baseline.
 
 ### Added
 
-- Added the advanced Android rule/evidence substrate and eleven internal advanced check families covering network configuration, backup/release configuration, secrets/signing, WebView/FileProvider, sensitive storage/logging/clipboard, and Firebase/Google services.
+- Added the advanced Android rule/evidence substrate and eleven internal advanced check families: Network Security Config and cleartext traffic review, backup and data-extraction-rules review, debuggable and release configuration review, redacted hardcoded-secret detection, signing-configuration leak review, WebView and FileProvider analysis, sensitive storage/logging/clipboard analysis, and Firebase and Google services configuration and local rules review.
 - Added opt-in Semgrep, OSV-Scanner, Android Lint, and OWASP Dependency-Check evidence with closed tool IDs, bounded artifacts, and default network denial.
-- Activated nineteen default Android checks and added `--android-external-tools` and `--android-external-network`.
-- Added CandidateEvidence presentation plus advanced-security, external-tool, artifact, and candidate summaries to text/JSON reports.
+- Activated nineteen default Android checks (eight `v0.4.0` checks plus eleven `v0.4.1` advanced internal checks) and added explicit `--android-external-tools` and `--android-external-network` CLI options.
+- Added CandidateEvidence presentation plus advanced-security, external-tool, artifact, and candidate summaries to both text and JSON reports, with text/JSON parity.
 
-### Boundaries
+### Compatibility and limitations
 
-- Default Android validation starts zero Gradle, external-tool, and network processes.
-- Android AuditIssue mapping remains future v0.4.2 work. This is an unreleased implementation entry without a release date.
-
-All notable changes to my-dev-kit-lab are documented here.
+- Default Android validation starts zero Gradle operations, zero external-tool processes, and zero network operations.
+- Advanced checks remain static-analysis-based and conservative: no APK/AAB inspection, no signing verification, no emulator/device validation, and no Play compliance or manual penetration testing.
+- Optional Semgrep/OSV-Scanner/Android Lint/Dependency-Check evidence depends on external tool availability; missing tools are skipped, not treated as failures.
+- Android AuditIssue mapping remains future `v0.4.2` work.
 
 ## [0.4.0] - 2026-07-11
 

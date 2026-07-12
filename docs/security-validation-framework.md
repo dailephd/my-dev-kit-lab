@@ -1,6 +1,6 @@
 # Security Validation Framework
 
-my-dev-kit-lab provides local CLI/package validation and Android static evidence. `v0.4.0` is published; `v0.4.1` is implemented but unreleased.
+my-dev-kit-lab provides local CLI/package validation and Android static evidence. `v0.4.1` is published; `v0.4.0` is the previous published baseline.
 
 The Android profile runs nineteen default checks and writes deterministic text/JSON reports. Eleven internal advanced checks always run. Gradle operations and four external adapters are closed, explicit opt-ins; default execution starts zero processes and denies network.
 

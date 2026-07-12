@@ -19,7 +19,7 @@ describe("docs:check", () => {
   });
 
   it.each([
-    ["README.md", "v0.4.1 is published", "released or publish-ready"],
+    ["README.md", "v0.4.1 is implementation-complete but unreleased", "claims released v0.4.1 is unreleased"],
     ["README.md", "", "missing invariant: --android-external-tools"],
     ["docs/COMMANDS.md", "`unknown-tool`", "missing invariant: `semgrep`"],
   ])("rejects stale or incomplete documentation: %s", (changedFile, replacement, expected) => {

@@ -16,4 +16,4 @@ Internal checks always run for Android. Optional Gradle/tools run only when requ
 
 Read SecurityFinding as confirmed conservative evidence, CandidateEvidence as review evidence, check status as execution outcome, verdict as aggregate evidence state, artifacts as contained supporting files, and mutation evidence as target-change accounting. Play-readiness items and static/runtime limitations still require human review.
 
-`security:validate` remains distinct from `npm run audit`. Android AuditIssue mapping remains v0.4.2 work. v0.4.1 implementation, Batch 9 documentation reconciliation, pre-release readiness, release preparation, and publication are separate stages.
+`security:validate` remains distinct from `npm run audit`. Android AuditIssue mapping remains v0.4.2 work. v0.4.1 is released.

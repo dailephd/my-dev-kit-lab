@@ -2,7 +2,7 @@
 
 ```mermaid
 flowchart LR
-  A[v0.4.0 published Android MVP] --> B[v0.4.1 implemented, unreleased]
+  A[v0.4.0 published Android MVP] --> B[v0.4.1 published advanced Android security]
   B --> C[v0.4.2 future audit-adapter extension]
   C --> D[post-v1 manual pentest / version TBD]
 ```
@@ -13,7 +13,7 @@ Completed and published Android validation MVP: detection, manifest parsing, fou
 
 ### v0.4.1
 
-Implementation-complete but unreleased. Batches 1-8 implement the advanced substrate, Network Security Config, backup/data extraction, release/debuggable configuration, secrets/signing, WebView/FileProvider, sensitive storage/logging/clipboard, Firebase/Google services, Semgrep/OSV/Android Lint/Dependency-Check adapters, nineteen active checks, CLI flags, CandidateEvidence, and text/JSON integration. Batch 9 reconciles documentation and completeness. No version bump, release preparation, or publication has occurred.
+Published. Batches 1-8 implement the advanced substrate, Network Security Config, backup/data extraction, release/debuggable configuration, secrets/signing, WebView/FileProvider, sensitive storage/logging/clipboard, Firebase/Google services, Semgrep/OSV/Android Lint/Dependency-Check adapters, nineteen active checks, CLI flags, CandidateEvidence, and text/JSON integration. Batch 9 reconciled documentation. v0.4.1 is the current published baseline.
 
 ### v0.4.2
 

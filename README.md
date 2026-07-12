@@ -4,7 +4,7 @@ my-dev-kit-lab is the experiment, evidence, reporting, visualization, audit, and
 
 ## Version state
 
-`v0.4.0` is the published baseline. The `v0.4.1` advanced Android implementation is implementation-complete on `feature/v0.4.1-advanced-android-security` but unreleased. Package metadata remains `0.4.0` until a separate release-preparation workflow. `v0.4.2` remains future work.
+`v0.4.1` is the published baseline, with the advanced Android implementation released. `v0.4.0` is the previous published baseline. `v0.4.2` remains future work.
 
 ## Android validation
 

@@ -20,6 +20,6 @@ Owners: CLI options are in `src/securityValidation/validate/cliOptions.ts` and `
 
 Runtime order is target/profile resolution, detection and shared evidence, original checks, eleven internal checks, requested Gradle operations, requested external tools, deterministic aggregation, verdict, then contained artifacts and reports. Failures are isolated so one check or tool cannot erase other results.
 
-AndroidCheckResult remains canonical. SecurityFinding and CandidateEvidence remain distinct. External rule IDs preserve provenance; semantic cross-check deduplication is not performed. Report fields are additive. Android AuditIssue mapping is not implemented in v0.4.1.
+AndroidCheckResult remains canonical. SecurityFinding and CandidateEvidence remain distinct. External rule IDs preserve provenance; semantic cross-check deduplication is not performed. Report fields are additive. Android AuditIssue mapping is not implemented in v0.4.1 and remains planned for v0.4.2.
 
 The default path starts no child process. Gradle and external-tool IDs are closed, arguments are fixed, environments and output are bounded, network is denied by default, installers and updates are forbidden, artifacts are contained, mutations are reported, and cleanup is not attempted.
