@@ -4,9 +4,7 @@
 
 my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, performs automated CLI/package security validation, and runs the generic audit framework.
 
-The current published baseline is `v0.4.1`; `v0.3.4` is the completed cross-language audit-stability baseline. `v0.3.0` introduced the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate plus TypeScript/JavaScript support; `v0.3.2` added Python-aware code-rot support and a first security-validation audit adapter; `v0.3.3` adds Java/Kotlin source-facts support and JVM-aware code-rot detector integration. The generic experiment-plugin framework was introduced in `v0.2.0`. The first plugin is `context-strategy-comparison`, which preserves the existing raw-full-file vs my-dev-kit-guided workflow through the plugin runner.
-
-Package metadata is `0.3.4`, and the npm registry contains `0.3.4`. `v0.3.3` is the previous published baseline. Java/Kotlin support is conservative static analysis only: dependency-free scanners, static Gradle/Maven metadata detection, and no compiler, classpath, Gradle, Maven, Android, or target-test execution. `v0.3.4` adds mixed-language stability coverage, repeated-run report hardening, cross-platform/path normalization tests, CRLF/LF stability checks, and final documentation reconciliation. Local Windows validation passed and a latest-Node cross-platform workflow is configured for ubuntu/macos/windows for this release.
+The generic experiment-plugin framework was introduced in `v0.2.0`. Its first plugin, `context-strategy-comparison`, preserves the raw-full-file vs my-dev-kit-guided comparison through the plugin runner. Later releases added the generic audit framework, language-aware code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, a security-validation audit adapter, and Android validation. See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
 
 my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
 
@@ -36,10 +34,11 @@ my-dev-kit is most useful when the repository is larger than the task. It helps 
 - Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
 - Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
 - Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`. `security:validate` remains the standalone, focused security-validation command; it is not replaced by the audit adapter below.
-- Generic audit framework, current published baseline: `npm run audit` runs heuristic, conservative code-rot detectors and writes text/JSON reports under `reports/audits/code-rot/` by default. `code-rot` and `security` are the currently implemented audit types (`--types code-rot`, `--types security`, or combined `--types code-rot,security`); `quality`, `project`, and `all` audit types are planned and fail cleanly instead of running. `npm run audit` supports `--target`, `--types`, and other flags — see [docs/COMMANDS.md](docs/COMMANDS.md). Audit does not modify target files and does not auto-fix issues.
-- Language-aware code-rot support, current published package state: normalized language/file-role inventory, a source-facts model and collector, TypeScript/JavaScript, Python, Java, and Kotlin analyzers, and conservative detector integrations for `dead-code-candidate`, `duplicate-implementation-candidate`, `test-rot`, and `docs-code-mismatch`. Python project metadata remains a top-level audit report field. Java/Kotlin support adds static JVM project metadata detection for Gradle/Maven/source-set shape and conservative source-facts evidence, but no compiler parsing, type resolution, classpath resolution, Gradle/Maven execution, Android validation, or target-project test execution. No `SourceFacts` schema change or new audit command was added for `v0.3.3`.
-- Security-validation audit adapter, current published package state: `npm run audit -- --types security` runs security validation through the shared audit/report surface by calling the same `runSecurityValidation()` internals `security:validate` uses, maps security findings into audit-issue-shaped entries, and adds a `securitySummary` field (verdict, check counts, finding counts, and links to the original `reports/security/*.txt`/`*.json` report) to audit JSON/text reports. `npm run audit -- --types code-rot,security` runs both audit types together. The original `security:validate` command and its `reports/security/` output are unchanged.
-- `v0.3.4` (published): mixed-language fixture corpus, source-facts invariants, full-registry mixed-language detector stability tests, repeated-run audit report determinism checks, cross-platform/path normalization hardening, CRLF/LF parsing stability coverage, and final documentation reconciliation. Package metadata is `0.3.4`.
+- Generic audit framework: `npm run audit` runs conservative code-rot and security detectors and writes text/JSON reports under `reports/audits/` by default. `code-rot` and `security` are the currently implemented audit types (`--types code-rot`, `--types security`, or combined `--types code-rot,security`); `quality`, `project`, and `all` audit types are planned and fail cleanly instead of running. Audit does not modify target files and does not auto-fix issues. See [docs/COMMANDS.md](docs/COMMANDS.md) for full flags.
+- Language-aware code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, built on a shared source-facts model and normalized language/file-role inventory. Java/Kotlin support is conservative static analysis only: no compiler parsing, type/classpath resolution, or Gradle/Maven execution.
+- Security-validation audit adapter: `npm run audit -- --types security` runs the same `security:validate` internals through the shared audit/report surface, mapping findings into audit issues and linking back to the original `reports/security/` report. `security:validate`'s own checks and reports are unaffected.
+- Android validation: `security:validate --profile android` runs nineteen static checks against an Android project (manifest, permissions, exported components, network security config, backup/release configuration, secrets, signing, WebView/FileProvider, sensitive storage/logging, and Firebase/Google services), with optional opt-in Gradle operations and external tools (Semgrep, OSV-Scanner, Android Lint, Dependency-Check). Default execution starts zero Gradle processes, zero external tools, and zero network operations.
+- Android-aware generic audit: `npm run audit -- --types security --android` runs the same static Android validation through the audit adapter, mapping confirmed findings into audit issues while keeping review-only `CandidateEvidence` separate and never treated as a confirmed issue.
 
 ---
 
@@ -55,6 +54,10 @@ flowchart TD
   E --> G[Plots / screenshots / gallery]
   H[scripts/security] --> I[Automated security validation]
   I --> J[Security reports + verdict]
+  I --> K[Android validation]
+  L[scripts/audits] --> M[Generic audit framework]
+  M --> N[Code-rot detectors]
+  M --> I
 ```
 
 ---
@@ -67,11 +70,7 @@ flowchart TD
 npm install
 ```
 
-```powershell
-npm install
-```
-
-`cmd.exe` users should run the same command on one line.
+The same command works in PowerShell and `cmd.exe`.
 
 ### Build
 
@@ -208,18 +207,15 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ---
 
-## Current baseline release positioning
+## Roadmap direction
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current published npm baseline is `v0.4.1`, which hardens cross-language audit stability on top of `v0.3.3` (Java/Kotlin analyzers, JVM metadata detection, Java/Kotlin detector support, and Java/Kotlin/Gradle/Maven docs-code-mismatch checks). `v0.3.3` is the previous published baseline.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts, and real-agent campaign support exists for Codex and Claude. Recent releases added language-aware code-rot detectors (TypeScript/JavaScript, Python, Java, Kotlin), a security-validation audit adapter, and Android validation with an Android-aware extension of that same adapter.
 
-Package metadata is now `0.4.2` (release-prepared), while the npm registry still contains `0.4.1` as the latest published version until a separately authorized publication. It hardens the existing language-aware audit path with mixed-language fixture coverage, detector and report determinism checks, cross-platform/path normalization coverage, CRLF/LF stability coverage, and documentation reconciliation. It does not add a new command.
-
-Planned roadmap direction after the current published baseline:
-
-- `v0.3.3`: Java/Kotlin code-rot support (published)
-- `v0.3.4`: cross-language stability for the language-aware code-rot track (published)
-- `v0.4.0` and `v0.4.1`: published Android automated security validation; `v0.4.2`: implemented and release-prepared Android-aware extension of the existing security audit adapter, not yet published
+- `v0.4.0` and `v0.4.1`: Android automated security validation (published)
+- `v0.4.2`: Android-aware extension of the existing security audit adapter (see [CHANGELOG.md](CHANGELOG.md) for release status)
 - manual pentest: post-v1 / version TBD
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the complete, versioned plan.
 
 ---
 

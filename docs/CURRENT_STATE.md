@@ -1,6 +1,6 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The current published npm baseline is `@dailephd/my-dev-kit-lab` `0.4.1`. `v0.3.0` added the generic audit framework and the first implemented code-rot detector family; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer support; `v0.3.2` added Python code-rot support and a first security-validation audit adapter; `v0.3.3` added Java/Kotlin code-rot support and is the previous published baseline; `v0.3.4` hardens cross-language audit stability. Package metadata is `0.4.1`, and the npm registry contains `0.4.1`.
+This file is the concise source of truth for the checked-in implementation. The working-tree package version is `@dailephd/my-dev-kit-lab` `0.4.2`. `v0.4.1` is the latest npm-published version; `v0.4.2` (Android-aware extension of the security audit adapter) is merged to `main`, tagged, and has a GitHub Release, with npm publication as the next step. See [CHANGELOG.md](../CHANGELOG.md) for the complete release history.
 
 ## Implemented
 
@@ -21,29 +21,18 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Audit reports are written under `reports/audits/<type>/` by default (`code-rot-audit.txt`/`code-rot-audit.json`), or under `--out <path>` when supplied.
 - Self and explicit local-project (non-destructive) audit targets.
 - The audit framework does not shell out to `security:validate`; the security audit adapter reuses `securityValidation`'s exported functions directly, and `security:validate` does not call the audit framework.
-- Published `v0.3.3` Java/Kotlin implementation: dependency-free Java and Kotlin source-facts analyzers, JVM project metadata collection (Gradle/Maven/wrapper/source-set presence only), Java/Kotlin detector integration for `dead-code-candidate`, `duplicate-implementation-candidate`, `test-rot`, and Java/Kotlin/Gradle/Maven docs-code-mismatch support.
-- Published `v0.3.4` hardening on top of the previous baseline (package metadata `0.3.4`): mixed-language fixture corpus and invariant coverage, full-registry mixed-language detector stability tests, repeated-run audit report determinism tests, cross-platform/path normalization coverage, CRLF/LF source parsing coverage, and final documentation reconciliation.
+- Java/Kotlin implementation: dependency-free Java and Kotlin source-facts analyzers, JVM project metadata collection (Gradle/Maven/wrapper/source-set presence only), Java/Kotlin detector integration for `dead-code-candidate`, `duplicate-implementation-candidate`, `test-rot`, and Java/Kotlin/Gradle/Maven docs-code-mismatch support.
+- Cross-language stability hardening: mixed-language fixture corpus and invariant coverage, full-registry mixed-language detector stability tests, repeated-run audit report determinism tests, cross-platform/path normalization coverage, and CRLF/LF source parsing coverage.
+- Android validation in `src/mobile/android`, reachable through `security:validate --profile android`: project detection and classification, manifest parsing, permission/exported-component/intent-filter/deep-link audits, static Gradle metadata, and eleven advanced internal checks (network security config, backup/release configuration, redacted secrets, signing configuration, WebView/FileProvider, sensitive storage/logging/clipboard, and Firebase/Google services), for nineteen default checks. Optional opt-in Gradle operations and external tools (Semgrep, OSV-Scanner, Android Lint, Dependency-Check) remain off by default with zero network access.
+- Android-aware generic audit integration in `src/audits/security`: `npm run audit -- --types security --android` runs the same static Android validation through the existing security audit adapter, mapping confirmed findings into audit issues while keeping `CandidateEvidence` as a separate, review-only summary.
 
-## Active branch status
+## Language and analyzer notes
 
-The current published npm baseline is `v0.3.3`. `v0.3.1` added normalized language/file-role inventory, a source facts model, source facts collection, a language analyzer registry, a TypeScript/JavaScript syntax analyzer, and source-facts-aware detector/report integration.
+Normalized language/file-role inventory, a source facts model, source facts collection, and a language analyzer registry back the code-rot detectors across languages:
 
-`v0.3.2` adds:
-
-- a dependency-free Python source-facts analyzer (imports including relative dotted imports, `__all__`, module-level/class-body declarations)
-- Python project metadata collection (`pyproject.toml`, `requirements.txt`, `setup.py`/`setup.cfg`, `tox.ini`, `pytest.ini` presence, best-effort project name, pytest-configuration flag)
-- Python-aware signals in the `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` detectors
-- the security-validation audit adapter (`--types security`, `--types code-rot,security`) described above
-
-The published `v0.3.3` work adds:
-
-- a dependency-free Java analyzer for `.java`
-- a dependency-free Kotlin analyzer for `.kt` and `.kts`
-- JVM project metadata collection for static Gradle/Maven/source-set/wrapper detection and a best-effort project name
-- Java/Kotlin support in `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot`
-- Java/Kotlin symbol-claim support and static Gradle/Maven command/feature-claim support in `docs-code-mismatch`
-
-The TypeScript/JavaScript analyzer supports `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files where files are within the analyzer size bound and parse without syntax diagnostics. The Python analyzer is regex/line-based and dependency-free. The Java and Kotlin analyzers are also conservative and dependency-free: they use scanners/regex plus brace-depth tracking, not compiler parsing or symbol resolution.
+- The TypeScript/JavaScript analyzer supports `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files where files are within the analyzer size bound and parse without syntax diagnostics.
+- The Python analyzer is regex/line-based and dependency-free, covering imports (including relative dotted imports), `__all__`, and module-level/class-body declarations, plus project metadata detection (`pyproject.toml`, `requirements.txt`, `setup.py`/`setup.cfg`, `tox.ini`, `pytest.ini`).
+- The Java analyzer (`.java`) and Kotlin analyzer (`.kt`, `.kts`) are conservative and dependency-free: they use scanners/regex plus brace-depth tracking, not compiler parsing or symbol resolution, alongside JVM project metadata collection for static Gradle/Maven/source-set/wrapper detection.
 
 The source-facts-aware code-rot behavior is conservative:
 
@@ -72,6 +61,8 @@ npm run audit -- --types code-rot --format text,json --fail-on none
 npm run audit -- --types security --format text,json --fail-on none
 npm run audit -- --target <path> --types security --format text,json --fail-on none
 npm run audit -- --types code-rot,security --format text,json --fail-on none
+npm run security:validate -- --target <android-project-path> --profile android
+npm run audit -- --target <android-project-path> --types security --android --format text,json --fail-on none
 ```
 
 `npm run run-controlled-experiment` and the demo/report/plot/gallery commands remain supported. See [COMMANDS.md](COMMANDS.md) for the complete package-script inventory.
@@ -90,17 +81,16 @@ npm run audit -- --types code-rot,security --format text,json --fail-on none
 | `src/report/experiments` | Plugin-aware experiment reports |
 | `src/securityValidation` | Automated security-validation checks, orchestration, and reports |
 | `scripts/security` | Security command entrypoints |
-| `src/audits` | Generic audit framework: target/config/registry/runner (`core`), code-rot detectors (`codeRot`), and report model/renderers (`report`) |
+| `src/audits` | Generic audit framework: target/config/registry/runner (`core`), code-rot detectors (`codeRot`), security audit adapter and Android integration (`security`), and report model/renderers (`report`) |
 | `scripts/audits` | `runAudit.ts` — `npm run audit` entrypoint |
+| `src/mobile/android` | Android detection, manifest parsing, static Gradle metadata, and advanced security checks |
 | `src/plots`, `src/screenshot`, `src/gallery`, `src/visualizationDemos` | Evidence presentation and demo output |
 
 ## Experimental versus planned
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework, code-rot detector family, TypeScript/JavaScript, Python, Java, and Kotlin language-aware substrate, and the security-validation audit adapter are all implemented in the published `v0.3.4` audit baseline.
-
-v0.4.2 also implements the opt-in Android-aware extension of the existing security audit adapter: `audit --types security --android`, direct programmatic validation, confirmed-finding mapping, Android status/completeness and CandidateEvidence summaries, and text/JSON report references. It is implementation-complete and release-prepared (package metadata `0.4.2`) but not yet published.
+The generic audit framework, code-rot detector family, TypeScript/JavaScript/Python/Java/Kotlin language-aware substrate, the security-validation audit adapter, Android validation, and the Android-aware extension of that adapter (`audit --types security --android`, confirmed-finding mapping, Android status/completeness and CandidateEvidence summaries, and text/JSON report references) are all implemented and merged to `main`. Publication to npm is the remaining release step.
 
 The following remain planned, not implemented:
 
@@ -124,6 +114,6 @@ The following remain planned, not implemented:
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
 - Only one experiment plugin is currently registered.
 
-## Next planned work
+## Next step
 
-The current published npm baseline is `v0.4.1`; package metadata is now `0.4.2` (release-prepared, not yet published). Android validation shipped in v0.4.0 and advanced Android security shipped in v0.4.1. The Android-aware audit-adapter extension is implementation-complete in `v0.4.2` and awaits publication. See [ROADMAP.md](ROADMAP.md) for the complete sequence and [WORKFLOWS.md](WORKFLOWS.md) for implementation-completion workflow stages.
+`v0.4.2` is merged to `main` (Android-aware extension of the security audit adapter), tagged `v0.4.2`, and has a published GitHub Release. The remaining step is `npm publish` to make `0.4.2` the latest npm version; `0.4.1` remains latest on npm until then. See [ROADMAP.md](ROADMAP.md) for the complete version sequence and [WORKFLOWS.md](WORKFLOWS.md) for workflow stages.

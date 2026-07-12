@@ -1,12 +1,12 @@
 # Architecture
 
-## Current v0.4.x architecture addendum
+## Android architecture
 
-The published v0.4.1 architecture adds `src/mobile/android` to the existing experiment, evaluation, audit, security-validation, report, plot, screenshot, and gallery systems. Android validation is non-destructive and static by default; Gradle operations, external tools, and network requests require explicit opt-in. The v0.4.2 feature branch extends `src/audits/security` directly with Android validation summaries and report references; it does not create a parallel adapter and does not map `CandidateEvidence` to `AuditIssue`.
+`src/mobile/android` adds Android validation to the existing experiment, evaluation, audit, security-validation, report, plot, screenshot, and gallery systems. Android validation is non-destructive and static by default; Gradle operations, external tools, and network requests require explicit opt-in. `src/audits/security` extends the same security audit adapter directly with Android validation summaries and report references (`--android`); it does not create a parallel adapter and does not map `CandidateEvidence` to `AuditIssue`.
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` as the currently implemented audit types. `v0.3.0` introduced the original code-rot-only audit framework; `v0.3.1` added the language-aware code-rot substrate and TypeScript/JavaScript analyzer; `v0.3.2` added a Python source-facts analyzer plus Python-aware detector signals, and a security-validation audit adapter (`--types security`); `v0.3.3` extends that same audit substrate with Java/Kotlin analyzers, JVM metadata collection, and Java/Kotlin/JVM-aware detector support, and is the previous published baseline. `v0.3.4` is a published historical baseline and hardens source-fact path normalization, report stability, cross-platform/path coverage, CRLF/LF parsing coverage, and documentation accuracy without changing the command surface.
+my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, Android-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` (including its Android-aware extension) as the currently implemented audit types, built on a language-aware source-facts substrate covering TypeScript/JavaScript, Python, Java, and Kotlin.
 
 ### Module map
 
@@ -29,11 +29,12 @@ src/
     codeRot/                                 code-rot audit type
       detectors/                             10 code-rot detector families (TS/JS-, Python-, and Java/Kotlin-aware where source facts are available)
       utils/                                 shared detector helpers (bounded reads, doc-claim/command-reference parsing, JVM source-facts helpers, text-line utilities)
-    security/                                security audit adapter: adapts securityValidation results into audit issues/report summary (v0.3.2)
+    security/                                security audit adapter: adapts securityValidation results into audit issues/report summary, including the Android-aware extension
     report/                                  audit report model, JSON/text renderers, writer, text sanitizer
   report/
     experiments/                             plugin-aware JSON/HTML report support
     ...                                      shared and legacy report infrastructure
+  mobile/android/                            Android detection, manifest parsing, static Gradle metadata, and advanced security checks
   securityValidation/                        automated security validation
     dependencies/                            npm and OSV checks
     packageChecks/                           npm package-content inspection
@@ -71,11 +72,13 @@ flowchart TD
 
   SecurityCLI[scripts/security] --> Security[src/securityValidation]
   Security --> SecurityReports[automated validation reports and verdict]
+  Security --> Android[src/mobile/android]
 
   AuditCLI[scripts/audits] --> AuditRunner[src/audits/core auditRunner]
   AuditRunner --> CodeRotDetectors[src/audits/codeRot detectors]
   AuditRunner --> SecurityAdapter[src/audits/security adapter]
   SecurityAdapter --> Security
+  SecurityAdapter --> Android
   CodeRotDetectors --> AuditReportModel[src/audits/report]
   SecurityAdapter --> AuditReportModel
   AuditReportModel --> AuditReports[Audit text/JSON reports incl. securitySummary]
