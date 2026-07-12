@@ -10,7 +10,12 @@ import { collectSourceFacts } from "./collectSourceFacts.js";
 import type { SourceFactsSnapshot } from "./sourceFacts.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "./pythonProjectMetadata.js";
 import { runSecurityAuditAdapter } from "../security/securityAuditAdapter.js";
-import { SECURITY_AUDIT_NOT_RUN_SUMMARY, type SecurityAuditReportSummary } from "../security/securityAuditTypes.js";
+import {
+  ANDROID_AUDIT_NOT_REQUESTED_SUMMARY,
+  SECURITY_AUDIT_NOT_RUN_SUMMARY,
+  type AndroidAuditSummary,
+  type SecurityAuditReportSummary,
+} from "../security/securityAuditTypes.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 1/2 — audit runner.
@@ -52,6 +57,8 @@ export type AuditConfigSummary = {
   failOn: string;
   out: string;
   isDefaultRun: boolean;
+  // v0.4.2 Batch 3 -- mirrors AuditConfig.android.
+  android: boolean;
 };
 
 export type AuditDetectorError = {
@@ -94,6 +101,13 @@ export type AuditResult = {
   // (never undefined) -- `ran: false` is how a run that didn't select
   // "security" is distinguished from one that ran and found nothing.
   securitySummary: SecurityAuditReportSummary;
+  // v0.4.2 Batch 3 -- Batch 2's Android integration summary, surfaced the
+  // same way securitySummary is: always present (never undefined), with
+  // `requested`/`status` distinguishing "not requested" from "requested and
+  // ran". Only ever populated when config.types includes "security" AND
+  // config.android is true (see below) -- --android alone can never trigger
+  // Android validation, matching Batch 2's explicit opt-in contract.
+  androidSummary: AndroidAuditSummary;
   // True only when the selected registry has zero detectors for the
   // selected types/include areas -- lets callers (the report renderer)
   // state plainly that no code-rot detector coverage occurred, rather than
@@ -109,6 +123,12 @@ export type RunAuditOptions = {
   // when omitted.
   target?: AuditTarget;
   registry?: readonly AuditDetector[];
+  // v0.4.2 Batch 3 -- narrow test-injection passthrough to Batch 2's own
+  // runSecurityAuditAdapter dependency seam (e.g. runAndroidValidation).
+  // Never used by the real CLI entrypoint (scripts/audits/runAudit.ts never
+  // passes it); exists only so runner-level tests can prove failure
+  // isolation without a real Android validator run.
+  securityDependencies?: Parameters<typeof runSecurityAuditAdapter>[1];
 };
 
 export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
@@ -157,10 +177,15 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   // code-rot detector issues (registry order) first, then security findings
   // (security-validation check-execution order).
   let securitySummary: SecurityAuditReportSummary = SECURITY_AUDIT_NOT_RUN_SUMMARY;
+  let androidSummary: AndroidAuditSummary = ANDROID_AUDIT_NOT_REQUESTED_SUMMARY;
   if (config.types.includes("security")) {
-    const securityAudit = await runSecurityAuditAdapter({ toolRoot, config });
+    const securityAudit = await runSecurityAuditAdapter(
+      { toolRoot, config, android: config.android ? { enabled: true } : undefined },
+      options.securityDependencies
+    );
     issues.push(...securityAudit.issues);
     securitySummary = securityAudit.summary;
+    androidSummary = securityAudit.android;
   }
 
   const issueCounts = countIssuesBySeverity(issues);
@@ -174,6 +199,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
       failOn: config.failOn,
       out: config.out,
       isDefaultRun: config.isDefaultRun,
+      android: config.android,
     },
     targetSummary: {
       rootPath: target.rootPath,
@@ -191,6 +217,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     sourceFacts,
     pythonProjectMetadata,
     securitySummary,
+    androidSummary,
     noDetectorsRegistered: selected.length === 0,
   };
 }

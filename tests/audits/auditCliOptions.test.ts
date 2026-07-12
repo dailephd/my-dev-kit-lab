@@ -51,6 +51,24 @@ describe("parseAuditArgs", () => {
     expect(() => parseAuditArgs(["--fail-on"])).toThrow(/Missing value/);
     expect(() => parseAuditArgs(["--out"])).toThrow(/Missing value/);
   });
+
+  // v0.4.2 Batch 3 -- --android is a closed, presence-only boolean flag: no
+  // value is consumed after it, unlike every other flag above.
+  it("parses --android as a presence-only boolean flag, consuming no following argument", () => {
+    expect(parseAuditArgs(["--android"])).toEqual({ android: true });
+    expect(parseAuditArgs(["--types", "security", "--android"])).toEqual({ types: "security", android: true });
+    // The token immediately after --android is parsed as its own flag, not
+    // consumed as a value -- proven by --target still working right after it.
+    expect(parseAuditArgs(["--android", "--target", "some/path"])).toEqual({ android: true, target: "some/path" });
+  });
+
+  it("omits android from the parsed result when --android is not passed", () => {
+    expect(parseAuditArgs(["--types", "security"])).toEqual({ types: "security" });
+  });
+
+  it("is idempotent when --android is passed more than once", () => {
+    expect(parseAuditArgs(["--android", "--android"])).toEqual({ android: true });
+  });
 });
 
 describe("normalizeAuditConfig — defaults (npm run audit with no flags)", () => {
@@ -199,5 +217,46 @@ describe("normalizeAuditConfig — targetMode and isDefaultRun", () => {
   it("isDefaultRun is false when any flag is supplied", () => {
     expect(normalizeAuditConfig({ types: "code-rot" }, toolRoot).isDefaultRun).toBe(false);
     expect(normalizeAuditConfig({ failOn: "none" }, toolRoot).isDefaultRun).toBe(false);
+  });
+
+  // v0.4.2 Batch 3 -- --android alone (with no other flag) must also
+  // disqualify isDefaultRun, matching every other flag above.
+  it("isDefaultRun is false when only --android is supplied", () => {
+    expect(normalizeAuditConfig({ types: "security", android: true }, toolRoot).isDefaultRun).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v0.4.2 Batch 3 -- --android CLI opt-in. Defaults to false; requires
+// --types to include "security"; rejects before any execution when it does
+// not (normalizeAuditConfig throws synchronously, before runAudit() is ever
+// called -- see scripts/audits/runAudit.ts's parse/normalize try/catch).
+// ---------------------------------------------------------------------------
+
+describe("normalizeAuditConfig — --android", () => {
+  it("defaults to false when --android is not supplied", () => {
+    expect(normalizeAuditConfig({}, toolRoot).android).toBe(false);
+    expect(normalizeAuditConfig({ types: "security" }, toolRoot).android).toBe(false);
+  });
+
+  it("is true when --android is supplied together with --types security", () => {
+    expect(normalizeAuditConfig({ types: "security", android: true }, toolRoot).android).toBe(true);
+  });
+
+  it("is true when --android is supplied together with --types code-rot,security", () => {
+    expect(normalizeAuditConfig({ types: "code-rot,security", android: true }, toolRoot).android).toBe(true);
+  });
+
+  it("rejects --android without --types including security", () => {
+    expect(() => normalizeAuditConfig({ android: true }, toolRoot)).toThrow(/--android requires --types to include "security"/);
+    expect(() => normalizeAuditConfig({ types: "code-rot", android: true }, toolRoot)).toThrow(
+      /--android requires --types to include "security"/
+    );
+  });
+
+  it("does not require --android when --types already includes security", () => {
+    // The inverse composition (security without --android) remains valid --
+    // Batch 3 does not make Android integration mandatory for security runs.
+    expect(() => normalizeAuditConfig({ types: "security" }, toolRoot)).not.toThrow();
   });
 });

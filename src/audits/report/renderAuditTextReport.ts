@@ -171,6 +171,47 @@ export function renderAuditTextReport(model: AuditReportModel): string {
   }
   lines.push("");
 
+  // v0.4.2 Batch 3 -- bounded summary only, mirroring the "Security
+  // validation summary" section above exactly. Confirmed mapped Android
+  // findings are NOT re-listed here -- they already appear in the "Issues"
+  // section below like any other AuditIssue (see spec section 12: "the
+  // existing generic issues section remains the detailed presentation for
+  // confirmed mapped Android findings"). CandidateEvidence bodies never
+  // appear here either -- only counts, with a pointer to the full Android
+  // report for detail.
+  lines.push("Android security validation summary");
+  lines.push(divider("-"));
+  if (!model.androidSecurity.summary.requested) {
+    lines.push("  (not requested -- add --android alongside --types security to include it)");
+  } else {
+    const android = model.androidSecurity.summary;
+    const candidates = model.androidSecurity.candidates;
+    const applicabilityNote = android.applicable === false ? " (target is not an Android project)" : "";
+    lines.push(`  Status: ${android.status}${applicabilityNote}`);
+    lines.push(`  Verdict: ${android.verdict ?? "(unknown)"}`);
+    lines.push(
+      `  Checks: total=${android.totalChecks} passed=${android.passedChecks} withFindings=${android.checksWithFindings} candidateOnly=${android.candidateOnlyChecks} skipped=${android.skippedChecks} inconclusive=${android.inconclusiveChecks} failed=${android.failedChecks}`
+    );
+    lines.push(`  Findings: confirmed=${android.confirmedFindingCount} mappedIssues=${android.mappedIssueCount}`);
+    lines.push(
+      `  Candidates (review evidence, not confirmed vulnerabilities): total=${candidates.totalCount} checksWithCandidates=${candidates.checksWithCandidates}`
+    );
+    if (android.warnings.length > 0) {
+      lines.push(`  Warnings: ${android.warnings.length}`);
+    }
+    if (android.errors.length > 0) {
+      lines.push(`  Errors: ${android.errors.length}`);
+      for (const e of android.errors.slice(0, 5)) {
+        lines.push(`    ${sanitizeLine(e)}`);
+      }
+    }
+    if (android.reportPaths.text || android.reportPaths.json) {
+      lines.push(`  Full report: ${android.reportPaths.text ?? "(none)"} / ${android.reportPaths.json ?? "(none)"}`);
+    }
+    lines.push("  Static analysis only -- does not prove runtime behavior, APK/AAB validity, Play compliance, or pentest results.");
+  }
+  lines.push("");
+
   lines.push("Issue summary");
   lines.push(divider("-"));
   lines.push(`  Total issues: ${model.summary.totalIssues}`);

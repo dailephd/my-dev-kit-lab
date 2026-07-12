@@ -23,10 +23,31 @@ import { writeAuditReports } from "../../src/audits/report/writeAuditReports.js"
 const USAGE =
   "Usage: npm run audit -- [--target <path>] [--types code-rot,security] " +
   "[--include docs,tests,package,architecture,cli] [--format text,json] " +
-  "[--fail-on blocker|high|medium|low|none] [--out <path>]";
+  "[--fail-on blocker|high|medium|low|none] [--out <path>] [--android]\n" +
+  "\n" +
+  "  --android opts into Batch 2's programmatic Android security integration.\n" +
+  "  Requires --types to include \"security\" (e.g. --types security or --types\n" +
+  "  code-rot,security). Runs the same static, read-only, nineteen-check\n" +
+  "  Android validation security:validate --profile android performs --\n" +
+  "  detection, manifest parsing, and internal advanced security checks --\n" +
+  "  through the existing security adapter, never a subprocess. Confirmed\n" +
+  "  findings are mapped into the normal issue collection; CandidateEvidence\n" +
+  "  remains a separate, bounded summary and is never treated as a confirmed\n" +
+  "  issue. Starts zero Gradle operations, zero external tools, and zero\n" +
+  "  network operations by default; --android does not expose any of those.\n" +
+  "  Example: npm run audit -- --target \"<android-project-path>\" --types security --android --format text,json --fail-on none";
 
 const rawArgs = process.argv.slice(2);
 const toolRoot = resolveToolRoot(import.meta.url);
+
+// Help deliberately wins over every other argument, mirroring
+// scripts/security/validate.ts -- no config normalization, target
+// resolution, audit execution, or report write.
+if (rawArgs.includes("--help") || rawArgs.includes("-h")) {
+  console.log(USAGE);
+  process.exitCode = 0;
+  process.exit(0);
+}
 
 let config: AuditConfig;
 try {
@@ -98,6 +119,16 @@ if (model.securitySummary.ran) {
   );
   if (model.securitySummary.reportPaths.text) {
     console.log(`  Full report: ${model.securitySummary.reportPaths.text}`);
+  }
+}
+
+if (model.androidSecurity.summary.requested) {
+  const android = model.androidSecurity.summary;
+  console.log(
+    `\nAndroid security validation: status=${android.status} applicable=${android.applicable ?? "n/a"} verdict=${android.verdict ?? "(unknown)"} checks=${android.totalChecks} confirmed=${android.confirmedFindingCount} mappedIssues=${android.mappedIssueCount} candidates=${android.candidateSummary.totalCount}`
+  );
+  if (android.reportPaths.text) {
+    console.log(`  Full report: ${android.reportPaths.text}`);
   }
 }
 

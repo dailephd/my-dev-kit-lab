@@ -24,6 +24,7 @@ export function renderAuditJsonReport(model: AuditReportModel): string {
     sourceFacts: model.sourceFacts,
     pythonProjectMetadata: model.pythonProjectMetadata,
     securitySummary: model.securitySummary,
+    androidSecurity: model.androidSecurity,
     detectors: model.detectors,
     issues: model.issues,
     skippedDetectors: model.skippedDetectors,

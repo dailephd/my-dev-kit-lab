@@ -4,7 +4,7 @@
 
 The repository supports experiment campaigns, generic audits, automated security validation, Android validation, opt-in closed Gradle operations, opt-in external tools/network evidence, implementation verification, documentation reconciliation, pre-release readiness, and release publication. Android defaults remain static and zero-process. Documentation reconciliation follows `DOCUMENTATION_PRESERVATION_POLICY.md` and must preserve future plans and release history.
 
-This document separates implementation workflows, documentation reconciliation, pre-release readiness, release preparation, and future planned workflows. The current published baseline is `v0.4.1` (package metadata `0.4.1`); the v0.3.x audit history remains published and the v0.4.x releases use the existing command families.
+This document separates implementation workflows, documentation reconciliation, pre-release readiness, release preparation, and future planned workflows. The current published baseline is `v0.4.1`; package metadata is now `0.4.2` (release-prepared, not yet published). The v0.3.x audit history remains published and the v0.4.x releases use the existing command families.
 
 ## Workflow 1: Fake-agent final demo
 
@@ -256,34 +256,33 @@ Before any future `npm publish`, verify:
 
 Do not treat a GitHub Release as optional when the GitHub CLI is authenticated and available — create it and verify it before publishing.
 
-## Future workflow: Android validation
+## Current workflow: Android validation
 
-This workflow is planned for `v0.4.x`. It is not implemented today.
+This workflow is implemented and published through v0.4.1.
 
-Planned direction:
+Current command:
 
 ```bash
 npm run security:validate -- --target /path/to/android/project --profile android
-npm run security:validate -- --target /path/to/android/project --profile android-compose
 ```
 
-Planned behavior:
+Current behavior:
 
 - validate existing Android projects
 - preserve non-destructive target handling
 - include report/schema stability inside each Android implementation version
 
-## Future workflow: Android extension of the security audit adapter
+## Current workflow: Android extension of the security audit adapter (v0.4.2, release-prepared)
 
-The general (non-Android) security audit adapter is implemented in the published `v0.3.2` baseline (Workflow 6a). The Android-aware extension of that same adapter is implemented on the v0.4.2 feature branch and remains unreleased.
+The general (non-Android) security audit adapter is implemented in the published `v0.3.2` baseline (Workflow 6a). The Android-aware extension of that same adapter is implementation-complete in `v0.4.2`, release-prepared (package metadata `0.4.2`), and not yet published.
 
-Planned direction:
+Current command (release-prepared, not yet published):
 
 ```bash
-npm run audit -- --target /path/to/android/project --types security --profile android
+npm run audit -- --target /path/to/android/project --types security --android --format text,json --fail-on none
 ```
 
-This extension will summarize Android validation findings through the same adapter/mapping path, without replacing `security:validate` or the general `v0.3.2` adapter.
+This extension summarizes confirmed Android findings through the same adapter/mapping path, keeps CandidateEvidence separate, and does not replace `security:validate` or the general `v0.3.2` adapter. Omitting `--android` preserves the existing audit path.
 
 ## Future workflow: Manual pentest
 

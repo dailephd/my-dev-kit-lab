@@ -12,7 +12,7 @@ flowchart LR
   B --> C[v0.2.2<br/>published security-validation baseline]
   C --> D[v0.3.0-v0.3.4<br/>published audit and code-rot track]
   D --> E[v0.4.0<br/>published Android MVP]
-  E --> F[v0.4.1 published advanced Android security] --> G[v0.4.2 implemented on feature branch, unreleased]
+  E --> F[v0.4.1 published advanced Android security] --> G[v0.4.2 release-prepared, not yet published]
   G --> H[individual v0.5.0 through v0.9.2<br/>experiment evidence releases]
   G --> H[v1.0.0<br/>stable framework]
   H --> I[v1.1.0-v1.4.0<br/>post-stable releases]
@@ -402,7 +402,7 @@ Acceptance:
 
 ### v0.4.2 — Android-aware general security audit adapter
 
-Status: **implemented on `feature/v0.4.2-android-audit-adapter` (Batches 1–3 complete), unreleased**.
+Status: **implementation complete, release-prepared (package metadata `0.4.2`), unreleased/not yet published**.
 
 Purpose:
 
@@ -422,7 +422,7 @@ Acceptance:
 
 * The opt-in audit path exposes Android summaries, report references, and mapped Android security findings.
 * Generic audit output remains schema-stable and the standalone validator remains authoritative for complete Android validation evidence.
-* Package version remains 0.4.1 until a separately authorized release.
+* Package metadata is release-prepared at 0.4.2; publication to npm, a `v0.4.2` tag, and a GitHub Release remain a separately authorized step.
 
 ### Post-v1 / version TBD — manual pentest
 

@@ -4,6 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import type { SecurityValidationSummary } from "../../../src/securityValidation/types.js";
+import { validateAndroidTarget } from "../../../src/mobile/android/validate/validateAndroidTarget.js";
+import { ANDROID_SECURITY_AUDIT_DETECTOR_ID } from "../../../src/audits/security/mapAndroidSecurityFindingToAuditIssue.js";
 
 const runSecurityValidationMock = vi.fn();
 
@@ -236,5 +238,81 @@ describe("runSecurityAuditAdapter", () => {
     expect(fs.readFileSync(first.summary.reportPaths.json!, "utf8")).toBe(firstJson);
     expect(fs.readFileSync(second.summary.reportPaths.text!, "utf8")).toContain("second-run");
     expect(fs.readFileSync(second.summary.reportPaths.json!, "utf8")).toContain("second-run");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v0.4.2 Batch 2 -- programmatic Android integration, request lifecycle and
+// backward compatibility. The "enabled" cases use the real validateAndroidTarget
+// against the real tests/fixtures/android/compose-app fixture (a hand-built
+// AndroidValidationResult fake is too fragile — it must satisfy deeply nested
+// contracts like target.environmentCapabilities that toAndroidReportModel
+// reads — see tests/audits/security/androidAuditIntegration.test.ts, which
+// exercises the same real-validator path at the integration-module level).
+// The omitted-request case uses a bare vi.fn() spy since it must never be
+// called at all.
+// ---------------------------------------------------------------------------
+
+describe("runSecurityAuditAdapter — programmatic Android integration (Batch 2)", () => {
+  it("omitting the android request preserves existing behavior exactly: no Android summary, no Android issues, no Android validator call", async () => {
+    const toolRoot = makeFixtureToolRoot();
+    const targetRoot = makeFixtureTargetRoot();
+    runSecurityValidationMock.mockResolvedValue(makeSummary({ toolRoot, targetRoot }));
+    const runAndroidValidation = vi.fn();
+
+    const config = normalizeAuditConfig({ target: targetRoot, types: "security" }, toolRoot);
+    const result = await runSecurityAuditAdapter({ toolRoot, config }, { runAndroidValidation });
+
+    expect(runAndroidValidation).not.toHaveBeenCalled();
+    expect(result.android.requested).toBe(false);
+    expect(result.android.status).toBe("not-requested");
+    expect(result.android.applicable).toBeNull();
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].detectorId).toBe("security-validation-adapter");
+  });
+
+  it("an enabled android request invokes the real Android validator exactly once and appends mapped issues after existing security issues", async () => {
+    const toolRoot = makeFixtureToolRoot();
+    const targetRoot = makeFixtureTargetRoot();
+    runSecurityValidationMock.mockResolvedValue(makeSummary({ toolRoot, targetRoot }));
+    const runAndroidValidation = vi.fn(validateAndroidTarget);
+
+    const config = normalizeAuditConfig({ target: targetRoot, types: "security" }, toolRoot);
+    const result = await runSecurityAuditAdapter(
+      { toolRoot, config, android: { enabled: true } },
+      { runAndroidValidation: (opts) => runAndroidValidation({ ...opts, targetPath: path.resolve("tests/fixtures/android/compose-app") }) }
+    );
+
+    expect(runAndroidValidation).toHaveBeenCalledTimes(1);
+    expect(result.issues.length).toBeGreaterThan(1);
+    expect(result.issues[0].detectorId).toBe("security-validation-adapter");
+    expect(result.issues[result.issues.length - 1].detectorId).toBe(ANDROID_SECURITY_AUDIT_DETECTOR_ID);
+    expect(result.android.requested).toBe(true);
+    expect(result.android.status).toBe("completed");
+    expect(result.android.applicable).toBe(true);
+    expect(result.android.mappedIssueCount).toBe(result.issues.length - 1);
+  });
+
+  it("distinguishes completed/non-applicable and failed Android status without ever reporting a false clean-complete state", async () => {
+    const toolRoot = makeFixtureToolRoot();
+    const targetRoot = makeFixtureTargetRoot();
+    runSecurityValidationMock.mockResolvedValue(makeSummary({ toolRoot, targetRoot }));
+    const config = normalizeAuditConfig({ target: targetRoot, types: "security" }, toolRoot);
+
+    const nonApplicable = await runSecurityAuditAdapter(
+      { toolRoot, config, android: { enabled: true } },
+      { runAndroidValidation: (opts) => validateAndroidTarget({ ...opts, targetPath: targetRoot }) }
+    );
+    expect(nonApplicable.android.status).toBe("completed");
+    expect(nonApplicable.android.applicable).toBe(false);
+    expect(nonApplicable.issues).toHaveLength(1); // only the non-Android security issue
+
+    const failed = await runSecurityAuditAdapter(
+      { toolRoot, config, android: { enabled: true } },
+      { runAndroidValidation: vi.fn().mockRejectedValue(new Error("Android validator exploded")) }
+    );
+    expect(failed.android.status).toBe("failed");
+    expect(failed.android.applicable).toBeNull();
+    expect(failed.issues).toHaveLength(1); // existing non-Android issue survives the Android failure
   });
 });

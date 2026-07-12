@@ -1,6 +1,6 @@
 # my-dev-kit-lab
 
-> Current release state: v0.4.1 is the published baseline. v0.4.0 delivered the Android validation MVP; v0.4.1 delivered advanced Android security. v0.4.2 is implemented on its feature branch and remains unreleased. Manual pentest is post-v1 / version TBD.
+> Current release state: v0.4.1 is the latest published baseline. v0.4.0 delivered the Android validation MVP; v0.4.1 delivered advanced Android security. v0.4.2 is implemented and release-prepared (package metadata `0.4.2`) but not yet published. Manual pentest is post-v1 / version TBD.
 
 my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, performs automated CLI/package security validation, and runs the generic audit framework.
 
@@ -212,13 +212,13 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts. Real-agent campaign support exists for Codex and Claude. The current published npm baseline is `v0.4.1`, which hardens cross-language audit stability on top of `v0.3.3` (Java/Kotlin analyzers, JVM metadata detection, Java/Kotlin detector support, and Java/Kotlin/Gradle/Maven docs-code-mismatch checks). `v0.3.3` is the previous published baseline.
 
-Package metadata is `0.4.1`, and the npm registry contains `0.4.1`. It hardens the existing language-aware audit path with mixed-language fixture coverage, detector and report determinism checks, cross-platform/path normalization coverage, CRLF/LF stability coverage, and documentation reconciliation. It does not add a new command.
+Package metadata is now `0.4.2` (release-prepared), while the npm registry still contains `0.4.1` as the latest published version until a separately authorized publication. It hardens the existing language-aware audit path with mixed-language fixture coverage, detector and report determinism checks, cross-platform/path normalization coverage, CRLF/LF stability coverage, and documentation reconciliation. It does not add a new command.
 
 Planned roadmap direction after the current published baseline:
 
 - `v0.3.3`: Java/Kotlin code-rot support (published)
 - `v0.3.4`: cross-language stability for the language-aware code-rot track (published)
-- `v0.4.0` through `v0.4.2`: Android automated security validation, including an Android-specific extension of the security audit adapter
+- `v0.4.0` and `v0.4.1`: published Android automated security validation; `v0.4.2`: implemented and release-prepared Android-aware extension of the existing security audit adapter, not yet published
 - manual pentest: post-v1 / version TBD
 
 ---

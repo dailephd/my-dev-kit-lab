@@ -2,6 +2,27 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
+## [0.4.2] - 2026-07-12
+
+Android-aware extension of the existing general security audit adapter, implemented on `feature/v0.4.2-android-audit-adapter` and release-prepared. `v0.4.2` is not yet published; `v0.4.1` remains the latest published baseline until a separately authorized publication.
+
+### Added
+
+- Extended the existing general security audit adapter with an explicit `--android` opt-in when `--types` includes `security`, and added `--help`/`-h` to the `audit` CLI.
+- Added direct programmatic Android validation reusing the existing `SecurityFinding`-to-`AuditIssue` mapping, with Android requested/applicable/status/verdict summaries, confirmed-finding and mapped-issue counts, and separate `CandidateEvidence` summaries that are never mapped to a confirmed `AuditIssue`.
+- Added contained Android text/JSON report references and a bounded Android section in both the generic audit text report and the generic audit JSON report (a 17th top-level `androidSecurity` field), with text/JSON parity.
+- Isolated Android validator failures from the rest of the audit run: a thrown Android error is captured as a bounded, stack-trace-free failure status without discarding already-collected non-Android issues.
+- Preserved deterministic issue ordering and aggregation: non-Android issues are ordered first, Android issues follow in check/finding order, and repeated runs against unchanged fixtures produce identical issue IDs, order, and summary counts.
+- Preserved standalone `security:validate` as the authoritative source of complete Android validation evidence; the audit adapter only reuses and links to it.
+- Added a required `Check documentation consistency` (`npm run docs:check`) step to both the pre-release Node 26 readiness workflow and ordinary CI, running on every operating system in the existing Windows/macOS/Linux matrix, so documentation/roadmap consistency is verified cross-platform before broader validation.
+
+### Compatibility and limitations
+
+- The default audit path starts no Android validation. The opted-in Android path remains static and starts zero Gradle, external-tool, and network processes by default.
+- Manual pentest, runtime/device analysis, APK/AAB inspection, signing verification, and automatic fixes remain out of scope.
+
 ## [0.4.1] - 2026-07-12
 
 Advanced Android security validation, published on top of the previously published `v0.4.0` baseline. `v0.4.1` is the current published baseline.
