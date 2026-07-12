@@ -28,7 +28,7 @@ import type {
 } from "../core/sourceOfTruth.js";
 import type { SourceFactParseStatus, SourceFactsSnapshot } from "../core/sourceFacts.js";
 import type { PythonProjectMetadataSnapshot } from "../core/pythonProjectMetadata.js";
-import type { SecurityAuditReportSummary } from "../security/securityAuditTypes.js";
+import type { AndroidAuditCandidateSummary, AndroidAuditSummary, SecurityAuditReportSummary } from "../security/securityAuditTypes.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 5 — stable, versioned audit report model.
@@ -314,6 +314,7 @@ export type AuditReportModel = {
     failOn: string;
     out: string;
     isDefaultRun: boolean;
+    android: boolean;
   };
   summary: {
     totalIssues: number;
@@ -354,6 +355,15 @@ export type AuditReportModel = {
   // v0.3.2 Batch 4 -- additive, always-present (see securitySummary.ran)
   // security-validation audit adapter summary. 16th top-level field.
   securitySummary: SecurityAuditReportSummary;
+  // v0.4.2 Batch 3 -- additive, always-present (see androidSecurity.summary.
+  // requested) Android integration summary. 17th top-level field. `candidates`
+  // is the same AndroidAuditSummary.candidateSummary object surfaced under
+  // its own key for report-consumer discoverability -- not a duplicate
+  // computation, just a second access path to data Batch 2 already produced.
+  androidSecurity: {
+    summary: AndroidAuditSummary;
+    candidates: AndroidAuditCandidateSummary;
+  };
   detectors: AuditDetectorReportEntry[];
   issues: AuditIssue[];
   skippedDetectors: AuditSkippedDetector[];
@@ -427,6 +437,7 @@ export function buildAuditReportModel(result: AuditResult, opts: BuildAuditRepor
       failOn: result.configSummary.failOn,
       out: result.configSummary.out,
       isDefaultRun: result.configSummary.isDefaultRun,
+      android: result.configSummary.android,
     },
     summary: {
       totalIssues: issues.length,
@@ -452,6 +463,10 @@ export function buildAuditReportModel(result: AuditResult, opts: BuildAuditRepor
     sourceFacts: summarizeSourceFacts(result.sourceFacts),
     pythonProjectMetadata: result.pythonProjectMetadata,
     securitySummary: result.securitySummary,
+    androidSecurity: {
+      summary: result.androidSummary,
+      candidates: result.androidSummary.candidateSummary,
+    },
     detectors,
     issues,
     skippedDetectors: result.skippedDetectors,
@@ -519,5 +534,6 @@ function reconstructCommand(result: AuditResult): string {
   if (cfg.formats.length > 0) parts.push("--format", cfg.formats.join(","));
   parts.push("--fail-on", cfg.failOn);
   parts.push("--out", cfg.out);
+  if (cfg.android) parts.push("--android");
   return parts.join(" ");
 }

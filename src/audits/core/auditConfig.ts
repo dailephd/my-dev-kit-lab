@@ -32,9 +32,14 @@ export type RawAuditArgs = {
   format?: string;
   failOn?: string;
   out?: string;
+  // v0.4.2 Batch 3 -- one closed boolean opt-in for programmatic Android
+  // integration (Batch 2's AndroidAuditRequest). No value, no profile
+  // string, no Gradle/external-tool/network passthrough -- see
+  // securityAuditTypes.ts's AndroidAuditRequest header comment.
+  android?: boolean;
 };
 
-const FLAGS_WITH_VALUE: Record<string, keyof RawAuditArgs> = {
+const FLAGS_WITH_VALUE: Record<string, Exclude<keyof RawAuditArgs, "android">> = {
   "--target": "target",
   "--types": "types",
   "--include": "include",
@@ -43,10 +48,20 @@ const FLAGS_WITH_VALUE: Record<string, keyof RawAuditArgs> = {
   "--out": "out",
 };
 
+// v0.4.2 Batch 3 -- presence-only flags (no following value consumed).
+const BOOLEAN_FLAGS: Record<string, "android"> = {
+  "--android": "android",
+};
+
 export function parseAuditArgs(argv: string[]): RawAuditArgs {
   const result: RawAuditArgs = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+    const booleanKey = BOOLEAN_FLAGS[arg];
+    if (booleanKey) {
+      result[booleanKey] = true;
+      continue;
+    }
     const key = FLAGS_WITH_VALUE[arg];
     if (!key) continue;
     if (i + 1 >= argv.length) {
@@ -79,6 +94,11 @@ export type AuditConfig = {
   outWasDefault: boolean;
   // Scoped-run metadata: true only when no flags at all were supplied.
   isDefaultRun: boolean;
+  // v0.4.2 Batch 3 -- normalized programmatic Android opt-in. Always false
+  // unless --android was passed; validated below to never be true without
+  // "security" also selected via --types (Batch 2's AndroidAuditRequest is
+  // only ever passed to a security-type run).
+  android: boolean;
 };
 
 export function normalizeAuditConfig(raw: RawAuditArgs, toolRoot: string): AuditConfig {
@@ -87,6 +107,13 @@ export function normalizeAuditConfig(raw: RawAuditArgs, toolRoot: string): Audit
   const formats = parseFormatOption(raw.format);
   const failOn = parseFailOnOption(raw.failOn);
   const out = raw.out !== undefined ? resolveOutDir(raw.out) : defaultOutDir(toolRoot, types.value);
+  const android = raw.android === true;
+
+  if (android && !types.value.includes("security")) {
+    throw new Error(
+      `Invalid combination: --android requires --types to include "security" (e.g. --types security or --types code-rot,security).`
+    );
+  }
 
   return {
     targetPathArg: raw.target,
@@ -107,7 +134,9 @@ export function normalizeAuditConfig(raw: RawAuditArgs, toolRoot: string): Audit
       raw.include === undefined &&
       raw.format === undefined &&
       raw.failOn === undefined &&
-      raw.out === undefined,
+      raw.out === undefined &&
+      raw.android === undefined,
+    android,
   };
 }
 

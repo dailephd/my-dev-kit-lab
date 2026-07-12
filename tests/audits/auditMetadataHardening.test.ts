@@ -25,6 +25,8 @@ const REQUIRED_TOP_LEVEL_KEYS = [
   "pythonProjectMetadata",
   // v0.3.2 Batch 4 -- 16th top-level field.
   "securitySummary",
+  // v0.4.2 Batch 3 -- 17th top-level field.
+  "androidSecurity",
   "detectors",
   "issues",
   "skippedDetectors",
