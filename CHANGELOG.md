@@ -2,6 +2,20 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
+### Added
+
+- Extended the existing general security audit adapter with an explicit `--android` opt-in when `--types` includes `security`.
+- Added direct programmatic Android validation, `SecurityFinding`-to-`AuditIssue` mapping, Android completeness/status and CandidateEvidence summaries, contained Android report references, and generic audit text/JSON integration.
+- Preserved standalone `security:validate`; CandidateEvidence remains review evidence and is never mapped to a confirmed `AuditIssue`.
+
+### Compatibility and limitations
+
+- v0.4.2 remains unreleased and package metadata remains `0.4.1`.
+- The default audit path starts no Android validation. The opted-in Android path remains static and starts zero Gradle, external-tool, and network processes by default.
+- Manual pentest, runtime/device analysis, APK/AAB inspection, signing verification, and automatic fixes remain out of scope.
+
 ## [0.4.1] - 2026-07-12
 
 Advanced Android security validation, published on top of the previously published `v0.4.0` baseline. `v0.4.1` is the current published baseline.

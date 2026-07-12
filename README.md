@@ -218,7 +218,7 @@ Planned roadmap direction after the current published baseline:
 
 - `v0.3.3`: Java/Kotlin code-rot support (published)
 - `v0.3.4`: cross-language stability for the language-aware code-rot track (published)
-- `v0.4.0` through `v0.4.2`: Android automated security validation, including an Android-specific extension of the security audit adapter
+- `v0.4.0` and `v0.4.1`: published Android automated security validation; `v0.4.2`: implemented but unreleased Android-aware extension of the existing security audit adapter
 - manual pentest: post-v1 / version TBD
 
 ---

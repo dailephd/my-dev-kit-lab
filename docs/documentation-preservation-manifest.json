@@ -43,7 +43,7 @@
       "topics": ["experiments", "evaluation", "audits", "securityValidation", "mobile", "report", "gallery"]
     },
     "docs/COMMANDS.md": {
-      "topics": ["experiment:list", "experiment:describe", "experiment:run", "audit", "security:validate", "docs:check", "verify"]
+      "topics": ["experiment:list", "experiment:describe", "experiment:run", "audit", "--android", "security:validate", "docs:check", "verify"]
     },
     "docs/WORKFLOWS.md": {
       "topics": ["experiment", "audit", "security", "Android", "Gradle", "external tool", "release", "documentation"]

@@ -60,9 +60,9 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 The current published npm baseline is `v0.4.1` (package metadata `0.4.1`); v0.3.4 remains the published cross-language audit-stability baseline. The immediate direction is:
 
-1. add Android validation MVP in `v0.4.0`
-2. add advanced Android security checks in `v0.4.1`
-3. optionally add an Android-specific extension of the security audit adapter in `v0.4.2`
+1. preserve the published Android validation MVP from `v0.4.0`
+2. preserve the published advanced Android security checks from `v0.4.1`
+3. complete the unreleased Android-aware extension of the existing security audit adapter in `v0.4.2`
 4. keep manual pentest deferred until after `v1.0.0`
 
 The experiment evidence track then expands through warm-index reuse, freshness and stale-index detection, context-window scaling, retrieval precision/recall, agent success, normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication.

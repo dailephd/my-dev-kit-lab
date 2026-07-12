@@ -229,13 +229,16 @@ Planned `v0.3.x` direction:
 - language-aware code-rot support may later add selectors such as `--languages`; there is no current `--languages` flag
 - framework-aware code-rot profile selection is future/TBD; there is no current `--frameworks` flag
 
-Planned `v0.4.0` direction:
+Implemented Android validation command:
 
 - `npm run security:validate -- --target <path> --profile android`
-- `npm run security:validate -- --target <path> --profile android-compose`
+- Android Compose/XML/mixed classification is selected by detection; `android-compose` is not a separate accepted profile.
 
-Planned optional `v0.4.2` direction (Android-specific extension of the already-implemented `--types security` adapter):
+Implemented v0.4.2 feature-branch audit opt-in:
 
-- `npm run audit -- --target <path> --types security --profile android`
+- `npm run audit -- --target <path> --types security --android --format text,json --fail-on none`
+- `--android` requires `--types` to include `security` and invokes the validator programmatically through the existing adapter.
+- Confirmed Android `SecurityFinding` records map to normal audit issues; CandidateEvidence remains a bounded review-evidence summary.
+- Omitting `--android` preserves existing behavior and starts no Android validation.
 
-There is currently no `--profile` flag on `npm run audit` (the security audit adapter always uses `security:validate`'s no-flag default check selection), and no `npm run audit:all`, `npm run audit:quality`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script.
+There is no `--profile` flag on `npm run audit`; Android integration uses the closed `--android` opt-in. There is no `npm run audit:all`, `npm run audit:quality`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script.

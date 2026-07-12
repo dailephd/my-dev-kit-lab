@@ -261,14 +261,12 @@ The following layers are planned and must not be treated as current published or
 
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
-- Android/mobile validation profiles for `v0.4.x`
-- an Android-specific extension of the security audit adapter, planned as optional `v0.4.2` work, building on the general (non-Android) adapter already implemented in `v0.3.2`
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 
-Future audit and Android-validation work should reuse `src/audits/core`, `src/audits/security`, current target metadata, the normalized audit issue schema, and shared report infrastructure. Planned Android validation belongs in future/planned sections until code exists. This work should not replace the experiment plugin runtime, duplicate report/gallery systems, or fold `security:validate` into the audit framework — the audit framework only adapts/links to `securityValidation`, it does not absorb it.
+Future audit work should reuse `src/audits/core`, `src/audits/security`, current target metadata, the normalized audit issue schema, and shared report infrastructure. Android validation and the v0.4.2 audit integration already reuse those foundations. This work must not replace the experiment plugin runtime, duplicate report/gallery systems, or fold `security:validate` into the audit framework — the audit framework only adapts and links to `securityValidation`; it does not absorb it.
 
 ## Key contracts
 
