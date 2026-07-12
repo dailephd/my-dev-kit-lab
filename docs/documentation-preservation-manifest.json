@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "allowedDocumentRemovals": [],
+  "documents": {
+    "docs/ROADMAP.md": {
+      "historicalStatus": "v0.2.1 is intentionally preserved as a historical roadmap heading, not a claim about current security behavior.",
+      "requiredSections": [
+        "Product direction",
+        "Command surface direction",
+        "Mobile validation boundaries",
+        "Current boundaries",
+        "Architecture direction",
+        "Validation expectations for every release",
+        "Key rule"
+      ],
+      "requiredVersions": [
+        "v0.2.0", "v0.2.1", "v0.2.2",
+        "v0.3.0", "v0.3.1", "v0.3.2", "v0.3.3", "v0.3.4",
+        "v0.4.0", "v0.4.1", "v0.4.2",
+        "v0.5.0", "v0.5.1", "v0.5.2",
+        "v0.6.0", "v0.6.1", "v0.6.2", "v0.6.3",
+        "v0.7.0", "v0.7.1", "v0.7.2",
+        "v0.8.0", "v0.8.1", "v0.8.2",
+        "v0.9.0", "v0.9.1", "v0.9.2",
+        "v1.0.0", "v1.1.0", "v1.2.0", "v1.3.0", "v1.4.0"
+      ],
+      "statusMarkers": [
+        "v0.4.0 — Android validation MVP",
+        "v0.4.1 — advanced Android security",
+        "unreleased",
+        "Post-v1 / version TBD",
+        "manual pentest"
+      ],
+      "forbiddenRanges": ["v0.5.x-v0.9.x", "v0.5.x–v0.9.x"]
+    },
+    "README.md": {
+      "topics": ["experiment", "audit", "security validation", "Android", "report", "evidence", "boundary", "v0.4.1"]
+    },
+    "docs/PROJECT_OVERVIEW.md": {
+      "topics": ["my-dev-kit", "experiment", "audit", "security", "Android", "report", "planned"]
+    },
+    "docs/ARCHITECTURE.md": {
+      "topics": ["experiments", "evaluation", "audits", "securityValidation", "mobile", "report", "gallery"]
+    },
+    "docs/COMMANDS.md": {
+      "topics": ["experiment:list", "experiment:describe", "experiment:run", "audit", "security:validate", "docs:check", "verify"]
+    },
+    "docs/WORKFLOWS.md": {
+      "topics": ["experiment", "audit", "security", "Android", "Gradle", "external tool", "release", "documentation"]
+    },
+    "CHANGELOG.md": {
+      "releasedVersions": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1"]
+    }
+  }
+}
