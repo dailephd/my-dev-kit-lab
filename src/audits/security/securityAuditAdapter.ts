@@ -8,7 +8,13 @@ import { verdictToHumanLabel } from "../../securityValidation/validate/verdict.j
 import type { AuditConfig } from "../core/auditConfig.js";
 import type { AuditIssue } from "../core/auditIssue.js";
 import { mapSecurityFindingToAuditIssue } from "./mapSecurityFindingToAuditIssue.js";
-import type { SecurityAuditReportSummary } from "./securityAuditTypes.js";
+import { runAndroidAuditIntegration, type RunAndroidValidation } from "./androidAuditIntegration.js";
+import {
+  ANDROID_AUDIT_NOT_REQUESTED_SUMMARY,
+  type AndroidAuditRequest,
+  type AndroidAuditSummary,
+  type SecurityAuditReportSummary,
+} from "./securityAuditTypes.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.2 Batch 4 — security-validation audit adapter.
@@ -28,15 +34,29 @@ import type { SecurityAuditReportSummary } from "./securityAuditTypes.js";
 export type RunSecurityAuditAdapterOptions = {
   toolRoot: string;
   config: AuditConfig;
+  // v0.4.2 Batch 2 — internal/programmatic-only Android integration request.
+  // No CLI flag sets this yet (deferred to a later batch); omitted means
+  // exactly the pre-Batch-2 adapter behavior, byte-for-byte.
+  android?: AndroidAuditRequest;
+};
+
+// v0.4.2 Batch 2 — narrow internal test-injection seam. Default (omitted)
+// uses the real Android validator; existing callers that never pass a second
+// argument are completely unaffected. Not exported from the package's public
+// surface (src/index.ts) — internal to the audits/security module only.
+export type RunSecurityAuditAdapterDependencies = {
+  runAndroidValidation?: RunAndroidValidation;
 };
 
 export type SecurityAuditAdapterResult = {
   issues: AuditIssue[];
   summary: SecurityAuditReportSummary;
+  android: AndroidAuditSummary;
 };
 
 export async function runSecurityAuditAdapter(
-  options: RunSecurityAuditAdapterOptions
+  options: RunSecurityAuditAdapterOptions,
+  dependencies: RunSecurityAuditAdapterDependencies = {}
 ): Promise<SecurityAuditAdapterResult> {
   const { toolRoot, config } = options;
 
@@ -98,7 +118,24 @@ export async function runSecurityAuditAdapter(
     reportPaths: { text: textPath, json: jsonPath },
   };
 
-  return { issues, summary: securitySummary };
+  // v0.4.2 Batch 2 — Android integration is strictly additive: existing
+  // non-Android issues/summary above are computed identically whether or not
+  // Android is requested, and Android issues are always appended after them,
+  // never interleaved or reordered.
+  let androidIssues: AuditIssue[] = [];
+  let androidSummary: AndroidAuditSummary = ANDROID_AUDIT_NOT_REQUESTED_SUMMARY;
+  if (options.android?.enabled) {
+    const androidResult = await runAndroidAuditIntegration({
+      toolRoot,
+      targetPathArg: config.targetPathArg,
+      request: options.android,
+      runAndroidValidation: dependencies.runAndroidValidation,
+    });
+    androidIssues = androidResult.issues;
+    androidSummary = androidResult.summary;
+  }
+
+  return { issues: [...issues, ...androidIssues], summary: securitySummary, android: androidSummary };
 }
 
 function buildRunScopedReportSuffix(startedAt: string, finishedAt: string): string {
