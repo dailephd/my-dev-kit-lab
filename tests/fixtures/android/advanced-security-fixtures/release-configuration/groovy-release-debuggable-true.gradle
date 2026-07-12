@@ -1,0 +1,13 @@
+android {
+    buildTypes {
+        release {
+            debuggable true
+            minifyEnabled true
+            shrinkResources true
+            signingConfig signingConfigs.release
+        }
+        debug {
+            debuggable true
+        }
+    }
+}

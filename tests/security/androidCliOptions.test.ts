@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeSecurityValidateConfig,
   ANDROID_GRADLE_OPERATION_IDS,
+  ANDROID_EXTERNAL_TOOL_CLI_IDS,
+  ANDROID_EXTERNAL_NETWORK_POLICIES,
 } from "../../src/securityValidation/validate/cliOptions.js";
 import { ALLOWLISTED_OPERATION_IDS } from "../../src/mobile/android/gradle/validate/operations.js";
 import { SECURITY_PROFILE_IDS } from "../../src/securityValidation/validate/cliOptions.js";
+import { ANDROID_EXTERNAL_TOOL_IDS } from "../../src/mobile/android/advancedSecurity/externalTools/types.js";
 
 const toolRoot = process.cwd();
 
@@ -84,5 +87,83 @@ describe("normalizeSecurityValidateConfig — android option rejected for other 
 
   it("does not throw when the option is simply absent for a non-android profile", () => {
     expect(() => normalizeSecurityValidateConfig({ profile: "node-cli-package" }, toolRoot)).not.toThrow();
+  });
+});
+
+// v0.4.1 Batch 8 — --android-external-tools parsing.
+describe("normalizeSecurityValidateConfig — android external tools", () => {
+  it("is empty by default (absent flag means zero external-tool execution)", () => {
+    const config = normalizeSecurityValidateConfig({ profile: "android" }, toolRoot);
+    expect(config.androidExternalToolIds).toEqual([]);
+  });
+
+  it("accepts a single tool", () => {
+    const config = normalizeSecurityValidateConfig({ profile: "android", androidExternalTools: "semgrep" }, toolRoot);
+    expect(config.androidExternalToolIds).toEqual(["semgrep"]);
+  });
+
+  it("accepts all four tools and normalizes to canonical dispatcher order regardless of input order", () => {
+    const config = normalizeSecurityValidateConfig({ profile: "android", androidExternalTools: "dependency-check,android-lint,osv,semgrep" }, toolRoot);
+    expect(config.androidExternalToolIds).toEqual(["semgrep", "osv", "android-lint", "dependency-check"]);
+  });
+
+  it("deduplicates repeated tool ids", () => {
+    const config = normalizeSecurityValidateConfig({ profile: "android", androidExternalTools: "semgrep,semgrep" }, toolRoot);
+    expect(config.androidExternalToolIds).toEqual(["semgrep"]);
+  });
+
+  it("throws a usage error for an unknown tool id before any validation runs", () => {
+    expect(() => normalizeSecurityValidateConfig({ profile: "android", androidExternalTools: "nmap" }, toolRoot)).toThrow(/Invalid --android-external-tools/);
+  });
+
+  it("rejects an empty tools string rather than silently enabling nothing", () => {
+    expect(() => normalizeSecurityValidateConfig({ profile: "android", androidExternalTools: "" }, toolRoot)).toThrow();
+  });
+
+  it("does not accept an executable path or arbitrary command string", () => {
+    expect(() => normalizeSecurityValidateConfig({ profile: "android", androidExternalTools: "/usr/bin/semgrep" }, toolRoot)).toThrow();
+    expect(() => normalizeSecurityValidateConfig({ profile: "android", androidExternalTools: "semgrep; rm -rf /" }, toolRoot)).toThrow();
+  });
+
+  it("throws when used with a non-android profile", () => {
+    expect(() => normalizeSecurityValidateConfig({ profile: "node-cli-package", androidExternalTools: "semgrep" }, toolRoot)).toThrow(/requires --profile android/);
+  });
+
+  it("does not throw when the option is simply absent for a non-android profile", () => {
+    expect(() => normalizeSecurityValidateConfig({ profile: "node-cli-package" }, toolRoot)).not.toThrow();
+  });
+
+  it("the CLI allowlist matches the Batch 7 external-tool allowlist exactly", () => {
+    expect([...ANDROID_EXTERNAL_TOOL_CLI_IDS].sort()).toEqual([...ANDROID_EXTERNAL_TOOL_IDS].sort());
+  });
+});
+
+// v0.4.1 Batch 8 — --android-external-network parsing.
+describe("normalizeSecurityValidateConfig — android external network policy", () => {
+  it("defaults to deny", () => {
+    const config = normalizeSecurityValidateConfig({ profile: "android" }, toolRoot);
+    expect(config.androidExternalNetworkPolicy).toBe("deny");
+  });
+
+  it("accepts deny explicitly", () => {
+    const config = normalizeSecurityValidateConfig({ profile: "android", androidExternalNetwork: "deny" }, toolRoot);
+    expect(config.androidExternalNetworkPolicy).toBe("deny");
+  });
+
+  it("accepts allow-requested explicitly", () => {
+    const config = normalizeSecurityValidateConfig({ profile: "android", androidExternalNetwork: "allow-requested" }, toolRoot);
+    expect(config.androidExternalNetworkPolicy).toBe("allow-requested");
+  });
+
+  it("throws a usage error for an unknown network-policy value", () => {
+    expect(() => normalizeSecurityValidateConfig({ profile: "android", androidExternalNetwork: "allow-everything" }, toolRoot)).toThrow(/Invalid --android-external-network/);
+  });
+
+  it("throws when used with a non-android profile", () => {
+    expect(() => normalizeSecurityValidateConfig({ profile: "node-cli-package", androidExternalNetwork: "deny" }, toolRoot)).toThrow(/requires --profile android/);
+  });
+
+  it("supports exactly deny and allow-requested", () => {
+    expect([...ANDROID_EXTERNAL_NETWORK_POLICIES].sort()).toEqual(["allow-requested", "deny"]);
   });
 });

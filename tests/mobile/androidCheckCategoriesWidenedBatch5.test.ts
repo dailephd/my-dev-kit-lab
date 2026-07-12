@@ -22,6 +22,10 @@ describe("ANDROID_CHECK_CATEGORIES widening — Batch 5 inherited-contract regre
     ]) {
       expect(ANDROID_CHECK_CATEGORIES).toContain(prior);
     }
-    expect(ANDROID_CHECK_CATEGORIES).toHaveLength(10);
+    // v0.4.1 Batch 1 additively appended 15 advanced-security categories
+    // (see tests/mobile/advancedSecurity/androidCheckCategoriesWidenedV041Batch1.test.ts)
+    // — length grew from 10 to 25; updated rather than removed so any future
+    // accidental duplicate/removal is still caught.
+    expect(ANDROID_CHECK_CATEGORIES).toHaveLength(25);
   });
 });

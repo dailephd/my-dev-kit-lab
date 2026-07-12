@@ -54,7 +54,12 @@ function expectHelpNoWork(args: string[]) {
   expect(result.stdout).toContain("node-cli-package|local-tool|npm-package|android");
   expect(result.stdout).toContain("--android-gradle-operations");
   expect(result.stdout).toContain("wrapper-version, tasks, assemble-debug, unit-test-debug, lint-debug");
-  expect(result.stdout).toContain("Gradle is never executed by default.");
+  // v0.4.1 Batch 8 — usage wording additively updated to also mention
+  // external tools alongside Gradle, plus the two new closed-list flags.
+  expect(result.stdout).toContain("Gradle and external tools are never executed by default.");
+  expect(result.stdout).toContain("--android-external-tools");
+  expect(result.stdout).toContain("semgrep, osv, android-lint, dependency-check");
+  expect(result.stdout).toContain("--android-external-network");
   expect(result.stdout).not.toContain("SECURITY VALIDATION REPORT");
   expect(result.stdout).not.toContain("ANDROID SECURITY-VALIDATION SUMMARY");
   expect(result.stderr).toBe("");

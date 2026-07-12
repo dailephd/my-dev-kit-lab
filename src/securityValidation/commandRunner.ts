@@ -11,16 +11,25 @@ export function resolveNpmCommand(): string {
 // Runs a security check command with an argument array (no shell interpolation).
 // npm audit returns exit code 1 on vulnerabilities; that is not treated as a
 // spawn failure here — the caller inspects the output and exit code separately.
+//
+// `env` is optional and additive (v0.4.1 Batch 7): omitted, it defaults to
+// `process.env` exactly as before this option existed, so every pre-existing
+// caller is unaffected. A caller that supplies a minimized environment (e.g.
+// the Batch 7 external-tool adapters, which must not propagate arbitrary
+// caller credentials to a spawned child process) gets that environment used
+// for both PATH resolution and the actual spawn.
 export async function runSecurityCommand(options: {
   command: string;
   args: string[];
   cwd: string;
   timeoutMs: number;
+  env?: NodeJS.ProcessEnv;
 }): Promise<CommandExecutionResult> {
   const started = Date.now();
+  const env = options.env ?? process.env;
   const resolved = resolveCommand(options.command, {
     cwd: options.cwd,
-    env: process.env,
+    env,
     allowPowerShellShim: false,
   });
   const command = resolved.command;
@@ -60,6 +69,7 @@ export async function runSecurityCommand(options: {
         cwd: options.cwd,
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
+        env,
       });
     } catch (spawnErr) {
       resolve({

@@ -77,6 +77,8 @@ export type RawSecurityValidateArgs = {
   format?: string;
   failOn?: string;
   androidGradleOperations?: string;
+  androidExternalTools?: string;
+  androidExternalNetwork?: string;
 };
 
 const FLAGS_WITH_VALUE: Record<string, keyof RawSecurityValidateArgs> = {
@@ -89,6 +91,8 @@ const FLAGS_WITH_VALUE: Record<string, keyof RawSecurityValidateArgs> = {
   "--format": "format",
   "--fail-on": "failOn",
   "--android-gradle-operations": "androidGradleOperations",
+  "--android-external-tools": "androidExternalTools",
+  "--android-external-network": "androidExternalNetwork",
 };
 
 // v0.4.0 Batch 5 — the exact allowlisted optional Gradle operation ids
@@ -99,6 +103,18 @@ const FLAGS_WITH_VALUE: Record<string, keyof RawSecurityValidateArgs> = {
 // must stay in sync; a regression test in tests/security/ asserts they do.
 export const ANDROID_GRADLE_OPERATION_IDS = ["wrapper-version", "tasks", "assemble-debug", "unit-test-debug", "lint-debug"] as const;
 export type AndroidGradleOperationCliId = (typeof ANDROID_GRADLE_OPERATION_IDS)[number];
+
+// v0.4.1 Batch 8 — the exact allowlisted external-tool ids (agents.txt Batch
+// 8 section 10.1). Deliberately re-declared here for the same reason
+// ANDROID_GRADLE_OPERATION_IDS is re-declared above: this module stays free
+// of a securityValidation -> mobile import for four short string literals.
+// Both lists must stay in sync; a regression test asserts they do.
+export const ANDROID_EXTERNAL_TOOL_CLI_IDS = ["semgrep", "osv", "android-lint", "dependency-check"] as const;
+export type AndroidExternalToolCliId = (typeof ANDROID_EXTERNAL_TOOL_CLI_IDS)[number];
+
+export const ANDROID_EXTERNAL_NETWORK_POLICIES = ["deny", "allow-requested"] as const;
+export type AndroidExternalNetworkCliPolicy = (typeof ANDROID_EXTERNAL_NETWORK_POLICIES)[number];
+export const DEFAULT_ANDROID_EXTERNAL_NETWORK_POLICY: AndroidExternalNetworkCliPolicy = "deny";
 
 export function parseSecurityValidateArgs(argv: string[]): RawSecurityValidateArgs {
   const result: RawSecurityValidateArgs = {};
@@ -143,6 +159,8 @@ export type NormalizedSecurityValidateConfig = {
   failOnThreshold: SecurityFailOnThreshold;
   failOnWasDefault: boolean;
   androidGradleOperationIds: AndroidGradleOperationCliId[];
+  androidExternalToolIds: AndroidExternalToolCliId[];
+  androidExternalNetworkPolicy: AndroidExternalNetworkCliPolicy;
 };
 
 export function normalizeSecurityValidateConfig(
@@ -155,6 +173,8 @@ export function normalizeSecurityValidateConfig(
   const failOn = parseFailOnOption(raw.failOn);
   const out = raw.out !== undefined ? resolveOutDir(raw.out) : path.join(toolRoot, "reports", "security");
   const androidGradleOperationIds = parseAndroidGradleOperationsOption(raw.androidGradleOperations, profile.value);
+  const androidExternalToolIds = parseAndroidExternalToolsOption(raw.androidExternalTools, profile.value);
+  const androidExternalNetworkPolicy = parseAndroidExternalNetworkOption(raw.androidExternalNetwork, profile.value);
 
   return {
     target: raw.target,
@@ -174,6 +194,8 @@ export function normalizeSecurityValidateConfig(
     failOnThreshold: failOn.value,
     failOnWasDefault: failOn.wasDefault,
     androidGradleOperationIds,
+    androidExternalToolIds,
+    androidExternalNetworkPolicy,
   };
 }
 
@@ -196,6 +218,46 @@ function parseAndroidGradleOperationsOption(raw: string | undefined, profile: Se
   }
   const unique = new Set(parts as AndroidGradleOperationCliId[]);
   return ANDROID_GRADLE_OPERATION_IDS.filter((id) => unique.has(id));
+}
+
+// Parses --android-external-tools. Absent by default (empty array — zero
+// external-tool execution). Rejects unknown tool ids and non-"android"-
+// profile usage before any validation work begins (agents.txt Batch 8
+// section 10.1) — same shape as parseAndroidGradleOperationsOption.
+function parseAndroidExternalToolsOption(raw: string | undefined, profile: SecurityProfileId): AndroidExternalToolCliId[] {
+  if (raw === undefined) return [];
+
+  if (profile !== "android") {
+    throw new Error(`--android-external-tools requires --profile android (got --profile ${profile}).`);
+  }
+
+  const parts = splitAndNormalizeList(raw, "--android-external-tools");
+  const invalid = parts.filter((p) => !(ANDROID_EXTERNAL_TOOL_CLI_IDS as readonly string[]).includes(p));
+  if (invalid.length > 0) {
+    throw new Error(
+      `Invalid --android-external-tools value(s): ${invalid.join(", ")}. Valid values are: ${ANDROID_EXTERNAL_TOOL_CLI_IDS.join(", ")}.`
+    );
+  }
+  const unique = new Set(parts as AndroidExternalToolCliId[]);
+  return ANDROID_EXTERNAL_TOOL_CLI_IDS.filter((id) => unique.has(id));
+}
+
+// Parses --android-external-network. Defaults to "deny" (agents.txt Batch 8
+// section 10.2) — network is never authorized unless explicitly requested.
+function parseAndroidExternalNetworkOption(raw: string | undefined, profile: SecurityProfileId): AndroidExternalNetworkCliPolicy {
+  if (raw === undefined) return DEFAULT_ANDROID_EXTERNAL_NETWORK_POLICY;
+
+  if (profile !== "android") {
+    throw new Error(`--android-external-network requires --profile android (got --profile ${profile}).`);
+  }
+
+  const value = raw.trim();
+  if (!(ANDROID_EXTERNAL_NETWORK_POLICIES as readonly string[]).includes(value)) {
+    throw new Error(
+      `Invalid --android-external-network value: "${raw}". Valid values are: ${ANDROID_EXTERNAL_NETWORK_POLICIES.join(", ")}.`
+    );
+  }
+  return value as AndroidExternalNetworkCliPolicy;
 }
 
 // ---------------------------------------------------------------------------

@@ -145,8 +145,17 @@ function parseComponent(kind: AndroidManifestComponentKind, element: XmlElement,
     component.readPermission = androidAttr(element, "readPermission");
     component.writePermission = androidAttr(element, "writePermission");
     const authoritiesRaw = androidAttr(element, "authorities");
+    component.authoritiesRaw = authoritiesRaw;
     component.authorities = authoritiesRaw ? authoritiesRaw.split(";").map((s) => s.trim()).filter(Boolean) : undefined;
-    component.grantUriPermissions = parseBooleanAttr(element, "grantUriPermissions", warnings, context).value;
+    const grantUriPermissions = parseBooleanAttr(element, "grantUriPermissions", warnings, context);
+    component.grantUriPermissions = grantUriPermissions.value;
+    component.grantUriPermissionsRaw = grantUriPermissions.raw;
+    component.metadata = findChildren(element, "meta-data").map((metadata) => ({
+      name: androidAttr(metadata, "name"),
+      resource: androidAttr(metadata, "resource"),
+      value: androidAttr(metadata, "value"),
+      location: toLocation(metadata.location),
+    }));
   }
 
   return component;
@@ -249,6 +258,13 @@ export function parseAndroidManifestSource(xmlText: string, manifestPath: string
     parseWarnings.push(`Manifest declares ${applicationElements.length} <application> elements; only the first was used.`);
   }
 
+  const usesCleartextTrafficResult = applicationEl
+    ? parseBooleanAttr(applicationEl, "usesCleartextTraffic", parseWarnings, "<application>")
+    : undefined;
+  const allowBackupResult = applicationEl ? parseBooleanAttr(applicationEl, "allowBackup", parseWarnings, "<application>") : undefined;
+  const debuggableResult = applicationEl ? parseBooleanAttr(applicationEl, "debuggable", parseWarnings, "<application>") : undefined;
+  const testOnlyResult = applicationEl ? parseBooleanAttr(applicationEl, "testOnly", parseWarnings, "<application>") : undefined;
+
   const application = applicationEl
     ? {
         name: androidAttr(applicationEl, "name"),
@@ -256,10 +272,18 @@ export function parseAndroidManifestSource(xmlText: string, manifestPath: string
         iconRef: androidAttr(applicationEl, "icon"),
         enabled: parseBooleanAttr(applicationEl, "enabled", parseWarnings, "<application>").value,
         permission: androidAttr(applicationEl, "permission"),
-        allowBackup: parseBooleanAttr(applicationEl, "allowBackup", parseWarnings, "<application>").value,
-        debuggable: parseBooleanAttr(applicationEl, "debuggable", parseWarnings, "<application>").value,
-        usesCleartextTraffic: parseBooleanAttr(applicationEl, "usesCleartextTraffic", parseWarnings, "<application>").value,
+        allowBackup: allowBackupResult?.value,
+        allowBackupRaw: allowBackupResult?.raw,
+        debuggable: debuggableResult?.value,
+        debuggableRaw: debuggableResult?.raw,
+        usesCleartextTraffic: usesCleartextTrafficResult?.value,
+        usesCleartextTrafficRaw: usesCleartextTrafficResult?.raw,
         networkSecurityConfigRef: androidAttr(applicationEl, "networkSecurityConfig"),
+        fullBackupContentRef: androidAttr(applicationEl, "fullBackupContent"),
+        dataExtractionRulesRef: androidAttr(applicationEl, "dataExtractionRules"),
+        testOnly: testOnlyResult?.value,
+        testOnlyRaw: testOnlyResult?.raw,
+        location: toLocation(applicationEl.location),
       }
     : {};
 

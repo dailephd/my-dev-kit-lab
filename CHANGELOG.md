@@ -2,9 +2,27 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.4.1] - 2026-07-12
+
+Advanced Android security validation, published on top of the previously published `v0.4.0` baseline. `v0.4.1` is the current published baseline.
+
+### Added
+
+- Added the advanced Android rule/evidence substrate and eleven internal advanced check families: Network Security Config and cleartext traffic review, backup and data-extraction-rules review, debuggable and release configuration review, redacted hardcoded-secret detection, signing-configuration leak review, WebView and FileProvider analysis, sensitive storage/logging/clipboard analysis, and Firebase and Google services configuration and local rules review.
+- Added opt-in Semgrep, OSV-Scanner, Android Lint, and OWASP Dependency-Check evidence with closed tool IDs, bounded artifacts, and default network denial.
+- Activated nineteen default Android checks (eight `v0.4.0` checks plus eleven `v0.4.1` advanced internal checks) and added explicit `--android-external-tools` and `--android-external-network` CLI options.
+- Added CandidateEvidence presentation plus advanced-security, external-tool, artifact, and candidate summaries to both text and JSON reports, with text/JSON parity.
+
+### Compatibility and limitations
+
+- Default Android validation starts zero Gradle operations, zero external-tool processes, and zero network operations.
+- Advanced checks remain static-analysis-based and conservative: no APK/AAB inspection, no signing verification, no emulator/device validation, and no Play compliance or manual penetration testing.
+- Optional Semgrep/OSV-Scanner/Android Lint/Dependency-Check evidence depends on external tool availability; missing tools are skipped, not treated as failures.
+- Android AuditIssue mapping remains future `v0.4.2` work.
+
 ## [0.4.0] - 2026-07-11
 
-Android/mobile validation MVP, release-prepared on top of the previously published `v0.3.4` baseline. Package metadata is `0.4.0` on `release/v0.4.0`; the npm registry latest remains `0.3.4` pending publication.
+Android/mobile validation MVP published as `v0.4.0`.
 
 ### Added
 
@@ -19,7 +37,7 @@ Android/mobile validation MVP, release-prepared on top of the previously publish
 ### Compatibility and limitations
 
 - `v0.4.0` preserves the existing `security:validate` command surface and report root; it adds the `android` profile and `--android-gradle-operations` option without changing any other profile's behavior.
-- Android manifests are parsed independently and are not merged; placeholders and Android resources are not resolved; Gradle files are parsed statically and are not evaluated; dynamic Gradle values may remain unresolved; same-file duplicate Gradle assignments use first-match extraction.
+- Android manifests are parsed independently and are not merged; selected local references are resolved conservatively while full overlays are not; Gradle files are parsed statically and are not evaluated; dynamic Gradle values may remain unresolved.
 - `v0.4.0` does not inspect APK/AAB contents, validate signing, run emulators/devices, verify Digital Asset Links or domain ownership, check live Google Play policy, upload applications, or provide automatic fixes.
 - `v0.4.1` advanced Android checks and `v0.4.2` Android audit-adapter mapping remain planned and out of scope. Manual pentest remains a deferred, post-v1 / version-TBD workflow, not assigned to v0.4.x.
 

@@ -30,6 +30,104 @@ import {
 } from "../validation/result.js";
 import type { AndroidCheckResult } from "../validation/checkResult.js";
 import type { SecurityFinding } from "../../../securityValidation/types.js";
+import { auditAndroidNetworkSecurity } from "../advancedSecurity/networkSecurity/checkResult.js";
+import { auditAndroidBackupConfiguration } from "../advancedSecurity/backupConfiguration/checkResult.js";
+import { auditAndroidReleaseConfiguration } from "../advancedSecurity/releaseConfiguration/checkResult.js";
+import { auditAndroidSecretCandidates } from "../advancedSecurity/secretCandidates/checkResult.js";
+import { auditAndroidSigningConfiguration } from "../advancedSecurity/signingConfiguration/checkResult.js";
+import { auditAndroidWebViewSecurity } from "../advancedSecurity/webview/checkResult.js";
+import { auditAndroidFileProviders } from "../advancedSecurity/fileProvider/checkResult.js";
+import { auditAndroidSensitiveStorage } from "../advancedSecurity/sensitiveStorage/checkResult.js";
+import { auditAndroidSensitiveLogging } from "../advancedSecurity/sensitiveLogging/checkResult.js";
+import { auditAndroidClipboardSecurity } from "../advancedSecurity/clipboard/checkResult.js";
+import { auditAndroidFirebaseGoogleServices } from "../advancedSecurity/firebaseGoogle/checkResult.js";
+import { runRequestedAndroidExternalTools } from "../advancedSecurity/externalTools/runRequestedAndroidExternalTools.js";
+import { createRealExternalToolExecutor } from "../advancedSecurity/externalTools/runBoundedExternalTool.js";
+import { createRealGradleCommandExecutor } from "../gradle/validate/executor.js";
+import type { AndroidExternalToolNetworkPolicy, ExternalToolExecutor } from "../advancedSecurity/externalTools/types.js";
+import type { DiscoveredExecutable } from "../advancedSecurity/externalTools/discoverExecutable.js";
+import type { AndroidManifestParseEntry } from "../manifest/parseAndroidManifest.js";
+import type { AndroidDetectionResult } from "../detection.js";
+
+// ---------------------------------------------------------------------------
+// v0.4.1 Batch 8 — active integration of the eleven Batch 2-6 standalone
+// advanced Android checks and the Batch 7 optional external-tool dispatcher.
+//
+// Each advanced-check invocation is wrapped in `runIsolatedCheck` so that an
+// unexpected exception from any single analyzer never discards results
+// already gathered from earlier checks (agents.txt Batch 8 section 9.3) —
+// this mirrors the existing convention that every analyzer already returns a
+// well-formed AndroidCheckResult rather than throwing, but adds a defensive
+// boundary here in case that invariant is ever violated by a future change.
+// ---------------------------------------------------------------------------
+
+type AdvancedCheckDescriptor = { id: string; category: AndroidCheckResult["category"]; title: string; run: () => AndroidCheckResult };
+
+function runIsolatedCheck(descriptor: AdvancedCheckDescriptor): AndroidCheckResult {
+  try {
+    return descriptor.run();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      id: descriptor.id,
+      category: descriptor.category,
+      title: descriptor.title,
+      status: "error",
+      requirementLevel: "optional",
+      ran: false,
+      skipped: false,
+      evidence: [],
+      findings: [],
+      warnings: [],
+      errors: [`Advanced check raised an unexpected error: ${message}`],
+      sourcePaths: [],
+      confidence: "unknown",
+      environmentRequirements: [],
+      candidateEvidence: [],
+    };
+  }
+}
+
+function buildAdvancedSecurityChecks(
+  targetRoot: string,
+  detection: AndroidDetectionResult,
+  manifestEntries: AndroidManifestParseEntry[],
+  gradleModules: ReturnType<typeof readAndroidGradleMetadata>["modules"]
+): AndroidCheckResult[] {
+  // Fixed order (agents.txt Batch 8 section 9.1) — never alphabetical, never
+  // derived from filesystem/object iteration.
+  const descriptors: AdvancedCheckDescriptor[] = [
+    { id: "android-network-security-audit", category: "android-network-security", title: "Android Network Security Config audit", run: () => auditAndroidNetworkSecurity(targetRoot, detection, manifestEntries) },
+    { id: "android-backup-configuration-audit", category: "android-backup-configuration", title: "Android backup configuration audit", run: () => auditAndroidBackupConfiguration(targetRoot, detection, manifestEntries) },
+    { id: "android-release-configuration-audit", category: "android-release-configuration", title: "Android release configuration audit", run: () => auditAndroidReleaseConfiguration(targetRoot, detection, manifestEntries, gradleModules) },
+    { id: "android-secret-candidates-audit", category: "android-secret-candidates", title: "Android hardcoded secret-candidate audit", run: () => auditAndroidSecretCandidates(targetRoot, detection) },
+    { id: "android-signing-configuration-audit", category: "android-signing-configuration", title: "Android signing configuration audit", run: () => auditAndroidSigningConfiguration(targetRoot, detection, gradleModules) },
+    { id: "android-webview-security-audit", category: "android-webview", title: "Android WebView security audit", run: () => auditAndroidWebViewSecurity(targetRoot, detection) },
+    { id: "android-file-provider-audit", category: "android-file-provider", title: "Android FileProvider security audit", run: () => auditAndroidFileProviders(targetRoot, detection, manifestEntries) },
+    { id: "android-sensitive-storage-audit", category: "android-sensitive-storage", title: "Android sensitive-storage audit", run: () => auditAndroidSensitiveStorage(targetRoot, detection) },
+    { id: "android-sensitive-logging-audit", category: "android-sensitive-logging", title: "Android sensitive-logging audit", run: () => auditAndroidSensitiveLogging(targetRoot, detection) },
+    { id: "android-clipboard-security-audit", category: "android-clipboard", title: "Android clipboard security audit", run: () => auditAndroidClipboardSecurity(targetRoot, detection) },
+    { id: "android-firebase-google-services-audit", category: "android-firebase-google-services", title: "Android Firebase/Google services audit", run: () => auditAndroidFirebaseGoogleServices(targetRoot, detection) },
+  ];
+  return descriptors.map(runIsolatedCheck);
+}
+
+// Memoizes by Gradle operation id: the fixed allowlist (operations.ts) maps
+// each operation id to fixed args, so within one validation run the same
+// operation id always means the same command — caching by id is safe and
+// prevents running `lintDebug` twice when both --android-gradle-operations
+// lint-debug and --android-external-tools android-lint are requested
+// together (agents.txt Batch 8 section 10.6).
+function createDedupingGradleExecutor(base: GradleCommandExecutor): GradleCommandExecutor {
+  const cache = new Map<string, ReturnType<GradleCommandExecutor>>();
+  return (plan) => {
+    const cached = cache.get(plan.operationId);
+    if (cached) return cached;
+    const promise = base(plan);
+    cache.set(plan.operationId, promise);
+    return promise;
+  };
+}
 
 // ---------------------------------------------------------------------------
 // v0.4.0 Batch 5 — Android validation orchestrator (agents.txt Batch 5
@@ -53,6 +151,29 @@ export type ValidateAndroidTargetOptions = {
   gradleExecutor?: GradleCommandExecutor;
   allowGradleWithoutTaskDiscovery?: boolean;
   platform?: NodeJS.Platform;
+  // v0.4.1 Batch 8 — additive external-tool integration. Omitted/empty
+  // requestedExternalToolIds executes zero external tools (same "no request,
+  // no execution" convention as requestedGradleOperationIds).
+  requestedExternalToolIds?: string[];
+  externalNetworkPolicy?: AndroidExternalToolNetworkPolicy;
+  externalToolArtifactRoot?: string;
+  externalToolExecutors?: {
+    semgrep?: ExternalToolExecutor;
+    osv?: ExternalToolExecutor;
+    androidLint?: GradleCommandExecutor;
+    dependencyCheck?: ExternalToolExecutor;
+  };
+  // Injectable executable discovery (mirrors externalToolExecutors) — lets a
+  // caller/test bypass real PATH lookup for semgrep/osv/dependency-check
+  // without needing the actual binary installed. Omitted means real PATH
+  // discovery, exactly as before this option existed.
+  externalToolDiscover?: {
+    semgrep?: () => DiscoveredExecutable;
+    osv?: () => DiscoveredExecutable;
+    dependencyCheck?: () => DiscoveredExecutable;
+  };
+  javaAvailable?: boolean;
+  lintTaskAvailable?: boolean;
 };
 
 function readToolPackageMetadata(toolRoot: string): { toolPackageName: string; toolPackageVersion: string } {
@@ -121,6 +242,12 @@ export async function validateAndroidTarget(options: ValidateAndroidTargetOption
   const detectionCheck = buildAndroidDetectionCheckResult(detection);
   const manifestParsingCheck = buildAndroidManifestParsingCheckResult(detection, manifestEntries);
 
+  // Shared, deduping Gradle executor: reused for both --android-gradle-
+  // operations and (if android-lint is also externally requested) the
+  // Batch 7 Android Lint adapter, so `lintDebug` never runs twice for one
+  // validation run (agents.txt Batch 8 section 10.6).
+  const sharedGradleExecutor = createDedupingGradleExecutor(options.gradleExecutor ?? createRealGradleCommandExecutor());
+
   // 15-16. Optional Gradle operations — never run unless explicitly requested.
   const requestedOperationIds = options.requestedGradleOperationIds ?? [];
   const gradleOperationResults: AndroidCheckResult[] =
@@ -130,19 +257,82 @@ export async function validateAndroidTarget(options: ValidateAndroidTargetOption
           targetRoot: resolvedTargetRoot,
           detection,
           operationIds: requestedOperationIds,
-          executor: options.gradleExecutor,
+          executor: sharedGradleExecutor,
           allowWithoutTaskDiscovery: options.allowGradleWithoutTaskDiscovery,
           platform: options.platform,
         })
       : [];
 
-  // 17. Target mutation evidence — captured regardless of whether Gradle ran,
+  // v0.4.1 Batch 8 — eleven internal advanced Android checks, active by
+  // default (agents.txt Batch 8 section 9.1). Sequential, fixed order,
+  // isolated per-check via runIsolatedCheck. Never executes a process or
+  // touches the network.
+  const advancedSecurityChecks = buildAdvancedSecurityChecks(resolvedTargetRoot, detection, manifestEntries, gradle.modules);
+
+  // v0.4.1 Batch 8 — optional external-tool integration. Never executes
+  // unless requestedExternalToolIds is non-empty (same "no request, no
+  // execution" convention as Gradle operations). Wrapped in try/catch so a
+  // dispatcher-level failure (e.g. an unknown tool id slipping past CLI
+  // validation in a programmatic caller) cannot discard the checks already
+  // gathered above.
+  const requestedExternalToolIds = options.requestedExternalToolIds ?? [];
+  let externalToolChecks: AndroidCheckResult[] = [];
+  if (requestedExternalToolIds.length > 0) {
+    try {
+      externalToolChecks = await runRequestedAndroidExternalTools({
+        request: {
+          requestedTools: requestedExternalToolIds,
+          targetRoot: resolvedTargetRoot,
+          artifactRoot: options.externalToolArtifactRoot ?? path.join(options.toolRoot, "reports", "security", "external-tools"),
+          networkPolicy: options.externalNetworkPolicy ?? "deny",
+        },
+        detection,
+        executors: {
+          semgrep: options.externalToolExecutors?.semgrep ?? createRealExternalToolExecutor(),
+          osv: options.externalToolExecutors?.osv ?? createRealExternalToolExecutor(),
+          androidLint: options.externalToolExecutors?.androidLint ?? sharedGradleExecutor,
+          dependencyCheck: options.externalToolExecutors?.dependencyCheck ?? createRealExternalToolExecutor(),
+        },
+        discover: options.externalToolDiscover,
+        javaAvailable: options.javaAvailable,
+        lintTaskAvailable: options.lintTaskAvailable,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      externalToolChecks = [
+        {
+          id: "android-external-tools-dispatch",
+          category: "android-semgrep",
+          title: "External security-tool dispatch",
+          status: "error",
+          requirementLevel: "optional",
+          ran: false,
+          skipped: false,
+          evidence: [],
+          findings: [],
+          warnings: [],
+          errors: [`External-tool dispatch raised an unexpected error: ${message}`],
+          sourcePaths: [],
+          confidence: "unknown",
+          environmentRequirements: [],
+          candidateEvidence: [],
+        },
+      ];
+    }
+  }
+
+  // 17. Target mutation evidence — captured after every process this run may
+  // have executed (Gradle operations, advanced checks, and external tools),
   // so the static-only path also proves it made no changes.
   const snapshotAfter = captureTargetSnapshot(resolvedTargetRoot, hasGit);
   const targetMutation = buildTargetMutationReport(snapshotBefore, snapshotAfter);
   const immutabilityCheck = buildAndroidTargetImmutabilityCheckResult(targetMutation);
 
-  // 18. Assemble checks/findings in deterministic order (agents.txt section 10.3).
+  // 18. Assemble checks/findings in deterministic order (agents.txt Batch 8
+  // section 11.1): the existing v0.4.0 check order is preserved exactly
+  // (ending with immutabilityCheck, as before), and the eleven advanced
+  // checks and any requested external tools are APPENDED after it — never
+  // interleaved into the existing order.
   const checks: AndroidCheckResult[] = [
     detectionCheck,
     manifestParsingCheck,
@@ -153,6 +343,8 @@ export async function validateAndroidTarget(options: ValidateAndroidTargetOption
     gradleMetadataCheck,
     ...gradleOperationResults,
     immutabilityCheck,
+    ...advancedSecurityChecks,
+    ...externalToolChecks,
   ];
 
   const findingsById = new Map<string, SecurityFinding>();
