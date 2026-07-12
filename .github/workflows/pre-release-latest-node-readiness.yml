@@ -59,7 +59,7 @@ jobs:
         run: npm run build
 
       - name: Audit tests
-        run: npm run test:audits
+        run: npx vitest run tests/audits
 
       - name: Test
         run: npm run test
