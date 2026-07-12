@@ -39,12 +39,24 @@ const SEVERITY_MAP: Record<SecuritySeverity, AuditSeverity> = {
 const DEFAULT_CONFIDENCE: AuditConfidence = "medium";
 const DEFAULT_FALSE_POSITIVE_RISK: AuditFalsePositiveRisk = "medium";
 
+// Exported so other SecurityFinding-consuming mappers (e.g. the Android
+// audit-adapter mapper, v0.4.2 Batch 1) reuse the same conservative
+// severity policy instead of defining a second one.
+export function mapSecuritySeverityToAuditSeverity(severity: SecuritySeverity): AuditSeverity {
+  return SEVERITY_MAP[severity];
+}
+
+// Mirrors verdict.ts's calculateVerdict: blocker and major findings are what
+// drive a "not-ready-security-blocker-remains" verdict — minor/informational
+// findings never block release or implementation on their own. Exported for
+// reuse by other SecurityFinding-consuming mappers.
+export function isBlockingSecuritySeverity(severity: SecuritySeverity): boolean {
+  return severity === "blocker" || severity === "major";
+}
+
 export function mapSecurityFindingToAuditIssue(finding: SecurityFinding): AuditIssue {
-  const severity = SEVERITY_MAP[finding.severity];
-  // Mirrors verdict.ts's calculateVerdict: blocker and major findings are
-  // what drive a "not-ready-security-blocker-remains" verdict — minor/
-  // informational findings never block release or implementation on their own.
-  const isBlockingSeverity = finding.severity === "blocker" || finding.severity === "major";
+  const severity = mapSecuritySeverityToAuditSeverity(finding.severity);
+  const isBlockingSeverity = isBlockingSecuritySeverity(finding.severity);
 
   const evidence: AuditEvidence[] = finding.evidence
     ? [
