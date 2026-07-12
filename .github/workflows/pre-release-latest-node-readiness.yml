@@ -52,6 +52,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check documentation consistency
+        run: npm run docs:check
+
       - name: Typecheck
         run: npm run typecheck
 
