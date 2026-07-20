@@ -66,5 +66,5 @@ Answer key requirements:
 - `answerKey.expectedFiles` lists files a correct answer may need to cite
 - `answerKey.expectedSymbols` lists relevant symbols
 - `answerKey.expectedFacts` lists weighted facts with unique `id`, `text`, `weight`, and `required`
-- `answerKey.minimumCorrectFacts` defines the future scoring threshold, but scoring is not implemented in this prompt
+- `answerKey.minimumCorrectFacts` defines the required-fact threshold used by deterministic correctness scoring
 - optional `forbiddenWrongClaims` records claims that should be penalized by a later correctness scorer

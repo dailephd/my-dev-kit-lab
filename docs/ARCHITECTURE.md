@@ -2,11 +2,13 @@
 
 ## Android architecture
 
-`src/mobile/android` adds Android validation to the existing experiment, evaluation, audit, security-validation, report, plot, screenshot, and gallery systems. Android validation is non-destructive and static by default; Gradle operations, external tools, and network requests require explicit opt-in. `src/audits/security` extends the same security audit adapter directly with Android validation summaries and report references (`--android`); it does not create a parallel adapter and does not map `CandidateEvidence` to `AuditIssue`.
+`src/mobile/android` adds Android validation to the existing security, audit, and evidence systems. Validation is non-destructive and static by default. Gradle operations, external tools, and network requests require explicit opt-in.
+
+`src/audits/security` adds Android summaries and report references to the existing security audit adapter through `--android`. It does not create a parallel adapter or map `CandidateEvidence` to `AuditIssue`.
 
 ## Current implemented architecture
 
-my-dev-kit-lab is the experiment, evidence, reporting, visualization, gallery, automated security-validation, Android-validation, and audit companion for my-dev-kit. The generic experiment-plugin architecture is fully implemented, not a migration in progress. The generic audit framework is implemented, with `code-rot` and `security` (including its Android-aware extension) as the currently implemented audit types, built on a language-aware source-facts substrate covering TypeScript/JavaScript, Python, Java, and Kotlin.
+my-dev-kit-lab is the experiment, evidence, audit, and validation companion for my-dev-kit. The generic experiment-plugin architecture is implemented rather than being a migration in progress. The audit framework provides `code-rot` and `security`, including the Android-aware extension, over language-aware source facts for TypeScript/JavaScript, Python, Java, and Kotlin.
 
 ### Module map
 
@@ -87,6 +89,20 @@ flowchart TD
   SecurityAdapter -.reuses/links.-> SecurityReports
 ```
 
+### Subsystem responsibilities and boundaries
+
+| Subsystem | Responsibility | Inputs | Outputs | Primary owners | Extension points | Invariants and failure boundary |
+|---|---|---|---|---|---|---|
+| Core and target model | Resolve commands, paths, tokens, and local targets | CLI values and local paths | Normalized process/path/target metadata | `src/core` | Shared target helpers | Tool and target roots stay distinct; target source is not modified by default |
+| Experiment runtime | Select and execute experiment plugins | Plugin ID, target, configuration, benchmark cases | Normalized results and legacy-compatible artifacts | `src/experiments` | Plugin registry and plugin contracts | One runner; invalid plugin/configuration fails before execution |
+| Evaluation, prompts, and agents | Build trials, prompts, scores, and agent outcomes | Benchmarks, strategies, prompt variants, adapter output | Runs, correctness, token/duration/status metadata | `src/evaluation`, `src/prompts`, `src/agents` | New metrics and adapters | Partial outcomes remain explicit; missing telemetry is not fabricated |
+| Reports and presentation | Render evidence for review | Normalized experiment and validation artifacts | JSON/HTML/text reports, plots, screenshots, gallery | `src/report`, `src/plots`, `src/screenshot`, `src/gallery`, `src/visualizationDemos` | Additive report sections and gallery entries | Presentation does not reinterpret missing data as success |
+| Generic audit | Collect project facts and run registered audit types | Local target, audit configuration | Audit issues, summaries, text/JSON reports | `src/audits` | Detector and audit-type registries | Findings are conservative; no auto-fix; invalid configuration exits cleanly |
+| Security validation | Run automated CLI/package checks and scenarios | Local target, checks/profile/options | `SecurityFinding` records, skips, verdict, security reports | `src/securityValidation`, `scripts/security` | Check/scenario/profile registries | Optional tools may skip; bounded evidence is not exhaustive proof |
+| Android validation | Detect and statically inspect Android targets | Android project plus explicit opt-ins | Android checks, findings, CandidateEvidence, report sections | `src/mobile/android` | Closed checks and opt-in operations | Zero Gradle, external-tool, and network processes by default; CandidateEvidence is review-only |
+| Security audit adapter | Reuse security results in audit output | Security-validation result and optional Android result | Mapped issues, summaries, report links | `src/audits/security` | Finding-to-issue mappings | One adapter; `security:validate` remains separate and authoritative for full evidence |
+| Documentation preservation | Enforce required structure and lifecycle facts | Preservation manifest and tracked documentation | Actionable consistency errors | `scripts/check-docs.mjs`, `tests/scripts/checkDocs.test.ts` | Manifest structural requirements | Checks may be strengthened, not weakened to hide contradictions |
+
 ## Experiment-plugin runtime
 
 `src/experiments/defaultRegistry.ts` registers `context-strategy-comparison`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
@@ -164,7 +180,9 @@ Optional local tools can be reported as skipped; absence alone does not make the
 
 `src/audits/` is the implemented generic project-audit framework. `code-rot` (since `v0.3.0`) and `security` (since `v0.3.2`) are the currently implemented audit types. `quality`, `project`, and `all` audit types remain planned — supplying them to `--types` fails cleanly with exit code 2 and a clear message rather than running.
 
-The audit framework and automated security validation (`src/securityValidation`) remain two distinct systems. `src/audits/security` is an *adapter*, not a new security-scanner family: it calls `runSecurityValidation()` (the same internals `security:validate` uses) directly, maps the resulting `SecurityFinding`s into audit issues, and writes the same `reports/security/*.txt`/`*.json` report family `security:validate` already writes. `security:validate` is never called by the audit framework as a subprocess, and it does not call the audit framework — the adapter only reuses `securityValidation`'s exported functions.
+The audit framework and automated security validation (`src/securityValidation`) remain distinct systems. `src/audits/security` is an adapter, not another scanner family. It calls `runSecurityValidation()` directly, maps resulting `SecurityFinding` records into audit issues, and preserves the existing `reports/security/*.txt` and `.json` outputs.
+
+The audit framework never invokes `security:validate` as a subprocess, and `security:validate` never calls the audit framework. The adapter only reuses exported security-validation functions.
 
 ```mermaid
 flowchart LR
@@ -225,36 +243,11 @@ flowchart LR
 
 Fail-on policy: `--fail-on blocker|high|medium|low|none` (default `blocker`; see `docs/COMMANDS.md` for full threshold semantics). External-target audits are non-destructive — target resolution and the runner do not write or delete files inside the target root; generated reports stay under the tool root's `reports/audits/` unless `--out` redirects them.
 
-### v0.3.1 audit substrate (published)
+### Language-analyzer boundary
 
-`v0.3.1` extended the audit core with normalized language/file-role inventory, a language analyzer registry, a source facts model, source facts collection, and TypeScript/JavaScript analyzer support.
+The source-facts layer registers TypeScript/JavaScript, Python, Java, and Kotlin analyzers. TypeScript/JavaScript parsing is syntax-only and single-file; Python and JVM analyzers use conservative, dependency-free scanning. Detector groups remain analyzer-scoped, and JVM metadata is static presence/text extraction rather than a report-schema field.
 
-The TypeScript/JavaScript analyzer is syntax-only and single-file. It uses the TypeScript compiler API to parse supported TS/JS extensions and records imports, exports, declarations, bare call references, line counts, diagnostics, and parse status. Files over 1 MB fall back to file-level facts. Files with syntax diagnostics are marked `parse-error` while retaining best-effort facts.
-
-The code-rot integrations use source facts as additional conservative evidence only. They do not prove unused code, semantic duplicate implementations, test coverage, full module resolution, `tsconfig` path alias resolution, type-checker semantics, or runtime reachability.
-
-### v0.3.2 audit substrate (published)
-
-`v0.3.2` adds a Python analyzer alongside the `v0.3.1` TypeScript/JavaScript analyzer. It is dependency-free and regex/line-based (no Python runtime, no `ast` module, no third-party parser): it extracts `import`/`from...import` statements (including relative dotted imports), `__all__`, and module-level/class-body `def`/`class` declarations. It leaves `references` empty (no call/identifier tracking) to avoid overclaiming. `pythonProjectMetadata.ts` separately collects presence/simple-text-extraction metadata from common Python project files.
-
-The same source-facts-aware `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` detectors extended in `v0.3.1` for TypeScript/JavaScript now also consume Python source facts (a Python-specific relative-import resolver for `test-rot`, and an analyzer-id-scoped grouping key for `duplicate-implementation-candidate` so the pre-existing TypeScript/JavaScript grouping is unaffected). Python-derived findings use the same conservative "candidate"/"may indicate" wording as the rest of the code-rot family.
-
-`v0.3.2` also adds the security-validation audit adapter described above (`src/audits/security/`), making `security` the second implemented audit type alongside `code-rot`.
-
-### v0.3.3 audit substrate (published, current baseline)
-
-The published `v0.3.3` implementation adds Java and Kotlin analyzers alongside the `v0.3.1` TypeScript/JavaScript analyzer and the `v0.3.2` Python analyzer. Both JVM analyzers are conservative, dependency-free scanners: they record package/import/declaration facts with regex and brace-depth tracking, not compiler or AST-backed semantic analysis. Java supports `.java`; Kotlin supports `.kt` and `.kts`.
-
-`jvmProjectMetadata.ts` separately collects static JVM project metadata: Gradle build/settings/wrapper presence, Maven `pom.xml` presence, conventional `src/main|test/{java,kotlin}` source-set directories, and a best-effort project name. This is presence/simple-text-extraction only. It never executes Gradle, Maven, Java, Kotlin, Android tooling, or target-project tests.
-
-The existing code-rot detectors are extended conservatively rather than replaced:
-
-- `dead-code-candidate` adds Java/Kotlin top-level declaration checks using import simple-name evidence and JVM naming/lifecycle exclusions; it does not attempt method- or constructor-level dead-code detection.
-- `duplicate-implementation-candidate` adds Java/Kotlin duplicate declaration candidate checks while keeping duplicate groups analyzer-scoped, so Java, Kotlin, Python, and TypeScript/JavaScript findings do not merge into one cross-language group.
-- `test-rot` adds best-effort Java/Kotlin missing-import checks using analyzer-recorded JVM imports plus recognized source/test-set directories, without compiler/classpath resolution.
-- `docs-code-mismatch` adds Java/Kotlin symbol-claim checks and static Gradle/Maven command/feature-claim checks against JVM metadata. This detector does not own Android validation; the implemented Android subsystem remains separate under `src/mobile/android`.
-
-No audit command changed and no report schema field was added for `v0.3.3`. `pythonProjectMetadata` and `securitySummary` remain the additive top-level fields from `v0.3.2`; JVM metadata is detector input, not a new report field.
+These analyzers provide candidate evidence. They do not provide type checking, full module or classpath resolution, runtime reachability, clone detection, coverage analysis, compiler execution, Gradle/Maven execution, target-test execution, or dependency-freshness proof. See [CHANGELOG.md](../CHANGELOG.md) for the release-by-release history of this substrate.
 
 ## Shared report and evidence infrastructure
 
@@ -272,23 +265,13 @@ The following layers are planned and must not be treated as current published or
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 
-Future audit work should reuse `src/audits/core`, `src/audits/security`, current target metadata, the normalized audit issue schema, and shared report infrastructure. Android validation and the v0.4.2 audit integration already reuse those foundations. This work must not replace the experiment plugin runtime, duplicate report/gallery systems, or fold `security:validate` into the audit framework — the audit framework only adapts and links to `securityValidation`; it does not absorb it.
+Future audit work should reuse `src/audits/core`, `src/audits/security`, target metadata, the normalized issue schema, and shared reports. It must not replace the experiment runtime, duplicate report/gallery systems, or absorb `security:validate` into the audit framework.
 
-### v0.4.3 — stage-specific bounded-context and workflow-instruction evaluation (planned)
+### Planned v0.4.3 extension points
 
-Not implemented. See [ROADMAP.md](ROADMAP.md) for the full plan, ownership boundaries, and acceptance criteria. Planned module names below are candidates, subject to confirmation against current registry/type conventions at implementation time.
+Version v0.4.3 is planned and not implemented. It may add schema-validating readers and evidence-centered metrics to the existing evaluation and `context-strategy-comparison` modules, then reuse the current report, plot, screenshot, and gallery infrastructure.
 
-Planned additive modules:
-
-- `src/evaluation` (or an adjacent module) — a context-capsule reader, a retrieval-audit reader, and a `WorkflowInstructionPacket` reader, each validating a supported schema major and rejecting unsupported majors/malformed input without silent reinterpretation.
-- A normalized observation model built on top of reader output, additive to existing types in `src/evaluation/types.ts`.
-- `src/experiments/plugins/contextStrategyComparison/` — extended with candidate strategy IDs (architecture-only, architecture-plus-implementation-refresh, architecture-plus-implementation-and-test-refresh, full-workflow-library baseline, bounded-workflow-packet, combined-bounded-stage-context), preserving the existing `raw-full-file` and `my-dev-kit-guided` strategies.
-- An explicit fixture-expectation schema (required/allowed/forbidden evidence, stable case/requirement IDs), extending `BenchmarkTaskAnswerKey`/`ExpectedContextTarget` in `src/evaluation/types.ts`.
-- Deterministic evidence-centered metrics (required-evidence recall, irrelevant-file/instruction inclusion, responsibility-mapping completeness, provenance completeness, truncation, adequacy, freshness, full-file-fallback, unnecessary reads, determinism), each reporting explicit numerator/denominator/rate and unavailable-vs-zero status.
-- Target-immutability before/after snapshot evidence for experiment targets, extending the read-only pattern already used by `src/securityValidation/attackScenarios/targetSnapshot.ts` (which currently captures git-status entries and a timestamp, not branch/commit/file hashes).
-- Additive `src/report`/`src/report/experiments` sections, and optional `src/plots`/`src/screenshot`/`src/gallery` reuse.
-
-This work depends on stable output contracts from `my-dev-kit` `1.10.1` (role-aware context capsule and retrieval-audit record extensions) and `my-dev-kit-orchestrator` `1.2.1` (`WorkflowInstructionPacket`). It consumes those contracts via versioned fixtures or configurable local commands — it does not add a permanent local path dependency to `package.json`, and neither upstream project becomes a required runtime dependency of my-dev-kit-lab. It must not replace `src/experiments/runner.ts`, duplicate `src/report`/`src/plots`/`src/gallery`, or alter `src/audits` or `src/securityValidation` behavior.
+The work must preserve the experiment runner and existing strategy IDs, keep targets immutable, reject unsupported schema majors clearly, and leave audit and security-validation behavior unchanged. Upstream projects remain independently releasable and do not become runtime dependencies. See [ROADMAP.md](ROADMAP.md) for the complete dependencies, ownership boundaries, scope, exclusions, and acceptance criteria.
 
 ## Key contracts
 

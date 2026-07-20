@@ -19,6 +19,8 @@ Current security properties include:
 
 Evidence semantics are intentionally conservative. A `SecurityFinding` is a confirmed result under a specific automated rule and may be adapted into an `AuditIssue`. Android `CandidateEvidence` is review-only evidence: it is not a confirmed vulnerability, not a `SecurityFinding`, and never maps directly to an `AuditIssue`.
 
+Android validation is static and non-destructive by default. Its nineteen default checks start zero Gradle operations, zero external-tool processes, and zero network operations. Requested Gradle operations and external tools come from closed allowlists; network access requires a separate explicit opt-in.
+
 ## Implemented validation layers
 
 | Layer | Implementation |
@@ -57,7 +59,11 @@ npm run security:validate
 npm run security:validate -- --target <path>
 ```
 
-Target resolution reads available package, lockfile, and git metadata without modifying target source files. Reports identify tool and target roots and are written under `reports/security` by default. For an external target, `security:validate` runs the target's `npm run test:security` in the target root when that script exists. Missing target security scripts and optional tool availability are represented explicitly in results.
+Target resolution reads available package, lockfile, and Git metadata without modifying target source files. Reports identify tool and target roots and default to `reports/security`.
+
+For an external target, `security:validate` runs the target's `npm run test:security` from that target when the script exists. Missing target scripts and optional tools remain explicit in the results.
+
+Validation records target-mutation evidence. It does not clean, reset, or otherwise hide a mutation after the run; an unexpected change must remain visible and affect interpretation.
 
 Target-aware behavior is implemented in:
 
@@ -82,7 +88,7 @@ See [COMMANDS.md](COMMANDS.md) for arguments and examples.
 
 `security:validate` accepts:
 - `--checks deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network`
-- `--profile node-cli-package|local-tool|npm-package`
+- `--profile node-cli-package|local-tool|npm-package|android`
 - `--format text|json|text,json`
 - `--fail-on blocker|high|medium|low`
 - `--out <path>`
@@ -162,6 +168,7 @@ Current profiles:
 - `node-cli-package`
 - `local-tool`
 - `npm-package`
+- `android`
 
 Current report/schema details:
 - JSON report includes `attackScenarios` and `verdictReasonSummary`
@@ -181,14 +188,17 @@ Current report/schema details:
 - Symlink and junction scenarios can be operating-system dependent.
 - Informational architectural assertions are not equivalent to dynamic network or secret-leakage proofs.
 - Manual pentest is deferred until after `v1.0.0`. It is a human-led workflow and is not required for automated Android security validation.
+- Runtime behavior, device/emulator testing, APK/AAB inspection, signing verification, Play Console or policy validation, remote Firebase state, Digital Asset Links ownership, automatic fixes, and exhaustive security proof remain outside current scope.
 
 ## Fortification status and audit relationship
 
-`v0.4.2` is the current published npm baseline (package metadata `0.4.2`). The v0.3.x releases remain the published audit/code-rot history. The current framework keeps the `v0.2.2` security-validation fortification and the `v0.3.0` generic audit framework as separate tools, and builds on the `v0.3.1` language-aware TypeScript/JavaScript code-rot substrate and the `v0.3.2` security-validation audit adapter. `v0.3.3` extended code-rot support to Java/Kotlin; Android validation arrived separately in `v0.4.0` and `v0.4.1` without turning JVM code-rot analysis into JVM security validation.
+The current framework keeps automated security validation, the generic audit framework, language-aware code-rot analysis, and Android validation as distinct responsibilities. Their release history is recorded in [CHANGELOG.md](../CHANGELOG.md); the latest release is v0.4.2.
 
-`security:validate` remains standalone and is the primary, focused command for security validation. `npm run audit -- --types security` is now implemented as an *adapter*, not a new security-scanner family: it calls `runSecurityValidation()` (the same exported function `security:validate` calls) directly, maps the resulting findings into the shared audit issue model, and adds a `securitySummary` field to the audit JSON/text report. Security reports under `reports/security/` remain the original, unchanged output — the audit report links to them (via `securitySummary.reportPaths`) rather than duplicating their contents. `npm run audit` does not shell out to `security:validate`, and `security:validate` does not call the audit framework; the two commands remain independently runnable, and the adapter does not replace or redesign `security:validate`.
+`security:validate` remains the standalone, focused security command. `npm run audit -- --types security` uses an adapter rather than another scanner family. The adapter calls the same exported `runSecurityValidation()` function, maps confirmed findings into the shared issue model, and adds `securitySummary` to audit reports.
 
-The audit framework's `code-rot` audit type separately includes a `security-validation-assumption-rot` detector, which only checks whether documentation makes stale or inaccurate claims about the security-validation framework; it does not itself perform security validation and is unrelated to the `security` audit type / adapter described above. Android automated security validation is published through `v0.4.1`; the Android-aware extension of the existing security audit adapter is published in `v0.4.2`. The published `v0.3.3` Java/Kotlin code-rot work must not be read as Android or JVM security-validation support.
+Security reports under `reports/security/` remain the complete original output. Audit reports link to them through `securitySummary.reportPaths` instead of duplicating their contents. Neither command invokes the other as a subprocess, and both remain independently runnable.
+
+The audit framework's `code-rot` audit type separately includes a `security-validation-assumption-rot` detector. That detector checks documentation claims about this framework; it does not perform security validation and is unrelated to the `security` audit type. Java/Kotlin code-rot analysis must not be interpreted as Android or JVM security validation.
 
 ## Relationship to experiments
 

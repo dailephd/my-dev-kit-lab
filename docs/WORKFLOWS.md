@@ -2,20 +2,24 @@
 
 ## Current workflow families
 
-The repository supports experiment campaigns, generic audits, automated security validation, Android validation, opt-in closed Gradle operations, opt-in external tools/network evidence, implementation verification, documentation reconciliation, pre-release readiness, and release publication. Android defaults remain static and zero-process. Documentation reconciliation follows `DOCUMENTATION_PRESERVATION_POLICY.md` and must preserve future plans and release history.
+The repository supports experiment campaigns, evidence rendering, generic audits, automated security validation, Android validation, implementation verification, documentation reconciliation, and release operations. Each workflow below states its goal, prerequisites, steps, outputs, failure handling, and completion condition. Exact options belong in [COMMANDS.md](COMMANDS.md).
 
-This document separates product workflows, documentation reconciliation, pre-release readiness, release preparation/publication, and future planned workflows. Package metadata and the current published npm baseline are both `v0.4.2`; `v0.4.3` is planned and not implemented. Release chronology belongs in [CHANGELOG.md](../CHANGELOG.md).
+Android defaults remain static and start zero Gradle, external tool, and network processes. Release chronology belongs in [CHANGELOG.md](../CHANGELOG.md); future scope belongs in [ROADMAP.md](ROADMAP.md).
 
-## Workflow 1: Fake-agent final demo
+## Fake-agent final demo
 
-Use this workflow to validate the full experiment pipeline locally without external agent CLIs.
+**Goal:** validate the complete experiment-to-gallery pipeline without external agent CLIs.
+
+**Prerequisites and starting state:** install dependencies and run `npm run build`. The fixture command and example cases must be present in the checkout.
+
+**Steps:**
 
 ```bash
 npm run build
 npm run run-final-demo -- --cases examples/token-savings-cases.json --out lab-output/final-demo --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --agents fake-agent --complexities short --no-screenshot
 ```
 
-Outputs:
+**Expected outputs:**
 
 - experiment summary artifacts
 - HTML/JSON report
@@ -23,37 +27,60 @@ Outputs:
 - visualization demo artifacts
 - gallery artifacts
 
-## Workflow 2: Context-strategy experiment run
+**Failure handling:** inspect the first failing stage and its stderr; keep partial artifacts for diagnosis. Rebuild after source changes.
 
-Use the implemented `context-strategy-comparison` plugin to compare `raw-full-file` and `my-dev-kit-guided`.
+**Completion:** the command exits successfully and the report, plots, visualization artifacts, and gallery are present beneath `lab-output/final-demo`.
+
+## Context-strategy experiment run
+
+**Goal:** compare `raw-full-file` and `my-dev-kit-guided` through the implemented `context-strategy-comparison` plugin.
+
+**Prerequisites and starting state:** build the repository and choose either self mode or an existing local target. The target must remain unchanged during the run.
+
+**Steps:**
 
 ```bash
 npm run experiment:run -- --experiment context-strategy-comparison --target /path/to/local/project --agents fake-agent --complexities short --no-screenshot
 ```
 
-Current behavior:
+**Expected behavior and outputs:**
 
 - omitting `--target` uses self mode
 - explicit targets are inspected without modifying target files
+- normalized plugin and legacy experiment artifacts are written beneath the selected output root
 
-Planned `v0.4.3` direction (not implemented — see [ROADMAP.md](ROADMAP.md)): the same command surface extended with additional strategy IDs (architecture-only, architecture-plus-implementation-refresh, architecture-plus-implementation-and-test-refresh, full-workflow-library baseline, bounded-workflow-packet, combined bounded-stage-context) and conceptual new inputs for a context-capsule path, retrieval-audit path, and `WorkflowInstructionPacket` path, run against identical immutable targets with fixture-based required/allowed/forbidden evidence expectations.
+**Failure handling:** invalid plugin IDs or options fail before the run. Agent-related partial outcomes remain structured results rather than being rewritten as successful comparisons.
 
-## Workflow 3: Real-agent campaign
+**Completion:** both strategies have recorded outcomes and the target remains unchanged. Version v0.4.3 extensions are planned, not current; see [ROADMAP.md](ROADMAP.md).
 
-Use this workflow for Codex or Claude runs when local CLIs are configured.
+## Real-agent campaign
+
+**Goal:** run matched Codex or Claude trials while preserving partial outcomes.
+
+**Prerequisites and starting state:** configure the selected local CLIs, confirm usage capacity, build the repository, and choose a bounded case set.
+
+**Steps:**
 
 ```bash
 npm run run-controlled-experiment -- --cases examples/real-agent-campaign-cases.json --agents codex,claude --strategies raw-full-file,my-dev-kit-guided --complexities medium,multi-step --out lab-output/real-agent-campaign --include-real-agents --continue-on-failure --timeout-ms 240000
 ```
 
-Current behavior:
+**Expected outputs:**
 
 - partial outcomes are preserved
 - missing token totals and timeouts are reported explicitly
 
-## Workflow 4: Report, plots, and gallery
+**Failure handling:** use `--continue-on-failure` for campaigns where one provider failure should not discard other runs. Treat provider limits and unavailable token totals as evidence limitations, not product regressions.
 
-Use this workflow to render outputs from existing experiment artifacts.
+**Completion:** every scheduled run has a completed or explicit partial outcome and the campaign artifacts are available for rendering.
+
+## Report, plots, and gallery
+
+**Goal:** render existing experiment artifacts into reports, plots, and a browsable gallery.
+
+**Prerequisites and starting state:** complete an experiment and verify the input artifact directories shown below exist.
+
+**Steps:**
 
 ```bash
 npm run render-experiment-report -- --experiment lab-output/controlled-experiment-fake --out lab-output/experiment-report-fake --no-screenshot
@@ -61,9 +88,19 @@ npm run generate-experiment-plots -- --experiment lab-output/controlled-experime
 npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-output/experiment-plots --visualizations lab-output/visualization-demos --out lab-output/gallery
 ```
 
-## Workflow 5: Automated security validation
+**Expected outputs:** JSON/HTML reports, plot data and SVG charts, a gallery manifest, and `gallery-index.html`.
 
-Use this workflow for the current implemented `security:validate` path.
+**Failure handling:** correct the missing or mismatched input directory reported by the failing renderer. Do not fabricate absent artifacts.
+
+**Completion:** open `lab-output/gallery/gallery-index.html` and confirm its relative links resolve.
+
+## Automated security validation
+
+**Goal:** collect standalone automated CLI/package security evidence and a structured verdict.
+
+**Prerequisites and starting state:** build the repository; choose self mode or an existing local target. Optional scanners may be unavailable.
+
+**Steps:**
 
 ```bash
 npm run security:validate
@@ -75,15 +112,25 @@ Targeted example:
 npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 ```
 
-Current behavior:
+**Expected behavior and outputs:**
 
 - optional tools are skipped, not treated as passed
 - target files are not modified by default
 - this is automated validation, not manual pentest
 
-## Workflow 6: Code-rot audit
+Reports are written beneath `reports/security/` unless `--out` is supplied.
 
-Use this workflow for the current implemented code-rot audit path. The `v0.3.0` baseline added the generic audit framework and code-rot detectors; `v0.3.1` added language-aware TypeScript/JavaScript source facts and source-facts-aware candidate evidence; the `v0.3.2` baseline added a Python analyzer and Python-aware candidate evidence to the same detectors, without adding command flags. The `v0.3.3` implementation extended the same workflow to Java/Kotlin using static source-facts analyzers and JVM metadata, still without adding command flags. The published `v0.3.4` historical work hardens the same workflow with mixed-language, report-determinism, cross-platform/path, and CRLF/LF stability coverage only.
+**Failure handling:** treat unavailable optional tools as `skipped`, not passed. Investigate failed checks and inconclusive environments from the generated report; do not weaken thresholds to hide findings.
+
+**Completion:** the selected checks finish, the report records every pass/failure/skip, and the target mutation evidence shows no unintended change.
+
+## Code-rot audit
+
+**Goal:** inspect repository-health signals with the implemented code-rot detector family.
+
+**Prerequisites and starting state:** build the repository and choose a local target. TypeScript/JavaScript, Python, Java, and Kotlin evidence is static and conservative.
+
+**Steps:**
 
 ```bash
 npm run audit
@@ -95,9 +142,9 @@ Targeted example:
 npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
 ```
 
-Current behavior:
+**Expected behavior and outputs:**
 
-- `code-rot` runs today (this workflow); `security` runs via Workflow 6a below
+- `code-rot` runs in this workflow; `security` runs through the security-validation audit adapter below
 - audit is independent from `security:validate`
 - audit findings are heuristic candidates and do not auto-fix anything
 - source-facts evidence (TypeScript/JavaScript, Python, Java, and Kotlin) is conservative static-analysis evidence, not proof of dead code, semantic duplicate implementation, complete test coverage, full module resolution, runtime reachability, or language-specific semantic correctness
@@ -105,9 +152,17 @@ Current behavior:
 
 Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json` (or `--out <path>` when supplied).
 
-## Workflow 6a: Security-validation audit adapter
+**Failure handling:** exit code `1` means an issue met the selected threshold; exit code `2` means invalid configuration, target resolution failure, or runtime failure. Review candidates before treating them as defects.
 
-Use this workflow for the `v0.3.2` security audit type. This adapts `security:validate`'s own internals into the shared audit/report surface — it does not replace `security:validate` (Workflow 5), which remains the standalone, focused security command.
+**Completion:** reports are written, target files remain unchanged, and every issue is interpreted as evidence rather than proof.
+
+## Security-validation audit adapter
+
+**Goal:** include standalone security-validation results in the shared audit report.
+
+**Prerequisites and starting state:** use the same target requirements as standalone security validation. This adapter does not replace `security:validate`.
+
+**Steps:**
 
 ```bash
 npm run audit -- --types security --fail-on none
@@ -131,7 +186,7 @@ flowchart LR
   OriginalReports -. linked from .-> AuditReport
 ```
 
-Current behavior:
+**Expected behavior and outputs:**
 
 - reuses the same default check groups `security:validate` runs with no flags; there is no `--checks`/`--profile` passthrough on `npm run audit` yet
 - adds a `securitySummary` field to the audit JSON/text report (verdict, check counts, finding counts, and links to the original security report)
@@ -139,9 +194,17 @@ Current behavior:
 - the original `reports/security/` report family is generated exactly as `security:validate` would generate it
 - generated report location: audit report under `reports/audits/security/code-rot-audit.txt` / `.json`; original security report under `reports/security/<prefix>-security-validation.txt` / `.json`
 
-## Workflow 6b: Combined code-rot and security audit
+**Failure handling:** optional-tool skips remain summary data; they never become audit issues or passes. Use the original security report for complete evidence.
 
-Use this workflow to run both implemented audit types together.
+**Completion:** both report families exist, the audit report links to the security report, and mapped issues correspond only to confirmed findings.
+
+## Combined code-rot and security audit
+
+**Goal:** run both implemented audit types and apply one fail-on threshold to their combined issue list.
+
+**Prerequisites and starting state:** satisfy the code-rot and security-audit prerequisites above.
+
+**Steps:**
 
 ```bash
 npm run audit -- --types code-rot,security --fail-on none
@@ -157,12 +220,16 @@ flowchart LR
   FailOn --> Report[Audit report: issues + securitySummary]
 ```
 
-Current behavior:
+**Expected behavior and outputs:**
 
 - code-rot issues are ordered first (detector registry order), followed by mapped security issues, deterministically
 - `--fail-on` applies to the combined issue list
 
-## Workflow 7: Implementation completion
+**Failure handling:** distinguish detector errors from threshold-triggering findings in the report. Preserve the standalone security report for diagnosis.
+
+**Completion:** deterministic combined issues and the security summary are written without modifying the target.
+
+## Implementation completion
 
 Every implementation version ends with these stages before pre-release readiness:
 
@@ -173,7 +240,7 @@ Every implementation version ends with these stages before pre-release readiness
 
 Documentation reconciliation is a required workflow stage. It is not its own semantic version.
 
-## Workflow 8: Documentation reconciliation
+## Documentation reconciliation
 
 Use this workflow after implementation work and before pre-release readiness.
 
@@ -184,11 +251,9 @@ Required actions:
 3. remove stale roadmap assignments or relabel them as future/historical as appropriate
 4. run the required validation commands for the repository
 
-For the `v0.3.4` release, this specifically included documenting `v0.3.3` as the previous published baseline, `v0.3.4` as the current published baseline with package metadata `0.3.4`, and keeping Android, quality/project/all, and JVM package/environment rot deferred.
-
 This workflow does not create a separate product version.
 
-## Workflow 9: Pre-release readiness
+## Pre-release readiness
 
 Use this workflow after implementation completion and documentation reconciliation.
 
@@ -199,11 +264,14 @@ npm run typecheck
 npm run build
 npm run test
 npm run verify
+npm run docs:check
 ```
 
-If a release-specific validation workflow exists for the implemented feature set, run it here as well.
+Run safe command discovery/help smokes for changed command families and any release-specific fixture checks. Android releases must preserve project detection, manifest and advanced-security checks, report-schema stability, non-destructive target evidence, and optional-tool skip handling. Required CI must pass on the repository's configured operating-system matrix before publication work begins.
 
-## Workflow 10: Release preparation and publication
+**Completion:** the worktree is clean, package/release metadata is internally consistent, required checks pass, and no generated report or local artifact is staged.
+
+## Release preparation and publication
 
 These are separate from implementation and documentation reconciliation.
 
@@ -212,7 +280,7 @@ Release preparation includes:
 - changelog verification
 - package/release hygiene checks
 - final readiness review
-- version bump from the previous published baseline to the release-prepared package state
+- version change from the previous release to the target release version
 
 Publication includes:
 
@@ -258,9 +326,13 @@ Before any future `npm publish`, verify:
 
 Do not treat a GitHub Release as optional when the GitHub CLI is authenticated and available — create it and verify it before publishing.
 
-## Current workflow: Android validation
+## Android validation
 
-This workflow is implemented and published through v0.4.1.
+**Goal:** statically validate an existing Android project and produce security evidence.
+
+**Prerequisites and starting state:** choose an Android project and keep all Gradle, external-tool, and network opt-ins disabled unless the review explicitly requires them.
+
+**Steps:**
 
 Current command:
 
@@ -268,15 +340,25 @@ Current command:
 npm run security:validate -- --target /path/to/android/project --profile android
 ```
 
-Current behavior:
+**Expected behavior and outputs:**
 
 - validate existing Android projects
 - preserve non-destructive target handling
 - include report/schema stability inside each Android implementation version
 
-## Current workflow: Android extension of the security audit adapter (v0.4.2, published)
+The default run executes nineteen checks and starts zero Gradle, external-tool, and network processes. Reports remain under the security report root.
 
-The general (non-Android) security audit adapter is implemented in the published `v0.3.2` baseline (Workflow 6a). The Android-aware extension of that same adapter is published in `v0.4.2`, the current npm baseline.
+**Failure handling:** unavailable optional tools are skipped. Report target mutations; never clean or reset the target to hide them.
+
+**Completion:** the report records Android applicability, findings, CandidateEvidence, skips, verdict, and unchanged-target evidence.
+
+## Android extension of the security audit adapter
+
+**Goal:** add confirmed Android findings and bounded Android summaries to the existing security audit adapter.
+
+**Prerequisites and starting state:** choose an Android project and include `security` in `--types`. The audit command exposes no Gradle, external-tool, or network opt-ins.
+
+**Steps:**
 
 Current command (published):
 
@@ -284,9 +366,13 @@ Current command (published):
 npm run audit -- --target /path/to/android/project --types security --android --format text,json --fail-on none
 ```
 
-This extension summarizes confirmed Android findings through the same adapter/mapping path, keeps CandidateEvidence separate, and does not replace `security:validate` or the general `v0.3.2` adapter. Omitting `--android` preserves the existing audit path.
+**Expected behavior and outputs:** confirmed Android findings use the existing mapping path; `CandidateEvidence` remains separate; the report links to the full standalone Android evidence. Omitting `--android` preserves the non-Android audit path.
 
-## Future workflow: Manual pentest
+**Failure handling:** Android validator failures are contained and reported without discarding already collected non-Android issues.
+
+**Completion:** Android status, completeness, verdict, report references, mapped counts, and review-only evidence summaries appear in the audit output.
+
+## Manual pentest
 
 Manual pentest is deferred until after `v1.0.0`.
 

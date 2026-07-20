@@ -1,6 +1,6 @@
 # Documentation Preservation Policy
 
-This policy prevents documentation work from erasing agreed plans, release history, command and workflow families, architecture domains, product pillars, limitations, or safety boundaries. Documentation recovery is a historical merge: implementation proves what exists, external release evidence proves what is published, and the roadmap preserves future intent.
+This policy prevents documentation work from erasing agreed plans, release history, command and workflow families, architecture domains, product pillars, limitations, or safety boundaries. Implementation proves what exists, external release evidence proves what is published, and the roadmap preserves future intent.
 
 ## Document classes and canonical roles
 
@@ -49,7 +49,7 @@ Negated wording such as “not published” must never be parsed as a positive p
 
 ## Allowed relocation and prohibited loss
 
-Relocation is allowed only when the full meaning remains in a tracked canonical document, the source retains a concise link or summary when useful, and `reports/documentation-drift/relocation-ledger.txt` records source, destination, reason, and preservation evidence.
+Relocation is allowed only when the full meaning remains in a tracked canonical document, the source retains a concise link or summary when useful, and an ignored task-specific relocation ledger under `reports/` records the source, destination, reason, and preservation evidence.
 
 Unless explicitly allowlisted, do not delete or collapse documents, roadmap versions, future features, changelog releases, command families, workflow families, architecture domains, project pillars, limitations, invariants, or safety boundaries. Never replace individual roadmap versions with a range. Never shorten a comprehensive document into a materially smaller summary from memory.
 

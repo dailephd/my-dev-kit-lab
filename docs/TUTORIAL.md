@@ -2,6 +2,14 @@
 
 This tutorial walks you through your first run of my-dev-kit-lab, from installation to reading the experiment report.
 
+Prerequisites:
+
+- Node.js and npm compatible with the package's `engines` requirement
+- A local clone of this repository
+- Permission to write beneath `lab-output/`
+
+The deterministic fake-agent path does not require Codex, Claude, Graphviz, or network-backed security tools.
+
 ```mermaid
 flowchart TD
   A[Install dependencies] --> B[Build]
@@ -58,6 +66,7 @@ npm run run-final-demo -- \
 ```
 
 This runs the complete pipeline:
+
 1. Controlled experiment with fake-agent (deterministic, no external CLIs)
 2. Report rendering
 3. Plot generation
@@ -77,6 +86,8 @@ lab-output/final-demo/experiment-report.html
 ```
 
 The report is a self-contained HTML file. No server is required.
+
+The first run is complete when this file opens and shows the project profile, benchmark cases, paired strategy comparisons, correctness scores, and metric caveats.
 
 ---
 
@@ -161,7 +172,7 @@ Real-agent runs can produce four outcome types:
 
 The report shows warnings for runs with missing token totals or non-completed outcomes. Partial results are still useful for understanding which runs completed and what correctness scores were achieved on completed runs.
 
-**Do not interpret partial real-agent results as proof of token savings.** The current baseline establishes the experiment infrastructure. Stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling. See [ROADMAP.md](ROADMAP.md).
+**Do not interpret partial real-agent results as proof of token savings.** The current implementation establishes the experiment infrastructure. Stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling. See [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -191,6 +202,16 @@ The small Todo projects are used in the fake-agent demo. The medium and large pr
 | SVG charts | `lab-output/<out>/charts/*.svg` |
 | Gallery manifest | `lab-output/<out>/gallery-manifest.json` |
 | Gallery index | `lab-output/<out>/gallery-index.html` |
+
+---
+
+## Troubleshooting
+
+- **Build artifacts are missing:** run `npm run build` again and resolve the first TypeScript error.
+- **The fake my-dev-kit command cannot be found:** run the command from the repository root and confirm `tests/fixtures/fake-my-dev-kit-cli.js` exists.
+- **An output directory contains partial artifacts:** inspect the first failing stage, keep the partial files for diagnosis, then rerun with a new `--out` path if you need a clean comparison.
+- **A real agent is unavailable or reaches a limit:** verify the local CLI independently. Keep the resulting structured partial outcome; do not interpret it as a completed comparison.
+- **Token savings show `N/A`:** one or both paired runs did not expose total tokens. This is unavailable data, not zero savings.
 
 ---
 

@@ -1,66 +1,18 @@
 # my-dev-kit-lab
 
-my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, performs automated CLI/package security validation, and runs the generic audit framework.
+my-dev-kit-lab is the experiment, audit, and evidence companion for [my-dev-kit](https://www.npmjs.com/package/@dailephd/my-dev-kit). It helps users compare repository-context strategies, audit project health, validate CLI/package and Android security boundaries, and turn each run into reviewable reports and visual artifacts.
 
-> Current release state: v0.4.2 is the latest published baseline. v0.4.3 (stage-specific bounded-context and workflow-instruction evaluation) is planned and not implemented. Manual pentest is post-v1 / version TBD.
+my-dev-kit provides local repository indexing and graph-guided retrieval. my-dev-kit-lab supplies the controlled benchmarks, agent adapters, metrics, security checks, and reports needed to evaluate when that retrieval is useful. Results are evidence for a specific target and configuration; they do not guarantee token savings or security.
 
-The generic experiment-plugin framework was introduced in `v0.2.0`. Its first plugin, `context-strategy-comparison`, preserves the raw-full-file vs my-dev-kit-guided comparison through the plugin runner. Later releases added the generic audit framework, language-aware code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, a security-validation audit adapter, and Android validation. See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
-
-my-dev-kit is most useful when the repository is larger than the task. It helps coding agents work with large codebases through reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection. Results are scoped evidence; the project does not claim that my-dev-kit always saves tokens.
-
-**my-dev-kit** is the repo indexing and graph-guided retrieval engine.
-**my-dev-kit-lab** is the separate lab layer that feeds it benchmark inputs and records evaluation outputs.
-
----
+The latest release is v0.4.2. Version v0.4.3 is planned and not implemented.
 
 ## Current capabilities
 
-- Benchmark projects at small, medium, and large complexity levels
-- Project complexity metrics and benchmark case metadata with answer keys
-- Prompt variant generation at `short`, `medium`, `long`, and `multi-step` complexity levels
-- Fake-agent adapter for deterministic smoke and demo validation
-- Codex and Claude adapters for real-agent campaigns
-- Controlled experiment runner comparing `raw-full-file` vs `my-dev-kit-guided` strategies
-- Deterministic correctness scoring from answer keys
-- Token usage, duration, and status comparisons between matched strategy pairs
-- HTML experiment report rendering
-- Static SVG plot generation
-- Optional PNG screenshot capture
-- Gallery manifest and static gallery index output
-- Visualization demos using my-dev-kit commands against benchmark projects
-- Final demo workflow combining all pipeline stages
-- Generic experiment-plugin command surface: `experiment:list`, `experiment:describe`, and `experiment:run`
-- First experiment plugin: `context-strategy-comparison`
-- Target-aware experiment execution for local projects via `experiment:run -- --target <path>`
-- Plugin-aware JSON and HTML reports with plugin, target, variant, metric, artifact, warning, skip, and failure metadata
-- Security validation framework: dependency audit, package tarball inspection, CLI adversarial tests, static scans (CodeQL/Semgrep), bounded fuzz smoke, attack-scenario checks, and structured verdict/report output — runnable against any local project via `security:validate --target <path>`. `security:validate` remains the standalone, focused security-validation command; it is not replaced by the audit adapter below.
-- Generic audit framework: `npm run audit` runs conservative code-rot and security detectors and writes text/JSON reports under `reports/audits/` by default. `code-rot` and `security` are the currently implemented audit types (`--types code-rot`, `--types security`, or combined `--types code-rot,security`); `quality`, `project`, and `all` audit types are planned and fail cleanly instead of running. Audit does not modify target files and does not auto-fix issues. See [docs/COMMANDS.md](docs/COMMANDS.md) for full flags.
-- Language-aware code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, built on a shared source-facts model and normalized language/file-role inventory. Java/Kotlin support is conservative static analysis only: no compiler parsing, type/classpath resolution, or Gradle/Maven execution.
-- Security-validation audit adapter: `npm run audit -- --types security` runs the same `security:validate` internals through the shared audit/report surface, mapping findings into audit issues and linking back to the original `reports/security/` report. `security:validate`'s own checks and reports are unaffected.
-- Android validation: `security:validate --profile android` runs nineteen static checks against an Android project (manifest, permissions, exported components, network security config, backup/release configuration, secrets, signing, WebView/FileProvider, sensitive storage/logging, and Firebase/Google services), with optional opt-in Gradle operations and external tools (Semgrep, OSV-Scanner, Android Lint, Dependency-Check). Default execution starts zero Gradle processes, zero external tools, and zero network operations.
-- Android-aware generic audit: `npm run audit -- --types security --android` runs the same static Android validation through the audit adapter, mapping confirmed findings into audit issues while keeping review-only `CandidateEvidence` separate and never treated as a confirmed issue.
-
----
-
-## Architecture overview
-
-```mermaid
-flowchart TD
-  A[scripts/experiments] --> B[Experiment plugin registry + runner]
-  B --> C[context-strategy-comparison]
-  C --> D[Controlled experiment foundations]
-  D --> E[Plugin + legacy artifacts]
-  E --> F[Plugin-aware reports]
-  E --> G[Plots / screenshots / gallery]
-  H[scripts/security] --> I[Automated security validation]
-  I --> J[Security reports + verdict]
-  I --> K[Android validation]
-  L[scripts/audits] --> M[Generic audit framework]
-  M --> N[Code-rot detectors]
-  M --> I
-```
-
----
+- **Run context-strategy experiments:** compare `raw-full-file` with `my-dev-kit-guided` using deterministic fixtures or locally configured Codex and Claude CLIs.
+- **Audit repository health:** run conservative code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, or adapt security findings into the common audit report.
+- **Validate CLI/package security:** inspect dependencies, package contents, path and subprocess boundaries, malformed inputs, optional static scanners, and bounded fuzz targets.
+- **Validate Android projects:** run nineteen static checks by default, with Gradle operations, external tools, and network access available only through explicit opt-in flags.
+- **Review evidence:** generate JSON and HTML reports, SVG plots, optional screenshots, visualization demos, and a static gallery.
 
 ## Quickstart
 
@@ -174,6 +126,8 @@ When `--target` is omitted, the experiment runs in self mode against my-dev-kit-
 | SVG charts | `lab-output/<plots>/charts/*.svg` |
 | Gallery manifest | `lab-output/<gallery>/gallery-manifest.json` |
 | Gallery index | `lab-output/<gallery>/gallery-index.html` |
+| Audit reports | `reports/audits/<type>/code-rot-audit.txt` and `.json` |
+| Security reports | `reports/security/<prefix>-security-validation.txt` and `.json` |
 
 ---
 
@@ -202,71 +156,20 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Codex may expose token totals but can produce timeouts or invalid-output runs
 - Small projects may make raw-full-file cheaper than my-dev-kit-guided; larger localized tasks are where my-dev-kit is expected to become more useful
 - The generic experiment-plugin framework currently ships one plugin, `context-strategy-comparison`; future plugins such as warm-index reuse, incremental-change, and context-window scaling are not implemented yet
-- The current baseline does not prove token savings are guaranteed; it produces auditable evidence for specific cases, targets, agents, and strategies
+- The current release does not guarantee token savings; it produces auditable evidence for specific cases, targets, agents, and strategies
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
-
----
-
-## Roadmap direction
-
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts, and real-agent campaign support exists for Codex and Claude. Recent releases added language-aware code-rot detectors (TypeScript/JavaScript, Python, Java, Kotlin), a security-validation audit adapter, and Android validation with an Android-aware extension of that same adapter. The next planned patch, `v0.4.3`, adds deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies on top of the existing experiment-plugin infrastructure; it is planned, not implemented.
-
-- `v0.4.0` and `v0.4.1`: Android automated security validation (published)
-- `v0.4.2`: Android-aware extension of the existing security audit adapter (published; current npm baseline)
-- `v0.4.3`: planned deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies, extending the existing experiment/report infrastructure — not implemented yet; see [docs/ROADMAP.md](docs/ROADMAP.md)
-- manual pentest: post-v1 / version TBD
-
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the complete, versioned plan.
 
 ---
 
 ## Security validation
 
-my-dev-kit-lab owns a release-security validation track for **my-dev-kit**. This work is separate from the experiment pipeline and does not replace the generic experiment-plugin roadmap. Its purpose is to generate release-validation evidence for the local CLI/package before release preparation.
+`npm run security:validate` is the standalone security-validation command. It checks local CLI/package boundaries and can inspect another local project with `--target <path>`. The generic audit command can reuse those results through `--types security`, but it does not replace the standalone validator or its reports.
 
-`security:validate` remains the standalone, focused command for this validation and is unaffected by the current checked-out state. `npm run audit -- --types security` additionally adapts the same `security:validate` internals into the shared audit/report surface (mapped issues, a `securitySummary` field, and links to the original `reports/security/` output) — it does not replace or duplicate `security:validate`'s own checks or reports.
+Android validation uses `--profile android`. Its default path is static and non-destructive: it starts zero Gradle processes, zero external tools, and zero network operations. Only confirmed `SecurityFinding` records can become audit issues; Android `CandidateEvidence` remains review-only evidence.
 
-This is not a web application pentest framework. **my-dev-kit** is a local CLI/package, so the validation model is CLI/package adversarial testing focused on whether it remains:
+Optional scanners are reported as `skipped` when unavailable, never as passed. The framework does not provide runtime isolation proof, device or APK/AAB analysis, signing verification, Play Console validation, automatic fixes, or manual pentesting. Manual pentest remains deferred until post-v1/version TBD.
 
-- local-first
-- deterministic
-- read-only with respect to user source files
-- network-free during normal CLI operation
-- LLM-free
-- database-free
-- safe to run on local repositories
-
-The automated validation gate is implemented. It combines static scans, dependency/package checks, adversarial CLI tests, bounded fuzz smoke tests, and attack-scenario checks with structured text/JSON reports and a four-category verdict.
-
-### Security commands
-
-| Command | Description |
-|---|---|
-| `npm run security:deps` | npm audit, OSV-Scanner (if available), outdated packages |
-| `npm run security:package` | npm pack --dry-run, forbidden content detection |
-| `npm run security:codeql` | CodeQL CLI availability check; skipped gracefully when absent |
-| `npm run security:semgrep` | Semgrep scan via local binary or npx; skipped gracefully when both absent |
-| `npm run test:security` | Automated security and adversarial CLI tests (path traversal, read-only boundaries, malformed artifacts, JSON safety, and related checks) |
-| `npm run test:fuzz:smoke` | 9 bounded fuzz targets, seeded PRNG, completes in under 1 second |
-| `npm run security:validate` | Runs selected security checks, applies profile-aware defaults when requested, and writes text/JSON reports according to `--format` |
-
-CodeQL, Semgrep, and OSV-Scanner are optional. When unavailable locally, they are recorded as `skipped` in the report, not as passed. That can lead to `ready except optional manual checks`; it does not silently turn missing tooling into a clean pass.
-
-Each security command can validate my-dev-kit-lab itself or another local project via `--target <path>`. When `--target` is omitted, the framework performs self-validation. Target projects are inspected in place: their source files are not modified by default, generated artifacts stay under `reports/security/` unless `--out` is used, and external-target reports identify the tool root, target root, target package metadata, target git metadata, command cwd, exit code, and stdout/stderr summaries.
-
-`security:validate` supports `--checks`, `--profile`, `--format`, `--fail-on`, `--out`, and `--report-prefix`. The no-flag path remains backward compatible and still runs the classic implemented check groups: `deps`, `package`, `static`, `cli-adversarial`, and `fuzz`. Supplying `--profile` without `--checks` swaps in that profile's default checks; supplying explicit `--checks` always wins over profile defaults.
-
-The current attack-scenario checks cover boundary, subprocess, secrets, and network assumptions. They are automated adversarial checks, not a manual pentest. Manual pentest is deferred until after `v1.0.0`. `verdictImpact` metadata from each registered scenario drives blocker categorization in report reasoning, and narrowed `--checks` runs are labeled as scoped rather than described as a full release gate.
-
-JSON report poisoning/config-injection checks use a baseline-diff schema guard so legitimate additive JSON fields do not fail the guard while payload-created trusted top-level fields still do. Text reports are sanitized to strip ANSI/control-byte payloads before rendering.
-
-Known limits remain intentionally explicit: secret scanning is bounded rather than exhaustive, the network/local-first check is a bounded static assumption check rather than proof of runtime isolation, package-boundary severity is still result-level rather than per-evidence-item, and profile-specific scenario behavior is limited to profile-based scenario selection/default checks.
-
-For external-target validation, `security:validate` reads the target `package.json`, detects `scripts.test:security`, and runs `npm run test:security` in the target project root when that script exists. This behavior is validated both from the source checkout and from an installed packed tarball because published-package execution differs from local source execution.
-
-Generated security reports under `reports/security/` are excluded from git by default. They are produced locally or in CI as release-gate evidence and are not committed to the repository.
-
-See [docs/COMMANDS.md](docs/COMMANDS.md) for full command options and [docs/security-validation-framework.md](docs/security-validation-framework.md) for the security model, implemented modules, and release verdicts.
+See [COMMANDS.md](docs/COMMANDS.md) for exact syntax and [Security Validation Framework](docs/security-validation-framework.md) for checks, evidence semantics, verdicts, and limitations.
 
 ---
 
@@ -292,10 +195,12 @@ Support is optional and does not affect access to the project.
 ## Documentation
 
 - [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) — product purpose and target users
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — current and future architecture
+- [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) — implemented, planned, validated, blocked, and next state
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — current components, ownership, flows, and invariants
 - [docs/WORKFLOWS.md](docs/WORKFLOWS.md) — step-by-step workflows with diagrams
 - [docs/COMMANDS.md](docs/COMMANDS.md) — all commands with options and examples
 - [docs/TUTORIAL.md](docs/TUTORIAL.md) — first-run walkthrough
 - [docs/METRICS.md](docs/METRICS.md) — metric definitions and interpretation
-- [docs/ROADMAP.md](docs/ROADMAP.md) — current baseline and future phases
+- [docs/ROADMAP.md](docs/ROADMAP.md) — versioned plans, dependencies, exclusions, and acceptance criteria
 - [docs/GALLERY.md](docs/GALLERY.md) — gallery output explained
+- [docs/security-validation-framework.md](docs/security-validation-framework.md) — security evidence, verdicts, and safety boundaries
