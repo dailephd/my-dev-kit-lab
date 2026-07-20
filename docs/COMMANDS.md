@@ -2,9 +2,9 @@
 
 ## Current command families
 
-Implemented public families include `npm run experiment:list`, `npm run experiment:describe`, `npm run experiment:run`, `npm run audit`, and `npm run security:validate`, plus build, typecheck, test, verify, and `docs:check`. Android validation uses the existing security command with profile and opt-in Gradle/external-tool/network flags. v0.4.2 adds an opt-in Android path to the existing audit command; it is release-prepared but not yet published.
+Implemented public families include `npm run experiment:list`, `npm run experiment:describe`, `npm run experiment:run`, `npm run audit`, and `npm run security:validate`, plus build, typecheck, test, verify, and `docs:check`. Android validation uses the existing security command with profile and opt-in Gradle/external-tool/network flags. v0.4.2 adds an opt-in Android path to the existing audit command; it is published and is the current npm baseline.
 
-This document describes the current command surface in my-dev-kit-lab and the limited planned command direction that is relevant to the roadmap. Package metadata is now `0.4.2` (release-prepared); `0.4.1` remains the current published npm baseline. v0.4.0 and v0.4.1 add Android validation through the existing security command family.
+This document describes the implemented command surface in my-dev-kit-lab. Package metadata and the latest published npm baseline are both `0.4.2`. Planned command direction belongs in [ROADMAP.md](ROADMAP.md) and is never presented here as current syntax.
 
 Current rule: do not treat planned commands or planned flags as implemented behavior.
 
@@ -113,11 +113,12 @@ Current implemented profiles:
 - `node-cli-package`
 - `local-tool`
 - `npm-package`
+- `android`
 
 Current profile rule:
 
-- `android` and `android-compose` are not implemented today
-- future Android profile support is planned for `v0.4.x`
+- `android` is implemented and selects the static Android validation path
+- Compose/XML/mixed classification is detected within that profile; `android-compose` is not an accepted profile
 
 Examples:
 
@@ -234,7 +235,7 @@ Implemented Android validation command:
 - `npm run security:validate -- --target <path> --profile android`
 - Android Compose/XML/mixed classification is selected by detection; `android-compose` is not a separate accepted profile.
 
-Implemented v0.4.2 audit opt-in (release-prepared, not yet published):
+Implemented v0.4.2 audit opt-in (published; current npm baseline):
 
 - `npm run audit -- --target <path> --types security --android --format text,json --fail-on none`
 - `--android` requires `--types` to include `security` and invokes the validator programmatically through the existing adapter.
@@ -242,3 +243,9 @@ Implemented v0.4.2 audit opt-in (release-prepared, not yet published):
 - Omitting `--android` preserves existing behavior and starts no Android validation.
 
 There is no `--profile` flag on `npm run audit`; Android integration uses the closed `--android` opt-in. There is no `npm run audit:all`, `npm run audit:quality`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script.
+
+Planned `v0.4.3` direction (not implemented — see [ROADMAP.md](ROADMAP.md)):
+
+- Additional strategy IDs on the existing `experiment:run -- --experiment context-strategy-comparison` command surface (candidate names, subject to confirmation): an architecture-only strategy, an architecture-plus-implementation-refresh strategy, an architecture-plus-implementation-and-test-refresh strategy, a full-workflow-library baseline, a bounded-workflow-packet strategy, and a combined bounded-stage-context strategy. No new top-level command is planned; this extends the existing experiment-plugin command surface.
+- Conceptual new inputs (exact flag names to be confirmed at implementation time): a case/fixture-expectation file, a context-capsule path, a retrieval-audit path, and a `WorkflowInstructionPacket` path, alongside the existing `--target`, `--agents`, and `--complexities` options.
+- There is currently no command that parses a context capsule, retrieval-audit record, or `WorkflowInstructionPacket`; `runMyDevKitRetrieval.ts` only invokes `index`, `search`, `lookup`, `slice`, and `source`.

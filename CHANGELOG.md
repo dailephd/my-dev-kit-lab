@@ -4,9 +4,11 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+No implementation changes are recorded. `v0.4.3` remains planned and not implemented; its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## [0.4.2] - 2026-07-12
 
-Android-aware extension of the existing general security audit adapter. `v0.4.2` is not yet published; `v0.4.1` remains the latest published baseline until a separately authorized publication.
+Android-aware extension of the existing general security audit adapter. `v0.4.2` is published; it is the current npm baseline.
 
 ### Added
 

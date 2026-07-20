@@ -2,7 +2,7 @@
 
 ## Current v0.4.x state
 
-The current published baseline is v0.4.1. The project remains the experiment, evidence, report, plot/gallery, generic-audit, automated security-validation, and Android-validation companion to my-dev-kit. v0.4.0 published the Android validation MVP; v0.4.1 published advanced Android security. v0.4.2 is implemented and release-prepared (package metadata `0.4.2`), extending the existing general security audit adapter, but is not yet published. Future experiment work remains planned and manual pentest remains post-v1 / version TBD.
+The current published baseline is v0.4.2. The project remains the experiment, evidence, report, plot/gallery, generic-audit, automated security-validation, and Android-validation companion to my-dev-kit. v0.4.0 published the Android validation MVP; v0.4.1 published advanced Android security; v0.4.2 published an Android-aware extension of the existing general security audit adapter. v0.4.3, adding deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies, is planned and unreleased/not implemented; see [ROADMAP.md](ROADMAP.md). Future experiment work remains planned and manual pentest remains post-v1 / version TBD.
 
 ## What is my-dev-kit-lab?
 
@@ -61,12 +61,13 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-The current published npm baseline is `v0.4.1`; package metadata is now `0.4.2` (release-prepared, not yet published). v0.3.4 remains the published cross-language audit-stability baseline. The immediate direction is:
+The current published npm baseline is `v0.4.2`. v0.3.4 remains the published cross-language audit-stability baseline. The immediate direction is:
 
 1. preserve the published Android validation MVP from `v0.4.0`
 2. preserve the published advanced Android security checks from `v0.4.1`
-3. publish the release-prepared Android-aware extension of the existing security audit adapter completed in `v0.4.2`
-4. keep manual pentest deferred until after `v1.0.0`
+3. preserve the published Android-aware extension of the existing security audit adapter completed in `v0.4.2`
+4. plan and, once approved, implement `v0.4.3` (deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies), which is currently unreleased and not implemented
+5. keep manual pentest deferred until after `v1.0.0`
 
 The experiment evidence track then expands through warm-index reuse, freshness and stale-index detection, context-window scaling, retrieval precision/recall, agent success, normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication.
 

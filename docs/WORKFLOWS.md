@@ -4,7 +4,7 @@
 
 The repository supports experiment campaigns, generic audits, automated security validation, Android validation, opt-in closed Gradle operations, opt-in external tools/network evidence, implementation verification, documentation reconciliation, pre-release readiness, and release publication. Android defaults remain static and zero-process. Documentation reconciliation follows `DOCUMENTATION_PRESERVATION_POLICY.md` and must preserve future plans and release history.
 
-This document separates implementation workflows, documentation reconciliation, pre-release readiness, release preparation, and future planned workflows. The current published baseline is `v0.4.1`; package metadata is now `0.4.2` (release-prepared, not yet published). The v0.3.x audit history remains published and the v0.4.x releases use the existing command families.
+This document separates product workflows, documentation reconciliation, pre-release readiness, release preparation/publication, and future planned workflows. Package metadata and the current published npm baseline are both `v0.4.2`; `v0.4.3` is planned and not implemented. Release chronology belongs in [CHANGELOG.md](../CHANGELOG.md).
 
 ## Workflow 1: Fake-agent final demo
 
@@ -35,6 +35,8 @@ Current behavior:
 
 - omitting `--target` uses self mode
 - explicit targets are inspected without modifying target files
+
+Planned `v0.4.3` direction (not implemented — see [ROADMAP.md](ROADMAP.md)): the same command surface extended with additional strategy IDs (architecture-only, architecture-plus-implementation-refresh, architecture-plus-implementation-and-test-refresh, full-workflow-library baseline, bounded-workflow-packet, combined bounded-stage-context) and conceptual new inputs for a context-capsule path, retrieval-audit path, and `WorkflowInstructionPacket` path, run against identical immutable targets with fixture-based required/allowed/forbidden evidence expectations.
 
 ## Workflow 3: Real-agent campaign
 
@@ -272,11 +274,11 @@ Current behavior:
 - preserve non-destructive target handling
 - include report/schema stability inside each Android implementation version
 
-## Current workflow: Android extension of the security audit adapter (v0.4.2, release-prepared)
+## Current workflow: Android extension of the security audit adapter (v0.4.2, published)
 
-The general (non-Android) security audit adapter is implemented in the published `v0.3.2` baseline (Workflow 6a). The Android-aware extension of that same adapter is implementation-complete in `v0.4.2`, release-prepared (package metadata `0.4.2`), and not yet published.
+The general (non-Android) security audit adapter is implemented in the published `v0.3.2` baseline (Workflow 6a). The Android-aware extension of that same adapter is published in `v0.4.2`, the current npm baseline.
 
-Current command (release-prepared, not yet published):
+Current command (published):
 
 ```bash
 npm run audit -- --target /path/to/android/project --types security --android --format text,json --fail-on none

@@ -1,160 +1,193 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const root = process.env.DOCS_CHECK_ROOT ? path.resolve(process.env.DOCS_CHECK_ROOT) : process.cwd();
-const manifestPath = path.join(root, "docs/documentation-preservation-manifest.json");
+const root = path.resolve(process.env.DOCS_CHECK_ROOT || process.cwd());
+const manifestFile = "docs/documentation-preservation-manifest.json";
 const failures = [];
-const fail = (file, topic, expected, actual, correction) => failures.push(`${file}: ${topic}; expected ${expected}; actual ${actual}; recommended correction: ${correction}`);
-if (!fs.existsSync(manifestPath)) fail("docs/documentation-preservation-manifest.json", "preservation manifest", "a readable manifest", "missing", "restore the tracked manifest");
-const manifest = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, "utf8")) : { documents: {} };
-const read = (file) => fs.existsSync(path.join(root, file)) ? fs.readFileSync(path.join(root, file), "utf8") : "";
+const read = (file) => {
+  const target = path.join(root, file);
+  return fs.existsSync(target) ? fs.readFileSync(target, "utf8") : "";
+};
+const fail = (file, rule, expected, actual, correction) => failures.push(
+  `${file}: ${rule}; expected ${expected}; actual ${actual}; suggested correction: ${correction}`,
+);
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const normalize = (value) => value.toLowerCase().replace(/[`*_]/g, "").replace(/[^a-z0-9.:-]+/g, " ").trim();
 
-for (const [file, rules] of Object.entries(manifest.documents)) {
+if (!read(manifestFile)) {
+  fail(manifestFile, "preservation manifest", "a readable tracked manifest", "missing", "restore the manifest");
+}
+
+let manifest = {};
+try {
+  manifest = JSON.parse(read(manifestFile) || "{}");
+} catch (error) {
+  fail(manifestFile, "JSON syntax", "valid JSON", error.message, "repair the manifest JSON");
+}
+
+for (const file of manifest.requiredDocuments || []) {
+  if (!read(file).trim()) fail(file, "required document", "present and non-empty", "missing or empty", "restore the canonical document");
+}
+
+for (const [file, rules] of Object.entries(manifest.documents || {})) {
   const body = read(file);
-  if (!body) { fail(file, "document", "present and non-empty", "missing or empty", "restore the document"); continue; }
-  for (const section of rules.requiredSections ?? []) if (!new RegExp(`^#{1,4}\\s+.*${escape(section)}`, "im").test(body)) fail(file, `section ${section}`, "a heading", "missing", `restore the ${section} heading and its detailed content`);
-  for (const topic of rules.topics ?? []) if (!body.toLowerCase().includes(topic.toLowerCase())) fail(file, `topic ${topic}`, "present", "missing", `restore coverage of ${topic}`);
-  for (const status of rules.statusMarkers ?? []) if (!body.includes(status)) fail(file, `status marker ${status}`, "present", "missing", "restore the agreed status wording");
-  for (const forbidden of rules.forbiddenRanges ?? []) if (body.includes(forbidden)) fail(file, `range substitution ${forbidden}`, "absent", "present", "restore every individual version section");
-  for (const version of rules.releasedVersions ?? []) if (!new RegExp(`^##\\s+\\[?v?${escape(version)}(?:\\]|\\s|$)`, "mi").test(body)) fail(file, `released version ${version}`, "a CHANGELOG heading", "missing", `restore the ${version} release entry`);
+  if (!body) continue;
+  const headings = [...body.matchAll(/^#{1,6}\s+(.+)$/gm)].map((match) => normalize(match[1]));
+  for (const required of rules.requiredHeadings || []) {
+    if (!headings.some((heading) => heading.includes(normalize(required)))) {
+      fail(file, `required heading "${required}"`, "present", "missing", `restore the ${required} section with its canonical-role content`);
+    }
+  }
+  for (const topic of rules.requiredTopics || []) {
+    if (!normalize(body).includes(normalize(topic))) {
+      fail(file, `preserved topic "${topic}"`, "present", "missing", `restore coverage of ${topic} without weakening the manifest`);
+    }
+  }
 }
 
 const roadmap = read("docs/ROADMAP.md");
-const requiredVersions = manifest.documents?.["docs/ROADMAP.md"]?.requiredVersions ?? [];
-const roadmapHeadingMatches = [...roadmap.matchAll(/^###\s+(v\d+\.\d+\.\d+)\b.*$/gm)];
-const actualVersions = roadmapHeadingMatches.map((match) => match[1]);
-for (const version of requiredVersions) if (!actualVersions.includes(version)) fail("docs/ROADMAP.md", `version ${version}`, "an individual ### heading", "missing", `restore the detailed ${version} plan`);
-let previous = -1;
-for (const version of requiredVersions) { const index = actualVersions.indexOf(version); if (index >= 0 && index <= previous) fail("docs/ROADMAP.md", `semantic order at ${version}`, "after the preceding required version", `position ${index}`, "restore semantic version order"); previous = Math.max(previous, index); }
-if (/###\s+v0\.4\.0[^\n]*(manual pentest)|v0\.4\.0[\s\S]{0,180}Status:[^\n]*(manual pentest)/i.test(roadmap)) fail("docs/ROADMAP.md", "manual pentest placement", "post-v1 / version TBD", "assigned to v0.4.0", "move the human-led pentest plan to post-v1 without deleting it");
-
-// --- Version-aware, state-aware release lifecycle validation -------------------------------------------------
-//
-// The checker must never hardcode a single "current" package version or a single
-// permanently-unpublished version. Instead it parses each `### vX.Y.Z` roadmap section's
-// `Status:` line, classifies that text (published / release-prepared / unreleased /
-// implementation-complete / future / planned / deferred / canceled / superseded), and uses
-// that classification to validate the *actual* package.json version and to check that no
-// other manifested document contradicts the roadmap's canonical release state for any version.
-//
-// Negation precedence: "not published", "not yet published", "unpublished", "unreleased",
-// and "publication pending" must never be treated as a positive publication claim merely
-// because the substring "published" also appears in the same text.
-
-function parseRoadmapSections(body, headingMatches) {
-  const sections = new Map();
-  for (let i = 0; i < headingMatches.length; i++) {
-    const match = headingMatches[i];
-    const version = match[1].slice(1); // drop leading "v"
-    const start = match.index + match[0].length;
-    const end = i + 1 < headingMatches.length ? headingMatches[i + 1].index : body.length;
-    const sectionBody = body.slice(start, end);
-    const statusMatch = sectionBody.match(/^\s*Status:\s*(.+)$/m);
-    sections.set(version, {
-      heading: match[0].trim(),
-      body: sectionBody,
-      status: statusMatch ? statusMatch[1].trim() : null,
-    });
+const roadmapMatches = [...roadmap.matchAll(/^###\s+(v\d+\.\d+\.\d+)\b([^\n]*)$/gm)];
+const actualVersions = roadmapMatches.map((match) => match[1]);
+const requiredVersions = manifest.roadmap?.requiredVersions || [];
+for (const version of requiredVersions) {
+  const count = actualVersions.filter((actual) => actual === version).length;
+  if (count !== 1) fail("docs/ROADMAP.md", `roadmap version ${version}`, "exactly one individual ### section", `${count} sections`, `restore one separate ${version} section`);
+}
+let priorIndex = -1;
+for (const version of requiredVersions) {
+  const index = actualVersions.indexOf(version);
+  if (index >= 0 && index <= priorIndex) fail("docs/ROADMAP.md", `semantic order at ${version}`, "after the preceding required version", `position ${index}`, "restore semantic version order without ranges");
+  if (index >= 0) priorIndex = index;
+}
+for (const range of manifest.roadmap?.forbiddenVersionRangeHeadings || []) {
+  if (new RegExp(`^###\\s+.*${escapeRegex(range)}`, "mi").test(roadmap)) {
+    fail("docs/ROADMAP.md", `version-range substitution "${range}"`, "absent from version headings", "present", "restore each individual version section");
   }
+}
+for (const heading of manifest.roadmap?.requiredHeadings || []) {
+  if (!new RegExp(`^##\\s+.*${escapeRegex(heading)}`, "mi").test(roadmap)) fail("docs/ROADMAP.md", `required section "${heading}"`, "present", "missing", `restore the ${heading} section`);
+}
+for (const label of manifest.roadmap?.requiredContentLabels || []) {
+  if (!roadmap.includes(label)) fail("docs/ROADMAP.md", `required roadmap content "${label}"`, "present", "missing", `restore ${label} content to the affected version plans`);
+}
+for (const marker of manifest.roadmap?.requiredDeferredMarkers || []) {
+  if (!normalize(roadmap).includes(normalize(marker))) fail("docs/ROADMAP.md", `deferred marker "${marker}"`, "present", "missing", "restore the deferred plan without assigning an unsupported version");
+}
+
+function roadmapSections() {
+  const sections = new Map();
+  roadmapMatches.forEach((match) => {
+    const start = match.index;
+    const afterHeading = start + match[0].length;
+    const nextHeadingOffset = roadmap.slice(afterHeading).search(/^###\s+/m);
+    const end = nextHeadingOffset >= 0 ? afterHeading + nextHeadingOffset : roadmap.length;
+    const body = roadmap.slice(start, end);
+    const status = body.match(/^Status:\s*(.+)$/mi)?.[1]?.trim() || match[2].trim();
+    sections.set(match[1].slice(1), { body, status });
+  });
   return sections;
 }
-
-const NEGATED_PUBLICATION_PATTERN = /\b(?:not\s+(?:yet\s+)?published|unpublished|unreleased|publication\s+pending|pending\s+publication)\b/i;
-const POSITIVE_PUBLICATION_PATTERN = /\bpublished\b/i;
-const RELEASE_PREPARED_PATTERN = /release[- ]prepared|release\s+candidate/i;
-const IMPLEMENTATION_COMPLETE_PATTERN = /implementation[- ]complete|implemented(?:\s+but)?/i;
-const INCOMPATIBLE_LIFECYCLE_PATTERN = /\b(future|planned|not[- ]started|deferred|cancel(?:l)?ed|superseded)\b/i;
-
-function isNegativelyPublished(text) { return NEGATED_PUBLICATION_PATTERN.test(text); }
-function isPositivelyPublished(text) { return !isNegativelyPublished(text) && POSITIVE_PUBLICATION_PATTERN.test(text); }
-
-function classifyReleaseStatus(statusText) {
-  const unreleased = isNegativelyPublished(statusText);
-  const published = isPositivelyPublished(statusText);
-  const releasePrepared = RELEASE_PREPARED_PATTERN.test(statusText);
-  const implementationComplete = IMPLEMENTATION_COMPLETE_PATTERN.test(statusText);
-  const incompatibleLifecycle = INCOMPATIBLE_LIFECYCLE_PATTERN.test(statusText);
-  const hasCompatibleMarker = published || releasePrepared || unreleased || implementationComplete;
-  return { published, unreleased, releasePrepared, implementationComplete, incompatibleLifecycle, hasCompatibleMarker };
+const sections = roadmapSections();
+const negatedPublication = /\b(?:not\s+(?:yet\s+)?published|unpublished|unreleased|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
+const positivePublication = (text) => /\bpublished\b/i.test(text || "") && !negatedPublication.test(text || "");
+const plannedLifecycle = /\b(?:planned|future|deferred|not implemented|not started)\b/i;
+for (const version of requiredVersions) {
+  const count = [...(sections.get(version.slice(1))?.body || "").matchAll(/^Status:/gmi)].length;
+  if (count !== 1) fail("docs/ROADMAP.md", `${version} lifecycle status`, "exactly one explicit Status: line", `${count} lines`, `retain one concise Status line in ${version}`);
 }
 
-// A Status line is compatible with being the *current* package.json version when it
-// describes a real, current-package-shaped lifecycle state (published, release-prepared,
-// unreleased/implementation-complete) and is not purely a future/planned/deferred/
-// canceled/superseded entry.
-function isCurrentPackageStatusCompatible(statusText) {
-  const classified = classifyReleaseStatus(statusText);
-  if (classified.incompatibleLifecycle && !classified.hasCompatibleMarker) return false;
-  return classified.hasCompatibleMarker;
+const packageJson = JSON.parse(read("package.json") || "{}");
+const packageVersion = String(packageJson.version || "");
+if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(packageVersion)) {
+  fail("package.json", "package version", "valid semantic version", packageVersion || "missing", "set a valid semantic version");
+} else if (!sections.has(packageVersion)) {
+  fail("docs/ROADMAP.md", `package version v${packageVersion}`, "matching roadmap section", "missing", `add the v${packageVersion} section`);
 }
 
-const roadmapSections = parseRoadmapSections(roadmap, roadmapHeadingMatches);
+const latestPublished = String(manifest.currentFacts?.latestPublishedVersion || "");
+if (packageVersion === latestPublished && !positivePublication(sections.get(packageVersion)?.status)) {
+  fail("docs/ROADMAP.md", `current package v${packageVersion} lifecycle`, "positively published", sections.get(packageVersion)?.status || "missing", "mark the externally verified current package release as published");
+}
+const nextPlanned = String(manifest.currentFacts?.nextPlannedVersion || "");
+if (nextPlanned) {
+  const status = sections.get(nextPlanned)?.status || "";
+  if (!sections.has(nextPlanned)) fail("docs/ROADMAP.md", `next planned v${nextPlanned}`, "individual section", "missing", "restore the approved next version");
+  else if (positivePublication(status) || !plannedLifecycle.test(status)) fail("docs/ROADMAP.md", `next planned v${nextPlanned} lifecycle`, "planned/unreleased and not positively published", status || "missing", "mark it planned and not implemented");
+}
 
-const pkg = JSON.parse(read("package.json") || "{}");
-const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
-const currentVersion = String(pkg.version ?? "");
-if (!SEMVER_PATTERN.test(currentVersion)) {
-  fail("package.json", "package version", "a valid semantic version", currentVersion || "missing", "set package.json version to a valid semantic version");
+const changelog = read("CHANGELOG.md");
+for (const version of manifest.changelog?.requiredPublishedReleases || []) {
+  if (!new RegExp(`^##\\s+\\[?v?${escapeRegex(version)}(?:\\]|\\s|$)`, "mi").test(changelog)) {
+    fail("CHANGELOG.md", `published release ${version}`, "release heading retained", "missing", `restore the ${version} release entry from verified history`);
+  }
+}
+
+const currentDocs = ["README.md", "docs/PROJECT_OVERVIEW.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/WORKFLOWS.md", "docs/security-validation-framework.md"]
+  .map((file) => ({ file, body: read(file) }));
+const staleRules = [
+  [/v0\.4\.1[^\n]{0,100}(?:current published|published baseline)|current published[^\n]{0,100}v0\.4\.1/i, "latest published version", "v0.4.2", "replace stale v0.4.1-current wording with v0.4.2"],
+  [/0\.4\.2[^\n]{0,100}(?:release-prepared|not yet published|publication[^\n]{0,30}(?:remain|pending))|publication[^\n]{0,80}(?:remain|pending)[^\n]{0,80}0\.4\.2/i, "v0.4.2 publication state", "published", "remove stale release-preparation wording"],
+  [/Android[^\n]{0,80}(?:not implemented|remains planned|profiles? (?:is|are) planned)/i, "Android implementation state", "implemented and published", "describe only additional mobile profiles as planned"],
+];
+for (const { file, body } of currentDocs) for (const [pattern, rule, expected, correction] of staleRules) {
+  const match = body.match(pattern);
+  if (match) fail(file, rule, expected, match[0].trim(), correction);
+}
+for (const { file, body } of currentDocs) {
+  for (const line of body.split(/\r?\n/)) {
+    for (const [version, kind] of [[latestPublished, "published"], [nextPlanned, "planned"]]) {
+      if (!version) continue;
+      const marker = `v${version}`;
+      let from = 0;
+      while ((from = line.indexOf(marker, from)) >= 0) {
+        const after = from + marker.length;
+        const nextVersion = line.slice(after).search(/v\d+\.\d+\.\d+\b/);
+        const window = line.slice(from, nextVersion >= 0 ? after + nextVersion : line.length);
+        if (kind === "published" && negatedPublication.test(window)) fail(file, `v${version} publication claim`, "published or release-neutral", window.trim(), "remove stale negated publication wording");
+        if (kind === "planned" && positivePublication(window)) fail(file, `v${version} publication claim`, "planned/unreleased or release-neutral", window.trim(), "do not describe the planned version as published");
+        from = after;
+      }
+    }
+  }
+}
+for (const [pattern, description] of [
+  [/^Current branch:\s+/mi, "current branch bookkeeping"],
+  [/^Current commit:\s+[0-9a-f]{7,40}\b/mi, "current commit bookkeeping"],
+  [/^CI run(?: id| number)?:\s*#?\d+/mi, "current CI-run bookkeeping"],
+]) {
+  const match = roadmap.match(pattern);
+  if (match) fail("docs/ROADMAP.md", description, "absent", match[0].trim(), "move operational state to docs/CURRENT_STATE.md");
+}
+
+function unsupportedPositiveLine(file, token) {
+  for (const line of read(file).split(/\r?\n/).filter((value) => value.includes(token))) {
+    if (!/\b(?:no|not|isn't|is not|does not|unsupported|absent|future|planned|conceptual|candidate)\b/i.test(line)) {
+      fail(file, `unsupported current surface ${token}`, "absent or explicitly negated/planned", line.trim(), `remove ${token} from current syntax or label it unsupported/planned`);
+    }
+  }
+}
+unsupportedPositiveLine("docs/COMMANDS.md", "android-compose");
+unsupportedPositiveLine("docs/COMMANDS.md", "security:pentest");
+
+const allCanonical = (manifest.requiredDocuments || []).map(read).join("\n");
+for (const line of allCanonical.split(/\r?\n/)) {
+  if (/(?:automated (?:security )?validation|Android validation)\s+(?:is|provides|counts as)\s+(?:a\s+)?manual pentest/i.test(line) && !/\b(?:not|never|isn't|does not)\b/i.test(line)) {
+    fail("documentation", "automated/manual-pentest boundary", "distinct workflows", line.trim(), "state that automated validation is not manual pentesting");
+    break;
+  }
+}
+if (!/CandidateEvidence[^\n]{0,160}(?:review|not[^\n]{0,40}(?:SecurityFinding|AuditIssue|confirmed))/i.test(allCanonical)) fail("documentation", "CandidateEvidence distinction", "review evidence, not a confirmed finding or AuditIssue", "missing", "restore the evidence/finding boundary");
+if (!/security:validate[^\n]{0,180}(?:separate|standalone)[^\n]{0,100}(?:audit|npm run audit)|(?:separate|standalone)[^\n]{0,100}security:validate/i.test(allCanonical)) fail("documentation", "security command separation", "security:validate remains separate from npm run audit", "missing", "restore the standalone-command boundary");
+if (!/Android[^\n]{0,160}(?:static|non-destructive)[^\n]{0,160}(?:zero|off by default|opt-in)/i.test(allCanonical)) fail("documentation", "Android default safety boundary", "static/non-destructive with zero-process defaults", "missing", "restore the default process/network/mutation boundary");
+
+for (const script of ["experiment:list", "experiment:describe", "experiment:run", "audit", "security:validate", "docs:check", "verify"]) {
+  if (!packageJson.scripts?.[script]) fail("package.json", `implemented script ${script}`, "present", "missing", `restore ${script} or explicitly authorize removal and update all canonical documents`);
+}
+
+if (failures.length) {
+  console.error("Documentation consistency check failed:");
+  failures.forEach((failure) => console.error(`- ${failure}`));
+  process.exitCode = 1;
 } else {
-  const currentSection = roadmapSections.get(currentVersion);
-  if (!currentSection) {
-    fail("docs/ROADMAP.md", `current package version ${currentVersion}`, `a matching ### v${currentVersion} heading`, "missing", `add a ### v${currentVersion} roadmap section describing the current package state`);
-  } else if (!currentSection.status) {
-    fail("docs/ROADMAP.md", `v${currentVersion} Status line`, "a Status: line", "missing", `add a Status: line to the ### v${currentVersion} section`);
-  } else if (!isCurrentPackageStatusCompatible(currentSection.status)) {
-    fail("docs/ROADMAP.md", `v${currentVersion} release state`, "a current package-compatible status (e.g. published, release-prepared, unreleased, implementation complete)", currentSection.status, "align package metadata with the matching ROADMAP version section and use a current package-compatible status such as published or release-prepared/unreleased");
-  }
-  for (const script of ["experiment:list", "experiment:describe", "experiment:run", "audit", "security:validate", "docs:check", "verify"]) if (!pkg.scripts?.[script]) fail("package.json", `script ${script}`, "implemented", "missing", `restore the ${script} script or update the manifest with explicit authorization`);
+  console.log(`Documentation consistency check passed (${manifest.requiredDocuments?.length || 0} documents, ${requiredVersions.length} roadmap versions, ${manifest.changelog?.requiredPublishedReleases?.length || 0} published releases).`);
 }
-
-// Cross-document publication-state consistency: for every roadmap version with an
-// unambiguous canonical state (positively published, or explicitly unreleased/unpublished),
-// no other manifested document may contradict it. Negated wording ("not yet published",
-// "unreleased", "unpublished") must never be misread as a positive publication claim.
-const ANY_VERSION_MENTION_PATTERN = /v?\d+\.\d+\.\d+\b/gi;
-const PARAGRAPH_BREAK_PATTERN = /\r?\n\s*\r?\n/g;
-
-function findVersionMentionWindows(text, version, windowChars) {
-  const re = new RegExp(`v${escape(version)}\\b`, "gi");
-  const windows = [];
-  let match;
-  while ((match = re.exec(text))) {
-    const mentionEnd = match.index + match[0].length;
-    const charCap = Math.min(text.length, mentionEnd + windowChars);
-    ANY_VERSION_MENTION_PATTERN.lastIndex = mentionEnd;
-    const nextMention = ANY_VERSION_MENTION_PATTERN.exec(text);
-    const nextMentionBoundary = nextMention ? nextMention.index : text.length;
-    PARAGRAPH_BREAK_PATTERN.lastIndex = mentionEnd;
-    const nextParagraphBreak = PARAGRAPH_BREAK_PATTERN.exec(text);
-    const paragraphBoundary = nextParagraphBreak ? nextParagraphBreak.index : text.length;
-    const end = Math.min(charCap, nextMentionBoundary, paragraphBoundary);
-    windows.push(text.slice(match.index, end));
-  }
-  return windows;
-}
-
-const allDocumentsText = Object.keys(manifest.documents).map(read).join("\n");
-for (const [version, section] of roadmapSections) {
-  if (!section.status) continue;
-  const canonicalPublished = isPositivelyPublished(section.status);
-  const canonicalUnreleased = isNegativelyPublished(section.status);
-  if (!canonicalPublished && !canonicalUnreleased) continue;
-  const windows = findVersionMentionWindows(allDocumentsText, version, 220);
-  for (const windowText of windows) {
-    if (canonicalPublished && isNegativelyPublished(windowText)) {
-      fail("documentation", `v${version} release state`, "published", "described as unreleased/unpublished", `mark v${version} published (matches docs/ROADMAP.md), or update docs/ROADMAP.md if this is inaccurate`);
-      break;
-    }
-    if (canonicalUnreleased && isPositivelyPublished(windowText)) {
-      fail("documentation", `v${version} release state`, "unreleased/not yet published (matches docs/ROADMAP.md)", "described as published", `mark v${version} unreleased/not yet published, or update docs/ROADMAP.md if it has actually been published`);
-      break;
-    }
-  }
-}
-
-if (/automated (security )?validation (is|counts as|provides) (a )?manual pentest/i.test(allDocumentsText)) fail("documentation", "automated/manual boundary", "the agreed planning boundary", "contradictory wording", "describe automated validation and manual pentest as distinct workflows");
-
-if (failures.length) { console.error("Documentation consistency check failed:"); for (const failure of failures) console.error(`- ${failure}`); process.exitCode = 1; }
-else console.log(`Documentation consistency check passed (${Object.keys(manifest.documents).length} manifested documents, ${requiredVersions.length} preserved roadmap versions).`);
-
-function escape(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }

@@ -1,8 +1,8 @@
 # my-dev-kit-lab
 
-> Current release state: v0.4.1 is the latest published baseline. v0.4.0 delivered the Android validation MVP; v0.4.1 delivered advanced Android security. v0.4.2 is implemented and release-prepared (package metadata `0.4.2`) but not yet published. Manual pentest is post-v1 / version TBD.
-
 my-dev-kit-lab is the experiment, evidence, reporting, security-validation, and audit companion for my-dev-kit. It runs reproducible experiments that test whether my-dev-kit's graph-guided retrieval helps coding-agent workflows, collects metrics, renders reports, generates plots, captures screenshots, builds gallery outputs, performs automated CLI/package security validation, and runs the generic audit framework.
+
+> Current release state: v0.4.2 is the latest published baseline. v0.4.3 (stage-specific bounded-context and workflow-instruction evaluation) is planned and not implemented. Manual pentest is post-v1 / version TBD.
 
 The generic experiment-plugin framework was introduced in `v0.2.0`. Its first plugin, `context-strategy-comparison`, preserves the raw-full-file vs my-dev-kit-guided comparison through the plugin runner. Later releases added the generic audit framework, language-aware code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, a security-validation audit adapter, and Android validation. See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
 
@@ -209,10 +209,11 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Roadmap direction
 
-my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts, and real-agent campaign support exists for Codex and Claude. Recent releases added language-aware code-rot detectors (TypeScript/JavaScript, Python, Java, Kotlin), a security-validation audit adapter, and Android validation with an Android-aware extension of that same adapter.
+my-dev-kit-lab is at a working baseline. The raw-vs-indexed experiment pipeline is fully implemented and produces reproducible artifacts, and real-agent campaign support exists for Codex and Claude. Recent releases added language-aware code-rot detectors (TypeScript/JavaScript, Python, Java, Kotlin), a security-validation audit adapter, and Android validation with an Android-aware extension of that same adapter. The next planned patch, `v0.4.3`, adds deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies on top of the existing experiment-plugin infrastructure; it is planned, not implemented.
 
 - `v0.4.0` and `v0.4.1`: Android automated security validation (published)
-- `v0.4.2`: Android-aware extension of the existing security audit adapter (see [CHANGELOG.md](CHANGELOG.md) for release status)
+- `v0.4.2`: Android-aware extension of the existing security audit adapter (published; current npm baseline)
+- `v0.4.3`: planned deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies, extending the existing experiment/report infrastructure — not implemented yet; see [docs/ROADMAP.md](docs/ROADMAP.md)
 - manual pentest: post-v1 / version TBD
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the complete, versioned plan.
