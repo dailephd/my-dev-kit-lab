@@ -15,9 +15,9 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 - Current branch: `docs/documentation-editorial-review`
 - Active planned version: `v0.4.3`; implementation has not started
-- Workflow stage: repository-wide documentation editorial review
+- Workflow stage: repository-wide documentation editorial review completed; branch ready for normal review
 - Release blockers: none for the already-published `v0.4.2`
-- Exact next action: resolve or formally waive the out-of-scope Windows test-environment blocker, then review this pushed editorial branch through the normal pull-request process; begin v0.4.3 only under separate implementation authorization
+- Exact next action: review this pushed editorial branch through the normal pull-request process; begin v0.4.3 only under separate implementation authorization
 
 ## Implemented
 
@@ -84,12 +84,14 @@ The following remain planned, not implemented:
 
 The forensic recovery baseline passed `docs:check`, the focused documentation regressions, typecheck, build, the complete test suite, `verify`, safe CLI discovery/help smokes, and the Node 26 GitHub Actions matrix on Ubuntu, macOS, and Windows.
 
-On this editorial branch, `docs:check`, all 57 documentation-preservation regressions, typecheck, build, every dedicated `verify` test family, benchmark verification, and the safe CLI discovery/help smokes pass. The combined test command remains blocked on this Windows host by two environment-dependent Claude adapter assertions: after other test files run, `env: { PATH: "" }` does not hide an installed `claude.exe` because the process retains the case-distinct `Path` entry. The same five-test Claude adapter file passes when run in the dedicated agent suite. This branch does not alter the adapter or its tests because product behavior and non-documentation test fixes are outside the editorial scope.
+On this editorial branch, `docs:check`, all 57 documentation-preservation regressions, typecheck, build, every dedicated `verify` test family, benchmark verification, and the safe CLI discovery/help smokes pass. The documentation editorial review is complete.
+
+Separately, the combined product test command can expose two environment-dependent Claude adapter assertions on this Windows host: after other test files run, `env: { PATH: "" }` does not hide an installed `claude.exe` because the process retains the case-distinct `Path` entry. The same five-test Claude adapter file passes when run in the dedicated agent suite. This is a product-test isolation issue, was not introduced by this documentation branch, and does not block the documentation verdict. This branch does not alter the adapter or its tests.
 
 ## Blockers
 
-There are no factual, release, or implementation blockers for this documentation-only editorial pass. Full-suite validation has the Windows `Path`/`PATH` blocker described above; resolving it requires a separate product/test change. Version v0.4.3 remains outside this branch's scope.
+There are no documentation, factual, release, or implementation blockers for this editorial pass. The unrelated Windows `Path`/`PATH` test-isolation issue described above may be addressed through a separate product/test repair workflow. Version v0.4.3 remains outside this branch's scope.
 
 ## Next step
 
-Resolve or formally waive the Windows Claude adapter test-environment blocker, then review `docs/documentation-editorial-review` through the normal pull-request process. After the documentation work is reviewed and merged, v0.4.3 may begin only under separate implementation authorization. See [ROADMAP.md](ROADMAP.md) for its dependencies and acceptance criteria.
+Review `docs/documentation-editorial-review` through the normal pull-request process. The unrelated Windows Claude adapter test-isolation issue may be repaired separately if prioritized. After the documentation work is reviewed and merged, v0.4.3 may begin only under separate implementation authorization. See [ROADMAP.md](ROADMAP.md) for its dependencies and acceptance criteria.
