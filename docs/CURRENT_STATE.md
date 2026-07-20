@@ -17,7 +17,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Active planned version: `v0.4.3`; implementation has not started
 - Workflow stage: repository-wide documentation editorial review
 - Release blockers: none for the already-published `v0.4.2`
-- Exact next action: commit and push this editorial branch for review, then resolve or formally waive the out-of-scope Windows test-environment blocker before merge; begin v0.4.3 only under separate implementation authorization
+- Exact next action: resolve or formally waive the out-of-scope Windows test-environment blocker, then review this pushed editorial branch through the normal pull-request process; begin v0.4.3 only under separate implementation authorization
 
 ## Implemented
 
@@ -92,4 +92,4 @@ There are no factual, release, or implementation blockers for this documentation
 
 ## Next step
 
-Commit and push `docs/documentation-editorial-review` for review. Resolve or formally waive the Windows Claude adapter test-environment blocker before merge. After the documentation work is reviewed and merged, v0.4.3 may begin only under separate implementation authorization. See [ROADMAP.md](ROADMAP.md) for its dependencies and acceptance criteria.
+Resolve or formally waive the Windows Claude adapter test-environment blocker, then review `docs/documentation-editorial-review` through the normal pull-request process. After the documentation work is reviewed and merged, v0.4.3 may begin only under separate implementation authorization. See [ROADMAP.md](ROADMAP.md) for its dependencies and acceptance criteria.
