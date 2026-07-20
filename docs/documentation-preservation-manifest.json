@@ -13,6 +13,8 @@
   "requiredDocuments": [
     "README.md",
     "CHANGELOG.md",
+    "claude.txt",
+    "agents.txt",
     "docs/PROJECT_OVERVIEW.md",
     "docs/CURRENT_STATE.md",
     "docs/ARCHITECTURE.md",
@@ -26,6 +28,14 @@
     "docs/DOCUMENTATION_PRESERVATION_POLICY.md"
   ],
   "documents": {
+    "claude.txt": {
+      "role": "compact coding-agent instructions",
+      "requiredTopics": ["v0.4.2", "v0.4.3", "Android validation", "manual pentest", "docs/ROADMAP.md"]
+    },
+    "agents.txt": {
+      "role": "coding-agent operating manual",
+      "requiredTopics": ["v0.4.2", "v0.4.3", "Android automated security validation", "manual pentest", "docs/ROADMAP.md"]
+    },
     "README.md": {
       "role": "first-use overview",
       "requiredHeadings": ["Current capabilities", "Quickstart", "Where to find outputs", "Current limitations", "Security validation", "Documentation"],

@@ -7,6 +7,7 @@ This policy prevents documentation work from erasing agreed plans, release histo
 | Document | Canonical role |
 |---|---|
 | `README.md` | User value, installation, first quickstart, capability summary, limitations, links, and one concise release note |
+| `claude.txt` / `agents.txt` | Active coding-agent baseline, boundaries, retrieval workflow, validation expectations, and roadmap handoff |
 | `docs/PROJECT_OVERVIEW.md` | Product thesis, users, use cases, companion relationships, capability areas, evidence model, and boundaries |
 | `docs/CURRENT_STATE.md` | Package/release baseline, active version, branch/workflow state when relevant, implementation state, blockers, validation, and exact next action |
 | `docs/ARCHITECTURE.md` | Current ownership, components, flows, contracts, invariants, extension points, and failure boundaries |
