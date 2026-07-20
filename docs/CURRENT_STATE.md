@@ -1,15 +1,23 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The working-tree package version is `@dailephd/my-dev-kit-lab` `0.4.2`. `v0.4.2` (Android-aware extension of the security audit adapter) is the latest npm-published version and the current baseline. `v0.4.3` (deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies) is planned but not implemented; see [ROADMAP.md](ROADMAP.md) for the full plan. See [CHANGELOG.md](../CHANGELOG.md) for the complete release history.
+This document records the repository's operational state. It is the source of truth for what is implemented, planned, blocked, validated, and next.
+
+## Version and publication state
+
+- Package: `@dailephd/my-dev-kit-lab`
+- Package version: `0.4.2`
+- Latest release: verified external evidence identifies `v0.4.2` on npm, as a Git tag, and as a GitHub Release
+- Next planned version: `v0.4.3`, unreleased and not implemented
+
+See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
 ## Operational state
 
-- Recovery branch: `fix/documentation-plan-restoration`
+- Current branch: `docs/documentation-editorial-review`
 - Active planned version: `v0.4.3`; implementation has not started
-- Workflow stage: documentation-history recovery, reconciliation, and preservation hardening
-- Release blockers: none for the already-published `v0.4.2`; this documentation recovery must pass repository validation before merge
-- Validation state: `docs:check`, focused documentation regressions, typecheck, build, the complete test suite, `verify`, and safe CLI help/discovery smokes pass on this recovery branch
-- Exact next action: merge the documentation-recovery pull request after required checks pass, then begin `v0.4.3` only under separate implementation authorization
+- Workflow stage: repository-wide documentation editorial review completed; branch ready for normal review
+- Release blockers: none for the already-published `v0.4.2`
+- Exact next action: review this pushed editorial branch through the normal pull-request process; begin v0.4.3 only under separate implementation authorization
 
 ## Implemented
 
@@ -35,71 +43,19 @@ This file is the concise source of truth for the checked-in implementation. The 
 - Android validation in `src/mobile/android`, reachable through `security:validate --profile android`: project detection and classification, manifest parsing, permission/exported-component/intent-filter/deep-link audits, static Gradle metadata, and eleven advanced internal checks (network security config, backup/release configuration, redacted secrets, signing configuration, WebView/FileProvider, sensitive storage/logging/clipboard, and Firebase/Google services), for nineteen default checks. Optional opt-in Gradle operations and external tools (Semgrep, OSV-Scanner, Android Lint, Dependency-Check) remain off by default with zero network access.
 - Android-aware generic audit integration in `src/audits/security`: `npm run audit -- --types security --android` runs the same static Android validation through the existing security audit adapter, mapping confirmed findings into audit issues while keeping `CandidateEvidence` as a separate, review-only summary.
 
-## Language and analyzer notes
-
-Normalized language/file-role inventory, a source facts model, source facts collection, and a language analyzer registry back the code-rot detectors across languages:
-
-- The TypeScript/JavaScript analyzer supports `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` files where files are within the analyzer size bound and parse without syntax diagnostics.
-- The Python analyzer is regex/line-based and dependency-free, covering imports (including relative dotted imports), `__all__`, and module-level/class-body declarations, plus project metadata detection (`pyproject.toml`, `requirements.txt`, `setup.py`/`setup.cfg`, `tox.ini`, `pytest.ini`).
-- The Java analyzer (`.java`) and Kotlin analyzer (`.kt`, `.kts`) are conservative and dependency-free: they use scanners/regex plus brace-depth tracking, not compiler parsing or symbol resolution, alongside JVM project metadata collection for static Gradle/Maven/source-set/wrapper detection.
-
-The source-facts-aware code-rot behavior is conservative:
-
-- `dead-code-candidate` merges parsed relative import/re-export basenames into reverse-reference checks (Python: cross-file `from module import name` reference checks).
-- `duplicate-implementation-candidate` adds source-facts-derived duplicate exported declaration candidate signals for selected non-generic declaration kinds, grouped per-analyzer so TypeScript/JavaScript and Python candidates never merge into one group.
-- `test-rot` uses analyzer-recorded relative imports, including dynamic `import()` (TypeScript/JavaScript) and dotted relative imports (Python), to find missing targets missed by regex-only scanning.
-- `dead-code-candidate` adds Java/Kotlin declaration candidate checks only for top-level declarations with conservative JVM naming/lifecycle exclusions; it does not attempt method/constructor-level dead-code detection.
-- `duplicate-implementation-candidate` keeps Java, Kotlin, Python, and TypeScript/JavaScript declaration groups analyzer-scoped rather than merging same-named declarations across languages.
-- `test-rot` uses JVM import facts plus recognized `src/main/{java,kotlin}` and `src/test/{java,kotlin}` directories for best-effort Java/Kotlin missing-import checks, without compiler/classpath awareness.
-- `docs-code-mismatch` checks Java/Kotlin backtick-quoted FQCN-shaped symbol claims and static Gradle/Maven command/feature claims against scanned JVM metadata. Android validation is implemented separately under `src/mobile/android`; it is not part of this code-rot detector.
-
-The language-aware code-rot analyzers do not perform TypeScript Program semantic analysis, type checking, full module resolution, `tsconfig` path alias resolution, coverage analysis, clone detection, runtime reachability analysis, Python runtime execution, Python dependency resolution, Java/Kotlin compiler parsing, Java/Kotlin type/classpath resolution, Gradle/Maven execution, target-project test execution, or JVM dependency freshness checks. Android validation is a separate implemented static subsystem. No default audit or validation path modifies target source files.
-
 ## Current commands
 
-```powershell
-npm run experiment:list
-npm run experiment:describe -- --experiment context-strategy-comparison
-npm run experiment:run -- --experiment context-strategy-comparison --target <path>
-npm run security:validate
-npm run security:validate -- --target <path>
-npm run security:validate -- --checks boundary,subprocess,secrets,network --format text,json
-npm run security:validate -- --profile local-tool --format json
-npm run audit -- --target <path> --types code-rot
-npm run audit -- --types code-rot --format text,json --fail-on none
-npm run audit -- --types security --format text,json --fail-on none
-npm run audit -- --target <path> --types security --format text,json --fail-on none
-npm run audit -- --types code-rot,security --format text,json --fail-on none
-npm run security:validate -- --target <android-project-path> --profile android
-npm run audit -- --target <android-project-path> --types security --android --format text,json --fail-on none
-```
-
-`npm run run-controlled-experiment` and the demo/report/plot/gallery commands remain supported. See [COMMANDS.md](COMMANDS.md) for the complete package-script inventory.
+The implemented command families cover experiments, reports and visualizations, generic audits, standalone security validation, Android validation, and repository verification. See [COMMANDS.md](COMMANDS.md) for exact syntax, flags, defaults, outputs, and exit behavior.
 
 ## Current architecture
 
-| Path | Responsibility |
-|---|---|
-| `src/core` | Shared process, path, token, and local-target utilities |
-| `src/experiments` | Plugin contracts, registry, runner, targets, configuration, and results |
-| `src/experiments/plugins/contextStrategyComparison` | Current raw-versus-guided experiment plugin |
-| `scripts/experiments` | User-facing experiment command entrypoints |
-| `src/evaluation` | Benchmark contracts, controlled runs, metrics, and correctness |
-| `src/agents` | Fake-agent, Codex, and Claude adapters |
-| `src/report` | Shared and legacy report infrastructure |
-| `src/report/experiments` | Plugin-aware experiment reports |
-| `src/securityValidation` | Automated security-validation checks, orchestration, and reports |
-| `scripts/security` | Security command entrypoints |
-| `src/audits` | Generic audit framework: target/config/registry/runner (`core`), code-rot detectors (`codeRot`), security audit adapter and Android integration (`security`), and report model/renderers (`report`) |
-| `scripts/audits` | `runAudit.ts` — `npm run audit` entrypoint |
-| `src/mobile/android` | Android detection, manifest parsing, static Gradle metadata, and advanced security checks |
-| `src/plots`, `src/screenshot`, `src/gallery`, `src/visualizationDemos` | Evidence presentation and demo output |
+The repository has one experiment runtime, one audit framework, one standalone security-validation framework, and one Android subsystem integrated through the existing security adapter. Shared reporting and presentation modules serve all four. See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership, flows, contracts, extension points, and failure boundaries.
 
 ## Experimental versus planned
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework, code-rot detector family, TypeScript/JavaScript/Python/Java/Kotlin language-aware substrate, the security-validation audit adapter, Android validation, and the Android-aware extension of that adapter (`audit --types security --android`, confirmed-finding mapping, Android status/completeness and CandidateEvidence summaries, and text/JSON report references) are all implemented, merged, and published in releases through `v0.4.2`.
+The audit framework, language-aware code-rot detectors, security adapter, Android validation, and Android audit extension are implemented through v0.4.2. The Android extension maps confirmed findings, keeps `CandidateEvidence` separate, and includes bounded status, completeness, and report-reference summaries.
 
 The following remain planned, not implemented:
 
@@ -124,6 +80,18 @@ The following remain planned, not implemented:
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
 - Only one experiment plugin is currently registered.
 
+## Validation state
+
+The forensic recovery baseline passed `docs:check`, the focused documentation regressions, typecheck, build, the complete test suite, `verify`, safe CLI discovery/help smokes, and the Node 26 GitHub Actions matrix on Ubuntu, macOS, and Windows.
+
+On this editorial branch, `docs:check`, all 57 documentation-preservation regressions, typecheck, build, every dedicated `verify` test family, benchmark verification, and the safe CLI discovery/help smokes pass. The documentation editorial review is complete.
+
+Separately, the combined product test command can expose two environment-dependent Claude adapter assertions on this Windows host: after other test files run, `env: { PATH: "" }` does not hide an installed `claude.exe` because the process retains the case-distinct `Path` entry. The same five-test Claude adapter file passes when run in the dedicated agent suite. This is a product-test isolation issue, was not introduced by this documentation branch, and does not block the documentation verdict. This branch does not alter the adapter or its tests.
+
+## Blockers
+
+There are no documentation, factual, release, or implementation blockers for this editorial pass. The unrelated Windows `Path`/`PATH` test-isolation issue described above may be addressed through a separate product/test repair workflow. Version v0.4.3 remains outside this branch's scope.
+
 ## Next step
 
-`v0.4.2` (Android-aware extension of the security audit adapter) is published and is the current npm baseline. The next planned patch is `v0.4.3` (deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies), which depends on upstream `my-dev-kit` `1.10.1` and `my-dev-kit-orchestrator` `1.2.1` output contracts and has not been implemented. See [ROADMAP.md](ROADMAP.md) for the complete version sequence and [WORKFLOWS.md](WORKFLOWS.md) for workflow stages.
+Review `docs/documentation-editorial-review` through the normal pull-request process. The unrelated Windows Claude adapter test-isolation issue may be repaired separately if prioritized. After the documentation work is reviewed and merged, v0.4.3 may begin only under separate implementation authorization. See [ROADMAP.md](ROADMAP.md) for its dependencies and acceptance criteria.

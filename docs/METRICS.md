@@ -5,15 +5,23 @@ This document is the canonical metric glossary for my-dev-kit-lab. It defines ev
 Related documentation:
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how metrics flow through the pipeline
 - [TUTORIAL.md](TUTORIAL.md) — how to read token savings and correctness scores in the report
-- [CURRENT_STATE.md](CURRENT_STATE.md) — current baseline and limitations
+- [CURRENT_STATE.md](CURRENT_STATE.md) — current capabilities, plans, and limitations
 
 ## Metric interpretation quick reference
 
-| Metric | Positive means | Negative means | N/A means |
+| Metric | Higher or positive value | Lower or negative value | Unavailable or N/A |
 |---|---|---|---|
-| `tokenSavings` | my-dev-kit used fewer tokens | my-dev-kit used more tokens | Token totals unavailable for one or both runs |
-| `correctnessScore` | More answer-key facts matched | Fewer answer-key facts matched | Run did not complete |
-| `complexityScore` | Higher project complexity | Lower project complexity | — |
+| `tokenSavingsPercent` | my-dev-kit used fewer tokens | my-dev-kit used more tokens | One or both runs lacked total-token data |
+| `correctnessScore` | More weighted answer-key evidence matched | Less weighted answer-key evidence matched | The run did not produce a scorable answer |
+| `complexityScore` | The heuristic indicates greater project complexity | The heuristic indicates lower project complexity | The project was not profiled |
+
+Each entry below uses the same fields: **Meaning**, **Appears in** (the artifact or report source), **Formula**, **Interpretation**, and **Caveat**. Availability follows these repository-wide rules:
+
+- Provider-reported tokens and character-based estimates are different sources and must remain labeled.
+- Unavailable means the required input was not supplied or exposed; it is not zero.
+- Zero is a measured or derived numeric result with a valid denominator.
+- Not applicable means the metric does not describe that run or strategy.
+- Invalid zero-denominator cases are reported explicitly rather than divided or coerced to zero.
 
 **Token savings notes:**
 - A positive token savings value means the my-dev-kit-guided strategy used fewer tokens than raw-full-file for that run pair.
@@ -30,7 +38,7 @@ Related documentation:
 - Small projects may show negative token savings because raw-full-file is cheaper when the entire project fits easily in context.
 - Larger, more localized tasks are where my-dev-kit is expected to become more useful.
 
-## Project Complexity Metrics
+## Project complexity metrics
 
 - `fileCount`
   Meaning: total non-generated files captured in the benchmark file tree.
@@ -129,7 +137,7 @@ Related documentation:
   Interpretation: human-readable size category.
   Caveat: coarse label; use the score and metrics for detail.
 
-## Prompt Complexity Metrics
+## Prompt complexity metrics
 
 - `promptChars`
   Meaning: prompt length in characters.
@@ -198,7 +206,7 @@ Related documentation:
   Interpretation: `true` means retrieval commands are part of the task.
   Caveat: prompt intent only.
 
-## Experiment And Run Metrics
+## Experiment and run metrics
 
 - `durationMs`
   Meaning: measured wall-clock duration of a normalized run.
@@ -285,7 +293,7 @@ Related documentation:
   Interpretation: stronger labels mean safer aggregate interpretation.
   Caveat: comparison reliability is not the same as correctness.
 
-## Planned v0.4.3 Metrics (not implemented)
+## Planned v0.4.3 metrics (not implemented)
 
 Not implemented. See [ROADMAP.md](ROADMAP.md) for the full plan. Names below are candidates, subject to confirmation against current evaluation-type conventions.
 

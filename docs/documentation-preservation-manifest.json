@@ -38,8 +38,8 @@
     },
     "docs/CURRENT_STATE.md": {
       "role": "operational state",
-      "requiredHeadings": ["Operational state", "Implemented", "Current commands", "Current architecture", "Experimental versus planned", "Limitations", "Next step"],
-      "requiredTopics": ["package version", "current baseline", "Recovery branch", "Active planned version", "Workflow stage", "Release blockers", "Exact next action", "v0.4.2", "v0.4.3", "not implemented"]
+      "requiredHeadings": ["Version and publication state", "Operational state", "Implemented", "Current commands", "Current architecture", "Experimental versus planned", "Limitations", "Validation state", "Blockers", "Next step"],
+      "requiredTopics": ["Package version", "Latest release", "Current branch", "Active planned version", "Workflow stage", "Release blockers", "Exact next action", "v0.4.2", "v0.4.3", "not implemented"]
     },
     "docs/ARCHITECTURE.md": {
       "role": "current architecture",
@@ -57,7 +57,7 @@
       "requiredTopics": ["experiment", "audit", "security", "Android", "Gradle", "external tool", "release", "documentation"]
     },
     "docs/TUTORIAL.md": { "role": "first successful run", "requiredHeadings": ["Install dependencies", "Build", "Verify the installation", "Run the fake-agent final demo", "Open the report", "Where outputs are written", "Next steps"] },
-    "docs/METRICS.md": { "role": "metric glossary", "requiredHeadings": ["Metric interpretation quick reference", "Project Complexity Metrics", "Prompt Complexity Metrics", "Experiment And Run Metrics", "Planned v0.4.3 Metrics"] },
+    "docs/METRICS.md": { "role": "metric glossary", "requiredHeadings": ["Metric interpretation quick reference", "Project complexity metrics", "Prompt complexity metrics", "Experiment and run metrics", "Planned v0.4.3 metrics"] },
     "docs/GALLERY.md": { "role": "gallery reference", "requiredHeadings": ["What the gallery contains", "How the gallery relates to other outputs", "How to build a gallery", "Gallery in the final demo", "Current limitations"] },
     "docs/security-validation-framework.md": {
       "role": "security model and limitations",

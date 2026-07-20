@@ -1,6 +1,6 @@
 # Gallery
 
-The gallery is a browsable collection of all artifacts produced by a my-dev-kit-lab experiment run. It brings together the experiment report, SVG charts, visualization demos, and optional screenshots into a single navigable index.
+The gallery is a static, browsable index of evidence produced by a my-dev-kit-lab experiment. It links reports, SVG charts, visualization demos, and optional screenshots without copying or reinterpreting their contents.
 
 ---
 
@@ -59,7 +59,13 @@ The `gallery-manifest.json` file lists every artifact in the gallery. Each entry
 
 ## How to build a gallery
 
-After running a controlled experiment and generating a report and plots:
+Prerequisites:
+
+- a rendered experiment report
+- generated plot artifacts
+- visualization artifacts when included
+
+Build the gallery with:
 
 ```bash
 npm run build-gallery -- \
@@ -70,6 +76,8 @@ npm run build-gallery -- \
 ```
 
 Open `lab-output/gallery/gallery-index.html` in a browser to browse all artifacts.
+
+If the command reports a missing input, generate that artifact first or remove the corresponding optional input. Completion means `gallery-manifest.json` and `gallery-index.html` exist and every relative link resolves from the gallery directory.
 
 ---
 
@@ -103,6 +111,6 @@ The `npm run run-final-demo` command builds the gallery automatically as the las
 
 - The gallery index is a static HTML file with no interactive filtering or search
 - Gallery entries are linked by relative path; moving the output directory breaks links
-- Richer gallery UI with filtering, tagging, and comparison views is planned for a future phase
+- Filtering, tagging, search, and comparison views are not implemented
 
 See [ROADMAP.md](ROADMAP.md) for the gallery UI roadmap item.

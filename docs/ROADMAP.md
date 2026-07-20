@@ -8,15 +8,16 @@ The roadmap follows semantic version order. `v1.0.0` is the stable release after
 
 ```mermaid
 flowchart LR
-  A[v0.2.0<br/>plugin framework] --> B[v0.2.1<br/>previous baseline]
-  B --> C[v0.2.2<br/>published security-validation baseline]
-  C --> D[v0.3.0-v0.3.4<br/>published audit and code-rot track]
-  D --> E[v0.4.0<br/>published Android MVP]
-  E --> F[v0.4.1 published advanced Android security] --> G[v0.4.2 published Android-aware audit adapter]
-  G --> G2[v0.4.3 planned<br/>stage-specific bounded-context evaluation]
-  G2 --> H[individual v0.5.0 through v0.9.2<br/>experiment evidence releases]
-  G2 --> H[v1.0.0<br/>stable framework]
-  H --> I[v1.1.0-v1.4.0<br/>post-stable releases]
+  V020[v0.2.0] --> V021[v0.2.1] --> V022[v0.2.2]
+  V022 --> V030[v0.3.0] --> V031[v0.3.1] --> V032[v0.3.2] --> V033[v0.3.3] --> V034[v0.3.4]
+  V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3]
+  V043 --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
+  V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
+  V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
+  V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
+  V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2]
+  V092 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
+  V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
 ```
 
 ## Product direction
@@ -38,6 +39,12 @@ The strongest product thesis remains:
 
 Status: **published**.
 
+Purpose:
+
+* Introduce the reusable experiment-plugin framework without breaking the raw-versus-guided baseline.
+
+Completed scope:
+
 * Generic experiment-plugin contracts, registry, runner, configuration, target model, and normalized results.
 * `context-strategy-comparison` as the first experiment plugin.
 * Existing raw-full-file versus my-dev-kit-guided behavior preserved through the plugin.
@@ -46,14 +53,32 @@ Status: **published**.
 * Backward-compatible `experiment:list`, `experiment:describe`, `experiment:run`, and legacy controlled-experiment workflows.
 * Reusable target-aware automated security validation carried forward from earlier security work.
 
+Acceptance:
+
+* Plugin and legacy workflows produce compatible artifacts, explicit local targets remain non-destructive, and existing security validation remains available.
+
 ### v0.2.1 — previous package baseline
 
 Status: **the npm registry lists `0.2.1`**; no matching Git tag or GitHub Release was found during this recovery.
+
+Purpose:
+
+* Correct external-target security-test execution, including execution from an installed package, and synchronize documentation with the plugin architecture.
+
+Completed scope:
 
 * Correct target-project execution of `test:security` during external-target validation, including installed-package execution.
 * Documentation synchronized with the implemented plugin and security-validation architecture.
 * Fortification continues after this baseline without changing the backward-compatible `security:validate` command.
 * The current package baseline is not the final security, audit, mobile, or pentest architecture.
+
+Dependencies:
+
+* Builds on the v0.2.0 plugin and target model.
+
+Acceptance:
+
+* External targets run their declared security test from the correct working directory in both source and installed-package execution.
 
 ### v0.2.2 — fortified automated security validation (published)
 
@@ -77,42 +102,15 @@ Features:
 * Add `reportSchemaGuard` baseline-diff structural-injection protection for JSON report poisoning/config injection.
 * Add schema/report hardening, output-format/location consistency validation, text-report sanitization, and non-destructive target validation coverage.
 
-Command direction:
+Acceptance:
 
-* Keep existing commands:
+* The standalone command remains backward compatible and all accepted check IDs have implementation coverage.
+* Attack scenarios produce structured, sanitized evidence and metadata.
+* Target source remains unchanged by default, unavailable optional tools remain skipped, and experiment behavior remains compatible.
 
-  * `npm run security:validate`
-  * `npm run security:validate -- --target <path>`
+Explicit exclusions:
 
-* Current flags:
-
-  * `--checks deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network`
-  * `--profile node-cli-package|local-tool|npm-package`
-  * `--format text|json|text,json`
-  * `--fail-on blocker|high|medium|low`
-  * `--out <path>`
-
-Current architecture:
-
-* `src/securityValidation/attackScenarios/`
-* `src/securityValidation/attackScenarios/profiles/`
-* `src/securityValidation/attackScenarios/scenarios/`
-* `src/securityValidation/attackScenarios/reportSchemaGuard.ts`
-* `src/securityValidation/cliAdversarial/`
-* `src/securityValidation/validate/`
-* `src/securityValidation/report/`
-* `scripts/security/validate.ts`
-* `tests/security/attackScenarios/`
-
-Current status:
-
-* Existing `security:validate` behavior remains backward compatible.
-* Existing dependency, package, static-scan, fuzz, and CLI adversarial checks still work.
-* All 9 accepted `--checks` ids have implementation coverage.
-* New attack scenarios produce structured evidence and report metadata.
-* Target project files are not modified by default.
-* Optional unavailable tools are reported as skipped, not passed.
-* Existing experiment framework behavior is unchanged.
+* This release did not merge security validation into the generic audit framework or add manual pentesting.
 
 ## Planned v0.x development track
 
@@ -152,28 +150,6 @@ Code rot detector scope:
 * Cross-platform rot.
 * Security/validation assumption rot.
 
-Command direction:
-
-* Add one main audit command:
-
-  * `npm run audit`
-
-* Use flags instead of separate audit commands:
-
-  * `npm run audit -- --target <path> --types code-rot`
-  * `npm run audit -- --target <path> --types code-rot --include docs,tests,package,architecture,cli`
-  * `npm run audit -- --target <path> --types code-rot --format text,json`
-
-Suggested architecture:
-
-* `src/audits/core/`
-* `src/audits/codeRot/`
-* `src/audits/codeRot/detectors/`
-* `src/report/audits/`
-* `scripts/audits/runAudit.ts`
-* `tests/audits/core/`
-* `tests/audits/codeRot/`
-
 Acceptance:
 
 * `npm run audit -- --target <path> --types code-rot` works.
@@ -185,15 +161,9 @@ Acceptance:
 * Existing experiment commands still work.
 * Existing `security:validate` still works.
 
-Published scope:
+Explicit exclusions:
 
-* `npm run audit` is implemented; `--types code-rot` is the only implemented audit type.
-* `--types quality`, `--types security`, `--types project`, and `--types all` are recognized but fail cleanly with exit code `2` rather than running.
-* All 10 code-rot detector families are implemented and registered: `stale-command-reference`, `docs-code-mismatch`, `package-release-rot`, `duplicate-implementation-candidate`, `dead-code-candidate`, `test-rot`, `architecture-drift`, `dependency-environment-rot`, `cross-platform-rot`, `security-validation-assumption-rot`.
-* Target resolution, project inventory scanning, and source-of-truth collection are implemented in `src/audits/core`.
-* The audit report schema is stable at `schemaVersion` `"1.0"` with 13 top-level fields; `metadata.auditTypes` is included.
-* Reports are written under `reports/audits/code-rot/` by default.
-* External-target audits are non-destructive.
+* Security, quality, project, and combined audit types were not part of this release's completed scope.
 
 ### v0.3.1 — language-aware TypeScript/JavaScript code-rot support
 
@@ -239,28 +209,6 @@ Features:
 * Distinguish scanner findings, adversarial scenario failures, package/release findings, and optional skipped checks.
 * Add audit report links to generated security validation reports.
 
-Command direction:
-
-* Keep:
-
-  * `npm run security:validate`
-  * `npm run security:validate -- --target <path>`
-
-* Extend:
-
-  * `npm run audit -- --target <path> --types security`
-  * `npm run audit -- --target <path> --types code-rot,quality,security`
-  * `--security-checks deps,package,static,cli-adversarial,fuzz,attack-scenarios,secrets,network`
-
-Suggested architecture:
-
-* `src/audits/security/`
-* `src/audits/security/securityAuditAdapter.ts`
-* `src/audits/security/mapSecurityFindingToAuditIssue.ts`
-* `src/audits/core/auditSource.ts`
-* `src/audits/core/auditResultMerger.ts`
-* `tests/audits/security/`
-
 Acceptance:
 
 * `security:validate` remains backward compatible.
@@ -270,6 +218,10 @@ Acceptance:
 * Optional skipped security tools are represented correctly.
 * Existing security reports remain available.
 * Existing experiment framework remains unchanged.
+
+Explicit exclusions:
+
+* This release did not implement the `quality`, `project`, or `all` audit types and did not add audit passthrough for standalone security check/profile selection.
 
 ### v0.3.3 — Java/Kotlin language-aware code-rot support
 
@@ -361,7 +313,7 @@ Purpose:
 
 * Extend the existing general security audit adapter directly with Android-aware validation without creating a parallel adapter.
 
-Implemented branch scope:
+Completed scope:
 
 * Reuse the existing `SecurityFinding -> AuditIssue` mapping for general security findings.
 * Invoke Android validation programmatically through the existing security audit adapter.
@@ -951,59 +903,11 @@ Features:
 * Documentation for interpreting evidence responsibly.
 * Gallery as a navigable evidence portal.
 
-## Command surface direction
+## Command design principles
 
-Commands to keep:
+Future work should extend the existing experiment, audit, and security-validation command families through validated flags when practical. It should not create one command per detector, platform, or report type. Candidate syntax remains version-specific planning until implementation confirms parser and registry conventions.
 
-* `npm run experiment:list`
-* `npm run experiment:describe`
-* `npm run experiment:run`
-* `npm run security:validate`
-* `npm run audit`
-
-These are implemented command families. Manual-pentest commands are intentionally absent because that workflow is post-v1/version TBD.
-
-Commands to avoid unless truly necessary:
-
-* `npm run audit:code-rot`
-* `npm run audit:quality`
-* `npm run audit:security`
-* `npm run audit:release`
-* `npm run audit:docs`
-* `npm run audit:tests`
-* `npm run audit:package`
-* `npm run mobile:detect`
-* `npm run mobile:validate`
-* `npm run mobile:release-check`
-* `npm run security:android`
-
-Preferred flag-based usage:
-
-* Code rot only:
-
-  * `npm run audit -- --target <path> --types code-rot`
-
-* Quality only:
-
-  * `npm run audit -- --target <path> --types quality`
-
-* Security summary only:
-
-  * `npm run audit -- --target <path> --types security`
-
-* Full project audit:
-
-  * `npm run audit -- --target <path> --types code-rot,quality,security`
-
-* Automated security validation:
-
-  * `npm run security:validate -- --target <path> --checks deps,package,static,cli-adversarial,fuzz,attack-scenarios`
-
-* Android validation:
-
-  * `npm run security:validate -- --target <path> --profile android`
-
-  Compose/XML/mixed classification is detected within `--profile android`; `android-compose` is not a separate accepted profile.
+Manual-pentest commands remain intentionally absent because that workflow is deferred to post-v1/version TBD. See [COMMANDS.md](COMMANDS.md) for the implemented command surface.
 
 ## Mobile validation boundaries
 
@@ -1033,85 +937,13 @@ my-dev-kit-lab mobile support does not mean:
 * Automatically fixing target code.
 * Modifying target projects by default.
 
-## Current boundaries
-
-* `context-strategy-comparison` is the implemented experiment plugin.
-* Automated security validation is implemented; a complete manual pentest framework is planned.
-* The generic audit framework and code-rot releases through v0.3.4 are published. The published audit types are `code-rot` and `security`; broader quality/project audit families remain planned unless implementation proves otherwise.
-* Android validation is implemented and published. Additional mobile-platform profiles remain planned.
-* Warm-index reuse, index freshness, context scaling, retrieval precision/recall, and agent-success plugins are planned.
-* The evidence does not establish that my-dev-kit always saves tokens.
-* The strongest thesis is that reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection help when a repository is larger than the task.
-
 ## Architecture direction
 
-```mermaid
-flowchart TD
-  A[Experiments<br/>src/experiments] --> R[Evidence reports<br/>src/report]
-  S[Security validation<br/>src/securityValidation] --> R
-  M[Mobile validation<br/>src/mobile] --> S
-  M --> R
-  P[Post-v1 manual pentest<br/>location TBD] -.future.-> R
-  Q[Project audits<br/>src/audits] --> R
-  Q --> S
-  Q --> M
-  R --> G[Gallery and evidence portal]
-```
-
-Responsibility split:
-
-* `src/experiments/` stays focused on experiment plugins and experiment execution.
-* `src/securityValidation/` stays focused on implemented automated security validation; any post-v1 manual-pentest architecture requires a separate approved design.
-* `src/mobile/` supports mobile project detection and platform-specific validation evidence, starting with Android.
-* `src/audits/` becomes the unified project audit framework for code rot, code quality, and security summaries.
-* `src/report/experiments/` stays focused on experiment reports.
-* `src/report/audits/` becomes the shared audit report renderer.
-* `scripts/experiments/` contains experiment commands only.
-* `scripts/security/` contains implemented automated security-validation commands.
-* `scripts/audits/` contains the single audit entrypoint.
-* `reports/security/` contains automated security validation reports.
-* `reports/audits/` contains unified audit reports.
+Future versions must extend the existing experiment, audit, security-validation, Android, report, and gallery ownership boundaries rather than create parallel runners, adapters, or presentation systems. Production indexing and workflow orchestration remain outside my-dev-kit-lab. See [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership and each version section above for planned dependencies and exclusions.
 
 ## Validation expectations for every release
 
-Every release should run the relevant subset of:
-
-* `npm install`
-* `npm run build`
-* `npm run test`
-* `npm run verify`
-* `npm run security:validate`
-* `npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"`
-* `npm run security:validate -- --target "Z:\Users\newuser\Projects\scientific-literature-explorer-v1"`
-* `npm run experiment:list`
-* `npm run experiment:describe -- --experiment context-strategy-comparison`
-* `npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --case todo-ts-create-task --agents fake-agent --complexities short --no-screenshot`
-* `npm pack --dry-run`
-
-When Android validation exists, Android-profile releases should additionally run fixture-backed checks for:
-
-* Android project detection.
-* Android Compose detection.
-* Android manifest audit.
-* Android permission audit.
-* Android exported component audit.
-* Android deep link audit.
-* Android network security audit.
-* Android backup/data extraction audit.
-* Android debug/release configuration audit.
-* Android hardcoded secret scan.
-* Android report schema stability.
-* Android non-destructive target validation.
-* Optional tool skipped-check handling.
-
-GitHub Actions matrix should continue to cover:
-
-* Ubuntu Node 24
-* Ubuntu Node 22
-* macOS Node 24
-* macOS Node 22
-* Windows Node 24
-* Windows Node 22
+Every version's acceptance criteria must include relevant regression, compatibility, non-destructive-target, report-schema, documentation, and cross-platform checks. Exact commands and release gates belong in [WORKFLOWS.md](WORKFLOWS.md); current syntax belongs in [COMMANDS.md](COMMANDS.md).
 
 ## Key rule
 

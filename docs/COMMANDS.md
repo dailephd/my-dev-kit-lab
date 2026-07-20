@@ -2,11 +2,7 @@
 
 ## Current command families
 
-Implemented public families include `npm run experiment:list`, `npm run experiment:describe`, `npm run experiment:run`, `npm run audit`, and `npm run security:validate`, plus build, typecheck, test, verify, and `docs:check`. Android validation uses the existing security command with profile and opt-in Gradle/external-tool/network flags. v0.4.2 adds an opt-in Android path to the existing audit command; it is published and is the current npm baseline.
-
-This document describes the implemented command surface in my-dev-kit-lab. Package metadata and the latest published npm baseline are both `0.4.2`. Planned command direction belongs in [ROADMAP.md](ROADMAP.md) and is never presented here as current syntax.
-
-Current rule: do not treat planned commands or planned flags as implemented behavior.
+This reference describes the implemented my-dev-kit-lab command surface. It covers repository verification, experiments, evidence rendering, generic audits, security validation, Android validation, and documentation checks. Planned commands and flags belong in [ROADMAP.md](ROADMAP.md), not in current syntax examples.
 
 ## Installation and validation
 
@@ -18,6 +14,9 @@ Current repository validation commands:
 - `npm run build`
 - `npm run test`
 - `npm run verify`
+- `npm run docs:check`
+
+Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm run verify` builds and executes the complete repository verification chain; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
 
 Focused validation scripts from `package.json`:
 
@@ -43,16 +42,9 @@ Current implemented commands:
 - `npm run experiment:describe -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment context-strategy-comparison`
 - `npm run run-controlled-experiment`
-- `npm run render-experiment-report`
-- `npm run generate-experiment-plots`
-- `npm run run-visualization-demos`
-- `npm run build-gallery`
-- `npm run run-final-demo`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`
 - `npm run evaluate-token-savings`
-- `npm run lab-demo`
-- `npm run capture-demo-report`
 
 Typical examples:
 
@@ -66,11 +58,47 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --agents fake-agent --complexities short --no-screenshot
 ```
 
+`experiment:run` options for `context-strategy-comparison`:
+
+| Option | Allowed value or default |
+|---|---|
+| `--experiment <id>` | Required; currently `context-strategy-comparison` |
+| `--target <path>` | Optional; defaults to self mode |
+| `--out <dir>` | Defaults to `lab-output/context-strategy-comparison` |
+| `--cases <path>` | Defaults to `examples/token-savings-cases.json` |
+| `--project-profiles <path>` | Defaults to `benchmarks/contracts/benchmark-project-profiles.json` |
+| `--case <ids>` | Optional comma-separated case filter |
+| `--benchmark-project <ids>` | Optional comma-separated project filter |
+| `--agents <ids>` | `fake-agent`, `codex`, `claude`; defaults to `fake-agent` |
+| `--strategies <ids>` | `raw-full-file`, `my-dev-kit-guided`; defaults to both |
+| `--complexities <ids>` | `short`, `medium`, `long`, `multi-step`; defaults to `short` |
+| `--timeout-ms <n>` / `--max-runs <n>` | Optional positive integers |
+| `--continue-on-failure` / `--no-continue-on-failure` | Defaults to continue |
+| `--include-real-agents` / `--require-agents` | Opt into or require configured provider CLIs |
+| `--command-template-codex <template>` / `--command-template-claude <template>` | Optional provider command templates |
+| `--no-screenshot` | Accepted for compatibility; plugin-aware reporting does not capture one yet |
+
 Current behavior:
 
 - `context-strategy-comparison` is the only registered plugin
 - omitting `--target` uses self mode
 - target projects are not modified by experiment execution
+
+Outputs are written beneath the selected `--out` directory. Invalid experiment IDs or configuration fail with a nonzero exit code. Real-agent commands can also record structured partial outcomes such as timeouts, unavailable agents, usage limits, or invalid output.
+
+## Reports, plots, and gallery
+
+| Command | Purpose |
+|---|---|
+| `npm run render-experiment-report` | Render JSON and HTML from experiment artifacts |
+| `npm run generate-experiment-plots` | Produce plot data and deterministic SVG charts |
+| `npm run run-visualization-demos` | Run my-dev-kit visualization examples |
+| `npm run build-gallery` | Build a gallery manifest and static HTML index |
+| `npm run capture-demo-report` | Capture an optional report screenshot |
+| `npm run run-final-demo` | Run the deterministic experiment-to-gallery workflow |
+| `npm run lab-demo` | Run the compact lab demonstration |
+
+Each command accepts its own input and output options. Use the examples in [WORKFLOWS.md](WORKFLOWS.md) for ordered procedures and [GALLERY.md](GALLERY.md) for gallery-specific paths and limitations.
 
 ## Security-validation commands
 
@@ -88,13 +116,18 @@ Current implemented commands:
 
 Current options:
 
-- `--target <path>`
-- `--checks <ids>`
-- `--profile <id>`
-- `--format text|json|text,json`
-- `--fail-on blocker|high|medium|low`
-- `--out <dir>`
-- `--report-prefix <name>`
+| Option | Allowed value or default |
+|---|---|
+| `--target <path>` | Optional; defaults to self mode |
+| `--checks <ids>` | Any implemented check IDs listed below; explicit selection overrides profile defaults |
+| `--profile <id>` | `node-cli-package`, `local-tool`, `npm-package`, `android`; optional |
+| `--format <ids>` | `text`, `json`, or both; defaults to both |
+| `--fail-on <level>` | `blocker`, `high`, `medium`, `low`; defaults to `blocker` |
+| `--out <dir>` | Defaults to `reports/security` |
+| `--report-prefix <name>` | Optional; otherwise derived from target metadata |
+| `--android-gradle-operations <ids>` | Closed list: `wrapper-version`, `tasks`, `assemble-debug`, `unit-test-debug`, `lint-debug`; defaults to none |
+| `--android-external-tools <ids>` | Closed list: `semgrep`, `osv`, `android-lint`, `dependency-check`; defaults to none |
+| `--android-external-network <policy>` | `deny` or `allow-requested`; defaults to `deny` |
 
 Current check groups:
 
@@ -117,7 +150,7 @@ Current implemented profiles:
 
 Current profile rule:
 
-- `android` is implemented and selects the static Android validation path
+- `--profile android` is implemented and selects the static Android validation path
 - Compose/XML/mixed classification is detected within that profile; `android-compose` is not an accepted profile
 
 Examples:
@@ -138,10 +171,15 @@ Current behavior:
 - target files are not modified by default
 - optional tools can be skipped and are reported as skipped, not passed
 - this is automated validation, not manual pentest
+- no `--profile` and no `--checks` runs `deps,package,static,cli-adversarial,fuzz`
+- explicit `--checks` overrides profile defaults
+- Android defaults start zero Gradle operations, external tools, and network operations; all three require closed, profile-specific opt-ins
+- reports default to `reports/security/<prefix>-security-validation.txt` and `.json`, subject to `--format`
+- the exit status follows the selected `--fail-on` threshold; invalid options or targets fail cleanly
 
 ## Audit commands
 
-The generic audit framework is implemented. `code-rot` was implemented in `v0.3.0`; `security` is implemented in the previously published `v0.3.2` package state. The `v0.3.3` implementation extended `code-rot` with Java/Kotlin support without changing the command surface. The published `v0.3.4` historical implementation further hardens mixed-language, report-determinism, cross-platform/path, and CRLF/LF behavior without adding new flags or audit types. The audit framework is separate from `security:validate`: `npm run audit -- --types security` adapts `security:validate`'s internals and report family into the audit report surface, but does not replace the standalone `security:validate` command.
+The generic audit framework runs conservative repository-health checks. It is separate from `security:validate`: selecting the `security` audit type adapts the standalone validator's results into the audit report while preserving the original security report.
 
 Current implemented command:
 
@@ -151,12 +189,15 @@ Current implemented command:
 
 Current options:
 
-- `--target <path>`
-- `--types <ids>`
-- `--include <ids>`
-- `--format text|json|text,json`
-- `--fail-on blocker|high|medium|low|none`
-- `--out <path>`
+| Option | Allowed value or default |
+|---|---|
+| `--target <path>` | Optional; defaults to self mode |
+| `--types <ids>` | `code-rot`, `security`, or both; defaults to `code-rot` |
+| `--include <ids>` | `docs`, `tests`, `package`, `architecture`, `cli`; defaults to all |
+| `--format <ids>` | `text`, `json`, or both; defaults to both |
+| `--fail-on <level>` | `blocker`, `high`, `medium`, `low`, `none`; defaults to `blocker` |
+| `--out <path>` | Optional report output directory |
+| `--android` | Optional; requires `--types` to include `security` |
 
 Current implemented audit types:
 
@@ -180,6 +221,7 @@ npm run audit -- --types security --fail-on none
 npm run audit -- --target /path/to/local/project --types security --fail-on none
 npm run audit -- --types code-rot,security --fail-on none
 npm run audit -- --target /path/to/local/project --types code-rot,security --fail-on none
+npm run audit -- --target /path/to/android/project --types security --android --format text,json --fail-on none
 ```
 
 ```powershell
@@ -195,57 +237,14 @@ Current behavior:
 - audit findings are heuristic candidates, not proof of defects
 - target files are not modified
 - audit does not auto-fix issues
+- `--android` runs the same nineteen static Android checks through the existing adapter; confirmed findings can map to audit issues, while `CandidateEvidence` remains review-only
+- omitting `--android` starts no Android validation
 - reports are written under `reports/audits/<type>/code-rot-audit.txt` and/or `code-rot-audit.json` by default (the report filename is fixed regardless of `--types`; only the containing directory changes, e.g. `reports/audits/security/` for `--types security`)
-- the `v0.3.1` package state added source-facts summaries to audit reports; the previously published `v0.3.2` state adds Python project metadata and the security summary described below, without adding new command flags
-- the published `v0.3.3` implementation extends code-rot analysis to Java/Kotlin and static JVM metadata without adding new command flags or new top-level report fields
+Current report details:
 
-`v0.3.1` report details (published):
+- JSON reports include source-facts, Python project metadata, and security-summary fields where applicable; JVM metadata remains detector input rather than a separate top-level field.
+- The security summary records verdicts, check/finding counts, mapped issue counts, and links to the original security reports. Skipped optional checks remain skips and never become issues or passes.
+- Source-facts findings are conservative candidate evidence. The language analyzers do not provide type checking, full module/classpath resolution, runtime reachability, clone detection, coverage proof, compiler execution, Gradle/Maven execution, or target-test execution.
+- The audit command has no `--checks`, `--profile`, `--languages`, or `--frameworks` option. Android audit integration uses only `--android`.
 
-- JSON reports include a top-level `sourceFacts` summary with `totalFilesAnalyzed`, `filesByLanguage`, `filesByParseStatus`, `analyzerDiagnosticCount`, `filesWithDiagnosticsCount`, and `warnings`.
-- Text reports include a `Source facts` section with analyzed-file and parse-status counts.
-- Source-facts-derived issue evidence is still conservative candidate evidence. It can mention parsed TypeScript/JavaScript imports, exports, declarations, dynamic imports, or duplicate declaration candidates.
-- TypeScript/JavaScript source facts are syntax-only and single-file; they do not imply type-checking, full module resolution, `tsconfig` path alias resolution, runtime reachability, clone detection, or coverage analysis.
-
-`v0.3.2` report details (published):
-
-- JSON/text reports include a top-level `pythonProjectMetadata` field: presence booleans for `pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `tox.ini`, `pytest.ini`, plus a best-effort project name and a pytest-configuration flag. Populated (all-false/null where absent) regardless of `--types`.
-- Source-facts-derived evidence can also mention parsed Python imports, `__all__`, and module/class-level declarations. Python static analysis is regex/line-based and dependency-free; it does not execute Python, perform type checking, or resolve dependencies.
-- Running `--types security` (or `--types code-rot,security`) adds a top-level `securitySummary` field: `ran`, `verdict`/`verdictLabel`/`recommendedNextStep`, check counts (`totalChecks`/`checksPassed`/`checksWarning`/`checksFailed`/`checksSkipped`), `findingCounts` (`blocker`/`major`/`minor`/`informational`), `mappedIssueCount`, and `reportPaths` (`text`/`json`) pointing at the original `reports/security/*.txt`/`*.json` report. `securitySummary.ran` is `false` (all other fields null/zero) when `security` was not selected.
-- Security findings are mapped into the `issues` array with `auditType: "security"` and `detectorId: "security-validation-adapter"`. Severity maps blocker→blocker, major→high, minor→medium, informational→info. Skipped optional security checks (e.g. an unavailable static-scan tool) are represented only in `securitySummary`'s check counts — never as an issue, never as a passed check.
-- The security audit adapter runs the same default check groups `security:validate` runs with no flags (`deps`, `package`, `static`, `cli-adversarial`, `fuzz`); there is currently no `--checks`/`--profile` passthrough on the `audit` command itself.
-
-`v0.3.3` behavior (published):
-
-- `npm run audit -- --types code-rot` uses the same command and report paths while adding Java and Kotlin analyzer support behind the existing source-facts pipeline.
-- Java/Kotlin source-facts evidence can now appear in `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` findings. This is conservative static-analysis evidence only: no compiler parsing, no type/classpath resolution, no Gradle/Maven execution, and no target-project test execution.
-- `docs-code-mismatch` can now flag Java/Kotlin backtick-quoted symbol claims and static Gradle/Maven command/feature claims using JVM metadata collected from scanned files only.
-- No new top-level audit report field is added for JVM metadata; `pythonProjectMetadata` and `securitySummary` remain the additive report fields from `v0.3.2`.
-
-## Planned command direction
-
-These examples are future direction only. They are not current behavior unless the corresponding roadmap version is implemented.
-
-Planned `v0.3.x` direction:
-
-- language-aware code-rot support may later add selectors such as `--languages`; there is no current `--languages` flag
-- framework-aware code-rot profile selection is future/TBD; there is no current `--frameworks` flag
-
-Implemented Android validation command:
-
-- `npm run security:validate -- --target <path> --profile android`
-- Android Compose/XML/mixed classification is selected by detection; `android-compose` is not a separate accepted profile.
-
-Implemented v0.4.2 audit opt-in (published; current npm baseline):
-
-- `npm run audit -- --target <path> --types security --android --format text,json --fail-on none`
-- `--android` requires `--types` to include `security` and invokes the validator programmatically through the existing adapter.
-- Confirmed Android `SecurityFinding` records map to normal audit issues; CandidateEvidence remains a bounded review-evidence summary.
-- Omitting `--android` preserves existing behavior and starts no Android validation.
-
-There is no `--profile` flag on `npm run audit`; Android integration uses the closed `--android` opt-in. There is no `npm run audit:all`, `npm run audit:quality`, `npm run security:pentest`, `npm run security:android`, `npm run mobile:detect`, or `npm run mobile:validate` script.
-
-Planned `v0.4.3` direction (not implemented — see [ROADMAP.md](ROADMAP.md)):
-
-- Additional strategy IDs on the existing `experiment:run -- --experiment context-strategy-comparison` command surface (candidate names, subject to confirmation): an architecture-only strategy, an architecture-plus-implementation-refresh strategy, an architecture-plus-implementation-and-test-refresh strategy, a full-workflow-library baseline, a bounded-workflow-packet strategy, and a combined bounded-stage-context strategy. No new top-level command is planned; this extends the existing experiment-plugin command surface.
-- Conceptual new inputs (exact flag names to be confirmed at implementation time): a case/fixture-expectation file, a context-capsule path, a retrieval-audit path, and a `WorkflowInstructionPacket` path, alongside the existing `--target`, `--agents`, and `--complexities` options.
-- There is currently no command that parses a context capsule, retrieval-audit record, or `WorkflowInstructionPacket`; `runMyDevKitRetrieval.ts` only invokes `index`, `search`, `lookup`, `slice`, and `source`.
+Unsupported command/profile names such as `android-compose`, `security:pentest`, `security:android`, `mobile:detect`, and `mobile:validate` are not current syntax. See [ROADMAP.md](ROADMAP.md) for approved future scope.

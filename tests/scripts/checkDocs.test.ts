@@ -89,7 +89,7 @@ describe("capability, family, and boundary preservation", () => {
     ["README pillar", "README.md", (body: string) => body.replace(/experiment/gi, "study"), "preserved topic \"experiment\""],
     ["architecture subsystem", "docs/ARCHITECTURE.md", (body: string) => body.replace(/src\/mobile\/android/g, "mobile-subsystem"), "src/mobile/android"],
     ["command family", "docs/COMMANDS.md", (body: string) => body.replace(/experiment:list/g, "list-experiments"), "experiment:list"],
-    ["workflow family", "docs/WORKFLOWS.md", (body: string) => body.replace(/## Workflow 1: Fake-agent final demo/, "## Removed demo"), "Fake-agent final demo"],
+    ["workflow family", "docs/WORKFLOWS.md", (body: string) => body.replace(/## Fake-agent final demo/, "## Removed demo"), "Fake-agent final demo"],
     ["published changelog release", "CHANGELOG.md", (body: string) => body.replace(/^## \[0\.3\.4\][\s\S]*?(?=^## )/m, ""), "published release 0.3.4"],
     ["current/planned distinction", "docs/CURRENT_STATE.md", (body: string) => body.replace(/v0\.4\.3/g, "next patch").replace(/not implemented/g, "later"), "v0.4.3"],
   ])("rejects removing %s", (_name, file, transform, message) => expectFailure(

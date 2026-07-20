@@ -8,7 +8,7 @@ No implementation changes are recorded. `v0.4.3` remains planned and not impleme
 
 ## [0.4.2] - 2026-07-12
 
-Android-aware extension of the existing general security audit adapter. `v0.4.2` is published; it is the current npm baseline.
+Extended the existing general security audit adapter with Android-aware validation. This is the latest release.
 
 ### Added
 
@@ -27,7 +27,7 @@ Android-aware extension of the existing general security audit adapter. `v0.4.2`
 
 ## [0.4.1] - 2026-07-12
 
-Advanced Android security validation, published on top of the previously published `v0.4.0` baseline. `v0.4.1` is the current published baseline.
+Added advanced Android security validation on top of v0.4.0. At publication, v0.4.1 superseded v0.4.0.
 
 ### Added
 
@@ -66,7 +66,7 @@ Android/mobile validation MVP published as `v0.4.0`.
 
 ## [0.3.4] - 2026-07-10
 
-Package metadata is `0.3.4`, and the npm registry now contains `0.3.4`. `v0.3.3` is the previous published baseline.
+Published package version 0.3.4, superseding v0.3.3.
 
 ### Added
 
@@ -298,10 +298,6 @@ Final security-validation gate with reusable multi-project target support.
 ### Added (security-validation gate)
 
 - Added static scan integration for CodeQL and Semgrep.
-
-### Added
-
-- Added static scan integration for CodeQL and Semgrep.
   - CodeQL: local CLI availability check; full analysis delegates to GitHub Actions.
   - Semgrep: local or npx fallback; `.semgrep.yml` covers subprocess safety, path traversal, unsafe fs.rm, and secret leakage.
   - Both scanners return structured `skipped` results when unavailable — never crash.
@@ -340,14 +336,14 @@ Security validation foundation and package checks.
 
 ### Added
 
-- added security-validation planning and framework documentation for the staged release-security track
-- added security validation core types, configuration, command runner, and test matrix scaffolding
-- added dependency validation command support through `security:deps`
-- added package-content validation command support through `security:package`
-- added initial security unit test coverage through `test:security`
-- added Windows-safe npm command resolution support used by the security scripts
-- added parsers and runners for `npm audit`, `npm audit --omit=dev`, `npm ls --all`, `npm outdated`, and optional OSV-Scanner execution
-- added forbidden package-content detection and structured `npm pack --dry-run` parsing
+- Added security-validation planning and framework documentation for the staged release-security track.
+- Added security validation core types, configuration, command runner, and test matrix scaffolding.
+- Added dependency validation through `security:deps`.
+- Added package-content validation through `security:package`.
+- Added initial security unit coverage through `test:security`.
+- Added Windows-safe npm command resolution for security scripts.
+- Added parsers and runners for `npm audit`, `npm audit --omit=dev`, `npm ls --all`, `npm outdated`, and optional OSV-Scanner execution.
+- Added forbidden package-content detection and structured `npm pack --dry-run` parsing.
 
 ### Validation
 
