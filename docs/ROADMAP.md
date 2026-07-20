@@ -12,9 +12,10 @@ flowchart LR
   B --> C[v0.2.2<br/>published security-validation baseline]
   C --> D[v0.3.0-v0.3.4<br/>published audit and code-rot track]
   D --> E[v0.4.0<br/>published Android MVP]
-  E --> F[v0.4.1 published advanced Android security] --> G[v0.4.2 release-prepared, not yet published]
-  G --> H[individual v0.5.0 through v0.9.2<br/>experiment evidence releases]
-  G --> H[v1.0.0<br/>stable framework]
+  E --> F[v0.4.1 published advanced Android security] --> G[v0.4.2 published Android-aware audit adapter]
+  G --> G2[v0.4.3 planned<br/>stage-specific bounded-context evaluation]
+  G2 --> H[individual v0.5.0 through v0.9.2<br/>experiment evidence releases]
+  G2 --> H[v1.0.0<br/>stable framework]
   H --> I[v1.1.0-v1.4.0<br/>post-stable releases]
 ```
 
@@ -31,9 +32,11 @@ The strongest product thesis remains:
 * The most important usefulness cases are large repositories, localized tasks, warm index reuse, context-window limits, retrieval precision, stale-index risk detection, and better coding-agent edit quality.
 * Security validation, audit reporting, code rot detection, code quality checks, mobile validation, and manual pentest support should strengthen release-readiness and implementation-readiness workflows around this evidence system.
 
-## Current baseline
+## Release continuity and planned sequence
 
 ### v0.2.0 — completed
+
+Status: **published**.
 
 * Generic experiment-plugin contracts, registry, runner, configuration, target model, and normalized results.
 * `context-strategy-comparison` as the first experiment plugin.
@@ -45,12 +48,16 @@ The strongest product thesis remains:
 
 ### v0.2.1 — previous package baseline
 
+Status: **the npm registry lists `0.2.1`**; no matching Git tag or GitHub Release was found during this recovery.
+
 * Correct target-project execution of `test:security` during external-target validation, including installed-package execution.
 * Documentation synchronized with the implemented plugin and security-validation architecture.
 * Fortification continues after this baseline without changing the backward-compatible `security:validate` command.
 * The current package baseline is not the final security, audit, mobile, or pentest architecture.
 
 ### v0.2.2 — fortified automated security validation (published)
+
+Status: **published**.
 
 Purpose:
 
@@ -111,7 +118,7 @@ Current status:
 
 ### v0.3.0 — generic audit framework and code rot detector (published)
 
-The generic audit framework and code-rot detector described below were published in v0.3.0.
+Status: **published**.
 
 Purpose:
 
@@ -187,57 +194,36 @@ Published scope:
 * The audit report schema is stable at `schemaVersion` `"1.0"` with 13 top-level fields; `metadata.auditTypes` is included.
 * Reports are written under `reports/audits/code-rot/` by default.
 * External-target audits are non-destructive.
-* This work has not been committed as a numbered release, tagged, or published to npm.
 
-### v0.3.1 — code quality detector
+### v0.3.1 — language-aware TypeScript/JavaScript code-rot support
+
+Status: **published**.
 
 Purpose:
 
-* Add code-quality checks as a separate audit detector family.
-* Keep code quality separate from code rot and security, while allowing shared evidence in unified audit reports.
+* Add a language-aware source-facts substrate and TypeScript/JavaScript support to the existing code-rot audit family without introducing a new audit type.
 
-Features:
+Completed scope:
 
-* Detect overly large files.
-* Detect overly large functions where deterministic analysis is feasible.
-* Detect high-complexity candidates.
-* Detect duplicate implementation candidates.
-* Detect poor module boundaries.
-* Detect missing tests for exported public modules.
-* Detect testability issues.
-* Detect TypeScript strictness/config drift.
-* Detect lint/tooling absence or inconsistency.
-* Detect dependency bloat signals.
-* Treat findings as maintainability risks, not automatic proof of bad code.
+* Added normalized source facts, analyzer registration, TypeScript/JavaScript parsing, source-facts-aware dead-code/duplicate/test-rot signals, and report summaries.
+* Preserved the existing `npm run audit` surface, stable issue model, and non-destructive target boundary.
 
-Command direction:
+Dependencies:
 
-* Reuse:
-
-  * `npm run audit`
-
-* Add:
-
-  * `npm run audit -- --target <path> --types quality`
-  * `npm run audit -- --target <path> --types code-rot,quality`
-  * `--quality-checks complexity,duplication,modularity,testability,typescript,lint,deps`
-
-Suggested architecture:
-
-* `src/audits/codeQuality/`
-* `src/audits/codeQuality/detectors/`
-* `tests/audits/codeQuality/`
+* Builds on the `v0.3.0` generic audit framework and code-rot detector registry.
 
 Acceptance:
 
-* Quality findings use the shared audit issue schema.
-* Quality findings include evidence and confidence.
-* Quality detector does not duplicate code rot detector logic unnecessarily.
-* Existing code rot audit still works.
-* Existing security validation still works.
-* Existing experiment commands still work.
+* TypeScript/JavaScript evidence is deterministic and conservative; unsupported or ambiguous semantics are not overclaimed.
+* Existing experiment and standalone security-validation behavior remains compatible.
+
+Explicit exclusion:
+
+* The `quality` audit type and deterministic code-quality detector family remain planned, unimplemented work; `v0.3.1` does not own them.
 
 ### v0.3.2 — security results in unified audit reports
+
+Status: **published**. This release also added Python source-facts support.
 
 Purpose:
 
@@ -285,63 +271,30 @@ Acceptance:
 * Existing security reports remain available.
 * Existing experiment framework remains unchanged.
 
-### v0.3.3 — project-wide audit command
+### v0.3.3 — Java/Kotlin language-aware code-rot support
+
+Status: **published**.
 
 Purpose:
 
-* Make the audit framework easy to use before implementation, refactor, release readiness, or publication.
-* Provide a single memorable project-wide audit command.
+* Extend the language-aware code-rot substrate to Java and Kotlin while preserving conservative, dependency-free analysis.
 
-Features:
+Completed scope:
 
-* Add audit profiles.
-* Add default profile detection.
-* Add combined audit summary.
-* Add issue deduplication across code rot, quality, and security.
-* Add source attribution for each issue.
-* Add release-readiness recommendation.
-* Add implementation-readiness recommendation.
-* Add suggested next steps grouped by category.
-* Add stable JSON output for future orchestrator integration.
-* Write combined reports under `reports/audits/project/`.
+* Added Java/Kotlin analyzers, JVM project metadata, detector integration, and static Gradle/Maven documentation-claim checks.
 
-Command direction:
+Dependencies:
 
-* Main command:
-
-  * `npm run audit -- --target <path>`
-
-* Specialized behavior through flags:
-
-  * `--types code-rot,quality,security`
-  * `--include docs,tests,package,dependencies,cross-platform,architecture,cli,security`
-  * `--security-checks deps,package,static,cli-adversarial,fuzz,attack-scenarios,secrets,network`
-  * `--quality-checks complexity,duplication,modularity,testability,typescript,lint,deps`
-  * `--rot-checks stale-references,docs-code-mismatch,duplicates,dead-code,test-rot,architecture,package,cross-platform,security-assumptions`
-  * `--profile node-cli-package,local-tool,npm-package,web-app`
-  * `--format text,json`
-  * `--fail-on blocker,high,medium,low,none`
-
-Suggested architecture:
-
-* `src/audits/core/auditProfile.ts`
-* `src/audits/core/auditProfileResolver.ts`
-* `src/audits/core/auditResultMerger.ts`
-* `src/audits/core/auditIssueDeduper.ts`
-* `src/audits/core/auditRecommendation.ts`
-* `src/audits/core/auditReadinessVerdict.ts`
-* `src/audits/profiles/`
-* `tests/audits/integration/`
+* Builds on the `v0.3.1` source-facts substrate and the `v0.3.2` additive report fields.
 
 Acceptance:
 
-* `npm run audit -- --target <path>` works as the main project-wide audit.
-* `--types code-rot`, `--types quality`, `--types security`, and `--types code-rot,quality,security` all work.
-* One report contains combined findings without losing category or source attribution.
-* Duplicate findings are merged or cross-linked.
-* Report states whether the project is ready for implementation, refactor, release preparation, or publication.
-* Existing `security:validate` remains available.
-* Existing experiment framework remains available.
+* Java/Kotlin findings remain analyzer-scoped and do not claim compiler, classpath, runtime, Android, or dependency-freshness proof.
+* Existing command and report schemas remain compatible.
+
+Explicit exclusion:
+
+* Project-wide combined audit defaults, audit profiles, cross-type deduplication, and the `quality`, `project`, and `all` audit types remain planned and unimplemented.
 
 ### v0.3.4 — cross-language code-rot fixture and stability pass
 
@@ -380,7 +333,7 @@ Acceptance:
 
 ### v0.4.1 — advanced Android security
 
-Status: **published**; current npm baseline.
+Status: **published**.
 
 Purpose:
 
@@ -402,7 +355,7 @@ Acceptance:
 
 ### v0.4.2 — Android-aware general security audit adapter
 
-Status: **implementation complete, release-prepared (package metadata `0.4.2`), unreleased/not yet published**.
+Status: **published**; current npm baseline.
 
 Purpose:
 
@@ -422,7 +375,62 @@ Acceptance:
 
 * The opt-in audit path exposes Android summaries, report references, and mapped Android security findings.
 * Generic audit output remains schema-stable and the standalone validator remains authoritative for complete Android validation evidence.
-* Package metadata is release-prepared at 0.4.2; publication to npm, a `v0.4.2` tag, and a GitHub Release remain a separately authorized step.
+* Package metadata, the `v0.4.2` tag, and the GitHub Release are published; `v0.4.2` is the current npm baseline.
+
+### v0.4.3 — stage-specific bounded-context and workflow-instruction evaluation
+
+Status: **planned, unreleased, and not implemented**. Candidate identifiers and field names require confirmation against current registry, type, and CLI conventions during a separately authorized implementation.
+
+Purpose:
+
+* Extend the existing experiment and report infrastructure so it can deterministically compare broad and bounded stage-context strategies against identical immutable targets, using explicit fixture expectations and structured packet evidence, without joining or replacing the production execution path of my-dev-kit or my-dev-kit-orchestrator.
+
+Cross-repository dependency order (each repository remains independently releasable; my-dev-kit-lab has no runtime/package dependency on the other two):
+
+1. `my-dev-kit` `1.10.1` — adds architecture/implementation/test-implementation context roles, structured `ContextRequest` input, changed-file/symbol intake, before/after index identities, evidence groups, bounded test-infrastructure discovery, deterministic responsibility mapping, and adequacy/truncation/freshness/provenance reporting on top of the existing context capsule (schema `1.0.0`) and retrieval-audit record (schema `1.0.0`).
+2. `my-dev-kit-orchestrator` `1.2.1` — adds a structured workflow/command/rule/report-contract catalog with stable IDs, a deterministic reference resolver, `WorkflowInstructionPacket` assembly, and manual (non-automatic) implementation/test-implementation context-refresh integration into the existing ten-stage feature workflow.
+3. `my-dev-kit-lab` `0.4.3` (this repository) — the scope described below.
+
+Ownership boundaries approved for this patch:
+
+* my-dev-kit-lab owns: controlled context-strategy experiments and strategy matrices, explicit fixture expectations, context-size measurement, required-evidence recall, irrelevant-file/irrelevant-instruction inclusion, test-responsibility-mapping completeness, provenance completeness, truncation/adequacy/freshness evaluation, full-file-fallback and unnecessary-read measurement (where source packet/audit data exposes it), repeated-run determinism, target immutability, machine- and human-readable reports, and optional plots/screenshots. It also continues to own the existing security-validation and code-rot-audit systems, unmodified by this patch.
+* my-dev-kit owns: repository indexing, architecture/implementation/test-implementation role context, `ContextRequest`, context capsules, retrieval-audit records, changed-file/changed-symbol evidence, before/after index evidence, graph-diff evidence, and repository-evidence adequacy/provenance/test-responsibility-mapping-to-repository-evidence.
+* my-dev-kit-orchestrator owns: workflow catalog content, stable workflow/stage/command/rule/report-contract IDs, exact workflow selection and dependency resolution, `WorkflowInstructionPacket`, stage prompt assembly, `TaskState`, stage order, artifact lifecycle, manual context-freshness rules, correction routing, judge interpretation, and publication authorization.
+* Explicit non-owner boundaries: my-dev-kit-lab must not become the production repository indexer, the normal context-packet generator, or the workflow-instruction resolver; must not assemble production coding-agent prompts, control stage progression, mark orchestrator stages complete, execute normal production implementation workflows, automatically edit target repositories, become a required production dependency of either upstream project, or authorize publication. my-dev-kit must not own lab strategy verdicts, experiment scoring, or report comparisons. The orchestrator must not own lab metrics, lab report generation, or lab target-immutability evidence.
+
+Problem being solved:
+
+* Current evaluation (`src/evaluation/scoreCorrectness.ts` and the `context-strategy-comparison` plugin) is primarily agent-answer and broad-context-size oriented; it does not directly measure whether selected evidence contains required files, symbols, workflow-instruction IDs, contracts, validators, errors, tests, test infrastructure, responsibility mappings, or provenance. It does not yet measure whether full workflow-library or broad-repository-dump baselines waste context or include irrelevant material relative to a bounded alternative — that must be measured, not assumed. It does not yet compare architecture-only context against implementation-refreshed and test-refreshed context under identical target conditions to evaluate staleness. It does not yet evaluate explicit test-responsibility mappings for test-writing stages. It explicitly excludes subjective LLM-based quality/relevance/usefulness judging from this patch's scope.
+
+In scope for `v0.4.3`:
+
+* Extend the existing `src/experiments` plugin/registry/runner infrastructure (do not create a second runner). Extend the existing `context-strategy-comparison` plugin (`src/experiments/plugins/contextStrategyComparison/`) rather than duplicating it; existing strategy IDs `raw-full-file` and `my-dev-kit-guided` are preserved.
+* Candidate new strategy IDs (planned, subject to registry-convention confirmation): an architecture-context-only strategy; an architecture-plus-implementation-refresh strategy; an architecture-plus-implementation-and-test-refresh strategy; a full-workflow-library baseline; a bounded workflow-instruction-packet strategy; and a combined bounded-stage-context strategy (`TaskState`/equivalent fixture plus `WorkflowInstructionPacket` plus repository-evidence packet or context capsule).
+* Readers for the my-dev-kit context capsule, the my-dev-kit retrieval-audit record, and the orchestrator `WorkflowInstructionPacket`, each with schema-major validation, compatible-optional-field handling, and explicit failure (not silent reinterpretation) on malformed input or unsupported schema majors. These are new modules; the existing adapter `src/evaluation/runMyDevKitRetrieval.ts` currently invokes only `index`, `search`, `lookup`, `slice`, and `source` and does not parse any of these three structured payloads today.
+* A normalized internal observation model over reader output (additive to, and following the conventions of, existing types such as those in `src/evaluation/types.ts`).
+* An explicit fixture-expectation schema (required/allowed/forbidden evidence, expected adequacy/freshness/truncation/warnings/unresolved items, stable case and requirement IDs) — extending, not replacing, the existing `BenchmarkTaskAnswerKey`/`ExpectedContextTarget` concepts in `src/evaluation/types.ts`.
+* Deterministic, evidence-centered metrics: character count (reusing `src/core/countTokens.ts` conventions), estimated tokens (`ceil(characters / 4)`, explicitly labeled as an estimate), required-evidence recall, irrelevant-file inclusion, irrelevant-instruction inclusion, responsibility-mapping completeness, provenance completeness, truncation, adequacy classification (correctly adequate / correctly inadequate / false adequate / false inadequate / unknown), freshness classification (fresh / stale / unknown), full-file-fallback measurement, unnecessary-read measurement (both only where source audit data supports them), and repeated-run determinism. Every recall/inclusion metric reports numerator, denominator, and rate explicitly; missing data is reported as unavailable, never coerced to zero; zero-denominator cases have explicit, documented behavior.
+* Target-immutability before/after snapshot evidence, extending the existing read-only, non-destructive snapshot pattern in `src/securityValidation/attackScenarios/targetSnapshot.ts` (which currently captures git-status entries and a timestamp, not branch/commit/file hashes) to the experiment-target context, or an equivalent additive mechanism under `src/experiments/`. Any target mutation caused by an experiment is a failure; the target is never auto-cleaned or reset.
+* Machine-readable (JSON) and human-readable (text) reports through the existing `src/report`/`src/report/experiments` infrastructure, with bounded/deterministic detail lists, explicit missing/not-applicable/zero-occurrence distinctions, and additive schema evolution (no new report schema major solely for new optional fields).
+* Optional plot data and SVG plots (`src/plots`) and optional screenshot/gallery reuse (`src/screenshot`, `src/gallery`), consistent with current usage — not required for core correctness.
+* Regression coverage for the existing audit framework (`src/audits`), security-validation framework (`src/securityValidation`), and benchmark/evaluation infrastructure (`src/evaluation`), none of which this patch may weaken or replace.
+
+Explicitly out of scope / deferred for `v0.4.3`:
+
+* Production repository indexing, production context generation, workflow-catalog ownership or selection, workflow-stage progression, production prompt assembly, coding-agent execution, or automatic target editing (all remain owned by my-dev-kit or the orchestrator).
+* LLM-based strategy grading, assertion-quality scoring, relevance judgment, general prose-usefulness scoring, human-equivalent manual-troubleshooting scoring, and any broad semantic precision/recall platform — these remain deferred pending a future, separately approved decision, and are distinct from the deterministic, fixture-explicit oracle/failure-path evidence this patch does evaluate.
+* A shared cross-repository schema package, a production dependency on my-dev-kit or the orchestrator, automatic publication, and any replacement of the existing security or code-rot systems.
+* Broader `v0.8.0` retrieval-precision/recall platform work (see the `v0.8.0` entry below) — this patch must not absorb that scope, and that scope must not be used to shrink this patch's required evidence-centered metrics.
+
+Acceptance criteria:
+
+* Every strategy runs against an identical, immutable target and case-expectation set; strategy order, tool versions, and inputs are recorded and fixed.
+* Every metric derives from explicit fixture expectations and/or parsed packet/audit data, never from subjective judgment; missing data is reported as unavailable rather than zero.
+* Repeated canonical runs (normalizing only timestamps, temporary paths, and timing) produce identical selected evidence, metrics, warnings, adequacy, truncation, and report structure.
+* Unsupported context-capsule/retrieval-audit/`WorkflowInstructionPacket` schema majors fail clearly rather than being silently reinterpreted.
+* Existing audits, benchmarks, reports, security validation, and CLI behavior regress cleanly; no existing experiment plugin, strategy, report path, or command is removed or broken.
+* my-dev-kit-lab remains outside the production execution path of my-dev-kit and the orchestrator, and never becomes a required runtime dependency of either.
+* This section's publication-state wording is accurate as of `v0.4.2` (published) at the time `v0.4.3` planning was written; `v0.4.3` itself is not published, tagged, or released by this planning update.
 
 ### Post-v1 / version TBD — manual pentest
 
@@ -433,6 +441,8 @@ Status: **deferred**.
 * Automated security or Android validation must never be described as manual pentesting.
 
 ### v0.5.0 — warm-index reuse experiment support
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -456,6 +466,8 @@ Acceptance:
 
 ### v0.5.1 — expanded warm-index benchmark suite
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Add enough tasks to make warm-index reuse meaningful.
@@ -478,6 +490,8 @@ Acceptance:
 
 ### v0.5.2 — warm-index real-agent campaigns
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Run Codex and Claude on warm-index experiments with structured partial-outcome reporting.
@@ -497,6 +511,8 @@ Acceptance:
 * Reports distinguish infrastructure success from agent/provider limitations.
 
 ### v0.6.0 — index freshness and changed-file detection
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -520,6 +536,8 @@ Acceptance:
 * Freshness status appears in experiment artifacts and reports.
 
 ### v0.6.1 — affected-neighborhood experiments
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -545,6 +563,8 @@ Acceptance:
 * Report explains whether reindex was recommended.
 
 ### v0.6.2 — incremental-change and staleness plugin
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -572,6 +592,8 @@ Acceptance:
 
 ### v0.6.3 — partial-refresh planning
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Add evidence and planning support for bounded index refreshes.
@@ -593,6 +615,8 @@ Acceptance:
 * Reports clearly distinguish implemented behavior from planned capability.
 
 ### v0.7.0 — context-window scaling plugin
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -619,6 +643,8 @@ Acceptance:
 
 ### v0.7.1 — synthetic large-repository generator
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Generate reproducible repositories with controlled scale and topology.
@@ -635,6 +661,8 @@ Acceptance:
 * Generated source is deterministic and maintainable.
 
 ### v0.7.2 — real-world and local-repository experiments
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -655,6 +683,8 @@ Acceptance:
 
 ### v0.8.0 — retrieval precision/recall plugin
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Measure whether retrieval includes required context and excludes irrelevant context without requiring real agents.
@@ -674,6 +704,8 @@ Acceptance:
 
 ### v0.8.1 — retrieval query strategy comparison
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Compare different ways of asking my-dev-kit for context.
@@ -689,6 +721,8 @@ Acceptance:
 * Lab can compare multiple my-dev-kit retrieval workflows without running coding agents.
 
 ### v0.8.2 — context-pack generation experiments
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -707,6 +741,8 @@ Acceptance:
 * Reports show context pack coverage and size.
 
 ### v0.9.0 — agent-success-rate plugin
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -731,6 +767,8 @@ Acceptance:
 * Reports show diff summary, test result summary, blast radius, and repair-attempt labeling where applicable.
 
 ### v0.9.1 — normalized provider telemetry and campaign scheduler
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -772,6 +810,8 @@ Acceptance:
 
 ### v0.9.2 — hardened real-agent prompts and report/gallery generalization
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Harden real-agent prompt contracts and generalize reports/gallery for stable release readiness.
@@ -803,6 +843,8 @@ Acceptance:
 
 ### v1.0.0 — stable framework release
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Release my-dev-kit-lab as a stable experiment, audit, automated security-validation, Android validation, reporting, and evidence framework after all prerequisite `v0.x` work; manual pentest remains post-v1.
@@ -818,7 +860,6 @@ Required capabilities:
 * Agent-success-rate experiment support.
 * Stable audit framework with code rot, quality, and security summary support.
 * Stable automated security validation.
-* Manual pentest plan/checklist/report support.
 * Android validation profile support.
 * Stable artifact schema versioning.
 * Stable report output.
@@ -834,13 +875,14 @@ Acceptance:
 * Users can add a new experiment type without copying the whole pipeline.
 * Users can audit a target project before implementation or release preparation.
 * Users can validate a local Android project for release preparation without signing, publishing, or modifying target source files.
-* Users can generate manual pentest plans and checklists.
 * Reports explain metrics, findings, confidence, and limitations clearly.
 * All core tests pass.
 * Verify passes.
 * Cross-platform CI passes.
 
 ### v1.1.0 — incremental index and stale-context proof
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -855,6 +897,8 @@ Features:
 * Incremental workflow diagrams and tutorials.
 
 ### v1.2.0 — large-repository, external-repository, and mobile scaling
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -872,6 +916,8 @@ Features:
 
 ### v1.3.0 — agent productivity and edit quality
 
+Status: **planned; not implemented**.
+
 Purpose:
 
 * Consolidate agent-success, edit-quality, and repair evidence.
@@ -887,6 +933,8 @@ Features:
 * Cross-project implementation-readiness evidence.
 
 ### v1.4.0 — publication and evidence portal
+
+Status: **planned; not implemented**.
 
 Purpose:
 
@@ -912,7 +960,8 @@ Commands to keep:
 * `npm run experiment:run`
 * `npm run security:validate`
 * `npm run audit`
-* `npm run security:pentest`
+
+These are implemented command families. Manual-pentest commands are intentionally absent because that workflow is post-v1/version TBD.
 
 Commands to avoid unless truly necessary:
 
@@ -953,11 +1002,8 @@ Preferred flag-based usage:
 * Android validation:
 
   * `npm run security:validate -- --target <path> --profile android`
-  * `npm run security:validate -- --target <path> --profile android-compose`
 
-* Manual pentest plan:
-
-  * `npm run security:pentest -- --mode plan,checklist --target <path> --profile node-cli-package`
+  Compose/XML/mixed classification is detected within `--profile android`; `android-compose` is not a separate accepted profile.
 
 ## Mobile validation boundaries
 
@@ -992,7 +1038,7 @@ my-dev-kit-lab mobile support does not mean:
 * `context-strategy-comparison` is the implemented experiment plugin.
 * Automated security validation is implemented; a complete manual pentest framework is planned.
 * The generic audit framework and code-rot releases through v0.3.4 are published. The published audit types are `code-rot` and `security`; broader quality/project audit families remain planned unless implementation proves otherwise.
-* Android/mobile validation profiles are planned.
+* Android validation is implemented and published. Additional mobile-platform profiles remain planned.
 * Warm-index reuse, index freshness, context scaling, retrieval precision/recall, and agent-success plugins are planned.
 * The evidence does not establish that my-dev-kit always saves tokens.
 * The strongest thesis is that reusable structural indexing, graph-guided retrieval, targeted source slices, and auditable context selection help when a repository is larger than the task.
@@ -1005,7 +1051,7 @@ flowchart TD
   S[Security validation<br/>src/securityValidation] --> R
   M[Mobile validation<br/>src/mobile] --> S
   M --> R
-  P[Manual pentest<br/>src/securityValidation/manualPentest] --> R
+  P[Post-v1 manual pentest<br/>location TBD] -.future.-> R
   Q[Project audits<br/>src/audits] --> R
   Q --> S
   Q --> M
@@ -1015,17 +1061,15 @@ flowchart TD
 Responsibility split:
 
 * `src/experiments/` stays focused on experiment plugins and experiment execution.
-* `src/securityValidation/` stays focused on automated security validation and manual pentest support.
+* `src/securityValidation/` stays focused on implemented automated security validation; any post-v1 manual-pentest architecture requires a separate approved design.
 * `src/mobile/` supports mobile project detection and platform-specific validation evidence, starting with Android.
 * `src/audits/` becomes the unified project audit framework for code rot, code quality, and security summaries.
 * `src/report/experiments/` stays focused on experiment reports.
 * `src/report/audits/` becomes the shared audit report renderer.
-* `src/report/securityManual/` supports manual pentest artifacts if manual reporting is too specialized for generic audit reports.
 * `scripts/experiments/` contains experiment commands only.
-* `scripts/security/` contains security validation and manual pentest commands.
+* `scripts/security/` contains implemented automated security-validation commands.
 * `scripts/audits/` contains the single audit entrypoint.
 * `reports/security/` contains automated security validation reports.
-* `reports/security/manual/` contains manual pentest artifacts.
 * `reports/audits/` contains unified audit reports.
 
 ## Validation expectations for every release

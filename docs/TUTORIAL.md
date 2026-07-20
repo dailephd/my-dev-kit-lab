@@ -96,7 +96,7 @@ The report shows a **token savings** value for each paired comparison between `r
 - Codex may expose token totals but can produce timeouts or invalid-output runs.
 - Small projects may show negative token savings because raw-full-file is cheaper when the entire project fits easily in context. Larger, more localized tasks are where my-dev-kit is expected to become more useful.
 
-See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
+See [METRICS.md](METRICS.md) for full metric definitions.
 
 ---
 
@@ -161,7 +161,7 @@ Real-agent runs can produce four outcome types:
 
 The report shows warnings for runs with missing token totals or non-completed outcomes. Partial results are still useful for understanding which runs completed and what correctness scores were achieved on completed runs.
 
-**Do not interpret partial real-agent results as proof of token savings.** The current baseline establishes the experiment infrastructure. Stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling. See [docs/ROADMAP.md](docs/ROADMAP.md).
+**Do not interpret partial real-agent results as proof of token savings.** The current baseline establishes the experiment infrastructure. Stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling. See [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -200,7 +200,7 @@ The small Todo projects are used in the fake-agent demo. The medium and large pr
 - Inspect it with `npm run experiment:describe -- --experiment context-strategy-comparison`
 - Run it against a local project with `npm run experiment:run -- --experiment context-strategy-comparison --target <path>`
 - Run automated self-validation with `npm run security:validate`, or add `-- --target <path>` for another local project
-- Read [docs/METRICS.md](docs/METRICS.md) for full metric definitions
-- Read [docs/WORKFLOWS.md](docs/WORKFLOWS.md) for detailed workflow diagrams
-- Read [docs/COMMANDS.md](docs/COMMANDS.md) for all command options
-- Read [docs/ROADMAP.md](docs/ROADMAP.md) to understand where the project is heading
+- Read [METRICS.md](METRICS.md) for full metric definitions
+- Read [WORKFLOWS.md](WORKFLOWS.md) for detailed workflow diagrams
+- Read [COMMANDS.md](COMMANDS.md) for all command options
+- Read [ROADMAP.md](ROADMAP.md) to understand where the project is heading

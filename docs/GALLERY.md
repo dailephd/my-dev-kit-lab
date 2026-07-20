@@ -105,4 +105,4 @@ The `npm run run-final-demo` command builds the gallery automatically as the las
 - Gallery entries are linked by relative path; moving the output directory breaks links
 - Richer gallery UI with filtering, tagging, and comparison views is planned for a future phase
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the gallery UI roadmap item.
+See [ROADMAP.md](ROADMAP.md) for the gallery UI roadmap item.

@@ -54,6 +54,8 @@ scripts/
   ...                                        legacy/demo/report/plot/gallery entrypoints
 ```
 
+The supporting ownership roots are `src/agents` for provider adapters, `src/prompts` for prompt variants/complexity, and `src/visualizationDemos` for visualization runs. They remain shared by the experiment/report flow rather than becoming separate pipelines.
+
 ### System diagram
 
 ```mermaid
@@ -250,7 +252,7 @@ The existing code-rot detectors are extended conservatively rather than replaced
 - `dead-code-candidate` adds Java/Kotlin top-level declaration checks using import simple-name evidence and JVM naming/lifecycle exclusions; it does not attempt method- or constructor-level dead-code detection.
 - `duplicate-implementation-candidate` adds Java/Kotlin duplicate declaration candidate checks while keeping duplicate groups analyzer-scoped, so Java, Kotlin, Python, and TypeScript/JavaScript findings do not merge into one cross-language group.
 - `test-rot` adds best-effort Java/Kotlin missing-import checks using analyzer-recorded JVM imports plus recognized source/test-set directories, without compiler/classpath resolution.
-- `docs-code-mismatch` adds Java/Kotlin symbol-claim checks and static Gradle/Maven command/feature-claim checks against JVM metadata. Android remains a planned boundary only through this detector; no Android validation layer exists here.
+- `docs-code-mismatch` adds Java/Kotlin symbol-claim checks and static Gradle/Maven command/feature-claim checks against JVM metadata. This detector does not own Android validation; the implemented Android subsystem remains separate under `src/mobile/android`.
 
 No audit command changed and no report schema field was added for `v0.3.3`. `pythonProjectMetadata` and `securitySummary` remain the additive top-level fields from `v0.3.2`; JVM metadata is detector input, not a new report field.
 
@@ -266,10 +268,27 @@ The following layers are planned and must not be treated as current published or
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
+- `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation (see below)
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 
 Future audit work should reuse `src/audits/core`, `src/audits/security`, current target metadata, the normalized audit issue schema, and shared report infrastructure. Android validation and the v0.4.2 audit integration already reuse those foundations. This work must not replace the experiment plugin runtime, duplicate report/gallery systems, or fold `security:validate` into the audit framework — the audit framework only adapts and links to `securityValidation`; it does not absorb it.
+
+### v0.4.3 — stage-specific bounded-context and workflow-instruction evaluation (planned)
+
+Not implemented. See [ROADMAP.md](ROADMAP.md) for the full plan, ownership boundaries, and acceptance criteria. Planned module names below are candidates, subject to confirmation against current registry/type conventions at implementation time.
+
+Planned additive modules:
+
+- `src/evaluation` (or an adjacent module) — a context-capsule reader, a retrieval-audit reader, and a `WorkflowInstructionPacket` reader, each validating a supported schema major and rejecting unsupported majors/malformed input without silent reinterpretation.
+- A normalized observation model built on top of reader output, additive to existing types in `src/evaluation/types.ts`.
+- `src/experiments/plugins/contextStrategyComparison/` — extended with candidate strategy IDs (architecture-only, architecture-plus-implementation-refresh, architecture-plus-implementation-and-test-refresh, full-workflow-library baseline, bounded-workflow-packet, combined-bounded-stage-context), preserving the existing `raw-full-file` and `my-dev-kit-guided` strategies.
+- An explicit fixture-expectation schema (required/allowed/forbidden evidence, stable case/requirement IDs), extending `BenchmarkTaskAnswerKey`/`ExpectedContextTarget` in `src/evaluation/types.ts`.
+- Deterministic evidence-centered metrics (required-evidence recall, irrelevant-file/instruction inclusion, responsibility-mapping completeness, provenance completeness, truncation, adequacy, freshness, full-file-fallback, unnecessary reads, determinism), each reporting explicit numerator/denominator/rate and unavailable-vs-zero status.
+- Target-immutability before/after snapshot evidence for experiment targets, extending the read-only pattern already used by `src/securityValidation/attackScenarios/targetSnapshot.ts` (which currently captures git-status entries and a timestamp, not branch/commit/file hashes).
+- Additive `src/report`/`src/report/experiments` sections, and optional `src/plots`/`src/screenshot`/`src/gallery` reuse.
+
+This work depends on stable output contracts from `my-dev-kit` `1.10.1` (role-aware context capsule and retrieval-audit record extensions) and `my-dev-kit-orchestrator` `1.2.1` (`WorkflowInstructionPacket`). It consumes those contracts via versioned fixtures or configurable local commands — it does not add a permanent local path dependency to `package.json`, and neither upstream project becomes a required runtime dependency of my-dev-kit-lab. It must not replace `src/experiments/runner.ts`, duplicate `src/report`/`src/plots`/`src/gallery`, or alter `src/audits` or `src/securityValidation` behavior.
 
 ## Key contracts
 

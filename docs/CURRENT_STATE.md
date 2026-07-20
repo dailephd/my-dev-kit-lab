@@ -1,6 +1,15 @@
 # Current State
 
-This file is the concise source of truth for the checked-in implementation. The working-tree package version is `@dailephd/my-dev-kit-lab` `0.4.2`. `v0.4.1` is the latest npm-published version; `v0.4.2` (Android-aware extension of the security audit adapter) is merged to `main`, tagged, and has a GitHub Release, with npm publication as the next step. See [CHANGELOG.md](../CHANGELOG.md) for the complete release history.
+This file is the concise source of truth for the checked-in implementation. The working-tree package version is `@dailephd/my-dev-kit-lab` `0.4.2`. `v0.4.2` (Android-aware extension of the security audit adapter) is the latest npm-published version and the current baseline. `v0.4.3` (deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies) is planned but not implemented; see [ROADMAP.md](ROADMAP.md) for the full plan. See [CHANGELOG.md](../CHANGELOG.md) for the complete release history.
+
+## Operational state
+
+- Recovery branch: `fix/documentation-plan-restoration`
+- Active planned version: `v0.4.3`; implementation has not started
+- Workflow stage: documentation-history recovery, reconciliation, and preservation hardening
+- Release blockers: none for the already-published `v0.4.2`; this documentation recovery must pass repository validation before merge
+- Validation state: `docs:check`, focused documentation regressions, typecheck, build, the complete test suite, `verify`, and safe CLI help/discovery smokes pass on this recovery branch
+- Exact next action: merge the documentation-recovery pull request after required checks pass, then begin `v0.4.3` only under separate implementation authorization
 
 ## Implemented
 
@@ -42,9 +51,9 @@ The source-facts-aware code-rot behavior is conservative:
 - `dead-code-candidate` adds Java/Kotlin declaration candidate checks only for top-level declarations with conservative JVM naming/lifecycle exclusions; it does not attempt method/constructor-level dead-code detection.
 - `duplicate-implementation-candidate` keeps Java, Kotlin, Python, and TypeScript/JavaScript declaration groups analyzer-scoped rather than merging same-named declarations across languages.
 - `test-rot` uses JVM import facts plus recognized `src/main/{java,kotlin}` and `src/test/{java,kotlin}` directories for best-effort Java/Kotlin missing-import checks, without compiler/classpath awareness.
-- `docs-code-mismatch` now checks Java/Kotlin backtick-quoted FQCN-shaped symbol claims and static Gradle/Maven command/feature claims against scanned JVM metadata, while keeping Android validation as planned/out-of-scope.
+- `docs-code-mismatch` checks Java/Kotlin backtick-quoted FQCN-shaped symbol claims and static Gradle/Maven command/feature claims against scanned JVM metadata. Android validation is implemented separately under `src/mobile/android`; it is not part of this code-rot detector.
 
-The implementation does not perform TypeScript Program semantic analysis, type checking, full module resolution, `tsconfig` path alias resolution, coverage analysis, clone detection, runtime reachability analysis, Python runtime execution, Python dependency resolution, Java/Kotlin compiler parsing, Java/Kotlin type/classpath resolution, Gradle/Maven execution, target-project test execution, JVM dependency freshness checks, Android validation, or target-file modification.
+The language-aware code-rot analyzers do not perform TypeScript Program semantic analysis, type checking, full module resolution, `tsconfig` path alias resolution, coverage analysis, clone detection, runtime reachability analysis, Python runtime execution, Python dependency resolution, Java/Kotlin compiler parsing, Java/Kotlin type/classpath resolution, Gradle/Maven execution, target-project test execution, or JVM dependency freshness checks. Android validation is a separate implemented static subsystem. No default audit or validation path modifies target source files.
 
 ## Current commands
 
@@ -90,7 +99,7 @@ npm run audit -- --target <android-project-path> --types security --android --fo
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-The generic audit framework, code-rot detector family, TypeScript/JavaScript/Python/Java/Kotlin language-aware substrate, the security-validation audit adapter, Android validation, and the Android-aware extension of that adapter (`audit --types security --android`, confirmed-finding mapping, Android status/completeness and CandidateEvidence summaries, and text/JSON report references) are all implemented and merged to `main`. Publication to npm is the remaining release step.
+The generic audit framework, code-rot detector family, TypeScript/JavaScript/Python/Java/Kotlin language-aware substrate, the security-validation audit adapter, Android validation, and the Android-aware extension of that adapter (`audit --types security --android`, confirmed-finding mapping, Android status/completeness and CandidateEvidence summaries, and text/JSON report references) are all implemented, merged, and published in releases through `v0.4.2`.
 
 The following remain planned, not implemented:
 
@@ -100,7 +109,8 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins
+- `v0.4.3`: deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies (context-capsule/retrieval-audit/`WorkflowInstructionPacket` readers, an expanded strategy matrix, fixture-based evidence metrics, target immutability, and reports), extending the existing `context-strategy-comparison` plugin and depending on upstream `my-dev-kit` `1.10.1` and `my-dev-kit-orchestrator` `1.2.1` output contracts — see [ROADMAP.md](ROADMAP.md)
+- warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.5.x` through `v0.8.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
 ## Limitations
@@ -116,4 +126,4 @@ The following remain planned, not implemented:
 
 ## Next step
 
-`v0.4.2` is merged to `main` (Android-aware extension of the security audit adapter), tagged `v0.4.2`, and has a published GitHub Release. The remaining step is `npm publish` to make `0.4.2` the latest npm version; `0.4.1` remains latest on npm until then. See [ROADMAP.md](ROADMAP.md) for the complete version sequence and [WORKFLOWS.md](WORKFLOWS.md) for workflow stages.
+`v0.4.2` (Android-aware extension of the security audit adapter) is published and is the current npm baseline. The next planned patch is `v0.4.3` (deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies), which depends on upstream `my-dev-kit` `1.10.1` and `my-dev-kit-orchestrator` `1.2.1` output contracts and has not been implemented. See [ROADMAP.md](ROADMAP.md) for the complete version sequence and [WORKFLOWS.md](WORKFLOWS.md) for workflow stages.

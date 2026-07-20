@@ -3,9 +3,9 @@
 This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports.
 
 Related documentation:
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how metrics flow through the pipeline
-- [docs/TUTORIAL.md](docs/TUTORIAL.md) — how to read token savings and correctness scores in the report
-- [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) — current baseline and limitations
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how metrics flow through the pipeline
+- [TUTORIAL.md](TUTORIAL.md) — how to read token savings and correctness scores in the report
+- [CURRENT_STATE.md](CURRENT_STATE.md) — current baseline and limitations
 
 ## Metric interpretation quick reference
 
@@ -284,3 +284,28 @@ Related documentation:
   Formula: derived from paired run outcomes and metric availability.
   Interpretation: stronger labels mean safer aggregate interpretation.
   Caveat: comparison reliability is not the same as correctness.
+
+## Planned v0.4.3 Metrics (not implemented)
+
+Not implemented. See [ROADMAP.md](ROADMAP.md) for the full plan. Names below are candidates, subject to confirmation against current evaluation-type conventions.
+
+- `requiredEvidenceRecall`
+  Meaning: fraction of fixture-required evidence (files, symbols, instruction IDs, contracts, validators, errors, tests, test helpers, responsibility mappings) found in selected context.
+  Formula: found required evidence / total required evidence (optional evidence excluded from the denominator).
+  Caveat: requires explicit fixture expectations; not computable without them.
+- `irrelevantFileInclusion` / `irrelevantInstructionInclusion`
+  Meaning: fraction of selected files/instructions that are not required or allowed by the fixture.
+  Formula: selected-not-required-or-allowed / total selected.
+  Caveat: zero expected irrelevant items is not itself a failed metric.
+- `responsibilityMappingCompleteness`
+  Meaning: whether each fixture-defined responsibility has complete evidence (production symbol, contract/validator/error/side-effect evidence, test file, helper, oracle evidence, verification command); partial mappings do not count as complete.
+- `provenanceCompleteness`
+  Meaning: whether selected evidence identifies its origin (TaskState, workflow catalog, repository retrieval, upstream artifact, changed-surface source); provenance is never inferred from filenames alone.
+- `truncation` / `adequacy` / `freshness`
+  Meaning: whether reported truncation, adequacy (correctly adequate / correctly inadequate / false adequate / false inadequate / unknown), and freshness (fresh / stale / unknown) match fixture expectations. Hidden truncation is a failure; nonempty output is never automatically adequate.
+- `fullFileFallbackCount` / `unnecessaryReadCount`
+  Meaning: full-file fallbacks and unnecessary considered-but-unselected reads, reported only when source retrieval-audit data exposes them; not every fallback is a failure.
+- `determinism`
+  Meaning: whether repeated canonical runs (normalizing only timestamps, temporary paths, and timing) produce identical strategy IDs, selected evidence, metrics, warnings, and report structure.
+
+All v0.4.3 metrics report numerator, denominator, and rate explicitly. Missing metric input is reported as unavailable, never coerced to zero; zero-denominator cases have explicit, documented behavior rather than a division error.
