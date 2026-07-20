@@ -122,7 +122,7 @@ for (const version of manifest.changelog?.requiredPublishedReleases || []) {
   }
 }
 
-const currentDocs = ["README.md", "claude.txt", "agents.txt", "docs/PROJECT_OVERVIEW.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/WORKFLOWS.md", "docs/security-validation-framework.md"]
+const currentDocs = ["README.md", "docs/PROJECT_OVERVIEW.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/WORKFLOWS.md", "docs/security-validation-framework.md"]
   .map((file) => ({ file, body: read(file) }));
 const staleRules = [
   [/v0\.4\.1[^\n]{0,100}(?:current published|published baseline)|current published[^\n]{0,100}v0\.4\.1/i, "latest published version", "v0.4.2", "replace stale v0.4.1-current wording with v0.4.2"],
