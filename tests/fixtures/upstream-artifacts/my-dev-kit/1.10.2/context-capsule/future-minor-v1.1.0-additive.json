@@ -1,0 +1,955 @@
+{
+  "schemaVersion": "1.1.0",
+  "generatedAt": "2026-07-21T00:00:00.000Z",
+  "tool": {
+    "name": "my-dev-kit",
+    "version": "1.10.2",
+    "futureNestedField": "preserved"
+  },
+  "request": {
+    "originalQuery": "Inspect task implementation and tests",
+    "normalizedQuery": "Inspect task implementation and tests",
+    "mode": "feature-add",
+    "requestedOutputPath": "Z:/fixture/project/.my-dev-kit/context-capsule.json",
+    "role": "implementation",
+    "requestFilePath": null
+  },
+  "index": {
+    "indexPath": "Z:/fixture/project/.my-dev-kit",
+    "manifestPath": "Z:/fixture/project/.my-dev-kit/manifest.json",
+    "manifestSchemaVersion": "1.0.0",
+    "projectRoot": "Z:/fixture/project",
+    "artifactRefs": [
+      {
+        "name": "symbolIndex",
+        "path": "Z:/fixture/project/.my-dev-kit/symbol-index.json"
+      },
+      {
+        "name": "codeGraph",
+        "path": "Z:/fixture/project/.my-dev-kit/code-graph.json"
+      }
+    ]
+  },
+  "limits": {
+    "maxCandidateFiles": 50,
+    "maxSourceSlices": 20,
+    "maxGraphNodes": null,
+    "maxGraphEdges": 100
+  },
+  "requiredContext": [
+    {
+      "id": "fixture.context.required.001",
+      "kind": "request-summary",
+      "title": "Request summary",
+      "reason": "Captures the literal task query for downstream planning.",
+      "evidenceRefs": [
+        {
+          "path": "Z:/fixture/project/src/example.ts"
+        }
+      ],
+      "classificationRefs": [
+        {
+          "filePath": "Z:/fixture/project/src/example.ts",
+          "symbolId": null,
+          "line": 1,
+          "endLine": 10,
+          "source": "static",
+          "analyzer": "syntax-analyzer"
+        }
+      ],
+      "classificationRoles": [
+        {
+          "role": "implementation-target",
+          "subtype": null,
+          "confidence": "likely"
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "optionalSupportContext": [
+    {
+      "id": "fixture.context.optional.001",
+      "kind": "artifact-summary",
+      "title": "Artifact: symbolIndex",
+      "reason": "Lists an artifact available in this index for later batches to consume.",
+      "evidenceRefs": [
+        {
+          "path": "Z:/fixture/project/.my-dev-kit/symbol-index.json"
+        }
+      ],
+      "warnings": []
+    }
+  ],
+  "droppedContext": [
+    {
+      "id": "fixture.context.dropped.001",
+      "kind": "placeholder",
+      "title": "Dropped placeholder",
+      "reason": "Exceeded retention cap."
+    }
+  ],
+  "warnings": [
+    "Fixture warning: synthetic data only."
+  ],
+  "contextAdequacy": {
+    "status": "context sufficient with listed assumptions",
+    "summary": "A best-effort focus node was selected; some ambiguity or thin graph/source/metadata evidence remains.",
+    "assumptions": [
+      "Fixture assumption."
+    ],
+    "gaps": [
+      "Fixture gap."
+    ]
+  },
+  "queryPlan": {
+    "originalQuery": "Inspect task implementation and tests",
+    "normalizedQuery": "Inspect task implementation and tests",
+    "mode": "feature-add",
+    "searchQueries": [
+      "Inspect task implementation and tests"
+    ],
+    "terms": {
+      "raw": [
+        "inspect",
+        "task",
+        "implementation",
+        "tests"
+      ],
+      "quotedPhrases": [],
+      "pathLike": [
+        "src/example.ts"
+      ],
+      "symbolLike": [
+        "exampleFunction"
+      ],
+      "routeLike": [],
+      "commandLike": [],
+      "artifactLike": [],
+      "classificationLike": []
+    }
+  },
+  "candidateFiles": [
+    {
+      "path": "src/example.ts",
+      "score": 12.5,
+      "baseScore": 10,
+      "modeAdjustment": 2.5,
+      "reasons": [
+        "matched query term"
+      ],
+      "matchedTerms": [
+        "example"
+      ],
+      "semanticRoles": [
+        {
+          "role": "canonical-type",
+          "subtype": "canonical-type",
+          "confidence": "explicit",
+          "source": "syntax-analyzer",
+          "artifactRefs": [
+            {
+              "artifact": "symbolIndex",
+              "artifactKind": "symbol-index",
+              "id": "symbol:src/example.ts#Example",
+              "path": "src/example.ts"
+            }
+          ],
+          "evidenceRefs": [
+            {
+              "filePath": "src/example.ts",
+              "symbolId": "symbol:src/example.ts#Example",
+              "line": 1,
+              "endLine": 10,
+              "source": "static",
+              "analyzer": "syntax-analyzer"
+            }
+          ],
+          "warnings": []
+        }
+      ],
+      "artifactRefs": [
+        {
+          "artifact": "symbolIndex",
+          "artifactKind": "symbol-index",
+          "id": "symbol:src/example.ts#Example",
+          "path": "src/example.ts"
+        }
+      ],
+      "classificationRoles": [
+        {
+          "role": "implementation-target",
+          "editGuidance": "safe-primary-edit-target",
+          "readiness": "ready",
+          "uncertainty": "likely"
+        }
+      ],
+      "classificationRefs": [
+        {
+          "artifact": "classification",
+          "artifactKind": "unknown",
+          "id": "classification:src/example.ts",
+          "path": "src/example.ts"
+        }
+      ],
+      "retained": true,
+      "roleScoreAdjustment": 1.5,
+      "contextRole": "implementation",
+      "focusMatch": true,
+      "changedSurfaceMatch": false,
+      "changedStatus": "modified"
+    }
+  ],
+  "candidateNodes": [
+    {
+      "nodeId": "symbol:src/example.ts#Example",
+      "kind": "symbol",
+      "label": "Example",
+      "filePath": "src/example.ts",
+      "score": 12.5,
+      "baseScore": 10,
+      "modeAdjustment": 2.5,
+      "reasons": [
+        "matched query term"
+      ],
+      "matchedTerms": [
+        "example"
+      ],
+      "semanticRoles": [],
+      "artifactRefs": [],
+      "classificationRoles": [],
+      "classificationRefs": [],
+      "androidArtifactId": "android:fixture:1",
+      "androidMetadata": {
+        "packageName": "com.fixture.app",
+        "minSdk": 21,
+        "usesCleartextTraffic": false,
+        "notes": null
+      },
+      "retained": true,
+      "droppedReason": "not dropped",
+      "roleScoreAdjustment": 1.5,
+      "contextRole": "implementation",
+      "focusMatch": true,
+      "changedSurfaceMatch": false,
+      "changedStatus": "modified",
+      "synthesized": false
+    }
+  ],
+  "focus": {
+    "focusNodeId": "symbol:src/example.ts#Example",
+    "focusFilePath": "src/example.ts",
+    "selectionMode": "single-best",
+    "confidence": "high",
+    "reasons": [
+      "unambiguous top-ranked candidate"
+    ],
+    "ambiguityNotes": [],
+    "warnings": []
+  },
+  "selectedGraph": {
+    "nodes": [
+      {
+        "nodeId": "symbol:src/example.ts#Example",
+        "kind": "symbol",
+        "label": "Example",
+        "filePath": "src/example.ts",
+        "reasons": [
+          "primary focus"
+        ]
+      },
+      {
+        "nodeId": "file:src/example.ts",
+        "kind": "file",
+        "label": "example.ts",
+        "reasons": [
+          "containing file"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "file:src/example.ts",
+        "to": "symbol:src/example.ts#Example",
+        "kind": "defines",
+        "reasons": [
+          "structural containment"
+        ]
+      }
+    ],
+    "omittedNodeCount": 0,
+    "omittedEdgeCount": 0,
+    "warnings": []
+  },
+  "retention": {
+    "retainedCandidateCount": 1,
+    "droppedCandidateCount": 0,
+    "retainedGraphNodeCount": 2,
+    "droppedGraphNodeCount": 0,
+    "retainedGraphEdgeCount": 1,
+    "droppedGraphEdgeCount": 0,
+    "capSettings": {
+      "maxCandidateFiles": 50,
+      "maxGraphNodes": null,
+      "maxGraphEdges": 100
+    }
+  },
+  "selectedSource": {
+    "slices": [
+      {
+        "id": "fixture.slice.001",
+        "kind": "symbol",
+        "filePath": "src/example.ts",
+        "startLine": 1,
+        "endLine": 10,
+        "nodeId": "symbol:src/example.ts#Example",
+        "symbolName": "Example",
+        "reason": "primary focus source",
+        "sourceRetrievalMethod": "symbol",
+        "includedBy": "primary-focus",
+        "truncated": false,
+        "continuationAvailable": true,
+        "continuationUsed": false,
+        "localExpansionUsed": false,
+        "classificationRefs": [],
+        "semanticRefs": [],
+        "warnings": []
+      }
+    ],
+    "omittedSliceCount": 0,
+    "totalSelectedLines": 10,
+    "maxSourceSlices": 20,
+    "warnings": [],
+    "skipped": [
+      {
+        "id": "fixture.skipped.001",
+        "kind": "symbol",
+        "filePath": "src/other.ts",
+        "reason": "exceeded cap",
+        "capType": "maxSourceSlices",
+        "candidateScore": 3.2
+      }
+    ]
+  },
+  "selectedSourceBundles": {
+    "bundles": [
+      {
+        "id": "fixture.bundle.001",
+        "title": "Example bundle",
+        "focusNodeId": "symbol:src/example.ts#Example",
+        "focusFilePath": "src/example.ts",
+        "reason": "primary focus bundle",
+        "blocks": [
+          {
+            "id": "fixture.block.001",
+            "kind": "symbol",
+            "filePath": "src/example.ts",
+            "startLine": 1,
+            "endLine": 10,
+            "symbolName": "Example",
+            "reason": "primary focus source",
+            "includedBy": "primary-focus",
+            "truncated": false,
+            "warnings": []
+          }
+        ],
+        "totalLines": 10,
+        "maxLines": 200,
+        "skippedBlocks": [
+          {
+            "id": "fixture.skippedBlock.001",
+            "kind": "symbol",
+            "filePath": "src/other.ts",
+            "reason": "exceeded cap",
+            "capType": "maxLines",
+            "candidateScore": 2.1
+          }
+        ],
+        "warnings": []
+      }
+    ],
+    "omittedBundleCount": 0,
+    "totalSelectedLines": 10,
+    "warnings": []
+  },
+  "semanticSummary": {
+    "available": true,
+    "roles": [
+      {
+        "role": "canonical-type",
+        "subtype": null,
+        "confidence": "explicit",
+        "source": "syntax-analyzer",
+        "artifactRefs": [],
+        "evidenceRefs": [],
+        "warnings": []
+      }
+    ],
+    "artifactRefs": [],
+    "evidenceRefs": [],
+    "summariesByNode": {
+      "symbol:src/example.ts#Example": {
+        "roles": [],
+        "artifactRefs": [],
+        "evidenceRefs": []
+      }
+    },
+    "summariesByFile": {
+      "src/example.ts": {
+        "roles": [],
+        "artifactRefs": [],
+        "evidenceRefs": []
+      }
+    },
+    "warnings": []
+  },
+  "classificationSummary": {
+    "available": true,
+    "classificationArtifactPath": null,
+    "roles": [
+      {
+        "role": "implementation-target",
+        "subtype": null,
+        "confidence": "likely"
+      }
+    ],
+    "refs": [
+      {
+        "filePath": "src/example.ts",
+        "symbolId": null,
+        "line": 1,
+        "endLine": 10,
+        "source": "static",
+        "analyzer": "syntax-analyzer"
+      }
+    ],
+    "editGuidance": [
+      "safe-primary-edit-target"
+    ],
+    "readiness": [
+      "ready"
+    ],
+    "riskLabels": [
+      "requires-test-validation"
+    ],
+    "uncertainty": [
+      "likely"
+    ],
+    "summariesByNode": {
+      "symbol:src/example.ts#Example": {
+        "classifications": [
+          {
+            "role": "implementation-target",
+            "subtype": null,
+            "confidence": "likely"
+          }
+        ],
+        "editGuidance": "safe-primary-edit-target",
+        "readiness": "ready",
+        "risks": [
+          "requires-test-validation"
+        ],
+        "uncertainty": "likely",
+        "warnings": []
+      }
+    },
+    "summariesByFile": {},
+    "warnings": []
+  },
+  "artifactReferenceSummary": [
+    {
+      "artifactKind": "symbol-index",
+      "artifactPath": "Z:/fixture/project/.my-dev-kit/symbol-index.json",
+      "available": true,
+      "reason": "artifact present in manifest",
+      "warnings": []
+    },
+    {
+      "artifactKind": "frontend-semantic",
+      "artifactPath": null,
+      "available": false,
+      "reason": "artifact not generated for this project",
+      "warnings": []
+    }
+  ],
+  "pruning": {
+    "policyVersion": "1.0.0",
+    "retainedCounts": {
+      "candidateFiles": 1,
+      "candidateNodes": 1,
+      "graphNodes": 2,
+      "graphEdges": 1,
+      "sourceSlices": 1,
+      "sourceBundles": 1
+    },
+    "droppedCounts": {
+      "candidateFiles": 0,
+      "candidateNodes": 0,
+      "graphNodes": 0,
+      "graphEdges": 0,
+      "sourceSlices": 0,
+      "sourceBundles": 0
+    },
+    "capSettings": {
+      "maxCandidateFiles": 50,
+      "maxGraphNodes": null,
+      "maxGraphEdges": 100,
+      "maxSourceSlices": 20
+    },
+    "retainedReasons": [
+      "high relevance score"
+    ],
+    "droppedReasons": [],
+    "warnings": []
+  },
+  "conflicts": {
+    "status": "conflict",
+    "conflicts": [
+      {
+        "id": "fixture.conflict.001",
+        "status": "conflict",
+        "reason": "Static edit-guidance evidence conflicts for the selected focus.",
+        "evidenceRefs": [
+          "src/example.ts"
+        ],
+        "affectedFiles": [
+          "src/example.ts"
+        ],
+        "affectedNodes": [
+          "symbol:src/example.ts#Example"
+        ],
+        "candidates": [
+          {
+            "nodeId": "symbol:src/example.ts#Example",
+            "filePath": "src/example.ts",
+            "score": 12.5,
+            "editGuidance": [
+              "safe-primary-edit-target",
+              "inspect-before-edit"
+            ]
+          }
+        ],
+        "recommendedNextAction": "Review classification evidence before editing."
+      }
+    ],
+    "warnings": []
+  },
+  "modeEffects": {
+    "mode": "feature-add",
+    "applied": true,
+    "effects": [
+      {
+        "candidateId": "src/example.ts",
+        "adjustment": 2.5,
+        "reasons": [
+          "feature-add mode boost"
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "sourceControl": {
+    "enabled": true,
+    "reason": "Git repository detected."
+  },
+  "deferredRequestFields": [
+    "upstreamArtifactRefs"
+  ],
+  "roleContext": {
+    "role": "implementation",
+    "focus": {
+      "focusFiles": [
+        {
+          "path": "src/example.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/example.ts"
+          ],
+          "containedSymbolIds": [
+            "symbol:src/example.ts#Example"
+          ]
+        }
+      ],
+      "focusSymbols": [
+        {
+          "symbol": "Example",
+          "resolved": true,
+          "ambiguous": false,
+          "matchedNodeIds": [
+            "symbol:src/example.ts#Example"
+          ]
+        }
+      ],
+      "unresolvedFocusFiles": [],
+      "unresolvedFocusSymbols": [],
+      "ambiguousFocusSymbols": [],
+      "warnings": []
+    },
+    "changedSurface": {
+      "available": true,
+      "diffRequested": true,
+      "files": [
+        {
+          "path": "src/example.ts",
+          "status": "modified",
+          "provenance": "both"
+        }
+      ],
+      "symbols": [
+        {
+          "symbolId": "symbol:src/example.ts#Example",
+          "status": "modified",
+          "provenance": "graph-diff",
+          "filePath": "src/example.ts",
+          "name": "Example",
+          "kind": "symbol"
+        }
+      ],
+      "conflicts": [],
+      "warnings": []
+    },
+    "requestedEvidenceKinds": [
+      "owner",
+      "dependencies"
+    ],
+    "unsupportedRequestedEvidenceKinds": [
+      "responsibility-mappings"
+    ],
+    "warnings": []
+  },
+  "evidenceGroups": [
+    {
+      "id": "implementation-owners",
+      "kind": "owners",
+      "role": "implementation",
+      "title": "Owners",
+      "required": true,
+      "items": [
+        {
+          "id": "src/example.ts",
+          "itemKind": "file",
+          "path": "src/example.ts",
+          "symbolId": "symbol:src/example.ts#Example",
+          "nodeId": "symbol:src/example.ts#Example",
+          "sourceLocation": {
+            "filePath": "src/example.ts",
+            "line": 1
+          },
+          "relationship": "owner",
+          "basis": "candidate-ranking",
+          "provenance": "candidate-ranking",
+          "metadata": {
+            "score": 12.5,
+            "retained": true,
+            "note": null
+          }
+        }
+      ],
+      "unresolved": [
+        {
+          "evidenceKind": "dependencies",
+          "role": "implementation",
+          "basis": "graph-neighborhood",
+          "reason": "no dependency edges found",
+          "blocking": false
+        }
+      ],
+      "warnings": [],
+      "limit": null,
+      "availableCount": 1,
+      "usedCount": 1,
+      "truncated": false,
+      "droppedCount": 0,
+      "provenance": "candidate-ranking"
+    }
+  ],
+  "selectedOwners": [
+    {
+      "id": "src/example.ts",
+      "itemKind": "file",
+      "path": "src/example.ts",
+      "relationship": "owner",
+      "basis": "candidate-ranking",
+      "provenance": "candidate-ranking"
+    }
+  ],
+  "selectedContracts": [],
+  "selectedTests": [
+    {
+      "id": "tests/example.spec.ts",
+      "itemKind": "test-file",
+      "path": "tests/example.spec.ts",
+      "relationship": "closest-test",
+      "basis": "path-proximity",
+      "provenance": "test-directory-walk"
+    }
+  ],
+  "testInfrastructure": {
+    "relatedTests": [
+      {
+        "id": "tests/example.spec.ts",
+        "itemKind": "test-file",
+        "path": "tests/example.spec.ts",
+        "relationship": "closest-test",
+        "basis": "path-proximity",
+        "provenance": "test-directory-walk"
+      }
+    ],
+    "fixtures": [],
+    "factories": [],
+    "mocks": [],
+    "setupFiles": [],
+    "testConfigurations": [
+      {
+        "path": "vitest.config.ts",
+        "framework": "vitest",
+        "supported": true,
+        "fields": {
+          "testDir": "tests",
+          "include": [
+            "tests/**/*.spec.ts"
+          ],
+          "timeout": 5000,
+          "watch": false,
+          "reporter": null
+        },
+        "warnings": []
+      }
+    ],
+    "packageScripts": [
+      {
+        "name": "test",
+        "command": "vitest run",
+        "reason": "primary test entrypoint",
+        "packageJsonPath": "package.json"
+      }
+    ],
+    "testCommands": [
+      {
+        "commandText": "vitest run tests/example.spec.ts",
+        "commandSource": "package-script",
+        "testFiles": [
+          "tests/example.spec.ts"
+        ],
+        "framework": "vitest",
+        "scope": "file",
+        "basis": "path-proximity"
+      },
+      {
+        "commandText": null,
+        "commandSource": "unresolved",
+        "testFiles": [],
+        "framework": null,
+        "scope": "full-project",
+        "basis": "fallback",
+        "unresolvedReason": "no matching test command found"
+      }
+    ],
+    "unresolved": [],
+    "warnings": []
+  },
+  "unresolvedItems": [
+    {
+      "evidenceKind": "contracts",
+      "role": "implementation",
+      "basis": "graph-neighborhood",
+      "reason": "no contract evidence found",
+      "blocking": false
+    }
+  ],
+  "groupTruncation": [
+    {
+      "groupId": "implementation-owners",
+      "limit": null,
+      "availableCount": 1,
+      "usedCount": 1,
+      "truncated": false,
+      "droppedCount": 0
+    }
+  ],
+  "responsibilityMappings": {
+    "requested": true,
+    "operational": true,
+    "mappings": [
+      {
+        "responsibilityId": "fixture.responsibility.001",
+        "behavior": "Example behaves correctly.",
+        "invariant": null,
+        "criticality": "critical",
+        "productionSymbols": [
+          {
+            "id": "symbol:src/example.ts#Example",
+            "itemKind": "symbol",
+            "symbolId": "symbol:src/example.ts#Example",
+            "relationship": "production-symbol",
+            "basis": "candidate-ranking",
+            "provenance": "candidate-ranking"
+          }
+        ],
+        "contracts": [],
+        "validators": [],
+        "constants": [],
+        "errors": [],
+        "sideEffectEvidence": [],
+        "proposedOrExistingTestFiles": [
+          {
+            "id": "tests/example.spec.ts",
+            "itemKind": "test-file",
+            "path": "tests/example.spec.ts",
+            "relationship": "proposed-test",
+            "basis": "path-proximity",
+            "provenance": "test-directory-walk"
+          }
+        ],
+        "reusableHelpers": [],
+        "oracleEvidence": [],
+        "testCommands": [],
+        "mappingStatus": "mapped",
+        "unresolvedReasons": [],
+        "provenance": [
+          {
+            "id": "fixture.provenance.mapping.001",
+            "category": "code-graph",
+            "sourcePath": "src/example.ts",
+            "sourceId": null,
+            "evidenceId": "symbol:src/example.ts#Example",
+            "relationshipBasis": "candidate-ranking",
+            "role": "implementation",
+            "requestField": null,
+            "derivedByModule": "responsibilityMapping.ts"
+          }
+        ],
+        "warnings": []
+      }
+    ],
+    "unknownResponsibilityIds": [],
+    "duplicateResponsibilityIds": [],
+    "limit": null,
+    "availableCount": 1,
+    "usedCount": 1,
+    "truncated": false,
+    "droppedCount": 0,
+    "criticalDropped": false,
+    "warnings": []
+  },
+  "roleAdequacy": {
+    "role": "implementation",
+    "status": "context sufficient with listed assumptions",
+    "requiredConditions": [
+      "single high-confidence focus node"
+    ],
+    "satisfiedConditions": [
+      "single high-confidence focus node"
+    ],
+    "missingConditions": [],
+    "blockingConditions": [],
+    "warnings": [],
+    "supportingEvidence": [
+      "symbol:src/example.ts#Example"
+    ],
+    "affectedResponsibilityIds": [
+      "fixture.responsibility.001"
+    ],
+    "truncationImpact": false,
+    "freshnessImpact": false
+  },
+  "freshness": {
+    "state": "fresh",
+    "role": "implementation",
+    "evidenceUsed": [
+      "code-graph"
+    ],
+    "evidenceUnavailable": [
+      "before-index"
+    ],
+    "comparedIdentities": [
+      {
+        "label": "index-manifest-hash",
+        "value": "fixture-hash-001"
+      },
+      {
+        "label": "before-index-manifest-hash",
+        "value": null
+      }
+    ],
+    "reason": "Active index manifest hash matches the most recent recorded identity.",
+    "relevantChangedPaths": [
+      "src/example.ts"
+    ],
+    "warnings": []
+  },
+  "budget": {
+    "limits": [
+      {
+        "name": "candidates",
+        "declaredValue": 50,
+        "usedValue": 1,
+        "availableCount": 49,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      }
+    ],
+    "characters": {
+      "measured": 1200,
+      "limit": 8000,
+      "truncated": false
+    },
+    "warnings": []
+  },
+  "truncation": {
+    "truncated": false,
+    "records": [
+      {
+        "id": "fixture.truncation.001",
+        "affectedGroup": "implementation-owners",
+        "limit": 10,
+        "used": 1,
+        "available": 1,
+        "droppedCount": 0,
+        "droppedEvidenceIds": [],
+        "requiredEvidenceLost": false,
+        "adequacyImpact": null,
+        "reason": "within declared limit"
+      }
+    ],
+    "warnings": []
+  },
+  "fullFileFallback": {
+    "enabled": true,
+    "limit": null,
+    "used": 0,
+    "fallbacks": [
+      {
+        "id": "fixture.fallback.001",
+        "filePath": "src/other.ts",
+        "reason": "bounded retrieval insufficient",
+        "requestedEvidenceKind": null,
+        "boundedRetrievalAttempted": true,
+        "sourceRangesAttempted": 2,
+        "includedLineCount": 40,
+        "includedCharacterCount": 900,
+        "role": "implementation",
+        "responsibilityIdsAffected": [],
+        "allowed": false,
+        "provenance": "full-file-fallback"
+      }
+    ],
+    "warnings": []
+  },
+  "provenance": [
+    {
+      "id": "fixture.provenance.001",
+      "category": "code-graph",
+      "sourcePath": "src/example.ts",
+      "sourceId": null,
+      "evidenceId": "symbol:src/example.ts#Example",
+      "relationshipBasis": "candidate-ranking",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "candidateRanking.ts"
+    }
+  ],
+  "futureMinorRootField": "preserved"
+}
