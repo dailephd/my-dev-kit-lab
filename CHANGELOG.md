@@ -2,11 +2,11 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased]
+## [0.4.3] - 2026-07-22
 
-`v0.4.3` (stage-specific bounded-context and workflow-instruction evaluation) is implemented on the `feature/v0.4.3-stage-context-readers` branch. Package metadata, the npm registry, and Git tags remain at `0.4.2`; `v0.4.3` is not published and release preparation has not started. Its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
+`v0.4.3` (stage-specific bounded-context and workflow-instruction evaluation) is published. This is the latest release. Its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
 
-### Added (implemented, unreleased)
+### Added
 
 - Added exact, non-normalizing readers for the my-dev-kit `ContextCapsule` and `RetrievalAuditRecord` and the my-dev-kit-orchestrator `WorkflowInstructionPacket`, each with schema-major validation and explicit failure on malformed or unsupported input.
 - Extended the existing `context-strategy-comparison` plugin with six new stage-context strategies — `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context` — selected through programmatic configuration alongside the preserved `raw-full-file` and `my-dev-kit-guided` strategies.
@@ -21,11 +21,10 @@ All notable changes to my-dev-kit-lab are documented here.
 - Plots, screenshots, and gallery integration for the new stage-context evidence are not part of this implementation.
 - The published upstream artifacts do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics are reported as `unavailable` with an explicit reason.
 - Estimated token counts use `ceil(characterCount / 4)` per source and are not provider telemetry.
-- This work has not entered the pre-release readiness, cross-platform, security, or code-rot workflow.
 
 ## [0.4.2] - 2026-07-12
 
-Extended the existing general security audit adapter with Android-aware validation. This is the latest release.
+Extended the existing general security audit adapter with Android-aware validation.
 
 ### Added
 

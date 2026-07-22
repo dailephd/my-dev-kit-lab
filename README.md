@@ -4,7 +4,7 @@ my-dev-kit-lab is the experiment, audit, and evidence companion for [my-dev-kit]
 
 my-dev-kit provides local repository indexing and graph-guided retrieval. my-dev-kit-lab supplies the controlled benchmarks, agent adapters, metrics, security checks, and reports needed to evaluate when that retrieval is useful. Results are evidence for a specific target and configuration; they do not guarantee token savings or security.
 
-The latest published release is v0.4.2. Version v0.4.3 (stage-specific bounded-context and workflow-instruction evaluation) is implemented on the `feature/v0.4.3-stage-context-readers` branch and is not published; it awaits the separate pre-release readiness workflow. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
+The latest published release is v0.4.3 (stage-specific bounded-context and workflow-instruction evaluation). See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
 ## Current capabilities
 
@@ -13,7 +13,7 @@ The latest published release is v0.4.2. Version v0.4.3 (stage-specific bounded-c
 - **Validate CLI/package security:** inspect dependencies, package contents, path and subprocess boundaries, malformed inputs, optional static scanners, and bounded fuzz targets.
 - **Validate Android projects:** run nineteen static checks by default, with Gradle operations, external tools, and network access available only through explicit opt-in flags.
 - **Review evidence:** generate JSON and HTML reports, SVG plots, optional screenshots, visualization demos, and a static gallery.
-- **Evaluate stage-context strategies (implemented on `feature/v0.4.3-stage-context-readers`; not published):** compare the two legacy strategies against six additional bounded stage-context strategies — `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context` — selected through programmatic configuration, not CLI flags. Each strategy's evidence is reported through bounded `report.json`, `report.html`, and `report.txt` output with an explicit `available`/`unavailable`/`not-applicable` metric-availability model and no composite score, grade, ranking, or winning strategy.
+- **Evaluate stage-context strategies:** compare the two legacy strategies against six additional bounded stage-context strategies — `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context` — selected through programmatic configuration, not CLI flags. Each strategy's evidence is reported through bounded `report.json`, `report.html`, and `report.txt` output with an explicit `available`/`unavailable`/`not-applicable` metric-availability model and no composite score, grade, ranking, or winning strategy.
 
 ## Quickstart
 
@@ -123,7 +123,7 @@ When `--target` is omitted, the experiment runs in self mode against my-dev-kit-
 | Report screenshot | `lab-output/<report>/experiment-report.png` |
 | Plugin experiment report JSON | `lab-output/experiments/<plugin>/<target>/<run>/report.json` |
 | Plugin experiment report HTML | `lab-output/experiments/<plugin>/<target>/<run>/report.html` |
-| Plugin experiment report text (implemented on `feature/v0.4.3-stage-context-readers`; not published) | `lab-output/experiments/<plugin>/<target>/<run>/report.txt` |
+| Plugin experiment report text | `lab-output/experiments/<plugin>/<target>/<run>/report.txt` |
 | Plot data | `lab-output/<plots>/plot-data.json` |
 | SVG charts | `lab-output/<plots>/charts/*.svg` |
 | Gallery manifest | `lab-output/<gallery>/gallery-manifest.json` |
@@ -160,7 +160,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - The generic experiment-plugin framework currently ships one plugin, `context-strategy-comparison`; future plugins such as warm-index reuse, incremental-change, and context-window scaling are not implemented yet
 - The current release does not guarantee token savings; it produces auditable evidence for specific cases, targets, agents, and strategies
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
-- The six new stage-context strategies (implemented on `feature/v0.4.3-stage-context-readers`; not published) have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration
+- The six new stage-context strategies have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration
 - The published upstream artifacts the stage-context strategies read do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` rather than zero
 
 ---

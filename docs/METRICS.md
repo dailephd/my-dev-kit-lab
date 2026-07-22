@@ -295,7 +295,7 @@ Each entry below uses the same fields: **Meaning**, **Appears in** (the artifact
 
 ## Planned v0.4.3 metrics
 
-Implemented in `src/evaluation/stageContextMetrics` on the `feature/v0.4.3-stage-context-readers` branch. This section is retained under its original "Planned v0.4.3 metrics" heading for documentation-consistency tooling; the metrics below are implemented, not planned. This work is not published; see [ROADMAP.md](ROADMAP.md) and [CHANGELOG.md](../CHANGELOG.md) for its release state.
+Implemented in `src/evaluation/stageContextMetrics` and published in `v0.4.3`. This section is retained under its original "Planned v0.4.3 metrics" heading for documentation-consistency tooling; the metrics below are implemented and published, not planned. See [ROADMAP.md](ROADMAP.md) and [CHANGELOG.md](../CHANGELOG.md) for its release state.
 
 Every ratio metric below reports `availability` (`available`, `unavailable`, or `not-applicable`), `numerator`, `denominator`, and `rate` explicitly. Missing metric input is reported as `unavailable`, never coerced to zero; `not-applicable` is distinct from both. Every count metric reports `availability`, `count`, and bounded `evidenceKeys`.
 

@@ -5,19 +5,19 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.4.2`
-- Latest release: verified external evidence identifies `v0.4.2` on npm, as a Git tag, and as a GitHub Release
-- Next planned version: `v0.4.3`; implemented on its feature branch; not published, tagged, or released
+- Package version: `0.4.3`
+- Latest release: `v0.4.3` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.2`)
+- Next planned version: `v0.5.0`; planned, not implemented
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
 ## Operational state
 
-- Current branch: `feature/v0.4.3-stage-context-readers`
-- Active planned version: `v0.4.3`; implementation is complete on this branch and awaiting the separate pre-release readiness workflow
-- Workflow stage: documentation reconciliation and implementation-completeness audit for the completed `v0.4.3` implementation
-- Release blockers: none for the already-published `v0.4.2`; `v0.4.3` has not entered the pre-release readiness, cross-platform, security, or code-rot workflow
-- Exact next action: hand the completed `v0.4.3` branch to the separate pre-release readiness, cross-platform, security, and code-rot workflow
+- Current branch: `main`
+- Active planned version: `v0.5.0`; planned, not implemented
+- Workflow stage: `v0.4.3` released; no active workflow stage in progress
+- Release blockers: none; `v0.4.3` has completed the pre-release readiness, cross-platform, security, and code-rot workflow and is published
+- Exact next action: begin `v0.5.0` (warm-index reuse) planning and implementation when prioritized
 
 ## Implemented
 
@@ -42,7 +42,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Cross-language stability hardening: mixed-language fixture corpus and invariant coverage, full-registry mixed-language detector stability tests, repeated-run audit report determinism tests, cross-platform/path normalization coverage, and CRLF/LF source parsing coverage.
 - Android validation in `src/mobile/android`, reachable through `security:validate --profile android`: project detection and classification, manifest parsing, permission/exported-component/intent-filter/deep-link audits, static Gradle metadata, and eleven advanced internal checks (network security config, backup/release configuration, redacted secrets, signing configuration, WebView/FileProvider, sensitive storage/logging/clipboard, and Firebase/Google services), for nineteen default checks. Optional opt-in Gradle operations and external tools (Semgrep, OSV-Scanner, Android Lint, Dependency-Check) remain off by default with zero network access.
 - Android-aware generic audit integration in `src/audits/security`: `npm run audit -- --types security --android` runs the same static Android validation through the existing security audit adapter, mapping confirmed findings into audit issues while keeping `CandidateEvidence` as a separate, review-only summary.
-- `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented on the `feature/v0.4.3-stage-context-readers` branch. It is not merged, not released, and not published: exact `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` readers and selectors in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`; the `StageContextExpectationFixtureV1` contract in `src/evaluation/stageContextExpectations`; six new `context-strategy-comparison` strategies (`architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, `combined-bounded-stage-context`) selected through programmatic configuration; evidence-centered metrics in `src/evaluation/stageContextMetrics`; read-only target immutability in `src/evaluation/targetImmutability`; repeated-run determinism in `src/evaluation/stageContextDeterminism`; and bounded `report.json`/`report.html`/`report.txt` output in `src/report/experiments`. See [ROADMAP.md](ROADMAP.md) for the complete scope, dependencies, and acceptance criteria.
+- `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published: exact `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` readers and selectors in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`; the `StageContextExpectationFixtureV1` contract in `src/evaluation/stageContextExpectations`; six new `context-strategy-comparison` strategies (`architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, `combined-bounded-stage-context`) selected through programmatic configuration; evidence-centered metrics in `src/evaluation/stageContextMetrics`; read-only target immutability in `src/evaluation/targetImmutability`; repeated-run determinism in `src/evaluation/stageContextDeterminism`; and bounded `report.json`/`report.html`/`report.txt` output in `src/report/experiments`. See [ROADMAP.md](ROADMAP.md) for the complete scope, dependencies, and acceptance criteria.
 
 ## Current commands
 
@@ -58,7 +58,7 @@ The repository has one experiment runtime, one audit framework, one standalone s
 
 The audit framework, language-aware code-rot detectors, security adapter, Android validation, and Android audit extension are implemented through v0.4.2. The Android extension maps confirmed findings, keeps `CandidateEvidence` separate, and includes bounded status, completeness, and report-reference summaries.
 
-`v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented on its feature branch. It is not merged, not released, and not published; see the `Implemented` section above. Within that implementation, CLI flags for selecting the six new strategies through `experiment:run` are **not implemented** — they are configured programmatically. Plots, screenshots, and gallery integration for the new stage-context evidence are likewise **not implemented**.
+`v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published; see the `Implemented` section above. Within that implementation, CLI flags for selecting the six new strategies through `experiment:run` are **not implemented** — they are configured programmatically. Plots, screenshots, and gallery integration for the new stage-context evidence are likewise **not implemented**.
 
 The following remain planned, not implemented:
 
@@ -86,14 +86,14 @@ The following remain planned, not implemented:
 
 ## Validation state
 
-On the `feature/v0.4.3-stage-context-readers` branch, `npm run typecheck`, `npm run build`, the focused `v0.4.3` test suites (`tests/evaluation/upstreamArtifacts`, `tests/evaluation/stageContextSelectors`, `tests/evaluation/stageContextExpectations`, `tests/evaluation/stageContextMetrics`, `tests/evaluation/targetImmutability`, `tests/evaluation/stageContextDeterminism`, `tests/experiments/contextStrategyComparison`, `tests/report/experiments`), `npm run test:evaluation`, and `npm run test:experiments` pass.
+`npm run typecheck`, `npm run build`, the focused `v0.4.3` test suites (`tests/evaluation/upstreamArtifacts`, `tests/evaluation/stageContextSelectors`, `tests/evaluation/stageContextExpectations`, `tests/evaluation/stageContextMetrics`, `tests/evaluation/targetImmutability`, `tests/evaluation/stageContextDeterminism`, `tests/experiments/contextStrategyComparison`, `tests/report/experiments`), `npm run test:evaluation`, and `npm run test:experiments` pass.
 
-The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run docs:check`, cross-platform CI, `npm run security:validate`, and `npm run audit`) belongs to the separate pre-release readiness, cross-platform, security, and code-rot workflow and has not yet been run against this implementation as a single combined gate.
+The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run docs:check`, cross-platform CI, `npm run security:validate`, and `npm run audit`) ran as a single combined gate against the `v0.4.3` release commit and passed before publication.
 
 ## Blockers
 
-There are no documentation, factual, or implementation blockers for the completed `v0.4.3` implementation. It has not entered the separate pre-release readiness, cross-platform, security, or code-rot workflow, which is the required next stage before any release preparation begins.
+There are no documentation, factual, or implementation blockers for the released `v0.4.3` implementation.
 
 ## Next step
 
-Hand the completed `v0.4.3` implementation on `feature/v0.4.3-stage-context-readers` to the separate pre-release readiness, cross-platform, security, and code-rot workflow. Release preparation, version changes, tagging, and publication remain out of scope until that workflow completes. See [ROADMAP.md](ROADMAP.md) for `v0.4.3`'s dependencies and acceptance criteria.
+Begin `v0.5.0` (warm-index reuse) planning when prioritized. See [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.

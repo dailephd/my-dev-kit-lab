@@ -307,7 +307,7 @@ Acceptance:
 
 ### v0.4.2 — Android-aware general security audit adapter
 
-Status: **published**; current npm baseline.
+Status: **published**.
 
 Purpose:
 
@@ -331,7 +331,7 @@ Acceptance:
 
 ### v0.4.3 — stage-specific bounded-context and workflow-instruction evaluation
 
-Status: **implemented on the `feature/v0.4.3-stage-context-readers` branch; not published; release preparation and publication have not started; awaiting the separate pre-release readiness workflow.** Package metadata, the npm registry, and Git tags remain at `v0.4.2`.
+Status: **published**; current npm baseline.
 
 Purpose:
 
@@ -382,7 +382,7 @@ Acceptance criteria:
 * Unsupported context-capsule/retrieval-audit/`WorkflowInstructionPacket` schema majors fail clearly rather than being silently reinterpreted.
 * Existing audits, benchmarks, reports, security validation, and CLI behavior regress cleanly; no existing experiment plugin, strategy, report path, or command is removed or broken.
 * my-dev-kit-lab remains outside the production execution path of my-dev-kit and the orchestrator, and never becomes a required runtime dependency of either.
-* `v0.4.2` remains the current published npm/tag/GitHub-Release baseline. `v0.4.3` is implemented on its feature branch and is not published, tagged, or released; it awaits the separate pre-release readiness workflow.
+* `v0.4.3` is published as the current npm/tag/GitHub-Release baseline, superseding `v0.4.2`.
 
 ### Post-v1 / version TBD — manual pentest
 

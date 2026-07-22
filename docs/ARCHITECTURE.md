@@ -22,14 +22,14 @@ src/
     runner.ts                                generic execution lifecycle
     target.ts                                self/external-local target resolution
     types.ts                                 plugin contracts and normalized results
-    plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies (unreleased)
+    plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
-    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3, unreleased)
-    stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3, unreleased)
-    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3, unreleased)
-    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3, unreleased)
-    targetImmutability/                      read-only target snapshot and mutation comparison (v0.4.3, unreleased)
-    stageContextDeterminism/                 canonicalization and repeated-run digest comparison (v0.4.3, unreleased)
+    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3)
+    stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3)
+    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3)
+    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3)
+    targetImmutability/                      read-only target snapshot and mutation comparison (v0.4.3)
+    stageContextDeterminism/                 canonicalization and repeated-run digest comparison (v0.4.3)
   agents/                                    fake-agent, Codex, and Claude adapters
   prompts/                                   prompt variant generation and prompt complexity metrics
   audits/                                    generic audit framework (code-rot and security audit types implemented)
@@ -40,7 +40,7 @@ src/
     security/                                security audit adapter: adapts securityValidation results into audit issues/report summary, including the Android-aware extension
     report/                                  audit report model, JSON/text renderers, writer, text sanitizer
   report/
-    experiments/                             plugin-aware JSON/HTML/text report support (text renderer and the v0.4.3 stage-context section are unreleased)
+    experiments/                             plugin-aware JSON/HTML/text report support (text renderer and the v0.4.3 stage-context section)
     ...                                      shared and legacy report infrastructure
   mobile/android/                            Android detection, manifest parsing, static Gradle metadata, and advanced security checks
   securityValidation/                        automated security validation
@@ -142,9 +142,9 @@ sequenceDiagram
   Report-->>User: plugin-aware and legacy outputs
 ```
 
-## Stage-context evaluation architecture (v0.4.3, unreleased)
+## Stage-context evaluation architecture (v0.4.3)
 
-Implemented on the `feature/v0.4.3-stage-context-readers` branch, not yet merged, released, or published. It extends the `context-strategy-comparison` plugin and its report layer rather than creating a parallel runner, evaluation system, or report system.
+Implemented and published. It extends the `context-strategy-comparison` plugin and its report layer rather than creating a parallel runner, evaluation system, or report system.
 
 ```mermaid
 flowchart TD
@@ -290,7 +290,7 @@ The following layers are planned and must not be treated as current published or
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success (`v0.5.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 
-`v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented (see "Stage-context evaluation architecture (v0.4.3, unreleased)" above); it is not yet released, merged to a default branch, or published, and must not be treated as checked-out main-branch behavior until it completes the separate pre-release readiness workflow.
+`v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published (see "Stage-context evaluation architecture (v0.4.3)" above).
 
 Future audit work should reuse `src/audits/core`, `src/audits/security`, target metadata, the normalized issue schema, and shared reports. It must not replace the experiment runtime, duplicate report/gallery systems, or absorb `security:validate` into the audit framework.
 
@@ -320,10 +320,10 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | JVM project metadata | `src/audits/core/jvmProjectMetadata.ts` |
 | Security audit adapter | `src/audits/security/securityAuditAdapter.ts` |
 | Security finding → audit issue mapping | `src/audits/security/mapSecurityFindingToAuditIssue.ts` |
-| v0.4.3 upstream artifact readers (unreleased) | `src/evaluation/upstreamArtifacts/` |
-| v0.4.3 strategy input contracts and IDs (unreleased) | `src/experiments/plugins/contextStrategyComparison/v043StrategyInputContracts.ts` / `v043StrategyIds.ts` |
-| v0.4.3 expectation fixture contract (unreleased) | `src/evaluation/stageContextExpectations/types.ts` |
-| v0.4.3 evidence-centered metrics (unreleased) | `src/evaluation/stageContextMetrics/` |
-| v0.4.3 target immutability (unreleased) | `src/evaluation/targetImmutability/` |
-| v0.4.3 repeated-run determinism (unreleased) | `src/evaluation/stageContextDeterminism/` |
-| v0.4.3 bounded report model (unreleased) | `src/report/experiments/contextStrategyComparisonV043ReportModel.ts` |
+| v0.4.3 upstream artifact readers | `src/evaluation/upstreamArtifacts/` |
+| v0.4.3 strategy input contracts and IDs | `src/experiments/plugins/contextStrategyComparison/v043StrategyInputContracts.ts` / `v043StrategyIds.ts` |
+| v0.4.3 expectation fixture contract | `src/evaluation/stageContextExpectations/types.ts` |
+| v0.4.3 evidence-centered metrics | `src/evaluation/stageContextMetrics/` |
+| v0.4.3 target immutability | `src/evaluation/targetImmutability/` |
+| v0.4.3 repeated-run determinism | `src/evaluation/stageContextDeterminism/` |
+| v0.4.3 bounded report model | `src/report/experiments/contextStrategyComparisonV043ReportModel.ts` |

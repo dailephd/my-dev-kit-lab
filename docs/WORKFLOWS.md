@@ -53,7 +53,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Completion:** both strategies have recorded outcomes and the target remains unchanged.
 
-## Stage-context strategy evaluation (v0.4.3, implemented on `feature/v0.4.3-stage-context-readers`; not published)
+## Stage-context strategy evaluation (v0.4.3)
 
 **Goal:** deterministically evaluate one of the six new stage-context strategies against explicit artifact inputs and an explicit expectation fixture, through the same `context-strategy-comparison` plugin.
 

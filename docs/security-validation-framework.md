@@ -192,7 +192,7 @@ Current report/schema details:
 
 ## Fortification status and audit relationship
 
-The current framework keeps automated security validation, the generic audit framework, language-aware code-rot analysis, and Android validation as distinct responsibilities. Their release history is recorded in [CHANGELOG.md](../CHANGELOG.md); the latest release is v0.4.2.
+The current framework keeps automated security validation, the generic audit framework, language-aware code-rot analysis, and Android validation as distinct responsibilities. Their release history is recorded in [CHANGELOG.md](../CHANGELOG.md); the latest release is v0.4.3.
 
 `security:validate` remains the standalone, focused security command. `npm run audit -- --types security` uses an adapter rather than another scanner family. The adapter calls the same exported `runSecurityValidation()` function, maps confirmed findings into the shared issue model, and adds `securitySummary` to audit reports.
 
@@ -204,4 +204,4 @@ The audit framework's `code-rot` audit type separately includes a `security-vali
 
 Security validation is additive. It does not replace the experiment plugin runtime, controlled experiment behavior, agent adapters, reports, plots, screenshots, or gallery. Both tracks reuse shared target and report infrastructure where appropriate.
 
-The `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation work (implemented on `feature/v0.4.3-stage-context-readers`; not published — see [ROADMAP.md](ROADMAP.md)) is a separate, lab-owned track layered on the experiment-plugin runtime, not on security validation. It does not weaken, replace, or conflate with `security:validate` or the code-rot audit framework; both existing systems regress cleanly under this implementation, verified through the focused `v0.4.3` and evaluation/experiment test suites. Full pre-release readiness regression (including `security:validate` and `npm run audit`) belongs to the separate pre-release readiness workflow.
+The `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation work (published — see [ROADMAP.md](ROADMAP.md)) is a separate, lab-owned track layered on the experiment-plugin runtime, not on security validation. It does not weaken, replace, or conflate with `security:validate` or the code-rot audit framework; both existing systems regress cleanly under this implementation, verified through the focused `v0.4.3` and evaluation/experiment test suites, as well as the full pre-release readiness regression (including `security:validate` and `npm run audit`) that ran before publication.
