@@ -714,3 +714,451 @@ describe("context-strategy-comparison plugin v0.4.3 stage-context integration", 
     expect(pluginSource).not.toContain("spawn(");
   });
 });
+
+describe("context-strategy-comparison plugin v0.4.3 evidence-metric integration", () => {
+  const metricTempDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(metricTempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+    await unloadMockedPluginModule();
+  });
+
+  it("MET-189 legacy-only results include v043StageContextEvaluations: []", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-legacy-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-legacy-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
+        caseIds: ["todo-ts-create-task"],
+        agents: ["fake-agent"],
+        strategies: ["raw-full-file", "my-dev-kit-guided"],
+        complexityLevels: ["short"],
+        outDir,
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextEvaluations).toEqual([]);
+  });
+
+  it("MET-190 one completed v0.4.3 execution produces one completed evaluation", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-one-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-one-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextEvaluations).toHaveLength(1);
+    expect(result.v043StageContextEvaluations[0].status).toBe("completed");
+  });
+
+  it("MET-191 all six completed executions produce six evaluations", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-six-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const strategies = [
+      "architecture-context-only",
+      "architecture-plus-implementation-refresh",
+      "architecture-plus-implementation-and-test-refresh",
+      "full-workflow-library",
+      "bounded-workflow-instruction-packet",
+      "combined-bounded-stage-context",
+    ] as const;
+    const v043StrategyInputs = [
+      { strategyId: "architecture-context-only" as const, expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+      {
+        strategyId: "architecture-plus-implementation-refresh" as const,
+        expectationsPath: V043_EXPECTATIONS_PATH,
+        architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH,
+        implementationContextCapsulePath: V043_IMPLEMENTATION_CAPSULE_PATH,
+      },
+      {
+        strategyId: "architecture-plus-implementation-and-test-refresh" as const,
+        expectationsPath: V043_EXPECTATIONS_PATH,
+        architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH,
+        implementationContextCapsulePath: V043_IMPLEMENTATION_CAPSULE_PATH,
+        testImplementationContextCapsulePath: V043_TEST_IMPLEMENTATION_CAPSULE_PATH,
+      },
+      { strategyId: "full-workflow-library" as const, expectationsPath: V043_EXPECTATIONS_PATH, fullWorkflowLibraryFixturePath: V043_LIBRARY_PATH },
+      { strategyId: "bounded-workflow-instruction-packet" as const, expectationsPath: V043_EXPECTATIONS_PATH, workflowInstructionPacketPath: V043_PACKET_PATH },
+      {
+        strategyId: "combined-bounded-stage-context" as const,
+        expectationsPath: V043_EXPECTATIONS_PATH,
+        contextArtifacts: [{ role: "architecture" as const, contextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH }],
+        workflowInstructionPacketPath: V043_PACKET_PATH,
+      },
+    ];
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-six-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: [...strategies],
+        v043StrategyInputs,
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextEvaluations).toHaveLength(6);
+    expect(result.v043StageContextEvaluations.every((evaluation) => evaluation.status === "completed")).toBe(true);
+  });
+
+  it("MET-192 execution and evaluation arrays have equal lengths", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-equal-length-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-equal-length-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only", "bounded-workflow-instruction-packet"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+          { strategyId: "bounded-workflow-instruction-packet", expectationsPath: V043_EXPECTATIONS_PATH, workflowInstructionPacketPath: V043_PACKET_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextExecutions).toHaveLength(result.v043StageContextEvaluations.length);
+    for (let index = 0; index < result.v043StageContextExecutions.length; index += 1) {
+      const executionStrategyId = result.v043StageContextExecutions[index].strategyId;
+      const evaluationStrategyId = result.v043StageContextEvaluations[index].strategyId;
+      if (executionStrategyId !== null && evaluationStrategyId !== null) {
+        expect(executionStrategyId).toBe(evaluationStrategyId);
+      }
+    }
+  });
+
+  it("MET-193 evaluation order follows selected v0.4.3 strategy order", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-order-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-order-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["bounded-workflow-instruction-packet", "architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+          { strategyId: "bounded-workflow-instruction-packet", expectationsPath: V043_EXPECTATIONS_PATH, workflowInstructionPacketPath: V043_PACKET_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextEvaluations.map((evaluation) => evaluation.strategyId)).toEqual([
+      "bounded-workflow-instruction-packet",
+      "architecture-context-only",
+    ]);
+  });
+
+  it("MET-194 a failed execution produces a not-applicable evaluation", async () => {
+    const mocked = await loadMockedPluginModule({ ...V043_MOCK_PLAN, capsules: {} });
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-failed-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-failed-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextExecutions[0].status).toBe("failed");
+    expect(result.v043StageContextEvaluations[0].status).toBe("not-applicable");
+  });
+
+  it("MET-195 an invalid-input execution produces a not-applicable evaluation", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-invalid-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-invalid-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: "" },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextExecutions[0].status).toBe("invalid-input");
+    expect(result.v043StageContextEvaluations[0].status).toBe("not-applicable");
+  });
+
+  it("MET-196 a failed evaluation does not stop later selected strategies", async () => {
+    const mocked = await loadMockedPluginModule({ ...V043_MOCK_PLAN, capsules: {} });
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-continue-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-continue-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only", "bounded-workflow-instruction-packet"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+          { strategyId: "bounded-workflow-instruction-packet", expectationsPath: V043_EXPECTATIONS_PATH, workflowInstructionPacketPath: V043_PACKET_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextEvaluations.map((evaluation) => evaluation.status)).toEqual(["not-applicable", "completed"]);
+  });
+
+  it("MET-197 legacy strategy results remain unchanged", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-legacy-unchanged-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-legacy-unchanged-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
+        caseIds: ["todo-ts-create-task"],
+        agents: ["fake-agent"],
+        complexityLevels: ["short"],
+        outDir,
+        strategies: ["raw-full-file", "my-dev-kit-guided", "architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.legacyArtifacts.runs).toHaveLength(2);
+    expect(result.variants.map((variant) => variant.id).sort()).toEqual(["my-dev-kit-guided", "raw-full-file"]);
+  });
+
+  it("MET-198 legacy strategies are not evaluated by the new metric layer", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-no-legacy-eval-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-no-legacy-eval-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
+        caseIds: ["todo-ts-create-task"],
+        agents: ["fake-agent"],
+        complexityLevels: ["short"],
+        outDir,
+        strategies: ["raw-full-file", "my-dev-kit-guided", "architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextEvaluations).toHaveLength(1);
+    expect(result.v043StageContextEvaluations[0].strategyId).toBe("architecture-context-only");
+  });
+
+  it("MET-199 v043StageContextExecutions remains unchanged", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-executions-unchanged-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-executions-unchanged-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextExecutions).toHaveLength(1);
+    expect(result.v043StageContextExecutions[0].status).toBe("completed");
+  });
+
+  it("MET-200 v043StageContextEvaluations remains separate from legacy results", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-separate-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-separate-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.legacyArtifacts).not.toHaveProperty("v043StageContextEvaluations");
+    expect(result.metrics.some((metric) => (metric as unknown as Record<string, unknown>).evaluationStatus !== undefined)).toBe(false);
+  });
+
+  it("MET-201 no fabricated legacy metric is added", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-no-fabricated-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-no-fabricated-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.metrics.every((metric) => typeof metric.value === "number" || metric.value === null)).toBe(true);
+  });
+
+  it("MET-202 no composite score is added", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-no-score-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-no-score-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result).not.toHaveProperty("compositeScore");
+    expect(result).not.toHaveProperty("score");
+  });
+
+  it("MET-203 no winning strategy is selected", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-no-winner-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-no-winner-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result).not.toHaveProperty("winner");
+    expect(result).not.toHaveProperty("bestStrategy");
+  });
+
+  it("MET-204 default selected strategies remain unchanged", () => {
+    expect(defaultContextStrategyComparisonConfig.strategies).toEqual(["raw-full-file", "my-dev-kit-guided"]);
+  });
+
+  it("MET-205 no CLI behavior is introduced", () => {
+    const pluginSource = readFileSync("src/experiments/plugins/contextStrategyComparison/plugin.ts", "utf8");
+    expect(pluginSource).not.toContain("process.argv");
+  });
+
+  it("MET-206 no report file is generated", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-met-no-report-"));
+    metricTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-met-no-report-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(existsSync(path.join(outDir, "report.html"))).toBe(false);
+    expect(existsSync(path.join(outDir, "report.txt"))).toBe(false);
+  });
+});

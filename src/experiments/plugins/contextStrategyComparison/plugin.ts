@@ -16,6 +16,8 @@ import { executeV043StageContextStrategy } from "./executeV043StageContextStrate
 import { resolveV043StrategyInputs } from "./resolveV043StrategyInputs.js";
 import { V043_STAGE_CONTEXT_STRATEGY_IDS, type V043StageContextStrategyId } from "./v043StrategyIds.js";
 import type { V043StageContextStrategyExecutionResult } from "./v043StrategyExecutionTypes.js";
+import { evaluateV043StageContextExecution } from "../../../evaluation/stageContextMetrics/evaluateV043StageContextExecution.js";
+import type { V043StageContextEvaluationResultV1 } from "../../../evaluation/stageContextMetrics/types.js";
 
 export const contextStrategyComparisonMetadata: ExperimentPluginMetadata = {
   id: "context-strategy-comparison",
@@ -78,11 +80,14 @@ export const contextStrategyComparisonPlugin: ExperimentPlugin<
 
     const v043SelectedStrategyIds = selectedStrategyIds.filter(isV043StrategyId);
     const v043StageContextExecutions: V043StageContextStrategyExecutionResult[] = [];
+    const v043StageContextEvaluations: V043StageContextEvaluationResultV1[] = [];
     for (const strategyId of v043SelectedStrategyIds) {
       const input = resolution.inputByStrategyId[strategyId];
       if (!input) continue;
       const executionResult = await executeV043StageContextStrategy(input);
       v043StageContextExecutions.push(executionResult);
+      const evaluationResult = evaluateV043StageContextExecution(executionResult);
+      v043StageContextEvaluations.push(evaluationResult);
     }
 
     const completedAt = new Date().toISOString();
@@ -96,6 +101,7 @@ export const contextStrategyComparisonPlugin: ExperimentPlugin<
       target: context.target,
       legacyArtifacts,
       v043StageContextExecutions,
+      v043StageContextEvaluations,
       pluginResultPath,
     });
     await writeFile(pluginResultPath, `${JSON.stringify(redactLegacyArtifacts(result), null, 2)}\n`, "utf8");
