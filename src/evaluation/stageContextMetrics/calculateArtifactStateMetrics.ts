@@ -5,6 +5,7 @@ import type {
   ExpectedTargetImmutabilityStateV1,
   ExpectedWorkflowInstructionPacketStateV1
 } from "../stageContextExpectations/index.js";
+import type { V043TargetImmutabilityRunResultV1 } from "../targetImmutability/index.js";
 import type { StageContextStateComparisonV1 } from "./types.js";
 
 function compareValue(
@@ -319,20 +320,42 @@ export function compareExpectedWorkflowInstructionPacketState(
 }
 
 export function compareExpectedTargetImmutabilityState(
-  expected: ExpectedTargetImmutabilityStateV1 | undefined
+  expected: ExpectedTargetImmutabilityStateV1 | undefined,
+  targetImmutability: V043TargetImmutabilityRunResultV1 | undefined
 ): StageContextStateComparisonV1[] {
   if (expected === undefined) return [];
+
+  const SA = "target-immutability" as const;
+  const expectationFieldPath = "expectedStates.targetImmutability.newMutationCount";
+
+  if (targetImmutability === undefined) {
+    return [
+      unavailableComparison(
+        SA,
+        "target",
+        expectationFieldPath,
+        expected.newMutationCount,
+        "Target immutability configuration was not supplied for this strategy run."
+      )
+    ];
+  }
+
+  if (targetImmutability.availability === "unavailable") {
+    return [unavailableComparison(SA, "target", expectationFieldPath, expected.newMutationCount, targetImmutability.reason)];
+  }
+
+  const comparison = targetImmutability.comparison;
   return [
     {
-      sourceArtifact: "target-immutability",
+      sourceArtifact: SA,
       sourceInstance: "target",
-      expectationFieldPath: "expectedStates.targetImmutability.newMutationCount",
-      artifactFieldPath: null,
-      availability: "unavailable",
+      expectationFieldPath,
+      artifactFieldPath: "targetImmutability.comparison.newMutationCount",
+      availability: "available",
       expected: expected.newMutationCount,
-      actual: null,
-      matched: null,
-      reason: "Target immutability is implemented in Batch 6 and is unavailable in Batch 5."
+      actual: comparison.newMutationCount,
+      matched: expected.newMutationCount === comparison.newMutationCount,
+      reason: null
     }
   ];
 }

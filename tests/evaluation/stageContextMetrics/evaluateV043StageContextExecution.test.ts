@@ -206,7 +206,9 @@ describe("evaluateV043StageContextExecution", () => {
     expect(result.status).toBe("completed");
     if (result.status === "completed") {
       expect(result.metrics.targetImmutability.availability).toBe("unavailable");
-      expect(result.metrics.targetImmutability.reason).toBe("Target immutability is implemented in Batch 6 and is unavailable in Batch 5.");
+      expect(result.metrics.targetImmutability.reason).toBe(
+        "Target immutability configuration was not supplied for this strategy run."
+      );
     }
   });
 
@@ -351,5 +353,116 @@ describe("evaluateV043StageContextExecution", () => {
     }
     expect(existsSync(probePath)).toBe(before);
     expect(before).toBe(false);
+  });
+
+  it("RUN-070 a completed evaluation without context keeps target immutability unavailable", () => {
+    const result = evaluateV043StageContextExecution(SIX_EXECUTIONS[0]);
+    expect(result.status).toBe("completed");
+    if (result.status === "completed") {
+      expect(result.metrics.targetImmutability.availability).toBe("unavailable");
+      expect(result.metrics.targetImmutability.count).toBeNull();
+    }
+  });
+
+  it("RUN-071 a completed evaluation with unchanged target reports available zero", () => {
+    const result = evaluateV043StageContextExecution(SIX_EXECUTIONS[0], {
+      targetImmutability: {
+        availability: "available",
+        comparison: {
+          status: "unchanged",
+          targetRootPath: "target",
+          resolvedTargetRootPath: "/resolved/target",
+          preExistingGitStatusEntryCount: 0,
+          newMutationCount: 0,
+          mutations: []
+        },
+        reason: null
+      }
+    });
+    expect(result.status).toBe("completed");
+    if (result.status === "completed") {
+      expect(result.metrics.targetImmutability.availability).toBe("available");
+      expect(result.metrics.targetImmutability.count).toBe(0);
+      expect(result.metrics.targetImmutability.evidenceKeys).toEqual([]);
+    }
+  });
+
+  it("RUN-072 a completed evaluation with mutated target reports available mutations", () => {
+    const result = evaluateV043StageContextExecution(SIX_EXECUTIONS[0], {
+      targetImmutability: {
+        availability: "available",
+        comparison: {
+          status: "mutated",
+          targetRootPath: "target",
+          resolvedTargetRootPath: "/resolved/target",
+          preExistingGitStatusEntryCount: 0,
+          newMutationCount: 1,
+          mutations: [{ id: "git.head", kind: "git-head", fieldPath: "git.head", before: "a", after: "b" }]
+        },
+        reason: null
+      }
+    });
+    expect(result.status).toBe("completed");
+    if (result.status === "completed") {
+      expect(result.metrics.targetImmutability.availability).toBe("available");
+      expect(result.metrics.targetImmutability.count).toBe(1);
+      expect(result.metrics.targetImmutability.evidenceKeys).toEqual(["git.head"]);
+    }
+  });
+
+  it("RUN-073 target expected-state comparison uses the same comparison", () => {
+    const architecturePair = makePair("architecture", false);
+    const execution = baseExecution("architecture-context-only", { architecture: architecturePair });
+    execution.expectations.expectedStates = { targetImmutability: { newMutationCount: 0 } };
+    const result = evaluateV043StageContextExecution(execution, {
+      targetImmutability: {
+        availability: "available",
+        comparison: {
+          status: "unchanged",
+          targetRootPath: "target",
+          resolvedTargetRootPath: "/resolved/target",
+          preExistingGitStatusEntryCount: 0,
+          newMutationCount: 0,
+          mutations: []
+        },
+        reason: null
+      }
+    });
+    expect(result.status).toBe("completed");
+    if (result.status === "completed") {
+      const comparison = result.metrics.stateComparisons.find((c) => c.sourceArtifact === "target-immutability");
+      expect(comparison?.matched).toBe(true);
+      expect(comparison?.actual).toBe(0);
+    }
+  });
+
+  it("RUN-074 one-argument evaluator calls remain backward compatible", () => {
+    const result = evaluateV043StageContextExecution(SIX_EXECUTIONS[0]);
+    expect(result.status).toBe("completed");
+  });
+
+  it("RUN-075 non-completed execution still skips completed metrics", () => {
+    const execution: V043StageContextStrategyExecutionResult = {
+      status: "failed",
+      strategyId: "architecture-context-only",
+      input: {},
+      issues: []
+    };
+    const result = evaluateV043StageContextExecution(execution, {
+      targetImmutability: {
+        availability: "available",
+        comparison: {
+          status: "unchanged",
+          targetRootPath: "target",
+          resolvedTargetRootPath: "/resolved/target",
+          preExistingGitStatusEntryCount: 0,
+          newMutationCount: 0,
+          mutations: []
+        },
+        reason: null
+      }
+    });
+    expect(result.status).toBe("not-applicable");
+    expect(result).not.toHaveProperty("metrics");
   });
 });

@@ -33,12 +33,15 @@ import {
 } from "./calculateArtifactStateMetrics.js";
 import { calculateV043ExecutionContextSize } from "./calculateContextSizeMetrics.js";
 import type {
+  StageContextCountMetricV1,
   StageContextObservedEvidenceV1,
   StageContextResponsibilityMappingMetricV1,
   StageContextStateComparisonV1,
+  V043StageContextEvaluationContextV1,
   V043StageContextEvaluationMetricsV1,
   V043StageContextEvaluationResultV1
 } from "./types.js";
+import type { V043TargetImmutabilityRunResultV1 } from "../targetImmutability/index.js";
 
 function collectExecutionEvidence(execution: V043StageContextStrategyExecutionSuccess): StageContextObservedEvidenceV1[] {
   const evidence: StageContextObservedEvidenceV1[] = [];
@@ -140,7 +143,37 @@ function collectResponsibilityMetrics(
   return metrics;
 }
 
-function collectStateComparisons(execution: V043StageContextStrategyExecutionSuccess): StageContextStateComparisonV1[] {
+function buildTargetImmutabilityMetric(
+  targetImmutability: V043TargetImmutabilityRunResultV1 | undefined
+): StageContextCountMetricV1 {
+  if (targetImmutability === undefined) {
+    return {
+      availability: "unavailable",
+      count: null,
+      evidenceKeys: [],
+      reason: "Target immutability configuration was not supplied for this strategy run."
+    };
+  }
+  if (targetImmutability.availability === "unavailable") {
+    return {
+      availability: "unavailable",
+      count: null,
+      evidenceKeys: [],
+      reason: targetImmutability.reason
+    };
+  }
+  return {
+    availability: "available",
+    count: targetImmutability.comparison.newMutationCount,
+    evidenceKeys: targetImmutability.comparison.mutations.map((mutation) => mutation.id),
+    reason: null
+  };
+}
+
+function collectStateComparisons(
+  execution: V043StageContextStrategyExecutionSuccess,
+  targetImmutability: V043TargetImmutabilityRunResultV1 | undefined
+): StageContextStateComparisonV1[] {
   const expectedStates = execution.expectations.expectedStates;
   const comparisons: StageContextStateComparisonV1[] = [];
 
@@ -207,13 +240,14 @@ function collectStateComparisons(execution: V043StageContextStrategyExecutionSuc
     }
   }
 
-  comparisons.push(...compareExpectedTargetImmutabilityState(expectedStates.targetImmutability));
+  comparisons.push(...compareExpectedTargetImmutabilityState(expectedStates.targetImmutability, targetImmutability));
 
   return comparisons;
 }
 
 export function evaluateV043StageContextExecution(
-  execution: V043StageContextStrategyExecutionResult
+  execution: V043StageContextStrategyExecutionResult,
+  context?: V043StageContextEvaluationContextV1
 ): V043StageContextEvaluationResultV1 {
   try {
     if (execution.status === "invalid-input") {
@@ -262,7 +296,7 @@ export function evaluateV043StageContextExecution(
       irrelevantInstructionInclusion: calculateIrrelevantInstructionInclusion(execution.expectations, observedEvidence),
       requiredProvenanceRecall: calculateRequiredProvenanceRecall(expectationMatches),
       responsibilityMappingCompleteness: collectResponsibilityMetrics(execution),
-      stateComparisons: collectStateComparisons(execution),
+      stateComparisons: collectStateComparisons(execution, context?.targetImmutability),
       contextSize: calculateV043ExecutionContextSize(execution),
       consideredButUnselectedReads: {
         availability: "unavailable",
@@ -276,12 +310,7 @@ export function evaluateV043StageContextExecution(
         evidenceKeys: [],
         reason: "The published upstream artifacts do not expose unnecessary-read evidence."
       },
-      targetImmutability: {
-        availability: "unavailable",
-        count: null,
-        evidenceKeys: [],
-        reason: "Target immutability is implemented in Batch 6 and is unavailable in Batch 5."
-      }
+      targetImmutability: buildTargetImmutabilityMetric(context?.targetImmutability)
     };
 
     return {

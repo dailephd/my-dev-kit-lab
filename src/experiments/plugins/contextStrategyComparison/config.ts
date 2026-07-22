@@ -3,10 +3,12 @@ import { invalidExperimentConfig, isPlainObject, mergeConfig, validExperimentCon
 import type { ExperimentConfigValidationResult } from "../../types.js";
 import type { ContextStrategyIdWithV043 } from "./v043StrategyIds.js";
 import type { V043StageContextStrategyInputV1 } from "./v043StrategyInputContracts.js";
+import type { V043RunAssuranceConfigV1 } from "./v043RunAssuranceTypes.js";
 
 export type ContextStrategyComparisonConfig = Omit<ExperimentMatrixConfig, "strategies"> & {
   strategies?: ContextStrategyIdWithV043[];
   v043StrategyInputs?: readonly V043StageContextStrategyInputV1[];
+  v043RunAssurance?: V043RunAssuranceConfigV1;
 };
 
 export const defaultContextStrategyComparisonConfig: ContextStrategyComparisonConfig = {

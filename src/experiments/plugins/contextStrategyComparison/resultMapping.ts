@@ -18,11 +18,13 @@ import { summarizeExperimentRun } from "../../results.js";
 import type { ExperimentTarget } from "../../types.js";
 import type { V043StageContextStrategyExecutionResult } from "./v043StrategyExecutionTypes.js";
 import type { V043StageContextEvaluationResultV1 } from "../../../evaluation/stageContextMetrics/types.js";
+import type { V043StageContextRunAssuranceResultV1 } from "./v043RunAssuranceTypes.js";
 
 export type ContextStrategyComparisonRun = ExperimentRun & {
   legacyArtifacts: LegacyExperimentArtifacts;
   v043StageContextExecutions: V043StageContextStrategyExecutionResult[];
   v043StageContextEvaluations: V043StageContextEvaluationResultV1[];
+  v043StageContextRunAssurance: V043StageContextRunAssuranceResultV1[];
 };
 
 export function mapLegacyArtifactsToExperimentRun(args: {
@@ -33,6 +35,7 @@ export function mapLegacyArtifactsToExperimentRun(args: {
   legacyArtifacts: LegacyExperimentArtifacts;
   v043StageContextExecutions: V043StageContextStrategyExecutionResult[];
   v043StageContextEvaluations: V043StageContextEvaluationResultV1[];
+  v043StageContextRunAssurance: V043StageContextRunAssuranceResultV1[];
   pluginResultPath?: string;
 }): ContextStrategyComparisonRun {
   const variants = buildVariants(args.legacyArtifacts.runs);
@@ -58,6 +61,7 @@ export function mapLegacyArtifactsToExperimentRun(args: {
     legacyArtifacts: args.legacyArtifacts,
     v043StageContextExecutions: args.v043StageContextExecutions,
     v043StageContextEvaluations: args.v043StageContextEvaluations,
+    v043StageContextRunAssurance: args.v043StageContextRunAssurance,
     metadata: {
       pluginName: "Context Strategy Comparison",
       pluginSchemaVersion: "1.0.0",

@@ -179,15 +179,15 @@ describe("compareExpectedWorkflowInstructionPacketState", () => {
 });
 
 describe("compareExpectedTargetImmutabilityState", () => {
-  it("MET-135 target immutability expectation is unavailable", () => {
-    const result = compareExpectedTargetImmutabilityState({ newMutationCount: 0 });
+  it("MET-135 target immutability expectation is unavailable when no context is supplied", () => {
+    const result = compareExpectedTargetImmutabilityState({ newMutationCount: 0 }, undefined);
     expect(result[0].availability).toBe("unavailable");
     expect(result[0].sourceArtifact).toBe("target-immutability");
-    expect(result[0].reason).toBe("Target immutability is implemented in Batch 6 and is unavailable in Batch 5.");
+    expect(result[0].reason).toBe("Target immutability configuration was not supplied for this strategy run.");
   });
 
   it("MET-135b absent expectation returns no comparison", () => {
-    expect(compareExpectedTargetImmutabilityState(undefined)).toEqual([]);
+    expect(compareExpectedTargetImmutabilityState(undefined, undefined)).toEqual([]);
   });
 });
 

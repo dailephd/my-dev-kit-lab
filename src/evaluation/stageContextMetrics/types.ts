@@ -6,6 +6,7 @@ import type {
 } from "../stageContextExpectations/index.js";
 import type { V043StageContextStrategyExecutionStatus } from "../../experiments/plugins/contextStrategyComparison/v043StrategyExecutionTypes.js";
 import type { V043StageContextStrategyId } from "../../experiments/plugins/contextStrategyComparison/v043StrategyIds.js";
+import type { V043TargetImmutabilityRunResultV1 } from "../targetImmutability/index.js";
 
 export type StageContextMetricAvailability = "available" | "unavailable" | "not-applicable";
 
@@ -129,3 +130,7 @@ export type V043StageContextEvaluationResultV1 =
   | V043StageContextEvaluationCompletedV1
   | V043StageContextEvaluationNotApplicableV1
   | V043StageContextEvaluationFailedV1;
+
+export interface V043StageContextEvaluationContextV1 {
+  targetImmutability?: V043TargetImmutabilityRunResultV1;
+}

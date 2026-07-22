@@ -177,6 +177,7 @@ interface V043MockPlan {
   capsules: Record<string, unknown>;
   packets: Record<string, unknown>;
   library: Record<string, unknown>;
+  captureSnapshotQueue?: unknown[];
 }
 
 const V043_MOCK_PLAN: V043MockPlan = {
@@ -196,9 +197,11 @@ async function loadMockedPluginModule(plan: V043MockPlan) {
     const actual = await importOriginal<typeof import("../../src/evaluation/upstreamArtifacts/index.js")>();
     return {
       ...actual,
-      readMyDevKitContextCapsuleV1: vi.fn(
-        async (p: string) => plan.capsules?.[p] ?? { ok: false, artifactKind: "my-dev-kit-context-capsule-v1", sourcePath: p, code: "FILE_NOT_FOUND", message: "mock" }
-      ),
+      readMyDevKitContextCapsuleV1: vi.fn(async (p: string) => {
+        const entry = plan.capsules?.[p];
+        if (typeof entry === "function") return (entry as () => unknown)();
+        return entry ?? { ok: false, artifactKind: "my-dev-kit-context-capsule-v1", sourcePath: p, code: "FILE_NOT_FOUND", message: "mock" };
+      }),
       readMyDevKitRetrievalAuditRecordV1: actual.readMyDevKitRetrievalAuditRecordV1,
       readOrchestratorWorkflowInstructionPacketV1: vi.fn(
         async (p: string) => plan.packets?.[p] ?? { ok: false, artifactKind: "orchestrator-workflow-instruction-packet-v1", sourcePath: p, code: "FILE_NOT_FOUND", message: "mock" }
@@ -223,6 +226,16 @@ async function loadMockedPluginModule(plan: V043MockPlan) {
       )
     };
   });
+  if (plan.captureSnapshotQueue) {
+    const queue = [...plan.captureSnapshotQueue];
+    vi.doMock("../../src/evaluation/targetImmutability/index.js", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("../../src/evaluation/targetImmutability/index.js")>();
+      return {
+        ...actual,
+        captureTargetSnapshot: vi.fn(async () => queue.shift())
+      };
+    });
+  }
   return import("../../src/experiments/index.js");
 }
 
@@ -230,7 +243,33 @@ async function unloadMockedPluginModule() {
   vi.doUnmock("../../src/evaluation/upstreamArtifacts/index.js");
   vi.doUnmock("../../src/evaluation/stageContextExpectations/index.js");
   vi.doUnmock("../../src/experiments/plugins/contextStrategyComparison/readV043FullWorkflowLibraryFixture.js");
+  vi.doUnmock("../../src/evaluation/targetImmutability/index.js");
   vi.resetModules();
+}
+
+function defaultGitSnapshot(overrides: Record<string, unknown> = {}) {
+  return {
+    availability: "not-repository",
+    branch: null,
+    head: null,
+    statusEntries: [],
+    worktreeDiffSha256: null,
+    stagedDiffSha256: null,
+    untrackedFiles: [],
+    ...overrides
+  };
+}
+
+function targetSnapshotSuccess(gitOverrides: Record<string, unknown> = {}) {
+  return {
+    ok: true,
+    snapshot: {
+      targetRootPath: "Z:/fixture/target",
+      resolvedTargetRootPath: "Z:/fixture/target",
+      configuredFiles: [],
+      git: defaultGitSnapshot(gitOverrides)
+    }
+  };
 }
 
 describe("context-strategy-comparison plugin v0.4.3 stage-context integration", () => {
@@ -1160,5 +1199,652 @@ describe("context-strategy-comparison plugin v0.4.3 evidence-metric integration"
     });
     expect(existsSync(path.join(outDir, "report.html"))).toBe(false);
     expect(existsSync(path.join(outDir, "report.txt"))).toBe(false);
+  });
+});
+
+describe("context-strategy-comparison plugin v0.4.3 run-assurance integration", () => {
+  const runAssuranceTempDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(runAssuranceTempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+    await unloadMockedPluginModule();
+  });
+
+  it("RUN-076 legacy-only result includes v043StageContextRunAssurance: []", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-legacy-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-legacy-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
+        caseIds: ["todo-ts-create-task"],
+        agents: ["fake-agent"],
+        strategies: ["raw-full-file", "my-dev-kit-guided"],
+        complexityLevels: ["short"],
+        outDir,
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance).toEqual([]);
+  });
+
+  it("RUN-077 default v0.4.3 run uses repeatCount 1", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-default-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-default-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].repeatCount).toBe(1);
+  });
+
+  it("RUN-078 default v0.4.3 run assurance is not-applicable without target config", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-not-applicable-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-not-applicable-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].status).toBe("not-applicable");
+  });
+
+  it("RUN-079 one selected strategy produces one assurance result", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-one-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-one-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance).toHaveLength(1);
+  });
+
+  it("RUN-080 all six selected strategies produce six assurance results", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-six-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const strategies = [
+      "architecture-context-only",
+      "architecture-plus-implementation-refresh",
+      "architecture-plus-implementation-and-test-refresh",
+      "full-workflow-library",
+      "bounded-workflow-instruction-packet",
+      "combined-bounded-stage-context",
+    ] as const;
+    const v043StrategyInputs = [
+      { strategyId: "architecture-context-only" as const, expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+      {
+        strategyId: "architecture-plus-implementation-refresh" as const,
+        expectationsPath: V043_EXPECTATIONS_PATH,
+        architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH,
+        implementationContextCapsulePath: V043_IMPLEMENTATION_CAPSULE_PATH,
+      },
+      {
+        strategyId: "architecture-plus-implementation-and-test-refresh" as const,
+        expectationsPath: V043_EXPECTATIONS_PATH,
+        architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH,
+        implementationContextCapsulePath: V043_IMPLEMENTATION_CAPSULE_PATH,
+        testImplementationContextCapsulePath: V043_TEST_IMPLEMENTATION_CAPSULE_PATH,
+      },
+      { strategyId: "full-workflow-library" as const, expectationsPath: V043_EXPECTATIONS_PATH, fullWorkflowLibraryFixturePath: V043_LIBRARY_PATH },
+      { strategyId: "bounded-workflow-instruction-packet" as const, expectationsPath: V043_EXPECTATIONS_PATH, workflowInstructionPacketPath: V043_PACKET_PATH },
+      {
+        strategyId: "combined-bounded-stage-context" as const,
+        expectationsPath: V043_EXPECTATIONS_PATH,
+        contextArtifacts: [{ role: "architecture" as const, contextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH }],
+        workflowInstructionPacketPath: V043_PACKET_PATH,
+      },
+    ];
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-six-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: [...strategies],
+        v043StrategyInputs,
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance).toHaveLength(6);
+  });
+
+  it("RUN-081 execution, evaluation, and assurance arrays have equal lengths", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-equal-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-equal-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only", "bounded-workflow-instruction-packet"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+          { strategyId: "bounded-workflow-instruction-packet", expectationsPath: V043_EXPECTATIONS_PATH, workflowInstructionPacketPath: V043_PACKET_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextExecutions).toHaveLength(2);
+    expect(result.v043StageContextEvaluations).toHaveLength(2);
+    expect(result.v043StageContextRunAssurance).toHaveLength(2);
+  });
+
+  it("RUN-082 all three arrays use selected-strategy order", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-order-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-order-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["bounded-workflow-instruction-packet", "architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+          { strategyId: "bounded-workflow-instruction-packet", expectationsPath: V043_EXPECTATIONS_PATH, workflowInstructionPacketPath: V043_PACKET_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    const expectedOrder = ["bounded-workflow-instruction-packet", "architecture-context-only"];
+    expect(result.v043StageContextExecutions.map((e) => e.strategyId)).toEqual(expectedOrder);
+    expect(result.v043StageContextEvaluations.map((e) => e.strategyId)).toEqual(expectedOrder);
+    expect(result.v043StageContextRunAssurance.map((e) => e.strategyId)).toEqual(expectedOrder);
+  });
+
+  it("RUN-083 primary execution is the exact execution array entry", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-primary-exec-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-primary-exec-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].primaryExecution).toBe(result.v043StageContextExecutions[0]);
+  });
+
+  it("RUN-084 primary evaluation is the exact evaluation array entry", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-primary-eval-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-primary-eval-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].primaryEvaluation).toBe(result.v043StageContextEvaluations[0]);
+  });
+
+  it("RUN-085 repeatCount 2 executes each selected v0.4.3 strategy twice", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-repeat-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-repeat-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+        v043RunAssurance: { repeatCount: 2 },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].runRecords).toHaveLength(2);
+  });
+
+  it("RUN-086 only the first execution is placed in v043StageContextExecutions", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-only-first-exec-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-only-first-exec-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+        v043RunAssurance: { repeatCount: 2 },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextExecutions).toHaveLength(1);
+  });
+
+  it("RUN-087 only the first evaluation is placed in v043StageContextEvaluations", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-only-first-eval-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-only-first-eval-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+        v043RunAssurance: { repeatCount: 2 },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextEvaluations).toHaveLength(1);
+  });
+
+  it("RUN-088 repeated-run digests remain in the assurance result", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-digests-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-digests-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+        v043RunAssurance: { repeatCount: 2 },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].determinism.runDigests).toHaveLength(2);
+  });
+
+  it("RUN-089 an unchanged target produces passed assurance", async () => {
+    const snapshot = targetSnapshotSuccess();
+    const mocked = await loadMockedPluginModule({
+      ...V043_MOCK_PLAN,
+      captureSnapshotQueue: [snapshot, structuredClone(snapshot)]
+    });
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-unchanged-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-unchanged-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+        v043RunAssurance: { targetImmutability: { targetRootPath: "Z:/fixture/target", relativeFilePaths: ["src/a.ts"] } },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].status).toBe("passed");
+  });
+
+  it("RUN-090 a mutated target produces failed assurance", async () => {
+    const before = targetSnapshotSuccess({ head: "abc" });
+    const after = targetSnapshotSuccess({ head: "def" });
+    const mocked = await loadMockedPluginModule({ ...V043_MOCK_PLAN, captureSnapshotQueue: [before, after] });
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-mutated-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-mutated-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+        v043RunAssurance: { targetImmutability: { targetRootPath: "Z:/fixture/target", relativeFilePaths: ["src/a.ts"] } },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].status).toBe("failed");
+  });
+
+  it("RUN-091 a failed assurance result does not stop the next strategy", async () => {
+    const before = targetSnapshotSuccess({ head: "abc" });
+    const after = targetSnapshotSuccess({ head: "def" });
+    const unchanged = targetSnapshotSuccess();
+    const mocked = await loadMockedPluginModule({
+      ...V043_MOCK_PLAN,
+      captureSnapshotQueue: [before, after, unchanged, structuredClone(unchanged)]
+    });
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-continue-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-continue-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only", "bounded-workflow-instruction-packet"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+          { strategyId: "bounded-workflow-instruction-packet", expectationsPath: V043_EXPECTATIONS_PATH, workflowInstructionPacketPath: V043_PACKET_PATH },
+        ],
+        v043RunAssurance: { targetImmutability: { targetRootPath: "Z:/fixture/target", relativeFilePaths: ["src/a.ts"] } },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance.map((a) => a.status)).toEqual(["failed", "passed"]);
+  });
+
+  it("RUN-092 a nondeterministic strategy produces failed assurance", async () => {
+    let callCount = 0;
+    const mocked = await loadMockedPluginModule({
+      ...V043_MOCK_PLAN,
+      capsules: {
+        [V043_ARCHITECTURE_CAPSULE_PATH]: () => {
+          callCount += 1;
+          const artifact = withRoleForPlugin(rawCapsuleForPlugin, "architecture");
+          if (callCount > 1) artifact.warnings = [...artifact.warnings, `nondeterministic-run-${callCount}`];
+          return {
+            ok: true,
+            artifactKind: "my-dev-kit-context-capsule-v1",
+            sourcePath: V043_ARCHITECTURE_CAPSULE_PATH,
+            schemaVersion: "1.0.0",
+            schemaMajor: 1,
+            artifact,
+            rawArtifact: artifact
+          };
+        }
+      }
+    });
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-nondeterministic-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-nondeterministic-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+        v043RunAssurance: { repeatCount: 2 },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance[0].status).toBe("failed");
+    expect(result.v043StageContextRunAssurance[0].determinism.deterministic).toBe(false);
+  });
+
+  it("RUN-093 an invalid assurance config prevents every strategy execution", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-invalid-assurance-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    await expect(
+      contextStrategyComparisonPlugin.run({
+        runId: "context-plugin-run-invalid-assurance-test",
+        startedAt: new Date("2026-06-23T00:00:00.000Z"),
+        toolRoot: process.cwd(),
+        target: resolveExperimentTarget(undefined, process.cwd()),
+        config: {
+          casesPath: "examples/token-savings-cases.json",
+          outDir,
+          strategies: ["raw-full-file"],
+          v043RunAssurance: { repeatCount: 0 },
+        },
+        inputs: { cases, projectProfiles },
+      })
+    ).rejects.toThrow(/Invalid v0\.4\.3 run-assurance configuration/);
+  });
+
+  it("RUN-094 assurance config error message is deterministic", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-assurance-message-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    await expect(
+      contextStrategyComparisonPlugin.run({
+        runId: "context-plugin-run-assurance-message-test",
+        startedAt: new Date("2026-06-23T00:00:00.000Z"),
+        toolRoot: process.cwd(),
+        target: resolveExperimentTarget(undefined, process.cwd()),
+        config: {
+          casesPath: "examples/token-savings-cases.json",
+          outDir,
+          strategies: ["raw-full-file"],
+          v043RunAssurance: { repeatCount: 0 },
+        },
+        inputs: { cases, projectProfiles },
+      })
+    ).rejects.toThrow("Invalid v0.4.3 run-assurance configuration: INVALID_REPEAT_COUNT:repeatCount");
+  });
+
+  it("RUN-095 an invalid target config prevents every strategy execution", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-invalid-target-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    await expect(
+      contextStrategyComparisonPlugin.run({
+        runId: "context-plugin-run-invalid-target-test",
+        startedAt: new Date("2026-06-23T00:00:00.000Z"),
+        toolRoot: process.cwd(),
+        target: resolveExperimentTarget(undefined, process.cwd()),
+        config: {
+          casesPath: "examples/token-savings-cases.json",
+          outDir,
+          strategies: ["raw-full-file"],
+          v043RunAssurance: { targetImmutability: { targetRootPath: "", relativeFilePaths: [] } },
+        },
+        inputs: { cases, projectProfiles },
+      })
+    ).rejects.toThrow(/Invalid v0\.4\.3 run-assurance configuration/);
+  });
+
+  it("RUN-096 legacy strategy behavior remains unchanged", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-legacy-behavior-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-legacy-behavior-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
+        caseIds: ["todo-ts-create-task"],
+        agents: ["fake-agent"],
+        strategies: ["raw-full-file", "my-dev-kit-guided"],
+        complexityLevels: ["short"],
+        outDir,
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.legacyArtifacts.runs).toHaveLength(2);
+  });
+
+  it("RUN-097 legacy strategies are not repeated", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-legacy-not-repeated-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-legacy-not-repeated-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
+        caseIds: ["todo-ts-create-task"],
+        agents: ["fake-agent"],
+        strategies: ["raw-full-file", "my-dev-kit-guided"],
+        complexityLevels: ["short"],
+        outDir,
+        v043RunAssurance: { repeatCount: 5 },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.legacyArtifacts.runs).toHaveLength(2);
+  });
+
+  it("RUN-098 legacy strategies receive no target snapshot", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-legacy-no-snapshot-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    const result = await contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-legacy-no-snapshot-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
+        caseIds: ["todo-ts-create-task"],
+        agents: ["fake-agent"],
+        strategies: ["raw-full-file", "my-dev-kit-guided"],
+        complexityLevels: ["short"],
+        outDir,
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(result.v043StageContextRunAssurance).toEqual([]);
+  });
+
+  it("RUN-099 no CLI option is introduced", () => {
+    const pluginSource = readFileSync("src/experiments/plugins/contextStrategyComparison/plugin.ts", "utf8");
+    expect(pluginSource).not.toContain("process.argv");
+  });
+
+  it("RUN-100 no report file is generated", async () => {
+    const mocked = await loadMockedPluginModule(V043_MOCK_PLAN);
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "context-plugin-run-no-report-"));
+    runAssuranceTempDirs.push(outDir);
+    const { cases, projectProfiles } = await loadExperimentFixtures();
+    await mocked.contextStrategyComparisonPlugin.run({
+      runId: "context-plugin-run-no-report-test",
+      startedAt: new Date("2026-06-23T00:00:00.000Z"),
+      toolRoot: process.cwd(),
+      target: mocked.resolveExperimentTarget(undefined, process.cwd()),
+      config: {
+        casesPath: "examples/token-savings-cases.json",
+        outDir,
+        strategies: ["architecture-context-only"],
+        v043StrategyInputs: [
+          { strategyId: "architecture-context-only", expectationsPath: V043_EXPECTATIONS_PATH, architectureContextCapsulePath: V043_ARCHITECTURE_CAPSULE_PATH },
+        ],
+        v043RunAssurance: { repeatCount: 2 },
+      },
+      inputs: { cases, projectProfiles },
+    });
+    expect(existsSync(path.join(outDir, "assurance-report.json"))).toBe(false);
+  });
+
+  it("RUN-101 no target repair action occurs", () => {
+    const pluginSource = readFileSync("src/experiments/plugins/contextStrategyComparison/plugin.ts", "utf8");
+    for (const verb of ["git reset", "git restore", "git clean", "git stash", "git checkout"]) {
+      expect(pluginSource).not.toContain(verb);
+    }
   });
 });

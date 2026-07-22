@@ -12,12 +12,13 @@ import {
   mapLegacyArtifactsToExperimentRun,
   type ContextStrategyComparisonRun,
 } from "./resultMapping.js";
-import { executeV043StageContextStrategy } from "./executeV043StageContextStrategy.js";
 import { resolveV043StrategyInputs } from "./resolveV043StrategyInputs.js";
 import { V043_STAGE_CONTEXT_STRATEGY_IDS, type V043StageContextStrategyId } from "./v043StrategyIds.js";
 import type { V043StageContextStrategyExecutionResult } from "./v043StrategyExecutionTypes.js";
-import { evaluateV043StageContextExecution } from "../../../evaluation/stageContextMetrics/evaluateV043StageContextExecution.js";
 import type { V043StageContextEvaluationResultV1 } from "../../../evaluation/stageContextMetrics/types.js";
+import { validateV043RunAssuranceConfig } from "./validateV043RunAssuranceConfig.js";
+import { runV043StageContextStrategyWithAssurance } from "./runV043StageContextStrategyWithAssurance.js";
+import type { V043StageContextRunAssuranceResultV1 } from "./v043RunAssuranceTypes.js";
 
 export const contextStrategyComparisonMetadata: ExperimentPluginMetadata = {
   id: "context-strategy-comparison",
@@ -68,6 +69,13 @@ export const contextStrategyComparisonPlugin: ExperimentPlugin<
       throw new Error(`Invalid v0.4.3 strategy-input configuration: ${issuesText}`);
     }
 
+    const runAssuranceValidation = validateV043RunAssuranceConfig(context.config.v043RunAssurance);
+    if (!runAssuranceValidation.ok) {
+      const issuesText = runAssuranceValidation.issues.map((issue) => `${issue.code}:${issue.fieldPath}`).join(", ");
+      throw new Error(`Invalid v0.4.3 run-assurance configuration: ${issuesText}`);
+    }
+    const runAssuranceConfig = runAssuranceValidation.config;
+
     const legacyStrategyIds = selectedStrategyIds.filter((strategyId) => !isV043StrategyId(strategyId));
     const legacyConfig = { ...context.config, strategies: legacyStrategyIds };
     const legacyArtifacts = await runControlledExperiment({
@@ -81,13 +89,14 @@ export const contextStrategyComparisonPlugin: ExperimentPlugin<
     const v043SelectedStrategyIds = selectedStrategyIds.filter(isV043StrategyId);
     const v043StageContextExecutions: V043StageContextStrategyExecutionResult[] = [];
     const v043StageContextEvaluations: V043StageContextEvaluationResultV1[] = [];
+    const v043StageContextRunAssurance: V043StageContextRunAssuranceResultV1[] = [];
     for (const strategyId of v043SelectedStrategyIds) {
       const input = resolution.inputByStrategyId[strategyId];
       if (!input) continue;
-      const executionResult = await executeV043StageContextStrategy(input);
-      v043StageContextExecutions.push(executionResult);
-      const evaluationResult = evaluateV043StageContextExecution(executionResult);
-      v043StageContextEvaluations.push(evaluationResult);
+      const assurance = await runV043StageContextStrategyWithAssurance(input, runAssuranceConfig);
+      v043StageContextExecutions.push(assurance.primaryExecution);
+      v043StageContextEvaluations.push(assurance.primaryEvaluation);
+      v043StageContextRunAssurance.push(assurance);
     }
 
     const completedAt = new Date().toISOString();
@@ -102,6 +111,7 @@ export const contextStrategyComparisonPlugin: ExperimentPlugin<
       legacyArtifacts,
       v043StageContextExecutions,
       v043StageContextEvaluations,
+      v043StageContextRunAssurance,
       pluginResultPath,
     });
     await writeFile(pluginResultPath, `${JSON.stringify(redactLegacyArtifacts(result), null, 2)}\n`, "utf8");
