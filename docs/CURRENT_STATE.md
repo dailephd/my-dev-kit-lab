@@ -7,17 +7,17 @@ This document records the repository's operational state. It is the source of tr
 - Package: `@dailephd/my-dev-kit-lab`
 - Package version: `0.4.2`
 - Latest release: verified external evidence identifies `v0.4.2` on npm, as a Git tag, and as a GitHub Release
-- Next planned version: `v0.4.3`, unreleased and not implemented
+- Next planned version: `v0.4.3`; implemented on its feature branch; not published, tagged, or released
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
 ## Operational state
 
-- Current branch: `docs/documentation-editorial-review`
-- Active planned version: `v0.4.3`; implementation has not started
-- Workflow stage: repository-wide documentation editorial review completed; branch ready for normal review
-- Release blockers: none for the already-published `v0.4.2`
-- Exact next action: review this pushed editorial branch through the normal pull-request process; begin v0.4.3 only under separate implementation authorization
+- Current branch: `feature/v0.4.3-stage-context-readers`
+- Active planned version: `v0.4.3`; implementation is complete on this branch and awaiting the separate pre-release readiness workflow
+- Workflow stage: documentation reconciliation and implementation-completeness audit for the completed `v0.4.3` implementation
+- Release blockers: none for the already-published `v0.4.2`; `v0.4.3` has not entered the pre-release readiness, cross-platform, security, or code-rot workflow
+- Exact next action: hand the completed `v0.4.3` branch to the separate pre-release readiness, cross-platform, security, and code-rot workflow
 
 ## Implemented
 
@@ -42,6 +42,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Cross-language stability hardening: mixed-language fixture corpus and invariant coverage, full-registry mixed-language detector stability tests, repeated-run audit report determinism tests, cross-platform/path normalization coverage, and CRLF/LF source parsing coverage.
 - Android validation in `src/mobile/android`, reachable through `security:validate --profile android`: project detection and classification, manifest parsing, permission/exported-component/intent-filter/deep-link audits, static Gradle metadata, and eleven advanced internal checks (network security config, backup/release configuration, redacted secrets, signing configuration, WebView/FileProvider, sensitive storage/logging/clipboard, and Firebase/Google services), for nineteen default checks. Optional opt-in Gradle operations and external tools (Semgrep, OSV-Scanner, Android Lint, Dependency-Check) remain off by default with zero network access.
 - Android-aware generic audit integration in `src/audits/security`: `npm run audit -- --types security --android` runs the same static Android validation through the existing security audit adapter, mapping confirmed findings into audit issues while keeping `CandidateEvidence` as a separate, review-only summary.
+- `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented on the `feature/v0.4.3-stage-context-readers` branch. It is not merged, not released, and not published: exact `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` readers and selectors in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`; the `StageContextExpectationFixtureV1` contract in `src/evaluation/stageContextExpectations`; six new `context-strategy-comparison` strategies (`architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, `combined-bounded-stage-context`) selected through programmatic configuration; evidence-centered metrics in `src/evaluation/stageContextMetrics`; read-only target immutability in `src/evaluation/targetImmutability`; repeated-run determinism in `src/evaluation/stageContextDeterminism`; and bounded `report.json`/`report.html`/`report.txt` output in `src/report/experiments`. See [ROADMAP.md](ROADMAP.md) for the complete scope, dependencies, and acceptance criteria.
 
 ## Current commands
 
@@ -57,6 +58,8 @@ The repository has one experiment runtime, one audit framework, one standalone s
 
 The audit framework, language-aware code-rot detectors, security adapter, Android validation, and Android audit extension are implemented through v0.4.2. The Android extension maps confirmed findings, keeps `CandidateEvidence` separate, and includes bounded status, completeness, and report-reference summaries.
 
+`v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented on its feature branch. It is not merged, not released, and not published; see the `Implemented` section above. Within that implementation, CLI flags for selecting the six new strategies through `experiment:run` are **not implemented** — they are configured programmatically. Plots, screenshots, and gallery integration for the new stage-context evidence are likewise **not implemented**.
+
 The following remain planned, not implemented:
 
 - the `quality` code-quality detector family and audit type
@@ -65,7 +68,6 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- `v0.4.3`: deterministic evaluation of stage-specific bounded repository context and workflow-instruction strategies (context-capsule/retrieval-audit/`WorkflowInstructionPacket` readers, an expanded strategy matrix, fixture-based evidence metrics, target immutability, and reports), extending the existing `context-strategy-comparison` plugin and depending on upstream `my-dev-kit` `1.10.1` and `my-dev-kit-orchestrator` `1.2.1` output contracts — see [ROADMAP.md](ROADMAP.md)
 - warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.5.x` through `v0.8.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
@@ -79,19 +81,19 @@ The following remain planned, not implemented:
 - Fake-agent token totals are estimates. Provider telemetry differs by adapter and can be unavailable.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
 - Only one experiment plugin is currently registered.
+- The published upstream `ContextCapsule`/`RetrievalAuditRecord` artifacts that the implemented `v0.4.3` readers consume do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` with an explicit reason rather than zero.
+- Estimated token counts in the `v0.4.3` context-size metric use `ceil(characterCount / 4)` per source and are heuristic, not provider telemetry.
 
 ## Validation state
 
-The forensic recovery baseline passed `docs:check`, the focused documentation regressions, typecheck, build, the complete test suite, `verify`, safe CLI discovery/help smokes, and the Node 26 GitHub Actions matrix on Ubuntu, macOS, and Windows.
+On the `feature/v0.4.3-stage-context-readers` branch, `npm run typecheck`, `npm run build`, the focused `v0.4.3` test suites (`tests/evaluation/upstreamArtifacts`, `tests/evaluation/stageContextSelectors`, `tests/evaluation/stageContextExpectations`, `tests/evaluation/stageContextMetrics`, `tests/evaluation/targetImmutability`, `tests/evaluation/stageContextDeterminism`, `tests/experiments/contextStrategyComparison`, `tests/report/experiments`), `npm run test:evaluation`, and `npm run test:experiments` pass.
 
-On this editorial branch, `docs:check`, all 57 documentation-preservation regressions, typecheck, build, every dedicated `verify` test family, benchmark verification, and the safe CLI discovery/help smokes pass. The documentation editorial review is complete.
-
-Separately, the combined product test command can expose two environment-dependent Claude adapter assertions on this Windows host: after other test files run, `env: { PATH: "" }` does not hide an installed `claude.exe` because the process retains the case-distinct `Path` entry. The same five-test Claude adapter file passes when run in the dedicated agent suite. This is a product-test isolation issue, was not introduced by this documentation branch, and does not block the documentation verdict. This branch does not alter the adapter or its tests.
+The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run docs:check`, cross-platform CI, `npm run security:validate`, and `npm run audit`) belongs to the separate pre-release readiness, cross-platform, security, and code-rot workflow and has not yet been run against this implementation as a single combined gate.
 
 ## Blockers
 
-There are no documentation, factual, release, or implementation blockers for this editorial pass. The unrelated Windows `Path`/`PATH` test-isolation issue described above may be addressed through a separate product/test repair workflow. Version v0.4.3 remains outside this branch's scope.
+There are no documentation, factual, or implementation blockers for the completed `v0.4.3` implementation. It has not entered the separate pre-release readiness, cross-platform, security, or code-rot workflow, which is the required next stage before any release preparation begins.
 
 ## Next step
 
-Review `docs/documentation-editorial-review` through the normal pull-request process. The unrelated Windows Claude adapter test-isolation issue may be repaired separately if prioritized. After the documentation work is reviewed and merged, v0.4.3 may begin only under separate implementation authorization. See [ROADMAP.md](ROADMAP.md) for its dependencies and acceptance criteria.
+Hand the completed `v0.4.3` implementation on `feature/v0.4.3-stage-context-readers` to the separate pre-release readiness, cross-platform, security, and code-rot workflow. Release preparation, version changes, tagging, and publication remain out of scope until that workflow completes. See [ROADMAP.md](ROADMAP.md) for `v0.4.3`'s dependencies and acceptance criteria.

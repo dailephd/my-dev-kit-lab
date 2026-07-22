@@ -293,27 +293,40 @@ Each entry below uses the same fields: **Meaning**, **Appears in** (the artifact
   Interpretation: stronger labels mean safer aggregate interpretation.
   Caveat: comparison reliability is not the same as correctness.
 
-## Planned v0.4.3 metrics (not implemented)
+## Planned v0.4.3 metrics
 
-Not implemented. See [ROADMAP.md](ROADMAP.md) for the full plan. Names below are candidates, subject to confirmation against current evaluation-type conventions.
+Implemented in `src/evaluation/stageContextMetrics` on the `feature/v0.4.3-stage-context-readers` branch. This section is retained under its original "Planned v0.4.3 metrics" heading for documentation-consistency tooling; the metrics below are implemented, not planned. This work is not published; see [ROADMAP.md](ROADMAP.md) and [CHANGELOG.md](../CHANGELOG.md) for its release state.
+
+Every ratio metric below reports `availability` (`available`, `unavailable`, or `not-applicable`), `numerator`, `denominator`, and `rate` explicitly. Missing metric input is reported as `unavailable`, never coerced to zero; `not-applicable` is distinct from both. Every count metric reports `availability`, `count`, and bounded `evidenceKeys`.
 
 - `requiredEvidenceRecall`
-  Meaning: fraction of fixture-required evidence (files, symbols, instruction IDs, contracts, validators, errors, tests, test helpers, responsibility mappings) found in selected context.
-  Formula: found required evidence / total required evidence (optional evidence excluded from the denominator).
-  Caveat: requires explicit fixture expectations; not computable without them.
+  Meaning: fraction of fixture-required evidence (files, symbols, source ranges, contracts, validators, constants, errors, schemas/serializers, production responsibilities, package scripts, test commands, and workflow/stage/command/rule/report-contract IDs) found in observed evidence.
+  Formula: matched required evidence / total required evidence.
+  Caveat: requires an explicit `StageContextExpectationFixtureV1`; not computable without it.
+- `allowedEvidenceCoverage`
+  Meaning: fraction of fixture-allowed (optional) evidence found in observed evidence.
+  Formula: matched allowed evidence / total allowed evidence.
+- `forbiddenEvidenceInclusion`
+  Meaning: fraction of fixture-forbidden evidence that was nonetheless observed.
+  Formula: observed forbidden evidence / total forbidden evidence.
+  Caveat: a `not-applicable` availability when no forbidden evidence is defined is not the same as zero forbidden inclusion.
 - `irrelevantFileInclusion` / `irrelevantInstructionInclusion`
-  Meaning: fraction of selected files/instructions that are not required or allowed by the fixture.
-  Formula: selected-not-required-or-allowed / total selected.
-  Caveat: zero expected irrelevant items is not itself a failed metric.
+  Meaning: count of observed files/instructions that are not required or allowed by the fixture.
+  Caveat: zero irrelevant items is a real, available zero, not the same as `unavailable`.
+- `requiredProvenanceRecall`
+  Meaning: fraction of fixture-required provenance evidence IDs found in observed evidence.
 - `responsibilityMappingCompleteness`
-  Meaning: whether each fixture-defined responsibility has complete evidence (production symbol, contract/validator/error/side-effect evidence, test file, helper, oracle evidence, verification command); partial mappings do not count as complete.
-- `provenanceCompleteness`
-  Meaning: whether selected evidence identifies its origin (TaskState, workflow catalog, repository retrieval, upstream artifact, changed-surface source); provenance is never inferred from filenames alone.
-- `truncation` / `adequacy` / `freshness`
-  Meaning: whether reported truncation, adequacy (correctly adequate / correctly inadequate / false adequate / false inadequate / unknown), and freshness (fresh / stale / unknown) match fixture expectations. Hidden truncation is a failure; nonempty output is never automatically adequate.
-- `fullFileFallbackCount` / `unnecessaryReadCount`
-  Meaning: full-file fallbacks and unnecessary considered-but-unselected reads, reported only when source retrieval-audit data exposes them; not every fallback is a failure.
-- `determinism`
-  Meaning: whether repeated canonical runs (normalizing only timestamps, temporary paths, and timing) produce identical strategy IDs, selected evidence, metrics, warnings, and report structure.
+  Meaning: per source instance, whether context-capsule/retrieval-audit-record responsibility mappings are mapped, partially mapped, unmapped, or not applicable, with a mapped rate; partial mappings do not count as complete.
+- `stateComparisons`
+  Meaning: explicit expected-versus-actual comparisons of artifact state fields (for example context/role adequacy status, freshness state, truncation, unresolved-item counts, warning counts) declared in the fixture's expected states, each with its own `available`/`unavailable`/`not-applicable` availability.
+- `contextSize`
+  Meaning: per-source character count and estimated token count, plus totals, across all context sources supplied to the strategy.
+  Formula: estimated tokens use `ceil(characterCount / 4)` per source — an estimate, not provider-reported tokens.
+- `consideredButUnselectedReads` / `unnecessaryReads`
+  Meaning: counts of considered-but-unselected and unnecessary reads.
+  Caveat: the published upstream `RetrievalAuditRecord` does not expose this evidence; these metrics report `unavailable` with an explicit reason, never zero.
+- `targetImmutability`
+  Meaning: count of target mutations detected between the before and after target snapshots for a run.
+  Caveat: reports `unavailable` when no target-immutability configuration was supplied for the run; a configured, unchanged target reports an available count of zero.
 
-All v0.4.3 metrics report numerator, denominator, and rate explicitly. Missing metric input is reported as unavailable, never coerced to zero; zero-denominator cases have explicit, documented behavior rather than a division error.
+Repeated-run determinism (`StageContextDeterminismResultV1` in `src/evaluation/stageContextDeterminism`) reports whether repeated canonical runs (`repeatCount` 1 through 10, run 1 as baseline) produce identical canonicalized run values via SHA-256 digest comparison. A single run reports `not-applicable`; a canonicalization failure (for example a circular reference) reports `unavailable`.

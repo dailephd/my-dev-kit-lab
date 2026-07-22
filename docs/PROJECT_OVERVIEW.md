@@ -6,13 +6,13 @@ my-dev-kit-lab is for maintainers, release engineers, coding-agent researchers, 
 
 The project combines controlled experiments, deterministic fixtures, agent adapters, conservative audits, automated security validation, and reviewable reports. It records what ran, what evidence was available, what was skipped, and which limitations apply.
 
-[my-dev-kit](https://www.npmjs.com/package/@dailephd/my-dev-kit) is the local-first indexing and graph-guided retrieval CLI being evaluated. my-dev-kit-lab is the separate experiment and validation layer. Planned workflow-packet inputs from my-dev-kit-orchestrator belong to future v0.4.3 work; the orchestrator is not a current runtime dependency.
+[my-dev-kit](https://www.npmjs.com/package/@dailephd/my-dev-kit) is the local-first indexing and graph-guided retrieval CLI being evaluated. my-dev-kit-lab is the separate experiment and validation layer. Workflow-packet inputs from my-dev-kit-orchestrator are read by the implemented v0.4.3 stage-context strategies through exact, non-normalizing readers; the orchestrator is not a runtime dependency.
 
 The strongest retrieval use case is a localized task in a repository that is larger than the task. The project measures that claim under defined conditions rather than assuming that guided retrieval always saves tokens.
 
 ## Current baseline
 
-The latest release is v0.4.2. Version v0.4.3 is planned and not implemented. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational details, [CHANGELOG.md](../CHANGELOG.md) for release history, and [ROADMAP.md](ROADMAP.md) for future scope.
+The latest published release is v0.4.2. Version v0.4.3 is implemented on the `feature/v0.4.3-stage-context-readers` branch and awaits the separate pre-release readiness workflow; it is not published. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational details, [CHANGELOG.md](../CHANGELOG.md) for release history, and [ROADMAP.md](ROADMAP.md) for future scope.
 
 The generic experiment-plugin runtime has one registered plugin, `context-strategy-comparison`. It compares raw-full-file and my-dev-kit-guided strategies through a common runner and supports deterministic fake-agent runs, optional Codex or Claude campaigns, self-validation, and explicit local-project targets.
 
@@ -63,8 +63,8 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-The next planned patch, v0.4.3, evaluates stage-specific bounded repository context and workflow instructions through the existing experiment infrastructure. Later work covers warm-index reuse, freshness and stale-index detection, context-window scaling, retrieval precision and recall, agent success, normalized telemetry, scheduling, prompt hardening, and a generalized evidence portal.
+Version v0.4.3 evaluates stage-specific bounded repository context and workflow instructions through the existing experiment infrastructure; it is implemented on its feature branch and awaits the separate pre-release readiness workflow before release preparation begins. The next planned patch after v0.4.3 releases is v0.5.0, warm-index reuse. Later planned work covers freshness and stale-index detection, context-window scaling, retrieval precision and recall, agent success, normalized telemetry, scheduling, prompt hardening, and a generalized evidence portal.
 
-These items remain planned. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
+These later items remain planned. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 
 See [CURRENT_STATE.md](CURRENT_STATE.md) for implemented-versus-planned status and [ROADMAP.md](ROADMAP.md) for semantic version ordering.
