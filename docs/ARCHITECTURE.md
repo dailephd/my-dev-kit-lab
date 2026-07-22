@@ -22,8 +22,14 @@ src/
     runner.ts                                generic execution lifecycle
     target.ts                                self/external-local target resolution
     types.ts                                 plugin contracts and normalized results
-    plugins/contextStrategyComparison/       first implemented plugin
+    plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
+    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3)
+    stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3)
+    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3)
+    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3)
+    targetImmutability/                      read-only target snapshot and mutation comparison (v0.4.3)
+    stageContextDeterminism/                 canonicalization and repeated-run digest comparison (v0.4.3)
   agents/                                    fake-agent, Codex, and Claude adapters
   prompts/                                   prompt variant generation and prompt complexity metrics
   audits/                                    generic audit framework (code-rot and security audit types implemented)
@@ -34,7 +40,7 @@ src/
     security/                                security audit adapter: adapts securityValidation results into audit issues/report summary, including the Android-aware extension
     report/                                  audit report model, JSON/text renderers, writer, text sanitizer
   report/
-    experiments/                             plugin-aware JSON/HTML report support
+    experiments/                             plugin-aware JSON/HTML/text report support (text renderer and the v0.4.3 stage-context section)
     ...                                      shared and legacy report infrastructure
   mobile/android/                            Android detection, manifest parsing, static Gradle metadata, and advanced security checks
   securityValidation/                        automated security validation
@@ -135,6 +141,26 @@ sequenceDiagram
   Runtime->>Report: write JSON and HTML reports
   Report-->>User: plugin-aware and legacy outputs
 ```
+
+## Stage-context evaluation architecture (v0.4.3)
+
+Implemented and published. It extends the `context-strategy-comparison` plugin and its report layer rather than creating a parallel runner, evaluation system, or report system.
+
+```mermaid
+flowchart TD
+  Readers[src/evaluation/upstreamArtifacts\nexact ContextCapsule / RetrievalAuditRecord / WorkflowInstructionPacket readers] --> Selectors[src/evaluation/stageContextSelectors\nselectors and consistency diagnostics]
+  Selectors --> Expectations[src/evaluation/stageContextExpectations\nStageContextExpectationFixtureV1]
+  Expectations --> Execution[contextStrategyComparison plugin\nsix v0.4.3 strategy executions]
+  Readers --> Execution
+  Execution --> Metrics[src/evaluation/stageContextMetrics\nevidence-centered metrics]
+  Execution --> Assurance[src/evaluation/targetImmutability\n+ src/evaluation/stageContextDeterminism\nrun assurance]
+  Metrics --> Reports[src/report/experiments\nbounded report.json / report.html / report.txt]
+  Assurance --> Reports
+```
+
+Dependency direction is one-way: readers depend on nothing else in this list; selectors depend on readers; expectations depend on selectors; strategy execution depends on readers, selectors, and expectations; metrics depend on strategy execution output; run assurance depends on strategy execution and evaluation; reports depend on execution, evaluation, and assurance results and do not feed back into any earlier layer.
+
+This architecture does not introduce a normalized upstream observation layer — readers preserve exact upstream field names, nesting, optionality, nullability, array order, and unknown additive fields, and never merge or reshape `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` objects. Metrics are not upstream artifact properties; they are a separate, additive evaluation layer computed from reader output plus expectation fixtures. Reports do not recalculate execution results, metrics, target immutability, or determinism; the report layer only renders a bounded, deterministic view of already-computed results and never reruns a strategy.
 
 ## Target model
 
@@ -261,17 +287,12 @@ The following layers are planned and must not be treated as current published or
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
-- `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation (see below)
-- additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success
+- additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success (`v0.5.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 
+`v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published (see "Stage-context evaluation architecture (v0.4.3)" above).
+
 Future audit work should reuse `src/audits/core`, `src/audits/security`, target metadata, the normalized issue schema, and shared reports. It must not replace the experiment runtime, duplicate report/gallery systems, or absorb `security:validate` into the audit framework.
-
-### Planned v0.4.3 extension points
-
-Version v0.4.3 is planned and not implemented. It may add schema-validating readers and evidence-centered metrics to the existing evaluation and `context-strategy-comparison` modules, then reuse the current report, plot, screenshot, and gallery infrastructure.
-
-The work must preserve the experiment runner and existing strategy IDs, keep targets immutable, reject unsupported schema majors clearly, and leave audit and security-validation behavior unchanged. Upstream projects remain independently releasable and do not become runtime dependencies. See [ROADMAP.md](ROADMAP.md) for the complete dependencies, ownership boundaries, scope, exclusions, and acceptance criteria.
 
 ## Key contracts
 
@@ -299,3 +320,10 @@ The work must preserve the experiment runner and existing strategy IDs, keep tar
 | JVM project metadata | `src/audits/core/jvmProjectMetadata.ts` |
 | Security audit adapter | `src/audits/security/securityAuditAdapter.ts` |
 | Security finding → audit issue mapping | `src/audits/security/mapSecurityFindingToAuditIssue.ts` |
+| v0.4.3 upstream artifact readers | `src/evaluation/upstreamArtifacts/` |
+| v0.4.3 strategy input contracts and IDs | `src/experiments/plugins/contextStrategyComparison/v043StrategyInputContracts.ts` / `v043StrategyIds.ts` |
+| v0.4.3 expectation fixture contract | `src/evaluation/stageContextExpectations/types.ts` |
+| v0.4.3 evidence-centered metrics | `src/evaluation/stageContextMetrics/` |
+| v0.4.3 target immutability | `src/evaluation/targetImmutability/` |
+| v0.4.3 repeated-run determinism | `src/evaluation/stageContextDeterminism/` |
+| v0.4.3 bounded report model | `src/report/experiments/contextStrategyComparisonV043ReportModel.ts` |

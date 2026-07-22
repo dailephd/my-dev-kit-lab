@@ -1,8 +1,15 @@
 import type { ExperimentMatrixConfig } from "../../../evaluation/controlledExperimentTypes.js";
 import { invalidExperimentConfig, isPlainObject, mergeConfig, validExperimentConfig } from "../../config.js";
 import type { ExperimentConfigValidationResult } from "../../types.js";
+import type { ContextStrategyIdWithV043 } from "./v043StrategyIds.js";
+import type { V043StageContextStrategyInputV1 } from "./v043StrategyInputContracts.js";
+import type { V043RunAssuranceConfigV1 } from "./v043RunAssuranceTypes.js";
 
-export type ContextStrategyComparisonConfig = ExperimentMatrixConfig;
+export type ContextStrategyComparisonConfig = Omit<ExperimentMatrixConfig, "strategies"> & {
+  strategies?: ContextStrategyIdWithV043[];
+  v043StrategyInputs?: readonly V043StageContextStrategyInputV1[];
+  v043RunAssurance?: V043RunAssuranceConfigV1;
+};
 
 export const defaultContextStrategyComparisonConfig: ContextStrategyComparisonConfig = {
   casesPath: "examples/token-savings-cases.json",

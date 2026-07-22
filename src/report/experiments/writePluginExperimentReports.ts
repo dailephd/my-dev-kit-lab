@@ -4,12 +4,14 @@ import { resolveWithinRoot } from "../../core/pathSafety.js";
 import type { ExperimentPluginMetadata, ExperimentRun } from "../../experiments/index.js";
 import { buildPluginExperimentReport } from "./buildPluginExperimentReport.js";
 import { renderPluginExperimentReportHtml } from "./renderPluginExperimentReportHtml.js";
+import { renderPluginExperimentReportText } from "./renderPluginExperimentReportText.js";
 import type { PluginExperimentReport } from "./experimentReportModel.js";
 
 export type PluginExperimentReportPaths = {
   outDir: string;
   jsonPath: string;
   htmlPath: string;
+  textPath: string;
 };
 
 export type WritePluginExperimentReportsResult = {
@@ -32,6 +34,7 @@ export async function writePluginExperimentReports(args: {
     outDir,
     jsonPath: resolveWithinRoot(outDir, "report.json"),
     htmlPath: resolveWithinRoot(outDir, "report.html"),
+    textPath: resolveWithinRoot(outDir, "report.txt"),
   };
   await mkdir(outputPaths.outDir, { recursive: true });
   const report = buildPluginExperimentReport({
@@ -46,6 +49,7 @@ export async function writePluginExperimentReports(args: {
     "utf8"
   );
   await writeFile(outputPaths.htmlPath, renderPluginExperimentReportHtml(report), "utf8");
+  await writeFile(outputPaths.textPath, renderPluginExperimentReportText(report), "utf8");
   return { report, outputPaths };
 }
 

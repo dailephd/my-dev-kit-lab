@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "1.0.0",
+  "caseId": "CASE-STAGE-CONTEXT-001",
+  "title": "Minimal stage-context expectation",
+  "description": "Minimal valid expectation fixture for contract validation.",
+  "expectedEvidence": [
+    {
+      "expectationId": "REQ-FILE-001",
+      "inclusion": "required",
+      "sourceArtifact": "context-capsule",
+      "category": "file",
+      "match": { "path": "src/example.ts" },
+      "notes": []
+    }
+  ],
+  "expectedStates": {},
+  "warnings": []
+}

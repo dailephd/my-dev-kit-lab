@@ -86,6 +86,10 @@ Current behavior:
 
 Outputs are written beneath the selected `--out` directory. Invalid experiment IDs or configuration fail with a nonzero exit code. Real-agent commands can also record structured partial outcomes such as timeouts, unavailable agents, usage limits, or invalid output.
 
+### v0.4.3 stage-context strategies
+
+Six additional strategy IDs are implemented in the `context-strategy-comparison` plugin: `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context`. They are selected through programmatic `v043StrategyInputs`/`v043RunAssurance` configuration passed to the plugin, not through `experiment:run` CLI flags — no new command-line options were added for these paths. The default `experiment:run -- --strategies` selection remains `raw-full-file` and `my-dev-kit-guided`; the six new strategies must be selected explicitly.
+
 ## Reports, plots, and gallery
 
 | Command | Purpose |

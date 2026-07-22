@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0.0",
+  "fixtureId": "FULL-WORKFLOW-LIBRARY-V043-001",
+  "title": "Complete workflow instruction library",
+  "description": "Deterministic full-workflow-library fixture for v0.4.3 strategy execution.",
+  "workflowIds": ["workflow.feature", "workflow.release"],
+  "stageIds": [
+    "stage.feature.architecture",
+    "stage.feature.implementation",
+    "stage.feature.test-implementation",
+    "stage.release.readiness"
+  ],
+  "commandIds": [
+    "command.context.inspect",
+    "command.test.focused",
+    "command.test.full",
+    "command.release.publish"
+  ],
+  "ruleIds": ["rule.scope.bounded", "rule.testing.required", "rule.release.publish-last"],
+  "reportContractIds": ["report.implementation", "report.release"],
+  "provenanceEvidenceIds": ["provenance.workflow.feature", "provenance.workflow.release"],
+  "rawText": "A deterministic complete workflow instruction library fixture containing architecture, implementation, test, validation, release, and reporting instructions.",
+  "warnings": []
+}

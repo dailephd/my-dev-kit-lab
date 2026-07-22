@@ -13,6 +13,14 @@ import type {
   PluginExperimentReportFinding,
   PluginExperimentReportVariantSummary,
 } from "./experimentReportModel.js";
+import { buildContextStrategyComparisonV043Report } from "./buildContextStrategyComparisonV043Report.js";
+import type { ContextStrategyComparisonV043ReportV1 } from "./contextStrategyComparisonV043ReportModel.js";
+
+const V043_BULK_ARRAY_KEYS = [
+  "v043StageContextExecutions",
+  "v043StageContextEvaluations",
+  "v043StageContextRunAssurance",
+] as const;
 
 export function buildPluginExperimentReport(args: {
   run: ExperimentRun;
@@ -22,6 +30,11 @@ export function buildPluginExperimentReport(args: {
 }): PluginExperimentReport {
   const outputRoot = args.outputRoot ?? readString(args.run.metadata?.outputRoot) ?? null;
   const allOutcomes = args.run.cases.flatMap((experimentCase) => experimentCase.outcomes);
+  const contextStrategyComparisonV043 = buildContextStrategyComparisonV043Report(args.run);
+  const rawRun: ExperimentRun = { ...args.run, artifacts: relativizeArtifacts(args.run.artifacts, outputRoot) };
+  for (const key of V043_BULK_ARRAY_KEYS) {
+    delete (rawRun as Record<string, unknown>)[key];
+  }
   return {
     metadata: {
       generatedAt: args.generatedAt ?? new Date().toISOString(),
@@ -45,11 +58,9 @@ export function buildPluginExperimentReport(args: {
     failures: args.run.failures,
     skippedOutcomes: allOutcomes.filter((outcome) => outcome.status === "skipped"),
     findings: buildFindings(args.run),
-    interpretation: buildInterpretation(args.run),
-    rawRun: {
-      ...args.run,
-      artifacts: relativizeArtifacts(args.run.artifacts, outputRoot),
-    },
+    contextStrategyComparisonV043,
+    interpretation: buildInterpretation(args.run, contextStrategyComparisonV043),
+    rawRun,
   };
 }
 
@@ -114,7 +125,18 @@ function buildFindings(run: ExperimentRun): PluginExperimentReportFinding[] {
   ];
 }
 
-function buildInterpretation(run: ExperimentRun): PluginExperimentReport["interpretation"] {
+function buildInterpretation(
+  run: ExperimentRun,
+  contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null
+): PluginExperimentReport["interpretation"] {
+  if (run.pluginId === "context-strategy-comparison" && (contextStrategyComparisonV043?.summary.strategyCount ?? 0) > 0) {
+    return {
+      summary: `Stage-context evidence was recorded for ${contextStrategyComparisonV043!.summary.strategyCount} strategy executions. Review each strategy independently; this report does not calculate a composite ranking or winning strategy.`,
+      recommendedNextStep:
+        "Review required evidence, irrelevant inclusion, state comparisons, target immutability, determinism, and explicit unavailable or not-applicable metrics for each strategy.",
+    };
+  }
+
   if (run.pluginId === "context-strategy-comparison") {
     const tokenSavings = metricNumber(run.metrics, "average-token-savings-percent");
     const correctnessDelta = metricNumber(run.metrics, "average-correctness-delta");

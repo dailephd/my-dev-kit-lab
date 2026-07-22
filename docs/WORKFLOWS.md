@@ -51,7 +51,33 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Failure handling:** invalid plugin IDs or options fail before the run. Agent-related partial outcomes remain structured results rather than being rewritten as successful comparisons.
 
-**Completion:** both strategies have recorded outcomes and the target remains unchanged. Version v0.4.3 extensions are planned, not current; see [ROADMAP.md](ROADMAP.md).
+**Completion:** both strategies have recorded outcomes and the target remains unchanged.
+
+## Stage-context strategy evaluation (v0.4.3)
+
+**Goal:** deterministically evaluate one of the six new stage-context strategies against explicit artifact inputs and an explicit expectation fixture, through the same `context-strategy-comparison` plugin.
+
+**Prerequisites and starting state:** build the repository; supply explicit `v043StrategyInputs` programmatic configuration (expectations fixture path plus the artifact paths the selected strategy requires) — there is no CLI flag for these paths.
+
+**Steps (implemented sequence):**
+
+1. Read explicit artifact inputs (context capsule, retrieval-audit record, and/or `WorkflowInstructionPacket`) through the exact readers in `src/evaluation/upstreamArtifacts`.
+2. Validate exact artifact schemas; unsupported schema majors or malformed input fail explicitly rather than being silently reinterpreted.
+3. Validate the `StageContextExpectationFixtureV1` expectation fixture.
+4. Execute the selected strategy and assemble its payload.
+5. Collect observed evidence from the payload.
+6. Match observed evidence against the expectation fixture's required/allowed/forbidden evidence.
+7. Calculate evidence-centered metrics (recall, coverage, inclusion, responsibility mapping, state comparisons, context size).
+8. Capture target-immutability before/after snapshots when target-immutability configuration is supplied.
+9. Repeat runs (1 through 10) when a `repeatCount` greater than 1 is configured.
+10. Calculate repeated-run determinism from the repeated runs.
+11. Build the bounded `report.json`, `report.html`, and `report.txt` reports through the existing plugin report system.
+
+**Expected behavior and outputs:** the target is never modified; missing upstream evidence is reported as `unavailable`, never coerced to zero; the report contains no composite score, grade, ranking, or winning strategy.
+
+**Failure handling:** malformed artifacts or unsupported schema majors fail clearly. A detected target mutation is reported as a mutation, not auto-repaired or reset.
+
+**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and (when configured) run-assurance results. This workflow does not yet have a CLI entrypoint and has not entered the pre-release readiness, cross-platform, security, or code-rot workflow; see [ROADMAP.md](ROADMAP.md).
 
 ## Real-agent campaign
 

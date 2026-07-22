@@ -2,13 +2,29 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased]
+## [0.4.3] - 2026-07-22
 
-No implementation changes are recorded. `v0.4.3` remains planned and not implemented; its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
+`v0.4.3` (stage-specific bounded-context and workflow-instruction evaluation) is published. This is the latest release. Its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+### Added
+
+- Added exact, non-normalizing readers for the my-dev-kit `ContextCapsule` and `RetrievalAuditRecord` and the my-dev-kit-orchestrator `WorkflowInstructionPacket`, each with schema-major validation and explicit failure on malformed or unsupported input.
+- Extended the existing `context-strategy-comparison` plugin with six new stage-context strategies — `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context` — selected through programmatic configuration alongside the preserved `raw-full-file` and `my-dev-kit-guided` strategies.
+- Added an explicit stage-context expectation fixture contract (required/allowed/forbidden evidence, expected artifact states) and deterministic expectation matching against selected evidence.
+- Added evidence-centered metrics: required-evidence recall, allowed-evidence coverage, forbidden-evidence inclusion, irrelevant-file/irrelevant-instruction inclusion, required-provenance recall, responsibility-mapping completeness, state comparisons, and context-size measurement, each reporting explicit `available`/`unavailable`/`not-applicable` status rather than coercing missing data to zero.
+- Added read-only target-immutability snapshots (configured-file hashes and Git state) and before/after comparison, and repeated-run determinism (1–10 runs, canonical-serialization SHA-256 digests) as run-assurance evidence.
+- Added bounded, deterministic `report.json`, `report.html`, and `report.txt` outputs for the new stage-context evidence through the existing `src/report/experiments` plugin report system, with a neutral interpretation that does not calculate a composite score, grade, ranking, or winning strategy.
+
+### Compatibility and limitations
+
+- No new CLI flags were added for the six new strategies; they are configured programmatically, not through `experiment:run` options.
+- Plots, screenshots, and gallery integration for the new stage-context evidence are not part of this implementation.
+- The published upstream artifacts do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics are reported as `unavailable` with an explicit reason.
+- Estimated token counts use `ceil(characterCount / 4)` per source and are not provider telemetry.
 
 ## [0.4.2] - 2026-07-12
 
-Extended the existing general security audit adapter with Android-aware validation. This is the latest release.
+Extended the existing general security audit adapter with Android-aware validation.
 
 ### Added
 

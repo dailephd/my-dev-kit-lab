@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "1.0.0",
+  "catalogSchemaVersion": "1.0.0",
+  "catalogVersion": "1.0.0",
+  "workflowId": "workflow.feature",
+  "stageId": "stage.feature.implementation",
+  "primaryEntry": {
+    "id": "stage.feature.implementation",
+    "kind": "stage",
+    "title": "Implementation stage",
+    "description": "Implement the requested feature.",
+    "workflowRef": "workflow.feature",
+    "stageName": "implementation",
+    "commandRefs": ["command.repo.build"],
+    "ruleRefs": ["rule.quality.no-dead-code"],
+    "optionalCommandRefs": ["command.repo.lint"],
+    "optionalRuleRefs": ["rule.quality.prefer-tests"],
+    "reportContractRef": "report.implementation-summary",
+    "taskInstructions": "Implement the feature and keep behavior backward compatible.",
+    "validationRequirements": ["Run the build.", "Run the test suite."],
+    "stopConditions": ["Stop if the build fails."]
+  },
+  "resolvedCommands": [
+    {
+      "id": "command.repo.build",
+      "kind": "command",
+      "title": "Build the repository",
+      "description": "Compiles all TypeScript sources.",
+      "owner": "repo",
+      "command": "npm run build",
+      "purpose": "Confirm the project compiles.",
+      "sideEffect": "read-only",
+      "included": "required"
+    },
+    {
+      "id": "command.repo.lint",
+      "kind": "command",
+      "title": "Lint the repository",
+      "description": "Runs the linter.",
+      "owner": "repo",
+      "command": "npm run lint",
+      "purpose": "Confirm style conformance.",
+      "sideEffect": "read-only",
+      "included": "optional"
+    }
+  ],
+  "resolvedRules": [
+    {
+      "id": "rule.quality.no-dead-code",
+      "kind": "rule",
+      "title": "No dead code",
+      "description": "Do not leave unreachable code behind.",
+      "category": "quality",
+      "instruction": "Remove unreachable code before finishing the stage.",
+      "ruleRefs": [],
+      "included": "required",
+      "depth": 0
+    },
+    {
+      "id": "rule.quality.prefer-tests",
+      "kind": "rule",
+      "title": "Prefer tests",
+      "description": "Prefer covering new behavior with tests.",
+      "category": "quality",
+      "instruction": "Add or update tests for new behavior.",
+      "ruleRefs": ["rule.quality.no-dead-code"],
+      "included": "optional",
+      "depth": 1
+    }
+  ],
+  "reportContract": {
+    "id": "report.implementation-summary",
+    "kind": "report-contract",
+    "title": "Implementation summary report",
+    "description": "Summarizes the implementation stage outcome.",
+    "artifactKind": "implementation-summary",
+    "purpose": "Give reviewers a concise implementation summary.",
+    "requiredOutputCategory": "summary"
+  },
+  "validationRequirements": ["Run the build.", "Run the test suite."],
+  "stopConditions": ["Stop if the build fails."],
+  "resolutionProvenance": [
+    {
+      "rootWorkflowId": "workflow.feature",
+      "rootStageId": "stage.feature.implementation",
+      "sourceEntryId": "stage.feature.implementation",
+      "referenceField": "commandRefs",
+      "referencedEntryId": "command.repo.build",
+      "inclusionReason": "required command reference",
+      "depth": 0
+    },
+    {
+      "rootWorkflowId": "workflow.feature",
+      "rootStageId": "stage.feature.implementation",
+      "sourceEntryId": "stage.feature.implementation",
+      "referenceField": "ruleRefs",
+      "referencedEntryId": "rule.quality.no-dead-code",
+      "inclusionReason": "required rule reference",
+      "depth": 0
+    }
+  ],
+  "budget": {
+    "findings": [
+      {
+        "limitName": "maxCommands",
+        "declaredLimit": 20,
+        "used": 2,
+        "available": 18,
+        "overLimit": false,
+        "amountExceeded": 0,
+        "affectedEntryIds": []
+      },
+      {
+        "limitName": "maxRuleDepth",
+        "declaredLimit": null,
+        "used": 1,
+        "available": null,
+        "overLimit": false,
+        "amountExceeded": 0,
+        "affectedEntryIds": []
+      }
+    ],
+    "overLimit": false,
+    "adequate": true,
+    "totalCharacters": 3200,
+    "perEntryCharacters": {
+      "stage.feature.implementation": 1800,
+      "command.repo.build": 200,
+      "rule.quality.no-dead-code": 150
+    }
+  },
+  "truncation": {
+    "truncated": false,
+    "records": [
+      {
+        "rootOptionalEntryId": "command.repo.lint",
+        "affectedEntryIds": ["command.repo.lint"],
+        "limitingField": "maxCommands",
+        "declaredLimit": 20,
+        "usedBefore": 1,
+        "attemptedAfter": 2,
+        "reason": "included within budget"
+      }
+    ],
+    "droppedOptionalCommandIds": [],
+    "droppedOptionalRuleIds": [],
+    "droppedOptionalDependencyIds": [],
+    "warnings": []
+  },
+  "adequacy": {
+    "status": "adequate",
+    "reasons": [],
+    "requiredContentComplete": true,
+    "requiredBudgetSatisfied": true,
+    "optionalContentDropped": false,
+    "affectedEntryIds": []
+  },
+  "unresolvedReferences": ["command.repo.unresolved-example"],
+  "warnings": []
+}

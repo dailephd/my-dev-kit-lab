@@ -1,0 +1,232 @@
+{
+  "schemaVersion": "1.1.0",
+  "caseId": "CASE-STAGE-CONTEXT-002",
+  "title": "Complete stage-context expectation",
+  "description": "Complete valid expectation fixture covering every expectation category.",
+  "futureMinorRootField": "preserved",
+  "expectedEvidence": [
+    {
+      "expectationId": "REQ-FILE-001",
+      "inclusion": "required",
+      "sourceArtifact": "context-capsule",
+      "category": "file",
+      "match": { "path": "src/example.ts" },
+      "notes": [],
+      "futureMinorNestedField": "preserved"
+    },
+    {
+      "expectationId": "REQ-SYMBOL-001",
+      "inclusion": "required",
+      "sourceArtifact": "context-capsule",
+      "category": "symbol",
+      "match": { "symbolId": "symbol:src/example.ts#Example" },
+      "notes": []
+    },
+    {
+      "expectationId": "REQ-SOURCE-RANGE-001",
+      "inclusion": "required",
+      "sourceArtifact": "context-capsule",
+      "category": "source-range",
+      "match": { "filePath": "src/example.ts", "startLine": 1, "endLine": 10 },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-CONTRACT-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "context-capsule",
+      "category": "contract",
+      "match": { "symbolId": "contract:src/example.ts#ExampleContract" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-VALIDATOR-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "context-capsule",
+      "category": "validator",
+      "match": { "symbolId": "validator:src/example.ts#validateExample" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-CONSTANT-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "context-capsule",
+      "category": "constant",
+      "match": { "symbolId": "constant:src/example.ts#EXAMPLE_CONST" },
+      "notes": []
+    },
+    {
+      "expectationId": "FORBID-ERROR-001",
+      "inclusion": "forbidden",
+      "sourceArtifact": "context-capsule",
+      "category": "error",
+      "match": { "symbolId": "error:src/example.ts#ExampleError" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-SCHEMA-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "context-capsule",
+      "category": "schema-or-serializer",
+      "match": { "symbolId": "schema:src/example.ts#ExampleSchema" },
+      "notes": []
+    },
+    {
+      "expectationId": "REQ-RESPONSIBILITY-001",
+      "inclusion": "required",
+      "sourceArtifact": "context-capsule",
+      "category": "production-responsibility",
+      "match": { "responsibilityId": "fixture.responsibility.001" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-RESPONSIBILITY-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "retrieval-audit-record",
+      "category": "production-responsibility",
+      "match": { "responsibilityId": "fixture.responsibility.002" },
+      "notes": []
+    },
+    {
+      "expectationId": "REQ-TEST-FILE-001",
+      "inclusion": "required",
+      "sourceArtifact": "context-capsule",
+      "category": "test-file",
+      "match": { "path": "tests/example.spec.ts" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-FIXTURE-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "context-capsule",
+      "category": "fixture",
+      "match": { "path": "tests/fixtures/example.json" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-FACTORY-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "context-capsule",
+      "category": "factory",
+      "match": { "path": "tests/factories/exampleFactory.ts" },
+      "notes": []
+    },
+    {
+      "expectationId": "FORBID-MOCK-001",
+      "inclusion": "forbidden",
+      "sourceArtifact": "context-capsule",
+      "category": "mock",
+      "match": { "path": "tests/mocks/exampleMock.ts" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-SETUP-FILE-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "context-capsule",
+      "category": "setup-file",
+      "match": { "path": "tests/setup.ts" },
+      "notes": []
+    },
+    {
+      "expectationId": "REQ-TEST-CONFIGURATION-001",
+      "inclusion": "required",
+      "sourceArtifact": "context-capsule",
+      "category": "test-configuration",
+      "match": { "path": "vitest.config.ts" },
+      "notes": []
+    },
+    {
+      "expectationId": "REQ-PACKAGE-SCRIPT-001",
+      "inclusion": "required",
+      "sourceArtifact": "context-capsule",
+      "category": "package-script",
+      "match": { "name": "test" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-TEST-COMMAND-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "context-capsule",
+      "category": "test-command",
+      "match": { "commandText": "vitest run tests/example.spec.ts" },
+      "notes": []
+    },
+    {
+      "expectationId": "REQ-WORKFLOW-001",
+      "inclusion": "required",
+      "sourceArtifact": "workflow-instruction-packet",
+      "category": "workflow",
+      "match": { "id": "workflow.feature" },
+      "notes": []
+    },
+    {
+      "expectationId": "REQ-STAGE-001",
+      "inclusion": "required",
+      "sourceArtifact": "workflow-instruction-packet",
+      "category": "stage",
+      "match": { "id": "stage.feature.implementation" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-COMMAND-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "workflow-instruction-packet",
+      "category": "command",
+      "match": { "id": "command.repo.lint" },
+      "notes": []
+    },
+    {
+      "expectationId": "ALLOW-RULE-001",
+      "inclusion": "allowed",
+      "sourceArtifact": "full-workflow-library",
+      "category": "rule",
+      "match": { "id": "rule.quality.prefer-tests" },
+      "notes": []
+    },
+    {
+      "expectationId": "FORBID-REPORT-CONTRACT-001",
+      "inclusion": "forbidden",
+      "sourceArtifact": "workflow-instruction-packet",
+      "category": "report-contract",
+      "match": { "id": "report.other-summary" },
+      "notes": []
+    },
+    {
+      "expectationId": "REQ-PROVENANCE-001",
+      "inclusion": "required",
+      "sourceArtifact": "workflow-instruction-packet",
+      "category": "provenance",
+      "match": { "evidenceId": "symbol:src/example.ts#Example" },
+      "notes": []
+    }
+  ],
+  "expectedStates": {
+    "contextCapsule": {
+      "contextAdequacyStatus": "context sufficient with listed assumptions",
+      "roleAdequacyStatus": "context sufficient with listed assumptions",
+      "freshnessState": "fresh",
+      "truncated": false,
+      "fullFileFallbackUsed": 0,
+      "unresolvedItemIds": ["fixture.unresolved.001"],
+      "warningCount": 1
+    },
+    "retrievalAuditRecord": {
+      "contextAdequacyStatus": "context sufficient with listed assumptions",
+      "roleAdequacyStatus": "context sufficient with listed assumptions",
+      "freshnessState": "fresh",
+      "truncated": false,
+      "fullFileFallbackUsed": 1,
+      "unresolvedItemIds": [],
+      "warningCount": 1
+    },
+    "workflowInstructionPacket": {
+      "adequacyStatus": "adequate",
+      "truncated": false,
+      "unresolvedReferences": ["command.repo.unresolved-example"],
+      "warningCount": 0
+    },
+    "targetImmutability": {
+      "newMutationCount": 0
+    }
+  },
+  "warnings": []
+}
