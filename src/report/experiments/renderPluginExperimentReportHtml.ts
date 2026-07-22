@@ -1,4 +1,5 @@
 import type { PluginExperimentReport } from "./experimentReportModel.js";
+import { renderContextStrategyComparisonV043Html } from "./renderContextStrategyComparisonV043Html.js";
 
 export function renderPluginExperimentReportHtml(report: PluginExperimentReport): string {
   return `<!DOCTYPE html>
@@ -94,6 +95,8 @@ export function renderPluginExperimentReportHtml(report: PluginExperimentReport)
       metric.caseId ?? "",
     ]))}
   </section>
+
+  ${renderContextStrategyComparisonV043Html(report.contextStrategyComparisonV043)}
 
   <section>
     <h2>Warnings, Skips, And Failures</h2>

@@ -9,6 +9,7 @@ import type {
   ExperimentVariant,
   ExperimentWarning,
 } from "../../experiments/index.js";
+import type { ContextStrategyComparisonV043ReportV1 } from "./contextStrategyComparisonV043ReportModel.js";
 
 export type PluginExperimentReportMetadata = {
   generatedAt: string;
@@ -67,6 +68,7 @@ export type PluginExperimentReport = {
   failures: ExperimentFailure[];
   skippedOutcomes: ExperimentCase["outcomes"];
   findings: PluginExperimentReportFinding[];
+  contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null;
   interpretation: {
     summary: string;
     recommendedNextStep: string;
