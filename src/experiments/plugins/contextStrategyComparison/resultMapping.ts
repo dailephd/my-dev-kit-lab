@@ -16,9 +16,11 @@ import type {
 } from "../../types.js";
 import { summarizeExperimentRun } from "../../results.js";
 import type { ExperimentTarget } from "../../types.js";
+import type { V043StageContextStrategyExecutionResult } from "./v043StrategyExecutionTypes.js";
 
 export type ContextStrategyComparisonRun = ExperimentRun & {
   legacyArtifacts: LegacyExperimentArtifacts;
+  v043StageContextExecutions: V043StageContextStrategyExecutionResult[];
 };
 
 export function mapLegacyArtifactsToExperimentRun(args: {
@@ -27,6 +29,7 @@ export function mapLegacyArtifactsToExperimentRun(args: {
   completedAt: string;
   target: ExperimentTarget;
   legacyArtifacts: LegacyExperimentArtifacts;
+  v043StageContextExecutions: V043StageContextStrategyExecutionResult[];
   pluginResultPath?: string;
 }): ContextStrategyComparisonRun {
   const variants = buildVariants(args.legacyArtifacts.runs);
@@ -50,6 +53,7 @@ export function mapLegacyArtifactsToExperimentRun(args: {
     warnings,
     failures,
     legacyArtifacts: args.legacyArtifacts,
+    v043StageContextExecutions: args.v043StageContextExecutions,
     metadata: {
       pluginName: "Context Strategy Comparison",
       pluginSchemaVersion: "1.0.0",

@@ -12,6 +12,10 @@ import {
   mapLegacyArtifactsToExperimentRun,
   type ContextStrategyComparisonRun,
 } from "./resultMapping.js";
+import { executeV043StageContextStrategy } from "./executeV043StageContextStrategy.js";
+import { resolveV043StrategyInputs } from "./resolveV043StrategyInputs.js";
+import { V043_STAGE_CONTEXT_STRATEGY_IDS, type V043StageContextStrategyId } from "./v043StrategyIds.js";
+import type { V043StageContextStrategyExecutionResult } from "./v043StrategyExecutionTypes.js";
 
 export const contextStrategyComparisonMetadata: ExperimentPluginMetadata = {
   id: "context-strategy-comparison",
@@ -22,6 +26,10 @@ export const contextStrategyComparisonMetadata: ExperimentPluginMetadata = {
   supportedTargets: ["self", "external-local"],
   supportedOutputs: ["json", "html", "plot", "screenshot", "artifact"],
 };
+
+function isV043StrategyId(value: string): value is V043StageContextStrategyId {
+  return (V043_STAGE_CONTEXT_STRATEGY_IDS as readonly string[]).includes(value);
+}
 
 export const contextStrategyComparisonPlugin: ExperimentPlugin<
   ContextStrategyComparisonConfig,
@@ -48,13 +56,35 @@ export const contextStrategyComparisonPlugin: ExperimentPlugin<
     );
     const env = readEnv(context.inputs);
     const startedAt = context.startedAt.toISOString();
+
+    const selectedStrategyIds = context.config.strategies ?? defaultContextStrategyComparisonConfig.strategies ?? [];
+    const providedV043Inputs = context.config.v043StrategyInputs ?? [];
+
+    const resolution = resolveV043StrategyInputs(selectedStrategyIds, providedV043Inputs);
+    if (!resolution.ok) {
+      const issuesText = resolution.issues.map((issue) => `${issue.code}:${issue.strategyId}`).join(", ");
+      throw new Error(`Invalid v0.4.3 strategy-input configuration: ${issuesText}`);
+    }
+
+    const legacyStrategyIds = selectedStrategyIds.filter((strategyId) => !isV043StrategyId(strategyId));
+    const legacyConfig = { ...context.config, strategies: legacyStrategyIds };
     const legacyArtifacts = await runControlledExperiment({
-      config: context.config,
+      config: legacyConfig,
       cases,
       projectProfiles,
       repoRoot: context.target.targetRoot,
       env,
     });
+
+    const v043SelectedStrategyIds = selectedStrategyIds.filter(isV043StrategyId);
+    const v043StageContextExecutions: V043StageContextStrategyExecutionResult[] = [];
+    for (const strategyId of v043SelectedStrategyIds) {
+      const input = resolution.inputByStrategyId[strategyId];
+      if (!input) continue;
+      const executionResult = await executeV043StageContextStrategy(input);
+      v043StageContextExecutions.push(executionResult);
+    }
+
     const completedAt = new Date().toISOString();
     const outDir = context.outputRoot ?? path.resolve(context.toolRoot, context.config.outDir);
     await mkdir(outDir, { recursive: true });
@@ -65,6 +95,7 @@ export const contextStrategyComparisonPlugin: ExperimentPlugin<
       completedAt,
       target: context.target,
       legacyArtifacts,
+      v043StageContextExecutions,
       pluginResultPath,
     });
     await writeFile(pluginResultPath, `${JSON.stringify(redactLegacyArtifacts(result), null, 2)}\n`, "utf8");
