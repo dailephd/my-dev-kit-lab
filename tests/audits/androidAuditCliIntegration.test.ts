@@ -2,9 +2,8 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
-import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { buildAuditReportModel } from "../../src/audits/report/auditReportModel.js";
 import { renderAuditJsonReport } from "../../src/audits/report/renderAuditJsonReport.js";
 import { renderAuditTextReport } from "../../src/audits/report/renderAuditTextReport.js";
@@ -13,6 +12,18 @@ import { validateAndroidTarget } from "../../src/mobile/android/validate/validat
 import { resolveCommand } from "../../src/core/resolveCommand.js";
 import { resolveAuditTarget } from "../../src/audits/core/auditTarget.js";
 import type { AuditIssue } from "../../src/audits/core/auditIssue.js";
+import type {
+  SecurityFinding,
+  SecurityValidationSummary,
+} from "../../src/securityValidation/types.js";
+
+const runSecurityValidationMock = vi.hoisted(() => vi.fn());
+
+vi.mock("../../src/securityValidation/validate/runSecurityValidation.js", () => ({
+  runSecurityValidation: runSecurityValidationMock,
+}));
+
+const { runAudit } = await import("../../src/audits/core/auditRunner.js");
 
 // ---------------------------------------------------------------------------
 // v0.4.2 Batch 3 -- runner wiring, JSON/text report integration, text/JSON
@@ -25,6 +36,73 @@ import type { AuditIssue } from "../../src/audits/core/auditIssue.js";
 // ---------------------------------------------------------------------------
 
 const cleanupDirs: string[] = [];
+const FIXED_SECURITY_TIME = "2026-07-26T12:00:00.000Z";
+const CONTROLLED_NON_ANDROID_BLOCKER: SecurityFinding = {
+  id: "controlled-non-android-blocker",
+  title: "Controlled non-Android blocker",
+  severity: "blocker",
+  category: "dependency-audit",
+  description: "A frozen generic security blocker used to prove audit exit-code ownership.",
+  recommendation: "Resolve the controlled blocker.",
+  releaseImpact: "Must fix before release",
+};
+
+function makeControlledSecuritySummary(options: {
+  cwd: string;
+  targetPath?: string;
+  findings?: SecurityFinding[];
+}): SecurityValidationSummary {
+  const findings = options.findings ?? [];
+  const targetRoot = options.targetPath ?? options.cwd;
+  return {
+    toolRoot: options.cwd,
+    toolPackageName: "@dailephd/my-dev-kit-lab",
+    toolPackageVersion: "0.4.3",
+    targetRoot,
+    targetDescription: path.basename(targetRoot),
+    packageName: path.basename(targetRoot),
+    packageVersion: "0.0.0-controlled",
+    auditedBranch: "controlled-fixture",
+    auditedCommit: "controlled-fixture",
+    isSelf: targetRoot === options.cwd,
+    startedAt: FIXED_SECURITY_TIME,
+    finishedAt: FIXED_SECURITY_TIME,
+    checks: [
+      {
+        id: "osv-scanner",
+        name: "OSV-Scanner",
+        category: "dependency-audit",
+        status: "skipped",
+        severity: "skipped",
+        startedAt: FIXED_SECURITY_TIME,
+        finishedAt: FIXED_SECURITY_TIME,
+        durationMs: 0,
+        findings: [],
+        skippedReason: "Controlled optional tool unavailable.",
+      },
+    ],
+    findings,
+    verdict:
+      findings.length > 0
+        ? "not-ready-security-blocker-remains"
+        : "ready-except-optional-manual-checks",
+    recommendedNextStep:
+      findings.length > 0
+        ? "Resolve the controlled blocker."
+        : "Run the controlled optional check manually if needed.",
+    attackResults: [],
+    isFullReleaseGate: true,
+  };
+}
+
+beforeEach(() => {
+  runSecurityValidationMock.mockReset();
+  runSecurityValidationMock.mockImplementation(
+    (options: { cwd: string; targetPath?: string }) =>
+      Promise.resolve(makeControlledSecuritySummary(options))
+  );
+});
+
 afterEach(async () => {
   for (const dir of cleanupDirs.splice(0)) {
     await fs.promises.rm(dir, { recursive: true, force: true });
@@ -263,6 +341,8 @@ describe("End-to-end Android audit fixture matrix (spec section 17)", () => {
     expect(result.androidSummary.applicable).toBe(true);
     expect(result.androidSummary.status).toBe("completed");
     expect(androidIssues(result.issues)).toHaveLength(0);
+    expect(result.issues).toHaveLength(0);
+    expect(result.exitCode).toBe(0);
     expect(fs.existsSync(json.androidSecurity.summary.reportPaths.text)).toBe(true);
     expect(fs.existsSync(json.androidSecurity.summary.reportPaths.json)).toBe(true);
   });
@@ -277,7 +357,42 @@ describe("End-to-end Android audit fixture matrix (spec section 17)", () => {
       expect(typeof issue.releaseBlocking).toBe("boolean");
       expect(typeof issue.implementationBlocking).toBe("boolean");
     }
+    expect(mapped.some((issue) => issue.severity === "blocker")).toBe(false);
+    expect(result.exitCode).toBe(0);
     expect(json.androidSecurity.summary.reportPaths.text).toBeTruthy();
+  });
+
+  it("17.3B -- applicable Android target with a blocker exits 1 deterministically", async () => {
+    const toolRoot = makeTempToolRoot();
+    const targetPath = FIXTURE("xml-view-app");
+    const validationResult = structuredClone(
+      await validateAndroidTarget({ toolRoot, targetPath })
+    );
+    const checkWithFinding = validationResult.checks.find((check) => check.findings.length > 0);
+    if (!checkWithFinding) throw new Error("xml-view-app must provide a confirmed finding");
+    checkWithFinding.findings[0] = {
+      ...checkWithFinding.findings[0],
+      severity: "blocker",
+    };
+    validationResult.verdict = "not-ready-security-blocker-remains";
+
+    const config = normalizeAuditConfig(
+      { target: targetPath, types: "security", android: true },
+      toolRoot
+    );
+    const target = resolveAuditTarget(config.targetPathArg, toolRoot);
+    const result = await runAudit({
+      config,
+      toolRoot,
+      target,
+      securityDependencies: {
+        runAndroidValidation: async () => validationResult,
+      },
+    });
+
+    expect(result.androidSummary.applicable).toBe(true);
+    expect(androidIssues(result.issues).some((issue) => issue.severity === "blocker")).toBe(true);
+    expect(result.exitCode).toBe(1);
   });
 
   it("17.4 -- candidate-only fixture: zero confirmed mapped issues, nonzero candidates, review-evidence wording", async () => {
@@ -298,12 +413,36 @@ describe("End-to-end Android audit fixture matrix (spec section 17)", () => {
     expect(json.exit).toBeDefined();
   });
 
-  it("17.6 -- non-Android fixture with Android requested: applicable false, no false pass, existing issues preserved", async () => {
+  it("17.6 -- non-Android fixture with Android requested and no unrelated blocker exits 0", async () => {
     const toolRoot = makeTempToolRoot();
     const { result } = await runAndroidAudit(toolRoot, FIXTURE("non-android-gradle"), true);
     expect(result.androidSummary.applicable).toBe(false);
     expect(androidIssues(result.issues)).toHaveLength(0);
+    expect(result.issues).toHaveLength(0);
     expect(result.exitCode).toBe(0);
+  });
+
+  it("17.6B -- non-applicable Android target still exits 1 for an unrelated blocker", async () => {
+    const toolRoot = makeTempToolRoot();
+    runSecurityValidationMock.mockResolvedValueOnce(
+      makeControlledSecuritySummary({
+        cwd: toolRoot,
+        targetPath: FIXTURE("non-android-gradle"),
+        findings: [CONTROLLED_NON_ANDROID_BLOCKER],
+      })
+    );
+
+    const { result } = await runAndroidAudit(toolRoot, FIXTURE("non-android-gradle"), true);
+
+    expect(result.androidSummary.applicable).toBe(false);
+    expect(androidIssues(result.issues)).toHaveLength(0);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0]).toMatchObject({
+      id: "security:controlled-non-android-blocker",
+      severity: "blocker",
+      releaseBlocking: true,
+    });
+    expect(result.exitCode).toBe(1);
   });
 
   it("17.7 -- injected validator failure: generic audit survives, status failed, bounded error, reports remain renderable", async () => {
