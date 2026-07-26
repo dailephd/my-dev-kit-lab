@@ -14,6 +14,8 @@ import {
 const COMPLETE_PATH = "tests/fixtures/upstream-artifacts/my-dev-kit/1.10.2/retrieval-audit-record/complete-v1.0.0.json";
 const FUTURE_MINOR_PATH = "tests/fixtures/upstream-artifacts/my-dev-kit/1.10.2/retrieval-audit-record/future-minor-v1.1.0-additive.json";
 const SOURCE_PATH = "fixture-retrieval-audit-record.json";
+const CURRENT_IDENTITY_PATH =
+  "tests/fixtures/upstream-artifacts/my-dev-kit-1.10.2-identity/retrieval-audit-record.json";
 
 function loadFixture(path: string): JsonObject {
   return JSON.parse(readFileSync(path, "utf8")) as JsonObject;
@@ -41,6 +43,24 @@ describe("readMyDevKitRetrievalAuditRecordV1", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect((result.artifact as unknown as Record<string, unknown>).futureMinorRootField).toBe("preserved");
+    }
+  });
+
+  it("parses and retains current additive repository identity", async () => {
+    const result = await readMyDevKitRetrievalAuditRecordV1(CURRENT_IDENTITY_PATH);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.artifact.index.projectRoot).toBe("Z:/Users/newuser/Projects/my-dev-kit-orchestrator");
+      expect(result.artifact.index.manifestSchemaVersion).toBe("1.0.0");
+    }
+  });
+
+  it("keeps legacy repository identity absent rather than fabricating it", async () => {
+    const result = await readMyDevKitRetrievalAuditRecordV1(COMPLETE_PATH);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.artifact.index.projectRoot).toBeUndefined();
+      expect(result.artifact.index.manifestSchemaVersion).toBeUndefined();
     }
   });
 });

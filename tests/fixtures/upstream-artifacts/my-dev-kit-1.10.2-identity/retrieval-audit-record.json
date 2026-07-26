@@ -1,0 +1,1076 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-26T17:29:03.789Z",
+  "tool": {
+    "name": "my-dev-kit",
+    "version": "1.10.2"
+  },
+  "request": {
+    "originalQuery": "evaluateContextReadiness actionable issue primary blocker",
+    "normalizedQuery": "evaluateContextReadiness actionable issue primary blocker",
+    "mode": "subsystem",
+    "requestedOutputPath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/context-capsule.json",
+    "role": "implementation",
+    "requestFilePath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/implementation-context-request.json"
+  },
+  "index": {
+    "indexPath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/after-index",
+    "manifestPath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/after-index/manifest.json",
+    "manifestSchemaVersion": "1.0.0",
+    "projectRoot": "Z:/Users/newuser/Projects/my-dev-kit-orchestrator"
+  },
+  "steps": [
+    {
+      "id": "step-validate-inputs",
+      "kind": "validate-inputs",
+      "description": "Validated required and optional command inputs.",
+      "inputs": {
+        "index": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/after-index",
+        "mode": "subsystem",
+        "out": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/context-capsule.json",
+        "auditOut": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/retrieval-audit-record.json",
+        "role": "implementation",
+        "requestFilePath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/implementation-context-request.json"
+      },
+      "outputs": {},
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-load-manifest",
+      "kind": "load-manifest",
+      "description": "Loaded and validated the index manifest.",
+      "inputs": {
+        "manifestPath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/after-index/manifest.json"
+      },
+      "outputs": {
+        "manifestVersion": "1.0.0"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-normalize-query",
+      "kind": "normalize-query",
+      "description": "Normalized the query string.",
+      "inputs": {
+        "originalQuery": "evaluateContextReadiness actionable issue primary blocker"
+      },
+      "outputs": {
+        "normalizedQuery": "evaluateContextReadiness actionable issue primary blocker"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-extract-query-terms",
+      "kind": "extract-query-terms",
+      "description": "Extracted deterministic structured query terms.",
+      "inputs": {},
+      "outputs": {
+        "termCount": 5
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-run-search",
+      "kind": "run-search",
+      "description": "Ran the existing search engine to gather ranked candidates.",
+      "inputs": {
+        "query": "evaluateContextReadiness actionable issue primary blocker"
+      },
+      "outputs": {
+        "status": "ok",
+        "resultCount": 50
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-rank-candidate-files",
+      "kind": "rank-candidate-files",
+      "description": "Ranked candidate files from search results.",
+      "inputs": {},
+      "outputs": {
+        "retainedCount": 3,
+        "droppedCount": 11
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-rank-candidate-nodes",
+      "kind": "rank-candidate-nodes",
+      "description": "Ranked candidate graph nodes from search results.",
+      "inputs": {},
+      "outputs": {
+        "candidateCount": 50
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-mode-ranking-adjustment",
+      "kind": "apply-mode-ranking-adjustment",
+      "description": "Applied small deterministic mode-specific ranking adjustments.",
+      "inputs": {
+        "mode": "subsystem"
+      },
+      "outputs": {
+        "applied": true,
+        "effectCount": 18
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-resolve-focus",
+      "kind": "resolve-focus",
+      "description": "Resolved explicit focusFiles/focusSymbols against the active index.",
+      "inputs": {
+        "focusFileCount": 0,
+        "focusSymbolCount": 1
+      },
+      "outputs": {
+        "unresolvedFocusFileCount": 0,
+        "unresolvedFocusSymbolCount": 0,
+        "ambiguousFocusSymbolCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-merge-changed-surface",
+      "kind": "merge-changed-surface",
+      "description": "Merged caller-supplied changedFiles/changedSymbols with an optional beforeIndex/afterIndex graph diff.",
+      "inputs": {
+        "changedFileCount": 0,
+        "changedSymbolCount": 0,
+        "beforeIndex": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/before-index",
+        "afterIndex": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/after-index",
+        "diffRequested": true
+      },
+      "outputs": {
+        "mergedFileCount": 0,
+        "mergedSymbolCount": 0,
+        "conflictCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-role-ranking",
+      "kind": "apply-role-ranking",
+      "description": "Applied role-aware ranking adjustments and bounded focus/changed-surface candidate injection.",
+      "inputs": {
+        "role": "implementation"
+      },
+      "outputs": {
+        "candidateFileCount": 23,
+        "candidateNodeCount": 50,
+        "unsupportedRequestedEvidenceKindCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-select-primary-focus",
+      "kind": "select-primary-focus",
+      "description": "Selected a single primary focus node, if evidence was sufficient.",
+      "inputs": {},
+      "outputs": {
+        "focusNodeId": "symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness",
+        "selectionMode": "single-best",
+        "confidence": "high"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-primary-focus",
+      "kind": "inspect-primary-focus",
+      "description": "Read already-embedded semantic and classification metadata for the primary focus node.",
+      "inputs": {
+        "focusNodeId": "symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness"
+      },
+      "outputs": {
+        "found": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-select-graph-neighborhood",
+      "kind": "select-graph-neighborhood",
+      "description": "Selected a bounded graph neighborhood around the primary focus node.",
+      "inputs": {
+        "focusNodeId": "symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness"
+      },
+      "outputs": {
+        "nodeCount": 2,
+        "edgeCount": 2
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-caps",
+      "kind": "apply-caps",
+      "description": "Applied candidate-file and graph node/edge caps.",
+      "inputs": {
+        "maxCandidateFiles": 3,
+        "maxGraphNodes": 5,
+        "maxGraphEdges": 8
+      },
+      "outputs": {
+        "omittedNodeCount": 0,
+        "omittedEdgeCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-record-retained-and-dropped-context",
+      "kind": "record-retained-and-dropped-context",
+      "description": "Recorded retained/dropped candidate and graph-selection counts.",
+      "inputs": {},
+      "outputs": {
+        "retainedCandidateCount": 3,
+        "droppedCandidateCount": 20
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-build-evidence-groups",
+      "kind": "build-evidence-groups",
+      "description": "Constructed deterministic, bounded, role-scoped evidence groups from role-ranked candidates, the selected graph neighborhood, and the changed-surface model.",
+      "inputs": {
+        "role": "implementation"
+      },
+      "outputs": {
+        "groupCount": 9,
+        "selectedOwnerCount": 10,
+        "selectedContractCount": 18,
+        "selectedTestCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-discover-test-infrastructure",
+      "kind": "discover-test-infrastructure",
+      "description": "Discovered bounded, conservative evidence of existing related tests, fixtures, factories, mocks, setup files, and test configuration.",
+      "inputs": {
+        "requestedTestInfrastructure": false
+      },
+      "outputs": {
+        "relatedTestCount": 0,
+        "fixtureCount": 0,
+        "factoryCount": 0,
+        "mockCount": 0,
+        "setupFileCount": 0,
+        "testConfigurationCount": 0
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-derive-test-commands",
+      "kind": "derive-test-commands",
+      "description": "Derived grounded, targeted test commands (or reported them unresolved) from package.json scripts and discovered related tests.",
+      "inputs": {
+        "requestedTestCommands": false
+      },
+      "outputs": {
+        "testCommandCount": 0,
+        "packageScriptCount": 0
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-derive-source-targets",
+      "kind": "derive-source-targets",
+      "description": "Derived bounded source targets from the primary focus and selected graph neighborhood.",
+      "inputs": {},
+      "outputs": {
+        "targetCount": 2
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-select-source-slices",
+      "kind": "select-source-slices",
+      "description": "Selected bounded, content-free source slices for the derived targets.",
+      "inputs": {},
+      "outputs": {
+        "sliceCount": 2,
+        "omittedSliceCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-select-source-bundles",
+      "kind": "select-source-bundles",
+      "description": "Selected at most one local-dependency source bundle for a symbol-kind primary focus.",
+      "inputs": {},
+      "outputs": {
+        "bundleCount": 1
+      },
+      "status": "ok",
+      "warnings": [
+        "Symbol end line is not available in the current index (symbol-index.json stores start line only). Returning a bounded preview from line 241. Use --continue-from 301 to retrieve more."
+      ]
+    },
+    {
+      "id": "step-apply-source-caps",
+      "kind": "apply-source-caps",
+      "description": "Applied --max-source-slices to the selected source slices.",
+      "inputs": {
+        "maxSourceSlices": 4
+      },
+      "outputs": {
+        "omittedSliceCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-use-source-continuation",
+      "kind": "use-source-continuation",
+      "description": "Reported whether the primary focus source slice used one bounded continuation window.",
+      "inputs": {},
+      "outputs": {
+        "continuationUsed": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-skip-source-evidence",
+      "kind": "skip-source-evidence",
+      "description": "Recorded whether source evidence was intentionally disabled by user request.",
+      "inputs": {
+        "sourceEnabled": true
+      },
+      "outputs": {
+        "sourceDisabled": false
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-use-local-source-expansion",
+      "kind": "use-local-source-expansion",
+      "description": "Reported whether local-dependency expansion was used via the one optional source bundle.",
+      "inputs": {},
+      "outputs": {
+        "localExpansionUsed": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-semantic-metadata",
+      "kind": "inspect-semantic-metadata",
+      "description": "Inspected already-embedded semantic role and artifact-ref metadata.",
+      "inputs": {},
+      "outputs": {
+        "available": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-classification-metadata",
+      "kind": "inspect-classification-metadata",
+      "description": "Inspected classification.json metadata when available.",
+      "inputs": {},
+      "outputs": {
+        "available": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-artifact-references",
+      "kind": "inspect-artifact-references",
+      "description": "Inspected compact artifact references known to the manifest.",
+      "inputs": {},
+      "outputs": {
+        "artifactCount": 9
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-detect-context-conflicts",
+      "kind": "detect-context-conflicts",
+      "description": "Applied conservative static edit-guidance conflict rules.",
+      "inputs": {
+        "focusNodeId": "symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness"
+      },
+      "outputs": {
+        "status": "none",
+        "conflictCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-assemble-required-context",
+      "kind": "assemble-required-context",
+      "description": "Assembled required context entries for focus, graph, source, and classification evidence.",
+      "inputs": {},
+      "outputs": {
+        "entryCount": 4
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-assemble-optional-support-context",
+      "kind": "assemble-optional-support-context",
+      "description": "Assembled optional support context entries for secondary graph/source/semantic evidence.",
+      "inputs": {},
+      "outputs": {
+        "entryCount": 3
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-assemble-dropped-context",
+      "kind": "assemble-dropped-context",
+      "description": "Assembled dropped context entries for cap- and relevance-based omissions.",
+      "inputs": {},
+      "outputs": {
+        "entryCount": 20
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-pruning-policy",
+      "kind": "apply-pruning-policy",
+      "description": "Applied the deterministic pruning/retention rollup policy.",
+      "inputs": {},
+      "outputs": {
+        "policyVersion": "1.0.0"
+      },
+      "status": "ok",
+      "warnings": [
+        "Symbol end line is not available in the current index (symbol-index.json stores start line only). Returning a bounded preview from line 241. Use --continue-from 301 to retrieve more."
+      ]
+    },
+    {
+      "id": "step-update-context-adequacy",
+      "kind": "update-context-adequacy",
+      "description": "Updated context adequacy based on graph, source, and metadata sufficiency.",
+      "inputs": {},
+      "outputs": {
+        "status": "context sufficient for implementation"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-map-responsibilities",
+      "kind": "map-responsibilities",
+      "description": "Built deterministic responsibility-to-evidence mappings from testResponsibilityRefs and existing role-aware evidence.",
+      "inputs": {
+        "responsibilityCount": 0,
+        "requestedResponsibilityMappings": false
+      },
+      "outputs": {
+        "mappedCount": 0,
+        "partiallyMappedCount": 0,
+        "unmappedCount": 0,
+        "unknownResponsibilityCount": 0
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-classify-freshness",
+      "kind": "classify-freshness",
+      "description": "Classified context freshness (fresh/stale/unknown) from active-index, before/after-index, and changed-surface evidence.",
+      "inputs": {
+        "diffRequested": true
+      },
+      "outputs": {
+        "state": "fresh"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-budget",
+      "kind": "apply-budget",
+      "description": "Reported declared-vs-used limit usage and explicit truncation/required-evidence-loss.",
+      "inputs": {},
+      "outputs": {
+        "truncatedGroupCount": 0,
+        "characterBudgetTruncated": false
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-evaluate-adequacy",
+      "kind": "evaluate-adequacy",
+      "description": "Evaluated role-specific adequacy, extending the existing contextAdequacy verdict without replacing it.",
+      "inputs": {
+        "role": "implementation"
+      },
+      "outputs": {
+        "status": "context sufficient for implementation",
+        "blockingConditionCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-record-provenance",
+      "kind": "record-provenance",
+      "description": "Merged deterministic, deduplicated evidence provenance across owners, contracts, tests, changed surface, and responsibility mappings.",
+      "inputs": {},
+      "outputs": {
+        "provenanceRecordCount": 27
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-artifacts",
+      "kind": "inspect-artifacts",
+      "description": "Enumerated known index and semantic artifacts from the manifest.",
+      "inputs": {},
+      "outputs": {
+        "artifactCount": 7
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-write-context-capsule",
+      "kind": "write-context-capsule",
+      "description": "Wrote the context capsule artifact.",
+      "inputs": {
+        "outputPath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/context-capsule.json"
+      },
+      "outputs": {
+        "writtenPath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/context-capsule.json"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-write-retrieval-audit-record",
+      "kind": "write-retrieval-audit-record",
+      "description": "Wrote the retrieval audit record artifact.",
+      "inputs": {
+        "outputPath": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/retrieval-audit-record.json"
+      },
+      "outputs": {},
+      "status": "ok",
+      "warnings": []
+    }
+  ],
+  "fallbacks": [],
+  "fullFileReadRecommendations": [],
+  "warnings": [],
+  "roleContext": {
+    "role": "implementation",
+    "focus": {
+      "focusFiles": [],
+      "focusSymbols": [
+        {
+          "symbol": "symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness",
+          "resolved": true,
+          "ambiguous": false,
+          "matchedNodeIds": [
+            "symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness"
+          ]
+        }
+      ],
+      "unresolvedFocusFiles": [],
+      "unresolvedFocusSymbols": [],
+      "ambiguousFocusSymbols": [],
+      "warnings": []
+    },
+    "changedSurface": {
+      "available": false,
+      "diffRequested": true,
+      "files": [],
+      "symbols": [],
+      "conflicts": [],
+      "warnings": []
+    },
+    "requestedEvidenceKinds": [
+      "owner"
+    ],
+    "unsupportedRequestedEvidenceKinds": [],
+    "warnings": []
+  },
+  "contextAdequacy": {
+    "status": "context sufficient for implementation",
+    "summary": "A single high-confidence focus node, its graph neighborhood, and bounded source evidence were selected.",
+    "assumptions": [],
+    "gaps": []
+  },
+  "responsibilityMappings": {
+    "requested": false,
+    "operational": false,
+    "mappings": [],
+    "unknownResponsibilityIds": [],
+    "duplicateResponsibilityIds": [],
+    "limit": 20,
+    "availableCount": 0,
+    "usedCount": 0,
+    "truncated": false,
+    "droppedCount": 0,
+    "criticalDropped": false,
+    "warnings": []
+  },
+  "roleAdequacy": {
+    "role": "implementation",
+    "status": "context sufficient for implementation",
+    "requiredConditions": [
+      "selected owner evidence exists",
+      "required contract evidence exists",
+      "no critical unresolved implementation requirement remains",
+      "context is not stale"
+    ],
+    "satisfiedConditions": [
+      "selected owner evidence exists",
+      "required contract evidence exists",
+      "no critical unresolved implementation requirement remains",
+      "context is not stale"
+    ],
+    "missingConditions": [],
+    "blockingConditions": [],
+    "warnings": [],
+    "supportingEvidence": [],
+    "affectedResponsibilityIds": [],
+    "truncationImpact": false,
+    "freshnessImpact": false
+  },
+  "freshness": {
+    "state": "fresh",
+    "role": "implementation",
+    "evidenceUsed": [
+      "active index path",
+      "repository HEAD commit (informational; not recorded in the index manifest, so it cannot be compared)",
+      "beforeIndex/afterIndex graph diff",
+      "changed-surface evidence"
+    ],
+    "evidenceUnavailable": [],
+    "comparedIdentities": [
+      {
+        "label": "activeIndexPath",
+        "value": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/after-index"
+      },
+      {
+        "label": "repositoryHeadCommit",
+        "value": "fb06620da85d51a28dca8a2678d141b92dfa8b89"
+      },
+      {
+        "label": "beforeIndexPath",
+        "value": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/before-index"
+      },
+      {
+        "label": "afterIndexPath",
+        "value": "Z:/Users/newuser/Projects/raw-evidence-identity-investigation/post-fix/after-index"
+      }
+    ],
+    "reason": "The active index path matches the supplied afterIndex, so the retrieved context reflects the post-change repository state.",
+    "relevantChangedPaths": [],
+    "warnings": []
+  },
+  "budget": {
+    "limits": [
+      {
+        "name": "candidates",
+        "declaredValue": 4,
+        "usedValue": 3,
+        "availableCount": 23,
+        "droppedCount": 20,
+        "truncated": true,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      },
+      {
+        "name": "graphDepth/graphNodes",
+        "declaredValue": 1,
+        "usedValue": 2,
+        "availableCount": 2,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      },
+      {
+        "name": "sourceRanges",
+        "declaredValue": 12,
+        "usedValue": 2,
+        "availableCount": 2,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      },
+      {
+        "name": "sourceLinesPerRange",
+        "declaredValue": 120,
+        "usedValue": 180,
+        "availableCount": null,
+        "droppedCount": null,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      },
+      {
+        "name": "evidenceGroupEntries",
+        "declaredValue": 4,
+        "usedValue": 69,
+        "availableCount": 69,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      },
+      {
+        "name": "responsibilityMappings",
+        "declaredValue": 20,
+        "usedValue": 0,
+        "availableCount": 0,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      }
+    ],
+    "characters": {
+      "measured": 38989,
+      "limit": 80000,
+      "truncated": false
+    },
+    "warnings": []
+  },
+  "truncation": {
+    "truncated": false,
+    "records": [],
+    "warnings": []
+  },
+  "fullFileFallback": {
+    "enabled": true,
+    "limit": 2,
+    "used": 0,
+    "fallbacks": [],
+    "warnings": []
+  },
+  "provenance": [
+    {
+      "id": "code-graph:src/greenfield/bootstrap/validateBootstrapDocs.ts:file:src/greenfield/bootstrap/validateBootstrapDocs.ts",
+      "category": "code-graph",
+      "sourcePath": "src/greenfield/bootstrap/validateBootstrapDocs.ts",
+      "sourceId": "file:src/greenfield/bootstrap/validateBootstrapDocs.ts",
+      "evidenceId": "file:src/greenfield/bootstrap/validateBootstrapDocs.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/greenfield/bootstrap/validateBootstrapDocs.ts:symbol:src/greenfield/bootstrap/validateBootstrapDocs.ts#GreenfieldDocValidationIssue",
+      "category": "code-graph",
+      "sourcePath": "src/greenfield/bootstrap/validateBootstrapDocs.ts",
+      "sourceId": "symbol:src/greenfield/bootstrap/validateBootstrapDocs.ts#GreenfieldDocValidationIssue",
+      "evidenceId": "symbol:src/greenfield/bootstrap/validateBootstrapDocs.ts#GreenfieldDocValidationIssue",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/greenfield/bootstrap/validateBootstrapDocs.ts:symbol:src/greenfield/bootstrap/validateBootstrapDocs.ts#GreenfieldDocValidationIssueKind",
+      "category": "code-graph",
+      "sourcePath": "src/greenfield/bootstrap/validateBootstrapDocs.ts",
+      "sourceId": "symbol:src/greenfield/bootstrap/validateBootstrapDocs.ts#GreenfieldDocValidationIssueKind",
+      "evidenceId": "symbol:src/greenfield/bootstrap/validateBootstrapDocs.ts#GreenfieldDocValidationIssueKind",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogTypes.ts:file:src/instructions/catalogTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogTypes.ts",
+      "sourceId": "file:src/instructions/catalogTypes.ts",
+      "evidenceId": "file:src/instructions/catalogTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogTypes.ts:src/instructions/catalogTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogTypes.ts",
+      "sourceId": null,
+      "evidenceId": "src/instructions/catalogTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogTypes.ts:symbol:src/instructions/catalogTypes.ts#BudgetLimitValidationIssue",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogTypes.ts",
+      "sourceId": "symbol:src/instructions/catalogTypes.ts#BudgetLimitValidationIssue",
+      "evidenceId": "symbol:src/instructions/catalogTypes.ts#BudgetLimitValidationIssue",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogTypes.ts:symbol:src/instructions/catalogTypes.ts#CatalogIssueCode",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogTypes.ts",
+      "sourceId": "symbol:src/instructions/catalogTypes.ts#CatalogIssueCode",
+      "evidenceId": "symbol:src/instructions/catalogTypes.ts#CatalogIssueCode",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogTypes.ts:symbol:src/instructions/catalogTypes.ts#CatalogValidationIssue",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogTypes.ts",
+      "sourceId": "symbol:src/instructions/catalogTypes.ts#CatalogValidationIssue",
+      "evidenceId": "symbol:src/instructions/catalogTypes.ts#CatalogValidationIssue",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogValidation.ts:symbol:src/instructions/catalogValidation.ts#checkCompatibilityWithRuntime",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogValidation.ts",
+      "sourceId": "symbol:src/instructions/catalogValidation.ts#checkCompatibilityWithRuntime",
+      "evidenceId": "symbol:src/instructions/catalogValidation.ts#checkCompatibilityWithRuntime",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogValidation.ts:symbol:src/instructions/catalogValidation.ts#checkCycles",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogValidation.ts",
+      "sourceId": "symbol:src/instructions/catalogValidation.ts#checkCycles",
+      "evidenceId": "symbol:src/instructions/catalogValidation.ts#checkCycles",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogValidation.ts:symbol:src/instructions/catalogValidation.ts#checkDuplicateIds",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogValidation.ts",
+      "sourceId": "symbol:src/instructions/catalogValidation.ts#checkDuplicateIds",
+      "evidenceId": "symbol:src/instructions/catalogValidation.ts#checkDuplicateIds",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogValidation.ts:symbol:src/instructions/catalogValidation.ts#checkIds",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogValidation.ts",
+      "sourceId": "symbol:src/instructions/catalogValidation.ts#checkIds",
+      "evidenceId": "symbol:src/instructions/catalogValidation.ts#checkIds",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogValidation.ts:symbol:src/instructions/catalogValidation.ts#checkReferences",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogValidation.ts",
+      "sourceId": "symbol:src/instructions/catalogValidation.ts#checkReferences",
+      "evidenceId": "symbol:src/instructions/catalogValidation.ts#checkReferences",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogValidation.ts:symbol:src/instructions/catalogValidation.ts#checkStageInstructionCompleteness",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogValidation.ts",
+      "sourceId": "symbol:src/instructions/catalogValidation.ts#checkStageInstructionCompleteness",
+      "evidenceId": "symbol:src/instructions/catalogValidation.ts#checkStageInstructionCompleteness",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/catalogValidation.ts:symbol:src/instructions/catalogValidation.ts#checkWorkflowStageOwnership",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/catalogValidation.ts",
+      "sourceId": "symbol:src/instructions/catalogValidation.ts#checkWorkflowStageOwnership",
+      "evidenceId": "symbol:src/instructions/catalogValidation.ts#checkWorkflowStageOwnership",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/contextReadiness.ts:src/instructions/contextReadiness.ts",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/contextReadiness.ts",
+      "sourceId": null,
+      "evidenceId": "src/instructions/contextReadiness.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/contextReadiness.ts:symbol:src/instructions/contextReadiness.ts#ContextReadinessIssue",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/contextReadiness.ts",
+      "sourceId": "symbol:src/instructions/contextReadiness.ts#ContextReadinessIssue",
+      "evidenceId": "symbol:src/instructions/contextReadiness.ts#ContextReadinessIssue",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/contextReadiness.ts:symbol:src/instructions/contextReadiness.ts#ContextReadinessIssueSeverity",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/contextReadiness.ts",
+      "sourceId": "symbol:src/instructions/contextReadiness.ts#ContextReadinessIssueSeverity",
+      "evidenceId": "symbol:src/instructions/contextReadiness.ts#ContextReadinessIssueSeverity",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/contextReadiness.ts:symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/contextReadiness.ts",
+      "sourceId": "symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness",
+      "evidenceId": "symbol:src/instructions/contextReadiness.ts#evaluateContextReadiness",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/contextReadiness.ts:symbol:src/instructions/contextReadiness.ts#EvaluateContextReadinessInput",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/contextReadiness.ts",
+      "sourceId": "symbol:src/instructions/contextReadiness.ts#EvaluateContextReadinessInput",
+      "evidenceId": "symbol:src/instructions/contextReadiness.ts#EvaluateContextReadinessInput",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/stageContextBundle.ts:file:src/instructions/stageContextBundle.ts",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/stageContextBundle.ts",
+      "sourceId": "file:src/instructions/stageContextBundle.ts",
+      "evidenceId": "file:src/instructions/stageContextBundle.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/stageRepositoryEvidenceRequirements.ts:file:src/instructions/stageRepositoryEvidenceRequirements.ts",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/stageRepositoryEvidenceRequirements.ts",
+      "sourceId": "file:src/instructions/stageRepositoryEvidenceRequirements.ts",
+      "evidenceId": "file:src/instructions/stageRepositoryEvidenceRequirements.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/stageRepositoryEvidenceRequirements.ts:src/instructions/stageRepositoryEvidenceRequirements.ts",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/stageRepositoryEvidenceRequirements.ts",
+      "sourceId": null,
+      "evidenceId": "src/instructions/stageRepositoryEvidenceRequirements.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/supplementalContextTypes.ts:file:src/instructions/supplementalContextTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/supplementalContextTypes.ts",
+      "sourceId": "file:src/instructions/supplementalContextTypes.ts",
+      "evidenceId": "file:src/instructions/supplementalContextTypes.ts",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/supplementalContextTypes.ts:symbol:src/instructions/supplementalContextTypes.ts#SupplementalContextIssueCode",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/supplementalContextTypes.ts",
+      "sourceId": "symbol:src/instructions/supplementalContextTypes.ts#SupplementalContextIssueCode",
+      "evidenceId": "symbol:src/instructions/supplementalContextTypes.ts#SupplementalContextIssueCode",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/supplementalContextTypes.ts:symbol:src/instructions/supplementalContextTypes.ts#SupplementalContextParserIssue",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/supplementalContextTypes.ts",
+      "sourceId": "symbol:src/instructions/supplementalContextTypes.ts#SupplementalContextParserIssue",
+      "evidenceId": "symbol:src/instructions/supplementalContextTypes.ts#SupplementalContextParserIssue",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/instructions/testResponsibilityCriticality.ts:file:src/instructions/testResponsibilityCriticality.ts",
+      "category": "code-graph",
+      "sourcePath": "src/instructions/testResponsibilityCriticality.ts",
+      "sourceId": "file:src/instructions/testResponsibilityCriticality.ts",
+      "evidenceId": "file:src/instructions/testResponsibilityCriticality.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    }
+  ]
+}

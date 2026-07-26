@@ -905,6 +905,8 @@ export type FullFileReadRecommendation = {
 export type RetrievalAuditRecordIndex = {
   indexPath: string;
   manifestPath: string;
+  manifestSchemaVersion?: string;
+  projectRoot?: string;
 }
 
 export type RetrievalAuditRecord = {

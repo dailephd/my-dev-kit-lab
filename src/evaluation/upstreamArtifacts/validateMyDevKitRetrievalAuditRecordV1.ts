@@ -6,6 +6,7 @@ import {
   arrayFieldPath,
   joinFieldPath,
   optionalField,
+  optionalString,
   requiredArray,
   requiredField,
   requiredLiteral,
@@ -44,7 +45,7 @@ function validateContextCapsuleTool(ctx: FieldContext, value: JsonValue, fieldPa
 
 function validateRetrievalAuditRecordIndex(ctx: FieldContext, value: JsonValue, fieldPath: string): RetrievalAuditRecordIndex {
   const obj = requiredObject(ctx, value, fieldPath);
-  return {
+  const result: RetrievalAuditRecordIndex = {
     indexPath: requiredString(
       ctx,
       requiredField(ctx, obj, "indexPath", joinFieldPath(fieldPath, "indexPath")),
@@ -56,6 +57,17 @@ function validateRetrievalAuditRecordIndex(ctx: FieldContext, value: JsonValue, 
       joinFieldPath(fieldPath, "manifestPath")
     )
   };
+  if (optionalField(obj, "manifestSchemaVersion") !== undefined) {
+    result.manifestSchemaVersion = optionalString(
+      ctx,
+      obj.manifestSchemaVersion,
+      joinFieldPath(fieldPath, "manifestSchemaVersion")
+    );
+  }
+  if (optionalField(obj, "projectRoot") !== undefined) {
+    result.projectRoot = optionalString(ctx, obj.projectRoot, joinFieldPath(fieldPath, "projectRoot"));
+  }
+  return result;
 }
 
 function validateAuditStepRecord(

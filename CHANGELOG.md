@@ -2,6 +2,11 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## Unreleased
+
+- The exact major-1 retrieval-audit mirror now types and validates additive `index.projectRoot` and `index.manifestSchemaVersion` fields while preserving legacy audits that omit them.
+- Existing capsule/audit consistency diagnostics now compare repository root and manifest schema identity in deterministic field order. Copied real-producer fixtures prove valid pairs remain consistent and wrong-repository or wrong-active-index pairs are detected.
+
 ## [0.4.3] - 2026-07-22
 
 `v0.4.3` (stage-specific bounded-context and workflow-instruction evaluation) is published. This is the latest release. Its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).

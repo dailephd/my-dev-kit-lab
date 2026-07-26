@@ -162,6 +162,8 @@ Dependency direction is one-way: readers depend on nothing else in this list; se
 
 This architecture does not introduce a normalized upstream observation layer — readers preserve exact upstream field names, nesting, optionality, nullability, array order, and unknown additive fields, and never merge or reshape `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` objects. Metrics are not upstream artifact properties; they are a separate, additive evaluation layer computed from reader output plus expectation fixtures. Reports do not recalculate execution results, metrics, target immutability, or determinism; the report layer only renders a bounded, deterministic view of already-computed results and never reruns a strategy.
 
+The current unreleased compatibility update recognizes my-dev-kit's additive retrieval-audit `index.projectRoot` and `index.manifestSchemaVersion` fields within schema major 1. The exact reader retains these fields when present and leaves them absent for legacy audits; it never derives repository identity. The existing capsule/audit consistency selector compares project root and manifest schema alongside active index, before/after freshness identity, and the established shared summaries. It evaluates producer evidence but does not reimplement orchestrator readiness.
+
 ## Target model
 
 Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project. Experiment outputs remain in lab-controlled output directories by default; security reports remain under `reports/security` unless an explicit output directory is provided.

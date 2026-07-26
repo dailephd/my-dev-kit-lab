@@ -16,6 +16,8 @@ const EXPECTED_FIELD_ORDER: MyDevKitContextArtifactConsistencyFieldPath[] = [
   "request",
   "index.indexPath",
   "index.manifestPath",
+  "index.manifestSchemaVersion",
+  "index.projectRoot",
   "contextAdequacy",
   "roleContext",
   "responsibilityMappings",
@@ -39,6 +41,8 @@ async function loadMatchingArtifacts(): Promise<{ capsule: ContextCapsule; audit
   audit.request = structuredClone(capsule.request);
   audit.index.indexPath = capsule.index.indexPath;
   audit.index.manifestPath = capsule.index.manifestPath;
+  audit.index.manifestSchemaVersion = capsule.index.manifestSchemaVersion;
+  audit.index.projectRoot = capsule.index.projectRoot;
   audit.contextAdequacy = structuredClone(capsule.contextAdequacy);
   audit.roleContext = structuredClone(capsule.roleContext);
   audit.responsibilityMappings = structuredClone(capsule.responsibilityMappings);
@@ -103,6 +107,24 @@ describe("checkMyDevKitContextArtifactConsistency", () => {
     expect(result.consistent).toBe(false);
     expect(result.issues).toHaveLength(1);
     expect(result.issues[0].fieldPath).toBe("index.manifestPath");
+  });
+
+  it("SEL-006A an index.manifestSchemaVersion mismatch produces one issue", async () => {
+    const { capsule, audit } = await loadMatchingArtifacts();
+    audit.index.manifestSchemaVersion = "9.0.0";
+    const result = checkMyDevKitContextArtifactConsistency(capsule, audit);
+    expect(result.consistent).toBe(false);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].fieldPath).toBe("index.manifestSchemaVersion");
+  });
+
+  it("SEL-006B a wrong-repository pair produces one projectRoot issue", async () => {
+    const { capsule, audit } = await loadMatchingArtifacts();
+    audit.index.projectRoot = "Z:/fixture/different-repository";
+    const result = checkMyDevKitContextArtifactConsistency(capsule, audit);
+    expect(result.consistent).toBe(false);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].fieldPath).toBe("index.projectRoot");
   });
 
   it("SEL-007 a contextAdequacy mismatch produces one issue without merging or renaming adequacy fields", async () => {
