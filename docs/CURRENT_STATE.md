@@ -17,9 +17,9 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Current branch (published baseline): `main`
 - `v0.4.4` implementation branch: `feature/v0.4.4-producer-readiness-bridge` (implemented, not merged, not published)
 - Active planned version: `v0.5.0`; planned, not implemented
-- Workflow stage: `v0.4.3` released; `v0.4.4` implementation and documentation reconciliation complete on its feature branch; its initial coordinated readiness run returned `NEEDS_CORRECTION` and the bounded pre-release correction workflow is active
-- Release blockers: none for the published `v0.4.3`; `v0.4.4` remains ineligible for release until its dependency-security, candidate-specific cross-platform CI, stale-claim, and publication-procedure corrections pass and a new coordinated readiness run passes
-- Exact next action: complete and push the bounded `v0.4.4` corrections, obtain exact candidate Node.js 22/24 evidence on Windows, Linux, and macOS, then rerun the complete coordinated readiness workflow before any release decision
+- Workflow stage: `v0.4.3` released; `v0.4.4` implementation, documentation reconciliation, dependency-security correction, cross-platform CI coverage, lifecycle correction, and publication-procedure correction are complete and pushed on its feature branch. The latest coordinated readiness run returned `NEEDS_CORRECTION` only for an intermittent standalone my-dev-kit test failure and stale lab current-state wording; this document corrects the lab wording.
+- Release blockers: none for the published `v0.4.3`; `v0.4.4` remains ineligible for release until the bounded my-dev-kit test-reliability correction is complete and a new coordinated readiness run passes. Release preparation has not started.
+- Exact next action: complete and push the bounded my-dev-kit intermittent-test correction, then rerun coordinated pre-release readiness from Phase 0 using the resulting my-dev-kit commit, unchanged orchestrator commit `f7d8725d69c36901a488b0311764bbe49a67be99`, and the resulting lab documentation commit
 
 ## Implemented
 
@@ -94,25 +94,27 @@ The following remain planned, not implemented:
 
 The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run docs:check`, cross-platform CI, `npm run security:validate`, and `npm run audit`) ran as a single combined gate against the `v0.4.3` release commit and passed before publication.
 
-`v0.4.4` (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): the configured typecheck, build, full test, verify, and documentation checks pass on the feature candidate, including the deterministic historical fixture-to-report integration test that produces `report.json`/`report.txt`/`report.html`. The initial coordinated readiness run exercised cross-platform, security, audit, package, and report gates and returned `NEEDS_CORRECTION`; exact corrected-candidate revalidation remains required.
+`v0.4.4` (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): the configured typecheck, build, full test, verify, and documentation checks pass on the feature candidate, including the deterministic historical fixture-to-report integration test that produces `report.json`/`report.txt`/`report.html`. Candidate-specific Windows, Linux, and macOS CI evidence passes on Node.js 22 and Node.js 24. The latest coordinated readiness run also passed lab local functional validation, security, package-content validation, code rot with nonblocking review items, JSON/text/HTML report smoke, repeated-run determinism, positive and negative cross-project compatibility, and the release-transition rehearsal. That run returned `NEEDS_CORRECTION` only for the intermittent standalone my-dev-kit test failure and the stale lab wording corrected here; a new exact-candidate coordinated readiness run remains required.
 
 ## Blockers
 
 There are no documentation, factual, or implementation blockers for the released `v0.4.3` implementation.
 
-No product-behavior defect was established for `v0.4.4`. Its active
-pre-release corrections are limited to the dependency advisory,
-candidate-specific Node.js 22/24 CI evidence, stale lifecycle wording, and the
-version-specific publication procedure. A new coordinated readiness run must
-confirm those corrections before any release decision.
+No product-behavior defect was established for `v0.4.4`. Its dependency
+advisory, candidate-specific Node.js 22/24 CI evidence on Windows, Linux, and
+macOS, lifecycle wording, and version-specific publication procedure are
+corrected, validated, and pushed. The remaining coordinated blocker is the
+intermittent standalone my-dev-kit test failure. A new coordinated readiness
+run must confirm the resulting exact candidates before any release decision.
 
 ## Next step
 
-Complete and push the bounded pre-release corrections, obtain exact
-candidate-specific cross-platform CI evidence, and rerun the coordinated
-cross-project readiness workflow at the corrected commits. Preserve separate
-per-repository verdicts and validate cross-project contract compatibility
-before any `v0.4.4` release decision. Begin `v0.5.0` (warm-index reuse)
-planning only after that workflow and any resulting release decision are
-complete; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and
-acceptance criteria.
+Complete and push the bounded my-dev-kit intermittent-test correction, then
+rerun coordinated pre-release readiness from Phase 0 using the resulting
+my-dev-kit commit, unchanged orchestrator commit
+`f7d8725d69c36901a488b0311764bbe49a67be99`, and the resulting lab
+documentation commit. Preserve separate per-repository verdicts and validate
+cross-project contract compatibility before any `v0.4.4` release decision.
+Begin `v0.5.0` (warm-index reuse) planning only after that workflow and any
+resulting release decision are complete; see [ROADMAP.md](ROADMAP.md) for
+`v0.5.0`'s dependencies and acceptance criteria.

@@ -98,7 +98,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Failure handling:** a supplied-but-unreadable supplemental path or an invalid readiness object fails the strategy execution clearly, the same way a malformed raw artifact does.
 
-**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is implemented on `feature/v0.4.4-producer-readiness-bridge`; its initial coordinated readiness run returned `NEEDS_CORRECTION`, its correction and candidate-specific revalidation workflow is active, and it is not published; see [ROADMAP.md](ROADMAP.md).
+**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is implemented on `feature/v0.4.4-producer-readiness-bridge`; its dependency-security, candidate-specific Windows/Linux/macOS Node.js 22/24 CI, lifecycle, and publication-procedure corrections are complete and pushed. The latest coordinated readiness run passed the lab gates and remains `NEEDS_CORRECTION` only pending the bounded my-dev-kit test-reliability correction and a new exact-candidate rerun. The lab package is not published; see [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
 
 ## Real-agent campaign
 

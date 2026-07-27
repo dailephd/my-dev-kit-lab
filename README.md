@@ -163,7 +163,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
 - The six new stage-context strategies have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration
 - The published upstream artifacts the stage-context strategies read do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` rather than zero
-- The v0.4.4 producer-readiness bridge is implemented on the `feature/v0.4.4-producer-readiness-bridge` branch, is not merged or published, and completed an initial coordinated readiness run that returned `NEEDS_CORRECTION`; the pre-release correction and candidate-specific revalidation workflow is active. Like the stage-context strategies, all of its inputs are programmatic — there is no CLI flag.
+- The v0.4.4 producer-readiness bridge is implemented on the `feature/v0.4.4-producer-readiness-bridge` branch and is not merged or published. Its dependency-security, cross-platform CI, lifecycle, and publication-procedure corrections are complete and pushed; the latest coordinated readiness run passed the lab gates and remains `NEEDS_CORRECTION` only pending the bounded my-dev-kit test-reliability correction and a new exact-candidate rerun. Like the stage-context strategies, all bridge inputs are programmatic — there is no CLI flag.
 
 ---
 
