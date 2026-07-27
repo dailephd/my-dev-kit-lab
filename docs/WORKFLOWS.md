@@ -98,7 +98,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Failure handling:** a supplied-but-unreadable supplemental path or an invalid readiness object fails the strategy execution clearly, the same way a malformed raw artifact does.
 
-**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is implemented and validated on `feature/v0.4.4-producer-readiness-bridge`; it has not entered the pre-release readiness, cross-platform, security, or code-rot workflow and is not published; see [ROADMAP.md](ROADMAP.md).
+**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is implemented on `feature/v0.4.4-producer-readiness-bridge`; its initial coordinated readiness run returned `NEEDS_CORRECTION`, its correction and candidate-specific revalidation workflow is active, and it is not published; see [ROADMAP.md](ROADMAP.md).
 
 ## Real-agent campaign
 
@@ -334,6 +334,38 @@ Publication includes:
 - publish/tag/release steps when explicitly authorized
 
 Do not collapse these stages into implementation work.
+
+### v0.4.4 release preparation and publication procedure
+
+This procedure is inactive until a separately authorized release workflow
+begins. Completing the correction or readiness workflow does not authorize any
+step below.
+
+1. Require published `my-dev-kit@1.10.3`.
+2. Require published `my-dev-kit-orchestrator@1.2.2`.
+3. Revalidate lab compatibility against both published upstream packages.
+4. Verify the corrected `v0.4.4` candidate commit and clean candidate branch.
+5. Confirm that `@dailephd/my-dev-kit-lab@0.4.4` is available on npm.
+6. Create `release/v0.4.4` from the verified candidate.
+7. Update `package.json` and both package-lock root version fields to `0.4.4`.
+8. Update the changelog and release-state documentation for the release.
+9. Run the complete configured repository validation suite.
+10. Run self-security and target-aware security validation.
+11. Run the code-rot audit and package-content security checks.
+12. Run the corrected full-bridge JSON, text, and HTML report smoke.
+13. Inspect the complete `npm pack --dry-run` inventory.
+14. Commit the exact release files and push `release/v0.4.4`.
+15. Create a pull request targeting `main`.
+16. Require passing CI, review, and the repository's approved pull-request gate.
+17. Merge only through that approved pull-request gate.
+18. Verify the merged release commit on `main`.
+19. Create and push tag `v0.4.4` at the verified merged commit.
+20. Create the GitHub Release for `v0.4.4` and verify its tag and commit.
+21. Verify npm authentication, registry state, and version availability again.
+22. Run `npm publish --access public` as the final publication command because
+    it requires the user's passkey.
+23. Verify the published package and that npm `latest` resolves to `0.4.4`.
+24. Run read-only post-publication CLI, report, and compatibility smoke tests.
 
 ### Publication-order invariant
 

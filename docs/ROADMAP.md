@@ -419,7 +419,7 @@ Acceptance:
 * Existing `v0.4.3` strategies, expectation fixtures, and reports remain valid and unchanged when no producer-readiness bridge inputs are supplied.
 * No owner-selection, allocation, producer-parity, or readiness policy is duplicated from either frozen upstream repository.
 * Repeated canonical runs of the corrected fixture case produce identical canonicalized digests, including the producer-readiness bridge result.
-* `v0.4.4` is implemented and validated on its feature branch; it has not entered the pre-release readiness, cross-platform, security, or code-rot workflow and is not published.
+* `v0.4.4` is implemented on its feature branch; its initial coordinated readiness run returned `NEEDS_CORRECTION`, its pre-release correction and candidate-specific revalidation workflow is active, and it is not published.
 
 ### Post-v1 / version TBD — manual pentest
 

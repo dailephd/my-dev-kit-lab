@@ -17,9 +17,9 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Current branch (published baseline): `main`
 - `v0.4.4` implementation branch: `feature/v0.4.4-producer-readiness-bridge` (implemented, not merged, not published)
 - Active planned version: `v0.5.0`; planned, not implemented
-- Workflow stage: `v0.4.3` released; `v0.4.4` implementation complete on its feature branch, pending documentation reconciliation and pre-release readiness workflow before any release decision
-- Release blockers: none for the published `v0.4.3`; `v0.4.4` has not yet run the pre-release readiness, cross-platform, security, or code-rot workflow and is not eligible for release until that workflow passes
-- Exact next action: run documentation source-of-truth reconciliation and implementation-completeness review for `v0.4.4`, then pre-release readiness, cross-platform validation, security validation, code-rot audit, package validation, and report smoke checks before any release decision
+- Workflow stage: `v0.4.3` released; `v0.4.4` implementation and documentation reconciliation complete on its feature branch; its initial coordinated readiness run returned `NEEDS_CORRECTION` and the bounded pre-release correction workflow is active
+- Release blockers: none for the published `v0.4.3`; `v0.4.4` remains ineligible for release until its dependency-security, candidate-specific cross-platform CI, stale-claim, and publication-procedure corrections pass and a new coordinated readiness run passes
+- Exact next action: complete and push the bounded `v0.4.4` corrections, obtain exact candidate Node.js 22/24 evidence on Windows, Linux, and macOS, then rerun the complete coordinated readiness workflow before any release decision
 
 ## Implemented
 
@@ -94,14 +94,25 @@ The following remain planned, not implemented:
 
 The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run docs:check`, cross-platform CI, `npm run security:validate`, and `npm run audit`) ran as a single combined gate against the `v0.4.3` release commit and passed before publication.
 
-`v0.4.4` (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): `npm run typecheck`, `npm run build`, the full `npm run test` suite (332 files, 3895 tests passed, one pre-existing skip), and the full `npm run verify` chain all pass on the feature branch, including a complete deterministic historical fixture-to-report integration test that produces `report.json`/`report.txt`/`report.html`. `npm run docs:check` passes against the current documentation. `v0.4.4` has not yet run cross-platform CI, `npm run security:validate`, or `npm run audit` as a combined pre-release gate.
+`v0.4.4` (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): the configured typecheck, build, full test, verify, and documentation checks pass on the feature candidate, including the deterministic historical fixture-to-report integration test that produces `report.json`/`report.txt`/`report.html`. The initial coordinated readiness run exercised cross-platform, security, audit, package, and report gates and returned `NEEDS_CORRECTION`; exact corrected-candidate revalidation remains required.
 
 ## Blockers
 
 There are no documentation, factual, or implementation blockers for the released `v0.4.3` implementation.
 
-`v0.4.4` has no known implementation or documentation blocker; its only remaining gate before any release decision is the cross-project pre-release readiness workflow (cross-platform, security, code-rot, package, and report-transition checks) described in the next step below.
+No product-behavior defect was established for `v0.4.4`. Its active
+pre-release corrections are limited to the dependency advisory,
+candidate-specific Node.js 22/24 CI evidence, stale lifecycle wording, and the
+version-specific publication procedure. A new coordinated readiness run must
+confirm those corrections before any release decision.
 
 ## Next step
 
-Run the coordinated cross-project pre-release readiness workflow for my-dev-kit, my-dev-kit-orchestrator, and my-dev-kit-lab at their current implemented commits, preserving separate per-repository verdicts and validating cross-project contract compatibility, before any `v0.4.4` release decision. Begin `v0.5.0` (warm-index reuse) planning only after that workflow and any resulting release decision are complete; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.
+Complete and push the bounded pre-release corrections, obtain exact
+candidate-specific cross-platform CI evidence, and rerun the coordinated
+cross-project readiness workflow at the corrected commits. Preserve separate
+per-repository verdicts and validate cross-project contract compatibility
+before any `v0.4.4` release decision. Begin `v0.5.0` (warm-index reuse)
+planning only after that workflow and any resulting release decision are
+complete; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and
+acceptance criteria.
