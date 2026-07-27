@@ -4,6 +4,7 @@ import type {
   V043BoundedReportListV1,
   V043ReportCountMetricV1,
   V043ReportRatioMetricV1,
+  V043ReportSupplementalRawAgreementV1,
 } from "./contextStrategyComparisonV043ReportModel.js";
 
 function escapeHtml(value: unknown): string {
@@ -238,7 +239,83 @@ function renderStrategySection(strategy: ContextStrategyComparisonV043StrategyRe
     ${table(["Status", "Repeat Count"], [[strategy.assurance.status, String(strategy.assurance.repeatCount)]])}
     ${boundedListNote(strategy.assurance.issues)}
     ${table(["Code", "Run", "Field Path", "Message"], assuranceIssueRows)}
+    ${strategy.producerReadinessBridge ? renderProducerReadinessBridgeSection(strategy.producerReadinessBridge) : ""}
   </section>`;
+}
+
+function renderProducerReadinessSideSection(
+  label: string,
+  side: NonNullable<ContextStrategyComparisonV043StrategyReportV1["producerReadinessBridge"]>["implementation"]
+): string {
+  if (side === null) {
+    return `<h4>${escapeHtml(label)}</h4><p class="muted">Not supplied.</p>`;
+  }
+  const truncationRows = side.truncationEvaluation.items.map((t) => [
+    t.groupId,
+    t.cause,
+    t.availability,
+    String(t.limit),
+    String(t.used),
+    t.reason ?? "",
+  ]);
+  function agreementSection(agreementLabel: string, agreement: V043ReportSupplementalRawAgreementV1 | null): string {
+    if (agreement === null) {
+      return `<h5>${escapeHtml(agreementLabel)}</h5><p class="muted">Unavailable.</p>`;
+    }
+    const rows = agreement.contradictions.map((c) => [c.field, String(c.rawValue), String(c.supplementalValue), c.availability]);
+    return `<h5>${escapeHtml(agreementLabel)}</h5>
+      <p>Producer parity preserved: ${escapeHtml(agreement.upstreamProducerParityPreserved)}</p>
+      ${table(["Field", "Raw Value", "Supplemental Value", "Availability"], rows)}`;
+  }
+  return `<h4>${escapeHtml(label)}</h4>
+    ${renderRatioMetricTable("Expected Owner Present", side.ownerEvaluation.expectedOwnerPresent)}
+    ${renderRatioMetricTable("Forbidden Owner Present", side.ownerEvaluation.forbiddenOwnerPresent)}
+    ${renderCountMetricTable("Owner False Positives", side.ownerEvaluation.falsePositiveCount)}
+    ${renderCountMetricTable("Owner False Negatives", side.ownerEvaluation.falseNegativeCount)}
+    <h5>Truncation Classification</h5>
+    ${boundedListNote(side.truncationEvaluation)}
+    ${table(["Group", "Cause", "Availability", "Limit", "Used", "Reason"], truncationRows)}
+    ${agreementSection("Packet/Raw Agreement", side.packetAgreement)}
+    ${agreementSection("Report/Raw Agreement", side.reportAgreement)}`;
+}
+
+function renderProducerReadinessBridgeSection(
+  bridge: NonNullable<ContextStrategyComparisonV043StrategyReportV1["producerReadinessBridge"]>
+): string {
+  if (bridge.status === "not-applicable") {
+    return `<h4>Producer-Readiness Bridge</h4><p class="muted">${escapeHtml(bridge.reason)}</p>`;
+  }
+  const criticality = bridge.criticalityEvaluation;
+  return `<h4>Producer-Readiness Bridge</h4>
+    ${renderProducerReadinessSideSection("Implementation", bridge.implementation)}
+    ${renderProducerReadinessSideSection("Test", bridge.testImplementation)}
+    <h5>Readiness Agreement</h5>
+    ${
+      bridge.readinessAgreement === null
+        ? `<p class="muted">Not supplied.</p>`
+        : table(
+            ["Observed Decision", "Decision Agreement", "Issue-Code Agreement", "Invalid Ready", "Valid Blocked", "Valid Refresh-Required"],
+            [
+              [
+                String(bridge.readinessAgreement.decisionAgreement.observedDecision),
+                String(bridge.readinessAgreement.decisionAgreement.decisionAgreement),
+                String(bridge.readinessAgreement.decisionAgreement.issueCodesAgreement),
+                String(bridge.readinessAgreement.invalidReady.invalidReady),
+                String(bridge.readinessAgreement.validBlocked.validBlocked),
+                String(bridge.readinessAgreement.validBlocked.validRefreshRequired),
+              ],
+            ]
+          )
+    }
+    <h5>Criticality Evaluation</h5>
+    ${
+      criticality === null
+        ? `<p class="muted">Not supplied.</p>`
+        : `${renderRatioMetricTable("Mapped Critical Completeness", criticality.mappedCriticalCompleteness)}
+           <p>Partially mapped (excluded from complete): ${escapeHtml(criticality.partiallyMappedCriticalIds.join(", ") || "none")}</p>
+           <p>Unmapped: ${escapeHtml(criticality.unmappedCriticalIds.join(", ") || "none")}</p>
+           <p>Conflicting: ${escapeHtml(criticality.conflictingCriticalityResponsibilityIds.join(", ") || "none")}</p>`
+    }`;
 }
 
 export function renderContextStrategyComparisonV043Html(

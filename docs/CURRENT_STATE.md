@@ -8,16 +8,18 @@ This document records the repository's operational state. It is the source of tr
 - Package version: `0.4.3`
 - Latest release: `v0.4.3` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.2`)
 - Next planned version: `v0.5.0`; planned, not implemented
+- `v0.4.4` (producer-readiness bridge): implemented and active on branch `feature/v0.4.4-producer-readiness-bridge`, not published, not merged to `main`, and not tagged or released
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
 ## Operational state
 
-- Current branch: `main`
+- Current branch (published baseline): `main`
+- `v0.4.4` implementation branch: `feature/v0.4.4-producer-readiness-bridge` (implemented, not merged, not published)
 - Active planned version: `v0.5.0`; planned, not implemented
-- Workflow stage: `v0.4.3` released; no active workflow stage in progress
-- Release blockers: none; `v0.4.3` has completed the pre-release readiness, cross-platform, security, and code-rot workflow and is published
-- Exact next action: begin `v0.5.0` (warm-index reuse) planning and implementation when prioritized
+- Workflow stage: `v0.4.3` released; `v0.4.4` implementation complete on its feature branch, pending documentation reconciliation and pre-release readiness workflow before any release decision
+- Release blockers: none for the published `v0.4.3`; `v0.4.4` has not yet run the pre-release readiness, cross-platform, security, or code-rot workflow and is not eligible for release until that workflow passes
+- Exact next action: run documentation source-of-truth reconciliation and implementation-completeness review for `v0.4.4`, then pre-release readiness, cross-platform validation, security validation, code-rot audit, package validation, and report smoke checks before any release decision
 
 ## Implemented
 
@@ -44,6 +46,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Android-aware generic audit integration in `src/audits/security`: `npm run audit -- --types security --android` runs the same static Android validation through the existing security audit adapter, mapping confirmed findings into audit issues while keeping `CandidateEvidence` as a separate, review-only summary.
 - `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published: exact `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` readers and selectors in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`; the `StageContextExpectationFixtureV1` contract in `src/evaluation/stageContextExpectations`; six new `context-strategy-comparison` strategies (`architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, `combined-bounded-stage-context`) selected through programmatic configuration; evidence-centered metrics in `src/evaluation/stageContextMetrics`; read-only target immutability in `src/evaluation/targetImmutability`; repeated-run determinism in `src/evaluation/stageContextDeterminism`; and bounded `report.json`/`report.html`/`report.txt` output in `src/report/experiments`. See [ROADMAP.md](ROADMAP.md) for the complete scope, dependencies, and acceptance criteria.
 - Implemented but unpublished compatibility work accepts my-dev-kit's additive major-1 audit repository identity, preserves absence in legacy audits, and extends existing pair diagnostics to detect repository-root and manifest-schema disagreement. No new CLI command or orchestrator-readiness implementation is added.
+- `v0.4.4` producer-readiness bridge (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator's readiness result (`src/evaluation/upstreamArtifacts`); deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics (`src/evaluation/stageContextMetrics`); an additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) that composes those metrics over already-loaded evidence; additive optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`); optional producer-readiness bridge inputs on the `combined-bounded-stage-context` strategy, loaded once per run and reported through the existing `report.json`/`report.txt`/`report.html` pipeline as an additive, optional section. Readiness remains a programmatic plain-object input only — the frozen orchestrator commit exposes no on-disk readiness artifact, and no readiness/producer-parity/owner-selection/allocation policy is duplicated. No public CLI flags were added.
 
 ## Current commands
 

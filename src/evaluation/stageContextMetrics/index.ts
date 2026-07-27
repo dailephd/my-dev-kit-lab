@@ -45,3 +45,13 @@ export {
   calculateReadinessAgreementMetrics
 } from "./calculateReadinessAgreement.js";
 export { calculateCriticalityMetrics } from "./calculateCriticalityMetrics.js";
+export type {
+  ProducerReadinessBridgeSideInputV1,
+  ProducerReadinessBridgeInputV1,
+  ProducerReadinessBridgeSideEvaluationV1,
+  ProducerReadinessBridgeEvaluationResultV1
+} from "./evaluateProducerReadinessBridge.js";
+export {
+  evaluateProducerReadinessBridge,
+  buildProducerReadinessBridgeInputFromCombinedPayload
+} from "./evaluateProducerReadinessBridge.js";

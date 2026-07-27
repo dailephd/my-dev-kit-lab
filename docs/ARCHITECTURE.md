@@ -24,10 +24,10 @@ src/
     types.ts                                 plugin contracts and normalized results
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
-    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3)
+    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3); plus exact supplemental implementation/test-context packet/retrieval-report readers and a bounded plain-object readiness adapter (v0.4.4, feature branch, not published)
     stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3)
-    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3)
-    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3)
+    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3); additive, optional producer-readiness expectations (v0.4.4, feature branch)
+    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3); additive owner/allocation/truncation/agreement/criticality calculators plus evaluateProducerReadinessBridge, which composes them once per run over already-loaded evidence (v0.4.4, feature branch)
     targetImmutability/                      read-only target snapshot and mutation comparison (v0.4.3)
     stageContextDeterminism/                 canonicalization and repeated-run digest comparison (v0.4.3)
   agents/                                    fake-agent, Codex, and Claude adapters
@@ -329,3 +329,6 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.3 target immutability | `src/evaluation/targetImmutability/` |
 | v0.4.3 repeated-run determinism | `src/evaluation/stageContextDeterminism/` |
 | v0.4.3 bounded report model | `src/report/experiments/contextStrategyComparisonV043ReportModel.ts` |
+| v0.4.4 supplemental packet/report readers and readiness adapter (feature branch, not published) | `src/evaluation/upstreamArtifacts/` (e.g. `readImplementationContextPacketV1.ts`, `orchestratorContextReadinessResultV1.ts`) |
+| v0.4.4 producer-readiness metric calculators (feature branch, not published) | `src/evaluation/stageContextMetrics/` (`calculateOwnerMetrics.ts`, `calculateAllocationMetrics.ts`, `calculateTruncationClassification.ts`, `calculateSupplementalRawAgreement.ts`, `calculateReadinessAgreement.ts`, `calculateCriticalityMetrics.ts`) |
+| v0.4.4 producer-readiness bridge evaluator (feature branch, not published) | `src/evaluation/stageContextMetrics/evaluateProducerReadinessBridge.ts` |

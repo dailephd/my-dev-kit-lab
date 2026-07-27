@@ -6,6 +6,7 @@ All notable changes to my-dev-kit-lab are documented here.
 
 - The exact major-1 retrieval-audit mirror now types and validates additive `index.projectRoot` and `index.manifestSchemaVersion` fields while preserving legacy audits that omit them.
 - Existing capsule/audit consistency diagnostics now compare repository root and manifest schema identity in deterministic field order. Copied real-producer fixtures prove valid pairs remain consistent and wrong-repository or wrong-active-index pairs are detected.
+- v0.4.4 (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): added exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test-context packet and retrieval-report documents and a bounded plain-object adapter for the orchestrator readiness result; added deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics; added an additive producer-readiness bridge evaluator wired into the existing `combined-bounded-stage-context` strategy and reported through the existing bounded `report.json`/`report.html`/`report.txt` pipeline as an optional section. All new inputs are optional and programmatic; existing v0.4.3 strategies, fixtures, and reports are unaffected when they are absent. No public CLI flags were added, and no upstream owner-selection, allocation, producer-parity, or readiness policy was duplicated.
 
 ## [0.4.3] - 2026-07-22
 

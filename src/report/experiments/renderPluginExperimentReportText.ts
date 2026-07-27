@@ -192,6 +192,86 @@ function renderStrategy(lines: string[], strategy: ContextStrategyComparisonV043
   pushBoundedList(lines, strategy.assurance.issues, (issue) =>
     `${issue.code} run=${issue.runNumber ?? ""} field=${issue.fieldPath ?? ""} ${issue.message}`
   );
+
+  if (strategy.producerReadinessBridge) {
+    renderProducerReadinessBridge(lines, strategy.producerReadinessBridge);
+  }
+}
+
+function renderProducerReadinessSide(lines: string[], label: string, side: NonNullable<ContextStrategyComparisonV043StrategyReportV1["producerReadinessBridge"]>["implementation"]): void {
+  pushSection(lines, `Producer-Readiness Bridge: ${label}`);
+  if (side === null) {
+    lines.push("- not supplied");
+    return;
+  }
+  pushRatioMetric(lines, "Expected Owner Present", side.ownerEvaluation.expectedOwnerPresent);
+  pushRatioMetric(lines, "Forbidden Owner Present", side.ownerEvaluation.forbiddenOwnerPresent);
+  pushCountMetric(lines, "Owner False Positives", side.ownerEvaluation.falsePositiveCount);
+  pushCountMetric(lines, "Owner False Negatives", side.ownerEvaluation.falseNegativeCount);
+
+  pushSection(lines, "Truncation Classification");
+  pushBoundedList(lines, side.truncationEvaluation, (t) => `group=${t.groupId} cause=${t.cause} availability=${t.availability} limit=${t.limit} used=${t.used}`);
+
+  for (const [agreementLabel, agreement] of [
+    ["Packet/Raw Agreement", side.packetAgreement],
+    ["Report/Raw Agreement", side.reportAgreement],
+  ] as const) {
+    pushSection(lines, agreementLabel);
+    if (agreement === null) {
+      lines.push("- unavailable");
+      continue;
+    }
+    lines.push(`Producer Parity Preserved: ${agreement.upstreamProducerParityPreserved === null ? "unavailable" : agreement.upstreamProducerParityPreserved}`);
+    lines.push("Contradictions:");
+    pushDashList(
+      lines,
+      agreement.contradictions.map((c) => `${c.field}: raw=${sanitizeScalar(c.rawValue)} supplemental=${sanitizeScalar(c.supplementalValue)}`)
+    );
+  }
+}
+
+function renderProducerReadinessBridge(
+  lines: string[],
+  bridge: NonNullable<ContextStrategyComparisonV043StrategyReportV1["producerReadinessBridge"]>
+): void {
+  pushSection(lines, "Producer-Readiness Bridge");
+  lines.push(fieldLine("Status", bridge.status));
+  if (bridge.status === "not-applicable") {
+    lines.push(fieldLine("Reason", bridge.reason));
+    return;
+  }
+
+  renderProducerReadinessSide(lines, "Implementation", bridge.implementation);
+  renderProducerReadinessSide(lines, "Test", bridge.testImplementation);
+
+  pushSection(lines, "Readiness Agreement");
+  if (bridge.readinessAgreement === null) {
+    lines.push("- not supplied");
+  } else {
+    const decision = bridge.readinessAgreement.decisionAgreement;
+    lines.push(fieldLine("Observed Decision", decision.observedDecision));
+    lines.push(fieldLine("Decision Agreement", decision.decisionAgreement));
+    lines.push(fieldLine("Issue-Code Agreement", decision.issueCodesAgreement));
+    lines.push("Observed Issue Codes:");
+    pushDashList(lines, decision.observedIssueCodes);
+    lines.push(fieldLine("Invalid Ready", bridge.readinessAgreement.invalidReady.invalidReady));
+    lines.push(fieldLine("Valid Blocked", bridge.readinessAgreement.validBlocked.validBlocked));
+    lines.push(fieldLine("Valid Refresh-Required", bridge.readinessAgreement.validBlocked.validRefreshRequired));
+  }
+
+  pushSection(lines, "Criticality Evaluation");
+  if (bridge.criticalityEvaluation === null) {
+    lines.push("- not supplied");
+  } else {
+    pushRatioMetric(lines, "Mapped Critical Completeness", bridge.criticalityEvaluation.mappedCriticalCompleteness);
+    lines.push(`Fully Mapped: ${bridge.criticalityEvaluation.fullyMappedCriticalIds.join(", ") || "none"}`);
+    lines.push(`Partially Mapped: ${bridge.criticalityEvaluation.partiallyMappedCriticalIds.join(", ") || "none"}`);
+    lines.push(`Unmapped: ${bridge.criticalityEvaluation.unmappedCriticalIds.join(", ") || "none"}`);
+    lines.push(`Conflicting: ${bridge.criticalityEvaluation.conflictingCriticalityResponsibilityIds.join(", ") || "none"}`);
+  }
+
+  pushSection(lines, "Producer-Readiness Bridge Warnings");
+  pushBoundedList(lines, bridge.warnings, (w) => w);
 }
 
 function renderV043Section(lines: string[], section: ContextStrategyComparisonV043ReportV1 | null): void {

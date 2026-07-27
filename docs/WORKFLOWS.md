@@ -77,7 +77,28 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Failure handling:** malformed artifacts or unsupported schema majors fail clearly. A detected target mutation is reported as a mutation, not auto-repaired or reset.
 
-**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and (when configured) run-assurance results. This workflow does not yet have a CLI entrypoint and has not entered the pre-release readiness, cross-platform, security, or code-rot workflow; see [ROADMAP.md](ROADMAP.md).
+**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and (when configured) run-assurance results. This workflow does not have a CLI entrypoint; all inputs are supplied programmatically. `v0.4.3` published this workflow and completed the pre-release readiness, cross-platform, security, and code-rot workflow before publication; see [ROADMAP.md](ROADMAP.md).
+
+## Producer-readiness bridge evaluation (v0.4.4, implemented on feature branch, not published)
+
+**Goal:** deterministically evaluate owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay evidence for the `combined-bounded-stage-context` strategy, without reproducing upstream producer or orchestrator-readiness policy.
+
+**Prerequisites and starting state:** build the repository; supply the same `combined-bounded-stage-context` strategy input as `v0.4.3`, optionally extended with the implementation/test-context packet and retrieval-report file paths and a readiness plain object — there is no CLI flag for any of these inputs.
+
+**Steps (implemented sequence):**
+
+1. Load the same raw `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` artifacts as `v0.4.3`.
+2. When supplied, read the implementation/test-context packet and retrieval-report files through the `v0.4.4` supplemental readers (`src/evaluation/upstreamArtifacts`); when supplied, validate the readiness plain object through `validateOrchestratorContextReadinessResultV1` — never from a file, since the frozen orchestrator commit exposes no on-disk readiness artifact.
+3. Run the existing `v0.4.3` stage-context evaluation unchanged.
+4. Run the additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) once per run, composing the `v0.4.4` metric calculators over already-loaded evidence.
+5. Capture target-immutability and repeated-run determinism exactly as `v0.4.3` does, now also covering the bridge result.
+6. Build the same bounded `report.json`, `report.html`, and `report.txt` reports, with an additive, optional producer-readiness bridge section.
+
+**Expected behavior and outputs:** absent supplemental/readiness inputs leave the bridge section reporting `not-applicable`/`unavailable` per metric rather than inventing evidence; existing `v0.4.3` strategies and reports are unaffected when no bridge inputs are supplied; the report contains no composite score, grade, ranking, or winning strategy; readiness, producer parity, owner selection, and allocation are never recomputed.
+
+**Failure handling:** a supplied-but-unreadable supplemental path or an invalid readiness object fails the strategy execution clearly, the same way a malformed raw artifact does.
+
+**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is implemented and validated on `feature/v0.4.4-producer-readiness-bridge`; it has not entered the pre-release readiness, cross-platform, security, or code-rot workflow and is not published; see [ROADMAP.md](ROADMAP.md).
 
 ## Real-agent campaign
 

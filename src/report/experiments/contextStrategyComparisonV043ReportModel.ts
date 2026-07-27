@@ -183,12 +183,154 @@ export interface V043ReportAssuranceSummaryV1 {
   issues: V043BoundedReportListV1<V043ReportIssueV1>;
 }
 
+// v0.4.4 Batch 3: producer-readiness bridge report sections. Additive and optional --
+// legacy strategies (and combined-bounded-stage-context runs without bridge inputs) omit
+// this field entirely, so existing v0.4.3 report consumers see no shape change.
+export type V043ReportAvailability = "available" | "unavailable" | "not-applicable";
+
+export interface V043ReportOwnerEvidenceV1 {
+  ownerId: string;
+  sourceArtifact: string;
+  sourceInstance: string;
+}
+
+export interface V043ReportOwnerEvaluationV1 {
+  selectedOwnerEvidence: V043BoundedReportListV1<V043ReportOwnerEvidenceV1>;
+  expectedOwnerPresent: V043ReportRatioMetricV1;
+  forbiddenOwnerPresent: V043ReportRatioMetricV1;
+  falsePositiveCount: V043ReportCountMetricV1;
+  falseNegativeCount: V043ReportCountMetricV1;
+}
+
+export interface V043ReportAllocationFactV1 {
+  groupId: string;
+  value: number | null;
+  unit: "items";
+  availability: V043ReportAvailability;
+  reason: string | null;
+}
+
+export interface V043ReportAllocationEvaluationV1 {
+  requiredGroupCapacity: V043BoundedReportListV1<V043ReportAllocationFactV1>;
+  usedReservation: V043BoundedReportListV1<V043ReportAllocationFactV1>;
+  borrowedCapacity: V043BoundedReportListV1<V043ReportAllocationFactV1>;
+  unusedCapacity: V043BoundedReportListV1<V043ReportAllocationFactV1>;
+}
+
+export interface V043ReportTruncationClassificationV1 {
+  groupId: string;
+  cause: "avoidable" | "genuine-hard-limit" | "unresolved" | "none";
+  availability: V043ReportAvailability;
+  reason: string | null;
+  omittedRequiredEvidenceIds: string[];
+  limit: number | null;
+  used: number | null;
+  available: number | null;
+}
+
+export interface V043ReportSupplementalFieldAgreementV1 {
+  field: string;
+  rawValue: string | boolean | null;
+  supplementalValue: string | boolean | null;
+  agreement: boolean | null;
+  availability: V043ReportAvailability;
+  reason: string | null;
+}
+
+export interface V043ReportSupplementalRawAgreementV1 {
+  fields: V043ReportSupplementalFieldAgreementV1[];
+  contradictions: V043ReportSupplementalFieldAgreementV1[];
+  upstreamProducerParityPreserved: boolean | null;
+}
+
+export interface V043ReportProducerReadinessSideV1 {
+  role: "implementation" | "test-implementation";
+  ownerEvaluation: V043ReportOwnerEvaluationV1;
+  allocationEvaluation: V043ReportAllocationEvaluationV1;
+  truncationEvaluation: V043BoundedReportListV1<V043ReportTruncationClassificationV1>;
+  packetAgreement: V043ReportSupplementalRawAgreementV1 | null;
+  reportAgreement: V043ReportSupplementalRawAgreementV1 | null;
+}
+
+export interface V043ReportReadinessIssueV1 {
+  code: string;
+  severity: "error" | "warning";
+  message: string;
+}
+
+export interface V043ReportReadinessDecisionAgreementV1 {
+  availability: V043ReportAvailability;
+  observedDecision: string | null;
+  allowedDecisions: string[] | null;
+  decisionAgreement: boolean | null;
+  observedIssueCodes: string[];
+  expectedIssueCodes: string[] | null;
+  issueCodesAgreement: boolean | null;
+  observedPrimaryIssueCode: string | null;
+  expectedPrimaryIssueCode: string | null;
+  primaryIssueAgreement: boolean | null;
+  reason: string | null;
+}
+
+export interface V043ReportReadinessAgreementV1 {
+  structuralAgreement: {
+    field: string;
+    expectedValue: string | null;
+    observedValue: string | null;
+    agreement: boolean | null;
+    availability: V043ReportAvailability;
+    reason: string | null;
+  }[];
+  decisionAgreement: V043ReportReadinessDecisionAgreementV1;
+  invalidReady: { availability: V043ReportAvailability; invalidReady: boolean | null; missingExpectedIssueCodes: string[]; reason: string | null };
+  validBlocked: {
+    availability: V043ReportAvailability;
+    validBlocked: boolean | null;
+    validRefreshRequired: boolean | null;
+    observedDecision: string | null;
+    reason: string | null;
+  };
+}
+
+export interface V043ReportCriticalityOverlayEntryV1 {
+  responsibilityId: string;
+  expectedCriticality: "critical" | "noncritical" | null;
+  observedCriticality: "critical" | "noncritical" | null;
+  agreement: boolean | null;
+  availability: V043ReportAvailability;
+  reason: string | null;
+}
+
+export interface V043ReportCriticalityEvaluationV1 {
+  overlayAgreement: V043BoundedReportListV1<V043ReportCriticalityOverlayEntryV1>;
+  missingCriticalityResponsibilityIds: string[];
+  conflictingCriticalityResponsibilityIds: string[];
+  unexpectedCriticalityResponsibilityIds: string[];
+  mappedCriticalCompleteness: V043ReportRatioMetricV1;
+  fullyMappedCriticalIds: string[];
+  partiallyMappedCriticalIds: string[];
+  unmappedCriticalIds: string[];
+  missingMappingEvidenceCriticalIds: string[];
+}
+
+export interface V043ReportProducerReadinessBridgeV1 {
+  status: "evaluated" | "not-applicable";
+  reason: string | null;
+  implementation: V043ReportProducerReadinessSideV1 | null;
+  testImplementation: V043ReportProducerReadinessSideV1 | null;
+  readinessAgreement: V043ReportReadinessAgreementV1 | null;
+  criticalityEvaluation: V043ReportCriticalityEvaluationV1 | null;
+  warnings: V043BoundedReportListV1<string>;
+  evidenceReferences: V043BoundedReportListV1<string>;
+}
+
 export interface ContextStrategyComparisonV043StrategyReportV1 {
   strategyId: string;
   artifacts: V043BoundedReportListV1<V043ReportArtifactMetadataV1>;
   execution: V043ReportExecutionSummaryV1;
   evaluation: V043ReportEvaluationSummaryV1;
   assurance: V043ReportAssuranceSummaryV1;
+  producerReadinessBridge?: V043ReportProducerReadinessBridgeV1;
 }
 
 export interface ContextStrategyComparisonV043ReportSummaryV1 {

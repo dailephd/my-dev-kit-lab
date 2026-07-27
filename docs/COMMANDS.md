@@ -90,6 +90,10 @@ Outputs are written beneath the selected `--out` directory. Invalid experiment I
 
 Six additional strategy IDs are implemented in the `context-strategy-comparison` plugin: `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context`. They are selected through programmatic `v043StrategyInputs`/`v043RunAssurance` configuration passed to the plugin, not through `experiment:run` CLI flags — no new command-line options were added for these paths. The default `experiment:run -- --strategies` selection remains `raw-full-file` and `my-dev-kit-guided`; the six new strategies must be selected explicitly.
 
+### v0.4.4 producer-readiness bridge (feature branch, not published)
+
+`combined-bounded-stage-context` optionally accepts additional producer-readiness bridge inputs — the implementation/test-context packet and retrieval-report file paths, and a readiness plain object — through the same programmatic strategy-input configuration described above. No CLI flags exist for these inputs, and none are planned for this patch; readiness in particular has no on-disk file format at the frozen orchestrator commit and is only ever accepted as a plain object.
+
 ## Reports, plots, and gallery
 
 | Command | Purpose |

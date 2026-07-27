@@ -63,7 +63,7 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-Version v0.4.3 evaluates stage-specific bounded repository context and workflow instructions through the existing experiment infrastructure and is published. The next planned patch is v0.5.0, warm-index reuse. Later planned work covers freshness and stale-index detection, context-window scaling, retrieval precision and recall, agent success, normalized telemetry, scheduling, prompt hardening, and a generalized evidence portal.
+Version v0.4.3 evaluates stage-specific bounded repository context and workflow instructions through the existing experiment infrastructure and is published. Version v0.4.4, the producer-readiness bridge, is implemented and validated on its feature branch but not yet published. The next planned version after v0.4.4 is v0.5.0, warm-index reuse. Later planned work covers freshness and stale-index detection, context-window scaling, retrieval precision and recall, agent success, normalized telemetry, scheduling, prompt hardening, and a generalized evidence portal.
 
 These later items remain planned. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 

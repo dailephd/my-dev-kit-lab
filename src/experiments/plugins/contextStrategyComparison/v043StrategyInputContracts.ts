@@ -45,11 +45,23 @@ export interface CombinedBoundedStageContextArtifactInputV1 {
   retrievalAuditRecordPath?: string;
 }
 
+// v0.4.4 Batch 3: producer-readiness bridge inputs. All optional -- an existing v0.4.3
+// combined-bounded-stage-context input with none of these fields remains valid unchanged,
+// and the bridge evaluator simply reports each dependent metric "not-applicable"/
+// "unavailable" rather than requiring dummy supplemental/readiness artifacts (section 11.2).
 export interface CombinedBoundedStageContextStrategyInputV1 {
   strategyId: "combined-bounded-stage-context";
   expectationsPath: string;
   contextArtifacts: CombinedBoundedStageContextArtifactInputV1[];
   workflowInstructionPacketPath: string;
+  implementationContextPacketPath?: string;
+  implementationContextRetrievalReportPath?: string;
+  testContextPacketPath?: string;
+  testContextRetrievalReportPath?: string;
+  // Readiness has no stable on-disk artifact at the frozen orchestrator commit (Batch 1) --
+  // it is accepted as a bounded plain object and validated by
+  // validateOrchestratorContextReadinessResultV1, never read from a file.
+  readiness?: unknown;
 }
 
 export type V043StageContextStrategyInputV1 =
