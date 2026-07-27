@@ -20,7 +20,8 @@ export type StageContextExpectationReadErrorCode =
   | "INVALID_CATEGORY_SOURCE_PAIR"
   | "INVALID_SOURCE_RANGE"
   | "EMPTY_EXPECTATION_SET"
-  | "DUPLICATE_EXPECTED_VALUE";
+  | "DUPLICATE_EXPECTED_VALUE"
+  | "DUPLICATE_PRODUCER_READINESS_EXPECTATION_ID";
 
 export interface StageContextExpectationReadFailure {
   ok: false;

@@ -1,4 +1,5 @@
 import type { ContextAdequacyStatus, FreshnessState } from "../upstreamArtifacts/index.js";
+import type { ProducerReadinessExpectationsV1 } from "./producerReadinessExpectationTypes.js";
 
 export type StageContextExpectationInclusion = "required" | "allowed" | "forbidden";
 
@@ -192,4 +193,6 @@ export interface StageContextExpectationFixtureV1 {
   expectedEvidence: StageContextExpectationItemV1[];
   expectedStates: StageContextExpectedStatesV1;
   warnings: string[];
+  // v0.4.4 Batch 2: additive and optional. Absent on every existing v0.4.3 fixture.
+  producerReadinessExpectations?: ProducerReadinessExpectationsV1;
 }

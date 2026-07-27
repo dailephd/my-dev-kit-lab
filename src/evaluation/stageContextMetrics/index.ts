@@ -27,3 +27,21 @@ export {
 } from "./calculateResponsibilityMappingMetrics.js";
 export { calculateV043ExecutionContextSize } from "./calculateContextSizeMetrics.js";
 export { evaluateV043StageContextExecution } from "./evaluateV043StageContextExecution.js";
+
+export type * from "./producerReadinessMetricTypes.js";
+export { collectSelectedOwnerEvidence, calculateOwnerMetrics } from "./calculateOwnerMetrics.js";
+export {
+  calculateAllocationFactsForGroups,
+  calculateRequiredEvidenceOmitted,
+  findAllocationExpectationForGroup
+} from "./calculateAllocationMetrics.js";
+export { classifyTruncationRecord, classifyTruncationRecords } from "./calculateTruncationClassification.js";
+export { calculateSupplementalRawAgreement } from "./calculateSupplementalRawAgreement.js";
+export {
+  calculateReadinessStructuralAgreement,
+  calculateReadinessDecisionAgreement,
+  calculateInvalidReady,
+  calculateValidBlocked,
+  calculateReadinessAgreementMetrics
+} from "./calculateReadinessAgreement.js";
+export { calculateCriticalityMetrics } from "./calculateCriticalityMetrics.js";
