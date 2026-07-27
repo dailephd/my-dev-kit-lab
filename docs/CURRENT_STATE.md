@@ -94,10 +94,14 @@ The following remain planned, not implemented:
 
 The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run docs:check`, cross-platform CI, `npm run security:validate`, and `npm run audit`) ran as a single combined gate against the `v0.4.3` release commit and passed before publication.
 
+`v0.4.4` (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): `npm run typecheck`, `npm run build`, the full `npm run test` suite (332 files, 3895 tests passed, one pre-existing skip), and the full `npm run verify` chain all pass on the feature branch, including a complete deterministic historical fixture-to-report integration test that produces `report.json`/`report.txt`/`report.html`. `npm run docs:check` passes against the current documentation. `v0.4.4` has not yet run cross-platform CI, `npm run security:validate`, or `npm run audit` as a combined pre-release gate.
+
 ## Blockers
 
 There are no documentation, factual, or implementation blockers for the released `v0.4.3` implementation.
 
+`v0.4.4` has no known implementation or documentation blocker; its only remaining gate before any release decision is the cross-project pre-release readiness workflow (cross-platform, security, code-rot, package, and report-transition checks) described in the next step below.
+
 ## Next step
 
-Begin `v0.5.0` (warm-index reuse) planning when prioritized. See [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.
+Run the coordinated cross-project pre-release readiness workflow for my-dev-kit, my-dev-kit-orchestrator, and my-dev-kit-lab at their current implemented commits, preserving separate per-repository verdicts and validating cross-project contract compatibility, before any `v0.4.4` release decision. Begin `v0.5.0` (warm-index reuse) planning only after that workflow and any resulting release decision are complete; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.

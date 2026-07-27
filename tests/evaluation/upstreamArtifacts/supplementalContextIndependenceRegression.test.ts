@@ -16,7 +16,22 @@ const BATCH_1_SOURCE_FILES = [
   "src/evaluation/upstreamArtifacts/orchestratorContextReadinessResultV1.ts"
 ];
 
-const FORBIDDEN_IMPORT_SNIPPETS = ["my-dev-kit-v1", "my-dev-kit-orchestrator", "from \"../../"];
+// v0.4.4 Batch 2/3: the metric calculators, the bridge evaluator, and the strategy
+// integration points that consume them. These legitimately import across this repo's own
+// directory tree (e.g. "../../../evaluation/..."), so the forbidden-pattern check below is
+// scoped to literal upstream-repository indicators and absolute paths, not generic
+// relative-traversal depth (see BATCH_1 vs BATCH_2_3 pattern sets).
+const BATCH_2_3_SOURCE_FILES = [
+  "src/evaluation/stageContextMetrics/calculateOwnerMetrics.ts",
+  "src/evaluation/stageContextMetrics/calculateAllocationMetrics.ts",
+  "src/evaluation/stageContextMetrics/calculateTruncationClassification.ts",
+  "src/evaluation/stageContextMetrics/calculateSupplementalRawAgreement.ts",
+  "src/evaluation/stageContextMetrics/calculateReadinessAgreement.ts",
+  "src/evaluation/stageContextMetrics/calculateCriticalityMetrics.ts",
+  "src/evaluation/stageContextMetrics/evaluateProducerReadinessBridge.ts",
+  "src/experiments/plugins/contextStrategyComparison/loadV043StrategyArtifacts.ts",
+  "src/experiments/plugins/contextStrategyComparison/runV043StageContextStrategyWithAssurance.ts"
+];
 
 const FORBIDDEN_POLICY_FUNCTION_NAMES = [
   "evaluateContextReadiness",
@@ -28,18 +43,38 @@ const FORBIDDEN_POLICY_FUNCTION_NAMES = [
   "allCriticalResponsibilitiesFullyMapped"
 ];
 
+// Literal upstream-repository path indicators and absolute-path prefixes. Never a valid
+// substring of an intra-repo relative import in this codebase.
+const FORBIDDEN_UPSTREAM_PATH_SNIPPETS = [
+  "my-dev-kit-v1",
+  "my-dev-kit-orchestrator",
+  "from \"Z:",
+  "from \"/",
+  "from \"C:"
+];
+
+function checkFileIndependence(relativePath: string): void {
+  const importLines = readFileSync(relativePath, "utf8")
+    .split(/\r\n|\n/)
+    .filter((line) => /^\s*import\b/.test(line));
+  for (const line of importLines) {
+    for (const forbidden of FORBIDDEN_UPSTREAM_PATH_SNIPPETS) {
+      expect(line).not.toContain(forbidden);
+    }
+    for (const fn of FORBIDDEN_POLICY_FUNCTION_NAMES) {
+      expect(line).not.toContain(fn);
+    }
+  }
+}
+
 describe("Batch 1 reader/selector independence", () => {
   it.each(BATCH_1_SOURCE_FILES)("%s does not import outside this repository or reference upstream policy functions", (relativePath) => {
-    const importLines = readFileSync(relativePath, "utf8")
-      .split(/\r\n|\n/)
-      .filter((line) => /^\s*import\b/.test(line));
-    for (const line of importLines) {
-      for (const forbidden of FORBIDDEN_IMPORT_SNIPPETS) {
-        expect(line).not.toContain(forbidden);
-      }
-      for (const fn of FORBIDDEN_POLICY_FUNCTION_NAMES) {
-        expect(line).not.toContain(fn);
-      }
-    }
+    checkFileIndependence(relativePath);
+  });
+});
+
+describe("Batch 2/3 metric calculator, bridge evaluator, and strategy integration independence", () => {
+  it.each(BATCH_2_3_SOURCE_FILES)("%s does not import outside this repository or reference upstream policy functions", (relativePath) => {
+    checkFileIndependence(relativePath);
   });
 });
