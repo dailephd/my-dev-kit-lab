@@ -106,6 +106,37 @@ describe("readImplementationContextPacketV1", () => {
     expect(result.artifact.sections["Future section"]).toBe("kept text");
   });
 
+  // TST-B1-014
+  it("leaves test-only and report-only optional fields absent (undefined) for an implementation packet, never normalized", async () => {
+    const text = buildValidSupplementalContextText("implementation-context-packet");
+    const result = await readImplementationContextPacketV1(writeTempFile(text));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.artifact.responsibilityMappingsTruncated).toBeUndefined();
+    expect(result.artifact.criticalResponsibilityMappingStatus).toBeUndefined();
+    expect(result.artifact.requestSchemaVersion).toBeUndefined();
+    expect(result.artifact.fullFileFallbackUsed).toBeUndefined();
+    expect(result.artifact.determinismChecked).toBeUndefined();
+    expect("responsibilityMappingsTruncated" in result.artifact).toBe(false);
+  });
+
+  // TST-B1-015
+  it("keeps an absent metadata key distinguishable from a present metadata key with an empty value", async () => {
+    const absentKeyText = buildValidSupplementalContextText("implementation-context-packet");
+    const emptyValueText = buildValidSupplementalContextText("implementation-context-packet", {
+      extraMetadataLines: ["Future field: "]
+    });
+    const absentResult = await readImplementationContextPacketV1(writeTempFile(absentKeyText));
+    const emptyResult = await readImplementationContextPacketV1(writeTempFile(emptyValueText));
+    expect(absentResult.ok).toBe(true);
+    expect(emptyResult.ok).toBe(true);
+    if (!absentResult.ok || !emptyResult.ok) return;
+    expect("Future field" in absentResult.artifact.rawMetadata).toBe(false);
+    expect("Future field" in emptyResult.artifact.rawMetadata).toBe(true);
+    expect(emptyResult.artifact.rawMetadata["Future field"]).toBe("");
+    expect(emptyResult.artifact.warnings.some((w) => w.includes("Future field"))).toBe(true);
+  });
+
   // TST-B1-025 (packet reader does not break existing envelope shape)
   it("returns the standard UpstreamArtifactReadResult envelope shape", async () => {
     const text = buildValidSupplementalContextText("implementation-context-packet");
