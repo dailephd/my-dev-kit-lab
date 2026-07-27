@@ -35,8 +35,11 @@ npm run build
 ### Verify the installation
 
 ```bash
+npm run test
 npm run verify
 ```
+
+`npm test` runs the complete test suite; `npm run verify` runs the remaining non-test verification gates. Running both is complete validation and does not execute the suite twice.
 
 ### Run the fake-agent final demo (deterministic, no external CLIs required)
 

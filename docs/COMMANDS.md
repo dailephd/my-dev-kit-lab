@@ -16,9 +16,9 @@ Current repository validation commands:
 - `npm run verify`
 - `npm run docs:check`
 
-Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm run verify` builds and executes the complete repository verification chain; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
+Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm test` runs the canonical complete Vitest suite (every `tests/**/*.spec.ts` file, including the focused subsets listed below). `npm run verify` runs the non-test verification chain (build, benchmark-fixture verification) and intentionally excludes the test suite, so complete validation requires both `npm run test` and `npm run verify`, in either order but each exactly once; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
 
-Focused validation scripts from `package.json`:
+Focused validation scripts from `package.json` are developer conveniences that each run a subset of files already executed by `npm test`; they are not additional required gates and are not chained into `verify`:
 
 - `npm run test:benchmarks`
 - `npm run test:report`
@@ -32,7 +32,7 @@ Focused validation scripts from `package.json`:
 - `npm run test:experiments`
 - `npm run test:plots`
 - `npm run test:visualization-demos`
-- `npm run verify:benchmarks`
+- `npm run verify:benchmarks` (distinct, non-test benchmark-fixture validation — this one runs as part of `npm run verify`)
 
 ## Experiment commands
 
