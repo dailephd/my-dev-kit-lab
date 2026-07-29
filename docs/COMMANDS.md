@@ -16,9 +16,9 @@ Current repository validation commands:
 - `npm run verify`
 - `npm run docs:check`
 
-Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm run verify` builds and executes the complete repository verification chain; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
+Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm test` runs the canonical complete Vitest suite (every `tests/**/*.spec.ts` file, including the focused subsets listed below). `npm run verify` runs the non-test verification chain (build, benchmark-fixture verification) and intentionally excludes the test suite, so complete validation requires both `npm run test` and `npm run verify`, in either order but each exactly once; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
 
-Focused validation scripts from `package.json`:
+Focused validation scripts from `package.json` are developer conveniences that each run a subset of files already executed by `npm test`; they are not additional required gates and are not chained into `verify`:
 
 - `npm run test:benchmarks`
 - `npm run test:report`
@@ -32,7 +32,7 @@ Focused validation scripts from `package.json`:
 - `npm run test:experiments`
 - `npm run test:plots`
 - `npm run test:visualization-demos`
-- `npm run verify:benchmarks`
+- `npm run verify:benchmarks` (distinct, non-test benchmark-fixture validation — this one runs as part of `npm run verify`)
 
 ## Experiment commands
 
@@ -89,6 +89,10 @@ Outputs are written beneath the selected `--out` directory. Invalid experiment I
 ### v0.4.3 stage-context strategies
 
 Six additional strategy IDs are implemented in the `context-strategy-comparison` plugin: `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context`. They are selected through programmatic `v043StrategyInputs`/`v043RunAssurance` configuration passed to the plugin, not through `experiment:run` CLI flags — no new command-line options were added for these paths. The default `experiment:run -- --strategies` selection remains `raw-full-file` and `my-dev-kit-guided`; the six new strategies must be selected explicitly.
+
+### v0.4.4 producer-readiness bridge (released)
+
+`combined-bounded-stage-context` optionally accepts additional producer-readiness bridge inputs — the implementation/test-context packet and retrieval-report file paths, and a readiness plain object — through the same programmatic strategy-input configuration described above. No CLI flags exist for these inputs, and none are planned for this patch; readiness in particular has no on-disk file format at the frozen orchestrator commit and is only ever accepted as a plain object.
 
 ## Reports, plots, and gallery
 

@@ -1,6 +1,9 @@
 import type { V043TargetImmutabilityConfigV1, V043TargetImmutabilityRunResultV1 } from "../../../evaluation/targetImmutability/index.js";
 import type { StageContextDeterminismResultV1 } from "../../../evaluation/stageContextDeterminism/index.js";
-import type { V043StageContextEvaluationResultV1 } from "../../../evaluation/stageContextMetrics/index.js";
+import type {
+  ProducerReadinessBridgeEvaluationResultV1,
+  V043StageContextEvaluationResultV1
+} from "../../../evaluation/stageContextMetrics/index.js";
 import type { V043StageContextStrategyExecutionResult, V043StageContextStrategyExecutionStatus } from "./v043StrategyExecutionTypes.js";
 import type { V043StageContextStrategyId } from "./v043StrategyIds.js";
 
@@ -38,6 +41,9 @@ export interface V043StageContextAssuranceRunRecordV1 {
   executionStatus: V043StageContextStrategyExecutionStatus;
   evaluationStatus: "completed" | "not-applicable" | "failed";
   targetImmutability: V043TargetImmutabilityRunResultV1;
+  // v0.4.4 Batch 3: null for every strategy other than combined-bounded-stage-context, and
+  // for that strategy whenever no producer-readiness bridge inputs were supplied.
+  producerReadinessBridge: ProducerReadinessBridgeEvaluationResultV1 | null;
 }
 
 export interface V043StageContextRunAssuranceResultV1 {
@@ -46,6 +52,7 @@ export interface V043StageContextRunAssuranceResultV1 {
   repeatCount: number;
   primaryExecution: V043StageContextStrategyExecutionResult;
   primaryEvaluation: V043StageContextEvaluationResultV1;
+  primaryProducerReadinessBridge: ProducerReadinessBridgeEvaluationResultV1 | null;
   runRecords: V043StageContextAssuranceRunRecordV1[];
   determinism: StageContextDeterminismResultV1;
   issues: V043StageContextRunAssuranceIssue[];

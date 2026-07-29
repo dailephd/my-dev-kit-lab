@@ -7,6 +7,8 @@ export type MyDevKitContextArtifactConsistencyFieldPath =
   | "request"
   | "index.indexPath"
   | "index.manifestPath"
+  | "index.manifestSchemaVersion"
+  | "index.projectRoot"
   | "contextAdequacy"
   | "roleContext"
   | "responsibilityMappings"
@@ -56,6 +58,16 @@ export function checkMyDevKitContextArtifactConsistency(
       fieldPath: "index.manifestPath",
       capsuleValue: capsule.index.manifestPath,
       auditValue: audit.index.manifestPath
+    },
+    {
+      fieldPath: "index.manifestSchemaVersion",
+      capsuleValue: capsule.index.manifestSchemaVersion ?? null,
+      auditValue: audit.index.manifestSchemaVersion ?? null
+    },
+    {
+      fieldPath: "index.projectRoot",
+      capsuleValue: capsule.index.projectRoot ?? null,
+      auditValue: audit.index.projectRoot ?? null
     },
     {
       fieldPath: "contextAdequacy",

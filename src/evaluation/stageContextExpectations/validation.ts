@@ -9,6 +9,13 @@ import type {
   StageContextWorkflowStableIdCategory
 } from "./types.js";
 import type { StageContextExpectationReadErrorCode, StageContextExpectationReadResult } from "./readTypes.js";
+import type {
+  ProducerReadinessAllocationExpectationV1,
+  ProducerReadinessCriticalityExpectationV1,
+  ProducerReadinessOwnerExpectationV1,
+  ProducerReadinessOwnerInclusion,
+  ProducerReadinessReadinessExpectationV1
+} from "./producerReadinessExpectationTypes.js";
 
 const SCHEMA_VERSION_PATTERN = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const CASE_ID_PATTERN = /^CASE-[A-Z0-9]+(?:-[A-Z0-9]+)*-[0-9]{3}$/;
@@ -260,6 +267,11 @@ export function validateStageContextExpectationFixtureV1(
 
   const statesFailure = validateExpectedStates(root.expectedStates as Record<string, unknown>, sourcePath);
   if (statesFailure) return statesFailure;
+
+  if (root.producerReadinessExpectations !== undefined) {
+    const producerReadinessFailure = validateProducerReadinessExpectations(root.producerReadinessExpectations, sourcePath);
+    if (producerReadinessFailure) return producerReadinessFailure;
+  }
 
   return {
     ok: true,
@@ -690,6 +702,229 @@ function validateExpectedStates(
 
   const immutabilityFailure = validateTargetImmutabilityState(statesValue.targetImmutability, sourcePath);
   if (immutabilityFailure) return immutabilityFailure;
+
+  return null;
+}
+
+// v0.4.4 Batch 2: additive, optional producer/readiness expectation validation. Structural
+// classification only, mirroring the existing expectation-item validation conventions.
+const OWNER_INCLUSION_VALUES: ProducerReadinessOwnerInclusion[] = ["required", "allowed", "forbidden"];
+const READINESS_KIND_VALUES = ["implementation", "test"];
+const READINESS_DECISION_VALUES = ["not-required", "ready", "refresh-required"];
+const CRITICALITY_VALUES = ["critical", "noncritical"];
+const PRODUCER_READINESS_SOURCE_ARTIFACT_VALUES = ["context-capsule", "retrieval-audit-record"];
+
+function requireNonEmptyExpectationId(
+  item: Record<string, unknown>,
+  itemPath: string,
+  sourcePath: string
+): StageContextExpectationReadResult | null {
+  return requireNonEmptyString(item, "expectationId", `${itemPath}.expectationId`, sourcePath);
+}
+
+function validateOwnerExpectation(
+  itemValue: unknown,
+  itemPath: string,
+  sourcePath: string
+): StageContextExpectationReadResult | null {
+  if (!isPlainObject(itemValue)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath} must be an object.`, { fieldPath: itemPath });
+  }
+  const idFailure = requireNonEmptyExpectationId(itemValue, itemPath, sourcePath);
+  if (idFailure) return idFailure;
+
+  if (!OWNER_INCLUSION_VALUES.includes(itemValue.inclusion as ProducerReadinessOwnerInclusion)) {
+    return failure(sourcePath, "INVALID_LITERAL_VALUE", `${itemPath}.inclusion is not valid.`, {
+      fieldPath: `${itemPath}.inclusion`,
+      actual: itemValue.inclusion as JsonValue
+    });
+  }
+  if (!PRODUCER_READINESS_SOURCE_ARTIFACT_VALUES.includes(itemValue.sourceArtifact as string)) {
+    return failure(sourcePath, "INVALID_LITERAL_VALUE", `${itemPath}.sourceArtifact is not valid.`, {
+      fieldPath: `${itemPath}.sourceArtifact`,
+      actual: itemValue.sourceArtifact as JsonValue
+    });
+  }
+  const ownerIdFailure = requireNonEmptyString(itemValue, "ownerId", `${itemPath}.ownerId`, sourcePath);
+  if (ownerIdFailure) return ownerIdFailure;
+  if (itemValue.notes === undefined || !isStringArray(itemValue.notes)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.notes must be an array of strings.`, {
+      fieldPath: `${itemPath}.notes`
+    });
+  }
+  return null;
+}
+
+function validateAllocationExpectation(
+  itemValue: unknown,
+  itemPath: string,
+  sourcePath: string
+): StageContextExpectationReadResult | null {
+  if (!isPlainObject(itemValue)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath} must be an object.`, { fieldPath: itemPath });
+  }
+  const idFailure = requireNonEmptyExpectationId(itemValue, itemPath, sourcePath);
+  if (idFailure) return idFailure;
+  const groupIdFailure = requireNonEmptyString(itemValue, "groupId", `${itemPath}.groupId`, sourcePath);
+  if (groupIdFailure) return groupIdFailure;
+
+  if (itemValue.expectedCapacity !== undefined && itemValue.expectedCapacity !== null && !isNonNegativeInteger(itemValue.expectedCapacity)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.expectedCapacity must be a nonnegative integer or null.`, {
+      fieldPath: `${itemPath}.expectedCapacity`
+    });
+  }
+  if (
+    itemValue.expectedUsedReservation !== undefined &&
+    itemValue.expectedUsedReservation !== null &&
+    !isNonNegativeInteger(itemValue.expectedUsedReservation)
+  ) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.expectedUsedReservation must be a nonnegative integer or null.`, {
+      fieldPath: `${itemPath}.expectedUsedReservation`
+    });
+  }
+  if (itemValue.expectedRequiredEvidenceIds !== undefined && !isStringArray(itemValue.expectedRequiredEvidenceIds)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.expectedRequiredEvidenceIds must be an array of strings.`, {
+      fieldPath: `${itemPath}.expectedRequiredEvidenceIds`
+    });
+  }
+  if (itemValue.expectedOmitted !== undefined && typeof itemValue.expectedOmitted !== "boolean") {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.expectedOmitted must be a boolean.`, {
+      fieldPath: `${itemPath}.expectedOmitted`
+    });
+  }
+  if (itemValue.notes === undefined || !isStringArray(itemValue.notes)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.notes must be an array of strings.`, {
+      fieldPath: `${itemPath}.notes`
+    });
+  }
+  return null;
+}
+
+function validateReadinessExpectation(
+  itemValue: unknown,
+  itemPath: string,
+  sourcePath: string
+): StageContextExpectationReadResult | null {
+  if (!isPlainObject(itemValue)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath} must be an object.`, { fieldPath: itemPath });
+  }
+  const idFailure = requireNonEmptyExpectationId(itemValue, itemPath, sourcePath);
+  if (idFailure) return idFailure;
+  if (!READINESS_KIND_VALUES.includes(itemValue.kind as string)) {
+    return failure(sourcePath, "INVALID_LITERAL_VALUE", `${itemPath}.kind is not valid.`, {
+      fieldPath: `${itemPath}.kind`,
+      actual: itemValue.kind as JsonValue
+    });
+  }
+  if (itemValue.allowedDecisions !== undefined) {
+    if (!isStringArray(itemValue.allowedDecisions) || itemValue.allowedDecisions.some((d) => !READINESS_DECISION_VALUES.includes(d))) {
+      return failure(sourcePath, "INVALID_LITERAL_VALUE", `${itemPath}.allowedDecisions contains an invalid decision value.`, {
+        fieldPath: `${itemPath}.allowedDecisions`
+      });
+    }
+  }
+  if (itemValue.expectedClassification !== undefined && typeof itemValue.expectedClassification !== "string") {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.expectedClassification must be a string.`, {
+      fieldPath: `${itemPath}.expectedClassification`
+    });
+  }
+  if (itemValue.expectedIssueCodes !== undefined && !isStringArray(itemValue.expectedIssueCodes)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.expectedIssueCodes must be an array of strings.`, {
+      fieldPath: `${itemPath}.expectedIssueCodes`
+    });
+  }
+  if (itemValue.expectedPrimaryIssueCode !== undefined && typeof itemValue.expectedPrimaryIssueCode !== "string") {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.expectedPrimaryIssueCode must be a string.`, {
+      fieldPath: `${itemPath}.expectedPrimaryIssueCode`
+    });
+  }
+  if (itemValue.notApplicable !== undefined && typeof itemValue.notApplicable !== "boolean") {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.notApplicable must be a boolean.`, {
+      fieldPath: `${itemPath}.notApplicable`
+    });
+  }
+  if (itemValue.notes === undefined || !isStringArray(itemValue.notes)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.notes must be an array of strings.`, {
+      fieldPath: `${itemPath}.notes`
+    });
+  }
+  return null;
+}
+
+function validateCriticalityExpectation(
+  itemValue: unknown,
+  itemPath: string,
+  sourcePath: string
+): StageContextExpectationReadResult | null {
+  if (!isPlainObject(itemValue)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath} must be an object.`, { fieldPath: itemPath });
+  }
+  const idFailure = requireNonEmptyExpectationId(itemValue, itemPath, sourcePath);
+  if (idFailure) return idFailure;
+  const responsibilityIdFailure = requireNonEmptyString(itemValue, "responsibilityId", `${itemPath}.responsibilityId`, sourcePath);
+  if (responsibilityIdFailure) return responsibilityIdFailure;
+  if (!CRITICALITY_VALUES.includes(itemValue.expectedCriticality as string)) {
+    return failure(sourcePath, "INVALID_LITERAL_VALUE", `${itemPath}.expectedCriticality is not valid.`, {
+      fieldPath: `${itemPath}.expectedCriticality`,
+      actual: itemValue.expectedCriticality as JsonValue
+    });
+  }
+  if (typeof itemValue.applicable !== "boolean") {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.applicable must be a boolean.`, {
+      fieldPath: `${itemPath}.applicable`
+    });
+  }
+  if (typeof itemValue.requiresFullMapping !== "boolean") {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.requiresFullMapping must be a boolean.`, {
+      fieldPath: `${itemPath}.requiresFullMapping`
+    });
+  }
+  if (itemValue.notes === undefined || !isStringArray(itemValue.notes)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${itemPath}.notes must be an array of strings.`, {
+      fieldPath: `${itemPath}.notes`
+    });
+  }
+  return null;
+}
+
+function validateProducerReadinessExpectations(
+  value: unknown,
+  sourcePath: string
+): StageContextExpectationReadResult | null {
+  const fieldPath = "producerReadinessExpectations";
+  if (!isPlainObject(value)) {
+    return failure(sourcePath, "INVALID_FIELD_TYPE", `${fieldPath} must be an object.`, { fieldPath });
+  }
+
+  const lists: [string, unknown, (item: unknown, itemPath: string, sourcePath: string) => StageContextExpectationReadResult | null][] = [
+    ["ownerExpectations", value.ownerExpectations, validateOwnerExpectation],
+    ["allocationExpectations", value.allocationExpectations, validateAllocationExpectation],
+    ["readinessExpectations", value.readinessExpectations, validateReadinessExpectation],
+    ["criticalityExpectations", value.criticalityExpectations, validateCriticalityExpectation]
+  ];
+
+  const seenIds = new Set<string>();
+  for (const [key, listValue, validateItem] of lists) {
+    if (listValue === undefined) continue;
+    if (!Array.isArray(listValue)) {
+      return failure(sourcePath, "INVALID_FIELD_TYPE", `${fieldPath}.${key} must be an array.`, {
+        fieldPath: `${fieldPath}.${key}`
+      });
+    }
+    for (let index = 0; index < listValue.length; index += 1) {
+      const itemPath = `${fieldPath}.${key}[${index}]`;
+      const itemFailure = validateItem(listValue[index], itemPath, sourcePath);
+      if (itemFailure) return itemFailure;
+      const id = (listValue[index] as Record<string, unknown>).expectationId as string;
+      if (seenIds.has(id)) {
+        return failure(sourcePath, "DUPLICATE_PRODUCER_READINESS_EXPECTATION_ID", `${itemPath}.expectationId "${id}" is duplicated.`, {
+          fieldPath: `${itemPath}.expectationId`,
+          actual: id
+        });
+      }
+      seenIds.add(id);
+    }
+  }
 
   return null;
 }

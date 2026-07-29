@@ -2,10 +2,14 @@ import { captureTargetSnapshot, compareTargetSnapshots } from "../../../evaluati
 import type { V043TargetImmutabilityConfigV1, V043TargetImmutabilityRunResultV1 } from "../../../evaluation/targetImmutability/index.js";
 import { calculateStageContextDeterminism } from "../../../evaluation/stageContextDeterminism/index.js";
 import type { StageContextDeterminismCandidateV1, StageContextDeterminismResultV1 } from "../../../evaluation/stageContextDeterminism/index.js";
-import { evaluateV043StageContextExecution } from "../../../evaluation/stageContextMetrics/index.js";
-import type { V043StageContextEvaluationResultV1 } from "../../../evaluation/stageContextMetrics/index.js";
+import {
+  buildProducerReadinessBridgeInputFromCombinedPayload,
+  evaluateProducerReadinessBridge,
+  evaluateV043StageContextExecution
+} from "../../../evaluation/stageContextMetrics/index.js";
+import type { ProducerReadinessBridgeEvaluationResultV1, V043StageContextEvaluationResultV1 } from "../../../evaluation/stageContextMetrics/index.js";
 import { executeV043StageContextStrategy } from "./executeV043StageContextStrategy.js";
-import type { V043StageContextStrategyExecutionResult } from "./v043StrategyExecutionTypes.js";
+import type { CombinedBoundedStageContextExecutionPayloadV1, V043StageContextStrategyExecutionResult } from "./v043StrategyExecutionTypes.js";
 import type { V043StageContextStrategyInputV1 } from "./v043StrategyInputContracts.js";
 import type {
   ResolvedV043RunAssuranceConfigV1,
@@ -77,6 +81,17 @@ async function buildRunWithTargetImmutability(
   };
 }
 
+// v0.4.4 Batch 3: computed exactly once per run, immediately after execution, from the
+// already-loaded execution payload -- never rereads artifacts, never reruns the strategy.
+function buildProducerReadinessBridgeResult(
+  execution: V043StageContextStrategyExecutionResult
+): ProducerReadinessBridgeEvaluationResultV1 | null {
+  if (execution.status !== "completed" || execution.strategyId !== "combined-bounded-stage-context") return null;
+  const payload = execution.payload as CombinedBoundedStageContextExecutionPayloadV1;
+  const bridgeInput = buildProducerReadinessBridgeInputFromCombinedPayload(payload, execution.expectations);
+  return evaluateProducerReadinessBridge(bridgeInput);
+}
+
 function computeStatus(
   issues: V043StageContextRunAssuranceIssue[],
   config: ResolvedV043RunAssuranceConfigV1
@@ -95,27 +110,31 @@ export async function runV043StageContextStrategyWithAssurance(
   const issues: V043StageContextRunAssuranceIssue[] = [];
   let primaryExecution: V043StageContextStrategyExecutionResult | undefined;
   let primaryEvaluation: V043StageContextEvaluationResultV1 | undefined;
+  let primaryProducerReadinessBridge: ProducerReadinessBridgeEvaluationResultV1 | null = null;
 
   try {
     for (let runNumber = 1; runNumber <= config.repeatCount; runNumber += 1) {
       const { execution, targetImmutability } = await buildRunWithTargetImmutability(config.targetImmutability, input);
       const evaluation = evaluateV043StageContextExecution(execution, { targetImmutability });
+      const producerReadinessBridge = buildProducerReadinessBridgeResult(execution);
 
       if (runNumber === 1) {
         primaryExecution = execution;
         primaryEvaluation = evaluation;
+        primaryProducerReadinessBridge = producerReadinessBridge;
       }
 
       runRecords.push({
         runNumber,
         executionStatus: execution.status,
         evaluationStatus: evaluation.status,
-        targetImmutability
+        targetImmutability,
+        producerReadinessBridge
       });
 
       determinismCandidates.push({
         runNumber,
-        value: { execution, evaluation, targetImmutability }
+        value: { execution, evaluation, targetImmutability, producerReadinessBridge }
       });
 
       if (execution.status !== "completed") {
@@ -181,6 +200,7 @@ export async function runV043StageContextStrategyWithAssurance(
       repeatCount: config.repeatCount,
       primaryExecution: primaryExecution as V043StageContextStrategyExecutionResult,
       primaryEvaluation: primaryEvaluation as V043StageContextEvaluationResultV1,
+      primaryProducerReadinessBridge,
       runRecords,
       determinism,
       issues
@@ -210,6 +230,7 @@ export async function runV043StageContextStrategyWithAssurance(
       repeatCount: config.repeatCount,
       primaryExecution: fallbackExecution,
       primaryEvaluation: fallbackEvaluation,
+      primaryProducerReadinessBridge,
       runRecords,
       determinism: fallbackDeterminism,
       issues: [

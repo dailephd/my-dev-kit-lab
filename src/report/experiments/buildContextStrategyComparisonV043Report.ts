@@ -44,7 +44,20 @@ import {
   type V043ReportRunRecordV1,
   type V043ReportStateComparisonV1,
   type V043ReportTargetMutationV1,
+  type V043ReportProducerReadinessBridgeV1,
+  type V043ReportProducerReadinessSideV1,
+  type V043ReportSupplementalRawAgreementV1,
 } from "./contextStrategyComparisonV043ReportModel.js";
+import type {
+  AllocationCapacityFactV1,
+  CriticalityMetricsV1,
+  OwnerMetricsV1,
+  ProducerReadinessBridgeEvaluationResultV1,
+  ProducerReadinessBridgeSideEvaluationV1,
+  ReadinessAgreementMetricsV1,
+  SupplementalRawAgreementV1,
+  TruncationClassificationV1,
+} from "../../evaluation/stageContextMetrics/index.js";
 
 const INTERPRETATION_SUMMARY =
   "Stage-context strategies are reported independently using direct evidence, explicit availability states, target-immutability evidence, and repeated-run determinism. No composite ranking or winning strategy is calculated.";
@@ -140,12 +153,152 @@ function buildStrategyReport(
   evaluation: V043StageContextEvaluationResultV1,
   assurance: V043StageContextRunAssuranceResultV1
 ): ContextStrategyComparisonV043StrategyReportV1 {
+  const producerReadinessBridge = buildProducerReadinessBridgeReport(
+    (assurance as Partial<V043StageContextRunAssuranceResultV1>).primaryProducerReadinessBridge
+  );
   return {
     strategyId: assurance.strategyId,
     artifacts: buildArtifactMetadata(execution),
     execution: buildExecutionSummary(execution),
     evaluation: buildEvaluationSummary(evaluation),
     assurance: buildAssuranceSummary(assurance),
+    ...(producerReadinessBridge ? { producerReadinessBridge } : {}),
+  };
+}
+
+function buildAllocationFactList(source: readonly AllocationCapacityFactV1[]) {
+  return boundItems(
+    source.map((f) => ({ groupId: f.groupId, value: f.value, unit: f.unit, availability: f.availability, reason: f.reason }))
+  );
+}
+
+function buildOwnerEvaluation(owner: OwnerMetricsV1): V043ReportProducerReadinessSideV1["ownerEvaluation"] {
+  return {
+    selectedOwnerEvidence: boundItems(
+      owner.selectedOwnerEvidence.map((e) => ({ ownerId: e.ownerId, sourceArtifact: e.sourceArtifact, sourceInstance: e.sourceInstance }))
+    ),
+    expectedOwnerPresent: buildRatioMetric(owner.expectedOwnerPresent),
+    forbiddenOwnerPresent: buildRatioMetric(owner.forbiddenOwnerPresent),
+    falsePositiveCount: buildCountMetric(owner.falsePositiveCount),
+    falseNegativeCount: buildCountMetric(owner.falseNegativeCount),
+  };
+}
+
+function buildTruncationList(source: readonly TruncationClassificationV1[]) {
+  return boundItems(
+    source.map((t) => ({
+      groupId: t.groupId,
+      cause: t.cause,
+      availability: t.availability,
+      reason: t.reason,
+      omittedRequiredEvidenceIds: t.omittedRequiredEvidenceIds,
+      limit: t.limit,
+      used: t.used,
+      available: t.available,
+    }))
+  );
+}
+
+function buildSupplementalRawAgreement(agreement: SupplementalRawAgreementV1 | null): V043ReportSupplementalRawAgreementV1 | null {
+  if (agreement === null) return null;
+  return {
+    fields: agreement.fields.map((f) => ({ field: f.field, rawValue: f.rawValue, supplementalValue: f.supplementalValue, agreement: f.agreement, availability: f.availability, reason: f.reason })),
+    contradictions: agreement.contradictions.map((f) => ({ field: f.field, rawValue: f.rawValue, supplementalValue: f.supplementalValue, agreement: f.agreement, availability: f.availability, reason: f.reason })),
+    upstreamProducerParityPreserved: agreement.upstreamProducerParityPreserved,
+  };
+}
+
+function buildProducerReadinessSide(side: ProducerReadinessBridgeSideEvaluationV1): V043ReportProducerReadinessSideV1 {
+  return {
+    role: side.role,
+    ownerEvaluation: buildOwnerEvaluation(side.ownerEvaluation),
+    allocationEvaluation: {
+      requiredGroupCapacity: buildAllocationFactList(side.allocationEvaluation.requiredGroupCapacity),
+      usedReservation: buildAllocationFactList(side.allocationEvaluation.usedReservation),
+      borrowedCapacity: buildAllocationFactList(side.allocationEvaluation.borrowedCapacity),
+      unusedCapacity: buildAllocationFactList(side.allocationEvaluation.unusedCapacity),
+    },
+    truncationEvaluation: buildTruncationList(side.truncationEvaluation),
+    packetAgreement: buildSupplementalRawAgreement(side.packetAgreement),
+    reportAgreement: buildSupplementalRawAgreement(side.reportAgreement),
+  };
+}
+
+function buildReadinessAgreement(agreement: ReadinessAgreementMetricsV1): V043ReportProducerReadinessBridgeV1["readinessAgreement"] {
+  return {
+    structuralAgreement: agreement.structuralAgreement.map((s) => ({
+      field: s.field,
+      expectedValue: s.expectedValue,
+      observedValue: s.observedValue,
+      agreement: s.agreement,
+      availability: s.availability,
+      reason: s.reason,
+    })),
+    decisionAgreement: {
+      availability: agreement.decisionAgreement.availability,
+      observedDecision: agreement.decisionAgreement.observedDecision,
+      allowedDecisions: agreement.decisionAgreement.allowedDecisions,
+      decisionAgreement: agreement.decisionAgreement.decisionAgreement,
+      observedIssueCodes: agreement.decisionAgreement.observedIssueCodes,
+      expectedIssueCodes: agreement.decisionAgreement.expectedIssueCodes,
+      issueCodesAgreement: agreement.decisionAgreement.issueCodesAgreement,
+      observedPrimaryIssueCode: agreement.decisionAgreement.observedPrimaryIssueCode,
+      expectedPrimaryIssueCode: agreement.decisionAgreement.expectedPrimaryIssueCode,
+      primaryIssueAgreement: agreement.decisionAgreement.primaryIssueAgreement,
+      reason: agreement.decisionAgreement.reason,
+    },
+    invalidReady: {
+      availability: agreement.invalidReady.availability,
+      invalidReady: agreement.invalidReady.invalidReady,
+      missingExpectedIssueCodes: agreement.invalidReady.missingExpectedIssueCodes,
+      reason: agreement.invalidReady.reason,
+    },
+    validBlocked: {
+      availability: agreement.validBlocked.availability,
+      validBlocked: agreement.validBlocked.validBlocked,
+      validRefreshRequired: agreement.validBlocked.validRefreshRequired,
+      observedDecision: agreement.validBlocked.observedDecision,
+      reason: agreement.validBlocked.reason,
+    },
+  };
+}
+
+function buildCriticalityEvaluation(criticality: CriticalityMetricsV1): V043ReportProducerReadinessBridgeV1["criticalityEvaluation"] {
+  return {
+    overlayAgreement: boundItems(
+      criticality.overlayAgreement.map((e) => ({
+        responsibilityId: e.responsibilityId,
+        expectedCriticality: e.expectedCriticality,
+        observedCriticality: e.observedCriticality,
+        agreement: e.agreement,
+        availability: e.availability,
+        reason: e.reason,
+      }))
+    ),
+    missingCriticalityResponsibilityIds: criticality.missingCriticalityResponsibilityIds,
+    conflictingCriticalityResponsibilityIds: criticality.conflictingCriticalityResponsibilityIds,
+    unexpectedCriticalityResponsibilityIds: criticality.unexpectedCriticalityResponsibilityIds,
+    mappedCriticalCompleteness: buildRatioMetric(criticality.mappedCriticalCompleteness),
+    fullyMappedCriticalIds: criticality.fullyMappedCriticalIds,
+    partiallyMappedCriticalIds: criticality.partiallyMappedCriticalIds,
+    unmappedCriticalIds: criticality.unmappedCriticalIds,
+    missingMappingEvidenceCriticalIds: criticality.missingMappingEvidenceCriticalIds,
+  };
+}
+
+function buildProducerReadinessBridgeReport(
+  bridge: ProducerReadinessBridgeEvaluationResultV1 | null | undefined
+): V043ReportProducerReadinessBridgeV1 | null {
+  if (bridge === null || bridge === undefined) return null;
+  return {
+    status: bridge.status,
+    reason: bridge.reason,
+    implementation: bridge.implementation ? buildProducerReadinessSide(bridge.implementation) : null,
+    testImplementation: bridge.testImplementation ? buildProducerReadinessSide(bridge.testImplementation) : null,
+    readinessAgreement: bridge.readinessAgreement ? buildReadinessAgreement(bridge.readinessAgreement) : null,
+    criticalityEvaluation: bridge.criticalityEvaluation ? buildCriticalityEvaluation(bridge.criticalityEvaluation) : null,
+    warnings: boundItems(bridge.warnings),
+    evidenceReferences: boundItems(bridge.evidenceReferences),
   };
 }
 

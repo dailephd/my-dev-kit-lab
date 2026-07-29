@@ -24,10 +24,10 @@ src/
     types.ts                                 plugin contracts and normalized results
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
-    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3)
+    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3); plus exact supplemental implementation/test-context packet/retrieval-report readers and a bounded plain-object readiness adapter (v0.4.4)
     stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3)
-    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3)
-    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3)
+    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3); additive, optional producer-readiness expectations (v0.4.4, feature branch)
+    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3); additive owner/allocation/truncation/agreement/criticality calculators plus evaluateProducerReadinessBridge, which composes them once per run over already-loaded evidence (v0.4.4, feature branch)
     targetImmutability/                      read-only target snapshot and mutation comparison (v0.4.3)
     stageContextDeterminism/                 canonicalization and repeated-run digest comparison (v0.4.3)
   agents/                                    fake-agent, Codex, and Claude adapters
@@ -161,6 +161,8 @@ flowchart TD
 Dependency direction is one-way: readers depend on nothing else in this list; selectors depend on readers; expectations depend on selectors; strategy execution depends on readers, selectors, and expectations; metrics depend on strategy execution output; run assurance depends on strategy execution and evaluation; reports depend on execution, evaluation, and assurance results and do not feed back into any earlier layer.
 
 This architecture does not introduce a normalized upstream observation layer — readers preserve exact upstream field names, nesting, optionality, nullability, array order, and unknown additive fields, and never merge or reshape `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` objects. Metrics are not upstream artifact properties; they are a separate, additive evaluation layer computed from reader output plus expectation fixtures. Reports do not recalculate execution results, metrics, target immutability, or determinism; the report layer only renders a bounded, deterministic view of already-computed results and never reruns a strategy.
+
+The current unreleased compatibility update recognizes my-dev-kit's additive retrieval-audit `index.projectRoot` and `index.manifestSchemaVersion` fields within schema major 1. The exact reader retains these fields when present and leaves them absent for legacy audits; it never derives repository identity. The existing capsule/audit consistency selector compares project root and manifest schema alongside active index, before/after freshness identity, and the established shared summaries. It evaluates producer evidence but does not reimplement orchestrator readiness.
 
 ## Target model
 
@@ -327,3 +329,6 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.3 target immutability | `src/evaluation/targetImmutability/` |
 | v0.4.3 repeated-run determinism | `src/evaluation/stageContextDeterminism/` |
 | v0.4.3 bounded report model | `src/report/experiments/contextStrategyComparisonV043ReportModel.ts` |
+| v0.4.4 supplemental packet/report readers and readiness adapter (released) | `src/evaluation/upstreamArtifacts/` (e.g. `readImplementationContextPacketV1.ts`, `orchestratorContextReadinessResultV1.ts`) |
+| v0.4.4 producer-readiness metric calculators (released) | `src/evaluation/stageContextMetrics/` (`calculateOwnerMetrics.ts`, `calculateAllocationMetrics.ts`, `calculateTruncationClassification.ts`, `calculateSupplementalRawAgreement.ts`, `calculateReadinessAgreement.ts`, `calculateCriticalityMetrics.ts`) |
+| v0.4.4 producer-readiness bridge evaluator (released) | `src/evaluation/stageContextMetrics/evaluateProducerReadinessBridge.ts` |

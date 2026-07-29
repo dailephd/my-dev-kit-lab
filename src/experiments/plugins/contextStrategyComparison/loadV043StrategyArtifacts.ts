@@ -1,13 +1,19 @@
 import {
+  readImplementationContextPacketV1,
+  readImplementationContextRetrievalReportV1,
   readMyDevKitContextCapsuleV1,
   readMyDevKitRetrievalAuditRecordV1,
-  readOrchestratorWorkflowInstructionPacketV1
+  readOrchestratorWorkflowInstructionPacketV1,
+  readTestContextPacketV1,
+  readTestContextRetrievalReportV1,
+  validateOrchestratorContextReadinessResultV1
 } from "../../../evaluation/upstreamArtifacts/index.js";
 import type { ContextRole } from "../../../evaluation/upstreamArtifacts/index.js";
 import { checkMyDevKitContextArtifactConsistency } from "../../../evaluation/stageContextSelectors/index.js";
 import { readStageContextExpectationFixtureV1 } from "../../../evaluation/stageContextExpectations/index.js";
 import { readV043FullWorkflowLibraryFixture } from "./readV043FullWorkflowLibraryFixture.js";
 import type {
+  CombinedBoundedStageContextExecutionPayloadV1,
   LoadedContextArtifactPairV1,
   V043StageContextStrategyExecutionFailed,
   V043StageContextStrategyExecutionIssue,
@@ -361,8 +367,123 @@ export async function loadV043StrategyArtifacts(
         });
       }
 
+      // v0.4.4 Batch 3: producer-readiness bridge inputs -- every one is optional (section
+      // 11.2). Only a supplied-but-unreadable source becomes a load failure; an absent
+      // source is simply left off the payload for the bridge evaluator to treat as
+      // unavailable/not-applicable.
+      let implementationContextPacketSourcePath: string | undefined;
+      let implementationContextPacket: CombinedBoundedStageContextExecutionPayloadV1["implementationContextPacket"];
+      if (input.implementationContextPacketPath !== undefined) {
+        const result = await readImplementationContextPacketV1(input.implementationContextPacketPath);
+        if (!result.ok) {
+          issues.push({
+            code: "IMPLEMENTATION_CONTEXT_PACKET_READ_FAILED",
+            fieldPath: "implementationContextPacket",
+            message: `Failed to read implementation-context packet: ${result.message}`,
+            sourcePath: result.sourcePath,
+            details: result
+          });
+        } else {
+          implementationContextPacketSourcePath = result.sourcePath;
+          implementationContextPacket = result.artifact;
+        }
+      }
+
+      let implementationContextRetrievalReportSourcePath: string | undefined;
+      let implementationContextRetrievalReport: CombinedBoundedStageContextExecutionPayloadV1["implementationContextRetrievalReport"];
+      if (input.implementationContextRetrievalReportPath !== undefined) {
+        const result = await readImplementationContextRetrievalReportV1(input.implementationContextRetrievalReportPath);
+        if (!result.ok) {
+          issues.push({
+            code: "IMPLEMENTATION_CONTEXT_RETRIEVAL_REPORT_READ_FAILED",
+            fieldPath: "implementationContextRetrievalReport",
+            message: `Failed to read implementation-context retrieval report: ${result.message}`,
+            sourcePath: result.sourcePath,
+            details: result
+          });
+        } else {
+          implementationContextRetrievalReportSourcePath = result.sourcePath;
+          implementationContextRetrievalReport = result.artifact;
+        }
+      }
+
+      let testContextPacketSourcePath: string | undefined;
+      let testContextPacket: CombinedBoundedStageContextExecutionPayloadV1["testContextPacket"];
+      if (input.testContextPacketPath !== undefined) {
+        const result = await readTestContextPacketV1(input.testContextPacketPath);
+        if (!result.ok) {
+          issues.push({
+            code: "TEST_CONTEXT_PACKET_READ_FAILED",
+            fieldPath: "testContextPacket",
+            message: `Failed to read test-context packet: ${result.message}`,
+            sourcePath: result.sourcePath,
+            details: result
+          });
+        } else {
+          testContextPacketSourcePath = result.sourcePath;
+          testContextPacket = result.artifact;
+        }
+      }
+
+      let testContextRetrievalReportSourcePath: string | undefined;
+      let testContextRetrievalReport: CombinedBoundedStageContextExecutionPayloadV1["testContextRetrievalReport"];
+      if (input.testContextRetrievalReportPath !== undefined) {
+        const result = await readTestContextRetrievalReportV1(input.testContextRetrievalReportPath);
+        if (!result.ok) {
+          issues.push({
+            code: "TEST_CONTEXT_RETRIEVAL_REPORT_READ_FAILED",
+            fieldPath: "testContextRetrievalReport",
+            message: `Failed to read test-context retrieval report: ${result.message}`,
+            sourcePath: result.sourcePath,
+            details: result
+          });
+        } else {
+          testContextRetrievalReportSourcePath = result.sourcePath;
+          testContextRetrievalReport = result.artifact;
+        }
+      }
+
+      let readiness: CombinedBoundedStageContextExecutionPayloadV1["readiness"];
+      if (input.readiness !== undefined) {
+        const readinessResult = validateOrchestratorContextReadinessResultV1(input.readiness, "programmatic-input:readiness");
+        if (!readinessResult.ok) {
+          issues.push({
+            code: "READINESS_INPUT_INVALID",
+            fieldPath: "readiness",
+            message: `Readiness programmatic input is invalid: ${readinessResult.message}`,
+            details: readinessResult
+          });
+        } else {
+          readiness = readinessResult.artifact;
+        }
+      }
+
       if (issues.length > 0 || !expectationsResult.ok || !packetResult.ok || pairs.length !== input.contextArtifacts.length) {
         return buildFailureResult(input, issues);
+      }
+      const payload: CombinedBoundedStageContextExecutionPayloadV1 = {
+        contextArtifacts: pairs,
+        workflowInstructionPacketSourcePath: packetResult.sourcePath,
+        workflowInstructionPacket: packetResult.artifact
+      };
+      if (implementationContextPacket !== undefined) {
+        payload.implementationContextPacketSourcePath = implementationContextPacketSourcePath;
+        payload.implementationContextPacket = implementationContextPacket;
+      }
+      if (implementationContextRetrievalReport !== undefined) {
+        payload.implementationContextRetrievalReportSourcePath = implementationContextRetrievalReportSourcePath;
+        payload.implementationContextRetrievalReport = implementationContextRetrievalReport;
+      }
+      if (testContextPacket !== undefined) {
+        payload.testContextPacketSourcePath = testContextPacketSourcePath;
+        payload.testContextPacket = testContextPacket;
+      }
+      if (testContextRetrievalReport !== undefined) {
+        payload.testContextRetrievalReportSourcePath = testContextRetrievalReportSourcePath;
+        payload.testContextRetrievalReport = testContextRetrievalReport;
+      }
+      if (readiness !== undefined) {
+        payload.readiness = readiness;
       }
       return {
         status: "completed",
@@ -370,11 +491,7 @@ export async function loadV043StrategyArtifacts(
         input,
         expectationsSourcePath: expectationsResult.sourcePath,
         expectations: expectationsResult.fixture,
-        payload: {
-          contextArtifacts: pairs,
-          workflowInstructionPacketSourcePath: packetResult.sourcePath,
-          workflowInstructionPacket: packetResult.artifact
-        },
+        payload,
         warnings: []
       };
     }

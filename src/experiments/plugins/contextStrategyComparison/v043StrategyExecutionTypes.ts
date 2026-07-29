@@ -1,7 +1,12 @@
 import type {
   ContextCapsule,
   ContextRole,
+  ImplementationContextPacketV1,
+  ImplementationContextRetrievalReportV1,
+  OrchestratorContextReadinessResultV1,
   RetrievalAuditRecord,
+  TestContextPacketV1,
+  TestContextRetrievalReportV1,
   WorkflowInstructionPacket
 } from "../../../evaluation/upstreamArtifacts/index.js";
 import type { MyDevKitContextArtifactConsistencyResult } from "../../../evaluation/stageContextSelectors/index.js";
@@ -21,6 +26,11 @@ export type V043StageContextStrategyExecutionIssueCode =
   | "FULL_WORKFLOW_LIBRARY_READ_FAILED"
   | "CONTEXT_ROLE_MISMATCH"
   | "CONTEXT_ARTIFACT_INCONSISTENT"
+  | "IMPLEMENTATION_CONTEXT_PACKET_READ_FAILED"
+  | "IMPLEMENTATION_CONTEXT_RETRIEVAL_REPORT_READ_FAILED"
+  | "TEST_CONTEXT_PACKET_READ_FAILED"
+  | "TEST_CONTEXT_RETRIEVAL_REPORT_READ_FAILED"
+  | "READINESS_INPUT_INVALID"
   | "UNEXPECTED_EXECUTION_ERROR";
 
 export interface V043StageContextStrategyExecutionIssue {
@@ -65,10 +75,23 @@ export interface BoundedWorkflowInstructionPacketExecutionPayloadV1 {
   workflowInstructionPacket: WorkflowInstructionPacket;
 }
 
+// v0.4.4 Batch 3: producer-readiness bridge payload. Every field is optional -- an
+// existing v0.4.3 combined-bounded-stage-context input supplies none of them, and the
+// bridge evaluator (evaluateProducerReadinessBridge) reports each dependent metric
+// unavailable/not-applicable rather than requiring dummy artifacts.
 export interface CombinedBoundedStageContextExecutionPayloadV1 {
   contextArtifacts: LoadedContextArtifactPairV1[];
   workflowInstructionPacketSourcePath: string;
   workflowInstructionPacket: WorkflowInstructionPacket;
+  implementationContextPacketSourcePath?: string;
+  implementationContextPacket?: ImplementationContextPacketV1;
+  implementationContextRetrievalReportSourcePath?: string;
+  implementationContextRetrievalReport?: ImplementationContextRetrievalReportV1;
+  testContextPacketSourcePath?: string;
+  testContextPacket?: TestContextPacketV1;
+  testContextRetrievalReportSourcePath?: string;
+  testContextRetrievalReport?: TestContextRetrievalReportV1;
+  readiness?: OrchestratorContextReadinessResultV1;
 }
 
 export interface V043StageContextStrategyExecutionSuccess {

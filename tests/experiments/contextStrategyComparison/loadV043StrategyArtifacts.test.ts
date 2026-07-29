@@ -39,8 +39,7 @@ function alignAuditToCapsule(auditArtifact: Record<string, unknown>, capsuleArti
   auditArtifact.schemaVersion = capsuleArtifact.schemaVersion;
   auditArtifact.tool = structuredClone(capsuleArtifact.tool);
   auditArtifact.request = structuredClone(capsuleArtifact.request);
-  const capsuleIndex = capsuleArtifact.index as { indexPath: string; manifestPath: string };
-  auditArtifact.index = { indexPath: capsuleIndex.indexPath, manifestPath: capsuleIndex.manifestPath };
+  auditArtifact.index = structuredClone(capsuleArtifact.index);
   auditArtifact.contextAdequacy = structuredClone(capsuleArtifact.contextAdequacy);
   auditArtifact.roleContext = structuredClone(capsuleArtifact.roleContext);
   auditArtifact.responsibilityMappings = structuredClone(capsuleArtifact.responsibilityMappings);

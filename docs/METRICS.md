@@ -330,3 +330,31 @@ Every ratio metric below reports `availability` (`available`, `unavailable`, or 
   Caveat: reports `unavailable` when no target-immutability configuration was supplied for the run; a configured, unchanged target reports an available count of zero.
 
 Repeated-run determinism (`StageContextDeterminismResultV1` in `src/evaluation/stageContextDeterminism`) reports whether repeated canonical runs (`repeatCount` 1 through 10, run 1 as baseline) produce identical canonicalized run values via SHA-256 digest comparison. A single run reports `not-applicable`; a canonicalization failure (for example a circular reference) reports `unavailable`.
+
+## Producer-readiness bridge metrics (v0.4.4)
+
+Implemented in `src/evaluation/stageContextMetrics` (`calculateOwnerMetrics.ts`, `calculateAllocationMetrics.ts`, `calculateTruncationClassification.ts`, `calculateSupplementalRawAgreement.ts`, `calculateReadinessAgreement.ts`, `calculateCriticalityMetrics.ts`) and composed once per run by `evaluateProducerReadinessBridge.ts`. These metrics read only evidence Batch 1's readers and the existing `v0.4.3` `ContextCapsule`/`RetrievalAuditRecord` readers already preserve; none reimplement upstream owner selection, evidence allocation, producer parity, or orchestrator readiness. Every metric below uses the same `available`/`unavailable`/`not-applicable` availability model as the `v0.4.3` metrics above; unavailable and not-applicable remain distinct from an available zero.
+
+- `selectedOwnerEvidence` / `expectedOwnerPresent` / `forbiddenOwnerPresent` / owner false positives / false negatives
+  Meaning: the owner identities the frozen my-dev-kit producer already selected (`ContextCapsule.selectedOwners`), compared against explicit fixture-declared required/allowed/forbidden owner expectations.
+  Caveat: with no owner expectations declared, all four ratio/count metrics report `not-applicable`, not zero. An owner outside a fixture-declared closed set (or explicitly forbidden) is a false positive only when that closed set or forbidden set actually exists.
+- `requiredGroupCapacity` / `usedReservation` / `borrowedCapacity` / `unusedCapacity`
+  Meaning: per evidence-group allocation facts read directly from `ContextCapsule.evidenceGroups` (`limit`, `usedCount`).
+  Caveat: `borrowedCapacity` always reports `unavailable` — no frozen my-dev-kit artifact field exposes cross-group capacity borrowing. `unusedCapacity` is computed (`limit - usedCount`) only when a limit is declared and the result is non-negative; a negative result reports `unavailable` with a diagnostic reason rather than a negative number.
+- `requiredEvidenceOmitted`
+  Meaning: fixture-required evidence absent from observed evidence.
+  Caveat: `requiredEvidenceOmittedEntries[].groupId` is always `null` under the current expectation model — expectation items do not declare a group, so group linkage cannot be derived without inventing a mapping.
+- Truncation classification (`avoidable` / `genuine-hard-limit` / `unresolved` / `none`)
+  Meaning: classifies each `TruncationRecord` using only `limit`, `used`, and `requiredEvidenceLost`. `avoidable` when required evidence was lost while `used` remained below the declared `limit`; `genuine-hard-limit` when `used` reached or exceeded the limit; `unresolved` when no limit is declared; `none` when no required evidence was lost.
+  Caveat: missing required evidence alone never proves `avoidable` — it requires the authoritative `requiredEvidenceLost` and `limit`/`used` evidence together.
+- Supplemental/raw agreement
+  Meaning: per-field comparison between a Batch 1 supplemental document and the raw `ContextCapsule`/`RetrievalAuditRecord`, limited to fields whose vocabularies are directly, losslessly comparable (canonical repository identity, role, freshness, and truncation-as-yes/no).
+  Caveat: adequacy agreement always reports `unavailable` — my-dev-kit's four-sentence `ContextAdequacyStatus` values have no verified mapping onto the orchestrator's five-slug `DeclaredAdequacy` vocabulary, and none is invented. Missing evidence on one side reports `unavailable`, never a forced contradiction. `upstreamProducerParityPreserved` reflects that a successfully read raw pair is itself observed evidence the frozen `assertRawEvidenceParity()` write-time guard already held — it is never recomputed by comparing fields.
+- Readiness agreement (`decisionAgreement`, `invalidReady`, `validBlocked`)
+  Meaning: compares the observed `OrchestratorContextReadinessResultV1` against an explicit fixture-declared readiness expectation. `invalidReady` is available `true` only when the observed decision is `ready` while the fixture explicitly requires blocking behavior with expected issue codes. `validBlocked` requires the observed decision, allowed decisions, and issue codes to all agree with the fixture.
+  Caveat: with no readiness expectation, all three report `not-applicable`. With no readiness input, all three report `unavailable`. None of these ever call or reimplement the frozen orchestrator's `contextReadiness.ts`.
+- Criticality-overlay agreement / `mappedCriticalCompleteness`
+  Meaning: compares fixture-declared expected criticality per responsibility ID against the `criticality`/`mappingStatus` fields my-dev-kit's own `ResponsibilityMapping` already carries. `mappedCriticalCompleteness` counts only applicable, full-mapping-required, expected-critical responsibilities with resolvable mapping status; partially mapped and unmapped responsibilities never count as complete.
+  Caveat: a responsibility with no matching raw mapping entry reports `unavailable`/`missingMappingEvidenceCriticalIds`, and is excluded from the denominator rather than treated as unmapped. With zero resolvable denominator entries, `mappedCriticalCompleteness` reports `not-applicable`, not an available zero.
+
+No composite score, grade, ranking, or lab-generated readiness verdict is calculated anywhere in this section.

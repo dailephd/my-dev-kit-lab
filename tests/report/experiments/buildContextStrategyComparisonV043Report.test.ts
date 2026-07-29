@@ -272,6 +272,7 @@ function makeRunRecord(overrides: Partial<V043StageContextAssuranceRunRecordV1> 
       comparison: null,
       reason: "Target immutability configuration was not supplied for this strategy run.",
     },
+    producerReadinessBridge: null,
     ...overrides,
   };
 }
@@ -299,6 +300,7 @@ function makeAssurance(
     repeatCount: 1,
     primaryExecution: executionSuccess(strategyId, { architecture: makePair("architecture", false) }),
     primaryEvaluation: evaluationCompleted(strategyId),
+    primaryProducerReadinessBridge: null,
     runRecords: [makeRunRecord()],
     determinism: makeDeterminism(),
     issues: [],

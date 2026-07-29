@@ -10,8 +10,8 @@ The roadmap follows semantic version order. `v1.0.0` is the stable release after
 flowchart LR
   V020[v0.2.0] --> V021[v0.2.1] --> V022[v0.2.2]
   V022 --> V030[v0.3.0] --> V031[v0.3.1] --> V032[v0.3.2] --> V033[v0.3.3] --> V034[v0.3.4]
-  V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3]
-  V043 --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
+  V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3] --> V044[v0.4.4]
+  V044 --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
   V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
@@ -331,7 +331,7 @@ Acceptance:
 
 ### v0.4.3 — stage-specific bounded-context and workflow-instruction evaluation
 
-Status: **published**; current npm baseline.
+Status: **published**.
 
 Purpose:
 
@@ -382,7 +382,44 @@ Acceptance criteria:
 * Unsupported context-capsule/retrieval-audit/`WorkflowInstructionPacket` schema majors fail clearly rather than being silently reinterpreted.
 * Existing audits, benchmarks, reports, security validation, and CLI behavior regress cleanly; no existing experiment plugin, strategy, report path, or command is removed or broken.
 * my-dev-kit-lab remains outside the production execution path of my-dev-kit and the orchestrator, and never becomes a required runtime dependency of either.
-* `v0.4.3` is published as the current npm/tag/GitHub-Release baseline, superseding `v0.4.2`.
+* `v0.4.3` was published as the npm/tag/GitHub-Release baseline that superseded `v0.4.2`.
+
+### v0.4.4 — producer-readiness bridge
+
+Status: **published**.
+
+Purpose:
+
+* Extend `v0.4.3`'s `combined-bounded-stage-context` strategy so my-dev-kit-lab can read the frozen my-dev-kit-orchestrator supplemental implementation/test-context packet and retrieval-report documents plus an observed readiness result, and deterministically measure owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay evidence — without reimplementing upstream producer owner-selection, evidence-allocation, producer-parity, or orchestrator readiness policy.
+
+Ownership boundaries approved for this patch (unchanged from `v0.4.3`): my-dev-kit-lab owns explicit fixture expectations, deterministic comparison, metric calculation, and neutral reporting; it never recomputes upstream behavior. Readiness remains observed consumer output — the frozen orchestrator commit exposes no on-disk readiness artifact, so it is accepted only as a bounded plain object, never invented as a file format.
+
+In scope for `v0.4.4`:
+
+* Exact readers for the frozen implementation/test-context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator readiness result, in `src/evaluation/upstreamArtifacts`.
+* Deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metric calculators in `src/evaluation/stageContextMetrics`, reusing the existing `available`/`unavailable`/`not-applicable` metric model.
+* An additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) composing those calculators exactly once per run over already-loaded evidence.
+* Additive, optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`).
+* Additive, optional producer-readiness bridge inputs and payload fields on the existing `combined-bounded-stage-context` strategy input/execution types; every existing `v0.4.3` strategy and combined-strategy case without these inputs is unaffected.
+* An additive, optional producer-readiness bridge section in the existing `report.json`/`report.html`/`report.txt` pipeline, with the same bounded-detail and neutral-interpretation conventions as `v0.4.3`.
+* A deterministic historical producer-to-readiness fixture family (owner false negative/positive, avoidable/genuine-hard-limit/unresolved truncation, supplemental contradiction, readiness identity mismatch, invalid-ready, valid-blocked, valid-refresh-required, criticality mismatch, partial mapping, and a corrected case) reused across focused tests and one complete fixture-to-report integration test.
+
+Explicitly out of scope / deferred for `v0.4.4`:
+
+* Public CLI flags for any producer-readiness bridge input — all inputs remain programmatic.
+* A new experiment runner or a parallel report framework.
+* Reimplementing upstream owner selection, evidence allocation, producer parity, orchestrator readiness, or readiness issue prioritization.
+* A composite score, grade, ranking, or lab-generated release verdict.
+* Plots, screenshots, and gallery integration for producer-readiness bridge evidence.
+* Package-version bump, release branch, tag, GitHub Release, or npm publication.
+
+Acceptance:
+
+* Every producer-readiness metric explicitly reports `available`, `unavailable`, or `not-applicable`; an available zero, an unavailable reason, and a not-applicable denominator remain distinct everywhere.
+* Existing `v0.4.3` strategies, expectation fixtures, and reports remain valid and unchanged when no producer-readiness bridge inputs are supplied.
+* No owner-selection, allocation, producer-parity, or readiness policy is duplicated from either frozen upstream repository.
+* Repeated canonical runs of the corrected fixture case produce identical canonicalized digests, including the producer-readiness bridge result.
+* `v0.4.4` is released after upstream verification, PR merge, main CI, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state.
 
 ### Post-v1 / version TBD — manual pentest
 

@@ -30,7 +30,7 @@ export type V043StrategyInputValidationResult =
       issues: V043StrategyInputValidationIssue[];
     };
 
-type RootFieldKind = "required-path" | "optional-path" | "required-array";
+type RootFieldKind = "required-path" | "optional-path" | "required-array" | "optional-object";
 
 interface StrategyContractField {
   name: string;
@@ -89,7 +89,12 @@ const STRATEGY_CONTRACTS: Record<V043StageContextStrategyId, StrategyContractDes
     fields: [
       { name: "expectationsPath", kind: "required-path" },
       { name: "contextArtifacts", kind: "required-array" },
-      { name: "workflowInstructionPacketPath", kind: "required-path" }
+      { name: "workflowInstructionPacketPath", kind: "required-path" },
+      { name: "implementationContextPacketPath", kind: "optional-path" },
+      { name: "implementationContextRetrievalReportPath", kind: "optional-path" },
+      { name: "testContextPacketPath", kind: "optional-path" },
+      { name: "testContextRetrievalReportPath", kind: "optional-path" },
+      { name: "readiness", kind: "optional-object" }
     ]
   }
 };
@@ -142,7 +147,7 @@ export function validateV043StrategyInput(value: unknown): V043StrategyInputVali
   }
 
   for (const field of contract.fields) {
-    if (field.kind !== "optional-path" && root[field.name] === undefined) {
+    if (field.kind !== "optional-path" && field.kind !== "optional-object" && root[field.name] === undefined) {
       issues.push({
         code: "MISSING_REQUIRED_FIELD",
         fieldPath: field.name,
@@ -162,6 +167,14 @@ export function validateV043StrategyInput(value: unknown): V043StrategyInputVali
           message: `"${field.name}" must be an array.`
         });
       }
+    } else if (field.kind === "optional-object") {
+      if (!isPlainObject(fieldValue)) {
+        issues.push({
+          code: "INVALID_FIELD_TYPE",
+          fieldPath: field.name,
+          message: `"${field.name}" must be an object.`
+        });
+      }
     } else if (typeof fieldValue !== "string") {
       issues.push({
         code: "INVALID_FIELD_TYPE",
@@ -172,7 +185,7 @@ export function validateV043StrategyInput(value: unknown): V043StrategyInputVali
   }
 
   for (const field of contract.fields) {
-    if (field.kind === "required-array") continue;
+    if (field.kind === "required-array" || field.kind === "optional-object") continue;
     const fieldValue = root[field.name];
     if (typeof fieldValue === "string" && fieldValue.length === 0) {
       issues.push({ code: "EMPTY_PATH", fieldPath: field.name, message: `"${field.name}" must not be empty.` });

@@ -1,0 +1,13 @@
+Artifact source: real local my-dev-kit `context` command
+Producer package version: 1.10.2
+Producer CLI version: 1.10.2
+Producer branch: fix/v1.10.3-context-readiness
+Producer base commit: 9f1c7c5392e2dde9a1aae80e330134950e6e101f
+Producer final commit: e2d8c66075036824c8eeb5290b630979ab7cee79
+Context capsule schema version: 1.0.0
+Retrieval audit schema version: 1.0.0
+Source repository: Z:/Users/newuser/Projects/my-dev-kit-orchestrator
+Expected evaluator result: consistent
+Context capsule SHA-256: 2AA664F02A4830D0698FBF6D4C8203F99EE1EA420142EB58A5EDF284ED26EE66
+Retrieval audit SHA-256: 5D5B0129EC3FAF92F87AD58A846EECB930FE6DD2CE66C0D26F5F51CD08879585
+Copy policy: both JSON files are byte-for-byte copies and must not be hand-edited.

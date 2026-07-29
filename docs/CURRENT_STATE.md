@@ -5,19 +5,21 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.4.3`
-- Latest release: `v0.4.3` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.2`)
+- Package version: `0.4.4`
+- Latest release: `v0.4.4` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.3`)
 - Next planned version: `v0.5.0`; planned, not implemented
+- `v0.4.4` (producer-readiness bridge) is the current release.
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
 ## Operational state
 
-- Current branch: `main`
+- Current branch (published baseline): `main`
+- `v0.4.4` release branch: `release/v0.4.4` (merged to main)
 - Active planned version: `v0.5.0`; planned, not implemented
-- Workflow stage: `v0.4.3` released; no active workflow stage in progress
-- Release blockers: none; `v0.4.3` has completed the pre-release readiness, cross-platform, security, and code-rot workflow and is published
-- Exact next action: begin `v0.5.0` (warm-index reuse) planning and implementation when prioritized
+- Workflow stage: `v0.4.4` released after upstream verification, PR, CI, merge, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state.
+- Release blockers: none.
+- Exact next action: Begin `v0.5.0` (warm-index reuse) planning only after preserving release evidence; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.
 
 ## Implemented
 
@@ -43,6 +45,8 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Android validation in `src/mobile/android`, reachable through `security:validate --profile android`: project detection and classification, manifest parsing, permission/exported-component/intent-filter/deep-link audits, static Gradle metadata, and eleven advanced internal checks (network security config, backup/release configuration, redacted secrets, signing configuration, WebView/FileProvider, sensitive storage/logging/clipboard, and Firebase/Google services), for nineteen default checks. Optional opt-in Gradle operations and external tools (Semgrep, OSV-Scanner, Android Lint, Dependency-Check) remain off by default with zero network access.
 - Android-aware generic audit integration in `src/audits/security`: `npm run audit -- --types security --android` runs the same static Android validation through the existing security audit adapter, mapping confirmed findings into audit issues while keeping `CandidateEvidence` as a separate, review-only summary.
 - `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published: exact `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` readers and selectors in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`; the `StageContextExpectationFixtureV1` contract in `src/evaluation/stageContextExpectations`; six new `context-strategy-comparison` strategies (`architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, `combined-bounded-stage-context`) selected through programmatic configuration; evidence-centered metrics in `src/evaluation/stageContextMetrics`; read-only target immutability in `src/evaluation/targetImmutability`; repeated-run determinism in `src/evaluation/stageContextDeterminism`; and bounded `report.json`/`report.html`/`report.txt` output in `src/report/experiments`. See [ROADMAP.md](ROADMAP.md) for the complete scope, dependencies, and acceptance criteria.
+- Implemented but unpublished compatibility work accepts my-dev-kit's additive major-1 audit repository identity, preserves absence in legacy audits, and extends existing pair diagnostics to detect repository-root and manifest-schema disagreement. No new CLI command or orchestrator-readiness implementation is added.
+- `v0.4.4` producer-readiness bridge is released: exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator's readiness result (`src/evaluation/upstreamArtifacts`); deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics (`src/evaluation/stageContextMetrics`); an additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) that composes those metrics over already-loaded evidence; additive optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`); optional producer-readiness bridge inputs on the `combined-bounded-stage-context` strategy, loaded once per run and reported through the existing `report.json`/`report.txt`/`report.html` pipeline as an additive, optional section. Readiness remains a programmatic plain-object input only — the frozen orchestrator commit exposes no on-disk readiness artifact, and no readiness/producer-parity/owner-selection/allocation policy is duplicated. No public CLI flags were added.
 
 ## Current commands
 
@@ -90,10 +94,12 @@ The following remain planned, not implemented:
 
 The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run docs:check`, cross-platform CI, `npm run security:validate`, and `npm run audit`) ran as a single combined gate against the `v0.4.3` release commit and passed before publication.
 
+`v0.4.4` released after full validation: canonical `npm test` + `npm run verify` executed once each, docs:check, security:validate, code-rot audit (PASS_WITH_REVIEW_ITEMS, no blockers), report smoke (deterministic, zero mutation), package dry-run inventory clean, published-upstream compatibility confirmed with my-dev-kit@1.10.3 + orchestrator@1.2.2. All PR and main CI passed before merge/tag/publish.
+
 ## Blockers
 
-There are no documentation, factual, or implementation blockers for the released `v0.4.3` implementation.
+There are no documentation, factual, or implementation blockers for the released `v0.4.4` implementation.
 
 ## Next step
 
-Begin `v0.5.0` (warm-index reuse) planning when prioritized. See [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.
+Begin `v0.5.0` (warm-index reuse) planning only after preserving release evidence and verifying downstream install of v0.4.4; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.
