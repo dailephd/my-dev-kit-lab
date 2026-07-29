@@ -331,7 +331,7 @@ Acceptance:
 
 ### v0.4.3 — stage-specific bounded-context and workflow-instruction evaluation
 
-Status: **published**; current npm baseline.
+Status: **published**.
 
 Purpose:
 
@@ -382,11 +382,11 @@ Acceptance criteria:
 * Unsupported context-capsule/retrieval-audit/`WorkflowInstructionPacket` schema majors fail clearly rather than being silently reinterpreted.
 * Existing audits, benchmarks, reports, security validation, and CLI behavior regress cleanly; no existing experiment plugin, strategy, report path, or command is removed or broken.
 * my-dev-kit-lab remains outside the production execution path of my-dev-kit and the orchestrator, and never becomes a required runtime dependency of either.
-* `v0.4.3` is published as the current npm/tag/GitHub-Release baseline, superseding `v0.4.2`.
+* `v0.4.3` was published as the npm/tag/GitHub-Release baseline that superseded `v0.4.2`.
 
 ### v0.4.4 — producer-readiness bridge
 
-Status: **implemented on feature branch `feature/v0.4.4-producer-readiness-bridge`; not published**.
+Status: **published**.
 
 Purpose:
 
@@ -419,7 +419,7 @@ Acceptance:
 * Existing `v0.4.3` strategies, expectation fixtures, and reports remain valid and unchanged when no producer-readiness bridge inputs are supplied.
 * No owner-selection, allocation, producer-parity, or readiness policy is duplicated from either frozen upstream repository.
 * Repeated canonical runs of the corrected fixture case produce identical canonicalized digests, including the producer-readiness bridge result.
-* `v0.4.4` is implemented on its feature branch and remains unpublished; release preparation begins only after a complete coordinated readiness run passes.
+* `v0.4.4` is released after upstream verification, PR merge, main CI, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state.
 
 ### Post-v1 / version TBD — manual pentest
 

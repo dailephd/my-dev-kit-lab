@@ -79,7 +79,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Completion:** the bounded report reflects the selected strategy's execution, evaluation, and (when configured) run-assurance results. This workflow does not have a CLI entrypoint; all inputs are supplied programmatically. `v0.4.3` published this workflow and completed the pre-release readiness, cross-platform, security, and code-rot workflow before publication; see [ROADMAP.md](ROADMAP.md).
 
-## Producer-readiness bridge evaluation (v0.4.4, implemented on feature branch, not published)
+## Producer-readiness bridge evaluation (v0.4.4)
 
 **Goal:** deterministically evaluate owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay evidence for the `combined-bounded-stage-context` strategy, without reproducing upstream producer or orchestrator-readiness policy.
 
@@ -98,7 +98,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Failure handling:** a supplied-but-unreadable supplemental path or an invalid readiness object fails the strategy execution clearly, the same way a malformed raw artifact does.
 
-**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is implemented on `feature/v0.4.4-producer-readiness-bridge`; its dependency-security, candidate-specific Windows/Linux/macOS Node.js 22/24 CI, lifecycle, and publication-procedure corrections are complete and pushed. The latest coordinated readiness run passed the lab gates and remains `NEEDS_CORRECTION` only pending the bounded my-dev-kit test-reliability correction and a new exact-candidate rerun. The lab package is not published; see [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
+**Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is released in v0.4.4 after upstream verification, PR, CI, merge, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state. See [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
 
 ## Real-agent campaign
 

@@ -4,7 +4,7 @@ my-dev-kit-lab is the experiment, audit, and evidence companion for [my-dev-kit]
 
 my-dev-kit provides local repository indexing and graph-guided retrieval. my-dev-kit-lab supplies the controlled benchmarks, agent adapters, metrics, security checks, and reports needed to evaluate when that retrieval is useful. Results are evidence for a specific target and configuration; they do not guarantee token savings or security.
 
-The latest published release is v0.4.3 (stage-specific bounded-context and workflow-instruction evaluation). See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
+The latest published release is v0.4.4 (producer-readiness bridge). See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
 ## Current capabilities
 
@@ -14,7 +14,7 @@ The latest published release is v0.4.3 (stage-specific bounded-context and workf
 - **Validate Android projects:** run nineteen static checks by default, with Gradle operations, external tools, and network access available only through explicit opt-in flags.
 - **Review evidence:** generate JSON and HTML reports, SVG plots, optional screenshots, visualization demos, and a static gallery.
 - **Evaluate stage-context strategies:** compare the two legacy strategies against six additional bounded stage-context strategies — `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context` — selected through programmatic configuration, not CLI flags. Each strategy's evidence is reported through bounded `report.json`, `report.html`, and `report.txt` output with an explicit `available`/`unavailable`/`not-applicable` metric-availability model and no composite score, grade, ranking, or winning strategy.
-- **Evaluate the producer-readiness bridge (v0.4.4, implemented on a feature branch, not yet published):** optionally extend `combined-bounded-stage-context` with the frozen my-dev-kit-orchestrator supplemental implementation/test-context packet and retrieval-report documents plus an observed readiness result, all supplied programmatically (there is no CLI flag), to measure owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay evidence without reimplementing upstream owner-selection, allocation, producer-parity, or readiness policy.
+- **Evaluate the producer-readiness bridge (v0.4.4):** optionally extend `combined-bounded-stage-context` with the frozen my-dev-kit-orchestrator supplemental implementation/test-context packet and retrieval-report documents plus an observed readiness result, all supplied programmatically (there is no CLI flag), to measure owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay evidence without reimplementing upstream owner-selection, allocation, producer-parity, or readiness policy.
 
 ## Quickstart
 
@@ -166,7 +166,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
 - The six new stage-context strategies have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration
 - The published upstream artifacts the stage-context strategies read do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` rather than zero
-- The v0.4.4 producer-readiness bridge is implemented on the `feature/v0.4.4-producer-readiness-bridge` branch and is not merged or published. Its dependency-security, cross-platform CI, lifecycle, and publication-procedure corrections are complete and pushed; the latest coordinated readiness run passed the lab gates and remains `NEEDS_CORRECTION` only pending the bounded my-dev-kit test-reliability correction and a new exact-candidate rerun. Like the stage-context strategies, all bridge inputs are programmatic — there is no CLI flag.
+- The v0.4.4 producer-readiness bridge is released. All bridge inputs are programmatic — there is no CLI flag. The coordinated upstream releases my-dev-kit@1.10.3 and orchestrator@1.2.2 were verified published before lab publication.
 
 ---
 

@@ -5,21 +5,21 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.4.3`
-- Latest release: `v0.4.3` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.2`)
+- Package version: `0.4.4`
+- Latest release: `v0.4.4` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.3`)
 - Next planned version: `v0.5.0`; planned, not implemented
-- `v0.4.4` (producer-readiness bridge): implemented and active on branch `feature/v0.4.4-producer-readiness-bridge`, not published, not merged to `main`, and not tagged or released
+- `v0.4.4` (producer-readiness bridge) is the current release.
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
 ## Operational state
 
 - Current branch (published baseline): `main`
-- `v0.4.4` implementation branch: `feature/v0.4.4-producer-readiness-bridge` (implemented, not merged, not published)
+- `v0.4.4` release branch: `release/v0.4.4` (merged to main)
 - Active planned version: `v0.5.0`; planned, not implemented
-- Workflow stage: `v0.4.3` released; `v0.4.4` implementation, documentation reconciliation, dependency-security correction, cross-platform CI coverage, lifecycle correction, and publication-procedure correction are complete and pushed on its feature branch. The latest coordinated readiness run returned `NEEDS_CORRECTION` only for an intermittent standalone my-dev-kit test failure and stale lab current-state wording; this document corrects the lab wording.
-- Release blockers: none for the published `v0.4.3`; `v0.4.4` remains ineligible for release until the bounded my-dev-kit test-reliability correction is complete and a new coordinated readiness run passes. Release preparation has not started.
-- Exact next action: complete and push the bounded my-dev-kit intermittent-test correction, then rerun coordinated pre-release readiness from Phase 0 using the resulting my-dev-kit commit, unchanged orchestrator commit `f7d8725d69c36901a488b0311764bbe49a67be99`, and the resulting lab documentation commit
+- Workflow stage: `v0.4.4` released after upstream verification, PR, CI, merge, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state.
+- Release blockers: none.
+- Exact next action: Begin `v0.5.0` (warm-index reuse) planning only after preserving release evidence; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.
 
 ## Implemented
 
@@ -46,7 +46,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Android-aware generic audit integration in `src/audits/security`: `npm run audit -- --types security --android` runs the same static Android validation through the existing security audit adapter, mapping confirmed findings into audit issues while keeping `CandidateEvidence` as a separate, review-only summary.
 - `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published: exact `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` readers and selectors in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`; the `StageContextExpectationFixtureV1` contract in `src/evaluation/stageContextExpectations`; six new `context-strategy-comparison` strategies (`architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, `combined-bounded-stage-context`) selected through programmatic configuration; evidence-centered metrics in `src/evaluation/stageContextMetrics`; read-only target immutability in `src/evaluation/targetImmutability`; repeated-run determinism in `src/evaluation/stageContextDeterminism`; and bounded `report.json`/`report.html`/`report.txt` output in `src/report/experiments`. See [ROADMAP.md](ROADMAP.md) for the complete scope, dependencies, and acceptance criteria.
 - Implemented but unpublished compatibility work accepts my-dev-kit's additive major-1 audit repository identity, preserves absence in legacy audits, and extends existing pair diagnostics to detect repository-root and manifest-schema disagreement. No new CLI command or orchestrator-readiness implementation is added.
-- `v0.4.4` producer-readiness bridge (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator's readiness result (`src/evaluation/upstreamArtifacts`); deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics (`src/evaluation/stageContextMetrics`); an additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) that composes those metrics over already-loaded evidence; additive optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`); optional producer-readiness bridge inputs on the `combined-bounded-stage-context` strategy, loaded once per run and reported through the existing `report.json`/`report.txt`/`report.html` pipeline as an additive, optional section. Readiness remains a programmatic plain-object input only — the frozen orchestrator commit exposes no on-disk readiness artifact, and no readiness/producer-parity/owner-selection/allocation policy is duplicated. No public CLI flags were added.
+- `v0.4.4` producer-readiness bridge is released: exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator's readiness result (`src/evaluation/upstreamArtifacts`); deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics (`src/evaluation/stageContextMetrics`); an additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) that composes those metrics over already-loaded evidence; additive optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`); optional producer-readiness bridge inputs on the `combined-bounded-stage-context` strategy, loaded once per run and reported through the existing `report.json`/`report.txt`/`report.html` pipeline as an additive, optional section. Readiness remains a programmatic plain-object input only — the frozen orchestrator commit exposes no on-disk readiness artifact, and no readiness/producer-parity/owner-selection/allocation policy is duplicated. No public CLI flags were added.
 
 ## Current commands
 
@@ -94,27 +94,12 @@ The following remain planned, not implemented:
 
 The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run docs:check`, cross-platform CI, `npm run security:validate`, and `npm run audit`) ran as a single combined gate against the `v0.4.3` release commit and passed before publication.
 
-`v0.4.4` (implemented on `feature/v0.4.4-producer-readiness-bridge`, not published): the configured typecheck, build, full test, verify, and documentation checks pass on the feature candidate, including the deterministic historical fixture-to-report integration test that produces `report.json`/`report.txt`/`report.html`. Candidate-specific Windows, Linux, and macOS CI evidence passes on Node.js 22 and Node.js 24. The latest coordinated readiness run also passed lab local functional validation, security, package-content validation, code rot with nonblocking review items, JSON/text/HTML report smoke, repeated-run determinism, positive and negative cross-project compatibility, and the release-transition rehearsal. That run returned `NEEDS_CORRECTION` only for the intermittent standalone my-dev-kit test failure and the stale lab wording corrected here; a new exact-candidate coordinated readiness run remains required.
+`v0.4.4` released after full validation: canonical `npm test` + `npm run verify` executed once each, docs:check, security:validate, code-rot audit (PASS_WITH_REVIEW_ITEMS, no blockers), report smoke (deterministic, zero mutation), package dry-run inventory clean, published-upstream compatibility confirmed with my-dev-kit@1.10.3 + orchestrator@1.2.2. All PR and main CI passed before merge/tag/publish.
 
 ## Blockers
 
-There are no documentation, factual, or implementation blockers for the released `v0.4.3` implementation.
-
-No product-behavior defect was established for `v0.4.4`. Its dependency
-advisory, candidate-specific Node.js 22/24 CI evidence on Windows, Linux, and
-macOS, lifecycle wording, and version-specific publication procedure are
-corrected, validated, and pushed. The remaining coordinated blocker is the
-intermittent standalone my-dev-kit test failure. A new coordinated readiness
-run must confirm the resulting exact candidates before any release decision.
+There are no documentation, factual, or implementation blockers for the released `v0.4.4` implementation.
 
 ## Next step
 
-Complete and push the bounded my-dev-kit intermittent-test correction, then
-rerun coordinated pre-release readiness from Phase 0 using the resulting
-my-dev-kit commit, unchanged orchestrator commit
-`f7d8725d69c36901a488b0311764bbe49a67be99`, and the resulting lab
-documentation commit. Preserve separate per-repository verdicts and validate
-cross-project contract compatibility before any `v0.4.4` release decision.
-Begin `v0.5.0` (warm-index reuse) planning only after that workflow and any
-resulting release decision are complete; see [ROADMAP.md](ROADMAP.md) for
-`v0.5.0`'s dependencies and acceptance criteria.
+Begin `v0.5.0` (warm-index reuse) planning only after preserving release evidence and verifying downstream install of v0.4.4; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.

@@ -331,7 +331,7 @@ Every ratio metric below reports `availability` (`available`, `unavailable`, or 
 
 Repeated-run determinism (`StageContextDeterminismResultV1` in `src/evaluation/stageContextDeterminism`) reports whether repeated canonical runs (`repeatCount` 1 through 10, run 1 as baseline) produce identical canonicalized run values via SHA-256 digest comparison. A single run reports `not-applicable`; a canonicalization failure (for example a circular reference) reports `unavailable`.
 
-## Producer-readiness bridge metrics (v0.4.4, implemented on feature branch, not published)
+## Producer-readiness bridge metrics (v0.4.4)
 
 Implemented in `src/evaluation/stageContextMetrics` (`calculateOwnerMetrics.ts`, `calculateAllocationMetrics.ts`, `calculateTruncationClassification.ts`, `calculateSupplementalRawAgreement.ts`, `calculateReadinessAgreement.ts`, `calculateCriticalityMetrics.ts`) and composed once per run by `evaluateProducerReadinessBridge.ts`. These metrics read only evidence Batch 1's readers and the existing `v0.4.3` `ContextCapsule`/`RetrievalAuditRecord` readers already preserve; none reimplement upstream owner selection, evidence allocation, producer parity, or orchestrator readiness. Every metric below uses the same `available`/`unavailable`/`not-applicable` availability model as the `v0.4.3` metrics above; unavailable and not-applicable remain distinct from an available zero.
 

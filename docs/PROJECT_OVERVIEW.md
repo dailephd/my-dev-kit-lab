@@ -12,7 +12,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The latest published release is v0.4.3 (stage-specific bounded-context and workflow-instruction evaluation). See [CURRENT_STATE.md](CURRENT_STATE.md) for operational details, [CHANGELOG.md](../CHANGELOG.md) for release history, and [ROADMAP.md](ROADMAP.md) for future scope.
+The latest published release is v0.4.4 (the producer-readiness bridge). See [CURRENT_STATE.md](CURRENT_STATE.md) for operational details, [CHANGELOG.md](../CHANGELOG.md) for release history, and [ROADMAP.md](ROADMAP.md) for future scope.
 
 The generic experiment-plugin runtime has one registered plugin, `context-strategy-comparison`. It compares raw-full-file and my-dev-kit-guided strategies through a common runner and supports deterministic fake-agent runs, optional Codex or Claude campaigns, self-validation, and explicit local-project targets.
 
@@ -63,7 +63,7 @@ Results are scoped evidence, not a universal performance claim. Small repositori
 
 ## Next phases
 
-Version v0.4.3 evaluates stage-specific bounded repository context and workflow instructions through the existing experiment infrastructure and is published. Version v0.4.4, the producer-readiness bridge, is implemented and validated on its feature branch but not yet published. The next planned version after v0.4.4 is v0.5.0, warm-index reuse. Later planned work covers freshness and stale-index detection, context-window scaling, retrieval precision and recall, agent success, normalized telemetry, scheduling, prompt hardening, and a generalized evidence portal.
+Version v0.4.3 evaluates stage-specific bounded repository context and workflow instructions through the existing experiment infrastructure and is published. Version v0.4.4, the current published release, adds the producer-readiness bridge through programmatically configured inputs while preserving upstream producer and readiness ownership. The next planned version is v0.5.0, warm-index reuse. Later planned work covers freshness and stale-index detection, context-window scaling, retrieval precision and recall, agent success, normalized telemetry, scheduling, prompt hardening, and a generalized evidence portal.
 
 These later items remain planned. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 
