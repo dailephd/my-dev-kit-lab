@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "1.0.0",
+  "runFolder": "Z:/fixture/project/.my-dev-kit-orchestrator/runs/run-fixture-001",
+  "gate": {
+    "schemaVersion": "1.0.0",
+    "mode": "feature",
+    "contextRequired": true,
+    "applicableContextKinds": ["implementation", "test"],
+    "implementationContext": {
+      "schemaVersion": "1.0.0",
+      "kind": "implementation",
+      "role": "implementation",
+      "decision": "ready",
+      "classification": "ready",
+      "stageId": "stage.feature.implementation",
+      "packetPath": "artifacts/implementation-context-packet.txt",
+      "reportPath": "reports/implementation-context-retrieval-report.txt",
+      "issues": [],
+      "warnings": [],
+      "blockingIssueCodes": [],
+      "affectedResponsibilityIds": [],
+      "evaluatedFreshness": "fresh",
+      "evaluatedAdequacy": "sufficient",
+      "requiredEvidenceTruncated": "no",
+      "readyWithAssumptions": false,
+      "provenanceSummary": "resolved from populated packet/report pair",
+      "indexIdentity": "Z:/fixture/project"
+    },
+    "testContext": {
+      "schemaVersion": "1.0.0",
+      "kind": "test",
+      "role": "test-implementation",
+      "decision": "ready",
+      "classification": "ready",
+      "stageId": "stage.feature.test-implementation",
+      "packetPath": "artifacts/test-context-packet.txt",
+      "reportPath": "reports/test-context-retrieval-report.txt",
+      "issues": [],
+      "warnings": [],
+      "blockingIssueCodes": [],
+      "affectedResponsibilityIds": [],
+      "evaluatedFreshness": "fresh",
+      "evaluatedAdequacy": "sufficient",
+      "requiredEvidenceTruncated": "no",
+      "readyWithAssumptions": false,
+      "provenanceSummary": "resolved from populated packet/report pair",
+      "indexIdentity": "Z:/fixture/project"
+    },
+    "contextReady": true,
+    "readinessClassification": "ready",
+    "blockedStageNames": [],
+    "blockingCodes": [],
+    "recommendedCorrectionStage": null,
+    "expectedJudgeVerdict": "PASS",
+    "warnings": []
+  },
+  "judgeIntegrity": {
+    "schemaVersion": "1.0.0",
+    "judgeArtifactPresent": true,
+    "judgeVerdictParseStatus": "parsed",
+    "authoredJudgeVerdict": "PASS",
+    "expectedJudgeVerdict": "PASS",
+    "judgeVerdictMatchesExpected": true,
+    "judgeVerdictAccepted": true,
+    "correctionRequired": false,
+    "correctionBlocked": false,
+    "acceptedCorrectionStage": null,
+    "finalReportEligible": true,
+    "blockingCodes": [],
+    "acceptedCorrectionRoute": null
+  },
+  "finalReportEligibility": {
+    "eligible": true,
+    "contextReady": true,
+    "priorArtifactsValid": true,
+    "judgeIntegrity": {
+      "schemaVersion": "1.0.0",
+      "judgeArtifactPresent": true,
+      "judgeVerdictParseStatus": "parsed",
+      "authoredJudgeVerdict": "PASS",
+      "expectedJudgeVerdict": "PASS",
+      "judgeVerdictMatchesExpected": true,
+      "judgeVerdictAccepted": true,
+      "correctionRequired": false,
+      "correctionBlocked": false,
+      "acceptedCorrectionStage": null,
+      "finalReportEligible": true,
+      "blockingCodes": [],
+      "acceptedCorrectionRoute": null
+    },
+    "blockingCodes": []
+  },
+  "finalArtifactPresent": true,
+  "finalArtifactVerdict": "PASS",
+  "lifecycle": [
+    {
+      "artifactFile": "artifacts/architecture-context.txt",
+      "stageName": "architecture-context",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    },
+    {
+      "artifactFile": "artifacts/implementation.txt",
+      "stageName": "implementation",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    },
+    {
+      "artifactFile": "artifacts/test-implementation.txt",
+      "stageName": "test-implementation",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    },
+    {
+      "artifactFile": "artifacts/verification.txt",
+      "stageName": "verification",
+      "fileExists": true,
+      "manualRecord": { "state": "complete", "updatedAt": "2026-07-31T00:00:00.000Z", "source": "cli" },
+      "resolvedState": "complete"
+    },
+    {
+      "artifactFile": "artifacts/final-report.txt",
+      "stageName": "final-report",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    }
+  ]
+}

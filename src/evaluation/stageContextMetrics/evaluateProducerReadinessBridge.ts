@@ -7,6 +7,7 @@
 // test-implementation).
 import type {
   ContextCapsule,
+  OrchestratorRunIntegrityEvidenceV1,
   RetrievalAuditRecord,
   SupplementalContextDocumentV1
 } from "../upstreamArtifacts/index.js";
@@ -26,6 +27,8 @@ import {
 import { calculateSupplementalRawAgreement } from "./calculateSupplementalRawAgreement.js";
 import { calculateReadinessAgreementMetrics, calculateProducerReadinessRelationship } from "./calculateReadinessAgreement.js";
 import { calculateCriticalityMetrics } from "./calculateCriticalityMetrics.js";
+import { evaluateRunIntegrity } from "./calculateRunIntegrityAgreement.js";
+import type { RunIntegrityEvaluationV1 } from "./runIntegrityAgreementTypes.js";
 import type {
   AllocationMetricsV1,
   CapsuleAuditConditionAgreementV1,
@@ -55,6 +58,10 @@ export interface ProducerReadinessBridgeInputV1 {
   implementation?: ProducerReadinessBridgeSideInputV1;
   testImplementation?: ProducerReadinessBridgeSideInputV1;
   readiness?: import("../upstreamArtifacts/index.js").OrchestratorContextReadinessResultV1;
+  // v0.4.5 Batch 3: exact mirror of the orchestrator v1.2.3 run-integrity contract. One
+  // evidence object covers the whole run (gate.applicableContextKinds spans both roles),
+  // so this is supplied once at the top level rather than per side.
+  runIntegrityEvidence?: OrchestratorRunIntegrityEvidenceV1;
   expectations: StageContextExpectationFixtureV1;
 }
 
@@ -84,6 +91,12 @@ export interface ProducerReadinessBridgeEvaluationResultV1 {
   // v0.4.5 Batch 2: producer role adequacy vs supplied orchestrator readiness, preferring
   // the same side-selection precedence already used for criticalityEvaluation.
   producerReadinessRelationship: ProducerReadinessRelationshipV1 | null;
+  // v0.4.5 Batch 3: bounded orchestrator run-integrity evidence and agreement (readiness vs
+  // prompt, readiness vs expected judge, expected vs actual judge, judge vs correction
+  // route, judge vs final-report eligibility, eligibility vs final artifact/verdict,
+  // lifecycle integrity, and the end-to-end agreement summary). Null when no
+  // runIntegrityEvidence was supplied.
+  runIntegrityEvaluation: RunIntegrityEvaluationV1 | null;
   warnings: string[];
   evidenceReferences: string[];
 }
@@ -222,7 +235,10 @@ export function buildProducerReadinessBridgeInputFromCombinedPayload(
 
 export function evaluateProducerReadinessBridge(input: ProducerReadinessBridgeInputV1): ProducerReadinessBridgeEvaluationResultV1 {
   const hasAnyInput =
-    input.implementation !== undefined || input.testImplementation !== undefined || input.readiness !== undefined;
+    input.implementation !== undefined ||
+    input.testImplementation !== undefined ||
+    input.readiness !== undefined ||
+    input.runIntegrityEvidence !== undefined;
 
   if (!hasAnyInput) {
     return {
@@ -233,6 +249,7 @@ export function evaluateProducerReadinessBridge(input: ProducerReadinessBridgeIn
       readinessAgreement: null,
       criticalityEvaluation: null,
       producerReadinessRelationship: null,
+      runIntegrityEvaluation: null,
       warnings: [],
       evidenceReferences: []
     };
@@ -301,6 +318,23 @@ export function evaluateProducerReadinessBridge(input: ProducerReadinessBridgeIn
     input.readiness
   );
 
+  // v0.4.5 Batch 3: bounded orchestrator run-integrity evidence and agreement, computed
+  // once here and carried through unchanged. Stage selection follows the same
+  // applicableContextKinds the gate itself declares (implementation preferred, since the
+  // gate blocks implementation before test-implementation in workflow order); the
+  // producerReadinessRelationship outcome already computed above feeds the end-to-end
+  // summary's "producerReadiness" component rather than being recalculated.
+  let runIntegrityEvaluation: RunIntegrityEvaluationV1 | null = null;
+  if (input.runIntegrityEvidence !== undefined) {
+    const gate = input.runIntegrityEvidence.gate;
+    const stageName = gate.applicableContextKinds.includes("implementation")
+      ? "implementation"
+      : gate.applicableContextKinds.includes("test")
+        ? "test-implementation"
+        : gate.mode;
+    runIntegrityEvaluation = evaluateRunIntegrity(input.runIntegrityEvidence, stageName, producerReadinessRelationship.outcome);
+  }
+
   return {
     status: "evaluated",
     reason: null,
@@ -309,6 +343,7 @@ export function evaluateProducerReadinessBridge(input: ProducerReadinessBridgeIn
     readinessAgreement,
     criticalityEvaluation,
     producerReadinessRelationship,
+    runIntegrityEvaluation,
     warnings,
     evidenceReferences
   };

@@ -8,7 +8,8 @@ export type UpstreamArtifactKind =
   | "orchestrator-implementation-context-retrieval-report-v1"
   | "orchestrator-test-context-packet-v1"
   | "orchestrator-test-context-retrieval-report-v1"
-  | "orchestrator-context-readiness-result-v1";
+  | "orchestrator-context-readiness-result-v1"
+  | "orchestrator-run-integrity-evidence-v1";
 
 export type UpstreamArtifactReadErrorCode =
   | "FILE_NOT_FOUND"
