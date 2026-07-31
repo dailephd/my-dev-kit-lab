@@ -1,0 +1,62 @@
+{
+  "runId": "20260730T113740-implement-my-dev-kit-v1-11-0-b",
+  "mode": "feature",
+  "request": "Implement my-dev-kit v1.11.0 Batch 1: add the optional android-compose-semantic.json artifact, conservatively extract deterministic top-level, private top-level, function-local, preview, child-composable, and structural UI-region declaration evidence from indexed Kotlin files, integrate it with the existing Android artifact lifecycle, and add focused tests without adding state/effect/ViewModel/test/retrieval/graph behavior.",
+  "projectRoot": "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1",
+  "runFolder": "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1\\.my-dev-kit-orchestrator\\runs\\20260730T113740-implement-my-dev-kit-v1-11-0-b",
+  "createdAt": "2026-07-30T16:37:40.103Z",
+  "currentStage": "request-brief",
+  "stages": [
+    {
+      "name": "request-brief",
+      "artifactFile": "artifacts/request-brief.txt",
+      "promptFile": "prompts/01-request-brief.prompt.txt"
+    },
+    {
+      "name": "architecture-context",
+      "artifactFile": "artifacts/architecture-context-packet.txt",
+      "promptFile": "prompts/02-architecture-context.prompt.txt"
+    },
+    {
+      "name": "behavior-model",
+      "artifactFile": "artifacts/behavior-model.txt",
+      "promptFile": "prompts/03-behavior-model.prompt.txt"
+    },
+    {
+      "name": "pseudocode-packet",
+      "artifactFile": "artifacts/pseudocode-packet.txt",
+      "promptFile": "prompts/04-pseudocode-packet.prompt.txt"
+    },
+    {
+      "name": "test-strategy",
+      "artifactFile": "artifacts/test-strategy-packet.txt",
+      "promptFile": "prompts/05-test-strategy.prompt.txt"
+    },
+    {
+      "name": "implementation",
+      "artifactFile": "artifacts/implementation-report.txt",
+      "promptFile": "prompts/06-implementation.prompt.txt"
+    },
+    {
+      "name": "test-implementation",
+      "artifactFile": "artifacts/test-implementation-report.txt",
+      "promptFile": "prompts/07-test-implementation.prompt.txt"
+    },
+    {
+      "name": "verification",
+      "artifactFile": "artifacts/verification-report.txt",
+      "promptFile": "prompts/08-verification.prompt.txt"
+    },
+    {
+      "name": "judge",
+      "artifactFile": "artifacts/judge-report.txt",
+      "promptFile": "prompts/09-judge.prompt.txt"
+    },
+    {
+      "name": "final-report",
+      "artifactFile": "artifacts/final-report.txt",
+      "promptFile": "prompts/10-final-report.prompt.txt"
+    }
+  ],
+  "status": "created"
+}

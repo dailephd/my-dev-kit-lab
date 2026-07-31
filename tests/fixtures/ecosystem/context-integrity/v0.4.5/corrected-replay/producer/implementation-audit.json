@@ -1,0 +1,1585 @@
+{
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-07-30T16:48:59.569Z",
+  "tool": {
+    "name": "my-dev-kit",
+    "version": "1.10.4"
+  },
+  "request": {
+    "originalQuery": "Retrieve the exact current contracts, types, call sites, validators, constants, artifact-writing behavior, stale-cleanup behavior, analyzer-status behavior, incremental invalidation behavior, and closest tests needed to implement the optional android-compose-semantic.json declaration-only analyzer in the approved files.",
+    "normalizedQuery": "Retrieve the exact current contracts, types, call sites, validators, constants, artifact-writing behavior, stale-cleanup behavior, analyzer-status behavior, incremental invalidation behavior, and closest tests needed to implement the optional android-compose-semantic.json declaration-only analyzer in the approved files.",
+    "mode": "feature-add",
+    "requestedOutputPath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-capsule.json",
+    "role": "implementation",
+    "requestFilePath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-request.json"
+  },
+  "index": {
+    "indexPath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation",
+    "manifestPath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation/manifest.json",
+    "manifestSchemaVersion": "1.0.0",
+    "projectRoot": "Z:/Users/newuser/Projects/my-dev-kit-v1"
+  },
+  "steps": [
+    {
+      "id": "step-validate-inputs",
+      "kind": "validate-inputs",
+      "description": "Validated required and optional command inputs.",
+      "inputs": {
+        "index": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation",
+        "mode": "feature-add",
+        "out": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-capsule.json",
+        "auditOut": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-audit.json",
+        "role": "implementation",
+        "requestFilePath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-request.json"
+      },
+      "outputs": {},
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-load-manifest",
+      "kind": "load-manifest",
+      "description": "Loaded and validated the index manifest.",
+      "inputs": {
+        "manifestPath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation/manifest.json"
+      },
+      "outputs": {
+        "manifestVersion": "1.0.0"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-normalize-query",
+      "kind": "normalize-query",
+      "description": "Normalized the query string.",
+      "inputs": {
+        "originalQuery": "Retrieve the exact current contracts, types, call sites, validators, constants, artifact-writing behavior, stale-cleanup behavior, analyzer-status behavior, incremental invalidation behavior, and closest tests needed to implement the optional android-compose-semantic.json declaration-only analyzer in the approved files."
+      },
+      "outputs": {
+        "normalizedQuery": "Retrieve the exact current contracts, types, call sites, validators, constants, artifact-writing behavior, stale-cleanup behavior, analyzer-status behavior, incremental invalidation behavior, and closest tests needed to implement the optional android-compose-semantic.json declaration-only analyzer in the approved files."
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-extract-query-terms",
+      "kind": "extract-query-terms",
+      "description": "Extracted deterministic structured query terms.",
+      "inputs": {},
+      "outputs": {
+        "termCount": 41
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-run-search",
+      "kind": "run-search",
+      "description": "Ran the existing search engine to gather ranked candidates.",
+      "inputs": {
+        "query": "Retrieve the exact current contracts, types, call sites, validators, constants, artifact-writing behavior, stale-cleanup behavior, analyzer-status behavior, incremental invalidation behavior, and closest tests needed to implement the optional android-compose-semantic.json declaration-only analyzer in the approved files."
+      },
+      "outputs": {
+        "status": "ok",
+        "resultCount": 50
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-rank-candidate-files",
+      "kind": "rank-candidate-files",
+      "description": "Ranked candidate files from search results.",
+      "inputs": {},
+      "outputs": {
+        "retainedCount": 21,
+        "droppedCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-rank-candidate-nodes",
+      "kind": "rank-candidate-nodes",
+      "description": "Ranked candidate graph nodes from search results.",
+      "inputs": {},
+      "outputs": {
+        "candidateCount": 50
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-mode-ranking-adjustment",
+      "kind": "apply-mode-ranking-adjustment",
+      "description": "Applied small deterministic mode-specific ranking adjustments.",
+      "inputs": {
+        "mode": "feature-add"
+      },
+      "outputs": {
+        "applied": true,
+        "effectCount": 22
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-resolve-focus",
+      "kind": "resolve-focus",
+      "description": "Resolved explicit focusFiles/focusSymbols against the active index.",
+      "inputs": {
+        "focusFileCount": 8,
+        "focusSymbolCount": 0
+      },
+      "outputs": {
+        "unresolvedFocusFileCount": 0,
+        "unresolvedFocusSymbolCount": 0,
+        "ambiguousFocusSymbolCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-merge-changed-surface",
+      "kind": "merge-changed-surface",
+      "description": "Merged caller-supplied changedFiles/changedSymbols with an optional beforeIndex/afterIndex graph diff.",
+      "inputs": {
+        "changedFileCount": 0,
+        "changedSymbolCount": 0,
+        "beforeIndex": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/baseline",
+        "afterIndex": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation",
+        "diffRequested": true
+      },
+      "outputs": {
+        "mergedFileCount": 0,
+        "mergedSymbolCount": 0,
+        "conflictCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-role-ranking",
+      "kind": "apply-role-ranking",
+      "description": "Applied role-aware ranking adjustments and bounded focus/changed-surface candidate injection.",
+      "inputs": {
+        "role": "implementation"
+      },
+      "outputs": {
+        "candidateFileCount": 22,
+        "candidateNodeCount": 50,
+        "unsupportedRequestedEvidenceKindCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-select-primary-focus",
+      "kind": "select-primary-focus",
+      "description": "Selected a single primary focus node, if evidence was sufficient.",
+      "inputs": {},
+      "outputs": {
+        "focusNodeId": "file:src/android/index.ts",
+        "selectionMode": "single-best",
+        "confidence": "high"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-primary-focus",
+      "kind": "inspect-primary-focus",
+      "description": "Read already-embedded semantic and classification metadata for the primary focus node.",
+      "inputs": {
+        "focusNodeId": "file:src/android/index.ts"
+      },
+      "outputs": {
+        "found": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-select-graph-neighborhood",
+      "kind": "select-graph-neighborhood",
+      "description": "Selected a bounded graph neighborhood around the primary focus node.",
+      "inputs": {
+        "focusNodeId": "file:src/android/index.ts"
+      },
+      "outputs": {
+        "nodeCount": 1,
+        "edgeCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-caps",
+      "kind": "apply-caps",
+      "description": "Applied candidate-file and graph node/edge caps.",
+      "inputs": {
+        "maxCandidateFiles": null,
+        "maxGraphNodes": null,
+        "maxGraphEdges": null
+      },
+      "outputs": {
+        "omittedNodeCount": 0,
+        "omittedEdgeCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-record-retained-and-dropped-context",
+      "kind": "record-retained-and-dropped-context",
+      "description": "Recorded retained/dropped candidate and graph-selection counts.",
+      "inputs": {},
+      "outputs": {
+        "retainedCandidateCount": 22,
+        "droppedCandidateCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-build-evidence-groups",
+      "kind": "build-evidence-groups",
+      "description": "Constructed deterministic, bounded, role-scoped evidence groups from role-ranked candidates, the selected graph neighborhood, and the changed-surface model.",
+      "inputs": {
+        "role": "implementation"
+      },
+      "outputs": {
+        "groupCount": 9,
+        "selectedOwnerCount": 15,
+        "selectedContractCount": 39,
+        "selectedTestCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-discover-test-infrastructure",
+      "kind": "discover-test-infrastructure",
+      "description": "Discovered bounded, conservative evidence of existing related tests, fixtures, factories, mocks, setup files, and test configuration.",
+      "inputs": {
+        "requestedTestInfrastructure": false
+      },
+      "outputs": {
+        "relatedTestCount": 0,
+        "fixtureCount": 0,
+        "factoryCount": 0,
+        "mockCount": 0,
+        "setupFileCount": 0,
+        "testConfigurationCount": 0
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-derive-test-commands",
+      "kind": "derive-test-commands",
+      "description": "Derived grounded, targeted test commands (or reported them unresolved) from package.json scripts and discovered related tests.",
+      "inputs": {
+        "requestedTestCommands": false
+      },
+      "outputs": {
+        "testCommandCount": 0,
+        "packageScriptCount": 0
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-derive-source-targets",
+      "kind": "derive-source-targets",
+      "description": "Derived bounded source targets from the primary focus and selected graph neighborhood.",
+      "inputs": {},
+      "outputs": {
+        "targetCount": 1
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-select-source-slices",
+      "kind": "select-source-slices",
+      "description": "Selected bounded, content-free source slices for the derived targets.",
+      "inputs": {},
+      "outputs": {
+        "sliceCount": 1,
+        "omittedSliceCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-select-source-bundles",
+      "kind": "select-source-bundles",
+      "description": "Selected at most one local-dependency source bundle for a symbol-kind primary focus.",
+      "inputs": {},
+      "outputs": {
+        "bundleCount": 0
+      },
+      "status": "ok",
+      "warnings": [
+        "Primary focus is not a symbol node; local-dependency bundles are not applicable."
+      ]
+    },
+    {
+      "id": "step-apply-source-caps",
+      "kind": "apply-source-caps",
+      "description": "Applied --max-source-slices to the selected source slices.",
+      "inputs": {
+        "maxSourceSlices": 8
+      },
+      "outputs": {
+        "omittedSliceCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-use-source-continuation",
+      "kind": "use-source-continuation",
+      "description": "Reported whether the primary focus source slice used one bounded continuation window.",
+      "inputs": {},
+      "outputs": {
+        "continuationUsed": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-skip-source-evidence",
+      "kind": "skip-source-evidence",
+      "description": "Recorded whether source evidence was intentionally disabled by user request.",
+      "inputs": {
+        "sourceEnabled": true
+      },
+      "outputs": {
+        "sourceDisabled": false
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-use-local-source-expansion",
+      "kind": "use-local-source-expansion",
+      "description": "Reported whether local-dependency expansion was used via the one optional source bundle.",
+      "inputs": {},
+      "outputs": {
+        "localExpansionUsed": false
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-semantic-metadata",
+      "kind": "inspect-semantic-metadata",
+      "description": "Inspected already-embedded semantic role and artifact-ref metadata.",
+      "inputs": {},
+      "outputs": {
+        "available": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-classification-metadata",
+      "kind": "inspect-classification-metadata",
+      "description": "Inspected classification.json metadata when available.",
+      "inputs": {},
+      "outputs": {
+        "available": true
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-artifact-references",
+      "kind": "inspect-artifact-references",
+      "description": "Inspected compact artifact references known to the manifest.",
+      "inputs": {},
+      "outputs": {
+        "artifactCount": 9
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-detect-context-conflicts",
+      "kind": "detect-context-conflicts",
+      "description": "Applied conservative static edit-guidance conflict rules.",
+      "inputs": {
+        "focusNodeId": "file:src/android/index.ts"
+      },
+      "outputs": {
+        "status": "none",
+        "conflictCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-assemble-required-context",
+      "kind": "assemble-required-context",
+      "description": "Assembled required context entries for focus, graph, source, and classification evidence.",
+      "inputs": {},
+      "outputs": {
+        "entryCount": 4
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-assemble-optional-support-context",
+      "kind": "assemble-optional-support-context",
+      "description": "Assembled optional support context entries for secondary graph/source/semantic evidence.",
+      "inputs": {},
+      "outputs": {
+        "entryCount": 1
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-assemble-dropped-context",
+      "kind": "assemble-dropped-context",
+      "description": "Assembled dropped context entries for cap- and relevance-based omissions.",
+      "inputs": {},
+      "outputs": {
+        "entryCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-pruning-policy",
+      "kind": "apply-pruning-policy",
+      "description": "Applied the deterministic pruning/retention rollup policy.",
+      "inputs": {},
+      "outputs": {
+        "policyVersion": "1.0.0"
+      },
+      "status": "ok",
+      "warnings": [
+        "Primary focus is not a symbol node; local-dependency bundles are not applicable."
+      ]
+    },
+    {
+      "id": "step-update-context-adequacy",
+      "kind": "update-context-adequacy",
+      "description": "Updated context adequacy based on graph, source, and metadata sufficiency.",
+      "inputs": {},
+      "outputs": {
+        "status": "context sufficient with listed assumptions"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-map-responsibilities",
+      "kind": "map-responsibilities",
+      "description": "Built deterministic responsibility-to-evidence mappings from testResponsibilityRefs and existing role-aware evidence.",
+      "inputs": {
+        "responsibilityCount": 0,
+        "requestedResponsibilityMappings": false
+      },
+      "outputs": {
+        "mappedCount": 0,
+        "partiallyMappedCount": 0,
+        "unmappedCount": 0,
+        "unknownResponsibilityCount": 0
+      },
+      "status": "skipped",
+      "warnings": []
+    },
+    {
+      "id": "step-classify-freshness",
+      "kind": "classify-freshness",
+      "description": "Classified context freshness (fresh/stale/unknown) from active-index, before/after-index, and changed-surface evidence.",
+      "inputs": {
+        "diffRequested": true
+      },
+      "outputs": {
+        "state": "fresh"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-apply-budget",
+      "kind": "apply-budget",
+      "description": "Reported declared-vs-used limit usage and explicit truncation/required-evidence-loss.",
+      "inputs": {},
+      "outputs": {
+        "truncatedGroupCount": 2,
+        "characterBudgetTruncated": false
+      },
+      "status": "ok",
+      "warnings": [
+        "Required evidence was truncated in group \"implementation-contracts\" (8 item(s) dropped).",
+        "Required evidence was truncated in group \"implementation-compatibility-surfaces\" (21 item(s) dropped)."
+      ]
+    },
+    {
+      "id": "step-evaluate-adequacy",
+      "kind": "evaluate-adequacy",
+      "description": "Evaluated role-specific adequacy, extending the existing contextAdequacy verdict without replacing it.",
+      "inputs": {
+        "role": "implementation"
+      },
+      "outputs": {
+        "status": "context insufficient and more retrieval required",
+        "blockingConditionCount": 0
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-record-provenance",
+      "kind": "record-provenance",
+      "description": "Merged deterministic, deduplicated evidence provenance across owners, contracts, tests, changed surface, and responsibility mappings.",
+      "inputs": {},
+      "outputs": {
+        "provenanceRecordCount": 45
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-inspect-artifacts",
+      "kind": "inspect-artifacts",
+      "description": "Enumerated known index and semantic artifacts from the manifest.",
+      "inputs": {},
+      "outputs": {
+        "artifactCount": 7
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-write-context-capsule",
+      "kind": "write-context-capsule",
+      "description": "Wrote the context capsule artifact.",
+      "inputs": {
+        "outputPath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-capsule.json"
+      },
+      "outputs": {
+        "writtenPath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-capsule.json"
+      },
+      "status": "ok",
+      "warnings": []
+    },
+    {
+      "id": "step-write-retrieval-audit-record",
+      "kind": "write-retrieval-audit-record",
+      "description": "Wrote the retrieval audit record artifact.",
+      "inputs": {
+        "outputPath": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-audit.json"
+      },
+      "outputs": {},
+      "status": "ok",
+      "warnings": []
+    }
+  ],
+  "fallbacks": [],
+  "fullFileReadRecommendations": [],
+  "warnings": [],
+  "roleContext": {
+    "role": "implementation",
+    "focus": {
+      "focusFiles": [
+        {
+          "path": "src/android/androidNavigationTypes.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/android/androidNavigationTypes.ts"
+          ],
+          "containedSymbolIds": [
+            "symbol:src/android/androidNavigationTypes.ts#ANDROID_NAVIGATION_ARTIFACT_KIND",
+            "symbol:src/android/androidNavigationTypes.ts#ANDROID_NAVIGATION_FILENAME",
+            "symbol:src/android/androidNavigationTypes.ts#ANDROID_NAVIGATION_SCHEMA_VERSION",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidComposeRoute",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidComposeScreenCandidate",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationAction",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationActionAnimRefs",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationArgument",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationArgumentDefault",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationArtifact",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationDeepLink",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationDestination",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationDestinationKind",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationFile",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationGraph",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationGraphKind",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationInclude",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationQualifiers",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationResourceReference",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationSourceRef",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationStartDestinationEvidence",
+            "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationSummary",
+            "symbol:src/android/androidNavigationTypes.ts#BuildAndroidNavigationProjectResult",
+            "symbol:src/android/androidNavigationTypes.ts#ComposeNavigationBuilder",
+            "symbol:src/android/androidNavigationTypes.ts#ComposeRouteEvidenceKind",
+            "symbol:src/android/androidNavigationTypes.ts#NavigationReferenceKind"
+          ]
+        },
+        {
+          "path": "src/android/buildAndroidNavigationProject.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/android/buildAndroidNavigationProject.ts"
+          ],
+          "containedSymbolIds": [
+            "symbol:src/android/buildAndroidNavigationProject.ts#BuildAndroidNavigationProjectOptions",
+            "symbol:src/android/buildAndroidNavigationProject.ts#buildAndroidNavigationProject",
+            "symbol:src/android/buildAndroidNavigationProject.ts#buildAndroidNavigationXmlEvidenceFingerprint",
+            "symbol:src/android/buildAndroidNavigationProject.ts#computeEvidenceFingerprint",
+            "symbol:src/android/buildAndroidNavigationProject.ts#hashModel"
+          ]
+        },
+        {
+          "path": "src/android/buildComposeNavigationRoutes.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/android/buildComposeNavigationRoutes.ts"
+          ],
+          "containedSymbolIds": [
+            "symbol:src/android/buildComposeNavigationRoutes.ts#BUILDER_CALL_PATTERN",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#BuildComposeNavigationRoutesOptions",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#BuildComposeNavigationRoutesResult",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#CONST_VAL_PATTERN",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#CONTROL_FLOW_PATTERN",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#MAX_SCAN_LINES",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#ModuleSourceSetInfo",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#NAV_HOST_PATTERN",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#buildComposeNavigationRoutes",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#collectStringConstants",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#detectDirectScreenCandidate",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#extractFollowingLambdaBody",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#extractRouteArgument",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#findEnclosingSymbol",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#findMatchingBraceFromStart",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#findMatchingParen",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#findTopLevelCommaOrEnd",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#lineNumberAt",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#parseStringLiteral",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#readFile",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#resolveModuleAndSourceSet",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#sortById",
+            "symbol:src/android/buildComposeNavigationRoutes.ts#sourceRefAt"
+          ]
+        },
+        {
+          "path": "src/android/index.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/android/index.ts"
+          ],
+          "containedSymbolIds": []
+        },
+        {
+          "path": "src/indexing/managedArtifacts.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/indexing/managedArtifacts.ts"
+          ],
+          "containedSymbolIds": [
+            "symbol:src/indexing/managedArtifacts.ts#ANDROID_COMPONENTS_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#ANDROID_GRADLE_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#ANDROID_MANIFEST_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#ANDROID_NAVIGATION_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#ANDROID_PROJECT_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#ANDROID_RESOURCES_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#CALL_GRAPH_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#CLASSIFICATION_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#CODE_GRAPH_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#DATA_MODEL_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#DATA_MODEL_GRAPH_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#FRONTEND_REACHABILITY_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#FRONTEND_SEMANTIC_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#INDEX_MANIFEST_FILENAME",
+            "symbol:src/indexing/managedArtifacts.ts#MANAGED_INDEX_ARTIFACT_FILENAMES",
+            "symbol:src/indexing/managedArtifacts.ts#ManagedIndexArtifactFilename",
+            "symbol:src/indexing/managedArtifacts.ts#OPTIONAL_INDEX_ARTIFACT_FILENAMES",
+            "symbol:src/indexing/managedArtifacts.ts#REQUIRED_INDEX_ARTIFACT_FILENAMES",
+            "symbol:src/indexing/managedArtifacts.ts#SYMBOL_INDEX_FILENAME"
+          ]
+        },
+        {
+          "path": "src/indexing/manifestTypes.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/indexing/manifestTypes.ts"
+          ],
+          "containedSymbolIds": [
+            "symbol:src/indexing/manifestTypes.ts#IndexAnalyzerArtifactRef",
+            "symbol:src/indexing/manifestTypes.ts#IndexAnalyzerId",
+            "symbol:src/indexing/manifestTypes.ts#IndexAnalyzerStatus",
+            "symbol:src/indexing/manifestTypes.ts#IndexAnalyzerStatusValue",
+            "symbol:src/indexing/manifestTypes.ts#IndexManifest",
+            "symbol:src/indexing/manifestTypes.ts#IndexModeValue",
+            "symbol:src/indexing/manifestTypes.ts#IndexSemanticArtifacts"
+          ]
+        },
+        {
+          "path": "src/indexing/runIndexCommand.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/indexing/runIndexCommand.ts"
+          ],
+          "containedSymbolIds": [
+            "symbol:src/indexing/runIndexCommand.ts#FinishIndexBuildParams",
+            "symbol:src/indexing/runIndexCommand.ts#IndexCacheSummary",
+            "symbol:src/indexing/runIndexCommand.ts#ProgressEvent",
+            "symbol:src/indexing/runIndexCommand.ts#RunAndroidComponentsAnalyzerOptions",
+            "symbol:src/indexing/runIndexCommand.ts#RunClassificationAnalyzerOptions",
+            "symbol:src/indexing/runIndexCommand.ts#RunFullIndexBuildParams",
+            "symbol:src/indexing/runIndexCommand.ts#RunFullIndexBuildResult",
+            "symbol:src/indexing/runIndexCommand.ts#RunIncrementalIndexParams",
+            "symbol:src/indexing/runIndexCommand.ts#RunIndexCommandDryRunResult",
+            "symbol:src/indexing/runIndexCommand.ts#RunIndexCommandIndexResult",
+            "symbol:src/indexing/runIndexCommand.ts#RunIndexCommandOptions",
+            "symbol:src/indexing/runIndexCommand.ts#RunIndexCommandResult",
+            "symbol:src/indexing/runIndexCommand.ts#SUPPORTED_LANGUAGES",
+            "symbol:src/indexing/runIndexCommand.ts#buildAndroidAnalyzerStatus",
+            "symbol:src/indexing/runIndexCommand.ts#buildAndroidGradleAnalyzerStatus",
+            "symbol:src/indexing/runIndexCommand.ts#buildAndroidManifestAnalyzerStatus",
+            "symbol:src/indexing/runIndexCommand.ts#buildAndroidNavigationAnalyzerStatus",
+            "symbol:src/indexing/runIndexCommand.ts#buildAndroidRelationshipsAnalyzerStatus",
+            "symbol:src/indexing/runIndexCommand.ts#buildAndroidResourcesAnalyzerStatus",
+            "symbol:src/indexing/runIndexCommand.ts#buildDryRunResult",
+            "symbol:src/indexing/runIndexCommand.ts#createProgressReporter",
+            "symbol:src/indexing/runIndexCommand.ts#finishIndexBuild",
+            "symbol:src/indexing/runIndexCommand.ts#inferLanguages",
+            "symbol:src/indexing/runIndexCommand.ts#resolveAnalyzerArtifactPathFromManifest",
+            "symbol:src/indexing/runIndexCommand.ts#resolveAndroidComponentsPathFromManifest",
+            "symbol:src/indexing/runIndexCommand.ts#resolveAndroidGradlePathFromManifest",
+            "symbol:src/indexing/runIndexCommand.ts#resolveAndroidManifestPathFromManifest",
+            "symbol:src/indexing/runIndexCommand.ts#resolveAndroidNavigationPathFromManifest",
+            "symbol:src/indexing/runIndexCommand.ts#resolveAndroidProjectPathFromManifest",
+            "symbol:src/indexing/runIndexCommand.ts#resolveAndroidResourcesPathFromManifest",
+            "symbol:src/indexing/runIndexCommand.ts#runAndroidComponentsAnalyzer",
+            "symbol:src/indexing/runIndexCommand.ts#runClassificationAnalyzer",
+            "symbol:src/indexing/runIndexCommand.ts#runFullIndexBuild",
+            "symbol:src/indexing/runIndexCommand.ts#runIncrementalIndex",
+            "symbol:src/indexing/runIndexCommand.ts#runIndexCommand",
+            "symbol:src/indexing/runIndexCommand.ts#runIndexCommand",
+            "symbol:src/indexing/runIndexCommand.ts#runIndexCommand",
+            "symbol:src/indexing/runIndexCommand.ts#runIndexCommand",
+            "symbol:src/indexing/runIndexCommand.ts#tryReadExistingManifest",
+            "symbol:src/indexing/runIndexCommand.ts#writeMergedCacheMetadata"
+          ]
+        },
+        {
+          "path": "src/indexing/writeIndexManifest.ts",
+          "resolved": true,
+          "matchedFilePaths": [
+            "src/indexing/writeIndexManifest.ts"
+          ],
+          "containedSymbolIds": [
+            "symbol:src/indexing/writeIndexManifest.ts#WriteIndexArtifactsOptions",
+            "symbol:src/indexing/writeIndexManifest.ts#writeIndexArtifacts",
+            "symbol:src/indexing/writeIndexManifest.ts#writeJson"
+          ]
+        }
+      ],
+      "focusSymbols": [],
+      "unresolvedFocusFiles": [],
+      "unresolvedFocusSymbols": [],
+      "ambiguousFocusSymbols": [],
+      "warnings": []
+    },
+    "changedSurface": {
+      "available": false,
+      "diffRequested": true,
+      "files": [],
+      "symbols": [],
+      "conflicts": [],
+      "warnings": []
+    },
+    "requestedEvidenceKinds": [
+      "callees",
+      "callers",
+      "closest-tests",
+      "constants",
+      "contracts",
+      "dependencies",
+      "errors",
+      "owner",
+      "schemas",
+      "validators"
+    ],
+    "unsupportedRequestedEvidenceKinds": [],
+    "warnings": []
+  },
+  "contextAdequacy": {
+    "status": "context sufficient with listed assumptions",
+    "summary": "A best-effort focus node was selected; some ambiguity or thin graph/source/metadata evidence remains.",
+    "assumptions": [],
+    "gaps": [
+      "Graph neighborhood evidence is thin (0-1 nodes)."
+    ]
+  },
+  "responsibilityMappings": {
+    "requested": false,
+    "operational": false,
+    "mappings": [],
+    "unknownResponsibilityIds": [],
+    "duplicateResponsibilityIds": [],
+    "limit": 25,
+    "availableCount": 0,
+    "usedCount": 0,
+    "truncated": false,
+    "droppedCount": 0,
+    "criticalDropped": false,
+    "warnings": []
+  },
+  "roleAdequacy": {
+    "role": "implementation",
+    "status": "context sufficient with listed assumptions",
+    "requiredConditions": [
+      "selected owner evidence exists",
+      "required contract evidence exists",
+      "no critical unresolved implementation requirement remains",
+      "context is not stale"
+    ],
+    "satisfiedConditions": [
+      "selected owner evidence exists",
+      "required contract evidence exists",
+      "no critical unresolved implementation requirement remains",
+      "context is not stale"
+    ],
+    "missingConditions": [],
+    "blockingConditions": [],
+    "warnings": [],
+    "supportingEvidence": [],
+    "affectedResponsibilityIds": [],
+    "truncationImpact": false,
+    "freshnessImpact": false
+  },
+  "freshness": {
+    "state": "fresh",
+    "role": "implementation",
+    "evidenceUsed": [
+      "active index path",
+      "repository HEAD commit (informational; not recorded in the index manifest, so it cannot be compared)",
+      "beforeIndex/afterIndex graph diff",
+      "changed-surface evidence"
+    ],
+    "evidenceUnavailable": [],
+    "comparedIdentities": [
+      {
+        "label": "activeIndexPath",
+        "value": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation"
+      },
+      {
+        "label": "repositoryHeadCommit",
+        "value": "75b29272b2133f6f8d2944362ec12e5e89ebf283"
+      },
+      {
+        "label": "beforeIndexPath",
+        "value": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/baseline"
+      },
+      {
+        "label": "afterIndexPath",
+        "value": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation"
+      }
+    ],
+    "reason": "The active index path matches the supplied afterIndex, so the retrieved context reflects the post-change repository state.",
+    "relevantChangedPaths": [],
+    "warnings": []
+  },
+  "budget": {
+    "limits": [
+      {
+        "name": "candidates",
+        "declaredValue": null,
+        "usedValue": 22,
+        "availableCount": 22,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      },
+      {
+        "name": "graphDepth/graphNodes",
+        "declaredValue": null,
+        "usedValue": 1,
+        "availableCount": 1,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      },
+      {
+        "name": "sourceRanges",
+        "declaredValue": null,
+        "usedValue": 1,
+        "availableCount": 1,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      },
+      {
+        "name": "evidenceGroupEntries",
+        "declaredValue": null,
+        "usedValue": 84,
+        "availableCount": 113,
+        "droppedCount": 29,
+        "truncated": true,
+        "requiredEvidenceAffected": true,
+        "adequacyImpact": "Required evidence-group truncation may reduce role adequacy."
+      },
+      {
+        "name": "responsibilityMappings",
+        "declaredValue": 25,
+        "usedValue": 0,
+        "availableCount": 0,
+        "droppedCount": 0,
+        "truncated": false,
+        "requiredEvidenceAffected": false,
+        "adequacyImpact": null
+      }
+    ],
+    "characters": {
+      "measured": 41625,
+      "limit": null,
+      "truncated": false
+    },
+    "warnings": []
+  },
+  "truncation": {
+    "truncated": true,
+    "requiredEvidenceLost": false,
+    "records": [
+      {
+        "id": "truncation-group:implementation-compatibility-surfaces",
+        "affectedGroup": "implementation-compatibility-surfaces",
+        "limit": 8,
+        "used": 8,
+        "available": 29,
+        "droppedCount": 21,
+        "droppedEvidenceIds": [],
+        "requiredEvidenceLost": false,
+        "adequacyImpact": null,
+        "reason": "Group \"implementation-compatibility-surfaces\" exceeded its bounded limit (8); 21 item(s) were dropped in deterministic (score/path) order."
+      },
+      {
+        "id": "truncation-group:implementation-contracts",
+        "affectedGroup": "implementation-contracts",
+        "limit": 39,
+        "used": 39,
+        "available": 47,
+        "droppedCount": 8,
+        "droppedEvidenceIds": [],
+        "requiredEvidenceLost": false,
+        "adequacyImpact": null,
+        "reason": "Group \"implementation-contracts\" exceeded its bounded limit (39); 8 item(s) were dropped in deterministic (score/path) order."
+      }
+    ],
+    "warnings": [
+      "Required evidence was truncated in group \"implementation-contracts\" (8 item(s) dropped).",
+      "Required evidence was truncated in group \"implementation-compatibility-surfaces\" (21 item(s) dropped)."
+    ]
+  },
+  "fullFileFallback": {
+    "enabled": true,
+    "limit": 3,
+    "used": 0,
+    "fallbacks": [],
+    "warnings": []
+  },
+  "provenance": [
+    {
+      "id": "code-graph:src/android/androidComponentTypes.ts:file:src/android/androidComponentTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidComponentTypes.ts",
+      "sourceId": "file:src/android/androidComponentTypes.ts",
+      "evidenceId": "file:src/android/androidComponentTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidComponentTypes.ts:symbol:src/android/androidComponentTypes.ts#ANDROID_COMPONENTS_ARTIFACT_KIND",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidComponentTypes.ts",
+      "sourceId": "symbol:src/android/androidComponentTypes.ts#ANDROID_COMPONENTS_ARTIFACT_KIND",
+      "evidenceId": "symbol:src/android/androidComponentTypes.ts#ANDROID_COMPONENTS_ARTIFACT_KIND",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidComponentTypes.ts:symbol:src/android/androidComponentTypes.ts#AndroidComponentsArtifact",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidComponentTypes.ts",
+      "sourceId": "symbol:src/android/androidComponentTypes.ts#AndroidComponentsArtifact",
+      "evidenceId": "symbol:src/android/androidComponentTypes.ts#AndroidComponentsArtifact",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:file:src/android/androidGradleTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "file:src/android/androidGradleTypes.ts",
+      "evidenceId": "file:src/android/androidGradleTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:src/android/androidGradleTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": null,
+      "evidenceId": "src/android/androidGradleTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:symbol:src/android/androidGradleTypes.ts#ANDROID_GRADLE_ARTIFACT_KIND",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "symbol:src/android/androidGradleTypes.ts#ANDROID_GRADLE_ARTIFACT_KIND",
+      "evidenceId": "symbol:src/android/androidGradleTypes.ts#ANDROID_GRADLE_ARTIFACT_KIND",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:symbol:src/android/androidGradleTypes.ts#AndroidGradleArtifact",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleArtifact",
+      "evidenceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleArtifact",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:symbol:src/android/androidGradleTypes.ts#AndroidGradleIncludedBuild",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleIncludedBuild",
+      "evidenceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleIncludedBuild",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:symbol:src/android/androidGradleTypes.ts#AndroidGradleIncludedModule",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleIncludedModule",
+      "evidenceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleIncludedModule",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:symbol:src/android/androidGradleTypes.ts#AndroidGradlePlugin",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradlePlugin",
+      "evidenceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradlePlugin",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:symbol:src/android/androidGradleTypes.ts#AndroidGradleSettingsEvidence",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleSettingsEvidence",
+      "evidenceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleSettingsEvidence",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:symbol:src/android/androidGradleTypes.ts#AndroidGradleSourceSetOverride",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleSourceSetOverride",
+      "evidenceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleSourceSetOverride",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidGradleTypes.ts:symbol:src/android/androidGradleTypes.ts#AndroidGradleVersionCatalogPlugin",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidGradleTypes.ts",
+      "sourceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleVersionCatalogPlugin",
+      "evidenceId": "symbol:src/android/androidGradleTypes.ts#AndroidGradleVersionCatalogPlugin",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidManifestTypes.ts:file:src/android/androidManifestTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidManifestTypes.ts",
+      "sourceId": "file:src/android/androidManifestTypes.ts",
+      "evidenceId": "file:src/android/androidManifestTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidManifestTypes.ts:symbol:src/android/androidManifestTypes.ts#ANDROID_MANIFEST_ARTIFACT_KIND",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidManifestTypes.ts",
+      "sourceId": "symbol:src/android/androidManifestTypes.ts#ANDROID_MANIFEST_ARTIFACT_KIND",
+      "evidenceId": "symbol:src/android/androidManifestTypes.ts#ANDROID_MANIFEST_ARTIFACT_KIND",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidManifestTypes.ts:symbol:src/android/androidManifestTypes.ts#AndroidManifestArtifact",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidManifestTypes.ts",
+      "sourceId": "symbol:src/android/androidManifestTypes.ts#AndroidManifestArtifact",
+      "evidenceId": "symbol:src/android/androidManifestTypes.ts#AndroidManifestArtifact",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidManifestTypes.ts:symbol:src/android/androidManifestTypes.ts#AndroidManifestDeepLinkCandidate",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidManifestTypes.ts",
+      "sourceId": "symbol:src/android/androidManifestTypes.ts#AndroidManifestDeepLinkCandidate",
+      "evidenceId": "symbol:src/android/androidManifestTypes.ts#AndroidManifestDeepLinkCandidate",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidManifestTypes.ts:symbol:src/android/androidManifestTypes.ts#AndroidManifestIntentFilterEvidence",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidManifestTypes.ts",
+      "sourceId": "symbol:src/android/androidManifestTypes.ts#AndroidManifestIntentFilterEvidence",
+      "evidenceId": "symbol:src/android/androidManifestTypes.ts#AndroidManifestIntentFilterEvidence",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidNavigationTypes.ts:file:src/android/androidNavigationTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidNavigationTypes.ts",
+      "sourceId": "file:src/android/androidNavigationTypes.ts",
+      "evidenceId": "file:src/android/androidNavigationTypes.ts",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidNavigationTypes.ts:src/android/androidNavigationTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidNavigationTypes.ts",
+      "sourceId": null,
+      "evidenceId": "src/android/androidNavigationTypes.ts",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidNavigationTypes.ts:symbol:src/android/androidNavigationTypes.ts#ANDROID_NAVIGATION_ARTIFACT_KIND",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidNavigationTypes.ts",
+      "sourceId": "symbol:src/android/androidNavigationTypes.ts#ANDROID_NAVIGATION_ARTIFACT_KIND",
+      "evidenceId": "symbol:src/android/androidNavigationTypes.ts#ANDROID_NAVIGATION_ARTIFACT_KIND",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidNavigationTypes.ts:symbol:src/android/androidNavigationTypes.ts#AndroidComposeRoute",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidNavigationTypes.ts",
+      "sourceId": "symbol:src/android/androidNavigationTypes.ts#AndroidComposeRoute",
+      "evidenceId": "symbol:src/android/androidNavigationTypes.ts#AndroidComposeRoute",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidNavigationTypes.ts:symbol:src/android/androidNavigationTypes.ts#AndroidComposeScreenCandidate",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidNavigationTypes.ts",
+      "sourceId": "symbol:src/android/androidNavigationTypes.ts#AndroidComposeScreenCandidate",
+      "evidenceId": "symbol:src/android/androidNavigationTypes.ts#AndroidComposeScreenCandidate",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidNavigationTypes.ts:symbol:src/android/androidNavigationTypes.ts#AndroidNavigationArtifact",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidNavigationTypes.ts",
+      "sourceId": "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationArtifact",
+      "evidenceId": "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationArtifact",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidProjectTypes.ts:file:src/android/androidProjectTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidProjectTypes.ts",
+      "sourceId": "file:src/android/androidProjectTypes.ts",
+      "evidenceId": "file:src/android/androidProjectTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidProjectTypes.ts:symbol:src/android/androidProjectTypes.ts#ANDROID_PROJECT_ARTIFACT_KIND",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidProjectTypes.ts",
+      "sourceId": "symbol:src/android/androidProjectTypes.ts#ANDROID_PROJECT_ARTIFACT_KIND",
+      "evidenceId": "symbol:src/android/androidProjectTypes.ts#ANDROID_PROJECT_ARTIFACT_KIND",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidProjectTypes.ts:symbol:src/android/androidProjectTypes.ts#AndroidProjectArtifact",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidProjectTypes.ts",
+      "sourceId": "symbol:src/android/androidProjectTypes.ts#AndroidProjectArtifact",
+      "evidenceId": "symbol:src/android/androidProjectTypes.ts#AndroidProjectArtifact",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidResourceTypes.ts:file:src/android/androidResourceTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidResourceTypes.ts",
+      "sourceId": "file:src/android/androidResourceTypes.ts",
+      "evidenceId": "file:src/android/androidResourceTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidResourceTypes.ts:src/android/androidResourceTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidResourceTypes.ts",
+      "sourceId": null,
+      "evidenceId": "src/android/androidResourceTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidResourceTypes.ts:symbol:src/android/androidResourceTypes.ts#ANDROID_RESOURCES_ARTIFACT_KIND",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidResourceTypes.ts",
+      "sourceId": "symbol:src/android/androidResourceTypes.ts#ANDROID_RESOURCES_ARTIFACT_KIND",
+      "evidenceId": "symbol:src/android/androidResourceTypes.ts#ANDROID_RESOURCES_ARTIFACT_KIND",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidResourceTypes.ts:symbol:src/android/androidResourceTypes.ts#AndroidResourceDirectory",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidResourceTypes.ts",
+      "sourceId": "symbol:src/android/androidResourceTypes.ts#AndroidResourceDirectory",
+      "evidenceId": "symbol:src/android/androidResourceTypes.ts#AndroidResourceDirectory",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidResourceTypes.ts:symbol:src/android/androidResourceTypes.ts#AndroidResourceDirectoryQualifierInfo",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidResourceTypes.ts",
+      "sourceId": "symbol:src/android/androidResourceTypes.ts#AndroidResourceDirectoryQualifierInfo",
+      "evidenceId": "symbol:src/android/androidResourceTypes.ts#AndroidResourceDirectoryQualifierInfo",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidResourceTypes.ts:symbol:src/android/androidResourceTypes.ts#AndroidResourceFileProviderPathEntry",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidResourceTypes.ts",
+      "sourceId": "symbol:src/android/androidResourceTypes.ts#AndroidResourceFileProviderPathEntry",
+      "evidenceId": "symbol:src/android/androidResourceTypes.ts#AndroidResourceFileProviderPathEntry",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/androidResourceTypes.ts:symbol:src/android/androidResourceTypes.ts#AndroidResourcesArtifact",
+      "category": "code-graph",
+      "sourcePath": "src/android/androidResourceTypes.ts",
+      "sourceId": "symbol:src/android/androidResourceTypes.ts#AndroidResourcesArtifact",
+      "evidenceId": "symbol:src/android/androidResourceTypes.ts#AndroidResourcesArtifact",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/buildAndroidNavigationProject.ts:src/android/buildAndroidNavigationProject.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/buildAndroidNavigationProject.ts",
+      "sourceId": null,
+      "evidenceId": "src/android/buildAndroidNavigationProject.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/android/buildComposeNavigationRoutes.ts:src/android/buildComposeNavigationRoutes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/android/buildComposeNavigationRoutes.ts",
+      "sourceId": null,
+      "evidenceId": "src/android/buildComposeNavigationRoutes.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/context/types.ts:file:src/context/types.ts",
+      "category": "code-graph",
+      "sourcePath": "src/context/types.ts",
+      "sourceId": "file:src/context/types.ts",
+      "evidenceId": "file:src/context/types.ts",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/frontend/frontendTypes.ts:file:src/frontend/frontendTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/frontend/frontendTypes.ts",
+      "sourceId": "file:src/frontend/frontendTypes.ts",
+      "evidenceId": "file:src/frontend/frontendTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/indexing/managedArtifacts.ts:src/indexing/managedArtifacts.ts",
+      "category": "code-graph",
+      "sourcePath": "src/indexing/managedArtifacts.ts",
+      "sourceId": null,
+      "evidenceId": "src/indexing/managedArtifacts.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/indexing/manifestTypes.ts:file:src/indexing/manifestTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/indexing/manifestTypes.ts",
+      "sourceId": "file:src/indexing/manifestTypes.ts",
+      "evidenceId": "file:src/indexing/manifestTypes.ts",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/indexing/manifestTypes.ts:src/indexing/manifestTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/indexing/manifestTypes.ts",
+      "sourceId": null,
+      "evidenceId": "src/indexing/manifestTypes.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/indexing/runIndexCommand.ts:src/indexing/runIndexCommand.ts",
+      "category": "code-graph",
+      "sourcePath": "src/indexing/runIndexCommand.ts",
+      "sourceId": null,
+      "evidenceId": "src/indexing/runIndexCommand.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/indexing/writeIndexManifest.ts:src/indexing/writeIndexManifest.ts",
+      "category": "code-graph",
+      "sourcePath": "src/indexing/writeIndexManifest.ts",
+      "sourceId": null,
+      "evidenceId": "src/indexing/writeIndexManifest.ts",
+      "relationshipBasis": "structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/semantics/semanticTypes.ts:file:src/semantics/semanticTypes.ts",
+      "category": "code-graph",
+      "sourcePath": "src/semantics/semanticTypes.ts",
+      "sourceId": "file:src/semantics/semanticTypes.ts",
+      "evidenceId": "file:src/semantics/semanticTypes.ts",
+      "relationshipBasis": "contract-like candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    },
+    {
+      "id": "code-graph:src/symbol-index/types.ts:file:src/symbol-index/types.ts",
+      "category": "code-graph",
+      "sourcePath": "src/symbol-index/types.ts",
+      "sourceId": "file:src/symbol-index/types.ts",
+      "evidenceId": "file:src/symbol-index/types.ts",
+      "relationshipBasis": "contract-like candidate; structural owner candidate",
+      "role": "implementation",
+      "requestField": null,
+      "derivedByModule": "evidenceGroups.ts"
+    }
+  ],
+  "roleConditionCoverage": [
+    {
+      "conditionId": "implementation.selected-owner",
+      "role": "implementation",
+      "required": true,
+      "evidenceGroupIds": [
+        "implementation-owners"
+      ],
+      "witnessPolicy": "at-least-one",
+      "requiredWitnessCount": 1,
+      "availableWitnessCount": 15,
+      "retainedWitnessCount": 15,
+      "retainedWitnessIds": [
+        "file:src/android/androidNavigationTypes.ts",
+        "file:src/context/types.ts",
+        "file:src/indexing/manifestTypes.ts",
+        "file:src/symbol-index/types.ts",
+        "src/android/androidNavigationTypes.ts",
+        "src/android/buildAndroidNavigationProject.ts",
+        "src/android/buildComposeNavigationRoutes.ts",
+        "src/indexing/managedArtifacts.ts",
+        "src/indexing/manifestTypes.ts",
+        "src/indexing/runIndexCommand.ts",
+        "src/indexing/writeIndexManifest.ts",
+        "symbol:src/android/androidNavigationTypes.ts#ANDROID_NAVIGATION_ARTIFACT_KIND",
+        "symbol:src/android/androidNavigationTypes.ts#AndroidComposeRoute",
+        "symbol:src/android/androidNavigationTypes.ts#AndroidComposeScreenCandidate",
+        "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationArtifact"
+      ],
+      "conditionSatisfied": true,
+      "lostRequiredCondition": false,
+      "lossReason": null,
+      "evaluationOrder": 10
+    },
+    {
+      "conditionId": "implementation.required-contract",
+      "role": "implementation",
+      "required": true,
+      "evidenceGroupIds": [
+        "implementation-contracts"
+      ],
+      "witnessPolicy": "at-least-one",
+      "requiredWitnessCount": 1,
+      "availableWitnessCount": 47,
+      "retainedWitnessCount": 39,
+      "retainedWitnessIds": [
+        "file:src/android/androidComponentTypes.ts",
+        "file:src/android/androidGradleTypes.ts",
+        "file:src/android/androidManifestTypes.ts",
+        "file:src/android/androidNavigationTypes.ts",
+        "file:src/android/androidProjectTypes.ts",
+        "file:src/android/androidResourceTypes.ts",
+        "file:src/context/types.ts",
+        "file:src/frontend/frontendTypes.ts",
+        "file:src/indexing/manifestTypes.ts",
+        "file:src/semantics/semanticTypes.ts",
+        "file:src/symbol-index/types.ts",
+        "src/android/androidGradleTypes.ts",
+        "src/android/androidNavigationTypes.ts",
+        "src/android/androidResourceTypes.ts",
+        "symbol:src/android/androidComponentTypes.ts#ANDROID_COMPONENTS_ARTIFACT_KIND",
+        "symbol:src/android/androidComponentTypes.ts#AndroidComponentsArtifact",
+        "symbol:src/android/androidGradleTypes.ts#ANDROID_GRADLE_ARTIFACT_KIND",
+        "symbol:src/android/androidGradleTypes.ts#AndroidGradleArtifact",
+        "symbol:src/android/androidGradleTypes.ts#AndroidGradleIncludedBuild",
+        "symbol:src/android/androidGradleTypes.ts#AndroidGradleIncludedModule",
+        "symbol:src/android/androidGradleTypes.ts#AndroidGradlePlugin",
+        "symbol:src/android/androidGradleTypes.ts#AndroidGradleSettingsEvidence",
+        "symbol:src/android/androidGradleTypes.ts#AndroidGradleSourceSetOverride",
+        "symbol:src/android/androidGradleTypes.ts#AndroidGradleVersionCatalogPlugin",
+        "symbol:src/android/androidManifestTypes.ts#ANDROID_MANIFEST_ARTIFACT_KIND",
+        "symbol:src/android/androidManifestTypes.ts#AndroidManifestArtifact",
+        "symbol:src/android/androidManifestTypes.ts#AndroidManifestDeepLinkCandidate",
+        "symbol:src/android/androidManifestTypes.ts#AndroidManifestIntentFilterEvidence",
+        "symbol:src/android/androidNavigationTypes.ts#ANDROID_NAVIGATION_ARTIFACT_KIND",
+        "symbol:src/android/androidNavigationTypes.ts#AndroidComposeRoute",
+        "symbol:src/android/androidNavigationTypes.ts#AndroidComposeScreenCandidate",
+        "symbol:src/android/androidNavigationTypes.ts#AndroidNavigationArtifact",
+        "symbol:src/android/androidProjectTypes.ts#ANDROID_PROJECT_ARTIFACT_KIND",
+        "symbol:src/android/androidProjectTypes.ts#AndroidProjectArtifact",
+        "symbol:src/android/androidResourceTypes.ts#ANDROID_RESOURCES_ARTIFACT_KIND",
+        "symbol:src/android/androidResourceTypes.ts#AndroidResourceDirectory",
+        "symbol:src/android/androidResourceTypes.ts#AndroidResourceDirectoryQualifierInfo",
+        "symbol:src/android/androidResourceTypes.ts#AndroidResourceFileProviderPathEntry",
+        "symbol:src/android/androidResourceTypes.ts#AndroidResourcesArtifact"
+      ],
+      "conditionSatisfied": true,
+      "lostRequiredCondition": false,
+      "lossReason": null,
+      "evaluationOrder": 20
+    }
+  ]
+}

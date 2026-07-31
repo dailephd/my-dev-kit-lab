@@ -1,0 +1,354 @@
+Artifact: TestStrategyPacket
+Workflow mode: feature
+Inputs used:
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/request-brief.txt
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/architecture-context-packet.txt
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/behavior-model.txt
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/pseudocode-packet.txt
+- Direct repository inspection: tests/android/composeNavigationRoutes.spec.ts (205 lines, read for pattern), tests/index/androidNavigationIncremental.spec.ts (234 lines, listed), tests/android/androidNavigationProject.spec.ts (85 lines, listed), full `tests/` directory listing for android/compose-related file inventory, package.json scripts (test, typecheck, build, verify)
+
+Existing tests (closest owners, confirmed present in the repository):
+- tests/android/composeNavigationRoutes.spec.ts — closest unit-test-owner pattern: builds an in-memory temp fixture app (mkdtempSync + writeFileSync), runs buildIndex + detectAndroidProject, then calls the analyzer function directly and asserts on its return value. This exact pattern (not vi mocks, not CLI invocation) is the pattern for the new src/android/buildAndroidComposeSemanticProject.ts unit/component tests.
+- tests/android/androidNavigationProject.spec.ts — closest orchestration-level unit-test owner (tests buildAndroidNavigationProject's artifact-assembly behavior, not just the Compose-route sub-scanner) — pattern for artifact-shape/detected-gating tests.
+- tests/index/androidNavigationIncremental.spec.ts — closest incremental-regression test owner (--incremental add/change/remove-evidence scenarios against runIndexCommand). Pattern for the new incremental-regression tests (PSE-029).
+- tests/integration/androidV110Artifacts.spec.ts, tests/integration/androidV110Incremental.spec.ts — closest full-pipeline integration-test owners (multiple Android artifacts asserted together via a single index run). Pattern for artifact-presence/absence + manifest-registration integration tests (PSE-026).
+- tests/graph-diff/androidGraphDiffCompatibility.spec.ts — confirms the existing convention for asserting an Android artifact does NOT participate in graph-diff; NOT extended in Batch 1 (graph-diff integration is out of scope), but its existence is evidence that "compatibility" tests for new Android artifacts follow a known, low-effort pattern if ever needed later.
+- No existing test file targets Compose *declaration* extraction (only Compose *route* extraction exists today) — a new focused test file is required per external contract Section 16 ("a new focused Compose analyzer test file only if no existing test owner is appropriate"), justified: declaration-level extraction is a materially different responsibility (annotations/scope/body-range/child-calls vs. route-string extraction) with no existing exact owner.
+
+Test matrix / test responsibilities:
+
+test responsibility ID: TST-001
+description: extracts a simple public top-level @Composable declaration
+  criticality: critical
+  traces to: BEH-001, BEH-002, BEH-008, PSE-012, PSE-013, PSE-017
+  setup: temp Android+Kotlin fixture app (writeAppScaffold pattern) with one Kotlin file containing `@Composable fun SimpleScreen() { Text("hi") }`
+  action or trigger: call buildAndroidComposeSemanticProject() directly with the built symbolIndex/androidProject
+  expected result: artifact.detected === true; declarations has exactly one entry with scope 'top-level', visibility 'public', isPreview false, name 'SimpleScreen'
+  test level: unit
+  behavior under test: BEH-001/BEH-008 (exact-annotation-gated extraction)
+
+test responsibility ID: TST-002
+description: extracts a top-level composable with parameters and records statically available parameter summaries
+  criticality: noncritical
+  traces to: PSE-004, PSE-017 (parseParameterList)
+  setup: `@Composable fun Greeting(name: String, modifier: Modifier = Modifier)`
+  action or trigger: run analyzer
+  expected result: declaration.parameters has two entries with name/typeText populated for the statically simple case
+  test level: unit
+  behavior under test: derived value (ComposeParameterSummary)
+
+test responsibility ID: TST-003
+description: distinguishes a private top-level composable from a public one
+  criticality: critical
+  traces to: INV-002, BEH-008
+  setup: `private @Composable fun InternalPiece()` alongside a public one in the same file
+  action or trigger: run analyzer
+  expected result: the private declaration's visibility === 'private', scope still 'top-level' (not 'function-local')
+  test level: unit
+  invariant under test: INV-002
+
+test responsibility ID: TST-004
+description: extracts a named function-local composable and sets its enclosingDeclarationId
+  criticality: critical
+  traces to: INV-002, BEH-008, PSE-013 (declarationStack)
+  setup: a non-Composable enclosing `fun Screen() { @Composable fun InnerPiece() { ... }; InnerPiece() }`
+  action or trigger: run analyzer
+  expected result: two extraction outcomes depending on pseudocode's exact contract — assert only the function-local composable is extracted (scope: 'function-local', enclosingDeclarationId references the enclosing frame's tracked id even though the enclosing plain `fun Screen()` is itself not a declarations[] entry, since it's not Compose-annotated) and a childCall from... N/A here since child-call resolution requires the enclosing function itself be a tracked composable; this case exercises enclosingDeclarationId population against a non-Compose enclosing frame specifically, per pseudocode-packet PSE-013's explicit "enclosing frame's OWN id is only referenced, never itself added to declarations unless separately Compose-annotated"
+  test level: unit
+  invariant under test: INV-002, PSE-013 enclosing-frame tracking
+
+test responsibility ID: TST-005
+description: distinguishes a private top-level composable from a function-local composable (both are "not public top-level API" in casual terms, but structurally different)
+  criticality: critical
+  traces to: INV-002 (explicit non-conflation requirement)
+  setup: one file containing both a `private fun` top-level composable and a same-named-pattern function-local composable in different enclosing functions
+  action or trigger: run analyzer
+  expected result: the two are never conflated: scope fields differ ('top-level' vs 'function-local'), and visibility/enclosingDeclarationId differ accordingly
+  test level: unit
+  invariant under test: INV-002
+
+test responsibility ID: TST-006
+description: identifies @Preview + @Composable declarations
+  criticality: critical
+  traces to: BEH-009
+  setup: `@Preview\n@Composable\nfun ScreenPreview()`
+  action or trigger: run analyzer
+  expected result: isPreview === true; a same-file non-preview composable has isPreview === false
+  test level: unit
+  behavior under test: BEH-009
+
+test responsibility ID: TST-007
+description: extracts a direct, exactly-resolved parent-to-child composable call
+  criticality: critical
+  traces to: BEH-010, INV-003, PSE-016, PSE-018
+  setup: `@Composable fun Parent() { Child() }` and `@Composable fun Child() {}` in the same file
+  action or trigger: run analyzer
+  expected result: Parent's declaration.childCalls has exactly one entry with calleeDeclarationId === Child's id
+  test level: unit
+  behavior/invariant under test: BEH-010, INV-003
+
+test responsibility ID: TST-008
+description: does not record a child-call for an unresolved/ambiguous callee
+  criticality: critical
+  traces to: INV-003, PSE-018 (0-match and >1-match branches)
+  setup: (a) `Parent()` calls `SomeUnknownCall()` with no matching same-file declaration; (b) two function-local composables both named `Item` in different enclosing functions, both called from a third composable
+  action or trigger: run analyzer
+  expected result: (a) no childCalls entry and no warning (silent omission per BEH-010); (b) no childCalls entry recorded for the ambiguous name AND a warning string is present in artifact.warnings
+  test level: unit
+  invariant under test: INV-003
+
+test responsibility ID: TST-009
+description: does not infer a child-call from capitalization/naming similarity alone
+  criticality: critical
+  traces to: 14.6 (external contract), INV-003
+  setup: `Parent()` calls `Row(...)` (a structural region, uppercase, but not itself a declared composable in this file)
+  action or trigger: run analyzer
+  expected result: Row is recorded only in structuralRegions, never in childCalls (since it does not exactly match a same-file Compose-declaration name)
+  test level: unit
+  boundary under test: structural-region vs. child-call disambiguation
+
+test responsibility ID: TST-010
+description: extracts each of the seven fixed structural UI-region calls without overclaiming route/runtime facts
+  criticality: critical
+  traces to: BEH-011
+  setup: one composable body containing Scaffold, LazyColumn, LazyRow, Column, Row, Box, and NavHost calls (NavHost included specifically to prove no route is extracted from it in this artifact)
+  action or trigger: run analyzer
+  expected result: structuralRegions has exactly 7 entries, one per kind, in body order; no route/destination fields anywhere on the entry (type-level check plus a runtime assertion the object has no such keys)
+  test level: unit
+  behavior under test: BEH-011
+
+test responsibility ID: TST-011
+description: rejects a false-positive @Composable-looking annotation inside a line comment
+  criticality: critical
+  traces to: BEH-012, "Conservative parsing" (external contract 14.5), negative fixture requirement
+  setup: `// @Composable fun Fake() {}` followed by real unrelated code
+  action or trigger: run analyzer
+  expected result: no declaration extracted for "Fake"; no false warning
+  test level: unit
+  failure mode under test: comment-text false positive
+
+test responsibility ID: TST-012
+description: rejects a false-positive @Composable-looking text inside a string literal
+  criticality: critical
+  traces to: BEH-012, external contract 14.5
+  setup: `val s = "@Composable fun NotReal() {}"`
+  action or trigger: run analyzer
+  expected result: no declaration extracted for "NotReal"
+  test level: unit
+  failure mode under test: string-literal false positive
+
+test responsibility ID: TST-013
+description: does not classify an anonymous composable lambda or a higher-order-function-returned composable as a named declaration
+  criticality: critical
+  traces to: external contract Section 2.3 "must not claim support", BEH-012
+  setup: `val lambda: @Composable () -> Unit = { Text("x") }` and `fun rememberScreen(): @Composable () -> Unit = { ... }`
+  action or trigger: run analyzer
+  expected result: no declaration entries produced for either pattern; declarations array unaffected by their presence in the file
+  test level: unit
+  boundary under test: named-function requirement (FUNCTION_PATTERN match required, not just annotation presence)
+
+test responsibility ID: TST-014
+description: does not extract an unsupported member composable inside a class/object body (records a warning if the pattern is annotation-recognizable)
+  criticality: noncritical
+  traces to: external contract Section 2.3/2.5, BEH-012
+  setup: `class ScreenHost { @Composable fun Render() {} }`
+  action or trigger: run analyzer
+  expected result: no declaration entry for Render(); a stable warning string referencing the unsupported nesting context is present in artifact.warnings
+  test level: unit
+  failure mode under test: unsupported-nesting-context degrade-to-warning path (PSE-013 scope === null branch)
+
+test responsibility ID: TST-015
+description: captures complete deterministic source ranges across multiline annotations and multiline signatures
+  criticality: critical
+  traces to: BEH-007, BEH-013, "Source ranges" (external contract 14.4)
+  setup: an annotation split across two lines is not realistic in Kotlin (annotations are single-token) — instead: a multiline function signature (`@Composable\nfun LongSignature(\n  a: String,\n  b: Int\n) {\n  ...\n}`)
+  action or trigger: run analyzer
+  expected result: sourceRange.startLine === the @Composable annotation's line; sourceRange.endLine === the closing brace's line; range fully contains the signature and body
+  test level: unit
+  behavior under test: BEH-013, PSE-014
+
+test responsibility ID: TST-016
+description: captures a complete source range for an expression-body declaration
+  criticality: noncritical
+  traces to: PSE-014 expression-body branch, "expression-body functions where safely supported" (external contract fixture requirement)
+  setup: `@Composable fun Label(text: String) = Text(text)`
+  action or trigger: run analyzer
+  expected result: sourceRange spans exactly the single logical statement; declaration is still extracted with a valid, non-degenerate range
+  test level: unit
+  behavior under test: PSE-014 expression-body rule
+
+test responsibility ID: TST-017
+description: captures correct adjacent-declaration boundaries (no bleed between two back-to-back composables)
+  criticality: critical
+  traces to: BEH-013, "adjacent declarations" (external contract fixture requirement)
+  setup: two `@Composable fun` declarations directly adjacent with no blank line between them
+  action or trigger: run analyzer
+  expected result: each declaration's sourceRange.endLine is strictly less than the next declaration's sourceRange.startLine (or annotation-inclusive start line); no overlap
+  test level: unit
+  invariant under test: "a declaration record whose sourceRange does not fully contain its own annotations+signature+body" (behavior-model.txt Invalid states)
+
+test responsibility ID: TST-018
+description: deterministic IDs and ordering across two runs of byte-identical input
+  criticality: critical
+  traces to: INV-005, PSE-020, PSE-028
+  setup: run buildAndroidComposeSemanticProject() twice over the same fixture without any filesystem mutation between runs
+  action or trigger: compare both results
+  expected result: declarations arrays are deeply equal except createdAt/any explicitly-timestamped field; IDs identical; array order identical
+  test level: unit
+  invariant under test: INV-005
+
+test responsibility ID: TST-019
+description: deterministic tie-breaking for duplicate declaration keys within one file
+  criticality: noncritical
+  traces to: PSE-020 ordinal-suffix rule
+  setup: a malformed/contrived fixture with two identically-named top-level composables in one file (not valid idiomatic Kotlin, but the scanner must not crash or produce colliding IDs)
+  action or trigger: run analyzer
+  expected result: first occurrence gets the unsuffixed id, second gets an ordinal-suffixed id; no ID collision; no crash
+  test level: unit
+  invariant under test: "two declaration records sharing the same id" (Invalid states)
+
+test responsibility ID: TST-020
+description: gates entirely on androidProject.detected (Compose scanning does not run for a non-Android Kotlin project)
+  criticality: critical
+  traces to: BEH-001 gate, behavior-model.txt "Unresolved design questions" resolution
+  setup: a plain Kotlin project fixture (no AndroidManifest.xml/Gradle Android evidence) containing a valid `@Composable fun Screen()`
+  action or trigger: detectAndroidProject() returns detected:false; run buildAndroidComposeSemanticProject() with that result
+  expected result: artifact.detected === false, declarations === [], no analyzer work performed beyond the immediate early return
+  test level: unit
+  behavior under test: BEH-001 gate
+
+test responsibility ID: TST-021
+description: artifact absent when Android project detected but zero supported Compose declarations exist
+  criticality: critical
+  traces to: BEH-003, "Empty states" (behavior-model.txt)
+  setup: Android+Kotlin fixture app with only non-Compose Kotlin code
+  action or trigger: run full runIndexCommand() against the fixture
+  expected result: no android-compose-semantic.json written to the output directory; manifest.analyzers has an 'android-compose-semantic' entry with status 'skipped', summary.detected === false
+  test level: integration (full index pipeline)
+  behavior under test: BEH-003
+
+test responsibility ID: TST-022
+description: artifact present with correct manifest registration when supported Compose declarations exist
+  criticality: critical
+  traces to: BEH-002, BEH-014, PSE-021..PSE-024
+  setup: Android+Kotlin fixture app with 2+ supported Compose declarations across 2 files
+  action or trigger: run full runIndexCommand()
+  expected result: android-compose-semantic.json exists at the expected output path and parses as valid JSON matching AndroidComposeSemanticArtifact's shape; manifest.analyzers has an 'android-compose-semantic' entry with status 'complete' (or 'partial' if warnings exist) and artifacts[0].path === 'android-compose-semantic.json'; RunIndexCommandIndexResult.androidComposeSemanticPath is a non-null path
+  test level: integration
+  behavior under test: BEH-002, BEH-014
+
+test responsibility ID: TST-023
+description: existing android-navigation.json shape and content are byte-for-byte unaffected by this batch
+  criticality: critical
+  traces to: BEH-005, INV-006
+  setup: the same fixture app used for an existing android-navigation test (androidNavigationProject.spec.ts's fixtures, reused verbatim, not modified), run before and after this batch's code exists is not directly testable in one commit — instead: assert the post-Batch-1 output's android-navigation.json against the pre-existing test's already-asserted expected shape (i.e. re-run the EXISTING androidNavigationProject.spec.ts test file unmodified and confirm it still passes)
+  action or trigger: `vitest run tests/android/androidNavigationProject.spec.ts tests/android/composeNavigationRoutes.spec.ts` (existing, unmodified files)
+  expected result: all existing assertions pass unchanged
+  test level: regression (existing suite, unmodified)
+  behavior under test: BEH-005, INV-006
+
+test responsibility ID: TST-024
+description: existing Kotlin adapter tests unchanged
+  criticality: critical
+  traces to: INV-007, "Kotlin indexing behavior" preserved (external contract Section 7)
+  setup: n/a (existing test file, not modified)
+  action or trigger: run the existing Kotlin-adapter test file(s) unmodified
+  expected result: all pass unchanged, proving src/languages/kotlin/adapter.ts was not touched
+  test level: regression
+
+test responsibility ID: TST-025
+description: --incremental adds a supported Compose declaration -> artifact appears on next incremental run
+  criticality: critical
+  traces to: BEH-015, TRN-001, PSE-029
+  setup: index a fixture app with no Compose declarations under --incremental, then add a Kotlin file with a supported composable and re-run --incremental
+  action or trigger: two sequential `runIndexCommand({incremental:true})` calls (or CLI invocations) with a file added between them
+  expected result: after run 1, android-compose-semantic.json absent; after run 2, present with the new declaration; cache mode reflects the existing changed-file classification (incremental-partial or incremental-change-detected-full-rebuild, whichever the existing eligibility logic selects — this test asserts artifact correctness, not which specific cache mode was chosen, since that choice is pre-existing, unmodified behavior)
+  test level: integration
+  behavior/transition under test: BEH-015, TRN-001
+
+test responsibility ID: TST-026
+description: --incremental changes a supported Compose declaration's body -> artifact content refreshes with a new/changed declaration entry
+  criticality: critical
+  traces to: BEH-015, PSE-029
+  setup: index a fixture with one composable, then modify its body (add a child call) and re-run --incremental
+  action or trigger: two sequential incremental runs with an edit between them
+  expected result: the declaration's childCalls (or sourceRange) reflects the edit after run 2; no stale cached content
+  test level: integration
+  behavior under test: BEH-015
+
+test responsibility ID: TST-027
+description: --incremental removes the last supported Compose declaration -> artifact is removed on the next refresh-reaching run
+  criticality: critical
+  traces to: BEH-003, TRN-002, PSE-029
+  setup: index a fixture with one composable, delete the file (or the declaration) and re-run --incremental
+  action or trigger: two sequential incremental runs with a deletion between them
+  expected result: android-compose-semantic.json is absent after run 2 (removed by refreshIndexOutput's blanket-cleanup-then-conditional-rewrite, since the second run's writeIndexArtifacts call omits androidComposeSemantic)
+  test level: integration
+  transition under test: TRN-002
+
+test responsibility ID: TST-028
+description: --incremental with only unrelated (non-Kotlin) file changes produces a byte-identical Compose artifact
+  criticality: noncritical
+  traces to: TRN-003, INV-005
+  setup: index a fixture with a Compose declaration, then change an unrelated file (e.g. a resource XML) and re-run --incremental
+  action or trigger: two sequential incremental runs with only a non-Kotlin change between them
+  expected result: android-compose-semantic.json content is unchanged (modulo createdAt) between run 1 and run 2
+  test level: integration
+  invariant under test: INV-005, no separate cache introduced
+
+test responsibility ID: TST-029
+description: old manifest.json without an 'android-compose-semantic' analyzer entry remains readable and does not break existing manifest-compatibility handling
+  criticality: critical
+  traces to: "Old indexes" (external contract Section 7/10), PSE-025
+  setup: a manifest.json fixture from before this batch (or a hand-constructed one lacking the new analyzer entry) fed through any existing manifest-reading code path exercised by the incremental no-op fast path (tryReadExistingManifest / resolveAnalyzerArtifactPathFromManifest)
+  action or trigger: run the incremental no-op fast path against such a manifest
+  expected result: no exception; resolveAnalyzerArtifactPathFromManifest for 'android-compose-semantic' returns null gracefully (mirrors the existing optional-chaining pattern already used for every other analyzer id)
+  test level: integration
+  external contract under test: manifest backward compatibility
+
+test responsibility ID: TST-030
+description: non-Android project behavior (existing TypeScript/Python/Java-only fixtures) is unaffected
+  criticality: critical
+  traces to: "Non-Android behavior remains unchanged" (external contract Section 7/21)
+  setup: n/a (existing non-Android test fixtures/suites, unmodified)
+  action or trigger: run the existing non-Android integration/unit suites unmodified
+  expected result: all pass unchanged; no android-compose-semantic.json artifact appears anywhere in their output
+  test level: regression
+
+test responsibility ID: TST-031
+description: existing command output (search/lookup/slice/source/view/context/graph-diff) is byte-for-byte unaffected
+  criticality: critical
+  traces to: BEH-004, forbidden-edit-area constraint verification
+  setup: n/a (existing command test suites under tests/cli, tests/graph-diff, tests/context, unmodified)
+  action or trigger: run existing command test suites unmodified
+  expected result: all pass unchanged
+  test level: regression
+
+test responsibility ID: TST-032
+description: typecheck/build/verify succeed with the new files and modified integration points
+  criticality: critical
+  traces to: external contract Section 20/21
+  setup: n/a
+  action or trigger: `npm run typecheck`, `npm run build`, `npm run verify`
+  expected result: exit code 0 for each
+  test level: build/static-analysis
+
+Test level assignment summary:
+- unit: TST-001..TST-020 (src/android/buildAndroidComposeSemanticProject.ts direct function calls, new test file tests/android/composeSemanticDeclarations.spec.ts)
+- integration: TST-021, TST-022, TST-025..TST-029 (full runIndexCommand() pipeline, new/extended tests under tests/index/ and tests/integration/)
+- regression (existing, unmodified): TST-023, TST-024, TST-030, TST-031
+- build/static-analysis: TST-032
+
+Required verification commands (grounded in package.json, confirmed present):
+- Focused: `npx vitest run tests/android/composeSemanticDeclarations.spec.ts` (new file, exact name TBD at implementation)
+- Focused: `npx vitest run tests/android tests/index/androidComposeSemanticIncremental.spec.ts tests/integration` (new + closest existing Android suites)
+- Full: `npm test` (vitest run, whole suite)
+- Static: `npm run typecheck`, `npm run build`, `npm run verify`
+- Explicitly NOT run: `npm run benchmark:retrieval` (retrieval behavior unchanged, external contract Section 16/20 exclusion)
+
+Coverage gaps / risks not covered and why:
+- Compose Multiplatform (non-Android) Compose usage is not covered — explicitly out of scope per the behavior-model.txt gate resolution (Compose scanning only runs when androidProject.detected); if this gate resolution is later found wrong, this entire test surface would need to expand, but that is a product-scope question, not a Batch 1 test gap.
+- Cross-file child-call resolution is not covered by any positive test (only same-file, per pseudocode-packet's PSE-018 same-file-only assumption-guard) — TST-008(a) proves the negative (unresolved, not guessed) but there is no test proving cross-file calls are *correctly* left unresolved with a *specific* warning, since PSE-018 specifies silent omission (not a warning) for the plain 0-match case, which already includes cross-file calls; this is intentional and consistent with BEH-010, not a gap.
+- Extremely large Kotlin files (near/at MAX_SCAN_LINES) are not covered by a dedicated performance/truncation test in this packet; the existing buildComposeNavigationRoutes.ts precedent's own truncation-warning behavior is trusted by analogy but not independently re-verified for the new analyzer. Flagged as a noncritical gap; may be added opportunistically during implementation if low-cost, not required for PASS.
+
+Status: complete

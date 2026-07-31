@@ -1,0 +1,84 @@
+Schema version: 1.0.0
+Document kind: test-context-retrieval-report
+Role: test-implementation
+Status: populated
+Repository scope: single-repository
+Request schema version: 1.0.0
+Context capsule schema version: 1.0.0
+Retrieval audit schema version: 1.0.0
+Tool name: my-dev-kit
+Tool version: 1.10.3
+Index identity: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test
+Freshness: fresh
+Adequacy: sufficient-with-assumptions
+Required evidence truncated: no
+Source context capsule: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test-capsule.json
+Source retrieval audit: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test-audit.json
+After index: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test
+Responsibility mappings truncated: no
+Critical responsibility mapping status: not-applicable
+Full-file fallback used: no
+Determinism checked: no
+
+## Retrieval request
+File: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test-request.json
+Query (verbatim, matches the orchestrator-mandated exact text): "Retrieve the exact changed Compose artifact production surface, closest existing Android and indexing tests, fixture owners, test infrastructure, grounded test commands, and mappings needed to test Batch 1 declaration extraction, artifact lifecycle, determinism, stale cleanup, incremental invalidation, and compatibility."
+Mode: feature-add. Role: test-implementation.
+changedFiles: the 6 actually-modified/created production files (androidComposeTypes.ts, buildAndroidComposeSemanticProject.ts, android/index.ts, managedArtifacts.ts, writeIndexManifest.ts, runIndexCommand.ts).
+focusFiles: the 6 changedFiles plus the 2 new test files.
+beforeIndex: .../implementation  afterIndex: .../test (test index built after production AND test files existed on disk).
+testResponsibilityRefs: intentionally omitted — this run's TST-001..TST-032 identifiers were assigned locally in test-strategy-packet.txt and were never round-tripped through a stable-ID-verifying my-dev-kit command, so per Section 17's "do not invent stable symbol IDs" instruction they were not supplied as testResponsibilityRefs. responsibilityMappings.operational is therefore false in the raw capsule (see Adequacy evaluation below) — this is an accurate reflection of a field genuinely not exercised, not a retrieval failure.
+
+## Command record
+node "Z:\Users\newuser\Projects\my-dev-kit-v1\dist\cli.js" index --root "Z:\Users\newuser\Projects\my-dev-kit-v1" --src src --src tests --out "Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\test" --json
+node "Z:\Users\newuser\Projects\my-dev-kit-v1\dist\cli.js" graph-diff --before "Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\implementation" --after "Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\test" --json
+node "Z:\Users\newuser\Projects\my-dev-kit-v1\dist\cli.js" context --request "Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\test-request.json" --json
+
+## Changed-surface selection
+6 production files (see above), all confirmed present and correctly identified in the after-index (file count grew by exactly 2 new production files: androidComposeTypes.ts, buildAndroidComposeSemanticProject.ts; the other 4 changedFiles are pre-existing files with additive edits). graph-diff between the implementation index and the test index (implementation-to-test-diff.json) confirms only the expected additive symbol/edge growth from the two new production files plus the two new test files' own symbols — no unexpected file appears changed or removed.
+
+## Production-owner selection
+Owners of the changed surface: src/android/ (androidComposeTypes.ts, buildAndroidComposeSemanticProject.ts, index.ts) and src/indexing/ (managedArtifacts.ts, writeIndexManifest.ts, runIndexCommand.ts) — identical ownership already established and confirmed in architecture-context-packet.txt and implementation-context-packet.txt; not re-derived from scratch here, only reconfirmed present and unchanged in ownership.
+
+## Test-infrastructure discovery
+Raw capsule testInfrastructure.testConfigurations: one entry, vitest.config.ts (framework: vitest, include: tests/**/*.spec.ts, exclude: tests/**/fixtures/**, testTimeout/hookTimeout: 20000ms, maxWorkers: 4) — confirms the fixture directories under tests/fixtures/android-compose-semantic/ are correctly excluded from direct test-file discovery (they are data, not spec files, matching the existing tests/fixtures/android-navigation/ convention).
+Raw capsule testInfrastructure.relatedTests/fixtures/factories/mocks/setupFiles: all empty arrays in the raw capsule — this evidence group requires testResponsibilityRefs to be operational to populate (see "Retrieval request" note above); it is not a sign that no related tests exist. The actual closest-test owners (tests/android/composeNavigationRoutes.spec.ts, tests/android/androidNavigationProject.spec.ts, tests/index/androidNavigationIncremental.spec.ts, tests/integration/androidV110Artifacts.spec.ts) were already identified with certainty in test-strategy-packet.txt via direct repository listing (Glob/Grep), not re-derived here.
+
+## Test-command discovery
+Raw capsule testInfrastructure.packageScripts (grounded, not invented): "test" -> "vitest run", "build" -> "tsup", "docs:check" -> "tsx scripts/docs/checkDocs.ts", "benchmark:retrieval" -> (excluded per external contract Section 20), "test:security" -> "vitest run tests/security" (not relevant to this batch). Combined with "typecheck" (present in package.json but not surfaced by this evidence group's naming heuristic; already confirmed directly in test-strategy-packet.txt).
+
+## Responsibility mapping
+Not operational in the raw capsule (responsibilityMappings.requested: true, operational: false, mappings: [], availableCount: 0) — no testResponsibilityRefs were supplied (see "Retrieval request" above). Responsibility-to-test mapping was instead performed manually in test-strategy-packet.txt (TST-001..TST-032, each with "traces to" a BEH/INV/TRN/PSE ID) and confirmed against the actual test files written in the implementation stage (composeSemanticDeclarations.spec.ts covers TST-001..TST-020-equivalent; androidComposeSemanticIncremental.spec.ts covers TST-021/022/025..029; existing unmodified suites cover TST-023/024/030/031; TST-032 covered by the static-analysis commands already run).
+
+## Criticality overlay
+Not operational for the same reason as responsibility mapping (no testResponsibilityRefs supplied). Criticality for each TST-NNN responsibility was assigned directly in test-strategy-packet.txt (critical/noncritical) at design time, per that stage's own instructions ("Criticality is owned by this packet, not by any external retrieval tool").
+
+## Adequacy evaluation
+Raw capsule.roleAdequacy.status: "context sufficient with listed assumptions" (role: test-implementation). missingConditions: ["required test infrastructure missing"] (the empty relatedTests/fixtures/factories/mocks/setupFiles arrays described above, a direct consequence of the omitted testResponsibilityRefs, not a true infrastructure gap). blockingConditions: [] (empty). truncation.truncated: false — no evidence group was truncated on this request, unlike the implementation-context stage's request. No override/exception was needed for this stage; the raw tool result is accepted as-is.
+
+## Freshness classification
+fresh — the test index was built after all production and test files existed on disk, and the graph-diff against the implementation index shows only the expected additive changes.
+
+## Budget
+No truncation-driven budget exhaustion this stage (see Adequacy evaluation).
+
+## Truncation
+None (truncation.truncated: false; empty records array).
+
+## Full-file fallback
+Not used (0 fallbacks needed).
+
+## Provenance
+Evidence traceable to the after-index (.../test) built from the actual current working tree; changedFiles/focusFiles resolution was 100% (all 8 requested files found).
+
+## Warnings
+None beyond the expected "required test infrastructure missing" missingCondition already explained under Adequacy evaluation (which did not produce a capsule-level warning string, only the roleAdequacy.missingConditions entry).
+
+## Determinism
+Not independently re-run this stage; no evidence of instability observed (the test index's file/symbol counts are consistent with the implementation index plus exactly the known new files).
+
+## Assumptions
+Test-strategy-packet.txt's TST-NNN responsibility list and criticality assignments (test-implementation-role, not my-dev-kit-role, ownership per the classify function's "Criticality is owned by this packet" instruction) are treated as authoritative for responsibility-to-test mapping in place of the non-operational automated responsibilityMappings field.
+
+## Notes
+No override/exception declaration was required for this stage — the raw automated role-adequacy result is "sufficient with assumptions," not "insufficient," so this stage proceeds through the normal (non-override) path.

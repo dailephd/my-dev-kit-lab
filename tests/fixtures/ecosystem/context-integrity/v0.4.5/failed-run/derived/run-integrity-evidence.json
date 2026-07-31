@@ -1,0 +1,98 @@
+{
+  "_derivationNote": "LAB-DERIVED, not an original upstream artifact. Built from the real preserved evidence in ../producer/implementation-capsule.json (roleAdequacy.status, truncation, groupTruncation), ../artifacts/judge-report.txt (literal 'Verdict: PASS'), and ../artifacts/final-report.txt (narrative confirms the judge PASS was carried through and a complete final report was produced despite the blocking gate). See manifests/failed-run-manifest.json for the exact derivationSources list and hashes.",
+  "schemaVersion": "1.0.0",
+  "runFolder": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-orchestrator/runs/20260730T113740-implement-my-dev-kit-v1-11-0-b",
+  "gate": {
+    "schemaVersion": "1.0.0",
+    "mode": "feature",
+    "contextRequired": true,
+    "applicableContextKinds": ["implementation", "test"],
+    "contextReady": false,
+    "readinessClassification": "refresh-required",
+    "blockedStageNames": ["implementation"],
+    "blockingCodes": ["CONTEXT_REQUIRED_EVIDENCE_TRUNCATED"],
+    "recommendedCorrectionStage": "implementation",
+    "expectedJudgeVerdict": "NEED_CONTEXT",
+    "warnings": []
+  },
+  "judgeIntegrity": {
+    "schemaVersion": "1.0.0",
+    "judgeArtifactPresent": true,
+    "judgeVerdictParseStatus": "parsed",
+    "authoredJudgeVerdict": "PASS",
+    "expectedJudgeVerdict": "NEED_CONTEXT",
+    "judgeVerdictMatchesExpected": false,
+    "judgeVerdictAccepted": false,
+    "correctionRequired": true,
+    "correctionBlocked": false,
+    "acceptedCorrectionStage": "implementation",
+    "finalReportEligible": false,
+    "blockingCodes": ["JUDGE_VERDICT_CONTRADICTS_RUN_INTEGRITY"],
+    "primaryReason": "Authored verdict \"PASS\" contradicts the canonical expected verdict \"NEED_CONTEXT\".",
+    "acceptedCorrectionRoute": {
+      "verdict": "PASS",
+      "recommendedStage": "implementation",
+      "routedStage": "implementation",
+      "routeStatus": "correction_required",
+      "warnings": [
+        "Judge report authored \"Verdict: PASS\" but canonical repository-context readiness still requires NEED_CONTEXT. The authored PASS was rejected; routing to the canonical recommended stage \"implementation\" instead."
+      ],
+      "errors": [],
+      "isBlocked": false,
+      "strictFail": false
+    }
+  },
+  "finalReportEligibility": {
+    "eligible": false,
+    "contextReady": false,
+    "priorArtifactsValid": false,
+    "judgeIntegrity": {
+      "schemaVersion": "1.0.0",
+      "judgeArtifactPresent": true,
+      "judgeVerdictParseStatus": "parsed",
+      "authoredJudgeVerdict": "PASS",
+      "expectedJudgeVerdict": "NEED_CONTEXT",
+      "judgeVerdictMatchesExpected": false,
+      "judgeVerdictAccepted": false,
+      "correctionRequired": true,
+      "correctionBlocked": false,
+      "acceptedCorrectionStage": "implementation",
+      "finalReportEligible": false,
+      "blockingCodes": ["JUDGE_VERDICT_CONTRADICTS_RUN_INTEGRITY"],
+      "primaryReason": "Authored verdict \"PASS\" contradicts the canonical expected verdict \"NEED_CONTEXT\".",
+      "acceptedCorrectionRoute": {
+        "verdict": "PASS",
+        "recommendedStage": "implementation",
+        "routedStage": "implementation",
+        "routeStatus": "correction_required",
+        "warnings": [
+          "Judge report authored \"Verdict: PASS\" but canonical repository-context readiness still requires NEED_CONTEXT. The authored PASS was rejected; routing to the canonical recommended stage \"implementation\" instead."
+        ],
+        "errors": [],
+        "isBlocked": false,
+        "strictFail": false
+      }
+    },
+    "blockingCodes": ["JUDGE_VERDICT_CONTRADICTS_RUN_INTEGRITY"],
+    "primaryReason": "Authored verdict \"PASS\" contradicts the canonical expected verdict \"NEED_CONTEXT\"."
+  },
+  "finalArtifactPresent": true,
+  "finalArtifactVerdict": "PASS",
+  "lifecycle": [
+    {
+      "artifactFile": "artifacts/implementation-report.txt",
+      "stageName": "implementation",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete",
+      "blockingReason": "Required implementation evidence was truncated (requiredOmittedCount 8 for implementation-contracts, 21 for implementation-compatibility-surfaces); canonical readiness required NEED_CONTEXT."
+    },
+    {
+      "artifactFile": "artifacts/final-report.txt",
+      "stageName": "final-report",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    }
+  ]
+}

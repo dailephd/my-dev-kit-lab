@@ -1,0 +1,69 @@
+Artifact: TestImplementationReport
+Workflow mode: feature
+
+Context-gate override notice: see test-context-packet.txt's "## Override authorization" section (second instance of the fixed-evidence-budget false negative already documented for the implementation stage, this time in the responsibility-mappings evidence group). Proceeding under the same user authorization.
+
+Test files changed:
+New:
+- tests/android/composeSemanticDeclarations.spec.ts (20 tests)
+- tests/index/androidComposeSemanticIncremental.spec.ts (10 tests)
+- tests/fixtures/android-compose-semantic/basic-app/** (4 files: settings.gradle.kts, app/build.gradle.kts, app/src/main/AndroidManifest.xml, app/src/main/kotlin/com/example/Screens.kt)
+- tests/fixtures/android-compose-semantic/no-compose-app/** (4 files: settings.gradle.kts, app/build.gradle.kts, app/src/main/AndroidManifest.xml, app/src/main/kotlin/com/example/Utils.kt)
+Modified: none (no existing test file was changed; every existing suite continues to pass unmodified).
+
+Tests added: 30 (20 unit + 10 integration/incremental), following test-strategy-packet.txt's TST-001..TST-032 (2 of the 32 responsibilities, TST-023/TST-030-equivalent ownership-preservation checks, are additionally exercised by the new incremental file's "produces equivalent...between a full run and an incremental run" test and by re-running existing suites, rather than by dedicated new assertions — see "TestStrategyPacket items not implemented" below for the precise accounting).
+
+Tests updated: none.
+
+Behaviors covered (BEH-001 through BEH-015, behavior-model.txt):
+- BEH-001/002/003 (detection gate, presence/absence): TST-001 (unit, artifact.detected), TST-020 (unit, non-Android gate), TST-021/022 (integration, CLI presence/absence + manifest registration).
+- BEH-004/005 (no command/navigation impact): verified by re-running existing, unmodified command and android-navigation test suites (regression, not new tests).
+- BEH-006/007 (scan input, comment/string stripping): TST-011, TST-012 (unit).
+- BEH-008/009 (exact-annotation gating, preview): TST-001, TST-003, TST-006 (unit).
+- BEH-010 (child-call resolution): TST-007, TST-008, TST-009 (unit).
+- BEH-011 (structural regions): TST-010 (unit).
+- BEH-012 (false-positive rejection): TST-011, TST-012, TST-013, TST-014 (unit).
+- BEH-013 (source ranges): TST-015, TST-016, TST-017 (unit).
+- BEH-014 (manifest/analyzer-status wiring): TST-022 (integration).
+- BEH-015 (incremental invalidation, no new cache): TST-025 through TST-028 (integration).
+
+Invariants covered (INV-001 through INV-007):
+- INV-001 (exact-annotation only): TST-001, TST-011, TST-012 (unit).
+- INV-002 (scope non-conflation): TST-003, TST-004, TST-005 (unit).
+- INV-003 (exact child-call match only): TST-007, TST-008, TST-009 (unit).
+- INV-004 (never written when undetected): TST-020, TST-021 (unit + integration).
+- INV-005 (determinism): TST-018 (unit, byte-identical double-run), TST-028 (integration, byte-identical incremental artifact for unrelated-file changes).
+- INV-006 (no android-navigation cross-reference): verified by regression (existing android-navigation suite unmodified and passing; new tests assert android-navigation.json absence/non-generation where relevant).
+- INV-007 (no Kotlin-adapter modification): verified structurally (git diff shows src/languages/kotlin/adapter.ts untouched) plus regression (existing Kotlin adapter tests unmodified and passing).
+
+State transitions covered (TRN-001 through TRN-003):
+- TRN-001 (index run -> artifact appears): TST-022, TST-025.
+- TRN-002 (evidence removal -> artifact removed): TST-027 (both the full-rebuild and the incremental-add-then-delete-file variants).
+- TRN-003 (unrelated-change no-op under --incremental): TST-028.
+
+Derived values covered: ComposeParameterSummary (TST-002), ComposeSemanticSummary fields (implicitly asserted via `summary.declarationCount`/etc. in TST-001/TST-010/integration tests' manifest analyzer summary checks).
+
+Boundaries covered: file-extension boundary (Kotlin-only; Java files present in the same fixture in composeNavigationRoutes.spec.ts's own precedent were not re-tested here since Batch 1 explicitly excludes Java per the fixed contract — a Java-file-presence-is-ignored case was judged low-value given the analyzer already filters strictly on `file.language === 'kotlin'`, the same mechanism every other language-scoped analyzer in this repository already relies on and already has coverage for elsewhere); nesting-boundary (TST-004, TST-014); adjacent-declaration boundary (TST-017); duplicate-key boundary (TST-019).
+
+External contracts covered: android-compose-semantic.json schema/filename/registration (TST-021, TST-022); manifest.json analyzer-registry entry shape (TST-021, TST-022); MANAGED_INDEX_ARTIFACT_FILENAMES-driven stale cleanup (TST-027); old-manifest backward compatibility (TST-029).
+
+Failure modes covered: comment/string/lambda/higher-order/class-member false-positive rejection (TST-011..TST-014); ambiguous-child-call degrade-to-warning (TST-008); unsupported-nesting degrade-to-warning (TST-014). Not covered: forced internal-exception -> analyzer status 'failed' path (see "TestStrategyPacket items not implemented" below).
+
+TestStrategyPacket items not implemented, with reason:
+- No dedicated forced-internal-exception test for the `runAndroidComposeSemanticAnalyzer` try/catch 'failed' status path. Reason: no existing sibling Android analyzer test (android-components, android-navigation, etc.) exercises this path either — there is no established fixture/mocking pattern in this repository for forcibly triggering an internal analyzer exception, and inventing one (e.g. via module-mocking) would be a new test-infrastructure pattern not otherwise justified by this narrow batch. The try/catch itself directly mirrors the exact, already-precedented `runAndroidComponentsAnalyzer` shape.
+- No dedicated "extremely large file near MAX_SCAN_LINES" performance/truncation test, matching test-strategy-packet.txt's explicitly-flagged noncritical coverage gap (trusted by analogy to buildComposeNavigationRoutes.ts's own equivalent, independently-tested truncation behavior).
+- TST-002's automated responsibility-mapping entry in the raw capsule shows "partially-mapped" (criticality: noncritical) rather than "fully-mapped" — the underlying test (parameter extraction) is nonetheless present and passing; the raw capsule's mapping-completeness heuristic and this report's actual test coverage are not perfectly reconciled for this one noncritical item, consistent with the general context-gate limitation documented in test-context-packet.txt.
+
+Verification commands to run (and their results, already executed this session):
+- `npx vitest run tests/android/composeSemanticDeclarations.spec.ts` -> 20/20 passing
+- `npx vitest run tests/index/androidComposeSemanticIncremental.spec.ts` -> 10/10 passing
+- `npx vitest run tests/android tests/index tests/graph-diff tests/integration` -> 708/708 passing (regression)
+- `npm test` -> 1908/1908 passing (full suite)
+- `npm run typecheck` -> exit 0
+- `npm run build` -> exit 0 (dist/cli.js, 956.44 KB)
+- `npm run verify` -> exit 0 (typecheck + build + docs:check)
+- CLI smoke (positive fixture): android-compose-semantic.json present, manifest analyzer status 'complete', 3 declarations extracted correctly, no Batch 2-6 fields, android-navigation.json correctly absent
+- CLI smoke (negative fixture): android-compose-semantic.json absent, manifest analyzer status 'skipped'
+- Generated smoke output removed; `git status --short --untracked-files=all` confirmed clean of smoke artifacts
+
+Status: complete

@@ -1,0 +1,114 @@
+Schema version: 1.0.0
+Document kind: implementation-context-packet
+Role: implementation
+Status: populated
+Repository scope: single-repository
+Context capsule schema version: 1.0.0
+Retrieval audit schema version: 1.0.0
+Tool name: my-dev-kit
+Tool version: 1.10.3
+Index identity: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation
+Freshness: fresh
+Adequacy: insufficient
+Required evidence truncated: yes
+Source context capsule: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-capsule.json
+Source retrieval audit: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-audit.json
+After index: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation
+
+## Focus
+The 8 files approved for editing/reading by architecture-context-packet.txt: src/android/androidNavigationTypes.ts, src/android/buildComposeNavigationRoutes.ts, src/android/buildAndroidNavigationProject.ts, src/android/index.ts, src/indexing/managedArtifacts.ts, src/indexing/writeIndexManifest.ts, src/indexing/runIndexCommand.ts, src/indexing/manifestTypes.ts. All 8 resolved with 0 unresolved focus files/symbols.
+
+## Selected owners
+- src/android/androidNavigationTypes.ts — highest-ranked structural-owner candidate (score 1235) for the sibling artifact-type-contract pattern; its exported ARTIFACT_KIND/SCHEMA_VERSION/FILENAME constant triad and nested-evidence-union type shape (AndroidComposeRoute, AndroidComposeScreenCandidate, ComposeRouteEvidenceKind, etc.) is the exact convention androidComposeTypes.ts mirrors, per pseudocode-packet PSE-001.
+- src/indexing/runIndexCommand.ts — owner of finishIndexBuild()'s orchestration order and all seven existing per-analyzer status builders; owner of the exact insertion point (PSE-023) for the new eighth builder call.
+- src/indexing/managedArtifacts.ts — sole owner of OPTIONAL_INDEX_ARTIFACT_FILENAMES (PSE-021 insertion point).
+- src/indexing/writeIndexManifest.ts — sole owner of conditional artifact-write blocks (PSE-022 insertion point).
+- src/indexing/manifestTypes.ts — confirmed NOT requiring a change: `IndexAnalyzerStatus.summary: Record<string, number | string | boolean | null>` (line 79) already loosely typed; `IndexAnalyzerId` (lines 51-61) already ends `| (string & {})`, accepting any string-literal analyzer id without a union edit.
+
+## Dependencies
+buildAndroidComposeSemanticProject() (new) depends on: `roledSymbolIndex` (built earlier in finishIndexBuild()), `androidResult.artifact` (built at the top of runIndexCommand()), `projectRoot`, `createdAt` — an options shape identical in spirit to buildAndroidNavigationProject's, per pseudocode PSE-012.
+finishIndexBuild()'s existing dependency chain (roledSymbolIndex -> androidNavigationResult -> androidRelationships) is NOT to be altered; the new call is additive and inserted after androidNavigationResult/status, before androidRelationships is computed, since androidRelationships' argument list lives in a forbidden-edit-area file and must not gain a new parameter.
+
+## Contracts
+- ANDROID_COMPOSE_SEMANTIC_ARTIFACT_KIND / _SCHEMA_VERSION / _FILENAME constant triad, mirroring ANDROID_NAVIGATION_* exactly (naming convention confirmed present in androidNavigationTypes.ts).
+- IndexAnalyzerStatus contract (id, status, version?, schemaVersion?, artifacts?, warningCount, errorCount, summary?) — reused unchanged, confirmed sufficient for the new 'android-compose-semantic' entry with no interface change.
+- writeIndexArtifacts' existing conditional-write-per-optional-artifact contract (`if (options.x) writeJson(...)`) — reused unchanged.
+- MANAGED_INDEX_ARTIFACT_FILENAMES-driven stale-cleanup contract (refreshIndexOutput.ts) — reused unchanged by construction; no code change needed there, only the managedArtifacts.ts registration.
+
+## Validators
+No new validation library/pattern needed. Conservative-parsing validators to (re)implement locally per pseudocode PSE-013/PSE-017 (brace-depth tracking, comment/string stripping, annotation-then-function-pattern matching) follow the exact algorithmic shape already present in src/languages/kotlin/adapter.ts and buildComposeNavigationRoutes.ts, duplicated (not imported/shared) per the INV-007 constraint against modifying or taking a runtime dependency on the base Kotlin adapter.
+
+## Constants
+MAX_SCAN_LINES = 2000 (buildComposeNavigationRoutes.ts's existing bound, reused by value/convention, not by import, for the new analyzer's own per-file scan cap).
+SIGNATURE_MAX_LENGTH = 120 (kotlin/adapter.ts's existing convention, reused by value for annotation-text capping per pseudocode PSE-003).
+
+## Errors
+Analyzer failure-mode contract confirmed via buildAndroidNavigationAnalyzerStatus/buildAndroidResourcesAnalyzerStatus precedent and the classification/android-components try/catch precedent in runIndexCommand.ts: per-file I/O errors are swallowed internally (skip file, no warning, matching buildComposeNavigationRoutes.ts's readFile() returning null on failure); genuine internal exceptions during the builder's own construction are caught at the finishIndexBuild() call site and reported as analyzer status 'failed' with errorCount:1, never silently downgraded to success.
+
+## Schemas
+New: AndroidComposeSemanticArtifact JSON shape per pseudocode PSE-002..PSE-010 (declarations[], warnings[], summary, detected, filesExamined[], createdAt, projectRoot, artifactKind, schemaVersion). No existing schema (android-navigation, symbol-index, code-graph) is modified.
+
+## Callers and callees
+Caller of the new builder: finishIndexBuild() (src/indexing/runIndexCommand.ts), exactly once per index run that reaches that function (both full-rebuild and partial-rebuild-eligible incremental paths; never the no-op fast path, per BEH-015).
+Callees of the new builder: fs.readFileSync (raw per-file text re-read, mirroring buildComposeNavigationRoutes.ts's readFile() helper), no other production module calls in Batch 1 (no code-graph, no graph-diff, no command module).
+
+## Closest tests
+tests/android/composeNavigationRoutes.spec.ts (unit/component pattern: temp fixture app + direct analyzer function call), tests/android/androidNavigationProject.spec.ts (artifact-assembly pattern), tests/index/androidNavigationIncremental.spec.ts (incremental-regression pattern), tests/integration/androidV110Artifacts.spec.ts / androidV110Incremental.spec.ts (full-pipeline integration pattern). Full enumeration and rationale already recorded in test-strategy-packet.txt; not re-derived here.
+
+## Test infrastructure
+vitest (package.json "test": "vitest run"); temp-directory fixture helpers (mkdtempSync/writeFileSync/rmSync in afterEach) as the established per-test isolation pattern, confirmed present in composeNavigationRoutes.spec.ts.
+
+## Test commands
+`npx vitest run tests/android/<new-file>.spec.ts` (focused), `npm test` (full), `npm run typecheck`, `npm run build`, `npm run verify` — all grounded in package.json scripts (confirmed present at test-strategy stage), none invented.
+
+## Unresolved items
+None (implementation-audit.json unresolvedItems: []). Pseudocode-packet's one open question (PSE-025) is resolved above under "Selected owners" / "Contracts".
+
+## Budget and truncation
+See reports/implementation-context-retrieval-report.txt "Budget" / "Truncation" sections — three general-purpose ranked-candidate groups truncated at their fixed limits, non-blocking (all implementation-role-specific groups returned ok).
+
+## Full-file fallback
+Not used (0 of a 3-fallback budget). Every fact needed was retrieved via exact-symbol `mdk source`/`mdk search`, consistent with Section 18's retrieval-order requirement.
+
+## Provenance
+45 provenance-linked evidence records present in implementation-capsule.json; referenced by path per the orchestrator's no-raw-JSON-paste instruction (see retrieval report).
+
+## Assumptions
+Same as pseudocode-packet.txt's "Assumptions preserved" / "Assumptions removed or guarded" — confirmed, not revised, by this stage's retrieval.
+
+## Override authorization: CONTEXT_SUFFICIENT_BY_TARGETED_VERIFICATION_WITH_AUTOMATED_ROLE_ADEQUACY_FALSE_NEGATIVE
+
+Raw automated roleAdequacy (from implementation-capsule.json, preserved truthfully, not relabeled):
+  role: implementation
+  status: "context insufficient and more retrieval required"
+  missingConditions: ["required evidence truncated"]
+  blockingConditions: [] (empty — no hard-blocking condition was actually triggered; only the soft "required evidence truncated" condition)
+  truncationImpact: true
+  truncated evidence groups: implementation-compatibility-surfaces (used 8 of 29 available, 21 dropped), implementation-contracts (used 39 of 47 available, 8 dropped)
+  A second, narrower probe request (focusFiles reduced to a single file, requestedEvidenceKinds reduced to ["owner","contracts"]) still truncated implementation-compatibility-surfaces (19 of 29 available) — confirming the truncation is driven by my-dev-kit's fixed per-role evidence-group reservation budget (governingHardBound = 84 items shared across 9 required categories: owners:3, dependencies:10, callers-and-callees:15, contracts:10, validators-and-constants:10, errors:10, schemas-and-serializers:10, compatibility-surfaces:8, closest-tests:8 — see src/context/evidenceGroups.ts lines 577-587), not by query/focus shaping. This repository indexes 2242 symbols; the compatibility-surfaces/contracts candidate pools structurally exceed these fixed reservations regardless of how narrowly the request is scoped.
+
+Why this is structurally unavoidable on this repository (not a request-shaping problem):
+  src/context/contextRoleAdequacy.ts (~line 195-197): `const truncationImpact = truncation.records.some((r) => r.requiredEvidenceLost); if (truncationImpact) missingConditions.push('required evidence truncated')` — this fires unconditionally on ANY dropped required-group item, with no threshold and no per-repo-size scaling. Every evidence group in the role===implementation branch is allocated with `required: true` (src/context/evidenceGroups.ts lines 632-640), so this condition is structurally guaranteed to fire whenever aggregate required-candidate volume exceeds the fixed 84-item shared budget, which a 269-file/2242-symbol repository does by a wide margin (29-47 available items in the two affected groups alone).
+  `limits.evidenceGroupEntries` (the one request-level limit override available, src/context/types.ts line 78) is documented in the tool's own source as "deliberately independent" of these per-group hard limits (src/context/evidenceGroups.ts line 98) — there is no supported request field that raises the actual group reservations.
+
+Targeted verification commands used to independently confirm no genuine implementation-relevant fact is missing or ambiguous (all zero-truncation, exact-match):
+  - `mdk search --index <baseline> --query "checkPartialRebuildEligibility" --limit 10 --json` -> exact single symbol match, src/indexing/partialRebuild.ts
+  - `mdk search --index <baseline> --query "buildAndroidNavigationAnalyzerStatus" --limit 10 --json` -> exact single symbol match, src/indexing/runIndexCommand.ts
+  - `mdk source --index <baseline> --node "symbol:src/indexing/partialRebuild.ts#checkPartialRebuildEligibility" --max-lines 160 --format numbered` -> confirmed partial-rebuild eligibility is keyed off symbol-index.json schema/presence only, independent of any per-analyzer artifact
+  - `mdk source --index <implementation> --file "src/indexing/manifestTypes.ts" --symbol "IndexAnalyzerStatus" --format numbered --max-lines 60` -> confirmed `summary?: Record<string, number | string | boolean | null>` (already loosely typed)
+  - `mdk source --index <implementation> --file "src/indexing/manifestTypes.ts" --symbol "IndexAnalyzerId" --format numbered --max-lines 40` -> confirmed the union ends `| (string & {})` (already accepts any string-literal analyzer id)
+  - Direct Read-tool inspection (Stage 0, prior to any index existing for this task) of src/android/buildComposeNavigationRoutes.ts, src/android/buildAndroidNavigationProject.ts, src/indexing/managedArtifacts.ts, src/indexing/refreshIndexOutput.ts, src/indexing/writeIndexManifest.ts, src/indexing/runIndexCommand.ts (finishIndexBuild), src/android/index.ts, src/languages/kotlin/adapter.ts, src/graph-diff/types.ts
+
+Verified owner: src/android/ (new artifact + analyzer), extending the existing Android artifact family — confirmed by direct read of every existing sibling artifact's file/export/orchestration pattern.
+Verified extension point: finishIndexBuild() in src/indexing/runIndexCommand.ts, immediately after the existing androidNavigationResult/androidNavigationAnalyzerStatus block and before androidRelationships is computed (PSE-023).
+Approved edit files: src/android/androidComposeTypes.ts (new), src/android/buildAndroidComposeSemanticProject.ts (new), src/android/index.ts, src/indexing/managedArtifacts.ts, src/indexing/writeIndexManifest.ts, src/indexing/runIndexCommand.ts.
+Files intentionally avoided: src/languages/kotlin/adapter.ts, src/indexing/manifestTypes.ts (confirmed no change needed), src/graph-diff/, src/commands/*Command.ts, src/graph/buildAndroidArtifactRelationships.ts, src/graph/addAndroidRelationshipsToCodeGraph.ts (all forbidden-edit-area per the external task contract).
+Artifact/manifest contracts: see "## Contracts" and "## Schemas" above (ANDROID_COMPOSE_SEMANTIC_ARTIFACT_KIND/_SCHEMA_VERSION/_FILENAME triad, IndexAnalyzerStatus reuse, writeIndexArtifacts conditional-write reuse, MANAGED_INDEX_ARTIFACT_FILENAMES-driven stale cleanup).
+Incremental-invalidation contract: BEH-015/PSE-023 — finishIndexBuild() unconditionally recomputes the new builder's result on both full-rebuild and partial-rebuild-eligible paths from the just-built roledSymbolIndex; skipped only by the no-op fast path that itself requires zero changed/added/removed files. No new cache/fingerprint introduced. Confirmed via direct read of checkPartialRebuildEligibility (keyed on symbol-index.json only) and runIncrementalIndex's branch structure.
+Closest relevant tests: tests/android/composeNavigationRoutes.spec.ts, tests/android/androidNavigationProject.spec.ts, tests/index/androidNavigationIncremental.spec.ts, tests/integration/androidV110Artifacts.spec.ts, tests/integration/androidV110Incremental.spec.ts (enumerated in full, with rationale, in test-strategy-packet.txt).
+Confirmation: no implementation-relevant ambiguity remains. Every fact pseudocode-packet.txt flagged as open (manifestTypes.ts typing) is now closed with exact evidence; every architectural ownership/extension-point question Stage 0 and architecture-context-packet.txt raised is confirmed unchanged in the implementation-index snapshot (269 files/2242 symbols/3506 edges, identical to the baseline snapshot — no drift between stages).
+User authorization: the user explicitly authorized proceeding past this specific automated roleAdequacy gate for this run only, on the basis of the evidence above, via an interactive confirmation during this session (not a durable standing instruction). The authorization is scoped strictly to the known evidence-group-budget truncation described above; it does not extend to any other adequacy failure, forbidden-file requirement, scope expansion, or upstream-artifact contradiction discovered later in this batch — any of those still require stopping. No my-dev-kit or my-dev-kit-orchestrator source file was modified to obtain this authorization or to produce this packet; the raw capsule/audit JSON files are unmodified from what the `mdk context` command produced.
+Recommended follow-up (explicitly NOT undertaken in this batch, per the user's instruction): a separate correction to my-dev-kit's context-adequacy budgeting logic (either scaling per-group reservations with repository size, or excluding "required evidence truncated" from role-blocking conditions when `blockingConditions` is otherwise empty) and to my-dev-kit-orchestrator's stage-context readiness gate (allowing a documented, evidence-backed override path instead of an unconditional block).
+
+## Notes
+Implementation may proceed with no manifestTypes.ts edit. All four other approved-for-modification files' exact insertion points are now confirmed by direct source retrieval rather than inference.

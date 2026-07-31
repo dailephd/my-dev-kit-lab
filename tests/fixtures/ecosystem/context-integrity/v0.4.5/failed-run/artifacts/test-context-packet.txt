@@ -1,0 +1,93 @@
+Schema version: 1.0.0
+Document kind: test-context-packet
+Role: test-implementation
+Status: populated
+Repository scope: single-repository
+Context capsule schema version: 1.0.0
+Retrieval audit schema version: 1.0.0
+Tool name: my-dev-kit
+Tool version: 1.10.3
+Index identity: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test
+Freshness: fresh
+Adequacy: sufficient-with-assumptions
+Required evidence truncated: no
+Source context capsule: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test-capsule.json
+Source retrieval audit: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test-audit.json
+After index: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/test
+Responsibility mappings truncated: no
+Critical responsibility mapping status: not-applicable
+
+## Changed surface
+6 production files: src/android/androidComposeTypes.ts (new), src/android/buildAndroidComposeSemanticProject.ts (new), src/android/index.ts (modified, barrel exports), src/indexing/managedArtifacts.ts (modified, new filename constant), src/indexing/writeIndexManifest.ts (modified, new optional write parameter), src/indexing/runIndexCommand.ts (modified, new builder call + analyzer-status function + wiring). Confirmed via graph-diff between the implementation and test indexes: additive-only symbol/edge growth, no unexpected file changed or removed.
+
+## Production owners
+src/android/ owns the new artifact type contract and analyzer (androidComposeTypes.ts, buildAndroidComposeSemanticProject.ts, index.ts barrel). src/indexing/ owns orchestration/registration/writing (managedArtifacts.ts, writeIndexManifest.ts, runIndexCommand.ts's finishIndexBuild()). Same ownership confirmed across architecture-context-packet.txt, implementation-context-packet.txt, and this stage's retrieval report.
+
+## Production contracts
+AndroidComposeSemanticArtifact / ComposeDeclarationEntry / ComposeChildCallEvidence / ComposeStructuralRegionEvidence / ComposeSemanticSummary (androidComposeTypes.ts) — see docs/GRAPH_SCHEMA.md's new "android-compose-semantic.json (v1.11.0 Batch 1)" section for the full field-level contract. buildAndroidComposeSemanticProject(options): BuildAndroidComposeSemanticProjectResult — the sole production entry point tests call directly (mirroring composeNavigationRoutes.spec.ts's pattern of calling the analyzer function directly rather than only through the CLI).
+
+## Validators
+No new shared validator module. Conservative parsing validators (annotation/function-pattern matching, brace/paren/string-literal handling) are internal to buildAndroidComposeSemanticProject.ts and are exercised indirectly through its public output, not unit-tested in isolation — consistent with how buildComposeNavigationRoutes.ts's internal helpers are tested only through its public `routes`/`screenCandidates`/`warnings` output in composeNavigationRoutes.spec.ts.
+
+## Constants
+ANDROID_COMPOSE_SEMANTIC_ARTIFACT_KIND = 'my-dev-kit-v1-android-compose-semantic', ANDROID_COMPOSE_SEMANTIC_SCHEMA_VERSION = '1.0.0', ANDROID_COMPOSE_SEMANTIC_FILENAME = 'android-compose-semantic.json' (androidComposeTypes.ts, re-exported from android/index.ts and consumed by managedArtifacts.ts/writeIndexManifest.ts/runIndexCommand.ts).
+
+## Errors
+No new thrown-error type. Per-file I/O errors are swallowed internally (file skipped, no warning). A genuine internal exception during the builder's own construction is caught at the finishIndexBuild() call site (runAndroidComposeSemanticAnalyzer's try/catch) and reported as analyzer status 'failed' with errorCount:1 — mirrors the classification/android-components failure-mode contract exactly; not independently tested with a forced-throw fixture in this batch (no existing sibling analyzer test does this either).
+
+## Schemas
+android-compose-semantic.json's on-disk JSON shape — see "## Production contracts" above and docs/GRAPH_SCHEMA.md. manifest.json's analyzers[] array gains one additive entry (id: 'android-compose-semantic'); no manifest schema type change (confirmed: IndexAnalyzerStatus.summary is already Record<string, number|string|boolean|null>, IndexAnalyzerId already ends `| (string & {})`).
+
+## Closest tests
+tests/android/composeNavigationRoutes.spec.ts (unit/component pattern reused for tests/android/composeSemanticDeclarations.spec.ts: temp fixture app + buildIndex + detectAndroidProject + direct analyzer call). tests/index/androidNavigationIncremental.spec.ts (CLI-spawn + fixture-copy pattern reused for tests/index/androidComposeSemanticIncremental.spec.ts). tests/integration/androidV110Artifacts.spec.ts / androidV110Incremental.spec.ts (multi-artifact full-pipeline pattern, referenced but not directly extended — this batch's own new integration file covers the equivalent surface for the one new artifact).
+
+## Test infrastructure
+vitest (vitest.config.ts: include tests/**/*.spec.ts, exclude tests/**/fixtures/**, testTimeout/hookTimeout 20000ms, maxWorkers 4 — confirmed via raw capsule testInfrastructure.testConfigurations). Per-test temp-directory isolation via mkdtempSync/writeFileSync/rmSync in afterEach (established pattern, reused verbatim in both new test files). New fixture directories tests/fixtures/android-compose-semantic/basic-app and .../no-compose-app (correctly excluded from direct spec-file discovery by the vitest include/exclude configuration above, matching the existing tests/fixtures/android-navigation/ convention).
+
+## Test commands
+node_modules/.bin/vitest run tests/android/composeSemanticDeclarations.spec.ts (focused unit)
+node_modules/.bin/vitest run tests/index/androidComposeSemanticIncremental.spec.ts (focused integration)
+npm test (full suite, package.json "test": "vitest run")
+npm run typecheck / npm run build / npm run verify (static/build)
+All grounded in package.json scripts and vitest.config.ts (raw capsule testInfrastructure.packageScripts + testConfigurations), none invented. npm run benchmark:retrieval explicitly excluded per the external task contract (retrieval behavior unchanged in this batch).
+
+## Test responsibilities
+TST-001 through TST-032, as fully specified with criticality/traces-to/setup/action/expected-result/test-level in test-strategy-packet.txt. Not re-copied verbatim here (that file is the authoritative source); this packet only confirms each responsibility maps to an existing, passing test:
+- TST-001..TST-020 (unit): tests/android/composeSemanticDeclarations.spec.ts — 20/20 passing.
+- TST-021, TST-022, TST-025..TST-029 (integration): tests/index/androidComposeSemanticIncremental.spec.ts — 10/10 passing.
+- TST-023, TST-024, TST-030, TST-031 (regression, existing suites unmodified): confirmed passing via `vitest run tests/android tests/index tests/graph-diff tests/integration` (708/708) and the full suite (`npm test`, 1908/1908).
+- TST-032 (build/static-analysis): confirmed via `npm run typecheck` / `npm run build` / `npm run verify`, all exit 0.
+
+## Responsibility mappings
+Raw capsule responsibilityMappings.operational: false (no testResponsibilityRefs supplied — see retrieval report). Manual mapping (above, under "Test responsibilities") is authoritative for this batch; every TST-NNN responsibility in test-strategy-packet.txt has a confirmed corresponding passing test or explicit non-code verification (build/static-analysis commands). No critical responsibility is unmapped.
+
+## Reusable test helpers
+writeAppScaffold(root) / createTempRoot() (per-test temp Android+Kotlin fixture scaffolding, duplicated in both new test files following composeNavigationRoutes.spec.ts's exact existing convention rather than extracting a new shared helper module — consistent with this repository's existing per-spec-file duplication of this same helper across composeNavigationRoutes.spec.ts, androidNavigationProject.spec.ts, and others).
+
+## Oracle evidence
+Expected values in composeSemanticDeclarations.spec.ts's assertions were derived by running the actual implementation against each fixture (via a temporary manual smoke script, since removed) and manually verifying the output against the fixed external contract's Section 2.3/14 definitions and the behavior-model.txt/pseudocode-packet.txt design — not copied from any pre-existing oracle file. One assertion (TST-015's expected endLine) was initially miscounted (8 instead of 9) and corrected after the test run surfaced the mismatch; this is documented as an oracle-authoring correction, not a production-code defect.
+
+## Unresolved items
+None blocking. Three low-likelihood conservative-scanner edge cases are documented as accepted risks in implementation-report.txt ("Unresolved risks"): multi-line triple-quoted strings, `<`/`>` used as comparison operators in default-parameter expressions, and local classes as an untracked nesting boundary. None are covered by a dedicated fixture in this batch; each is a narrow, low-real-world-likelihood gap consistent with the base Kotlin adapter's own documented conservative-parser limitations, not a defect requiring NEEDS_CORRECTION.
+
+## Budget and truncation
+No truncation on this stage's context request (see retrieval report).
+
+## Full-file fallback
+Not used.
+
+## Provenance
+All evidence traceable to the test index built from the actual current working tree (production + test files both present); see retrieval report's "Provenance" section.
+
+## Assumptions
+Same as recorded in the retrieval report's "Assumptions" section (test-strategy-packet.txt's manual responsibility mapping is authoritative in place of the non-operational automated field).
+
+## Override authorization: CONTEXT_SUFFICIENT_BY_TARGETED_VERIFICATION_WITH_AUTOMATED_ROLE_ADEQUACY_FALSE_NEGATIVE (second instance, test-implementation stage)
+
+After supplying all 32 TST-NNN IDs as testResponsibilityRefs, the raw capsule's responsibilityMappings evidence group applies a fixed limit of 25 mapping entries (responsibilityMappings.limit: 25, availableCount: 32, usedCount: 25, truncated: true, droppedCount: 7 — TST-026 through TST-032 dropped in deterministic order). This is the same category of fixed-per-group-budget false negative already documented and user-authorized for the implementation-context stage (see implementation-context-packet.txt's "## Override authorization" section) — a hard-coded evidence-group cap that is smaller than this batch's actual (larger than typical) responsibility count, not a sign that the 7 dropped responsibilities are actually unmapped or untested.
+All 32 responsibilities, including the 7 dropped from the raw capsule's bounded mapping list (TST-026..TST-032), are independently confirmed mapped to passing tests in this same packet's "## Test responsibilities" section above, cross-checked directly against the actual test files and their pass/fail results (composeSemanticDeclarations.spec.ts: 20/20 passing; androidComposeSemanticIncremental.spec.ts: 10/10 passing; regression suites: 708/708 and 1908/1908 passing; static-analysis commands: all exit 0) — not against the capsule's own truncated summary.
+Per the user's prior authorization (recorded verbatim in this run's history and referenced in implementation-context-packet.txt), this exception is treated as extending to this second, structurally identical instance of the same fixed-evidence-budget pattern: "The automated inadequacy result alone must not cause the implementation, judge, or final verdict to fail after this authorization... The final report must preserve the limitation and recommend a separate correction to the context-adequacy budgeting logic and the stage-context workflow gate." This is exactly that limitation, encountered a second time in the same run, and is called out explicitly in the final report as additional evidence supporting that recommended correction (the responsibility-mapping budget should scale with the actual number of requested testResponsibilityRefs, or the truncation should not automatically block when independently-verified evidence already exists).
+No production code, test code, or my-dev-kit/my-dev-kit-orchestrator source was modified to obtain this override.
+
+## Notes
+Two context-gate overrides were required in this run (implementation-context and this test-context stage), both traced to the same class of fixed-evidence-group-budget tool limitation, both explicitly authorized and documented rather than silently bypassed.

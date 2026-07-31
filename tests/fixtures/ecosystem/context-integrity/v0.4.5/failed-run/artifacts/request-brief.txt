@@ -1,0 +1,40 @@
+Artifact: RequestBrief
+Workflow mode: feature
+
+Original request: Implement my-dev-kit v1.11.0 Batch 1: add the optional android-compose-semantic.json artifact, conservatively extract deterministic top-level, private top-level, function-local, preview, child-composable, and structural UI-region declaration evidence from indexed Kotlin files, integrate it with the existing Android artifact lifecycle, and add focused tests without adding state/effect/ViewModel/test/retrieval/graph behavior.
+
+Requested change: Add a new optional, managed Android artifact `android-compose-semantic.json`, owned by src/android/, produced by a new dedicated Compose declaration analyzer (not the base Kotlin adapter). The analyzer conservatively scans already-indexed Kotlin source files (reusing symbolIndex.files as its bounded input set, following the src/android/buildComposeNavigationRoutes.ts precedent) and extracts: top-level named @Composable declarations, top-level private @Composable declarations, named function-local @Composable declarations, @Preview classification, visibility, statically available parameter summaries, complete deterministic source ranges, direct exactly-resolved child-composable calls, and a fixed set of structural UI-region calls (Scaffold, LazyColumn, LazyRow, Column, Row, Box, NavHost). The artifact is registered through the existing managed-artifact/manifest/analyzer-status/writer/stale-cleanup owners (managedArtifacts.ts, writeIndexManifest.ts, runIndexCommand.ts, refreshIndexOutput.ts) rather than new parallel machinery.
+
+Target area: src/android/ (new Compose analyzer + types), src/indexing/ (managedArtifacts.ts, writeIndexManifest.ts, runIndexCommand.ts, manifestTypes.ts only if strictly required), plus focused test/fixture additions under the repository's existing Android/Kotlin test structure. Package: @dailephd/my-dev-kit, version 1.10.3 (pre-release, unreleased v1.11.0 Batch 1 work).
+
+User-visible or external behavior: Running `my-dev-kit index` (full or incremental) against a project containing supported Compose declarations produces a new optional `android-compose-semantic.json` file in the output directory and a corresponding `android-compose-semantic` entry in manifest.json's analyzer registry. Projects with no Android evidence, or Android/Kotlin projects with no supported Compose declarations, do not produce the file (and any previously-written file is removed by the existing stale-artifact cleanup on the next full refresh if evidence disappears). No new CLI command, flag, or output shape is added to index/search/lookup/slice/source/view/context/graph-diff in this batch.
+
+Constraints:
+  - Do not modify src/languages/kotlin/adapter.ts (base Kotlin adapter stays a conservative top-level-only extractor).
+  - Do not duplicate android-navigation.json's ownership of routes/destinations/navigation graphs/route-to-screen candidates.
+  - Do not create a second index, a Compose-specific search/graph engine, or a new top-level CLI command.
+  - Reuse the existing analyzer-registry, managed-artifact-filename, artifact-writer, and stale-cleanup owners; do not build parallel machinery.
+  - Do not add a new incremental-cache/fingerprint system; reuse existing changed-file detection unless proven insufficient (in which case: BLOCKED_INCREMENTAL_INVALIDATION_CONTRACT).
+  - Conservative, non-compiler parsing only, consistent with the buildComposeNavigationRoutes.ts precedent; if that precedent cannot safely meet minimum acceptance criteria, stop with BLOCKED_COMPOSE_SCANNER_REQUIRES_KOTLIN_PARSER_REDESIGN rather than building a general Kotlin lexer.
+  - No code-graph nodes/edges, no retrieval/search/lookup/slice/source/view/context integration, no graph-diff integration in this batch (explicitly deferred to Batches 2-6).
+  - No version bump, release prep, or publication in this batch.
+  - Forbidden edit areas: src/languages/kotlin/adapter.ts, src/graph-diff/, src/commands/{search,lookup,slice,source,view,context}Command.ts, src/graph/buildAndroidArtifactRelationships.ts, src/graph/addAndroidRelationshipsToCodeGraph.ts, frontend analyzer/reachability implementation, package versions, release docs/branches, roadmap feature assignments, orchestrator source, my-dev-kit-lab source.
+
+Non-goals: State (remember/rememberSaveable/collectAsState/collectAsStateWithLifecycle), effects (LaunchedEffect/DisposableEffect), ViewModel references, UI text/string-resource/test-tag extraction, event handlers, navigation-call extraction, Android/Compose UI-test/Espresso/Robolectric indexing, code-graph projection, search/lookup/slice/source/view/context command integration, graph-diff sections, retrieval benchmarking, Kotlin compiler/PSI integration, runtime/emulator/build validation, broad documentation reconciliation, version bump, release/publish workflow. These belong to my-dev-kit v1.11.0 Batches 2-6 per the fixed, already-decided roadmap.
+
+Success criteria:
+  - android-compose-semantic.json has one clear schema owner under src/android/, is optional/managed, registered in the manifest analyzer registry, written via the existing artifact writer, and cleaned up via existing stale-artifact cleanup when evidence disappears.
+  - Top-level, private top-level, and named function-local composables are distinguished and extracted per the fixed Section 2.3 definitions; @Preview declarations are identified.
+  - Source ranges, IDs, and output ordering are complete and deterministic.
+  - Direct child-composable calls and the seven named structural UI-region calls are recorded only via exact, non-guessed evidence; unsupported patterns are omitted or warned, never fabricated.
+  - Existing Android navigation ownership, symbol-index/code-graph shapes, non-Android behavior, Kotlin-without-Compose behavior, and old-manifest compatibility are all unchanged.
+  - Incremental indexing does not leave stale Compose artifacts (verified against existing changed-file detection, not a new cache).
+  - Focused and full test suites pass; typecheck/build/verify pass; smoke checks confirm artifact presence/absence and absence of Batch 2-6 fields; no generated smoke output is left in the tree.
+
+Ambiguity or missing information:
+  - Whether existing Kotlin changed-file content-hash classification is sufficient to invalidate android-compose-semantic.json on relevant Kotlin changes under --incremental (Section 2.4/14.10) is not yet confirmed against current cacheMetadata.ts/partialRebuild.ts/runIndexCommand.ts behavior -- this must be verified in architecture-context before implementation proceeds, per the fixed decision tree (reuse if sufficient; BLOCKED_INCREMENTAL_INVALIDATION_CONTRACT if not, without redesigning).
+  - Exact deterministic-ID convention (e.g., same-name-ordinal tie-breaking for two same-named declarations in one file) is not yet fixed and must be resolved during pseudocode/implementation against existing repository ID conventions (e.g., buildComposeNavigationRoutes.ts's `file#index` pattern).
+  - Whether manifestTypes.ts requires any change is unconfirmed pending architecture-context evidence; current expectation (per Stage 0 and the android-navigation precedent) is no manifest schema change is needed, only an analyzer-registry entry.
+
+Expected next stage: architecture-context
+Status: complete
