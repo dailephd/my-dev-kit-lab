@@ -100,6 +100,31 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is released in v0.4.4 after upstream verification, PR, CI, merge, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state. See [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
 
+## Context-integrity evaluation (v0.4.5, implemented, unreleased)
+
+**Goal:** deterministically evaluate agreement between condition-aware producer evidence (mirrored from the frozen local `my-dev-kit` `v1.10.4` contract) and orchestrator run-integrity evidence (mirrored from the frozen local `my-dev-kit-orchestrator` `v1.2.3` contract) for a fixed request/target/index identity, using a frozen regression fixture pair, without reimplementing either upstream project's policy.
+
+**Prerequisites and starting state:** build the repository. This workflow has no configurable CLI entrypoint; it runs through tests and through `npm run report:context-integrity-smoke` (a fixed, argument-less script that calls the underlying evaluation functions directly with the frozen fixture paths for manual report inspection).
+
+**Steps (implemented sequence):**
+
+1. Load the fixture manifest (`failed-run` or `corrected-replay`) and verify tracked fixture file SHA-256 hashes against the manifest through `src/evaluation/ecosystemFixtures`.
+2. Parse the condition-aware `ContextCapsule`/`RetrievalAuditRecord` producer evidence through the exact `v0.4.5` readers in `src/evaluation/upstreamArtifacts`.
+3. Validate the loaded capsule/audit evidence against the same consistency selectors `v0.4.3`/`v0.4.4` use.
+4. Calculate allocation, spillover, and condition-coverage metrics from the parsed producer evidence.
+5. Parse the mirrored orchestrator run-integrity evidence (`RunIntegrityGateResult`, `JudgeIntegrityResult`, `FinalReportEligibilityResult`, and the `artifact-state.json` lifecycle record) through the `v0.4.5` orchestrator readers and selectors.
+6. Calculate agreement between the producer evidence and the run-integrity evidence for each defined comparison pair, using the shared `AgreementOutcomeV1` vocabulary (`agreement` / `contradiction` / `insufficient-evidence` / `unsupported-legacy-evidence` / `not-applicable`).
+7. Calculate the end-to-end agreement category from the individual agreement results.
+8. Verify determinism by repeating the evaluation (reusing `calculateStageContextDeterminism`) and comparing canonicalized results.
+9. Verify fixture self-immutability by re-running hash verification against the frozen fixture bytes.
+10. Build the bounded `ContextIntegrityReportV1` JSON, text, and HTML reports through `buildContextIntegrityReport` and the corresponding renderers in `src/report/experiments`.
+
+**Expected behavior and outputs:** the `failed-run` fixture evaluates to `contradiction-present` end-to-end and preserves real evidence of judge/lifecycle contradictions; the `corrected-replay` fixture evaluates to `full-agreement`; missing or legacy-incompatible evidence (e.g. no `roleConditionCoverage` on the failed-run producer) is reported as `unsupported-legacy-evidence`/`unavailable`, never coerced into agreement or zero; no composite score, grade, ranking, or winner is produced. The corrected-replay fixture and any report or document describing it must state that it is a hand-distilled representation of the validated `v1.10.4`/`v1.2.3` contracts, not a live capture of a complete ten-stage workflow and not proof that every future run will behave identically.
+
+**Failure handling:** a hash-verification failure or malformed fixture manifest fails the load step clearly rather than falling back to unverified bytes. A missing or malformed piece of evidence produces an `unavailable`/`insufficient-evidence` agreement result rather than a fabricated agreement or contradiction.
+
+**Completion:** the bounded report reflects hash-verified, deterministic evaluation of the selected fixture, and the underlying fixture bytes and recorded hashes are unchanged by evaluation. This workflow is implemented on the `fix/v0.4.5-context-integrity-validation` implementation branch and has not gone through pre-release readiness, release preparation, or publication. See [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
+
 ## Real-agent campaign
 
 **Goal:** run matched Codex or Claude trials while preserving partial outcomes.

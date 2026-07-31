@@ -11,7 +11,7 @@ flowchart LR
   V020[v0.2.0] --> V021[v0.2.1] --> V022[v0.2.2]
   V022 --> V030[v0.3.0] --> V031[v0.3.1] --> V032[v0.3.2] --> V033[v0.3.3] --> V034[v0.3.4]
   V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3] --> V044[v0.4.4]
-  V044 --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
+  V044 --> V045[v0.4.5] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
   V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
@@ -420,6 +420,40 @@ Acceptance:
 * No owner-selection, allocation, producer-parity, or readiness policy is duplicated from either frozen upstream repository.
 * Repeated canonical runs of the corrected fixture case produce identical canonicalized digests, including the producer-readiness bridge result.
 * `v0.4.4` is released after upstream verification, PR merge, main CI, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state.
+
+### v0.4.5 — context-integrity evaluation and frozen ecosystem regression
+
+Status: **implemented; active/unreleased** (implementation branch `fix/v0.4.5-context-integrity-validation`; awaiting individual pre-release readiness).
+
+Purpose:
+
+* Extend the producer-readiness bridge to consume the exact current local my-dev-kit v1.10.4 condition-aware producer contract (role-condition coverage, allocation/spillover diagnostics, required-versus-optional omission) and the exact current local my-dev-kit-orchestrator v1.2.3 run-integrity contract (readiness, prompt authorization, judge integrity, correction routing, final-report eligibility, lifecycle), and calculate bounded agreement across both systems without reimplementing either upstream's policy.
+* Preserve a permanent, byte-exact regression fixture for the real my-dev-kit v1.11.0 Batch 1 context-readiness false-negative failure, paired with a corrected-contract replay for the same request/target/index identity, so the failure class cannot silently regress.
+
+Ownership boundaries approved for this patch (unchanged from `v0.4.3`/`v0.4.4`): my-dev-kit-lab parses exact upstream evidence, compares producer and orchestrator claims, and reports agreement/contradiction/unavailable; it never derives an expected judge verdict, selects a correction destination, authorizes a final report, marks a stage complete, or replaces either upstream verdict.
+
+In scope for `v0.4.5`:
+
+* Exact mirrors of the local my-dev-kit v1.10.4 additive producer fields (`roleConditionCoverage`, extended `groupTruncation` allocation/omission fields, `truncation.requiredEvidenceLost`) in `src/evaluation/upstreamArtifacts`, with schema-major-1 legacy compatibility preserved.
+* Allocation, spillover, condition-coverage, witness, and last-witness-loss metrics, and producer-condition / requiredEvidenceLost / producer-readiness agreement calculators, in `src/evaluation/stageContextMetrics`.
+* An exact, bounded lab-owned mirror of the local my-dev-kit-orchestrator v1.2.3 run-integrity contract (`RunIntegrityGateResult`, `JudgeIntegrityResult`, `FinalReportEligibilityResult`, and `artifact-state.json` lifecycle records) in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`, since the orchestrator itself exposes these as in-memory structured results plus one lifecycle JSON file rather than one combined on-disk artifact.
+* Readiness/prompt, readiness/expected-judge, expected/actual-judge, judge/correction, judge/final-eligibility, eligibility/final-artifact, and lifecycle-integrity agreement calculators, plus one bounded end-to-end agreement summary, composed once through the existing `evaluateProducerReadinessBridge`.
+* A permanent, byte-exact-where-applicable frozen fixture pair under `tests/fixtures/ecosystem/context-integrity/v0.4.5/`: the real preserved my-dev-kit v1.11.0 Batch 1 failed run, and a corrected-contract replay for the same request/target/index identity, both with SHA-256 provenance manifests, a 49-case negative matrix, deterministic repeated-evaluation verification, and fixture/target immutability verification.
+* Additive `report.json`/`report.txt`/`report.html` sections presenting the above through the existing bounded-detail, availability, and neutral-interpretation conventions.
+
+Explicitly out of scope / deferred for `v0.4.5`:
+
+* Public CLI flags or a new command family for context-integrity evaluation — all inputs remain programmatic/fixture-driven.
+* A live, full ten-stage AI-authored replay of the regressed feature; the corrected-replay fixture is a hand-distilled representation of the exact validated contracts for the same request/target/index identity, not a byte-exact generated run.
+* A composite score, grade, ranking, winner, or lab-generated release verdict.
+* Individual pre-release readiness, coordinated cross-repository validation, release preparation, package-version bump, tag, GitHub Release, or npm publication.
+
+Acceptance:
+
+* Current and legacy (schema-major-1) producer artifacts both parse; unknown additive fields and missing legacy diagnostics remain distinct from fabricated zero/false/empty values.
+* Required and optional evidence omission remain distinguishable everywhere they are reported, including through the false-negative regression fixture.
+* The frozen failed-run fixture evaluates deterministically to `contradiction-present`; the corrected-replay fixture evaluates deterministically to `full-agreement`; both remain stable across repeated evaluation and fixture-immutability checks.
+* No upstream producer, orchestrator, readiness, judge, correction, or lifecycle policy is reimplemented or overridden by a lab-owned verdict.
 
 ### Post-v1 / version TBD — manual pentest
 

@@ -94,6 +94,16 @@ Six additional strategy IDs are implemented in the `context-strategy-comparison`
 
 `combined-bounded-stage-context` optionally accepts additional producer-readiness bridge inputs — the implementation/test-context packet and retrieval-report file paths, and a readiness plain object — through the same programmatic strategy-input configuration described above. No CLI flags exist for these inputs, and none are planned for this patch; readiness in particular has no on-disk file format at the frozen orchestrator commit and is only ever accepted as a plain object.
 
+### v0.4.5 context-integrity evaluation (implemented, unreleased)
+
+Context-integrity evaluation (condition-aware producer evidence vs. orchestrator run-integrity evidence, evaluated against the frozen `tests/fixtures/ecosystem/context-integrity/v0.4.5/` fixture pair) has no dedicated `experiment:run` command or CLI flags; it is exercised through tests (`npm run test:evaluation`, `npm run test:report`) and through:
+
+```bash
+npm run report:context-integrity-smoke
+```
+
+This takes no arguments. It loads both frozen fixtures, evaluates each through the existing producer-readiness bridge, and writes `ContextIntegrityReportV1` JSON/text/HTML reports to `lab-output/context-integrity-report-smoke/` for manual inspection. It is a developer convenience, not part of any release-readiness gate or the audited command surface in the tables below.
+
 ## Reports, plots, and gallery
 
 | Command | Purpose |

@@ -5,10 +5,10 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.4.4`
+- Package version: `0.4.4` (unchanged by the `v0.4.5` implementation work described below)
 - Latest release: `v0.4.4` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.3`)
-- Next planned version: `v0.5.0`; planned, not implemented
-- `v0.4.4` (producer-readiness bridge) is the current release.
+- Active planned version: `v0.4.5` (context-integrity validation); implemented on the implementation branch, **not released, not published, not tagged**
+- `v0.4.4` (producer-readiness bridge) remains the latest published release. `v0.4.5` is active/unreleased implementation work; see [ROADMAP.md](ROADMAP.md) for its scope, dependencies, and acceptance criteria.
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
@@ -16,10 +16,11 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 - Current branch (published baseline): `main`
 - `v0.4.4` release branch: `release/v0.4.4` (merged to main)
-- Active planned version: `v0.5.0`; planned, not implemented
-- Workflow stage: `v0.4.4` released after upstream verification, PR, CI, merge, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state.
-- Release blockers: none.
-- Exact next action: Begin `v0.5.0` (warm-index reuse) planning only after preserving release evidence; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.
+- Implementation branch for `v0.4.5`: `fix/v0.4.5-context-integrity-validation`
+- Active planned version: `v0.4.5`; implemented on the implementation branch, not merged, not released
+- Workflow stage: `v0.4.5` context-integrity evaluation (condition-aware producer mirrors, condition-coverage metrics, orchestrator run-integrity mirrors, frozen ecosystem regression fixture pair, and bounded JSON/text/HTML reporting) is implemented and internally complete on the implementation branch. No coordinated cross-repository validation, version bump, tag, GitHub Release, or npm publish has occurred.
+- Release blockers: none known for `v0.4.5` implementation completeness itself; release readiness has not yet been evaluated.
+- Exact next action: run a separate, individual `my-dev-kit-lab` `v0.4.5` pre-release readiness workflow. This is distinct from coordinated cross-repository validation and from release preparation, and has not yet been run.
 
 ## Implemented
 
@@ -47,6 +48,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published: exact `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` readers and selectors in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`; the `StageContextExpectationFixtureV1` contract in `src/evaluation/stageContextExpectations`; six new `context-strategy-comparison` strategies (`architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, `combined-bounded-stage-context`) selected through programmatic configuration; evidence-centered metrics in `src/evaluation/stageContextMetrics`; read-only target immutability in `src/evaluation/targetImmutability`; repeated-run determinism in `src/evaluation/stageContextDeterminism`; and bounded `report.json`/`report.html`/`report.txt` output in `src/report/experiments`. See [ROADMAP.md](ROADMAP.md) for the complete scope, dependencies, and acceptance criteria.
 - Implemented but unpublished compatibility work accepts my-dev-kit's additive major-1 audit repository identity, preserves absence in legacy audits, and extends existing pair diagnostics to detect repository-root and manifest-schema disagreement. No new CLI command or orchestrator-readiness implementation is added.
 - `v0.4.4` producer-readiness bridge is released: exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator's readiness result (`src/evaluation/upstreamArtifacts`); deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics (`src/evaluation/stageContextMetrics`); an additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) that composes those metrics over already-loaded evidence; additive optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`); optional producer-readiness bridge inputs on the `combined-bounded-stage-context` strategy, loaded once per run and reported through the existing `report.json`/`report.txt`/`report.html` pipeline as an additive, optional section. Readiness remains a programmatic plain-object input only — the frozen orchestrator commit exposes no on-disk readiness artifact, and no readiness/producer-parity/owner-selection/allocation policy is duplicated. No public CLI flags were added.
+- `v0.4.5` context-integrity validation is implemented on the implementation branch and **not yet released**: condition-aware producer evidence mirrored from the frozen local `my-dev-kit` `v1.10.4` contract (`roleConditionCoverage`, allocation/spillover `GroupTruncationEntry` fields, `truncation.requiredEvidenceLost`) in `src/evaluation/upstreamArtifacts`; allocation, spillover, condition-coverage, and agreement metrics in `src/evaluation/stageContextMetrics`; run-integrity evidence mirrored from the frozen local `my-dev-kit-orchestrator` `v1.2.3` contract (`RunIntegrityGateResult`, `JudgeIntegrityResult`, `FinalReportEligibilityResult`, plus `artifact-state.json` lifecycle records) and corresponding agreement calculators, composed additively through the existing `evaluateProducerReadinessBridge`; a frozen, hash-verified ecosystem regression fixture pair under `tests/fixtures/ecosystem/context-integrity/v0.4.5/` — a byte-exact real historical failed run and a hand-distilled corrected-replay counterpart representing the same validated `v1.10.4`/`v1.2.3` contracts, plus a 49-case negative matrix, hash verification, determinism, and fixture-immutability checks; and a bounded, additive `ContextIntegrityReportV1` JSON/text/HTML report layer in `src/report/experiments` that reuses the existing bounded-list/availability report primitives rather than duplicating them. The lab evaluates **agreement** between producer, readiness, judge, correction, eligibility, and lifecycle evidence — it does not reimplement or duplicate upstream policy, and it reports contradictions rather than resolving them. No CLI flags, no composite score/grade/rank/winner, and no package version bump were introduced by this work.
 
 ## Current commands
 
@@ -63,6 +65,8 @@ The repository has one experiment runtime, one audit framework, one standalone s
 The audit framework, language-aware code-rot detectors, security adapter, Android validation, and Android audit extension are implemented through v0.4.2. The Android extension maps confirmed findings, keeps `CandidateEvidence` separate, and includes bounded status, completeness, and report-reference summaries.
 
 `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published; see the `Implemented` section above. Within that implementation, CLI flags for selecting the six new strategies through `experiment:run` are **not implemented** — they are configured programmatically. Plots, screenshots, and gallery integration for the new stage-context evidence are likewise **not implemented**.
+
+`v0.4.5` context-integrity validation is implemented on the implementation branch but **not published**; see the `Implemented` section above. It has no CLI flags (evaluation remains programmatic/test-driven, as with `v0.4.3`), no plots/screenshot/gallery integration, and no live full ten-stage replay — the corrected-replay fixture is a hand-distilled representation of the validated `v1.10.4`/`v1.2.3` contracts, not a byte-exact generated run. Individual `my-dev-kit-lab` `v0.4.5` pre-release readiness has **not** been run yet.
 
 The following remain planned, not implemented:
 
@@ -87,6 +91,8 @@ The following remain planned, not implemented:
 - Only one experiment plugin is currently registered.
 - The published upstream `ContextCapsule`/`RetrievalAuditRecord` artifacts that the implemented `v0.4.3` readers consume do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` with an explicit reason rather than zero.
 - Estimated token counts in the `v0.4.3` context-size metric use `ceil(characterCount / 4)` per source and are heuristic, not provider telemetry.
+- The `v0.4.5` corrected-replay fixture is a hand-distilled representation of the validated local `my-dev-kit` `v1.10.4` and `my-dev-kit-orchestrator` `v1.2.3` contracts for the same request, target, and active-index identity as the paired failed-run fixture. It is not a live capture of a complete ten-stage AI-authored implementation workflow, and it is not proof that every future run against these contracts will behave identically.
+- The `v0.4.5` orchestrator agreement evidence does not read a literal upstream `promptMode` field; `stageMayRenderNormalPrompt`, derived from structured blocked-stage evidence, is the bounded substitute used throughout the metrics and reports.
 
 ## Validation state
 
@@ -96,10 +102,12 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 
 `v0.4.4` released after full validation: canonical `npm test` + `npm run verify` executed once each, docs:check, security:validate, code-rot audit (PASS_WITH_REVIEW_ITEMS, no blockers), report smoke (deterministic, zero mutation), package dry-run inventory clean, published-upstream compatibility confirmed with my-dev-kit@1.10.3 + orchestrator@1.2.2. All PR and main CI passed before merge/tag/publish.
 
+`v0.4.5` implementation-branch validation: the full test suite (including `tests/evaluation/upstreamArtifacts`, `tests/evaluation/stageContextMetrics`, `tests/evaluation/ecosystemFixtures`, and `tests/report/experiments` context-integrity coverage), `npm run typecheck`, `npm run build`, and `npm run docs:check` have been run against implementation-branch commits during batched development. A single combined pre-release readiness gate (matching the `v0.4.3`/`v0.4.4` pattern) has **not** been run yet for `v0.4.5` — that is the next step, tracked separately from this implementation work.
+
 ## Blockers
 
-There are no documentation, factual, or implementation blockers for the released `v0.4.4` implementation.
+There are no documentation, factual, or implementation blockers for the released `v0.4.4` implementation. `v0.4.5` implementation work is internally complete on its implementation branch and has no known blockers, but has not yet gone through individual pre-release readiness evaluation.
 
 ## Next step
 
-Begin `v0.5.0` (warm-index reuse) planning only after preserving release evidence and verifying downstream install of v0.4.4; see [ROADMAP.md](ROADMAP.md) for `v0.5.0`'s dependencies and acceptance criteria.
+Run a separate, individual `my-dev-kit-lab` `v0.4.5` pre-release readiness workflow. Only after that passes should `v0.5.0` (warm-index reuse) planning begin; see [ROADMAP.md](ROADMAP.md) for `v0.4.5`'s and `v0.5.0`'s dependencies and acceptance criteria.
