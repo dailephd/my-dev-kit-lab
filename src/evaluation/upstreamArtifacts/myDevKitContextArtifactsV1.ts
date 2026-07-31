@@ -807,6 +807,9 @@ export type TruncationRecord = {
 
 export type TruncationSummary = {
   truncated: boolean;
+  /** Additive schema-major-1 rollup (v1.10.3+). Current output always supplies it; legacy
+   * artifacts may omit it. */
+  requiredEvidenceLost?: boolean;
   records: TruncationRecord[];
   warnings: string[];
 }

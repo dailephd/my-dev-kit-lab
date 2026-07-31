@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classifyTruncationRecord, classifyTruncationRecords } from "../../../src/evaluation/stageContextMetrics/calculateTruncationClassification.js";
-import type { TruncationRecord } from "../../../src/evaluation/upstreamArtifacts/index.js";
+import {
+  classifyConditionAwareTruncation,
+  classifyTruncationRecord,
+  classifyTruncationRecords
+} from "../../../src/evaluation/stageContextMetrics/calculateTruncationClassification.js";
+import type { ContextCapsule, GroupTruncationEntry, RoleConditionCoverage, TruncationRecord } from "../../../src/evaluation/upstreamArtifacts/index.js";
 
 function record(overrides: Partial<TruncationRecord>): TruncationRecord {
   return {
@@ -70,5 +74,148 @@ describe("classifyTruncationRecord", () => {
   // TST-B2-028
   it("a strategy with no truncation records at all produces an empty (not-applicable) classification set", () => {
     expect(classifyTruncationRecords([], "context-capsule", "instance")).toEqual([]);
+  });
+});
+
+function condition(overrides: Partial<RoleConditionCoverage> = {}): RoleConditionCoverage {
+  return {
+    conditionId: "implementation.selected-owner",
+    role: "implementation",
+    required: true,
+    evidenceGroupIds: ["implementation-owners"],
+    witnessPolicy: "at-least-one",
+    requiredWitnessCount: 1,
+    availableWitnessCount: 1,
+    retainedWitnessCount: 1,
+    retainedWitnessIds: ["src/example.ts"],
+    conditionSatisfied: true,
+    lostRequiredCondition: false,
+    lossReason: null,
+    evaluationOrder: 10,
+    ...overrides
+  };
+}
+
+function groupEntry(overrides: Partial<GroupTruncationEntry> = {}): GroupTruncationEntry {
+  return {
+    groupId: "implementation-owners",
+    limit: 2,
+    availableCount: 1,
+    usedCount: 1,
+    truncated: false,
+    droppedCount: 0,
+    requiredOmittedCount: 0,
+    optionalOmittedCount: 0,
+    ...overrides
+  };
+}
+
+function capsuleLike(overrides: {
+  truncated?: boolean;
+  requiredEvidenceLost?: boolean;
+  roleConditionCoverage?: RoleConditionCoverage[];
+  groupTruncation?: GroupTruncationEntry[];
+}): ContextCapsule {
+  return {
+    truncation: { truncated: overrides.truncated ?? false, requiredEvidenceLost: overrides.requiredEvidenceLost, records: [], warnings: [] },
+    roleConditionCoverage: overrides.roleConditionCoverage,
+    groupTruncation: overrides.groupTruncation ?? []
+  } as unknown as ContextCapsule;
+}
+
+describe("classifyConditionAwareTruncation", () => {
+  it("reports unsupported-legacy-diagnostics when no current diagnostics exist", () => {
+    const result = classifyConditionAwareTruncation(capsuleLike({ truncated: false }), "context-capsule", "instance");
+    expect(result.state).toBe("unsupported-legacy-diagnostics");
+    expect(result.availability).toBe("unavailable");
+  });
+
+  it("reports no-truncation when truncated is false and no loss evidence exists", () => {
+    const result = classifyConditionAwareTruncation(
+      capsuleLike({ truncated: false, requiredEvidenceLost: false, roleConditionCoverage: [condition()] }),
+      "context-capsule",
+      "instance"
+    );
+    expect(result.state).toBe("no-truncation");
+  });
+
+  it("reports optional-only-truncation when truncated but no required loss occurred", () => {
+    const result = classifyConditionAwareTruncation(
+      capsuleLike({ truncated: true, requiredEvidenceLost: false, roleConditionCoverage: [condition()] }),
+      "context-capsule",
+      "instance"
+    );
+    expect(result.state).toBe("optional-only-truncation");
+  });
+
+  it("reports required-condition-or-last-witness-loss when a condition explicitly lost its witness", () => {
+    const lost = condition({ conditionSatisfied: false, lostRequiredCondition: true, availableWitnessCount: 2, retainedWitnessCount: 0 });
+    const result = classifyConditionAwareTruncation(
+      capsuleLike({ truncated: true, requiredEvidenceLost: true, roleConditionCoverage: [lost] }),
+      "context-capsule",
+      "instance"
+    );
+    expect(result.state).toBe("required-condition-or-last-witness-loss");
+    expect(result.lostRequiredConditionIds).toEqual(["implementation.selected-owner"]);
+  });
+
+  it("reports required-evidence-loss when required loss is signaled without condition-level detail", () => {
+    const result = classifyConditionAwareTruncation(
+      capsuleLike({ truncated: true, requiredEvidenceLost: true, groupTruncation: [groupEntry({ requiredOmittedCount: 1 })] }),
+      "context-capsule",
+      "instance"
+    );
+    expect(result.state).toBe("required-evidence-loss");
+  });
+
+  it("reports unknown-criticality when truncated but requiredEvidenceLost is absent", () => {
+    const result = classifyConditionAwareTruncation(
+      capsuleLike({ truncated: true, requiredEvidenceLost: undefined, roleConditionCoverage: [condition()] }),
+      "context-capsule",
+      "instance"
+    );
+    expect(result.state).toBe("unknown-criticality");
+  });
+
+  it("detects the contradiction: requiredEvidenceLost false but explicit condition loss reported", () => {
+    const lost = condition({ conditionSatisfied: false, lostRequiredCondition: true });
+    const result = classifyConditionAwareTruncation(
+      capsuleLike({ truncated: true, requiredEvidenceLost: false, roleConditionCoverage: [lost] }),
+      "context-capsule",
+      "instance"
+    );
+    expect(result.state).toBe("contradictory-producer-evidence");
+    expect(result.contradictionCodes).toEqual(["REQUIRED_EVIDENCE_LOST_FALSE_BUT_CONDITION_LOSS_REPORTED"]);
+  });
+
+  it("detects the contradiction: requiredEvidenceLost true but all required conditions retained", () => {
+    const result = classifyConditionAwareTruncation(
+      capsuleLike({
+        truncated: true,
+        requiredEvidenceLost: true,
+        roleConditionCoverage: [condition()],
+        groupTruncation: [groupEntry({ requiredOmittedCount: 0 })]
+      }),
+      "context-capsule",
+      "instance"
+    );
+    expect(result.state).toBe("contradictory-producer-evidence");
+    expect(result.contradictionCodes).toEqual(["REQUIRED_EVIDENCE_LOST_TRUE_BUT_ALL_REQUIRED_CONDITIONS_RETAINED"]);
+  });
+
+  it("required and optional omission totals stay distinct rather than collapsing into one boolean", () => {
+    const result = classifyConditionAwareTruncation(
+      capsuleLike({
+        truncated: true,
+        requiredEvidenceLost: false,
+        roleConditionCoverage: [condition()],
+        groupTruncation: [groupEntry({ requiredOmittedCount: 0, optionalOmittedCount: 3 })]
+      }),
+      "context-capsule",
+      "instance"
+    );
+    expect(result.requiredOmittedTotal).toBe(0);
+    expect(result.optionalOmittedTotal).toBe(3);
+    expect(result.state).toBe("optional-only-truncation");
   });
 });

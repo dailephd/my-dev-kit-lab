@@ -3,10 +3,18 @@
 // The lab never derives allocation from character/token counts and never infers a value
 // the producer does not expose (e.g. cross-group borrowing is always unavailable, because
 // no frozen my-dev-kit artifact field exposes it).
-import type { EvidenceGroup } from "../upstreamArtifacts/index.js";
+import type { EvidenceGroup, GroupTruncationEntry } from "../upstreamArtifacts/index.js";
 import type { ProducerReadinessAllocationExpectationV1 } from "../stageContextExpectations/index.js";
 import type { StageContextCountMetricV1, StageContextExpectationMatchV1 } from "./types.js";
-import type { AllocationCapacityFactV1, AllocationMetricsV1, RequiredEvidenceOmittedEntryV1 } from "./producerReadinessMetricTypes.js";
+import type {
+  AggregateAllocationEvidenceV1,
+  AllocationCapacityFactV1,
+  AllocationMetricsV1,
+  GroupAllocationMetricsV1,
+  PerGroupAllocationEvidenceV1,
+  RequiredEvidenceOmittedEntryV1,
+  SpilloverDiagnosticsV1
+} from "./producerReadinessMetricTypes.js";
 
 const NO_BORROW_EVIDENCE_REASON =
   "The frozen my-dev-kit artifacts do not expose cross-group capacity borrowing evidence.";
@@ -122,4 +130,189 @@ export function findAllocationExpectationForGroup(
   groupId: string
 ): ProducerReadinessAllocationExpectationV1 | undefined {
   return (expectations ?? []).find((e) => e.groupId === groupId);
+}
+
+// v0.4.5 Batch 2: per-group/aggregate allocation and spillover evidence, read directly from
+// ContextCapsule.groupTruncation (the Batch 1 mirror of the v1.10.3/v1.10.4 required-first
+// allocator diagnostics). A group entry that lacks every additive allocation field is
+// legacy/unavailable, never fabricated as zero. RetrievalAuditRecord has no groupTruncation
+// field, so this evidence is context-capsule-only (sourceArtifact is always fixed).
+
+function hasAnyAllocationField(entry: GroupTruncationEntry): boolean {
+  return (
+    entry.required !== undefined ||
+    entry.reservation !== undefined ||
+    entry.initiallySelectedCount !== undefined ||
+    entry.unusedReservationContributed !== undefined ||
+    entry.borrowedCapacity !== undefined ||
+    entry.requiredOmittedCount !== undefined ||
+    entry.optionalOmittedCount !== undefined ||
+    entry.adequacyAffected !== undefined ||
+    entry.governingHardBound !== undefined ||
+    entry.aggregateCapacityUsed !== undefined ||
+    entry.aggregateCapacityRemaining !== undefined
+  );
+}
+
+function calculatePerGroupAllocation(entries: readonly GroupTruncationEntry[], sourceInstance: string): PerGroupAllocationEvidenceV1[] {
+  return entries.map((entry) => {
+    const available = hasAnyAllocationField(entry);
+    return {
+      groupId: entry.groupId,
+      sourceArtifact: "context-capsule",
+      sourceInstance,
+      availability: available ? "available" : "unavailable",
+      required: entry.required ?? null,
+      reservation: entry.reservation ?? null,
+      initiallySelectedCount: entry.initiallySelectedCount ?? null,
+      unusedReservationContributed: entry.unusedReservationContributed ?? null,
+      borrowedCapacity: entry.borrowedCapacity ?? null,
+      governingHardBound: entry.governingHardBound ?? null,
+      requiredOmittedCount: entry.requiredOmittedCount ?? null,
+      optionalOmittedCount: entry.optionalOmittedCount ?? null,
+      droppedCount: entry.droppedCount,
+      droppedEvidenceIds: entry.droppedEvidenceIds ?? [],
+      adequacyAffected: entry.adequacyAffected ?? null,
+      aggregateCapacityUsed: entry.aggregateCapacityUsed ?? null,
+      aggregateCapacityRemaining: entry.aggregateCapacityRemaining ?? null,
+      reason: available ? null : `Group "${entry.groupId}" exposes no v1.10.3/v1.10.4 allocation diagnostics (legacy schema-major-1 evidence).`
+    };
+  });
+}
+
+function sumIfComplete(entries: readonly GroupTruncationEntry[], field: keyof GroupTruncationEntry): number | null {
+  if (entries.length === 0) return null;
+  let total = 0;
+  for (const entry of entries) {
+    const value = entry[field];
+    if (typeof value !== "number") return null;
+    total += value;
+  }
+  return total;
+}
+
+function calculateAggregateAllocation(entries: readonly GroupTruncationEntry[]): AggregateAllocationEvidenceV1 {
+  if (entries.length === 0) {
+    return {
+      availability: "not-applicable",
+      groupCount: 0,
+      totalReservation: null,
+      totalInitiallySelected: null,
+      totalUnusedReservationContributed: null,
+      totalBorrowedCapacity: null,
+      totalRequiredOmitted: null,
+      totalOptionalOmitted: null,
+      totalDropped: null,
+      groupsContributingUnusedReservation: [],
+      groupsBorrowingCapacity: [],
+      groupsWithRequiredOmission: [],
+      groupsWithOptionalOnlyOmission: [],
+      groupsWithAdequacyAffected: [],
+      partial: false,
+      reason: "No evidence groups were supplied."
+    };
+  }
+
+  const anyAllocationEvidence = entries.some(hasAnyAllocationField);
+  if (!anyAllocationEvidence) {
+    return {
+      availability: "unavailable",
+      groupCount: entries.length,
+      totalReservation: null,
+      totalInitiallySelected: null,
+      totalUnusedReservationContributed: null,
+      totalBorrowedCapacity: null,
+      totalRequiredOmitted: null,
+      totalOptionalOmitted: null,
+      totalDropped: null,
+      groupsContributingUnusedReservation: [],
+      groupsBorrowingCapacity: [],
+      groupsWithRequiredOmission: [],
+      groupsWithOptionalOnlyOmission: [],
+      groupsWithAdequacyAffected: [],
+      partial: false,
+      reason: "No group exposes v1.10.3/v1.10.4 allocation diagnostics (legacy schema-major-1 evidence)."
+    };
+  }
+
+  const totalReservation = sumIfComplete(entries, "reservation");
+  const totalInitiallySelected = sumIfComplete(entries, "initiallySelectedCount");
+  const totalUnusedReservationContributed = sumIfComplete(entries, "unusedReservationContributed");
+  const totalBorrowedCapacity = sumIfComplete(entries, "borrowedCapacity");
+  const totalRequiredOmitted = sumIfComplete(entries, "requiredOmittedCount");
+  const totalOptionalOmitted = sumIfComplete(entries, "optionalOmittedCount");
+  const totalDropped = sumIfComplete(entries, "droppedCount");
+
+  const totals = [
+    totalReservation,
+    totalInitiallySelected,
+    totalUnusedReservationContributed,
+    totalBorrowedCapacity,
+    totalRequiredOmitted,
+    totalOptionalOmitted
+  ];
+  const partial = totals.some((t) => t === null);
+
+  return {
+    availability: "available",
+    groupCount: entries.length,
+    totalReservation,
+    totalInitiallySelected,
+    totalUnusedReservationContributed,
+    totalBorrowedCapacity,
+    totalRequiredOmitted,
+    totalOptionalOmitted,
+    totalDropped,
+    groupsContributingUnusedReservation: entries.filter((e) => (e.unusedReservationContributed ?? 0) > 0).map((e) => e.groupId),
+    groupsBorrowingCapacity: entries.filter((e) => (e.borrowedCapacity ?? 0) > 0).map((e) => e.groupId),
+    groupsWithRequiredOmission: entries.filter((e) => (e.requiredOmittedCount ?? 0) > 0).map((e) => e.groupId),
+    groupsWithOptionalOnlyOmission: entries
+      .filter((e) => (e.optionalOmittedCount ?? 0) > 0 && (e.requiredOmittedCount ?? 0) === 0)
+      .map((e) => e.groupId),
+    groupsWithAdequacyAffected: entries.filter((e) => e.adequacyAffected === true).map((e) => e.groupId),
+    partial,
+    reason: partial ? "At least one group lacks the full allocation field set; incomplete totals are reported as null rather than partially summed." : null
+  };
+}
+
+function calculateSpillover(entries: readonly GroupTruncationEntry[]): SpilloverDiagnosticsV1 {
+  const anyAllocationEvidence = entries.some(hasAnyAllocationField);
+  if (!anyAllocationEvidence) {
+    return {
+      availability: "unavailable",
+      groupsContributing: [],
+      groupsBorrowing: [],
+      totalContributed: null,
+      totalBorrowed: null,
+      contributionCoversBorrowing: null,
+      reason: "No group exposes v1.10.3/v1.10.4 allocation diagnostics (legacy schema-major-1 evidence)."
+    };
+  }
+
+  const groupsContributing = entries.filter((e) => (e.unusedReservationContributed ?? 0) > 0).map((e) => e.groupId);
+  const groupsBorrowing = entries.filter((e) => (e.borrowedCapacity ?? 0) > 0).map((e) => e.groupId);
+  const totalContributed = sumIfComplete(entries, "unusedReservationContributed");
+  const totalBorrowed = sumIfComplete(entries, "borrowedCapacity");
+
+  return {
+    availability: "available",
+    groupsContributing,
+    groupsBorrowing,
+    totalContributed,
+    totalBorrowed,
+    contributionCoversBorrowing: totalContributed !== null && totalBorrowed !== null ? totalContributed >= totalBorrowed : null,
+    reason: null
+  };
+}
+
+export function calculateGroupAllocationMetrics(
+  groupTruncation: readonly GroupTruncationEntry[] | undefined,
+  sourceInstance: string
+): GroupAllocationMetricsV1 {
+  const entries = groupTruncation ?? [];
+  return {
+    perGroup: calculatePerGroupAllocation(entries, sourceInstance),
+    aggregate: calculateAggregateAllocation(entries),
+    spillover: calculateSpillover(entries)
+  };
 }

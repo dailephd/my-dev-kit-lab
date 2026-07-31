@@ -15,15 +15,28 @@ import type {
   StageContextExpectationFixtureV1
 } from "../stageContextExpectations/index.js";
 import { collectSelectedOwnerEvidence, calculateOwnerMetrics } from "./calculateOwnerMetrics.js";
-import { calculateAllocationFactsForGroups } from "./calculateAllocationMetrics.js";
-import { classifyTruncationRecords } from "./calculateTruncationClassification.js";
+import { calculateAllocationFactsForGroups, calculateGroupAllocationMetrics } from "./calculateAllocationMetrics.js";
+import { classifyTruncationRecords, classifyConditionAwareTruncation } from "./calculateTruncationClassification.js";
+import { calculateConditionCoverageMetrics } from "./calculateConditionCoverageMetrics.js";
+import {
+  calculateCapsuleAuditConditionAgreement,
+  calculateProducerConditionAgreement,
+  calculateRequiredEvidenceLossAgreement
+} from "./calculateProducerConditionAgreement.js";
 import { calculateSupplementalRawAgreement } from "./calculateSupplementalRawAgreement.js";
-import { calculateReadinessAgreementMetrics } from "./calculateReadinessAgreement.js";
+import { calculateReadinessAgreementMetrics, calculateProducerReadinessRelationship } from "./calculateReadinessAgreement.js";
 import { calculateCriticalityMetrics } from "./calculateCriticalityMetrics.js";
 import type {
   AllocationMetricsV1,
+  CapsuleAuditConditionAgreementV1,
+  ConditionAwareTruncationClassificationV1,
+  ConditionCoverageMetricsV1,
+  GroupAllocationMetricsV1,
   OwnerMetricsV1,
+  ProducerConditionAgreementV1,
+  ProducerReadinessRelationshipV1,
   ReadinessAgreementMetricsV1,
+  RequiredEvidenceLossAgreementV1,
   SupplementalRawAgreementV1,
   TruncationClassificationV1,
   CriticalityMetricsV1
@@ -52,6 +65,13 @@ export interface ProducerReadinessBridgeSideEvaluationV1 {
   truncationEvaluation: TruncationClassificationV1[];
   packetAgreement: SupplementalRawAgreementV1 | null;
   reportAgreement: SupplementalRawAgreementV1 | null;
+  // v0.4.5 Batch 2 additions, computed once here and carried through unchanged.
+  groupAllocationEvaluation: GroupAllocationMetricsV1;
+  conditionAwareTruncationEvaluation: ConditionAwareTruncationClassificationV1 | null;
+  conditionCoverageEvaluation: ConditionCoverageMetricsV1;
+  producerConditionAgreement: ProducerConditionAgreementV1;
+  requiredEvidenceLossAgreement: RequiredEvidenceLossAgreementV1;
+  capsuleAuditConditionAgreement: CapsuleAuditConditionAgreementV1;
 }
 
 export interface ProducerReadinessBridgeEvaluationResultV1 {
@@ -61,6 +81,9 @@ export interface ProducerReadinessBridgeEvaluationResultV1 {
   testImplementation: ProducerReadinessBridgeSideEvaluationV1 | null;
   readinessAgreement: ReadinessAgreementMetricsV1 | null;
   criticalityEvaluation: CriticalityMetricsV1 | null;
+  // v0.4.5 Batch 2: producer role adequacy vs supplied orchestrator readiness, preferring
+  // the same side-selection precedence already used for criticalityEvaluation.
+  producerReadinessRelationship: ProducerReadinessRelationshipV1 | null;
   warnings: string[];
   evidenceReferences: string[];
 }
@@ -108,7 +131,37 @@ function evaluateSide(input: ProducerReadinessBridgeSideInputV1, expectations: S
   const reportAgreement =
     input.report !== undefined || rawForAgreement !== undefined ? calculateSupplementalRawAgreement(input.report, rawForAgreement) : null;
 
-  return { ownerEvaluation, allocationEvaluation, truncationEvaluation, packetAgreement, reportAgreement };
+  // v0.4.5 Batch 2: allocation/condition-coverage evidence, computed once per side and
+  // carried through the result unchanged (never recomputed by a renderer or later batch).
+  const groupAllocationEvaluation = calculateGroupAllocationMetrics(capsule?.groupTruncation, input.role);
+  const conditionAwareTruncationEvaluation = truncationArtifact
+    ? classifyConditionAwareTruncation(truncationArtifact, truncationSourceArtifact, input.role)
+    : null;
+  const roleConditionCoverage = capsule?.roleConditionCoverage ?? input.retrievalAuditRecord?.roleConditionCoverage;
+  const availableEvidenceGroupIds = capsule?.evidenceGroups.map((g) => g.id);
+  const conditionCoverageEvaluation = calculateConditionCoverageMetrics(roleConditionCoverage, availableEvidenceGroupIds);
+  const roleAdequacyStatus = (capsule ?? input.retrievalAuditRecord)?.roleAdequacy.status;
+  const producerConditionAgreement = calculateProducerConditionAgreement(roleAdequacyStatus, conditionCoverageEvaluation);
+  const requiredEvidenceLossAgreement = calculateRequiredEvidenceLossAgreement(
+    truncationArtifact?.truncation.requiredEvidenceLost,
+    conditionCoverageEvaluation,
+    groupAllocationEvaluation.aggregate.totalRequiredOmitted
+  );
+  const capsuleAuditConditionAgreement = calculateCapsuleAuditConditionAgreement(capsule, input.retrievalAuditRecord);
+
+  return {
+    ownerEvaluation,
+    allocationEvaluation,
+    truncationEvaluation,
+    packetAgreement,
+    reportAgreement,
+    groupAllocationEvaluation,
+    conditionAwareTruncationEvaluation,
+    conditionCoverageEvaluation,
+    producerConditionAgreement,
+    requiredEvidenceLossAgreement,
+    capsuleAuditConditionAgreement
+  };
 }
 
 interface CombinedPayloadLike {
@@ -179,6 +232,7 @@ export function evaluateProducerReadinessBridge(input: ProducerReadinessBridgeIn
       testImplementation: null,
       readinessAgreement: null,
       criticalityEvaluation: null,
+      producerReadinessRelationship: null,
       warnings: [],
       evidenceReferences: []
     };
@@ -220,6 +274,33 @@ export function evaluateProducerReadinessBridge(input: ProducerReadinessBridgeIn
     input.expectations.producerReadinessExpectations?.criticalityExpectations
   );
 
+  // v0.4.5 Batch 2: producer role adequacy vs supplied orchestrator readiness. Selects the
+  // side input.readiness.kind actually applies to when available, otherwise falls back to
+  // the same test-implementation-preferred precedence as criticalityEvaluation above.
+  const readinessSideRole = input.readiness?.kind === "implementation" || input.readiness?.kind === "test" ? input.readiness.kind : undefined;
+  const readinessSideEvaluation =
+    readinessSideRole === "implementation" ? implementation : readinessSideRole === "test" ? testImplementation : (testImplementation ?? implementation);
+  const readinessSideRawArtifact =
+    readinessSideEvaluation?.role === "implementation"
+      ? (input.implementation?.contextCapsule ?? input.implementation?.retrievalAuditRecord)
+      : readinessSideEvaluation?.role === "test-implementation"
+        ? (input.testImplementation?.contextCapsule ?? input.testImplementation?.retrievalAuditRecord)
+        : undefined;
+  // calculateProducerReadinessRelationship short-circuits before touching this argument
+  // whenever roleAdequacyStatus is undefined, so a placeholder is safe when no side applies.
+  const placeholderProducerConditionAgreement: ProducerConditionAgreementV1 = {
+    availability: "unavailable",
+    outcome: "insufficient-evidence",
+    observedRoleAdequacyStatus: null,
+    contradictionCodes: [],
+    reason: "No producer side applies to the supplied readiness result."
+  };
+  const producerReadinessRelationship = calculateProducerReadinessRelationship(
+    readinessSideRawArtifact?.roleAdequacy.status,
+    readinessSideEvaluation?.producerConditionAgreement ?? placeholderProducerConditionAgreement,
+    input.readiness
+  );
+
   return {
     status: "evaluated",
     reason: null,
@@ -227,6 +308,7 @@ export function evaluateProducerReadinessBridge(input: ProducerReadinessBridgeIn
     testImplementation,
     readinessAgreement,
     criticalityEvaluation,
+    producerReadinessRelationship,
     warnings,
     evidenceReferences
   };

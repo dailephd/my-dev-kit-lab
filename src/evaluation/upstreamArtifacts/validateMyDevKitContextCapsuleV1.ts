@@ -2058,7 +2058,7 @@ function validateCapsuleTruncationRecord(ctx: FieldContext, value: JsonValue, fi
 
 export function validateTruncationSummary(ctx: FieldContext, value: JsonValue, fieldPath: string): TruncationSummary {
   const obj = requiredObject(ctx, value, fieldPath);
-  return {
+  const result: TruncationSummary = {
     truncated: requiredBoolean(ctx, requiredField(ctx, obj, "truncated", joinFieldPath(fieldPath, "truncated")), joinFieldPath(fieldPath, "truncated")),
     records: requiredArray(
       ctx,
@@ -2067,6 +2067,10 @@ export function validateTruncationSummary(ctx: FieldContext, value: JsonValue, f
     ).map((item, i) => validateCapsuleTruncationRecord(ctx, item, arrayFieldPath(joinFieldPath(fieldPath, "records"), i))),
     warnings: requiredStringArray(ctx, requiredField(ctx, obj, "warnings", joinFieldPath(fieldPath, "warnings")), joinFieldPath(fieldPath, "warnings"))
   };
+  if (optionalField(obj, "requiredEvidenceLost") !== undefined) {
+    result.requiredEvidenceLost = optionalBoolean(ctx, obj.requiredEvidenceLost, joinFieldPath(fieldPath, "requiredEvidenceLost"));
+  }
+  return result;
 }
 
 function validateFullFileFallbackRecord(ctx: FieldContext, value: JsonValue, fieldPath: string): FullFileFallbackRecord {
