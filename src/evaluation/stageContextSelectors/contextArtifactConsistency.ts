@@ -11,6 +11,7 @@ export type MyDevKitContextArtifactConsistencyFieldPath =
   | "index.projectRoot"
   | "contextAdequacy"
   | "roleContext"
+  | "roleConditionCoverage"
   | "responsibilityMappings"
   | "roleAdequacy"
   | "freshness"
@@ -78,6 +79,13 @@ export function checkMyDevKitContextArtifactConsistency(
       fieldPath: "roleContext",
       capsuleValue: capsule.roleContext as unknown as JsonValue,
       auditValue: audit.roleContext as unknown as JsonValue
+    },
+    // Both absent is a compatible legacy pair. One absent and one present is a
+    // contradiction; absence is never normalized to an empty current result.
+    {
+      fieldPath: "roleConditionCoverage",
+      capsuleValue: (capsule.roleConditionCoverage ?? null) as unknown as JsonValue,
+      auditValue: (audit.roleConditionCoverage ?? null) as unknown as JsonValue
     },
     {
       fieldPath: "responsibilityMappings",

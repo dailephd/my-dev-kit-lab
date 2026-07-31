@@ -81,6 +81,7 @@ import type {
   RetentionCapSettings,
   RetentionSummary,
   RoleAdequacyStatement,
+  RoleConditionCoverage,
   RoleContextSummary,
   SelectedGraph,
   SelectedGraphEdge,
@@ -1616,7 +1617,7 @@ function validateTestInfrastructureSummary(ctx: FieldContext, value: JsonValue, 
 
 function validateGroupTruncationEntry(ctx: FieldContext, value: JsonValue, fieldPath: string): GroupTruncationEntry {
   const obj = requiredObject(ctx, value, fieldPath);
-  return {
+  const result: GroupTruncationEntry = {
     groupId: requiredString(ctx, requiredField(ctx, obj, "groupId", joinFieldPath(fieldPath, "groupId")), joinFieldPath(fieldPath, "groupId")),
     limit: requiredNullableNumber(ctx, requiredField(ctx, obj, "limit", joinFieldPath(fieldPath, "limit")), joinFieldPath(fieldPath, "limit")),
     availableCount: requiredNonnegativeInteger(
@@ -1634,6 +1635,115 @@ function validateGroupTruncationEntry(ctx: FieldContext, value: JsonValue, field
       ctx,
       requiredField(ctx, obj, "droppedCount", joinFieldPath(fieldPath, "droppedCount")),
       joinFieldPath(fieldPath, "droppedCount")
+    )
+  };
+  if (optionalField(obj, "droppedEvidenceIds") !== undefined) {
+    result.droppedEvidenceIds = requiredStringArray(ctx, obj.droppedEvidenceIds, joinFieldPath(fieldPath, "droppedEvidenceIds"));
+  }
+  if (optionalField(obj, "required") !== undefined) result.required = optionalBoolean(ctx, obj.required, joinFieldPath(fieldPath, "required"));
+  if (optionalField(obj, "reservation") !== undefined)
+    result.reservation = optionalNumber(ctx, obj.reservation, joinFieldPath(fieldPath, "reservation"));
+  if (optionalField(obj, "initiallySelectedCount") !== undefined)
+    result.initiallySelectedCount = optionalNumber(ctx, obj.initiallySelectedCount, joinFieldPath(fieldPath, "initiallySelectedCount"));
+  if (optionalField(obj, "unusedReservationContributed") !== undefined)
+    result.unusedReservationContributed = optionalNumber(
+      ctx,
+      obj.unusedReservationContributed,
+      joinFieldPath(fieldPath, "unusedReservationContributed")
+    );
+  if (optionalField(obj, "borrowedCapacity") !== undefined)
+    result.borrowedCapacity = optionalNumber(ctx, obj.borrowedCapacity, joinFieldPath(fieldPath, "borrowedCapacity"));
+  if (optionalField(obj, "requiredOmittedCount") !== undefined)
+    result.requiredOmittedCount = optionalNumber(ctx, obj.requiredOmittedCount, joinFieldPath(fieldPath, "requiredOmittedCount"));
+  if (optionalField(obj, "optionalOmittedCount") !== undefined)
+    result.optionalOmittedCount = optionalNumber(ctx, obj.optionalOmittedCount, joinFieldPath(fieldPath, "optionalOmittedCount"));
+  if (optionalField(obj, "adequacyAffected") !== undefined)
+    result.adequacyAffected = optionalBoolean(ctx, obj.adequacyAffected, joinFieldPath(fieldPath, "adequacyAffected"));
+  if (optionalField(obj, "governingHardBound") !== undefined)
+    result.governingHardBound = optionalNumber(ctx, obj.governingHardBound, joinFieldPath(fieldPath, "governingHardBound"));
+  if (optionalField(obj, "aggregateCapacityUsed") !== undefined)
+    result.aggregateCapacityUsed = optionalNumber(ctx, obj.aggregateCapacityUsed, joinFieldPath(fieldPath, "aggregateCapacityUsed"));
+  if (optionalField(obj, "aggregateCapacityRemaining") !== undefined)
+    result.aggregateCapacityRemaining = optionalNumber(
+      ctx,
+      obj.aggregateCapacityRemaining,
+      joinFieldPath(fieldPath, "aggregateCapacityRemaining")
+    );
+  return result;
+}
+
+const ROLE_CONDITION_IDS = ["implementation.selected-owner", "implementation.required-contract"] as const;
+const ROLE_CONDITION_WITNESS_POLICIES = ["at-least-one"] as const;
+const ROLE_CONDITION_COVERAGE_LOSS_REASONS = ["bounded-allocation-omitted-required-witnesses"] as const;
+const ROLE_CONDITION_ROLES = ["architecture", "implementation", "test-implementation"] as const;
+
+export function validateRoleConditionCoverage(ctx: FieldContext, value: JsonValue, fieldPath: string): RoleConditionCoverage {
+  const obj = requiredObject(ctx, value, fieldPath);
+  return {
+    conditionId: requiredLiteral(
+      ctx,
+      requiredField(ctx, obj, "conditionId", joinFieldPath(fieldPath, "conditionId")),
+      joinFieldPath(fieldPath, "conditionId"),
+      ROLE_CONDITION_IDS
+    ),
+    role: requiredLiteral(
+      ctx,
+      requiredField(ctx, obj, "role", joinFieldPath(fieldPath, "role")),
+      joinFieldPath(fieldPath, "role"),
+      ROLE_CONDITION_ROLES
+    ) as ContextRole,
+    required: requiredBoolean(ctx, requiredField(ctx, obj, "required", joinFieldPath(fieldPath, "required")), joinFieldPath(fieldPath, "required")),
+    evidenceGroupIds: requiredStringArray(
+      ctx,
+      requiredField(ctx, obj, "evidenceGroupIds", joinFieldPath(fieldPath, "evidenceGroupIds")),
+      joinFieldPath(fieldPath, "evidenceGroupIds")
+    ),
+    witnessPolicy: requiredLiteral(
+      ctx,
+      requiredField(ctx, obj, "witnessPolicy", joinFieldPath(fieldPath, "witnessPolicy")),
+      joinFieldPath(fieldPath, "witnessPolicy"),
+      ROLE_CONDITION_WITNESS_POLICIES
+    ),
+    requiredWitnessCount: requiredNonnegativeInteger(
+      ctx,
+      requiredField(ctx, obj, "requiredWitnessCount", joinFieldPath(fieldPath, "requiredWitnessCount")),
+      joinFieldPath(fieldPath, "requiredWitnessCount")
+    ),
+    availableWitnessCount: requiredNonnegativeInteger(
+      ctx,
+      requiredField(ctx, obj, "availableWitnessCount", joinFieldPath(fieldPath, "availableWitnessCount")),
+      joinFieldPath(fieldPath, "availableWitnessCount")
+    ),
+    retainedWitnessCount: requiredNonnegativeInteger(
+      ctx,
+      requiredField(ctx, obj, "retainedWitnessCount", joinFieldPath(fieldPath, "retainedWitnessCount")),
+      joinFieldPath(fieldPath, "retainedWitnessCount")
+    ),
+    retainedWitnessIds: requiredStringArray(
+      ctx,
+      requiredField(ctx, obj, "retainedWitnessIds", joinFieldPath(fieldPath, "retainedWitnessIds")),
+      joinFieldPath(fieldPath, "retainedWitnessIds")
+    ),
+    conditionSatisfied: requiredBoolean(
+      ctx,
+      requiredField(ctx, obj, "conditionSatisfied", joinFieldPath(fieldPath, "conditionSatisfied")),
+      joinFieldPath(fieldPath, "conditionSatisfied")
+    ),
+    lostRequiredCondition: requiredBoolean(
+      ctx,
+      requiredField(ctx, obj, "lostRequiredCondition", joinFieldPath(fieldPath, "lostRequiredCondition")),
+      joinFieldPath(fieldPath, "lostRequiredCondition")
+    ),
+    lossReason: requiredNullableLiteral(
+      ctx,
+      requiredField(ctx, obj, "lossReason", joinFieldPath(fieldPath, "lossReason")),
+      joinFieldPath(fieldPath, "lossReason"),
+      ROLE_CONDITION_COVERAGE_LOSS_REASONS
+    ),
+    evaluationOrder: requiredNumber(
+      ctx,
+      requiredField(ctx, obj, "evaluationOrder", joinFieldPath(fieldPath, "evaluationOrder")),
+      joinFieldPath(fieldPath, "evaluationOrder")
     )
   };
 }
@@ -2269,6 +2379,15 @@ export function validateMyDevKitContextCapsuleV1(value: JsonObject, sourcePath: 
       groupTruncation: requiredArray(ctx, requiredField(ctx, value, "groupTruncation", "groupTruncation"), "groupTruncation").map((item, i) =>
         validateGroupTruncationEntry(ctx, item, arrayFieldPath("groupTruncation", i))
       ),
+      ...(optionalField(value, "roleConditionCoverage") !== undefined
+        ? {
+            roleConditionCoverage: requiredArray(
+              ctx,
+              value.roleConditionCoverage,
+              "roleConditionCoverage"
+            ).map((item, i) => validateRoleConditionCoverage(ctx, item, arrayFieldPath("roleConditionCoverage", i)))
+          }
+        : {}),
       responsibilityMappings: validateResponsibilityMappingSummary(
         ctx,
         requiredField(ctx, value, "responsibilityMappings", "responsibilityMappings"),
