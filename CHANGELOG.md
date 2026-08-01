@@ -13,7 +13,6 @@ Context-integrity validation for the published my-dev-kit v1.10.4 and my-dev-kit
 - Added a frozen, hash-verified ecosystem regression fixture pair under `tests/fixtures/ecosystem/context-integrity/v0.4.5/`: a byte-exact real historical failed run, and a corrected-replay fixture that is a hand-distilled representation of the exact validated local v1.10.4/v1.2.3 contracts for the same request, target, and index identity — not a live capture of a complete ten-stage workflow, and not proof that every future run will behave identically. Added manifest/hash verification, determinism, and fixture self-immutability checks.
 - Added a bounded `ContextIntegrityReportV1` JSON/text/HTML report layer in `src/report/experiments`, reusing the existing bounded-list/availability report primitives rather than duplicating them.
 - All new inputs are read from fixtures or supplied programmatically; there is no CLI flag or command for this evaluation. No composite score, grade, ranking, or winner is produced, and no upstream producer, readiness, judge, correction, or lifecycle policy is duplicated. The orchestrator agreement evidence does not read a literal upstream `promptMode` field; `stageMayRenderNormalPrompt`, derived from structured blocked-stage evidence, is the bounded substitute used instead.
-- This entry does not represent a package version bump, tag, GitHub Release, or npm publication.
 
 ## [0.4.4] - 2026-07-29
 
