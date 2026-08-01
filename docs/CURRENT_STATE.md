@@ -18,9 +18,9 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.4.4` release branch: `release/v0.4.4` (merged to main)
 - Implementation branch for `v0.4.5`: `fix/v0.4.5-context-integrity-validation`
 - Active planned version: `v0.4.5`; implemented on the implementation branch, not merged, not released
-- Workflow stage: `v0.4.5` context-integrity evaluation (condition-aware producer mirrors, condition-coverage metrics, orchestrator run-integrity mirrors, frozen ecosystem regression fixture pair, and bounded JSON/text/HTML reporting) is implemented and internally complete on the implementation branch. No coordinated cross-repository validation, version bump, tag, GitHub Release, or npm publish has occurred.
-- Release blockers: none known for `v0.4.5` implementation completeness itself; release readiness has not yet been evaluated.
-- Exact next action: run a separate, individual `my-dev-kit-lab` `v0.4.5` pre-release readiness workflow. This is distinct from coordinated cross-repository validation and from release preparation, and has not yet been run.
+- Workflow stage: `v0.4.5` context-integrity evaluation (condition-aware producer mirrors, condition-coverage metrics, orchestrator run-integrity mirrors, frozen ecosystem regression fixture pair, and bounded JSON/text/HTML reporting) is implemented and internally complete on the implementation branch. Individual pre-release readiness passed for the prior exact candidate `29f0da3`. Coordinated cross-repository validation then ran and returned `NEEDS_CORRECTION`; no version bump, release preparation, tag, GitHub Release, or npm publish has occurred.
+- Release blockers and coordinated result: the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. The remaining corrections were missing my-dev-kit Node.js 22 exact-candidate CI evidence and stale readiness-stage wording.
+- Exact next action: rerun individual `v0.4.5` pre-release readiness against the new exact candidate created by this documentation correction, then rerun coordinated cross-repository validation after my-dev-kit also has a new passing individual-readiness report. Release preparation remains blocked until that coordinated rerun passes.
 
 ## Implemented
 
@@ -66,7 +66,7 @@ The audit framework, language-aware code-rot detectors, security adapter, Androi
 
 `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published; see the `Implemented` section above. Within that implementation, CLI flags for selecting the six new strategies through `experiment:run` are **not implemented** — they are configured programmatically. Plots, screenshots, and gallery integration for the new stage-context evidence are likewise **not implemented**.
 
-`v0.4.5` context-integrity validation is implemented on the implementation branch but **not published**; see the `Implemented` section above. It has no CLI flags (evaluation remains programmatic/test-driven, as with `v0.4.3`), no plots/screenshot/gallery integration, and no live full ten-stage replay — the corrected-replay fixture is a hand-distilled representation of the validated `v1.10.4`/`v1.2.3` contracts, not a byte-exact generated run. Individual `my-dev-kit-lab` `v0.4.5` pre-release readiness has **not** been run yet.
+`v0.4.5` context-integrity validation is implemented on the implementation branch but **not published**; see the `Implemented` section above. It has no CLI flags (evaluation remains programmatic/test-driven, as with `v0.4.3`), no plots/screenshot/gallery integration, and no live full ten-stage replay — the corrected-replay fixture is a hand-distilled representation of the validated `v1.10.4`/`v1.2.3` contracts, not a byte-exact generated run. Individual `my-dev-kit-lab` `v0.4.5` pre-release readiness passed for prior candidate `29f0da3`; the documentation-only corrected candidate requires a complete individual-readiness rerun before coordinated validation is rerun.
 
 The following remain planned, not implemented:
 
@@ -102,12 +102,12 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 
 `v0.4.4` released after full validation: canonical `npm test` + `npm run verify` executed once each, docs:check, security:validate, code-rot audit (PASS_WITH_REVIEW_ITEMS, no blockers), report smoke (deterministic, zero mutation), package dry-run inventory clean, published-upstream compatibility confirmed with my-dev-kit@1.10.3 + orchestrator@1.2.2. All PR and main CI passed before merge/tag/publish.
 
-`v0.4.5` implementation-branch validation: the full test suite (including `tests/evaluation/upstreamArtifacts`, `tests/evaluation/stageContextMetrics`, `tests/evaluation/ecosystemFixtures`, and `tests/report/experiments` context-integrity coverage), `npm run typecheck`, `npm run build`, and `npm run docs:check` have been run against implementation-branch commits during batched development. A single combined pre-release readiness gate (matching the `v0.4.3`/`v0.4.4` pattern) has **not** been run yet for `v0.4.5` — that is the next step, tracked separately from this implementation work.
+`v0.4.5` individual pre-release readiness passed for exact candidate `29f0da3` after clean installation, full and focused tests, fixture/Git-blob portability, determinism, immutability, report smoke and inspection, documentation, security, code-rot, package-content, and Windows/Linux/macOS × Node.js 22/24 CI validation. The subsequent coordinated gate confirmed the live compatibility path and all coordinated negative/security/package/determinism/immutability checks, but returned `NEEDS_CORRECTION` for the upstream my-dev-kit Node.js 22 CI gap and stale readiness wording. This documentation correction creates a new lab candidate SHA, so the complete individual gate must run again before coordinated validation is repeated.
 
 ## Blockers
 
-There are no documentation, factual, or implementation blockers for the released `v0.4.4` implementation. `v0.4.5` implementation work is internally complete on its implementation branch and has no known blockers, but has not yet gone through individual pre-release readiness evaluation.
+There are no documentation, factual, or implementation blockers for the released `v0.4.4` implementation. `v0.4.5` implementation work is internally complete, and prior exact candidate `29f0da3` passed individual readiness. Release preparation remains blocked while the documentation-only corrected candidate awaits its individual-readiness rerun and the coordinated gate awaits a rerun with both corrected candidates.
 
 ## Next step
 
-Run a separate, individual `my-dev-kit-lab` `v0.4.5` pre-release readiness workflow. Only after that passes should `v0.5.0` (warm-index reuse) planning begin; see [ROADMAP.md](ROADMAP.md) for `v0.4.5`'s and `v0.5.0`'s dependencies and acceptance criteria.
+Rerun the complete individual `my-dev-kit-lab` `v0.4.5` pre-release-readiness workflow against the new exact documentation-correction candidate. After both changed candidates have passing individual-readiness reports, rerun coordinated cross-repository validation with unchanged orchestrator candidate `2cb82f0`. Release preparation remains blocked until that coordinated rerun passes; see [ROADMAP.md](ROADMAP.md) for `v0.4.5`'s and `v0.5.0`'s dependencies and acceptance criteria.
