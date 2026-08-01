@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "1.0.0",
+  "runFolder": "Z:/fixture/project/.my-dev-kit-orchestrator/runs/run-fixture-002",
+  "gate": {
+    "schemaVersion": "1.0.0",
+    "mode": "feature",
+    "contextRequired": true,
+    "applicableContextKinds": ["implementation", "test"],
+    "implementationContext": {
+      "schemaVersion": "1.0.0",
+      "kind": "implementation",
+      "role": "implementation",
+      "decision": "refresh-required",
+      "classification": "required-evidence-truncated",
+      "stageId": "stage.feature.implementation",
+      "packetPath": "artifacts/implementation-context-packet.txt",
+      "reportPath": "reports/implementation-context-retrieval-report.txt",
+      "issues": [],
+      "warnings": [],
+      "blockingIssueCodes": ["CONTEXT_REQUIRED_EVIDENCE_TRUNCATED"],
+      "primaryIssue": {
+        "code": "CONTEXT_REQUIRED_EVIDENCE_TRUNCATED",
+        "severity": "error",
+        "message": "Required implementation evidence was truncated.",
+        "priority": 1,
+        "correctiveAction": "Refresh implementation context.",
+        "evidenceTarget": "implementation-context-packet",
+        "stageId": "stage.feature.implementation",
+        "contextKind": "implementation"
+      },
+      "blockerSummary": {
+        "contextKind": "implementation",
+        "primaryCode": "CONTEXT_REQUIRED_EVIDENCE_TRUNCATED",
+        "primaryReason": "Required implementation evidence was truncated.",
+        "correctiveAction": "Refresh implementation context.",
+        "evidenceTarget": "implementation-context-packet",
+        "blockingIssueCodes": ["CONTEXT_REQUIRED_EVIDENCE_TRUNCATED"],
+        "supportingIssueCodes": []
+      },
+      "affectedResponsibilityIds": [],
+      "evaluatedFreshness": "fresh",
+      "evaluatedAdequacy": "insufficient",
+      "requiredEvidenceTruncated": "yes",
+      "readyWithAssumptions": false,
+      "provenanceSummary": "resolved from populated packet/report pair",
+      "indexIdentity": "Z:/fixture/project"
+    },
+    "contextReady": false,
+    "readinessClassification": "refresh-required",
+    "blockedStageNames": ["implementation"],
+    "blockingCodes": ["CONTEXT_REQUIRED_EVIDENCE_TRUNCATED"],
+    "primaryBlocker": {
+      "contextKind": "implementation",
+      "primaryCode": "CONTEXT_REQUIRED_EVIDENCE_TRUNCATED",
+      "primaryReason": "Required implementation evidence was truncated.",
+      "correctiveAction": "Refresh implementation context.",
+      "evidenceTarget": "implementation-context-packet",
+      "blockingIssueCodes": ["CONTEXT_REQUIRED_EVIDENCE_TRUNCATED"],
+      "supportingIssueCodes": []
+    },
+    "recommendedCorrectionStage": "implementation",
+    "expectedJudgeVerdict": "NEED_CONTEXT",
+    "warnings": []
+  },
+  "judgeIntegrity": {
+    "schemaVersion": "1.0.0",
+    "judgeArtifactPresent": true,
+    "judgeVerdictParseStatus": "parsed",
+    "authoredJudgeVerdict": "NEED_CONTEXT",
+    "expectedJudgeVerdict": "NEED_CONTEXT",
+    "judgeVerdictMatchesExpected": true,
+    "judgeVerdictAccepted": true,
+    "correctionRequired": true,
+    "correctionBlocked": false,
+    "acceptedCorrectionStage": "implementation",
+    "finalReportEligible": false,
+    "blockingCodes": [],
+    "acceptedCorrectionRoute": {
+      "verdict": "NEED_CONTEXT",
+      "recommendedStage": "implementation",
+      "routedStage": "implementation",
+      "routeStatus": "correction_required",
+      "warnings": [],
+      "errors": [],
+      "isBlocked": false,
+      "strictFail": false
+    }
+  },
+  "finalReportEligibility": {
+    "eligible": false,
+    "contextReady": false,
+    "priorArtifactsValid": false,
+    "judgeIntegrity": {
+      "schemaVersion": "1.0.0",
+      "judgeArtifactPresent": true,
+      "judgeVerdictParseStatus": "parsed",
+      "authoredJudgeVerdict": "NEED_CONTEXT",
+      "expectedJudgeVerdict": "NEED_CONTEXT",
+      "judgeVerdictMatchesExpected": true,
+      "judgeVerdictAccepted": true,
+      "correctionRequired": true,
+      "correctionBlocked": false,
+      "acceptedCorrectionStage": "implementation",
+      "finalReportEligible": false,
+      "blockingCodes": [],
+      "acceptedCorrectionRoute": {
+        "verdict": "NEED_CONTEXT",
+        "recommendedStage": "implementation",
+        "routedStage": "implementation",
+        "routeStatus": "correction_required",
+        "warnings": [],
+        "errors": [],
+        "isBlocked": false,
+        "strictFail": false
+      }
+    },
+    "blockingCodes": ["FINAL_REPORT_PRIOR_ARTIFACTS_INCOMPLETE"],
+    "primaryReason": "A required prior native artifact is not yet complete."
+  },
+  "finalArtifactPresent": false,
+  "finalArtifactVerdict": null,
+  "lifecycle": [
+    {
+      "artifactFile": "artifacts/architecture-context.txt",
+      "stageName": "architecture-context",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    },
+    {
+      "artifactFile": "artifacts/implementation.txt",
+      "stageName": "implementation",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "blocked",
+      "blockingReason": "Required implementation evidence was truncated."
+    },
+    {
+      "artifactFile": "artifacts/final-report.txt",
+      "stageName": "final-report",
+      "fileExists": false,
+      "manualRecord": null,
+      "resolvedState": "missing"
+    }
+  ]
+}

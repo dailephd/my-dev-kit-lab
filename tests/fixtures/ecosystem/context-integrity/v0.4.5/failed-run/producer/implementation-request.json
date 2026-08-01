@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0.0",
+  "role": "implementation",
+  "query": "Retrieve the exact current contracts, types, call sites, validators, constants, artifact-writing behavior, stale-cleanup behavior, analyzer-status behavior, incremental invalidation behavior, and closest tests needed to implement the optional android-compose-semantic.json declaration-only analyzer in the approved files.",
+  "index": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation",
+  "mode": "feature-add",
+  "focusFiles": [
+    "src/android/androidNavigationTypes.ts",
+    "src/android/buildComposeNavigationRoutes.ts",
+    "src/android/buildAndroidNavigationProject.ts",
+    "src/android/index.ts",
+    "src/indexing/managedArtifacts.ts",
+    "src/indexing/writeIndexManifest.ts",
+    "src/indexing/runIndexCommand.ts",
+    "src/indexing/manifestTypes.ts"
+  ],
+  "beforeIndex": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/baseline",
+  "afterIndex": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation",
+  "requestedEvidenceKinds": [
+    "owner",
+    "dependencies",
+    "contracts",
+    "validators",
+    "constants",
+    "errors",
+    "schemas",
+    "callers",
+    "callees",
+    "closest-tests"
+  ],
+  "output": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-capsule.json",
+  "auditOutput": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-audit.json"
+}

@@ -2,6 +2,19 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.4.5] - 2026-08-01
+
+Context-integrity validation for the published my-dev-kit v1.10.4 and my-dev-kit-orchestrator v1.2.3 contracts.
+
+- Added exact readers for the frozen local my-dev-kit v1.10.4 condition-aware producer contract (`roleConditionCoverage`, allocation/spillover `GroupTruncationEntry` fields, `truncation.requiredEvidenceLost`) in `src/evaluation/upstreamArtifacts`.
+- Added allocation, spillover, condition-coverage, and producer-condition agreement metrics in `src/evaluation/stageContextMetrics`.
+- Added exact readers and selectors for the frozen local my-dev-kit-orchestrator v1.2.3 run-integrity contract (`RunIntegrityGateResult`, `JudgeIntegrityResult`, `FinalReportEligibilityResult`, and `artifact-state.json` lifecycle records) in `src/evaluation/upstreamArtifacts` and `src/evaluation/stageContextSelectors`.
+- Added run-integrity agreement calculators (readiness/prompt, readiness/expected-judge, expected/actual-judge, judge/correction, judge/final-eligibility, eligibility/final-artifact, and lifecycle-integrity agreement), composed additively into the existing `evaluateProducerReadinessBridge`.
+- Added a frozen, hash-verified ecosystem regression fixture pair under `tests/fixtures/ecosystem/context-integrity/v0.4.5/`: a byte-exact real historical failed run, and a corrected-replay fixture that is a hand-distilled representation of the exact validated local v1.10.4/v1.2.3 contracts for the same request, target, and index identity — not a live capture of a complete ten-stage workflow, and not proof that every future run will behave identically. Added manifest/hash verification, determinism, and fixture self-immutability checks.
+- Added a bounded `ContextIntegrityReportV1` JSON/text/HTML report layer in `src/report/experiments`, reusing the existing bounded-list/availability report primitives rather than duplicating them.
+- All new inputs are read from fixtures or supplied programmatically; there is no CLI flag or command for this evaluation. No composite score, grade, ranking, or winner is produced, and no upstream producer, readiness, judge, correction, or lifecycle policy is duplicated. The orchestrator agreement evidence does not read a literal upstream `promptMode` field; `stageMayRenderNormalPrompt`, derived from structured blocked-stage evidence, is the bounded substitute used instead.
+- This entry does not represent a package version bump, tag, GitHub Release, or npm publication.
+
 ## [0.4.4] - 2026-07-29
 
 - Added exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test-context packet and retrieval-report documents and a bounded plain-object adapter for the orchestrator readiness result.

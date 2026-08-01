@@ -1,0 +1,58 @@
+Retrieval evidence report
+
+Index artifacts used:
+- Index directory: Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\baseline
+- Refreshed or reused: refreshed (built fresh via `my-dev-kit index --root . --src src --src tests --out <baseline> --json` against the current working-tree commit)
+- manifest.json status: complete, indexMode "full", 269 files / 2242 symbols / 3506 edges, all analyzers complete or skipped-as-expected (no Android evidence in this repo's own source tree, which is expected: my-dev-kit-v1 indexes itself, not an Android/Kotlin fixture project)
+- Semantic artifacts available: data-model, data-model-graph, frontend-semantic, frontend-reachability, classification (all present); android-* analyzers all "skipped" with detected:false, consistent with this repository having no Android/Kotlin/Gradle project of its own
+
+Search queries run:
+- Query: "checkPartialRebuildEligibility"
+  Reason: confirm the owner of partial-rebuild eligibility gating referenced by Stage 0's incremental-invalidation open question (fixed decision 2.4 in the external task contract)
+- Query: "buildAndroidNavigationAnalyzerStatus"
+  Reason: confirm the exact symbol location of the closest existing precedent (android-navigation analyzer-status builder) that the new android-compose-semantic analyzer-status builder must mirror
+
+Candidate nodes selected:
+- Node ID: symbol:src/indexing/partialRebuild.ts#checkPartialRebuildEligibility
+  Reason: highest-scoring exact match; the eligibility gate that decides whether an incremental run reuses vs. rebuilds symbol-index entries
+- Node ID: symbol:src/indexing/runIndexCommand.ts#buildAndroidNavigationAnalyzerStatus
+  Reason: exact analyzer-status builder precedent for android-navigation (Batch 1's `android-compose-semantic` analyzer-status builder must follow this same never-'failed'-on-parse, degrade-to-warning shape)
+
+Lookup commands run:
+- Node ID: (none run this stage — search + source retrieval were sufficient; the file-level ownership and call sites for both selected symbols were already established with certainty in the prior Stage 0 investigation via full-content review of src/indexing/runIndexCommand.ts, and confirmed again by this stage's index/search pass showing no other definitions or duplicate exports of either symbol name in the current tree)
+  Useful relationships found: n/a
+
+Graph slices created:
+- Focus node: (none)
+- Depth: n/a
+- Direction: n/a
+- Output path: n/a
+- Reason: the two-node ownership question this stage needed to close (incremental-invalidation contract, android-navigation-analyzer-status precedent) was already fully answered by Stage 0's direct reading of src/indexing/runIndexCommand.ts's finishIndexBuild() (which shows androidNavigationResult computed unconditionally on every full-rebuild and every partial-rebuild-eligible call, and skipped only on the fast-path branch that itself requires zero changed/added/removed files) plus this stage's exact-symbol source confirmation of checkPartialRebuildEligibility's file-identity/schema-version gate. A graph slice would not add evidence beyond what direct source retrieval already provided.
+
+Source symbols retrieved:
+- Symbol node ID: symbol:src/indexing/partialRebuild.ts#checkPartialRebuildEligibility
+  File path: src/indexing/partialRebuild.ts
+  Reason: verify exactly what invalidates partial-rebuild eligibility (symbol-index.json presence + schema-version match); confirms eligibility is keyed off the existing symbol-index artifact, not any Android-specific fingerprint, so a new Compose analyzer needs no parallel eligibility gate
+
+Line-range fallback retrieval used:
+- File path or none: none
+- Lines: n/a
+- Reason: exact-symbol source retrieval succeeded; no fallback needed
+
+Full files read beyond retrieved source:
+- File path: src/indexing/runIndexCommand.ts (1408 lines)
+  Reason: read in full during Stage 0 (the prior architecture-inspection turn of this same engagement, before this batch's run/RUN_ID existed and before this stage's context-capsule/search-first retrieval sequence was invoked). At that time no index existed yet for this task, so bounded retrieval was unavailable; the read was needed to see the entire orchestration sequence (config fingerprinting, full vs. partial vs. no-op branches, and all six existing Android analyzer-status builders) in one pass, since the file's control flow interleaves the full-rebuild and incremental-rebuild code paths and understanding where a seventh analyzer must be added requires seeing how the existing six are threaded through every branch, not just one symbol's definition.
+  Missing context provided: confirmed `finishIndexBuild()` unconditionally recomputes `androidNavigationResult` (and therefore, by the identical pattern, would recompute a Compose-semantic result) from the just-built `roledSymbolIndex` on both the full-rebuild and the partial-rebuild-eligible paths, and is skipped only by the no-op fast path that itself requires zero added/changed/removed files (i.e. a path where Compose evidence could not have changed either). This is the specific evidence needed to resolve the Section 2.4 incremental-invalidation decision.
+- File path: src/android/buildComposeNavigationRoutes.ts (376 lines), src/android/buildAndroidNavigationProject.ts (99 lines), src/indexing/managedArtifacts.ts (44 lines), src/indexing/refreshIndexOutput.ts (26 lines), src/indexing/writeIndexManifest.ts (partially read, ~120 lines inspected), src/languages/kotlin/adapter.ts (288 lines), src/android/index.ts (174 lines), src/graph-diff/types.ts (125 lines), src/android/buildAndroidArtifactRelationships.ts (first 60 lines), src/frontend/frontendAnalyzer.ts (first 80 lines)
+  Reason: same Stage-0 timing justification as above — no task-specific index existed yet at read time, so this was the only way to establish ground truth for the Stage 0 architecture report that this batch's fixed decisions (Section 2 of the external task contract) are built on. These reads directly produced the file lists in "Files likely to change" / "Files intentionally avoided" now carried into this stage as fixed input.
+  Missing context provided: exact conservative-parser precedent (`buildComposeNavigationRoutes.ts`'s brace-matching/paren-matching/lambda-body-extraction helpers) that Batch 1's declaration analyzer must reuse the shape of; exact managed-artifact-filename registration point; exact stale-cleanup mechanism (blanket delete-then-rewrite over `MANAGED_INDEX_ARTIFACT_FILENAMES`); exact confirmation that `android-navigation.json` is not part of `graph-diff` today (so Batch 1 need not touch `src/graph-diff/`).
+
+Note: no full-file reads occurred inside this architecture-context stage itself (after RUN_ID creation). All retrieval performed under this run used the mdk index/search/source commands documented above, confirming (not re-deriving) the Stage 0 findings.
+
+Semantic artifacts inspected:
+- Artifact or command: manifest.json (baseline index)
+  Reason: confirm current analyzer-registry shape (13 analyzer entries: syntax, call-graph, data-model, model-view-lineage, classification, six android-* entries, frontend-semantic, frontend-reachability) that the new `android-compose-semantic` entry must be appended to via `replaceAnalyzerStatuses()`, without altering existing entries' shape
+
+Context gaps or uncertainty:
+- Gap: exact same-file same-name declaration ID tie-breaking convention is not yet fixed (e.g. two function-local composables with the same name in different enclosing functions, or the rare case of two identically-named top-level declarations, which Kotlin itself would normally reject at compile time but the conservative non-compiler scanner cannot rule out for malformed/in-progress source).
+  Impact: must be resolved in pseudocode-packet stage using the same `${file.path}#${ordinal}` deterministic-ordinal pattern `buildComposeNavigationRoutes.ts` already established, extended with enclosing-declaration-path segments for function-local composables; does not block architecture confirmation, only ID-format pseudocode.

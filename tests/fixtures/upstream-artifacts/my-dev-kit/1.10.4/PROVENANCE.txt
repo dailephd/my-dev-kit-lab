@@ -1,0 +1,18 @@
+Artifact source: hand-built schema fixtures derived from the local my-dev-kit v1.10.4
+readiness-candidate producer contract (not a byte-for-byte real-command capture).
+Producer repository: Z:/Users/newuser/Projects/my-dev-kit-v1
+Producer branch: fix/v1.10.4-context-adequacy-semantics
+Producer candidate commit: d09068fc8190ba8bde3fcc7b045ca62a3ce18876
+Producer contract files inspected: src/context/roleConditionCoverage.ts, src/context/types.ts
+Context capsule schema version: 1.0.0
+Retrieval audit schema version: 1.0.0
+Additive fields covered: groupTruncation[].{droppedEvidenceIds,required,reservation,
+initiallySelectedCount,unusedReservationContributed,borrowedCapacity,requiredOmittedCount,
+optionalOmittedCount,adequacyAffected,governingHardBound,aggregateCapacityUsed,
+aggregateCapacityRemaining}, roleConditionCoverage[], truncation.requiredEvidenceLost.
+context-capsule/complete-v1.0.0.json and retrieval-audit-record/complete-v1.0.0.json share
+identical values for every field the capsule/audit parity check compares (contextAdequacy,
+roleContext, roleConditionCoverage, responsibilityMappings, roleAdequacy, freshness, budget,
+truncation, fullFileFallback, provenance) so they form a valid matching pair as-is.
+Copy policy: hand-authored fixtures; edit directly when the mirrored contract changes, and
+update this file's "Additive fields covered" list to match.

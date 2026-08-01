@@ -1,0 +1,82 @@
+Artifact: ArchitectureContextPacket
+Workflow mode: feature
+Project root: Z:\Users\newuser\Projects\my-dev-kit-v1
+
+Retrieval evidence used:
+- Retrieval report: Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/reports/architecture-context-retrieval-report.txt
+- Index directory: Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\baseline
+- Graph slice files: none (not needed; see retrieval report)
+- Source excerpts: symbol:src/indexing/partialRebuild.ts#checkPartialRebuildEligibility (lines 55-74, via `mdk source --node ... --format numbered`); symbol locations confirmed via `mdk search` for buildAndroidNavigationAnalyzerStatus
+- Semantic artifacts: baseline manifest.json (analyzer registry shape); context capsule + audit at .my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/architecture-capsule.json and architecture-audit.json (role: architecture, contextAdequacy.status: "context sufficient with listed assumptions", unresolvedItems: [], focusFile resolution: 0 unresolved of 10 requested)
+
+Retrieval method:
+- my-dev-kit used: yes
+- graph-guided retrieval used: yes (index -> search -> source)
+- manual inspection used: yes (Stage 0 full-file reads, carried forward as fixed input per this batch's own Section 12 instruction not to restart an unbounded architectural investigation; itemized in the retrieval report's "Full files read beyond retrieved source" section)
+
+Relevant files:
+- src/android/buildComposeNavigationRoutes.ts — conservative bounded-regex/paren/brace-matching Compose route scanner; the direct structural precedent for the new Compose declaration analyzer's scanning technique
+- src/android/buildAndroidNavigationProject.ts — orchestration pattern for combining XML + Kotlin-derived evidence into one artifact; shows the "symbolIndex optional param, empty result when omitted" convention used for the early-vs-late computation split
+- src/android/androidNavigationTypes.ts — artifact/type contract conventions (ARTIFACT_KIND, SCHEMA_VERSION, FILENAME constants; nested evidence-kind unions; summary object) to mirror in the new androidComposeTypes.ts
+- src/android/index.ts — barrel-export convention; new analyzer/types must be added here, not exported ad hoc
+- src/indexing/managedArtifacts.ts — single owner of the managed-artifact filename registry; new ANDROID_COMPOSE_SEMANTIC_FILENAME constant belongs in OPTIONAL_INDEX_ARTIFACT_FILENAMES
+- src/indexing/writeIndexManifest.ts — single owner of conditional artifact writing (`if (options.x) writeJson(...)` pattern per optional artifact)
+- src/indexing/runIndexCommand.ts — single owner of orchestration order, analyzer-status assembly (`replaceAnalyzerStatuses`), and the `finishIndexBuild()` function where a 7th Android builder call and analyzer-status function must be added alongside the existing six
+- src/indexing/refreshIndexOutput.ts — single owner of stale-artifact cleanup; requires no code change, only correct registration in managedArtifacts.ts
+- src/indexing/cacheMetadata.ts, src/indexing/partialRebuild.ts — incremental-eligibility gate; confirmed keyed off symbol-index.json schema/content only, not per-analyzer fingerprints
+- src/languages/kotlin/adapter.ts — read-only precedent for existing conservative top-level-only Kotlin scanning conventions (brace-depth counter, comment/string stripping); MUST NOT be modified per fixed constraint
+- src/graph-diff/types.ts — confirms no Android artifact (including android-navigation) currently participates in graph-diff; android-compose-semantic must not add a diff section in Batch 1
+
+Relevant symbols:
+- buildComposeNavigationRoutes() / findMatchingParen() / extractFollowingLambdaBody() / sourceRefAt() / findEnclosingSymbol() (buildComposeNavigationRoutes.ts) — bounded scanning primitives to reuse the pattern of, not the code itself (Compose declaration extraction is a different shape: annotation + function signature + body, not builder-call arguments)
+- buildAndroidNavigationProject() / buildAndroidNavigationXmlEvidenceFingerprint() (buildAndroidNavigationProject.ts) — orchestration + early-fingerprint split pattern
+- finishIndexBuild() (runIndexCommand.ts) — exact insertion point for the new builder call, analyzer-status call, and writeIndexArtifacts wiring
+- buildAndroidNavigationAnalyzerStatus() (runIndexCommand.ts) — exact analyzer-status-builder shape to mirror (never 'failed' on parse issues; 'skipped' when !detected; 'partial' when warnings.length > 0; 'complete' otherwise)
+- checkPartialRebuildEligibility() (partialRebuild.ts) — confirms eligibility is symbol-index-schema-keyed, independent of any per-analyzer artifact; no new eligibility logic needed
+- MANAGED_INDEX_ARTIFACT_FILENAMES, OPTIONAL_INDEX_ARTIFACT_FILENAMES (managedArtifacts.ts) — exact registration point
+
+Relevant components / modules / commands / routes / services / boundaries:
+- Component: Android artifact family (src/android/) — the new artifact's home
+- Module boundary: indexing orchestration (src/indexing/) — the only integration surface Batch 1 touches outside src/android/
+- Explicitly NOT touched: src/commands/{search,lookup,slice,source,view,context}Command.ts (no command boundary crossed in Batch 1); src/graph/ (no code-graph boundary crossed); src/graph-diff/ (no diff boundary crossed)
+
+Relevant tests:
+- Existing Android analyzer test files under the repository's tests/ tree that cover buildAndroidNavigationProject / buildComposeNavigationRoutes / runIndexCommand's Android orchestration (exact file paths and fixture layout to be confirmed against the current tree in the test-strategy stage via `mdk search --query "buildAndroidNavigationProject" --limit 20` scoped to tests/, since no test-specific evidence kind was requested in this architecture-only capsule)
+- Existing incremental-indexing integration tests (cacheMetadata/partialRebuild coverage) — closest owner for the new incremental-regression tests required by Section 16.3 of the external task contract
+
+Relevant docs:
+- docs/GRAPH_SCHEMA.md, docs/ARCHITECTURE.md, docs/PROJECT_PROGRESS.md, CHANGELOG.md — allowed-but-conditional edit areas per the external task contract; content changes deferred to the documentation step, narrowly scoped to stating "Batch 1 provides declaration-level static Compose evidence only"
+
+State owners: N/A (no runtime/UI state involved; this is static source analysis)
+
+Data owners:
+- android-compose-semantic.json: owned by the new analyzer under src/android/ (Batch 1)
+- android-navigation.json: owned by buildAndroidNavigationProject.ts / buildComposeNavigationRoutes.ts — remains sole owner of routes/destinations/navigation graphs/route-to-screen candidates; Batch 1 does not touch this ownership
+- symbol-index.json / code-graph.json: owned by src/symbol-index/ and src/graph/buildCodeGraph.ts respectively — Batch 1 only reads (never mutates) these
+
+Upstream dependencies:
+- The new analyzer depends on `roledSymbolIndex` (the fully role-enriched symbol index built earlier in finishIndexBuild()) for its Kotlin file list, exactly as buildComposeNavigationRoutes.ts already does for Compose route scanning
+- Depends on `androidResult.artifact.detected` the same way android-navigation's Compose-route portion is only meaningful when an Android project was detected (though, per the fixed local-composable definitions in the external contract, Batch 1 should scan any indexed Kotlin file regardless of Android-project detection status, since Compose can theoretically appear without a fully detected Android project — this must be explicitly decided in pseudocode-packet, flagged here as a gap)
+
+Downstream consumers: none in Batch 1 (no command, graph, or retrieval surface consumes this artifact yet; Batches 4-5 are the first consumers per the fixed roadmap)
+
+Existing patterns to preserve:
+- Analyzer-registry pattern (one `IndexAnalyzerStatus` per artifact, merged via `replaceAnalyzerStatuses`) rather than a new top-level manifest field
+- Conservative/never-invent-facts failure mode: degrade to a warning or omission, never fabricate a declaration or relationship
+- Optional-artifact-omitted-when-not-detected convention (`artifact.detected ? artifact : null` at the writeIndexArtifacts call site)
+- Deterministic, content-derived IDs sorted before serialization (`sortById` pattern)
+- Blanket stale-cleanup via managed-filename-list membership (no artifact-specific cleanup code)
+
+Likely files or modules involved:
+New: src/android/androidComposeTypes.ts, src/android/buildAndroidComposeSemanticProject.ts (or equivalently named analyzer file).
+Modified: src/android/index.ts, src/indexing/managedArtifacts.ts, src/indexing/writeIndexManifest.ts, src/indexing/runIndexCommand.ts. src/indexing/manifestTypes.ts modification is NOT expected to be required (the analyzer-registry pattern avoids a manifest schema change, exactly as android-navigation's addition required none) but is not fully ruled out until pseudocode/implementation confirms IndexSemanticArtifacts / IndexAnalyzerStatus types need no new fields.
+
+Context gaps or uncertainty:
+- Whether Compose scanning should run only when `androidResult.artifact.detected === true` (mirroring android-components' full-skip-when-no-Android-project convention) or unconditionally over all indexed Kotlin files regardless of Android-project detection (a bare Kotlin+Compose-Multiplatform-for-Desktop project, for instance, would have Compose without Android manifest/gradle evidence). This is a scope decision for pseudocode-packet, not an architecture-ownership question — flagging it here so it is not silently decided during implementation.
+- Same-file duplicate-declaration-name ID tie-breaking convention (see retrieval report) — resolved in pseudocode-packet.
+
+Selection rationale:
+Every file/symbol listed above was selected either because Stage 0 (this same engagement's prior architecture-inspection turn, whose findings are a fixed input per the external task contract's Section 12) directly read it and it is one of the ten explicit `focusFiles` in this stage's context-capsule request, or because this stage's own `mdk search`/`mdk source` calls returned it as the unique top-scoring exact-name match for a symbol named explicitly in the external task contract (checkPartialRebuildEligibility, buildAndroidNavigationAnalyzerStatus). No file was included on relevance guesswork; every inclusion traces to either a direct read or an exact-match retrieval command.
+
+Expected next stage: behavior-model
+Status: complete

@@ -3,17 +3,26 @@
 // expectation. It never calls, imports, or reimplements contextReadiness.ts.
 import {
   checkSupplementalReadinessIdentityConsistency,
+  type ContextAdequacyStatus,
   type OrchestratorContextReadinessResultV1,
   type SupplementalContextDocumentV1
 } from "../upstreamArtifacts/index.js";
 import type { ProducerReadinessReadinessExpectationV1 } from "../stageContextExpectations/index.js";
 import type {
+  AgreementOutcomeV1,
   InvalidReadyResultV1,
+  ProducerConditionAgreementV1,
+  ProducerReadinessRelationshipV1,
   ReadinessAgreementMetricsV1,
   ReadinessDecisionAgreementV1,
   ReadinessStructuralAgreementV1,
   ValidBlockedResultV1
 } from "./producerReadinessMetricTypes.js";
+
+const READINESS_ADEQUATE_STATUSES: readonly ContextAdequacyStatus[] = [
+  "context sufficient for implementation",
+  "context sufficient with listed assumptions"
+];
 
 function unavailableStructural(field: string, reason: string): ReadinessStructuralAgreementV1 {
   return { field, expectedValue: null, observedValue: null, agreement: null, availability: "unavailable", reason };
@@ -189,6 +198,71 @@ export function calculateValidBlocked(
 
   const valid = allowsRefreshRequired && issueCodesMatch && primaryMatches;
   return { availability: "available", validBlocked: valid, validRefreshRequired: valid, observedDecision: readiness.decision, reason: null };
+}
+
+// v0.4.5 Batch 2 (section 18): compares producer role adequacy (as already reconciled with
+// condition-coverage evidence by calculateProducerConditionAgreement) against the supplied
+// orchestrator readiness decision already accepted by the v0.4.4 bridge. This never decides
+// what readiness "should" have been -- it only reports the observed relationship.
+export function calculateProducerReadinessRelationship(
+  roleAdequacyStatus: ContextAdequacyStatus | undefined,
+  producerConditionAgreement: ProducerConditionAgreementV1,
+  readiness: OrchestratorContextReadinessResultV1 | undefined
+): ProducerReadinessRelationshipV1 {
+  if (roleAdequacyStatus === undefined || readiness === undefined) {
+    return {
+      availability: "unavailable",
+      outcome: "insufficient-evidence",
+      observedRoleAdequacyStatus: roleAdequacyStatus ?? null,
+      observedReadinessDecision: readiness?.decision ?? null,
+      contradictionCodes: [],
+      reason:
+        roleAdequacyStatus === undefined && readiness === undefined
+          ? "Neither roleAdequacy.status nor a readiness result was supplied."
+          : roleAdequacyStatus === undefined
+            ? "No roleAdequacy.status was supplied."
+            : "No readiness result was supplied."
+    };
+  }
+
+  if (producerConditionAgreement.outcome === "contradiction") {
+    return {
+      availability: "available",
+      outcome: "insufficient-evidence",
+      observedRoleAdequacyStatus: roleAdequacyStatus,
+      observedReadinessDecision: readiness.decision,
+      contradictionCodes: [],
+      reason: "Producer role-adequacy already contradicts its own condition-coverage evidence; the readiness relationship cannot be attributed to either side."
+    };
+  }
+  if (producerConditionAgreement.outcome === "unsupported-legacy-evidence" || producerConditionAgreement.outcome === "insufficient-evidence") {
+    return {
+      availability: "unavailable",
+      outcome: producerConditionAgreement.outcome,
+      observedRoleAdequacyStatus: roleAdequacyStatus,
+      observedReadinessDecision: readiness.decision,
+      contradictionCodes: [],
+      reason: producerConditionAgreement.reason
+    };
+  }
+
+  const producerAdequate = READINESS_ADEQUATE_STATUSES.includes(roleAdequacyStatus);
+  const readinessReady = readiness.decision === "ready";
+
+  const contradictionCodes: string[] = [];
+  if (producerAdequate && !readinessReady) contradictionCodes.push("PRODUCER_ADEQUATE_BUT_READINESS_NOT_READY");
+  if (!producerAdequate && readinessReady) contradictionCodes.push("PRODUCER_INADEQUATE_BUT_READINESS_READY");
+
+  const outcome: AgreementOutcomeV1 = contradictionCodes.length > 0 ? "contradiction" : "agreement";
+
+  return {
+    availability: "available",
+    outcome,
+    observedRoleAdequacyStatus: roleAdequacyStatus,
+    observedReadinessDecision: readiness.decision,
+    contradictionCodes,
+    reason: outcome === "contradiction" ? "Producer role adequacy and supplied orchestrator readiness disagree; both sides are retained without a lab-owned verdict." : null
+  };
 }
 
 export function calculateReadinessAgreementMetrics(

@@ -358,3 +358,86 @@ Implemented in `src/evaluation/stageContextMetrics` (`calculateOwnerMetrics.ts`,
   Caveat: a responsibility with no matching raw mapping entry reports `unavailable`/`missingMappingEvidenceCriticalIds`, and is excluded from the denominator rather than treated as unmapped. With zero resolvable denominator entries, `mappedCriticalCompleteness` reports `not-applicable`, not an available zero.
 
 No composite score, grade, ranking, or lab-generated readiness verdict is calculated anywhere in this section.
+
+## Context-integrity metrics (v0.4.5)
+
+Implemented in `src/evaluation/stageContextMetrics` and composed once per run by the same `evaluateProducerReadinessBridge.ts` used by the `v0.4.4` metrics above. These metrics read only condition-aware producer evidence mirrored exactly from the published `my-dev-kit` `v1.10.4` contract and run-integrity evidence mirrored exactly from the published `my-dev-kit-orchestrator` `v1.2.3` contract; none reimplement upstream witness-adequacy, allocation, judge, correction, or lifecycle policy. Every metric below uses the same `available`/`unavailable`/`not-applicable` availability model as the `v0.4.3`/`v0.4.4` metrics; agreement-style metrics additionally report one of the shared `AgreementOutcomeV1` values (`agreement`, `contradiction`, `insufficient-evidence`, `unsupported-legacy-evidence`, `not-applicable`), never a lab-derived pass/fail verdict.
+
+**Allocation and spillover** (`calculateAllocationMetrics.ts`, per-group and aggregate over `ContextCapsule.groupTruncation`):
+
+- `requiredGroupCapacity` / `usedReservation` / `unusedCapacity`
+  Meaning: per-group hard limit, used count, and computed unused capacity (`limit - usedCount`) read from `EvidenceGroup`.
+  Caveat: `requiredGroupCapacity`/`unusedCapacity` report `unavailable` when no hard limit is declared; a negative computed remainder is treated as a data inconsistency and reported `unavailable` with a diagnostic reason rather than a negative number.
+- `borrowedCapacity`
+  Meaning: cross-group capacity borrowing.
+  Caveat: always reports `unavailable` — no frozen `my-dev-kit` artifact field exposes cross-group borrowing; this is never inferred from other fields.
+- Per-group allocation fields (`reservation`, `initiallySelectedCount`, `unusedReservationContributed`, `borrowedCapacity`, `governingHardBound`, `requiredOmittedCount`, `optionalOmittedCount`, `adequacyAffected`, `aggregateCapacityUsed`, `aggregateCapacityRemaining`)
+  Meaning: read directly, field-for-field, from each `GroupTruncationEntry`.
+  Caveat: a group entry with none of these additive fields set reports `unavailable` for the whole entry (legacy schema-major-1 evidence), never zero.
+- Aggregate allocation totals (`totalReservation`, `totalInitiallySelected`, `totalUnusedReservationContributed`, `totalBorrowedCapacity`, `totalRequiredOmitted`, `totalOptionalOmitted`, `totalDropped`) and group lists (`groupsContributingUnusedReservation`, `groupsBorrowingCapacity`, `groupsWithRequiredOmission`, `groupsWithOptionalOnlyOmission`, `groupsWithAdequacyAffected`)
+  Meaning: sums and group-ID lists across all evidence groups.
+  Caveat: `not-applicable` when there are no evidence groups; `unavailable` when no group exposes allocation diagnostics; a total is reported `null` (`partial: true`) rather than partially summed when any contributing group lacks a needed field.
+- `requiredEvidenceOmitted`
+  Meaning: fixture-required evidence (from `StageContextExpectationFixtureV1`) missing from observed evidence.
+  Caveat: `groupId` on each omitted-evidence entry is always `null` — expectation items do not declare a group, so group linkage is never invented. `not-applicable` when nothing required is missing.
+- Truncation classification (`avoidable` / `genuine-hard-limit` / `unresolved` / `none`)
+  Meaning: classifies each `TruncationRecord` using only `limit`, `used`, and `requiredEvidenceLost` — unchanged from the `v0.4.4` classification, now composed alongside the `v0.4.5` allocation/spillover evidence.
+- Spillover diagnostics (`groupsContributing`, `groupsBorrowing`, `totalContributed`, `totalBorrowed`, `contributionCoversBorrowing`)
+  Meaning: which groups contributed unused reservation versus borrowed capacity, and whether total contribution covers total borrowing.
+  Caveat: `unavailable` when no group exposes `v1.10.3`/`v1.10.4` allocation diagnostics.
+
+**Condition coverage** (`calculateConditionCoverageMetrics.ts`, over `roleConditionCoverage`):
+
+- `requiredConditionsTotal` / `requiredConditionsSatisfied` / `requiredConditionsMissing` / `requiredConditionsLost`
+  Meaning: counts of required conditions by coverage state — `satisfied` (`conditionSatisfied`), `lost-to-allocation` (`lostRequiredCondition`), or `missing-evidence` (neither).
+- `optionalConditionsTotal` / `optionalConditionsSatisfied` / `optionalConditionsMissing`
+  Meaning: the same breakdown for non-required conditions.
+- `witnessEvidence`
+  Meaning: per-condition witness detail (`witnessPolicy`, `requiredWitnessCount`, `availableWitnessCount`, `retainedWitnessCount`, `retainedWitnessIds`, `adequateWitnessRemains`, `coverageState`, `lossReason`, `evidenceGroupIds`) read directly from each `RoleConditionCoverage` entry.
+  Caveat: retained-witness identifiers are never fabricated from counts alone; only IDs the producer actually supplied are reported.
+- `lastWitnessLossCount`
+  Meaning: count of required conditions that lost their last adequate witness (`lostRequiredCondition`).
+  Caveat: a real, available zero (no last-witness loss) is distinct from `unavailable` (no condition-coverage evidence at all).
+- `conditionToGroupMapping`
+  Meaning: whether each condition's `evidenceGroupIds` reference known evidence groups (`mapped`, `unknownGroupIds`).
+- Overall availability
+  Caveat: the entire metric block reports `unavailable` when `roleConditionCoverage` is absent — this is the expected, documented case for the `v0.4.5` failed-run fixture, which predates condition-level diagnostics (legacy schema-major-1 producer evidence), never treated as an evaluated-empty result.
+
+**Agreement metrics** (comparing producer evidence against itself, and producer evidence against orchestrator run-integrity evidence):
+
+- `producerConditionAgreement`
+  Meaning: compares `roleAdequacy.status` against condition-coverage evidence; flags `PRODUCER_INADEQUATE_BUT_ALL_REQUIRED_CONDITIONS_RETAINED` and `PRODUCER_ADEQUATE_BUT_REQUIRED_CONDITION_LOST` contradictions.
+  Caveat: reports `unsupported-legacy-evidence` (not `contradiction` or `agreement`) when condition-coverage evidence itself is unavailable — this is the case for the failed-run fixture.
+- `requiredEvidenceLossAgreement`
+  Meaning: compares `truncation.requiredEvidenceLost` against explicit condition-loss/required-omission evidence; flags `REQUIRED_EVIDENCE_LOST_FALSE_BUT_CONDITION_LOSS_DETECTED` and `REQUIRED_EVIDENCE_LOST_TRUE_BUT_NO_CONDITION_OR_GROUP_LOSS_DETECTED`.
+- `capsuleAuditConditionAgreement`
+  Meaning: whether the context capsule and retrieval audit record agree on `roleConditionCoverage`, `truncation`, and `roleAdequacy`, using the existing capsule/audit consistency selector.
+- `readinessPromptAgreement`
+  Meaning: compares `gate.readinessClassification` against `stageMayRenderNormalPrompt` (derived from structured blocked-stage evidence — **not** a literal upstream `promptMode` field, which the orchestrator does not expose) for context-sensitive stages (`implementation`, `test-implementation`); flags `READY_BUT_PROMPT_NOT_NORMAL` and `REFRESH_REQUIRED_BUT_PROMPT_NORMAL`.
+  Caveat: `not-applicable` for non-context-sensitive stages.
+- `readinessExpectedJudgeAgreement`
+  Meaning: checks the gate's own `contextReady`/`expectedJudgeVerdict` invariant; flags `CONTEXT_READY_BUT_EXPECTED_NOT_PASS` and `CONTEXT_NOT_READY_BUT_EXPECTED_NOT_NEED_CONTEXT`.
+- `expectedActualJudgeAgreement`
+  Meaning: compares the gate's `expectedJudgeVerdict` against the parsed `authoredJudgeVerdict`; flags malformed/missing judge verdicts and the upstream `JUDGE_VERDICT_CONTRADICTS_RUN_INTEGRITY` code (preserved verbatim when the orchestrator's own `blockingCodes` include it) when an authored `PASS` contradicts a canonical `NEED_CONTEXT` requirement.
+  Caveat: `insufficient-evidence` when no `judgeIntegrity` evidence was supplied. A syntactically valid, accepted verdict that legitimately differs from the expected one (e.g. a correction-route or terminal blocked verdict) is not itself flagged as a contradiction.
+- `judgeCorrectionAgreement`
+  Meaning: checks that a `PASS` verdict has no active correction route, that a corrective verdict requiring correction has one, and that `acceptedCorrectionStage` matches the structured route's `routedStage`; flags `PASS_WITH_ACTIVE_CORRECTION_ROUTE`, `CORRECTIVE_VERDICT_WITHOUT_ROUTE`, and `CORRECTION_DESTINATION_MISMATCH`.
+- `judgeFinalEligibilityAgreement`
+  Meaning: checks that `finalReportEligible` only holds when the authored verdict is `PASS`, parsed, accepted, and matches the expected verdict; flags `ELIGIBLE_WITH_NON_PASS_JUDGE`, `ELIGIBLE_WITH_MALFORMED_OR_MISSING_JUDGE`, `ELIGIBLE_WITH_UNACCEPTED_JUDGE`, and `ELIGIBLE_WITH_UNMATCHED_EXPECTED_VERDICT`.
+- `eligibilityFinalArtifactAgreement`
+  Meaning: checks eligibility against final-artifact presence and verdict; flags `ELIGIBLE_BUT_ARTIFACT_MISSING`, `INELIGIBLE_BUT_ARTIFACT_PRESENT`, `NEED_CONTEXT_FOLLOWED_BY_FINAL_PASS` (or the more general `INELIGIBLE_WITH_FINAL_PASS`), and `FINAL_ARTIFACT_MALFORMED_VERDICT`. This is the metric that surfaces the real historical `v1.11.0` Batch 1 failed-run's contradiction: a `NEED_CONTEXT` gate followed by a final report with verdict `PASS`.
+- `lifecycleIntegrityAgreement`
+  Meaning: per-stage lifecycle entries (`completionBasis`: `not-complete` / `artifact-presence-only` / `manual-record`) checked against expected run-integrity blocking; flags `MANUAL_MARK_COMPLETE_BYPASS_SUCCEEDED` when a stage that should be blocked (by `gate.blockedStageNames` or final-report ineligibility) resolved to `complete` anyway, whether through a manual mark-complete record or artifact presence alone.
+  Caveat: `not-applicable` when no lifecycle evidence was supplied.
+- `endToEndSummary` (`category`: `full-agreement` / `contradiction-present` / `insufficient-evidence` / `unsupported-legacy-evidence`)
+  Meaning: aggregates all component agreement outcomes above (plus `producerReadiness` from the `v0.4.4` bridge) — any contradiction anywhere makes the category `contradiction-present`; otherwise any `insufficient-evidence` or `unsupported-legacy-evidence` component determines the category; only when every component agrees is the category `full-agreement`.
+  Caveat: this is an aggregation of agreement/contradiction state, not a composite score, grade, ranking, or release verdict — no such value is calculated anywhere in this section.
+
+**Fixture assurance:**
+
+- Fixture hash verification (`src/evaluation/ecosystemFixtures/verifyFixtureHashes.ts`)
+  Meaning: SHA-256 comparison of tracked fixture files against the manifest's recorded hashes.
+  Interpretation: `ok: false` means the on-disk fixture bytes no longer match what was frozen; evaluation results built from a failed hash check should not be trusted.
+- Determinism and fixture self-immutability
+  Meaning: reuses `calculateStageContextDeterminism`/`canonicalizeStageContextRun` (`v0.4.3`) to confirm repeated evaluations of the same fixture produce identical canonicalized results, and re-runs fixture hash verification to confirm the frozen bytes were not mutated by evaluation.
+  Caveat: this is fixture-level self-immutability, not the `v0.4.3` live-target-mutation check — no live target repository is exercised by this evaluation path.

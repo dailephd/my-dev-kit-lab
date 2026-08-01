@@ -1,0 +1,85 @@
+Artifact: VerificationReport
+Workflow mode: feature
+
+Context-gate override notice: This stage's own generated prompt states "Required context is not ready: do not claim the work is verified. Do not run normal behavioral verification commands," driven by the same two context-gate false negatives already fully documented in implementation-context-packet.txt and test-context-packet.txt's "## Override authorization" sections (fixed evidence-group/responsibility-mapping budgets smaller than this batch's actual scope, independently verified as non-blocking). Per the user's explicit authorization ("The automated inadequacy result alone must not cause the implementation, judge, or final verdict to fail after this authorization"), verification proceeded, and every command below was genuinely executed with real, unmodified command output — this override authorizes proceeding past the advisory gate, not fabricating results.
+
+Commands run (all from working directory Z:\Users\newuser\Projects\my-dev-kit-v1):
+
+1. Command: npm run typecheck
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: `tsc --noEmit` completed with no errors.
+
+2. Command: npm run build
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: tsup built dist/cli.js (956.44 KB), "Build success".
+
+3. Command: npx vitest run tests/android/composeSemanticDeclarations.spec.ts
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: 1 test file, 20/20 tests passing.
+
+4. Command: npx vitest run tests/index/androidComposeSemanticIncremental.spec.ts
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: 1 test file, 10/10 tests passing.
+
+5. Command: npx vitest run tests/android tests/index tests/graph-diff tests/integration
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: 53 test files, 708/708 tests passing (regression: no existing Android/indexing/graph-diff/integration test broke).
+
+6. Command: npm test
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: `vitest run` — 170 test files, 1908/1908 tests passing (full repository suite). Ran in background due to ~700s duration; completion notification confirmed exit code 0.
+
+7. Command: npm run verify
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: `npm run typecheck && npm run build && npm run docs:check` — all three sub-commands passed; docs:check reported "no documentation-preservation violations found" (confirming the new docs/GRAPH_SCHEMA.md section did not break any doc-preservation rule).
+
+8. Command: node dist/cli.js --version
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: "1.10.3" (confirms no version bump occurred).
+
+9. Command: node dist/cli.js index --root .smoke-batch1/pos --src app/src/main --out .smoke-batch1/pos-out --json (positive CLI smoke, temporary fixture copy under an ignored/deleted repo-local directory)
+   Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+   Exit code: 0
+   Pass/fail: PASS
+   Output summary: android-compose-semantic.json written; manifest.analyzers contains {id:'android-compose-semantic', status:'complete', artifacts:[{path:'android-compose-semantic.json',...}]}; 3 declarations extracted (HomeScreen, Greeting, HomeScreenPreview) matching the fixture exactly; no Batch 2-6 fields present on the artifact; android-navigation.json correctly absent (analyzer status 'skipped').
+
+10. Command: node dist/cli.js index --root .smoke-batch1/neg --src app/src/main --out .smoke-batch1/neg-out --json (negative CLI smoke: Android project, zero Compose declarations)
+    Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+    Exit code: 0
+    Pass/fail: PASS
+    Output summary: android-compose-semantic.json correctly absent; manifest.analyzers contains {id:'android-compose-semantic', status:'skipped', artifacts:[]}.
+
+11. Command: rm -rf .smoke-batch1 && git status --short --untracked-files=all
+    Working directory: Z:\Users\newuser\Projects\my-dev-kit-v1
+    Exit code: 0
+    Pass/fail: PASS
+    Output summary: smoke output fully removed; git status shows only the intended Batch 1 source/test/fixture/doc files, no generated artifacts, no smoke residue.
+
+Skipped checks:
+- npm run docs:check as a standalone command: not run separately (it is a sub-step of `npm run verify`, command 7 above, which already reports it individually in its own output).
+- npm pack --dry-run, cross-platform matrix, security validation, code-rot audit, release workflow, npm publication, npm run benchmark:retrieval: all explicitly excluded per the external task contract's Section 20 ("Do not run" list). Reason: retrieval, publication, and release behavior are all unchanged/out of scope for this batch.
+- Forced internal-exception test of the analyzer's try/catch 'failed' path: not run (see test-implementation-report.txt's "TestStrategyPacket items not implemented" for the reason — no existing sibling-analyzer test exercises this path either, and no established mocking pattern exists in this repository for it).
+
+Environment notes: `npm test` alone took ~694s (11.5 minutes) on this environment and was run as a background task to avoid the interactive command timeout; its completion (exit code 0, 1908/1908 passing) was confirmed via the background task's completion notification before this report was written.
+
+Remaining verification gaps:
+- The forced-internal-exception 'failed' analyzer-status path (see "Skipped checks" above) remains unverified by an automated test, though its code shape is a direct, line-for-line-identical mirror of the already-tested `runAndroidComponentsAnalyzer` pattern.
+- The two context-gate automated readiness checks (implementation-context CONTEXT_ADEQUACY_INSUFFICIENT, test-context CONTEXT_RESPONSIBILITY_MAPPINGS_TRUNCATED) remain in their "refresh-required" raw state — this report does not and cannot make the raw tool output say otherwise; it proceeds under explicit user authorization instead, as documented above and in the two context packets.
+
+Status: complete

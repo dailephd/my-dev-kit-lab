@@ -1,0 +1,99 @@
+{
+  "_derivationNote": "LAB-DERIVED, not a byte-exact capture. Built for the same run identity/target/index/request shape as ../../failed-run using the exact local my-dev-kit v1.10.4 (commit d09068f) condition-aware contract and the exact local my-dev-kit-orchestrator v1.2.3 (commit 2cb82f0) RunIntegrityGate/JudgeIntegrity/FinalReportEligibility contract, following the same hand-distillation convention the orchestrator's own tests/fixtures/v123-batch4/corrected-run fixture uses (see manifests/corrected-replay-manifest.json for full provenance).",
+  "schemaVersion": "1.0.0",
+  "runFolder": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-orchestrator/runs/20260730T113740-implement-my-dev-kit-v1-11-0-b",
+  "gate": {
+    "schemaVersion": "1.0.0",
+    "mode": "feature",
+    "contextRequired": true,
+    "applicableContextKinds": ["implementation", "test"],
+    "implementationContext": {
+      "schemaVersion": "1.0.0",
+      "kind": "implementation",
+      "role": "implementation",
+      "decision": "ready",
+      "classification": "ready",
+      "stageId": "stage.feature.implementation",
+      "packetPath": "artifacts/implementation-context-packet.txt",
+      "reportPath": "reports/implementation-context-retrieval-report.txt",
+      "issues": [],
+      "warnings": [],
+      "blockingIssueCodes": [],
+      "affectedResponsibilityIds": [],
+      "evaluatedFreshness": "fresh",
+      "evaluatedAdequacy": "sufficient-with-assumptions",
+      "requiredEvidenceTruncated": "no",
+      "readyWithAssumptions": true,
+      "provenanceSummary": "resolved from the corrected v1.10.4 condition-aware producer contract",
+      "indexIdentity": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation"
+    },
+    "contextReady": true,
+    "readinessClassification": "ready",
+    "blockedStageNames": [],
+    "blockingCodes": [],
+    "recommendedCorrectionStage": null,
+    "expectedJudgeVerdict": "PASS",
+    "warnings": []
+  },
+  "judgeIntegrity": {
+    "schemaVersion": "1.0.0",
+    "judgeArtifactPresent": true,
+    "judgeVerdictParseStatus": "parsed",
+    "authoredJudgeVerdict": "PASS",
+    "expectedJudgeVerdict": "PASS",
+    "judgeVerdictMatchesExpected": true,
+    "judgeVerdictAccepted": true,
+    "correctionRequired": false,
+    "correctionBlocked": false,
+    "acceptedCorrectionStage": null,
+    "finalReportEligible": true,
+    "blockingCodes": [],
+    "acceptedCorrectionRoute": null
+  },
+  "finalReportEligibility": {
+    "eligible": true,
+    "contextReady": true,
+    "priorArtifactsValid": true,
+    "judgeIntegrity": {
+      "schemaVersion": "1.0.0",
+      "judgeArtifactPresent": true,
+      "judgeVerdictParseStatus": "parsed",
+      "authoredJudgeVerdict": "PASS",
+      "expectedJudgeVerdict": "PASS",
+      "judgeVerdictMatchesExpected": true,
+      "judgeVerdictAccepted": true,
+      "correctionRequired": false,
+      "correctionBlocked": false,
+      "acceptedCorrectionStage": null,
+      "finalReportEligible": true,
+      "blockingCodes": [],
+      "acceptedCorrectionRoute": null
+    },
+    "blockingCodes": []
+  },
+  "finalArtifactPresent": true,
+  "finalArtifactVerdict": "PASS",
+  "lifecycle": [
+    {
+      "artifactFile": "artifacts/implementation-report.txt",
+      "stageName": "implementation",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    },
+    {
+      "artifactFile": "artifacts/test-implementation-report.txt",
+      "stageName": "test-implementation",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    },
+    {
+      "artifactFile": "artifacts/final-report.txt",
+      "stageName": "final-report",
+      "fileExists": true,
+      "manualRecord": null,
+      "resolvedState": "complete"
+    }
+  ]
+}

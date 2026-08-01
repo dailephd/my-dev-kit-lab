@@ -83,3 +83,7 @@ export {
   validateOrchestratorContextReadinessResultV1,
   checkSupplementalReadinessIdentityConsistency
 } from "./orchestratorContextReadinessResultV1.js";
+
+export type * from "./orchestratorRunIntegrityV1.js";
+export { readOrchestratorRunIntegrityEvidenceV1 } from "./readOrchestratorRunIntegrityV1.js";
+export { validateOrchestratorRunIntegrityEvidenceV1 } from "./validateOrchestratorRunIntegrityV1.js";

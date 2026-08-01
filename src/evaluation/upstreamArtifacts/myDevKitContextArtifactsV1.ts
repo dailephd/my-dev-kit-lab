@@ -621,6 +621,61 @@ export type GroupTruncationEntry = {
   usedCount: number;
   truncated: boolean;
   droppedCount: number;
+  /** Additive schema-major-1 diagnostic (v1.10.3): stable identities omitted by a genuine
+   * bounded required-group overflow. Absent in older artifacts. */
+  droppedEvidenceIds?: string[];
+  /** v1.10.3 (additive, optional): required-first allocation diagnostics. Populated only
+   * for groups produced by the required-first allocator. Absent for groups the allocator
+   * does not govern. */
+  required?: boolean;
+  /** This group's initial bounded reservation, before any spillover. */
+  reservation?: number;
+  /** How many items this group filled from its own reservation, before spillover. */
+  initiallySelectedCount?: number;
+  /** Unused reservation this group contributed to the shared spillover pool. */
+  unusedReservationContributed?: number;
+  /** Additional items this group received from the shared spillover pool. */
+  borrowedCapacity?: number;
+  /** v1.10.4: minimum condition-required witness deficit attributable to bounded omission.
+   * Additive schema-major-1 diagnostic; legacy paths may conservatively classify every
+   * omission from a required group as required. */
+  requiredOmittedCount?: number;
+  /** v1.10.4: all remaining bounded omissions after condition-required loss is attributed. */
+  optionalOmittedCount?: number;
+  /** v1.10.4: true only when requiredOmittedCount is greater than zero. */
+  adequacyAffected?: boolean;
+  /** The real finite bound governing this allocation pass (sum of all participating groups' reservations). */
+  governingHardBound?: number;
+  /** Total items selected across all groups in this allocation pass. */
+  aggregateCapacityUsed?: number;
+  /** governingHardBound minus aggregateCapacityUsed. */
+  aggregateCapacityRemaining?: number;
+}
+
+/** Stable identifiers for evidence-backed role conditions introduced in v1.10.4. */
+export type RoleConditionId = "implementation.selected-owner" | "implementation.required-contract";
+
+/** Current witness-policy vocabulary is intentionally narrow. */
+export type RoleConditionWitnessPolicy = "at-least-one";
+
+export type RoleConditionCoverageLossReason = "bounded-allocation-omitted-required-witnesses";
+
+/** v1.10.4 Phase 1: additive, deterministic condition-level retained-witness coverage.
+ * Absent in schema-major-1 artifacts produced before v1.10.4; never inferred by readers. */
+export type RoleConditionCoverage = {
+  conditionId: RoleConditionId;
+  role: ContextRole;
+  required: boolean;
+  evidenceGroupIds: string[];
+  witnessPolicy: RoleConditionWitnessPolicy;
+  requiredWitnessCount: number;
+  availableWitnessCount: number;
+  retainedWitnessCount: number;
+  retainedWitnessIds: string[];
+  conditionSatisfied: boolean;
+  lostRequiredCondition: boolean;
+  lossReason: RoleConditionCoverageLossReason | null;
+  evaluationOrder: number;
 }
 
 export type ResponsibilityCriticality = "critical" | "noncritical";
@@ -752,6 +807,9 @@ export type TruncationRecord = {
 
 export type TruncationSummary = {
   truncated: boolean;
+  /** Additive schema-major-1 rollup (v1.10.3+). Current output always supplies it; legacy
+   * artifacts may omit it. */
+  requiredEvidenceLost?: boolean;
   records: TruncationRecord[];
   warnings: string[];
 }
@@ -829,6 +887,9 @@ export type ContextCapsule = {
   testInfrastructure: TestInfrastructureSummary;
   unresolvedItems: UnresolvedEvidenceItem[];
   groupTruncation: GroupTruncationEntry[];
+  /** v1.10.4 Phase 1: condition-level retained-witness coverage. Additive and optional so
+   * schema-major-1 artifacts produced before v1.10.4 remain readable. */
+  roleConditionCoverage?: RoleConditionCoverage[];
   responsibilityMappings: ResponsibilityMappingSummary;
   roleAdequacy: RoleAdequacyStatement;
   freshness: FreshnessSummary;
@@ -922,6 +983,9 @@ export type RetrievalAuditRecord = {
   contextAdequacy: ContextAdequacyStatement;
   roleContext: RoleContextSummary;
   responsibilityMappings: ResponsibilityMappingSummary;
+  /** v1.10.4 Phase 1: same condition-level coverage written to the capsule. Absent in
+   * legacy schema-major-1 audits and never inferred by readers. */
+  roleConditionCoverage?: RoleConditionCoverage[];
   roleAdequacy: RoleAdequacyStatement;
   freshness: FreshnessSummary;
   budget: BudgetSummary;

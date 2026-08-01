@@ -73,7 +73,7 @@
     "requiredVersions": [
       "v0.2.0", "v0.2.1", "v0.2.2",
       "v0.3.0", "v0.3.1", "v0.3.2", "v0.3.3", "v0.3.4",
-      "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4",
+      "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4", "v0.4.5",
       "v0.5.0", "v0.5.1", "v0.5.2",
       "v0.6.0", "v0.6.1", "v0.6.2", "v0.6.3",
       "v0.7.0", "v0.7.1", "v0.7.2",
@@ -87,10 +87,10 @@
     "forbiddenVersionRangeHeadings": ["v0.5.x-v0.9.x", "v0.5.x–v0.9.x", "v0.3.0-v0.3.4"]
   },
   "changelog": {
-    "requiredPublishedReleases": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.1", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4"]
+    "requiredPublishedReleases": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.1", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4", "0.4.5"]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.4.4",
+    "latestPublishedVersion": "0.4.5",
     "nextPlannedVersion": "0.5.0",
     "implementedExperimentPlugins": ["context-strategy-comparison"],
     "implementedAuditTypes": ["code-rot", "security"],

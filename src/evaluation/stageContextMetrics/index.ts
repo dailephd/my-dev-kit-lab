@@ -55,3 +55,22 @@ export {
   evaluateProducerReadinessBridge,
   buildProducerReadinessBridgeInputFromCombinedPayload
 } from "./evaluateProducerReadinessBridge.js";
+
+export { calculateGroupAllocationMetrics } from "./calculateAllocationMetrics.js";
+export { calculateConditionCoverageMetrics } from "./calculateConditionCoverageMetrics.js";
+export {
+  calculateProducerConditionAgreement,
+  calculateRequiredEvidenceLossAgreement,
+  calculateCapsuleAuditConditionAgreement
+} from "./calculateProducerConditionAgreement.js";
+export type * from "./runIntegrityAgreementTypes.js";
+export {
+  calculateReadinessPromptAgreement,
+  calculateReadinessExpectedJudgeAgreement,
+  calculateExpectedActualJudgeAgreement,
+  calculateJudgeCorrectionAgreement,
+  calculateJudgeFinalEligibilityAgreement,
+  calculateEligibilityFinalArtifactAgreement,
+  calculateLifecycleIntegrityAgreement,
+  evaluateRunIntegrity
+} from "./calculateRunIntegrityAgreement.js";

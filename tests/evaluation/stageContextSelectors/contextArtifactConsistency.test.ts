@@ -20,6 +20,7 @@ const EXPECTED_FIELD_ORDER: MyDevKitContextArtifactConsistencyFieldPath[] = [
   "index.projectRoot",
   "contextAdequacy",
   "roleContext",
+  "roleConditionCoverage",
   "responsibilityMappings",
   "roleAdequacy",
   "freshness",

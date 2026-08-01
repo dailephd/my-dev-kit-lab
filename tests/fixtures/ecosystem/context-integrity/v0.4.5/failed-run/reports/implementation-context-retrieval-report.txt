@@ -1,0 +1,75 @@
+Schema version: 1.0.0
+Document kind: implementation-context-retrieval-report
+Role: implementation
+Status: populated
+Repository scope: single-repository
+Request schema version: 1.0.0
+Context capsule schema version: 1.0.0
+Retrieval audit schema version: 1.0.0
+Tool name: my-dev-kit
+Tool version: 1.10.3
+Index identity: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation
+Freshness: fresh
+Adequacy: insufficient
+Required evidence truncated: yes
+Full-file fallback used: no
+Determinism checked: no
+
+## Retrieval request
+File: Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-request.json
+Query (verbatim, matches the orchestrator-mandated exact text): "Retrieve the exact current contracts, types, call sites, validators, constants, artifact-writing behavior, stale-cleanup behavior, analyzer-status behavior, incremental invalidation behavior, and closest tests needed to implement the optional android-compose-semantic.json declaration-only analyzer in the approved files."
+Mode: feature-add
+Role: implementation
+focusFiles: src/android/androidNavigationTypes.ts, src/android/buildComposeNavigationRoutes.ts, src/android/buildAndroidNavigationProject.ts, src/android/index.ts, src/indexing/managedArtifacts.ts, src/indexing/writeIndexManifest.ts, src/indexing/runIndexCommand.ts, src/indexing/manifestTypes.ts (the 8 files the ArchitectureContextPacket approved for editing/reading; no unapproved files included)
+beforeIndex: .../baseline  afterIndex: .../implementation (both point at the same unchanged working tree; no production edits had been made yet at request time, consistent with this being a pre-edit refresh)
+
+## Command record
+node "Z:\Users\newuser\Projects\my-dev-kit-v1\dist\cli.js" index --root "Z:\Users\newuser\Projects\my-dev-kit-v1" --src src --src tests --out "Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\implementation" --json
+node "Z:\Users\newuser\Projects\my-dev-kit-v1\dist\cli.js" context --request "Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\implementation-request.json" --json
+node "Z:\Users\newuser\Projects\my-dev-kit-v1\dist\cli.js" source --index "Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\implementation" --file "src/indexing/manifestTypes.ts" --symbol "IndexAnalyzerStatus" --format numbered --max-lines 60
+node "Z:\Users\newuser\Projects\my-dev-kit-v1\dist\cli.js" source --index "Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-context\v1.11.0-batch-1-compose-artifact-foundation\implementation" --file "src/indexing/manifestTypes.ts" --symbol "IndexAnalyzerId" --format numbered --max-lines 40
+
+## Focus selection
+Focus resolved against the 8 approved focusFiles; 0 unresolved focus files, 0 unresolved focus symbols (per audit.json's "unresolvedFocusFileCount"/"unresolvedFocusSymbolCount": 0/0). No focusSymbols were supplied on this request (none were verified as stable IDs at architecture-context time beyond the two confirmed via exact-match search: checkPartialRebuildEligibility, buildAndroidNavigationAnalyzerStatus — both already covered by the architecture-context stage's own source retrieval, not re-requested here to avoid redundant retrieval).
+
+## Candidate and owner selection
+selectedOwners in the capsule rank src/android/androidNavigationTypes.ts's types (AndroidNavigationGraph, AndroidComposeRoute, AndroidComposeScreenCandidate, AndroidNavigationAction, etc.) as the top structural-ownership candidates for the sibling-artifact-type-contract pattern — consistent with pseudocode-packet's PSE-001..PSE-011 decision to mirror androidNavigationTypes.ts's constant/type-declaration shape for the new androidComposeTypes.ts.
+Two additional targeted exact-symbol source retrievals closed the one open pseudocode question (PSE-025): IndexAnalyzerStatus.summary is `Record<string, number | string | boolean | null>` (already loosely typed) and IndexAnalyzerId is a union ending in `| (string & {})` (already accepts any string literal id). Both confirm no manifestTypes.ts change is required.
+
+## Evidence groups
+architecture-owners / architecture-extension-points / architecture-contracts: present, same three groups truncated to their fixed per-role limits (5/8/10) as in the architecture-context capsule — expected and non-blocking, since the specific symbols this stage needed (IndexAnalyzerStatus, IndexAnalyzerId, buildAndroidNavigationAnalyzerStatus, checkPartialRebuildEligibility) were retrieved directly by exact-symbol source commands rather than relying on the ranked/truncated candidate lists.
+closest-tests: not separately re-queried in this stage (test-strategy-packet.txt already enumerated the closest existing test owners by direct repository listing; re-deriving the same list via the capsule would be redundant, not a gap).
+
+## Unresolved evidence
+None. unresolvedItems: [] (implementation-audit.json).
+
+## Adequacy evaluation
+Raw capsule.contextAdequacy.status: "context sufficient with listed assumptions" (the tool's general-purpose adequacy summary). The listed gap ("Graph neighborhood evidence is thin (0-1 nodes)") is expected for a greenfield artifact with no existing graph node to center a neighborhood on, and does not block implementation since Batch 1 adds no code-graph nodes/edges.
+Raw capsule.roleAdequacy.status (the stricter, role-specific field the orchestrator's readiness gate actually reads): "context insufficient and more retrieval required", driven solely by missingConditions: ["required evidence truncated"], with blockingConditions: [] (empty). This is declared here as "Adequacy: insufficient" for truthful parity with that raw field, per user-authorized override CONTEXT_SUFFICIENT_BY_TARGETED_VERIFICATION_WITH_AUTOMATED_ROLE_ADEQUACY_FALSE_NEGATIVE — see implementation-context-packet.txt's "## Override authorization" section for the full root-cause analysis (fixed 84-item shared evidence-group budget vs. this repository's 2242 symbols, confirmed structurally unavoidable via two probe requests and direct my-dev-kit source inspection) and the independent targeted-retrieval evidence that no genuine implementation fact is missing.
+
+## Freshness classification
+fresh — active index path equals the supplied afterIndex path, and both before/after indexes were built from the same unmodified working tree (repository HEAD 75b29272b2133f6f8d2944362ec12e5e89ebf283) with no production files edited between index build and context request.
+
+## Budget
+Not separately reported by the capsule beyond the truncation records above; no budget-limit warnings blocked required-role evidence (contracts/validators/constants/errors/schemas/callers/callees/closest-tests groups specific to the implementation role all returned "ok" per implementation-audit.json).
+
+## Truncation
+Same three general-purpose groups truncated as in architecture-context (architecture-owners 5/29, architecture-extension-points 8/28, architecture-contracts 10/42) — deterministic score/path ordering, not a required-implementation-evidence loss (see Adequacy evaluation).
+
+## Full-file fallback
+Not used (fullFileFallback.used: 0). No focus file required a full-file fallback; every needed fact was retrievable via exact-symbol `mdk source` calls.
+
+## Provenance
+45 provenance records present in the capsule (indices 0-44), one per selected evidence item, each traceable to a specific file/symbol node in the implementation index. Not enumerated individually here per the orchestrator's "reference by path, do not paste raw JSON" instruction; see Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/implementation-capsule.json's `provenance` array for the full list.
+
+## Warnings
+None from the capsule/audit beyond the three expected truncation-group warnings already itemized above.
+
+## Determinism
+Not independently re-run (see header). No evidence of instability was observed between the architecture-context and implementation-context capsule builds over the same unchanged working tree (identical file/symbol/edge counts: 269 files / 2242 symbols / 3506 edges in both).
+
+## Assumptions
+None beyond those already recorded in pseudocode-packet.txt's "Assumptions preserved" / "Assumptions removed or guarded" sections, which this stage's retrieval confirmed rather than revised.
+
+## Notes
+This stage's retrieval closed pseudocode-packet.txt's one remaining open implementation question (PSE-025, manifestTypes.ts summary-field typing) with direct exact-symbol evidence; implementation may proceed without any manifestTypes.ts edit.

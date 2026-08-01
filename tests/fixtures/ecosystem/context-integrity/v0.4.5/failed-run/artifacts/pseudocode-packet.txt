@@ -1,0 +1,244 @@
+Artifact: PseudocodePacket
+Workflow mode: feature
+Inputs used:
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/request-brief.txt
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/architecture-context-packet.txt
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/behavior-model.txt
+
+Behavior references: BEH-001..BEH-015, INV-001..INV-007, TRN-001..TRN-003 (behavior-model.txt)
+
+--- Types (androidComposeTypes.ts) ---
+
+PSE-001: (BEH-014, external contract 14.1) Define constants mirroring androidNavigationTypes.ts conventions:
+  ANDROID_COMPOSE_SEMANTIC_ARTIFACT_KIND = 'my-dev-kit-v1-android-compose-semantic'
+  ANDROID_COMPOSE_SEMANTIC_SCHEMA_VERSION = '1.0.0'
+  ANDROID_COMPOSE_SEMANTIC_FILENAME = 'android-compose-semantic.json'
+
+PSE-002: (INV-002) Define:
+  type ComposeDeclarationScope = 'top-level' | 'function-local'
+  type ComposeDeclarationVisibility = 'public' | 'internal' | 'private'
+  (no 'protected' — Kotlin top-level declarations cannot be protected; if scanner ever sees `protected` on a depth-0 fun, treat as unsupported -> warning, not a new enum value)
+
+PSE-003: Define ComposeAnnotationEvidence = { raw: string } (verbatim recognized annotation text, capped like every other artifact's signature capture, SIGNATURE_MAX_LENGTH = 120, matching kotlin/adapter.ts's existing constant value for consistency though independently declared per INV-007)
+
+PSE-004: Define ComposeParameterSummary = { name: string, typeText: string | null } — typeText is the raw text after ':' up to the next top-level comma/close-paren, or null if not staticaly extractable (default value expression, complex generic, etc. are NOT parsed further — store null rather than guess)
+
+PSE-005: Define ComposeSourceRange = { file: string, startLine: number, endLine: number } (1-based inclusive, matching the repository's existing 1-based `location.line` convention used throughout symbol-index/types.ts and androidNavigationTypes.ts's AndroidNavigationSourceRef)
+
+PSE-006: Define ComposeChildCallEvidence = { calleeDeclarationId: string, calleeName: string, line: number }
+  (only ever populated via exact same-file declaration-ID resolution, INV-003; never a "candidate"/"unresolved" record — Batch 1's contract does not model unresolved child calls as data, only as warnings when independently warranted)
+
+PSE-007: Define ComposeStructuralRegionKind = 'Scaffold' | 'LazyColumn' | 'LazyRow' | 'Column' | 'Row' | 'Box' | 'NavHost'
+  Define ComposeStructuralRegionEvidence = { kind: ComposeStructuralRegionKind, line: number }
+
+PSE-008: Define ComposeDeclarationEntry = {
+    id: string,                          -- see PSE-020 ID rule
+    name: string,
+    kind: 'composable',                  -- fixed literal now; leaves room for a future non-composable Compose-related kind without a breaking rename (NOT a Batch 2+ field — this is Batch 1's own kind discriminant, currently single-valued)
+    scope: ComposeDeclarationScope,
+    visibility: ComposeDeclarationVisibility,
+    isPreview: boolean,
+    enclosingDeclarationId: string | null,   -- non-null only when scope === 'function-local'
+    annotations: ComposeAnnotationEvidence[],
+    parameters: ComposeParameterSummary[],
+    sourceRange: ComposeSourceRange,
+    moduleId: string | null,             -- resolved via the same resolveModuleAndSourceSet-style lookup buildComposeNavigationRoutes.ts already performs against androidProject.modules; reuse the pattern, not the function (that helper is file-local/unexported in buildComposeNavigationRoutes.ts)
+    sourceSet: string | null,
+    childCalls: ComposeChildCallEvidence[],
+    structuralRegions: ComposeStructuralRegionEvidence[],
+    warnings: string[],
+  }
+
+PSE-009: Define ComposeSemanticSummary = {
+    declarationCount, previewCount, topLevelCount, functionLocalCount,
+    privateTopLevelCount, childCallCount, structuralRegionCallCount, warningCount: number
+  }
+
+PSE-010: Define AndroidComposeSemanticArtifact = {
+    artifactKind: typeof ANDROID_COMPOSE_SEMANTIC_ARTIFACT_KIND,
+    schemaVersion: typeof ANDROID_COMPOSE_SEMANTIC_SCHEMA_VERSION,
+    createdAt: string,
+    projectRoot: string,
+    detected: boolean,
+    filesExamined: string[],           -- sorted, deterministic; mirrors androidNavigationTypes.ts's filesExamined field
+    declarations: ComposeDeclarationEntry[],   -- sorted by id
+    warnings: string[],                -- deduped + sorted, mirrors buildAndroidNavigationProject.ts's `[...new Set(...)].sort()` pattern
+    summary: ComposeSemanticSummary,
+  }
+
+PSE-011: Define BuildAndroidComposeSemanticProjectResult = { artifact: AndroidComposeSemanticArtifact }
+  (no evidenceFingerprint field — BEH-015 established no early-fingerprint/eligibility-gate role is needed for this artifact, unlike androidNavigation's XML-only early-fingerprint split)
+
+--- Analyzer (buildAndroidComposeSemanticProject.ts) ---
+
+PSE-012: (BEH-001, BEH-006) function buildAndroidComposeSemanticProject(options: { projectRoot, symbolIndex, androidProject, createdAt }): BuildAndroidComposeSemanticProjectResult
+  IF NOT androidProject.detected:
+    RETURN emptyArtifact()   -- detected:false, empty arrays, empty summary (mirrors buildComposeNavigationRoutes.ts's `if (!androidProject.detected) return {...empty}`)
+  kotlinFiles = symbolIndex.files.filter(f => f.language === 'kotlin').sort by path
+  allDeclarations = []
+  allWarnings = []
+  filesExamined = []
+  FOR EACH file IN kotlinFiles:
+    text = readFileSafely(projectRoot, file.path)  -- null on I/O error -> skip file silently (BEH: error states)
+    IF text is null: CONTINUE
+    filesExamined.push(file.path)
+    { declarations, warnings } = scanFileForComposeDeclarations(file.path, text, androidProject)
+    allDeclarations.push(...declarations)
+    allWarnings.push(...warnings)
+  resolveChildCalls(allDeclarations)  -- PSE-018, cross-declaration pass AFTER all files scanned so same-file forward/backward references both resolve
+  sortedDeclarations = sortById(allDeclarations)   -- reuse buildComposeNavigationRoutes.ts's sortById<T extends {id:string}> pattern verbatim (or a locally duplicated equivalent — INV-007 forbids importing shared logic FROM the base Kotlin adapter, but this small comparator has no adapter dependency and may be shared/imported from buildComposeNavigationRoutes.ts's module if exported, or duplicated if not — implementation stage decides based on whether sortById is exported)
+  detected = sortedDeclarations.length > 0
+  artifact = {
+    artifactKind, schemaVersion, createdAt, projectRoot: toForwardSlash(projectRoot),
+    detected, filesExamined: filesExamined.sort(), declarations: detected ? sortedDeclarations : [],
+    warnings: dedupeSort(allWarnings),
+    summary: computeSummary(sortedDeclarations, allWarnings),
+  }
+  RETURN { artifact }
+
+PSE-013: (BEH-007) function scanFileForComposeDeclarations(filePath, text, androidProject):
+  lines = text.split('\n')
+  state = { depth: 0, inBlockComment: false, pendingAnnotations: [], declarationStack: [] }  -- declarationStack holds enclosing supported-function-declaration frames for scope/enclosingId resolution
+  declarations = []; warnings = []
+  FOR i, rawLine IN lines:
+    line = stripComments(rawLine, state)   -- reuse stripLineComment/stripBlockCommentSpans-equivalent logic (duplicated locally per INV-007, same algorithm as kotlin/adapter.ts's existing helpers)
+    trimmed = line.trim()
+    depthBeforeLine = state.depth
+    state.depth += countNetBraces(line)
+    IF trimmed is empty: CONTINUE
+    IF trimmed starts with '@': state.pendingAnnotations.push(trimmed); CONTINUE
+    composableMatch = matchComposableAnnotatedFunction(state.pendingAnnotations, trimmed)
+       -- composableMatch present only if state.pendingAnnotations contains a recognized @Composable (or qualified .Composable) annotation AND trimmed matches a `fun` declaration pattern (reuse FUNCTION_PATTERN shape from kotlin/adapter.ts, duplicated locally)
+    IF composableMatch:
+      scope = (depthBeforeLine === 0) ? 'top-level'
+              : (state.declarationStack.top is a supported enclosing declaration) ? 'function-local'
+              : null  -- nested inside something that is not itself a tracked supported declaration (e.g. inside an `if` block, inside a class body) -> unsupported
+      IF scope is null:
+        warnings.push(`${filePath}:${lineNumber}: @Composable function "${name}" is nested in an unsupported enclosing context and was not extracted.`)
+      ELSE:
+        bodyRange = captureDeclarationRange(lines, i, state)  -- PSE-014
+        entry = buildDeclarationEntry(filePath, composableMatch, scope, state, bodyRange, androidProject)
+        declarations.push(entry)
+        state.declarationStack.push({ id: entry.id, name: entry.name, startLine: bodyRange.startLine, endLine: bodyRange.endLine })
+      state.pendingAnnotations = []
+    ELSE IF trimmed matches plain FUNCTION_PATTERN (any `fun`, Compose-annotated or not):
+      -- track ALL function declarations (not just Compose ones) on declarationStack while inside their body, so a Compose-annotated function nested inside a *non*-Compose enclosing function is still correctly scoped 'function-local' with the right enclosingDeclarationId; the enclosing frame's OWN id is only referenced (via enclosingDeclarationId), never itself added to `declarations` unless it is separately Compose-annotated
+      pushNonComposeFunctionFrame(state, trimmed, lineNumber)
+      state.pendingAnnotations = []
+    ELSE:
+      state.pendingAnnotations = []
+    popDeclarationStackFramesClosedByThisLine(state, depthBeforeLine, state.depth)  -- pop any frame whose body brace-closed at or before this line
+  RETURN { declarations, warnings }
+
+PSE-014: (BEH-013 sourceRange) function captureDeclarationRange(lines, startIndex, state):
+  -- startLine = index of the FIRST pending-annotation line if any were consumed this declaration, else the `fun` line itself (1-based)
+  -- endLine: if body is block-form (`{ ... }`), scan forward tracking brace depth from the `fun` line until net-zero (reuse countNetBraces incrementally); if expression-form (`fun x(...): T = expr` with no trailing `{`), endLine is the line where the statement's logical end is reached — conservative rule: same line as the `=` if the expression contains no unmatched open bracket/paren by end of line, else scan forward until the opened bracket/paren/string is closed, capped at MAX_SCAN_LINES (reuse buildComposeNavigationRoutes.ts's 2000-line bound) with a truncation warning beyond the cap, mirroring the existing precedent exactly
+  RETURN { startLine, endLine }
+
+PSE-015: (BEH-011) function extractStructuralRegionCalls(bodyText) -> ComposeStructuralRegionEvidence[]
+  FOR EACH of the 7 fixed names: regex-match `\bName\s*\(` at any nesting depth WITHIN the captured body text (not just top-level statements — Scaffold/Column/etc. commonly nest), record { kind: Name, line: lineNumberWithinBody }
+  Do not attempt to resolve nested content further (no route/child extraction from inside NavHost — BEH-011 explicit non-goal)
+
+PSE-016: (BEH-010) function extractChildCallCandidates(bodyText) -> Array<{ calleeName: string, line: number }>
+  Reuse the same "uppercase-start call at statement position" syntactic detection buildComposeNavigationRoutes.ts's detectDirectScreenCandidate uses for its narrower single-call case, generalized to scan every direct call in the body (not just a single-statement lambda), still requiring: call must look like `Identifier(...)` where Identifier[0] is uppercase (a necessary but NOT sufficient condition — PSE-018 below applies the sufficient condition, exact-declaration-match)
+  This function only produces CANDIDATES; it never writes to the artifact directly (enforces INV-003 structurally by construction, not by later filtering discipline alone)
+
+PSE-017: (BEH-012) function matchComposableAnnotatedFunction(pendingAnnotations, trimmedLine):
+  hasComposable = pendingAnnotations.some(a => /^@(\w+\.)*Composable\b/.test(a))
+  IF NOT hasComposable: RETURN null
+  functionMatch = trimmedLine.match(FUNCTION_PATTERN_LOCAL)  -- local duplicate of kotlin/adapter.ts's FUNCTION_PATTERN regex shape
+  IF NOT functionMatch: RETURN null  -- e.g. `@Composable` followed by something that isn't a `fun` line at all -> not a warning (annotation may legitimately precede something Batch 1 doesn't track, e.g. a property use is invalid Kotlin so this is purely defensive) — no warning needed since this is not a "close call", it is simply not a function
+  isPreview = pendingAnnotations.some(a => /^@(\w+\.)*Preview\b/.test(a))
+  visibility = /\bprivate\b/.test(trimmedLine) ? 'private' : /\binternal\b/.test(trimmedLine) ? 'internal' : 'public'
+  name = functionMatch group for function name
+  parameters = parseParameterList(trimmedLine or, if signature spans multiple lines, the accumulated multiline signature text — BEH: "multiline annotations/signatures" fixture requirement)
+  RETURN { name, isPreview, visibility, annotations: pendingAnnotations.map(a => ({raw: a})), parameters, rawSignatureLine: trimmedLine }
+
+PSE-018: (INV-003) function resolveChildCalls(allDeclarations):
+  byNameThenFile = group allDeclarations by (file, name) -- exact match requires same-file scope (Batch 1 does not resolve cross-file child calls: "resolved to a supported Compose declaration in the CURRENT artifact" per external contract 14.6, current artifact = whole run, but conservatively restrict to same-file to avoid ambiguous multi-file same-name resolution -- documented assumption, see "assumptions removed or guarded" below)
+  FOR EACH declaration d IN allDeclarations:
+    FOR EACH candidate IN d.rawChildCallCandidates (captured during scan, PSE-016 output attached transiently):
+      matches = byNameThenFile[(d.sourceRange.file, candidate.calleeName)] MINUS d itself
+      IF matches.length === 1:
+        d.childCalls.push({ calleeDeclarationId: matches[0].id, calleeName: candidate.calleeName, line: candidate.line })
+      ELSE IF matches.length === 0:
+        -- no exact resolution; omit silently per BEH-010 (not a "close call" — most calls are ordinary Kotlin API calls, warning on every miss would be noise)
+      ELSE (matches.length > 1, e.g. two function-local composables with the same name in different enclosing functions):
+        d.warnings.push(`Ambiguous child-composable call "${candidate.calleeName}" at line ${candidate.line}: multiple same-named declarations in this file; not recorded as a child-call edge.`)
+  strip transient rawChildCallCandidates field before returning (not part of the public artifact type, PSE-008 has no such field)
+
+PSE-019: (BEH-014) function buildAndroidComposeSemanticAnalyzerStatus(result): IndexAnalyzerStatus
+  Mirror buildAndroidNavigationAnalyzerStatus exactly:
+  status = !artifact.detected ? 'skipped' : artifact.warnings.length > 0 ? 'partial' : 'complete'
+  id: 'android-compose-semantic', version/schemaVersion: ANDROID_COMPOSE_SEMANTIC_SCHEMA_VERSION,
+  artifacts: detected ? [{name:'androidComposeSemantic', path: ANDROID_COMPOSE_SEMANTIC_FILENAME, artifactKind: ANDROID_COMPOSE_SEMANTIC_ARTIFACT_KIND}] : [],
+  warningCount: artifact.warnings.length, errorCount: 0,
+  summary: artifact.summary
+  Wrapped at the finishIndexBuild() call site in the SAME try/catch shape runAndroidComponentsAnalyzer already uses, so an unexpected internal exception (not a per-file I/O error, which is already handled inside the builder) produces status 'failed', errorCount:1, per BEH "Error states".
+
+PSE-020: (INV-005) ID rule (function computeDeclarationId(filePath, enclosingChain, name, ordinal)):
+  base = `android-compose-declaration:${filePath}#${enclosingChain.join('>')}${enclosingChain.length ? '>' : ''}${name}`
+  IF a declaration with an identical `base` was already assigned in this same file's scan pass (duplicate name+scope collision — rare, only from malformed/in-progress source since valid Kotlin forbids true duplicates):
+    append `#${ordinal}` where ordinal is the 0-based count of prior identical `base` values seen so far in file-scan order (itself deterministic: file-scan order is always the same for identical source text)
+  RETURN base (unsuffixed) for the first occurrence, base + '#N' for the Nth later duplicate
+  -- top-level declaration: enclosingChain = []  -> id = `android-compose-declaration:src/foo/Bar.kt#MyScreen`
+  -- function-local declaration inside `fun Outer()`: enclosingChain = ['Outer'] -> id = `android-compose-declaration:src/foo/Bar.kt#Outer>InnerComposable`
+
+--- Integration (runIndexCommand.ts, managedArtifacts.ts, writeIndexManifest.ts, android/index.ts) ---
+
+PSE-021: (BEH-014) managedArtifacts.ts: add
+  export const ANDROID_COMPOSE_SEMANTIC_FILENAME = 'android-compose-semantic.json'
+  append ANDROID_COMPOSE_SEMANTIC_FILENAME to OPTIONAL_INDEX_ARTIFACT_FILENAMES array (single insertion point, order-stable — append at end to avoid disturbing any snapshot/golden-file test asserting exact array order)
+
+PSE-022: (BEH-014) writeIndexManifest.ts: add
+  import type { AndroidComposeSemanticArtifact } from '../android/androidComposeTypes.js'
+  import { ANDROID_COMPOSE_SEMANTIC_FILENAME } from './managedArtifacts.js'
+  add `androidComposeSemantic?: AndroidComposeSemanticArtifact | null` to the writeIndexArtifacts options type (mirroring `androidNavigation?: AndroidNavigationArtifact | null` exactly)
+  add `if (options.androidComposeSemantic) { writeJson(path.join(options.outputDir, ANDROID_COMPOSE_SEMANTIC_FILENAME), options.androidComposeSemantic) }` immediately after the existing androidNavigation write block
+
+PSE-023: (BEH-014, BEH-001) runIndexCommand.ts, inside finishIndexBuild(), immediately after the existing androidNavigationResult/androidNavigationAnalyzerStatus block (so roledSymbolIndex already exists) and BEFORE androidRelationships is computed (Batch 1 must not feed the new artifact into buildAndroidArtifactRelationships — that call's argument list is a forbidden-edit-area file and Batch 1 does not add a parameter to it):
+  const androidComposeSemanticResult = buildAndroidComposeSemanticProject({ projectRoot, symbolIndex: roledSymbolIndex, androidProject: androidResult.artifact, createdAt })
+  const androidComposeSemanticAnalyzerStatus = buildAndroidComposeSemanticAnalyzerStatus(androidComposeSemanticResult)
+  -- append androidComposeSemanticAnalyzerStatus to the array passed into replaceAnalyzerStatuses(...) (after androidRelationshipsAnalyzerStatus, preserving existing entries' relative order)
+  -- add `androidComposeSemantic: androidComposeSemanticResult.artifact.detected ? androidComposeSemanticResult.artifact : null` to the writeIndexArtifacts(...) call
+  -- add `androidComposeSemanticPath: androidComposeSemanticResult.artifact.detected ? toForwardSlash(path.join(outputDir, ANDROID_COMPOSE_SEMANTIC_FILENAME)) : null` to the returned RunIndexCommandIndexResult (new field on that interface, additive)
+  -- NOTE: do NOT alter the early androidResult/androidGradleResult/androidManifestResult/androidResourcesResult block near the top of runIndexCommand() (those remain the four early-computed builders; the new analyzer joins android-navigation/android-components/android-relationships as a "late, post-symbol-index" builder, per BEH-014/PSE-011's explicit no-early-fingerprint decision)
+
+PSE-024: (BEH-014) android/index.ts: append barrel exports for buildAndroidComposeSemanticProject, its option/result types, and every exported type from androidComposeTypes.ts, following the exact same block-per-artifact grouping the file already uses for android-navigation.
+
+--- Manifest type impact ---
+
+PSE-025: (external contract 14.9) manifestTypes.ts is NOT expected to require a change: `IndexAnalyzerStatus`'s existing shape (id, status, version, schemaVersion, artifacts[], warningCount, errorCount, summary) already accommodates the new analyzer entry with no new fields, exactly as it did for android-navigation. If implementation discovers `summary` cannot structurally hold ComposeSemanticSummary's shape (it is typed `Record<string, unknown>` or equivalent loose type per existing analyzer entries — to be confirmed by direct inspection of manifestTypes.ts at the start of the implementation stage), no change is needed since summary is already loosely typed for every other analyzer. If it is NOT loosely typed, implementation stage must stop and report the exact conflict per Section 6 of the external contract rather than silently widening manifestTypes.ts beyond a narrow additive change.
+
+--- Acceptance criteria (traced to behavior-model) ---
+
+PSE-026: BEH-002, BEH-003 -> presence/absence integration test
+PSE-027: INV-001, INV-002, INV-003 -> unit tests on scanFileForComposeDeclarations / resolveChildCalls
+PSE-028: INV-005 -> determinism test (run analyzer twice over identical fixture text, assert byte-identical output modulo createdAt)
+PSE-029: BEH-015, TRN-003 -> incremental regression test (add/change/remove a Compose declaration under --incremental, assert artifact refreshes; unrelated file change under --incremental, assert byte-identical Compose artifact)
+PSE-030: BEH-005, INV-006 -> existing android-navigation snapshot/fixture test re-run unchanged (regression guard)
+
+Likely files or modules to modify: (unchanged from architecture-context-packet.txt's list — no new files identified during pseudocode)
+- New: src/android/androidComposeTypes.ts, src/android/buildAndroidComposeSemanticProject.ts
+- Modified: src/android/index.ts, src/indexing/managedArtifacts.ts, src/indexing/writeIndexManifest.ts, src/indexing/runIndexCommand.ts
+- Possibly modified (only if PSE-025's conflict check fails): src/indexing/manifestTypes.ts
+
+Implementation constraints:
+- No import from or modification of src/languages/kotlin/adapter.ts (INV-007)
+- No modification of src/graph/buildAndroidArtifactRelationships.ts or addAndroidRelationshipsToCodeGraph.ts (forbidden edit area; PSE-023 explicitly does not thread the new artifact into that call)
+- No modification of any command file (forbidden edit area)
+- Bounded scan (MAX_SCAN_LINES precedent) to avoid pathological runtime on huge generated Kotlin files, matching buildComposeNavigationRoutes.ts
+
+Assumptions preserved (from architecture-context-packet.txt / behavior-model.txt):
+- Compose scanning gates on androidProject.detected (resolved in behavior-model.txt's "Unresolved design questions" section, by direct precedent from buildComposeNavigationRoutes.ts)
+- No new incremental cache/fingerprint (BEH-015)
+- No manifestTypes.ts change expected (PSE-025, pending direct confirmation at implementation start)
+
+Assumptions removed or guarded:
+- PSE-018 narrows external-contract Section 14.6's "resolved to a supported Compose declaration in the current artifact" to same-FILE resolution rather than whole-project resolution, to avoid ambiguous cross-file same-name matches that the fixed contract's "never guess" principle (INV-003) would otherwise force into either an arbitrary pick or a blanket cross-file warning flood. This is a scope-narrowing guard, not a contract violation: the external contract's Section 14.6 says "exact declaration identity or another existing exact repository mechanism" — no existing repository mechanism resolves cross-file Kotlin symbol references today (resolveKotlinImportToFile exists but is best-effort/heuristic per its own doc comment, which fails INV-003's "never guess" bar), so same-file-only is the only mechanism meeting the "exact" requirement without inventing new import-resolution machinery Batch 1 is not scoped to build.
+
+Unresolved implementation questions:
+- Whether `sortById` from buildComposeNavigationRoutes.ts is exported (reuse) or must be duplicated locally (small, low-risk, resolved trivially at implementation start by checking the file's export list — not a design blocker)
+- Exact shape of manifestTypes.ts's `summary` field typing (PSE-025) — resolved by direct inspection at implementation start, not blocking pseudocode completion
+
+Status: complete

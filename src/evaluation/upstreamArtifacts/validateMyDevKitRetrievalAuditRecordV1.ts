@@ -27,6 +27,7 @@ import {
   validateProvenanceRecord,
   validateResponsibilityMappingSummary,
   validateRoleAdequacyStatement,
+  validateRoleConditionCoverage,
   validateRoleContextSummary,
   validateTruncationSummary
 } from "./validateMyDevKitContextCapsuleV1.js";
@@ -174,6 +175,15 @@ export function validateMyDevKitRetrievalAuditRecordV1(
         requiredField(ctx, value, "responsibilityMappings", "responsibilityMappings"),
         "responsibilityMappings"
       ),
+      ...(optionalField(value, "roleConditionCoverage") !== undefined
+        ? {
+            roleConditionCoverage: requiredArray(
+              ctx,
+              value.roleConditionCoverage,
+              "roleConditionCoverage"
+            ).map((item, i) => validateRoleConditionCoverage(ctx, item, arrayFieldPath("roleConditionCoverage", i)))
+          }
+        : {}),
       roleAdequacy: validateRoleAdequacyStatement(ctx, requiredField(ctx, value, "roleAdequacy", "roleAdequacy"), "roleAdequacy"),
       freshness: validateFreshnessSummary(ctx, requiredField(ctx, value, "freshness", "freshness"), "freshness"),
       budget: validateBudgetSummary(ctx, requiredField(ctx, value, "budget", "budget"), "budget"),

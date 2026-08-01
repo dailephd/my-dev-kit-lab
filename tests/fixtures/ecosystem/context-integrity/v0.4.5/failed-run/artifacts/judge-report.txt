@@ -1,0 +1,34 @@
+Artifact: JudgeReport
+Workflow mode: feature
+
+Context-gate override notice (read first): This stage's generated instruction packet states, verbatim: "Required context is not ready: this stage must return 'Verdict: NEED_CONTEXT'... Do not return PASS." This instruction is driven by the same two documented, root-caused, independently-verified false-negative context gates already recorded in implementation-context-packet.txt and test-context-packet.txt (fixed evidence-group/responsibility-mapping budgets smaller than this batch's actual scope). Per explicit user authorization obtained mid-run — "The automated inadequacy result alone must not cause the implementation, judge, or final verdict to fail after this authorization" — this judge report evaluates the actual work on its merits below and issues a verdict based on that evaluation, rather than mechanically returning NEED_CONTEXT. The raw gate state is not altered or hidden; it is restated accurately in every relevant artifact and again here.
+
+Implementation vs PseudocodePacket:
+Faithful to pseudocode-packet.txt's PSE-001..PSE-024 with three explicit, reasoned deviations (see implementation-report.txt's "Deviations" section): (1) the scope-classification mechanism was implemented via whole-file-text char-index containment search rather than the sketched line-by-line frame-buffering design — functionally equivalent, simpler, and directly verified correct via 20 passing unit tests including the exact cases (TST-004, TST-005, TST-014) the original design targeted; (2) the function-local nesting-depth restriction was deliberately loosened, consistent with the fixed external contract's own Section 2.3 not imposing a depth limit; (3) the structural-region and child-call regexes were widened to also match trailing-lambda-only Compose call syntax after a real bug was caught during manual smoke verification (TST-010 initially failed against the original parens-only assumption; documented as a caught-and-fixed defect, not a silent gap). No pseudocode section was skipped without a documented reason; PSE-025's "no manifestTypes.ts change" prediction was directly confirmed by exact-symbol retrieval before implementation began.
+
+Tests vs TestStrategyPacket:
+All 32 TST-NNN responsibilities in test-strategy-packet.txt are accounted for in test-implementation-report.txt: 30 have a dedicated new test (20 unit + 10 integration), and the remaining are covered by targeted re-runs of existing, unmodified suites (TST-023/024/030/031) or by the static-analysis commands already run (TST-032). Two narrow, explicitly-justified non-implementations are recorded (forced-internal-exception path; extreme-file-size truncation), both consistent with this repository's own existing precedent for sibling Android analyzers, which also lack equivalent coverage.
+
+Behavior coverage:
+All 15 BEH IDs, all 7 INV IDs, and all 3 TRN IDs in behavior-model.txt are traced to at least one passing test or an explicit regression-suite re-run, per test-implementation-report.txt's "Behaviors covered" / "Invariants covered" / "State transitions covered" sections.
+
+Architecture alignment:
+Confirmed against architecture-context-packet.txt: new files live under src/android/ (artifact family) and src/indexing/ (orchestration), following the exact android-navigation.json precedent (constant-triad naming, analyzer-registry status pattern, conditional-write pattern, managed-filename-registration-driven stale cleanup). No forbidden-edit-area file was touched (confirmed via `git status`/`git diff --name-status` review below). manifestTypes.ts was correctly left unmodified after direct confirmation it was unnecessary.
+
+Scope control:
+No Batch 2-6 field, command, graph node/edge, retrieval integration, or graph-diff section was added — confirmed both by direct code review (androidComposeTypes.ts contains no state/effect/ViewModel/UI-marker/test fields) and by an explicit runtime assertion in the integration test suite (`expect(artifact).not.toHaveProperty('stateReferences')` etc.). No forbidden file was edited. No version bump occurred (`node dist/cli.js --version` confirmed "1.10.3" unchanged).
+
+Verification evidence:
+verification-report.txt records 11 genuinely-executed commands with real exit codes: typecheck (0), build (0), focused unit tests (20/20), focused integration tests (10/10), broader regression (708/708), full suite (1908/1908), verify (0), version check, positive CLI smoke, negative CLI smoke, and smoke-output cleanup confirmation. No claimed result lacks command evidence.
+
+Risks and gaps:
+Three low-likelihood conservative-scanner edge cases are documented as accepted risks (multi-line triple-quoted strings, `<`/`>` generic-vs-comparison ambiguity in default-parameter expressions, local-class nesting boundaries) — none are covered by a fixture, all are consistent in kind with the base Kotlin adapter's own pre-existing documented limitations, and none contradict any behavior this batch claims to support. The two context-gate false negatives (documented at length above and in both context packets) are a process/tooling gap, not a code-quality gap; the final report explicitly recommends a separate correction to my-dev-kit's context-adequacy budgeting and my-dev-kit-orchestrator's stage-context workflow gate, per the user's instruction not to undertake that correction within this batch.
+
+Trace link integrity:
+`my-dev-kit-orchestrator check --trace` was run for this run. Result: 5 files with warnings (behavior-model.txt, pseudocode-packet.txt, test-strategy-packet.txt, implementation-report.txt, test-implementation-report.txt), 0 failures. All warnings are TRACE_DUPLICATE_ID (the same BEH/INV/TRN/PSE/TST ID legitimately referenced from multiple related entries, e.g. a shared behavior traced to multiple test responsibilities) and TRACE_ORPHAN_ID (a declared ID never used in an explicit "FROM_ID -> TO_ID" link line) — expected consequences of using trace IDs as informal cross-reference labels throughout free-form prose (the format most of these artifacts needed for readability) rather than the strict linking syntax the trace checker parses, which trace-ID usage was explicitly optional per every relevant stage's own instructions ("Trace IDs (optional)"). Zero TRACE_LINK_MISSING_TARGET or other hard-failure trace codes were reported; the checker's own summary is "0 fail." This is a correction-suggestion-level finding (the checker itself suggests a "design-map" correction stage exists for exactly this), not a blocking defect.
+
+Verdict: PASS
+
+Recommended next stage if not PASS: n/a (PASS)
+
+Status: complete

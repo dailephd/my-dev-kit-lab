@@ -1,0 +1,31 @@
+Artifact source: hand-built fixtures derived from the local my-dev-kit-orchestrator v1.2.3
+readiness-candidate run-integrity contract (not a byte-for-byte real-run capture; the
+orchestrator computes these as in-memory TypeScript results plus one real JSON file
+[artifact-state.json record shape], not one combined JSON artifact -- this fixture bundles
+them under one lab-owned envelope per Batch 3 section 14.1).
+Producer repository: Z:/Users/newuser/Projects/my-dev-kit-orchestrator
+Producer branch: fix/v1.2.3-run-integrity
+Producer candidate commit: 2cb82f09ed423be8defd8277f28608c8a17eae3e
+Producer contract files inspected: src/runIntegrityGate.ts, src/judgeIntegrity.ts,
+src/artifactLifecycle.ts, src/correctionRouter.ts, src/judgeParser.ts
+Bundled schema versions: RUN_INTEGRITY_GATE_SCHEMA_VERSION "1.0.0",
+JUDGE_INTEGRITY_SCHEMA_VERSION "1.0.0" (both reused for the envelope's own "schemaVersion").
+Nested implementationContext/testContext/primaryBlocker reuse the exact upstream
+ContextReadinessResult / ContextReadinessBlockerSummary shape already mirrored by Batch 1's
+orchestratorContextReadinessResultV1.ts -- validated through the existing
+validateOrchestratorContextReadinessResultV1() rather than a second reader.
+
+Fixtures in this directory:
+- ready-pass-final-pass.json: the "everything agrees" positive chain (section 29.1) --
+  producer/readiness ready, prompt normal (implied by contextReady + no blockedStageNames),
+  expected/actual judge PASS, no correction route, final-report eligible/present/PASS,
+  lifecycle all complete.
+- refresh-required-need-context.json: the "correctly blocked" positive chain (section 29.2)
+  -- readiness refresh-required, expected/actual judge NEED_CONTEXT, correction route active
+  to the canonical recommended stage, final report ineligible/absent, implementation stage
+  lifecycle forced to "blocked" by the gate.
+
+Copy policy: hand-authored fixtures; edit directly when the mirrored contract changes, and
+update this file's "Producer contract files inspected" list to match. These are bounded
+Batch 3 contract fixtures, not the complete Batch 4 frozen ecosystem regression fixture (no
+hash manifest, no byte-exact real-run provenance, no full negative matrix).

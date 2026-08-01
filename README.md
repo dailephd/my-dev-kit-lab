@@ -4,7 +4,7 @@ my-dev-kit-lab is the experiment, audit, and evidence companion for [my-dev-kit]
 
 my-dev-kit provides local repository indexing and graph-guided retrieval. my-dev-kit-lab supplies the controlled benchmarks, agent adapters, metrics, security checks, and reports needed to evaluate when that retrieval is useful. Results are evidence for a specific target and configuration; they do not guarantee token savings or security.
 
-The latest published release is v0.4.4 (producer-readiness bridge). See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
+The latest published release is v0.4.5 (context-integrity validation), compatible with published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
 ## Current capabilities
 
@@ -15,6 +15,7 @@ The latest published release is v0.4.4 (producer-readiness bridge). See [docs/CU
 - **Review evidence:** generate JSON and HTML reports, SVG plots, optional screenshots, visualization demos, and a static gallery.
 - **Evaluate stage-context strategies:** compare the two legacy strategies against six additional bounded stage-context strategies — `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context` — selected through programmatic configuration, not CLI flags. Each strategy's evidence is reported through bounded `report.json`, `report.html`, and `report.txt` output with an explicit `available`/`unavailable`/`not-applicable` metric-availability model and no composite score, grade, ranking, or winning strategy.
 - **Evaluate the producer-readiness bridge (v0.4.4):** optionally extend `combined-bounded-stage-context` with the frozen my-dev-kit-orchestrator supplemental implementation/test-context packet and retrieval-report documents plus an observed readiness result, all supplied programmatically (there is no CLI flag), to measure owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay evidence without reimplementing upstream owner-selection, allocation, producer-parity, or readiness policy.
+- **Evaluate context integrity (v0.4.5):** compare condition-aware producer evidence from my-dev-kit v1.10.4 (role condition coverage, allocation/spillover, required-evidence-loss) against my-dev-kit-orchestrator v1.2.3 run-integrity evidence (run-integrity gate, judge integrity, final-report eligibility, artifact lifecycle state), reporting agreement or contradiction between them rather than re-deriving a verdict. Evaluation runs against a frozen, hash-verified regression fixture pair — a byte-exact real historical failed run and a hand-distilled corrected-replay counterpart representing the same validated contracts — and is programmatic/test-driven only. `npm run report:context-integrity-smoke` renders both fixtures' reports for manual inspection; it takes no arguments and is a developer convenience, not a configurable evaluation CLI.
 
 ## Quickstart
 
@@ -167,6 +168,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - The six new stage-context strategies have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration
 - The published upstream artifacts the stage-context strategies read do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` rather than zero
 - The v0.4.4 producer-readiness bridge is released. All bridge inputs are programmatic — there is no CLI flag. The coordinated upstream releases my-dev-kit@1.10.3 and orchestrator@1.2.2 were verified published before lab publication.
+- The v0.4.5 context-integrity evaluation is released. It has no CLI flags, no plots/screenshot/gallery integration, and produces no composite score, grade, ranking, or winner. Its corrected-replay fixture is a hand-distilled representation of the validated my-dev-kit v1.10.4 and my-dev-kit-orchestrator v1.2.3 contracts, not a live capture of a complete ten-stage workflow. The orchestrator agreement evidence does not read a literal upstream `promptMode` field; `stageMayRenderNormalPrompt`, derived from structured blocked-stage evidence, is the bounded substitute used instead.
 
 ---
 

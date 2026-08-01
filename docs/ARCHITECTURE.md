@@ -24,12 +24,13 @@ src/
     types.ts                                 plugin contracts and normalized results
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
-    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3); plus exact supplemental implementation/test-context packet/retrieval-report readers and a bounded plain-object readiness adapter (v0.4.4)
-    stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3)
-    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3); additive, optional producer-readiness expectations (v0.4.4, feature branch)
-    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3); additive owner/allocation/truncation/agreement/criticality calculators plus evaluateProducerReadinessBridge, which composes them once per run over already-loaded evidence (v0.4.4, feature branch)
+    upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3); plus exact supplemental implementation/test-context packet/retrieval-report readers and a bounded plain-object readiness adapter (v0.4.4); plus exact condition-aware producer evidence mirrors (roleConditionCoverage, allocation/spillover GroupTruncationEntry fields, truncation.requiredEvidenceLost) and exact orchestrator run-integrity mirrors (RunIntegrityGateResult, JudgeIntegrityResult, FinalReportEligibilityResult, artifact-state.json lifecycle records) (v0.4.5)
+    stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3); plus orchestrator run-integrity selectors (v0.4.5)
+    stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3); additive, optional producer-readiness expectations (v0.4.4)
+    stageContextMetrics/                     evidence-centered evaluation metrics (v0.4.3); additive owner/allocation/truncation/agreement/criticality calculators plus evaluateProducerReadinessBridge, which composes them once per run over already-loaded evidence (v0.4.4); plus additive allocation/spillover/condition-coverage/producer-condition-agreement metrics and run-integrity agreement calculators, composed into the same bridge (v0.4.5)
     targetImmutability/                      read-only target snapshot and mutation comparison (v0.4.3)
     stageContextDeterminism/                 canonicalization and repeated-run digest comparison (v0.4.3)
+    ecosystemFixtures/                       frozen ecosystem regression fixture manifest types, hash verification, and fixture loading (v0.4.5)
   agents/                                    fake-agent, Codex, and Claude adapters
   prompts/                                   prompt variant generation and prompt complexity metrics
   audits/                                    generic audit framework (code-rot and security audit types implemented)
@@ -40,7 +41,7 @@ src/
     security/                                security audit adapter: adapts securityValidation results into audit issues/report summary, including the Android-aware extension
     report/                                  audit report model, JSON/text renderers, writer, text sanitizer
   report/
-    experiments/                             plugin-aware JSON/HTML/text report support (text renderer and the v0.4.3 stage-context section)
+    experiments/                             plugin-aware JSON/HTML/text report support (text renderer and the v0.4.3 stage-context section); plus the bounded ContextIntegrityReportV1 JSON/text/HTML report layer (v0.4.5), reusing V043BoundedReportListV1/V043ReportAvailability rather than duplicating them
     ...                                      shared and legacy report infrastructure
   mobile/android/                            Android detection, manifest parsing, static Gradle metadata, and advanced security checks
   securityValidation/                        automated security validation
@@ -162,7 +163,36 @@ Dependency direction is one-way: readers depend on nothing else in this list; se
 
 This architecture does not introduce a normalized upstream observation layer — readers preserve exact upstream field names, nesting, optionality, nullability, array order, and unknown additive fields, and never merge or reshape `ContextCapsule`/`RetrievalAuditRecord`/`WorkflowInstructionPacket` objects. Metrics are not upstream artifact properties; they are a separate, additive evaluation layer computed from reader output plus expectation fixtures. Reports do not recalculate execution results, metrics, target immutability, or determinism; the report layer only renders a bounded, deterministic view of already-computed results and never reruns a strategy.
 
-The current unreleased compatibility update recognizes my-dev-kit's additive retrieval-audit `index.projectRoot` and `index.manifestSchemaVersion` fields within schema major 1. The exact reader retains these fields when present and leaves them absent for legacy audits; it never derives repository identity. The existing capsule/audit consistency selector compares project root and manifest schema alongside active index, before/after freshness identity, and the established shared summaries. It evaluates producer evidence but does not reimplement orchestrator readiness.
+The released compatibility behavior recognizes my-dev-kit's additive retrieval-audit `index.projectRoot` and `index.manifestSchemaVersion` fields within schema major 1. The exact reader retains these fields when present and leaves them absent for legacy audits; it never derives repository identity. The existing capsule/audit consistency selector compares project root and manifest schema alongside active index, before/after freshness identity, and the established shared summaries. It evaluates producer evidence but does not reimplement orchestrator readiness.
+
+## Context-integrity evaluation architecture (v0.4.5)
+
+Released in v0.4.5 after individual readiness, coordinated cross-repository validation, and published-upstream revalidation. It extends the existing producer-readiness bridge (`evaluateProducerReadinessBridge`) and the existing bounded report primitives additively; it does not introduce a parallel evaluation runner or a parallel report system.
+
+```mermaid
+flowchart TD
+  ProducerReaders[src/evaluation/upstreamArtifacts\nexact condition-aware producer mirrors\nmy-dev-kit v1.10.4] --> Bridge[evaluateProducerReadinessBridge]
+  RunIntegrityReaders[src/evaluation/upstreamArtifacts\nexact orchestrator run-integrity mirrors\nmy-dev-kit-orchestrator v1.2.3] --> Selectors[src/evaluation/stageContextSelectors\norchestratorRunIntegritySelectors]
+  Selectors --> Bridge
+  Metrics[src/evaluation/stageContextMetrics\nallocation / spillover / condition-coverage\n+ run-integrity agreement calculators] --> Bridge
+  Fixtures[tests/fixtures/ecosystem/context-integrity/v0.4.5\nfailed-run + corrected-replay] --> Loader[src/evaluation/ecosystemFixtures\nmanifest + hash verification + loader]
+  Loader --> Bridge
+  Bridge --> Reports[src/report/experiments\nContextIntegrityReportV1: JSON / text / HTML]
+  Loader --> Determinism[src/evaluation/stageContextDeterminism\nreused, not duplicated]
+  Determinism --> Reports
+```
+
+Ownership and boundaries:
+
+- The published `my-dev-kit` `v1.10.4` and `my-dev-kit-orchestrator` `v1.2.3` contracts are mirrored exactly (field names, nesting, optionality) by dedicated readers in `src/evaluation/upstreamArtifacts`, following the same exact-mirror discipline as the `v0.4.3`/`v0.4.4` readers. There is no single combined upstream run-integrity JSON artifact — `RunIntegrityGateResult`, `JudgeIntegrityResult`, and `FinalReportEligibilityResult` are in-memory orchestrator computation results, mirrored as plain-object inputs, plus a separate on-disk `artifact-state.json` lifecycle record that is read directly.
+- `evaluateProducerReadinessBridge` remains the single composition point for all condition-aware producer and run-integrity metrics; `v0.4.5` extends it additively with a `runIntegrityEvidence` input and `runIntegrityEvaluation`/agreement outputs, without changing its `v0.4.3`/`v0.4.4` behavior.
+- Agreement calculators compare producer evidence against run-integrity evidence and report one of a shared outcome vocabulary (`agreement`, `contradiction`, `insufficient-evidence`, `unsupported-legacy-evidence`, `not-applicable`) rather than re-deriving or overriding either upstream project's own policy. The lab does not reimplement upstream owner-selection, allocation, readiness, or run-integrity policy at any point in this flow.
+- The orchestrator does not expose a literal upstream `promptMode` field. `stageMayRenderNormalPrompt`, derived from structured blocked-stage evidence, is the bounded substitute the lab reads and reports instead.
+- `src/evaluation/ecosystemFixtures` validates the fixture manifest, verifies SHA-256 hashes against tracked fixture bytes, and loads the fixture pair through bounded, traversal-safe path resolution. The frozen `failed-run` fixture is a byte-exact copy of a real historical `my-dev-kit` `v1.11.0` Batch 1 failed run. The `corrected-replay` fixture is a hand-distilled representation of the exact validated local `my-dev-kit` `v1.10.4` and `my-dev-kit-orchestrator` `v1.2.3` contracts, applied to the same request, target, and active-index identity as the paired failed-run fixture — it is not a live capture of a complete ten-stage AI-authored implementation workflow, and it is not proof that every future run against these contracts will behave identically.
+- Determinism reuses `calculateStageContextDeterminism`/`canonicalizeStageContextRun` from `src/evaluation/stageContextDeterminism`. Fixture self-immutability is verified by re-running hash verification against the frozen fixture bytes rather than by mutating a live target, since no live target repository is exercised in this evaluation path.
+- `src/report/experiments/contextIntegrityReportModel.ts` and `buildContextIntegrityReport.ts` define and populate `ContextIntegrityReportV1` as a pure, bounded reshaping of already-computed bridge results — the builder performs no recomputation. It reuses `V043BoundedReportListV1`/`V043ReportAvailability` from the existing `v0.4.3` report model rather than duplicating bounded-list or availability primitives. JSON, text, and HTML renderers follow the same conventions as the existing `v0.4.3` report renderers. No composite score, grade, ranking, or winner is computed or rendered anywhere in this layer.
+
+See [context-integrity-fixtures.md](context-integrity-fixtures.md) for the frozen fixture pair's full provenance, tracked/excluded-artifact inventory, and hash-verification model, and [context-integrity-report-schema.md](context-integrity-report-schema.md) for the `ContextIntegrityReportV1` JSON/text/HTML report shape.
 
 ## Target model
 
@@ -292,7 +322,7 @@ The following layers are planned and must not be treated as current published or
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success (`v0.5.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 
-`v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published (see "Stage-context evaluation architecture (v0.4.3)" above).
+`v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published (see "Stage-context evaluation architecture (v0.4.3)" above). `v0.4.5` context-integrity evaluation is implemented and published (see "Context-integrity evaluation architecture (v0.4.5)" above).
 
 Future audit work should reuse `src/audits/core`, `src/audits/security`, target metadata, the normalized issue schema, and shared reports. It must not replace the experiment runtime, duplicate report/gallery systems, or absorb `security:validate` into the audit framework.
 
@@ -332,3 +362,8 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.4 supplemental packet/report readers and readiness adapter (released) | `src/evaluation/upstreamArtifacts/` (e.g. `readImplementationContextPacketV1.ts`, `orchestratorContextReadinessResultV1.ts`) |
 | v0.4.4 producer-readiness metric calculators (released) | `src/evaluation/stageContextMetrics/` (`calculateOwnerMetrics.ts`, `calculateAllocationMetrics.ts`, `calculateTruncationClassification.ts`, `calculateSupplementalRawAgreement.ts`, `calculateReadinessAgreement.ts`, `calculateCriticalityMetrics.ts`) |
 | v0.4.4 producer-readiness bridge evaluator (released) | `src/evaluation/stageContextMetrics/evaluateProducerReadinessBridge.ts` |
+| v0.4.5 condition-aware producer / run-integrity readers (released) | `src/evaluation/upstreamArtifacts/` (e.g. `myDevKitContextArtifactsV1.ts`, `orchestratorRunIntegrityV1.ts`, `readOrchestratorRunIntegrityV1.ts`) |
+| v0.4.5 allocation/condition-coverage/run-integrity-agreement metric calculators (released) | `src/evaluation/stageContextMetrics/` (`calculateAllocationMetrics.ts`, `calculateTruncationClassification.ts`, `calculateConditionCoverageMetrics.ts`, `calculateProducerConditionAgreement.ts`, `calculateReadinessAgreement.ts`, `calculateSupplementalRawAgreement.ts`, `calculateRunIntegrityAgreement.ts`) |
+| v0.4.5 ecosystem regression fixture manifest / hash verification / loader (released) | `src/evaluation/ecosystemFixtures/` |
+| v0.4.5 frozen failed-run and corrected-replay fixture pair (released) | `tests/fixtures/ecosystem/context-integrity/v0.4.5/` |
+| v0.4.5 bounded context-integrity report model, builder, and renderers (released) | `src/report/experiments/contextIntegrityReportModel.ts`, `buildContextIntegrityReport.ts`, `renderContextIntegrityJsonReport.ts`, `renderContextIntegrityText.ts`, `renderContextIntegrityHtml.ts` |

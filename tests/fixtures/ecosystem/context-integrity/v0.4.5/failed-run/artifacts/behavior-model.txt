@@ -1,0 +1,104 @@
+Artifact: BehaviorModel
+Workflow mode: feature
+Inputs used:
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/request-brief.txt
+- Z:\Users\newuser\Projects\my-dev-kit-v1\.my-dev-kit-orchestrator\runs\20260730T113740-implement-my-dev-kit-v1-11-0-b/artifacts/architecture-context-packet.txt
+
+Behavior summary:
+BEH-001: When `my-dev-kit index` runs (full or incremental) against a project where Android-project evidence was detected (androidResult.artifact.detected === true, the same gate buildComposeNavigationRoutes.ts already uses), a new Compose declaration analyzer conservatively scans every indexed Kotlin file's source text for supported named `@Composable` declarations (top-level, top-level private, and named function-local), classifies each as preview/non-preview, records its complete deterministic source range, records direct exactly-resolved child-composable calls and a fixed set of structural UI-region calls inside its body, and writes the result as the optional `android-compose-semantic.json` artifact only when at least one supported declaration was found.
+
+Externally visible behavior:
+BEH-002: `android-compose-semantic.json` appears in the index output directory, with a corresponding `android-compose-semantic` entry in `manifest.json`'s `analyzers` array, if and only if Android-project evidence was detected AND at least one supported Compose declaration was extracted.
+BEH-003: `android-compose-semantic.json` is absent (not written, and any previously-written copy removed on the next full artifact refresh) when Android-project evidence is not detected, or when it is detected but no supported Compose declaration exists in any indexed Kotlin file.
+BEH-004: No existing CLI command's flags, output shape, or exit behavior change (index/search/lookup/slice/source/view/context/graph-diff all behave exactly as before for callers that do not inspect the new artifact/analyzer entry).
+BEH-005: `android-navigation.json`'s shape, contents, and detection logic are byte-for-byte unaffected by this batch.
+
+Internal supporting behavior:
+BEH-006: The analyzer receives `roledSymbolIndex.files` (the already fully role-enriched symbol index built earlier in `finishIndexBuild()`) filtered to `language === 'kotlin'`, and for each file re-reads its raw text from disk exactly once (mirroring `buildComposeNavigationRoutes.ts`'s `readFile()` helper) — it does not re-parse via the base Kotlin adapter and does not mutate `symbolIndex`/`codeGraph` in this batch.
+BEH-007: Declaration scanning proceeds line-by-line with a brace-depth counter (extending the technique already used by both `src/languages/kotlin/adapter.ts` and `buildComposeNavigationRoutes.ts`, duplicated locally rather than by modifying the base adapter per the fixed forbidden-edit-area constraint), tracking: pending annotations immediately preceding a line, current nesting stack (to distinguish top-level depth-0 declarations from function-local declarations nested inside a supported enclosing function body), and open block-comment/string-literal state to avoid false-positive matches inside comments/strings.
+BEH-008: A declaration is classified Compose-eligible only if it is a named `fun` declaration immediately preceded (directly adjacent, allowing intervening annotation lines and blank lines per the existing `pendingAnnotations` convention) by a recognized Compose annotation (`@Composable`, or a qualified form ending in `.Composable` when unambiguous). Name-based heuristics (e.g., PascalCase function name alone) are never sufficient.
+BEH-009: `@Preview` classification requires `@Preview` (or a qualified form ending in `.Preview`) among the same declaration's pending annotations alongside `@Composable`.
+BEH-010: Child-composable call detection scans the declaration's captured body text for direct calls (`Identifier(...)` at statement position) whose callee name exactly matches another declaration's name already extracted as Compose-eligible within the same file's scan pass; a call whose callee cannot be exactly matched this way produces no child-call record and does not, by itself, produce a warning (per Section 14.6/14.3 of the external contract: silently omitted unless the artifact contract explicitly models an "unresolved candidate" field, which Batch 1's artifact contract does not add).
+BEH-011: Structural UI-region call detection scans the same captured body text for direct calls to exactly one of the seven named callees (`Scaffold`, `LazyColumn`, `LazyRow`, `Column`, `Row`, `Box`, `NavHost`) and records their presence and count/position only — never inferring layout, visibility, or rendered hierarchy.
+BEH-012: Unsupported patterns (anonymous composable lambdas, composables returned from higher-order functions, member composables inside classes/objects, dynamically-dispatched child calls) are conservatively never classified as declarations/child-calls; when a pattern is close enough to a supported shape that silent omission could look like a bug (e.g., an annotation with unusual qualification, or a call whose target is ambiguous), a stable warning string is recorded in the artifact's `warnings` array instead.
+BEH-013: All declaration IDs and array orderings are deterministic functions of (normalized repository-relative file path, enclosing-declaration-name chain, declaration name, declaration kind, and a same-key ordinal tiebreaker for the rare case of two declarations resolving to an identical key within one file), never of process-global counters, filesystem enumeration order, or timestamps — mirroring `buildComposeNavigationRoutes.ts`'s `${file.path}#${routeIndex}` + `sortById()` convention.
+BEH-014: The new artifact/analyzer is wired into `finishIndexBuild()` immediately after the point where `roledSymbolIndex`/`roledCodeGraph` exist (same ordering constraint as `androidNavigationResult`, since Compose scanning needs the fully-built symbol index), producing one more `IndexAnalyzerStatus` entry (`id: 'android-compose-semantic'`) merged via the existing `replaceAnalyzerStatuses()` call, and one more conditional `writeIndexArtifacts` argument (`androidComposeSemantic: result.artifact.detected ? result.artifact : null`).
+BEH-015: Because `finishIndexBuild()` unconditionally recomputes every Android builder result (including the new one) from the just-built `roledSymbolIndex` on both the full-rebuild path and the partial-rebuild-eligible incremental path, and is skipped entirely only by the no-op fast path that itself requires zero added/changed/removed files, the artifact is automatically kept in sync under `--incremental` by the existing changed-file-detection contract — no new cache/fingerprint is introduced (resolves the Section 2.4 fixed decision: REUSE, not BLOCKED).
+
+State variables:
+- Per-file scan state: brace/paren depth, pending-annotation list, open-block-comment flag (all local to one file's scan pass, discarded after use — no persistent state across files or across runs)
+- Per-analyzer-run state: an ordered list of extracted declarations, an ordered list of warnings, a `detected` boolean (declarations.length > 0 AND androidResult.artifact.detected)
+
+Inputs:
+- `roledSymbolIndex.files` filtered to `language === 'kotlin'` (file path + line-position-approximate symbol list, from the already-built symbol index)
+- Raw file text re-read from `projectRoot` + file path at analysis time (not the symbol index's cached extraction, since declaration bodies/annotations are not captured by the base Kotlin adapter)
+- `androidResult.artifact.detected` (gate; BEH-001)
+
+Events:
+- TRN-001: `index` command invoked (full or `--incremental`) -> `finishIndexBuild()` reaches the point after `roledSymbolIndex` exists -> new Compose analyzer runs once per file in `roledSymbolIndex.files` -> analyzer result folded into `manifest.analyzers` and, if `detected`, into `android-compose-semantic.json` on disk.
+- TRN-002: A previously-detected Compose declaration is removed from source (file deleted, declaration deleted, or last remaining declaration in the project becomes unsupported) -> next full-refresh-triggering run (any run that reaches `finishIndexBuild()`, i.e. not the incremental no-op fast path) recomputes `detected = false` -> `refreshIndexOutput()`'s blanket delete-then-conditionally-rewrite over `MANAGED_INDEX_ARTIFACT_FILENAMES` removes the stale file since the new write call is skipped.
+
+Derived values:
+- `detected` (declarations.length > 0, gated by androidResult.artifact.detected)
+- `summary` object (declarationCount, previewCount, topLevelCount, functionLocalCount, childCallCount, structuralRegionCallCount, warningCount) mirroring the `summary` shape every other Android artifact already exposes for its analyzer-status `summary` field
+
+Invariants:
+INV-001: A declaration is never recorded unless it was preceded by an exact, recognized Compose annotation (BEH-008) — no name-based or position-based guessing.
+INV-002: A private top-level composable (`private fun` at depth 0) is never classified as function-local, and a function-local composable (named `fun` nested inside another function body, any visibility) is never classified as top-level-private, even though both are "not part of the public top-level API" in a loose sense — the two are structurally distinct per the fixed Section 2.3 definitions and must carry different `visibility`/`declarationScope` field values.
+INV-003: A child-composable-call record only exists when the callee name exactly matches another declaration extracted as Compose-eligible in the same scan pass (BEH-010) — never from capitalization or naming-similarity alone.
+INV-004: The artifact is never written when `detected === false` (BEH-003) — there is no "empty but present" artifact state.
+INV-005: IDs and array order are pure functions of file content plus deterministic tie-breaking (BEH-013); two runs over byte-identical source produce byte-identical `android-compose-semantic.json` (aside from `createdAt`).
+INV-006: `android-navigation.json`'s composeRoutes/screenCandidates evidence and this artifact's declaration/child-call evidence are never cross-referenced or merged in Batch 1 (BEH-005) — they remain independently computed sibling artifacts.
+INV-007: `src/languages/kotlin/adapter.ts` is not imported, called, or modified by the new analyzer's production logic (the analyzer duplicates only the minimal brace/comment/string-handling primitives it needs, as `buildComposeNavigationRoutes.ts` already does, rather than extending the shared adapter).
+
+Valid states:
+- No Android project detected -> analyzer does not run; artifact absent (BEH-003)
+- Android project detected, no Kotlin files -> analyzer runs over an empty file set; artifact absent
+- Android project detected, Kotlin files present, zero supported Compose declarations -> artifact absent, no warnings required solely for "no Compose used" (that is a normal, not a degraded, state)
+- Android project detected, one or more supported Compose declarations -> artifact present, `detected: true`
+
+Invalid states (must never occur):
+- Artifact present with `detected: false`
+- Artifact present but `declarations` empty
+- A declaration record whose `sourceRange` does not fully contain its own annotations + signature + body
+- A child-call record pointing at a declaration ID not present in the same artifact's `declarations` array
+- Two declaration records sharing the same `id`
+
+Boundaries and partitions:
+- File-extension boundary: only files already classified `language === 'kotlin'` by the existing symbol index are scanned (Java files, despite appearing in `buildComposeNavigationRoutes.ts`'s route scan, are explicitly out of scope for Batch 1's declaration extraction — Compose is a Kotlin-only annotation model)
+- Depth boundary: only depth-0 (top-level) and depth-1-directly-inside-a-supported-enclosing-function (function-local) declarations are extracted; deeper nesting (a composable inside a composable inside a lambda inside another function) is an unsupported pattern per Section 2.3 and is conservatively omitted with a warning if the pattern is otherwise annotation-recognizable
+
+Empty states:
+- Empty Kotlin file (0 declarations): contributes nothing, no warning
+- Kotlin file with only non-Compose declarations: contributes nothing, no warning
+- Project-wide zero-Compose-evidence state: artifact absent (BEH-003), not an empty/degraded artifact
+
+Error states:
+- Unreadable Kotlin file (fs.readFileSync throws, mirroring `buildComposeNavigationRoutes.ts`'s `readFile()` returning `null` on failure): file is skipped, no warning (matches the existing precedent's silent-skip-on-unreadable-file behavior), scan continues for remaining files
+- Internal unexpected exception during the analyzer's construction (not per-file I/O, but a genuine programming-error path): follows the existing `android-components`/`classification` failure-mode contract — caught at the `finishIndexBuild()` call site, reported as analyzer status `'failed'` with `errorCount: 1`, never silently downgraded to success and never allowed to abort the rest of the index run
+
+Loading or pending states: not applicable (synchronous, single-pass static analysis; no async/streaming behavior)
+
+External contracts:
+- `android-compose-semantic.json` schema (new; owned by Batch 1) — versioned via `ANDROID_COMPOSE_SEMANTIC_SCHEMA_VERSION` following the exact constant-naming convention every other Android artifact type file already uses
+- `manifest.json`'s `analyzers[]` entry shape (`IndexAnalyzerStatus`) — reused unchanged; no new manifest type needed unless pseudocode-packet finds a genuine gap
+- `MANAGED_INDEX_ARTIFACT_FILENAMES` membership contract — new filename added, existing cleanup behavior reused unchanged
+
+State transitions:
+TRN-001 -> BEH-002 (index run with detected Compose evidence produces the artifact)
+TRN-002 -> BEH-003 (evidence removal + next full-refresh-reaching run removes the artifact)
+TRN-003: `--incremental` run with only non-Kotlin file changes -> Compose analyzer still re-runs (BEH-015) but produces byte-identical output (INV-005) since no Kotlin content changed -> no observable artifact change, confirming BEH-015's "no separate cache needed" resolution empirically, to be proven by an incremental-regression test in test-strategy/test-implementation.
+
+Behavior to preserve:
+- Every item listed under "Behavior to preserve" (Section 7) of the external task contract: non-Android indexing, Kotlin indexing, Java indexing, existing Android project/Gradle/manifest/resource/navigation/component artifact shapes and detection, symbol-index/code-graph shapes, manifest compatibility, existing optional-artifact conventions, managed-artifact cleanup, `--src` source-root control, deterministic ordering, old-index compatibility, unrelated-language/artifact incremental behavior, existing command output, Graphviz/view/context/graph-diff behavior.
+
+Behavior intentionally changed:
+- `manifest.json`'s `analyzers[]` array gains one new entry (`android-compose-semantic`) when Android evidence is present — additive only, no existing entry's shape changes.
+- The set of files `refreshIndexOutput()` may delete/rewrite grows by one filename (`android-compose-semantic.json`) — additive only, existing filenames' cleanup behavior unchanged.
+
+Unresolved design questions:
+- (Resolved in this stage, recorded for traceability): Whether Compose scanning gates on `androidResult.artifact.detected`. Resolved YES, by direct precedent — `buildComposeNavigationRoutes.ts` itself already gates its Compose-route scan on `androidProject.detected` (`if (!androidProject.detected) return { routes: [], ... }`), and every other Android artifact in the family requires Android-project detection as a prerequisite. Gating Batch 1's analyzer identically keeps it consistent with its closest sibling rather than introducing a new, unprecedented "Compose without Android project" code path that no other part of the Android artifact family supports today. A bare Kotlin-Multiplatform-for-Desktop Compose project (no Android evidence at all) is explicitly out of scope for Batch 1 under this resolution; if that is a real target, it belongs to a future batch's product decision, not a Batch 1 implementation judgment call.
+- Same-file duplicate-declaration-key ID tie-breaking exact algorithm — deferred to pseudocode-packet (not a behavior question, a naming-convention detail).
+
+Expected next stage: pseudocode-packet
+Status: complete

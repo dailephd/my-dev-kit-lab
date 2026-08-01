@@ -1,0 +1,92 @@
+Artifact: ImplementationReport
+Workflow mode: feature
+
+Context-gate override notice: This stage's automated repository-context readiness gate reported `refresh-required` / `CONTEXT_ADEQUACY_INSUFFICIENT` (a verified structural false negative — see implementation-context-packet.txt's "## Override authorization" section). Per explicit user authorization recorded in that section (decision code CONTEXT_SUFFICIENT_BY_TARGETED_VERIFICATION_WITH_AUTOMATED_ROLE_ADEQUACY_FALSE_NEGATIVE), implementation proceeded despite the automated gate. The raw gate result is preserved truthfully and unmodified; this report does not relabel it.
+
+Files read (via targeted retrieval and, for Stage 0, direct full-file reads predating this run's index — see the retrieval report and Section 18 accounting in the final response):
+- src/android/androidNavigationTypes.ts (full read, Stage 0 architecture inspection)
+- src/android/buildComposeNavigationRoutes.ts (full read, Stage 0)
+- src/android/buildAndroidNavigationProject.ts (full read, Stage 0)
+- src/android/index.ts (full read, Stage 0)
+- src/indexing/managedArtifacts.ts (full read, Stage 0)
+- src/indexing/writeIndexManifest.ts (read, Stage 0 + this stage, offset 1-105)
+- src/indexing/runIndexCommand.ts (full read, Stage 0)
+- src/indexing/refreshIndexOutput.ts (full read, Stage 0)
+- src/languages/kotlin/adapter.ts (full read, Stage 0)
+- src/indexing/manifestTypes.ts (exact-symbol source retrieval, this stage: IndexAnalyzerStatus, IndexAnalyzerId)
+- src/indexing/partialRebuild.ts (exact-symbol source retrieval: checkPartialRebuildEligibility)
+- tests/android/composeNavigationRoutes.spec.ts (partial read, offset 1-80, this stage, for test-pattern precedent)
+- tests/index/androidNavigationIncremental.spec.ts (full read, this stage, for integration-test-pattern precedent)
+
+Files changed:
+New:
+- src/android/androidComposeTypes.ts
+- src/android/buildAndroidComposeSemanticProject.ts
+- tests/android/composeSemanticDeclarations.spec.ts
+- tests/index/androidComposeSemanticIncremental.spec.ts
+- tests/fixtures/android-compose-semantic/basic-app/settings.gradle.kts
+- tests/fixtures/android-compose-semantic/basic-app/app/build.gradle.kts
+- tests/fixtures/android-compose-semantic/basic-app/app/src/main/AndroidManifest.xml
+- tests/fixtures/android-compose-semantic/basic-app/app/src/main/kotlin/com/example/Screens.kt
+- tests/fixtures/android-compose-semantic/no-compose-app/settings.gradle.kts
+- tests/fixtures/android-compose-semantic/no-compose-app/app/build.gradle.kts
+- tests/fixtures/android-compose-semantic/no-compose-app/app/src/main/AndroidManifest.xml
+- tests/fixtures/android-compose-semantic/no-compose-app/app/src/main/kotlin/com/example/Utils.kt
+
+Modified:
+- src/android/index.ts (barrel exports for the new analyzer/types)
+- src/indexing/managedArtifacts.ts (new ANDROID_COMPOSE_SEMANTIC_FILENAME constant, appended to OPTIONAL_INDEX_ARTIFACT_FILENAMES)
+- src/indexing/writeIndexManifest.ts (new optional androidComposeSemantic write parameter)
+- src/indexing/runIndexCommand.ts (new builder call + analyzer-status function + manifest/write/result wiring in finishIndexBuild(); new resolveAndroidComposeSemanticPathFromManifest helper for the incremental no-op fast path)
+- docs/GRAPH_SCHEMA.md (new "android-compose-semantic.json (v1.11.0 Batch 1)" section, narrowly scoped, stating declaration-level-only scope explicitly)
+
+Not modified (forbidden-edit-area confirmation): src/languages/kotlin/adapter.ts, src/graph-diff/, src/commands/{search,lookup,slice,source,view,context}Command.ts, src/graph/buildAndroidArtifactRelationships.ts, src/graph/addAndroidRelationshipsToCodeGraph.ts, src/indexing/manifestTypes.ts (confirmed no change needed).
+
+Behavior implemented (traced to behavior-model.txt IDs):
+- BEH-001/BEH-002/BEH-003: artifact present iff Android project detected AND >=1 supported declaration; absent otherwise; gate implemented as the first line of buildAndroidComposeSemanticProject().
+- BEH-004/BEH-005: no command/navigation-artifact behavior touched.
+- BEH-006/BEH-007: per-file scan over roledSymbolIndex.files (language==='kotlin'), brace-depth + comment/string-stripped line scanning.
+- BEH-008/BEH-009: exact-annotation-gated extraction (COMPOSABLE_ANNOTATION_PATTERN/PREVIEW_ANNOTATION_PATTERN), never name-based.
+- BEH-010/INV-003: child-call resolution is same-file exact-name-match only (resolveChildCalls); 0 matches silently omitted, >1 matches produce a warning, never a guess.
+- BEH-011: extractStructuralRegionCalls recognizes the 7 fixed names via both call-with-parens and trailing-lambda-only syntax (a real bug caught and fixed during manual smoke verification — see "Deviations" below).
+- BEH-012: false positives from comments/strings/anonymous-lambdas/higher-order-returned-composables/class-members all verified absent via both manual smoke testing and the automated test suite.
+- BEH-013: deterministic source ranges via findBodyBoundary/findMatchingBrace/findExpressionBodyEnd; annotation-start-to-body-close.
+- BEH-014: finishIndexBuild() wiring (managedArtifacts/writeIndexManifest/runIndexCommand/android-index barrel).
+- BEH-015: no new cache/fingerprint; verified via checkPartialRebuildEligibility inspection and empirically via 4 incremental-regression integration tests (add/change/remove/no-op).
+
+Pseudocode sections implemented: PSE-001 through PSE-025 (androidComposeTypes.ts implements PSE-001..PSE-011; buildAndroidComposeSemanticProject.ts implements PSE-012..PSE-020; managedArtifacts.ts/writeIndexManifest.ts/runIndexCommand.ts/android/index.ts implement PSE-021..PSE-024; PSE-025's manifestTypes.ts no-change conclusion confirmed and left unmodified).
+
+Assumptions preserved:
+- Compose scanning gates on androidProject.detected (behavior-model.txt's resolved "Unresolved design question", by direct precedent from buildComposeNavigationRoutes.ts).
+- Same-file-only child-call resolution (pseudocode-packet.txt's documented scope-narrowing guard).
+- No manifestTypes.ts change (confirmed, not just assumed, via direct source retrieval this stage).
+
+Assumptions removed or guarded:
+- Pseudocode's PSE-013 "only depth-0 and depth-1-directly-inside" restriction on function-local nesting was loosened during implementation to "innermost enclosing function via textual containment" (any nesting depth within a function's body, not just immediate-child), since the fixed external contract's own Section 2.3 does not impose a maximum-nesting-depth restriction — the tighter restriction was pseudocode-packet.txt's own invented bound, not a fixed-contract requirement, and the looser rule is simpler, well-defined, and still correctly rejects class/object-body nesting (TST-014) because only `fun` boundaries are tracked as valid enclosing constructs. Documented here as a deviation (see below), not silently changed.
+
+Deviations from the PseudocodePacket, with reason:
+1. PSE-013's exact scope-classification algorithm (line-by-line brace-depth-stack with live frame buffering) was replaced during implementation with a whole-file-text char-index approach (matchAll + findMatchingParen/findMatchingBrace/findEnclosingFunction-by-textual-containment), matching buildComposeNavigationRoutes.ts's own established technique more directly. Reason: the frame-buffering design sketched in pseudocode was substantially more complex to implement correctly (multi-line signature accumulation, simultaneous multi-frame body buffering) for no behavioral benefit over the simpler containment-search approach, which produces identical, easily-verified results and is the same pattern this repository already trusts for Compose-adjacent scanning.
+2. The function-local nesting-depth restriction was loosened, as described above under "Assumptions removed or guarded."
+3. CALL_CANDIDATE_PATTERN and the structural-region regex were both widened, after manual smoke testing surfaced a real bug, to match trailing-lambda-only invocation syntax (`Identifier { }`, no parens) in addition to `Identifier(...)` — real Compose code almost universally calls `Scaffold`/`Column`/`Row`/`Box`/`LazyColumn`/`LazyRow` via trailing-lambda-only syntax, and the pseudocode's implicit parens-only assumption would have silently produced near-empty structural-region output on real-world code. Caught before any test was written, via the manual smoke script described in the retrieval report.
+
+Blockers encountered:
+- The implementation-context automated readiness gate (CONTEXT_ADEQUACY_INSUFFICIENT), resolved via explicit user authorization as described in the context-gate override notice above. No other blocker was encountered; no forbidden-edit-area conflict arose; no scope-expansion was required.
+
+Unresolved risks:
+- Multi-line triple-quoted Kotlin strings (`"""..."""`) are not string-literal-stripped by this batch's conservative scanner (only single-line `"..."` strings are blanked) — a `@Composable`-looking or brace-perturbing text fragment inside a triple-quoted string could theoretically still produce a false positive or depth-tracking error. Documented as a known, accepted limitation consistent with the base Kotlin adapter's own documented conservative-parser limitations; not covered by a fixture in this batch.
+- The `<...>` generic-bracket skip in findBodyBoundary/splitTopLevelByComma/findTopLevelChar could misclassify a `<`/`>` used as a comparison operator in a default-parameter-value expression as a generic bracket, in the rare case such an expression appears in a Compose function's parameter list. Low real-world likelihood; not covered by a fixture in this batch.
+- Local classes declared inside a function body (rare Kotlin pattern) are not tracked as a nesting boundary separate from their enclosing function, so a composable member of such a local class could be incorrectly classified as function-local rather than correctly rejected as an unsupported member. Documented in pseudocode-packet.txt's "Assumptions removed or guarded" section as an accepted edge case.
+
+Tests that should be run:
+- Focused: `npx vitest run tests/android/composeSemanticDeclarations.spec.ts`
+- Focused: `npx vitest run tests/index/androidComposeSemanticIncremental.spec.ts`
+- Broader regression: `npx vitest run tests/android tests/index tests/graph-diff tests/integration`
+- Full: `npm test`
+- Static: `npm run typecheck`, `npm run build`, `npm run verify`
+
+Notes for the test implementation stage:
+- Tests were written and already pass (see test-implementation-report.txt) as part of the same implementation pass, following test-strategy-packet.txt's TST-001..TST-032 responsibilities; the test-implementation stage's job is primarily to confirm/record this, refresh test-context evidence, and verify no additional coverage gap exists.
+- New fixture directories: tests/fixtures/android-compose-semantic/basic-app (positive: 3 top-level composables including one preview, one child-call, one structural-region call, one non-composable helper) and tests/fixtures/android-compose-semantic/no-compose-app (negative: Android project, zero Compose declarations).
+- TST-017 (adjacent-declaration non-overlap) is exercised at the unit level; TST-023/024/030/031 (existing-behavior preservation) are exercised by re-running existing, unmodified suites rather than new test code.
+
+Status: complete

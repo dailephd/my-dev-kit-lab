@@ -1,6 +1,6 @@
 {
   "name": "@dailephd/my-dev-kit-lab",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
@@ -80,7 +80,8 @@
     "test:security": "vitest run tests/security/",
     "test:fuzz:smoke": "tsx scripts/security/runFuzzSmoke.ts",
     "security:validate": "tsx scripts/security/validate.ts",
-    "audit": "tsx scripts/audits/runAudit.ts"
+    "audit": "tsx scripts/audits/runAudit.ts",
+    "report:context-integrity-smoke": "tsx scripts/report-context-integrity-smoke.ts"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

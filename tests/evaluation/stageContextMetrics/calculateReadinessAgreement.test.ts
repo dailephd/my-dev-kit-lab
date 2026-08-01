@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateInvalidReady,
+  calculateProducerReadinessRelationship,
   calculateReadinessAgreementMetrics,
   calculateReadinessDecisionAgreement,
   calculateReadinessStructuralAgreement,
   calculateValidBlocked
 } from "../../../src/evaluation/stageContextMetrics/calculateReadinessAgreement.js";
+import type { ProducerConditionAgreementV1 } from "../../../src/evaluation/stageContextMetrics/producerReadinessMetricTypes.js";
 import type { OrchestratorContextReadinessResultV1, SupplementalContextDocumentV1 } from "../../../src/evaluation/upstreamArtifacts/index.js";
 import type { ProducerReadinessReadinessExpectationV1 } from "../../../src/evaluation/stageContextExpectations/index.js";
 
@@ -155,5 +157,62 @@ describe("calculateReadinessStructuralAgreement", () => {
     const result = calculateReadinessAgreementMetrics(rr, expectation({ allowedDecisions: ["ready"] }), undefined, undefined);
     expect(result.decisionAgreement.availability).toBe("available");
     expect(result.structuralAgreement.length).toBeGreaterThan(0);
+  });
+});
+
+function agreementOutcome(outcome: ProducerConditionAgreementV1["outcome"]): ProducerConditionAgreementV1 {
+  return { availability: outcome === "agreement" || outcome === "contradiction" ? "available" : "unavailable", outcome, observedRoleAdequacyStatus: null, contradictionCodes: [], reason: null };
+}
+
+describe("calculateProducerReadinessRelationship", () => {
+  it("is unavailable/insufficient-evidence when either input is absent", () => {
+    expect(calculateProducerReadinessRelationship(undefined, agreementOutcome("agreement"), readiness()).outcome).toBe("insufficient-evidence");
+    expect(calculateProducerReadinessRelationship("context sufficient for implementation", agreementOutcome("agreement"), undefined).outcome).toBe(
+      "insufficient-evidence"
+    );
+  });
+
+  it("passes through the underlying producer/condition contradiction rather than double-reporting", () => {
+    const result = calculateProducerReadinessRelationship("context sufficient for implementation", agreementOutcome("contradiction"), readiness());
+    expect(result.outcome).toBe("insufficient-evidence");
+  });
+
+  it("agrees when producer is adequate and readiness is ready", () => {
+    const result = calculateProducerReadinessRelationship(
+      "context sufficient with listed assumptions",
+      agreementOutcome("agreement"),
+      readiness({ decision: "ready" })
+    );
+    expect(result.outcome).toBe("agreement");
+  });
+
+  it("detects producer adequate but readiness refresh-required", () => {
+    const result = calculateProducerReadinessRelationship(
+      "context sufficient with listed assumptions",
+      agreementOutcome("agreement"),
+      readiness({ decision: "refresh-required" })
+    );
+    expect(result.outcome).toBe("contradiction");
+    expect(result.contradictionCodes).toEqual(["PRODUCER_ADEQUATE_BUT_READINESS_NOT_READY"]);
+  });
+
+  it("detects producer inadequate but readiness ready", () => {
+    const result = calculateProducerReadinessRelationship(
+      "context insufficient and more retrieval required",
+      agreementOutcome("agreement"),
+      readiness({ decision: "ready" })
+    );
+    expect(result.outcome).toBe("contradiction");
+    expect(result.contradictionCodes).toEqual(["PRODUCER_INADEQUATE_BUT_READINESS_READY"]);
+  });
+
+  it("never overrides either side's verdict, even when reporting a contradiction", () => {
+    const result = calculateProducerReadinessRelationship(
+      "context sufficient with listed assumptions",
+      agreementOutcome("agreement"),
+      readiness({ decision: "refresh-required" })
+    );
+    expect(result.observedRoleAdequacyStatus).toBe("context sufficient with listed assumptions");
+    expect(result.observedReadinessDecision).toBe("refresh-required");
   });
 });

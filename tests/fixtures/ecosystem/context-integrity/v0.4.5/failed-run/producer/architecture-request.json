@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0.0",
+  "role": "architecture",
+  "query": "Confirm the existing owners and extension points for adding android-compose-semantic.json and a conservative declaration-only Compose analyzer without modifying the Kotlin adapter, duplicating Android navigation ownership, or adding graph and retrieval behavior.",
+  "index": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/baseline",
+  "mode": "feature-add",
+  "focusFiles": [
+    "src/android/buildComposeNavigationRoutes.ts",
+    "src/android/buildAndroidNavigationProject.ts",
+    "src/android/androidNavigationTypes.ts",
+    "src/android/index.ts",
+    "src/indexing/managedArtifacts.ts",
+    "src/indexing/writeIndexManifest.ts",
+    "src/indexing/runIndexCommand.ts",
+    "src/indexing/refreshIndexOutput.ts",
+    "src/indexing/cacheMetadata.ts",
+    "src/indexing/partialRebuild.ts"
+  ],
+  "requestedEvidenceKinds": [
+    "owner",
+    "dependencies",
+    "contracts",
+    "callers",
+    "callees",
+    "closest-tests"
+  ],
+  "output": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/architecture-capsule.json",
+  "auditOutput": "Z:/Users/newuser/Projects/my-dev-kit-v1/.my-dev-kit-context/v1.11.0-batch-1-compose-artifact-foundation/architecture-audit.json"
+}

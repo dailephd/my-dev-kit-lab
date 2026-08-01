@@ -1,0 +1,2 @@
+# This fixture corpus is SHA-256 verified; preserve its exact bytes on every platform.
+tests/fixtures/ecosystem/context-integrity/v0.4.5/** -text whitespace=cr-at-eol

@@ -16,6 +16,7 @@ type RawArtifactIdentity = {
   role: "architecture" | "implementation" | "test-implementation" | null;
   freshnessState: string;
   truncated: boolean;
+  requiredEvidenceLost: boolean | undefined;
 };
 
 function extractRawIdentity(artifact: ContextCapsule | RetrievalAuditRecord): RawArtifactIdentity {
@@ -23,7 +24,8 @@ function extractRawIdentity(artifact: ContextCapsule | RetrievalAuditRecord): Ra
     projectRoot: artifact.index.projectRoot,
     role: artifact.request.role,
     freshnessState: artifact.freshness.state,
-    truncated: artifact.truncation.truncated
+    truncated: artifact.truncation.truncated,
+    requiredEvidenceLost: artifact.truncation.requiredEvidenceLost
   };
 }
 
@@ -58,7 +60,8 @@ export function calculateSupplementalRawAgreement(
       buildField("canonicalRepositoryIdentity", null, supplemental?.indexIdentity ?? null, reason),
       buildField("role", null, supplemental?.role ?? null, reason),
       buildField("freshness", null, supplemental?.freshness ?? null, reason),
-      buildField("requiredEvidenceTruncated", null, supplemental?.requiredEvidenceTruncated ?? null, reason)
+      buildField("requiredEvidenceTruncated", null, supplemental?.requiredEvidenceTruncated ?? null, reason),
+      buildField("requiredEvidenceLost", null, supplemental?.requiredEvidenceTruncated ?? null, reason)
     ];
     return { fields, contradictions: [], upstreamProducerParityPreserved: null };
   }
@@ -89,6 +92,22 @@ export function calculateSupplementalRawAgreement(
       supplemental.requiredEvidenceTruncated === "unknown"
         ? "The supplemental document declares truncation as \"unknown\", so agreement with the raw boolean cannot be determined."
         : null
+    )
+  );
+
+  // v0.4.5 Batch 2 (section 17): the stricter comparison against the Batch 1
+  // truncation.requiredEvidenceLost rollup, additive to the general "truncated" comparison
+  // above. Absent on legacy raw artifacts, never fabricated.
+  fields.push(
+    buildField(
+      "requiredEvidenceLost",
+      rawIdentity.requiredEvidenceLost === undefined ? null : truncationToYesNo(rawIdentity.requiredEvidenceLost),
+      supplemental.requiredEvidenceTruncated,
+      rawIdentity.requiredEvidenceLost === undefined
+        ? "The raw artifact does not declare truncation.requiredEvidenceLost (legacy schema-major-1 evidence)."
+        : supplemental.requiredEvidenceTruncated === "unknown"
+          ? "The supplemental document declares truncation as \"unknown\", so agreement with the raw boolean cannot be determined."
+          : null
     )
   );
 

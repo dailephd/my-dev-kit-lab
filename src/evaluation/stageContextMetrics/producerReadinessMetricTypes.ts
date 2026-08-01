@@ -168,3 +168,178 @@ export interface CriticalityMetricsV1 {
   unmappedCriticalIds: string[];
   missingMappingEvidenceCriticalIds: string[];
 }
+
+// ---- v0.4.5 Batch 2: per-group/aggregate allocation and spillover evidence -----------
+// Sourced from ContextCapsule.groupTruncation (Batch 1 mirror of the v1.10.3/v1.10.4
+// producer's required-first allocator diagnostics). RetrievalAuditRecord has no
+// groupTruncation field, so this evidence is context-capsule-only.
+
+export interface PerGroupAllocationEvidenceV1 {
+  groupId: string;
+  sourceArtifact: "context-capsule";
+  sourceInstance: string;
+  availability: StageContextMetricAvailability;
+  required: boolean | null;
+  reservation: number | null;
+  initiallySelectedCount: number | null;
+  unusedReservationContributed: number | null;
+  borrowedCapacity: number | null;
+  governingHardBound: number | null;
+  requiredOmittedCount: number | null;
+  optionalOmittedCount: number | null;
+  droppedCount: number | null;
+  droppedEvidenceIds: string[];
+  adequacyAffected: boolean | null;
+  aggregateCapacityUsed: number | null;
+  aggregateCapacityRemaining: number | null;
+  reason: string | null;
+}
+
+// Each total is independently null when any contributing group lacks that specific field
+// (legacy/partial evidence); `partial` is true whenever at least one total could not be
+// computed for every group while at least one other total could.
+export interface AggregateAllocationEvidenceV1 {
+  availability: StageContextMetricAvailability;
+  groupCount: number;
+  totalReservation: number | null;
+  totalInitiallySelected: number | null;
+  totalUnusedReservationContributed: number | null;
+  totalBorrowedCapacity: number | null;
+  totalRequiredOmitted: number | null;
+  totalOptionalOmitted: number | null;
+  totalDropped: number | null;
+  groupsContributingUnusedReservation: string[];
+  groupsBorrowingCapacity: string[];
+  groupsWithRequiredOmission: string[];
+  groupsWithOptionalOnlyOmission: string[];
+  groupsWithAdequacyAffected: string[];
+  partial: boolean;
+  reason: string | null;
+}
+
+// Purely descriptive. `contributionCoversBorrowing` is informational only -- it is never
+// treated as a violated invariant when false, because donated reservation may legitimately
+// go unborrowed and no upstream contract proves sum(unusedReservationContributed) ==
+// sum(borrowedCapacity) must hold.
+export interface SpilloverDiagnosticsV1 {
+  availability: StageContextMetricAvailability;
+  groupsContributing: string[];
+  groupsBorrowing: string[];
+  totalContributed: number | null;
+  totalBorrowed: number | null;
+  contributionCoversBorrowing: boolean | null;
+  reason: string | null;
+}
+
+export interface GroupAllocationMetricsV1 {
+  perGroup: PerGroupAllocationEvidenceV1[];
+  aggregate: AggregateAllocationEvidenceV1;
+  spillover: SpilloverDiagnosticsV1;
+}
+
+// ---- v0.4.5 Batch 2: condition-aware truncation classification -----------------------
+
+export type ConditionAwareTruncationStateV1 =
+  | "no-truncation"
+  | "optional-only-truncation"
+  | "required-evidence-loss"
+  | "required-condition-or-last-witness-loss"
+  | "unknown-criticality"
+  | "unsupported-legacy-diagnostics"
+  | "contradictory-producer-evidence";
+
+export interface ConditionAwareTruncationClassificationV1 {
+  sourceArtifact: "context-capsule" | "retrieval-audit-record";
+  sourceInstance: string;
+  availability: StageContextMetricAvailability;
+  state: ConditionAwareTruncationStateV1;
+  requiredEvidenceLost: boolean | null;
+  requiredOmittedTotal: number | null;
+  optionalOmittedTotal: number | null;
+  lostRequiredConditionIds: string[];
+  contradictionCodes: string[];
+  reason: string | null;
+}
+
+// ---- v0.4.5 Batch 2: condition-coverage metrics --------------------------------------
+
+export type ConditionCoverageStateV1 = "satisfied" | "missing-evidence" | "lost-to-allocation";
+
+export interface ConditionWitnessEvidenceV1 {
+  conditionId: string;
+  role: string;
+  required: boolean;
+  witnessPolicy: string;
+  requiredWitnessCount: number;
+  availableWitnessCount: number;
+  retainedWitnessCount: number;
+  retainedWitnessIds: string[];
+  adequateWitnessRemains: boolean;
+  coverageState: ConditionCoverageStateV1;
+  lossReason: string | null;
+  evidenceGroupIds: string[];
+}
+
+export interface ConditionToGroupMappingV1 {
+  conditionId: string;
+  required: boolean;
+  evidenceGroupIds: string[];
+  mapped: boolean;
+  unknownGroupIds: string[];
+}
+
+export interface ConditionCoverageMetricsV1 {
+  availability: StageContextMetricAvailability;
+  requiredConditionsTotal: StageContextCountMetricV1;
+  requiredConditionsSatisfied: StageContextCountMetricV1;
+  requiredConditionsMissing: StageContextCountMetricV1;
+  requiredConditionsLost: StageContextCountMetricV1;
+  optionalConditionsTotal: StageContextCountMetricV1;
+  optionalConditionsSatisfied: StageContextCountMetricV1;
+  optionalConditionsMissing: StageContextCountMetricV1;
+  witnessEvidence: ConditionWitnessEvidenceV1[];
+  lastWitnessLoss: StageContextCountMetricV1;
+  conditionToGroupMapping: ConditionToGroupMappingV1[];
+  reason: string | null;
+}
+
+// ---- v0.4.5 Batch 2: producer/condition and producer/readiness agreement -------------
+// These compare producer-supplied verdicts against producer-supplied evidence (or supplied
+// orchestrator readiness). They report agreement/contradiction/insufficient-evidence; they
+// never replace, recompute, or override the upstream verdict.
+
+export type AgreementOutcomeV1 = "agreement" | "contradiction" | "insufficient-evidence" | "unsupported-legacy-evidence" | "not-applicable";
+
+export interface ProducerConditionAgreementV1 {
+  availability: StageContextMetricAvailability;
+  outcome: AgreementOutcomeV1;
+  observedRoleAdequacyStatus: string | null;
+  contradictionCodes: string[];
+  reason: string | null;
+}
+
+export interface RequiredEvidenceLossAgreementV1 {
+  availability: StageContextMetricAvailability;
+  outcome: AgreementOutcomeV1;
+  requiredEvidenceLost: boolean | null;
+  explicitConditionLossDetected: boolean | null;
+  requiredOmittedCount: number | null;
+  contradictionCodes: string[];
+  reason: string | null;
+}
+
+export interface ProducerReadinessRelationshipV1 {
+  availability: StageContextMetricAvailability;
+  outcome: AgreementOutcomeV1;
+  observedRoleAdequacyStatus: string | null;
+  observedReadinessDecision: string | null;
+  contradictionCodes: string[];
+  reason: string | null;
+}
+
+export interface CapsuleAuditConditionAgreementV1 {
+  availability: StageContextMetricAvailability;
+  consistent: boolean | null;
+  contradictingFieldPaths: string[];
+  reason: string | null;
+}
