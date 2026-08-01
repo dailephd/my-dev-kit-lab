@@ -1,4 +1,4 @@
-# Context-integrity ecosystem fixtures (v0.4.5, implemented, unreleased)
+# Context-integrity ecosystem fixtures (v0.4.5)
 
 This document is the canonical provenance reference for the frozen regression fixture pair used by the v0.4.5 context-integrity evaluation. It is derived entirely from the tracked fixture manifests (`tests/fixtures/ecosystem/context-integrity/v0.4.5/manifests/*.json`), which remain the authoritative, machine-readable source of truth. See [ARCHITECTURE.md](ARCHITECTURE.md) for how these fixtures are loaded and evaluated, and [METRICS.md](METRICS.md) for what the resulting metrics mean.
 

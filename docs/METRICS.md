@@ -359,9 +359,9 @@ Implemented in `src/evaluation/stageContextMetrics` (`calculateOwnerMetrics.ts`,
 
 No composite score, grade, ranking, or lab-generated readiness verdict is calculated anywhere in this section.
 
-## Context-integrity metrics (v0.4.5, implemented, unreleased)
+## Context-integrity metrics (v0.4.5)
 
-Implemented in `src/evaluation/stageContextMetrics` and composed once per run by the same `evaluateProducerReadinessBridge.ts` used by the `v0.4.4` metrics above. These metrics read only condition-aware producer evidence mirrored exactly from the frozen local `my-dev-kit` `v1.10.4` contract and run-integrity evidence mirrored exactly from the frozen local `my-dev-kit-orchestrator` `v1.2.3` contract; none reimplement upstream witness-adequacy, allocation, judge, correction, or lifecycle policy. Every metric below uses the same `available`/`unavailable`/`not-applicable` availability model as the `v0.4.3`/`v0.4.4` metrics; agreement-style metrics additionally report one of the shared `AgreementOutcomeV1` values (`agreement`, `contradiction`, `insufficient-evidence`, `unsupported-legacy-evidence`, `not-applicable`), never a lab-derived pass/fail verdict.
+Implemented in `src/evaluation/stageContextMetrics` and composed once per run by the same `evaluateProducerReadinessBridge.ts` used by the `v0.4.4` metrics above. These metrics read only condition-aware producer evidence mirrored exactly from the published `my-dev-kit` `v1.10.4` contract and run-integrity evidence mirrored exactly from the published `my-dev-kit-orchestrator` `v1.2.3` contract; none reimplement upstream witness-adequacy, allocation, judge, correction, or lifecycle policy. Every metric below uses the same `available`/`unavailable`/`not-applicable` availability model as the `v0.4.3`/`v0.4.4` metrics; agreement-style metrics additionally report one of the shared `AgreementOutcomeV1` values (`agreement`, `contradiction`, `insufficient-evidence`, `unsupported-legacy-evidence`, `not-applicable`), never a lab-derived pass/fail verdict.
 
 **Allocation and spillover** (`calculateAllocationMetrics.ts`, per-group and aggregate over `ContextCapsule.groupTruncation`):
 

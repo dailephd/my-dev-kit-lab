@@ -100,9 +100,9 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Completion:** the bounded report reflects the selected strategy's execution, evaluation, and producer-readiness bridge evaluation. This workflow is released in v0.4.4 after upstream verification, PR, CI, merge, tag, GitHub Release, and npm publish. All release documentation is in final post-publication state. See [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
 
-## Context-integrity evaluation (v0.4.5, implemented, unreleased)
+## Context-integrity evaluation (v0.4.5)
 
-**Goal:** deterministically evaluate agreement between condition-aware producer evidence (mirrored from the frozen local `my-dev-kit` `v1.10.4` contract) and orchestrator run-integrity evidence (mirrored from the frozen local `my-dev-kit-orchestrator` `v1.2.3` contract) for a fixed request/target/index identity, using a frozen regression fixture pair, without reimplementing either upstream project's policy.
+**Goal:** deterministically evaluate agreement between condition-aware producer evidence (mirrored from the published `my-dev-kit` `v1.10.4` contract) and orchestrator run-integrity evidence (mirrored from the published `my-dev-kit-orchestrator` `v1.2.3` contract) for a fixed request/target/index identity, using a frozen regression fixture pair, without reimplementing either upstream project's policy.
 
 **Prerequisites and starting state:** build the repository. This workflow has no configurable CLI entrypoint; it runs through tests and through `npm run report:context-integrity-smoke` (a fixed, argument-less script that calls the underlying evaluation functions directly with the frozen fixture paths for manual report inspection).
 
@@ -123,7 +123,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Failure handling:** a hash-verification failure or malformed fixture manifest fails the load step clearly rather than falling back to unverified bytes. A missing or malformed piece of evidence produces an `unavailable`/`insufficient-evidence` agreement result rather than a fabricated agreement or contradiction.
 
-**Completion:** the bounded report reflects hash-verified, deterministic evaluation of the selected fixture, and the underlying fixture bytes and recorded hashes are unchanged by evaluation. This workflow is implemented on the `fix/v0.4.5-context-integrity-validation` implementation branch and has not gone through pre-release readiness, release preparation, or publication. See [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
+**Completion:** the bounded report reflects hash-verified, deterministic evaluation of the selected fixture, and the underlying fixture bytes and recorded hashes are unchanged by evaluation. This workflow was released in v0.4.5 after individual readiness, coordinated cross-repository validation, published-upstream revalidation, release validation, tagging, GitHub Release creation, and npm publication. See [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
 
 ## Real-agent campaign
 

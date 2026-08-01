@@ -1,6 +1,6 @@
-# Context-integrity report schema (v0.4.5, implemented, unreleased)
+# Context-integrity report schema (v0.4.5)
 
-This document describes the shape of one `ContextIntegrityReportV1` — the bounded JSON/text/HTML report produced by evaluating one frozen context-integrity fixture (`failed-run` or `corrected-replay`) through `buildContextIntegrityReport` in `src/report/experiments/buildContextIntegrityReport.ts`. It documents structure only. For what each field *means*, see the "Context-integrity metrics (v0.4.5, implemented, unreleased)" section of [METRICS.md](METRICS.md) — this document does not duplicate those definitions.
+This document describes the shape of one `ContextIntegrityReportV1` — the bounded JSON/text/HTML report produced by evaluating one frozen context-integrity fixture (`failed-run` or `corrected-replay`) through `buildContextIntegrityReport` in `src/report/experiments/buildContextIntegrityReport.ts`. It documents structure only. For what each field *means*, see the "Context-integrity metrics (v0.4.5)" section of [METRICS.md](METRICS.md) — this document does not duplicate those definitions.
 
 Model source: `src/report/experiments/contextIntegrityReportModel.ts`. Renderers: `renderContextIntegrityJsonReport.ts` (raw `JSON.stringify`), `renderContextIntegrityText.ts` (11 numbered plain-text sections), `renderContextIntegrityHtml.ts` (a summary header, 5 top-level sections, and bounded agreement subsections). All three renderers render the same `ContextIntegrityReportV1` object; none recompute anything.
 

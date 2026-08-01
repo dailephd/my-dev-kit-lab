@@ -423,7 +423,7 @@ Acceptance:
 
 ### v0.4.5 — context-integrity evaluation and frozen ecosystem regression
 
-Status: **implemented; active/unreleased** (implementation branch `fix/v0.4.5-context-integrity-validation`; awaiting individual pre-release readiness).
+Status: **published** (2026-08-01).
 
 Purpose:
 
@@ -446,7 +446,7 @@ Explicitly out of scope / deferred for `v0.4.5`:
 * Public CLI flags or a new command family for context-integrity evaluation — all inputs remain programmatic/fixture-driven.
 * A live, full ten-stage AI-authored replay of the regressed feature; the corrected-replay fixture is a hand-distilled representation of the exact validated contracts for the same request/target/index identity, not a byte-exact generated run.
 * A composite score, grade, ranking, winner, or lab-generated release verdict.
-* Individual pre-release readiness, coordinated cross-repository validation, release preparation, package-version bump, tag, GitHub Release, or npm publication.
+* Release-process mechanics; these were handled by the repository's standard readiness and release workflows rather than by the context-integrity feature itself.
 
 Acceptance:
 

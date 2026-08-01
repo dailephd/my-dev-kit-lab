@@ -2,9 +2,9 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased] - v0.4.5 context-integrity validation
+## [0.4.5] - 2026-08-01
 
-This entry describes unreleased implementation work on the `fix/v0.4.5-context-integrity-validation` implementation branch. It has not been published, tagged, or released; `v0.4.4` remains the latest published release.
+Context-integrity validation for the published my-dev-kit v1.10.4 and my-dev-kit-orchestrator v1.2.3 contracts.
 
 - Added exact readers for the frozen local my-dev-kit v1.10.4 condition-aware producer contract (`roleConditionCoverage`, allocation/spillover `GroupTruncationEntry` fields, `truncation.requiredEvidenceLost`) in `src/evaluation/upstreamArtifacts`.
 - Added allocation, spillover, condition-coverage, and producer-condition agreement metrics in `src/evaluation/stageContextMetrics`.
