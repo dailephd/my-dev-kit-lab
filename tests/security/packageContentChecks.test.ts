@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { parseNpmPackDryRun } from "../../src/securityValidation/packageChecks/parseNpmPackDryRun.js";
 import { detectForbiddenContents } from "../../src/securityValidation/packageChecks/forbiddenPackageContents.js";
+import {
+  detectMissingRequiredContents,
+  REQUIRED_PACKAGE_CONTENTS,
+} from "../../src/securityValidation/packageChecks/requiredPackageContents.js";
 import { DEFAULT_SECURITY_CONFIG } from "../../src/securityValidation/config.js";
+import {
+  resolveNpmCommand,
+  runSecurityCommand,
+} from "../../src/securityValidation/commandRunner.js";
 
 // ---------------------------------------------------------------------------
 // parseNpmPackDryRun
@@ -167,5 +175,52 @@ describe("detectForbiddenContents — forbidden pattern matching", () => {
     const ids = result.findings.map((f) => f.id);
     const uniqueIds = new Set(ids);
     expect(uniqueIds.size).toBe(ids.length);
+  });
+});
+
+describe("required npm package contents", () => {
+  it("reports missing required paths in deterministic order", () => {
+    const result = detectMissingRequiredContents({
+      files: ["package/package.json", "package/README.md"],
+      requiredFiles: ["README.md", "CHANGELOG.md", "package.json"],
+      checkId: "test",
+    });
+
+    expect(result.missing).toEqual(["CHANGELOG.md"]);
+    expect(result.findings[0]?.title).toBe(
+      "Required file missing from npm tarball: package/CHANGELOG.md",
+    );
+  });
+
+  it("validates the actual npm dry-run inventory", async () => {
+    const command = await runSecurityCommand({
+      command: resolveNpmCommand(),
+      args: ["pack", "--json", "--dry-run"],
+      cwd: process.cwd(),
+      timeoutMs: 30_000,
+    });
+
+    expect(command.exitCode, command.stderr).toBe(0);
+    const inventory = JSON.parse(command.stdout) as Array<{
+      files: Array<{ path: string }>;
+    }>;
+    const files = inventory[0]?.files.map((entry) => entry.path) ?? [];
+    const required = detectMissingRequiredContents({
+      files,
+      requiredFiles: REQUIRED_PACKAGE_CONTENTS,
+      checkId: "actual-npm-pack",
+    });
+    const forbidden = detectForbiddenContents({
+      files,
+      forbiddenPatterns: DEFAULT_SECURITY_CONFIG.forbiddenPackagePatterns,
+      allowedExceptions: DEFAULT_SECURITY_CONFIG.allowedPackageExceptions,
+      checkId: "actual-npm-pack",
+    });
+
+    expect(
+      required.missing,
+      `Missing required npm package files: ${required.missing.map((file) => `package/${file}`).join(", ")}`,
+    ).toEqual([]);
+    expect(forbidden.matches).toEqual([]);
   });
 });
