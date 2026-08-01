@@ -53,3 +53,13 @@ The tracked fixture bytes are source-control-safe evaluation evidence — file p
 ## Hash verification and no upstream repository required
 
 `src/evaluation/ecosystemFixtures/verifyFixtureHashes.ts` recomputes SHA-256 over each tracked fixture file and compares it against the manifest's recorded `copiedSha256`. Normal `npm run test`/`npm run test:evaluation`/`npm run test:experiments`/`npm run test:report` runs load and hash-verify only the tracked fixture files under `tests/fixtures/ecosystem/context-integrity/v0.4.5/` — they do not require a checked-out `my-dev-kit` or `my-dev-kit-orchestrator` repository at any commit. The frozen upstream commits recorded above are provenance metadata, not a runtime dependency.
+
+## Checkout byte preservation
+
+The entire `tests/fixtures/ecosystem/context-integrity/v0.4.5/**` tree is marked `-text whitespace=cr-at-eol` in the repository root `.gitattributes`. This narrowly scoped rule forbids Git from converting line endings in the hash-verified corpus during checkout while leaving every unrelated repository file under the normal text policy; `cr-at-eol` prevents the authoritative CRLF bytes from being misreported as trailing-whitespace errors. The files remain readable and diffable; `-text` controls byte preservation, not content format.
+
+For the 25 `byteExact: true` failed-run entries, the original runtime-evidence file is the byte authority: its SHA-256 must equal both `originalSha256` and `copiedSha256`, and the tracked Git blob and working-tree file must reproduce those bytes exactly. The four derived entries (one failed-run envelope and all three corrected-replay files) have no external byte-exact source; their reviewed tracked bytes and manifest hash are the canonical representation, without changing their documented derivation or semantics.
+
+Fixture integrity tests verify both the checked-out working-tree bytes and the exact staged/committed Git blob bytes against each manifest. They also verify that every manifest-referenced path is safe and receives `text: unset` with no conflicting `eol` attribute. This makes fresh checkouts stable under Windows, Linux, and macOS Git defaults and catches the class of failure where a local checkout passes but the repository blob cannot reproduce the manifest hash.
+
+Manifest hashes must never be refreshed merely to accept bytes produced by one checkout configuration. Any canonical-byte change requires an explicit review of original source evidence for byte-exact entries, or of derivation provenance and semantic content for derived entries, followed by review of the corresponding working-tree, Git-blob, and manifest hashes.
