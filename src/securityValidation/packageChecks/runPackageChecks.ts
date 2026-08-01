@@ -3,6 +3,7 @@ import { runSecurityCommand, resolveNpmCommand } from "../commandRunner.js";
 import { writeCheckResult } from "../artifacts.js";
 import { parseNpmPackDryRun } from "./parseNpmPackDryRun.js";
 import { detectForbiddenContents } from "./forbiddenPackageContents.js";
+import { detectMissingRequiredContents } from "./requiredPackageContents.js";
 import type { SecurityCheckResult, SecurityFinding } from "../types.js";
 import type { SecurityValidationConfig } from "../config.js";
 
@@ -47,7 +48,12 @@ export async function runPackageChecks(options: {
     allowedExceptions: allowedPackageExceptions,
     checkId: "npm-pack",
   });
-  allFindings.push(...contentFindings);
+  const { findings: missingRequiredFindings } = detectMissingRequiredContents({
+    files: parsed.files,
+    checkId: "npm-pack",
+  });
+  const packageFindings = [...contentFindings, ...missingRequiredFindings];
+  allFindings.push(...packageFindings);
 
   const packCheck: SecurityCheckResult = {
     id: "npm-pack-dry-run",
@@ -57,18 +63,18 @@ export async function runPackageChecks(options: {
       ? "failed"
       : parsed.parseError && parsed.files.length === 0
         ? "warning"
-        : contentFindings.length > 0
+        : packageFindings.length > 0
           ? "failed"
           : "passed",
-    severity: contentFindings.length > 0
-      ? contentFindings.some((f) => f.severity === "blocker")
+    severity: packageFindings.length > 0
+      ? packageFindings.some((f) => f.severity === "blocker")
         ? "blocker"
         : "major"
       : "informational",
     startedAt,
     finishedAt,
     durationMs: cmd.durationMs,
-    findings: contentFindings,
+    findings: packageFindings,
     skippedReason: undefined,
     command: "npm pack --dry-run",
   };
