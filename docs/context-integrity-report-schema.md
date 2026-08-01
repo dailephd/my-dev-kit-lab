@@ -2,11 +2,11 @@
 
 This document describes the shape of one `ContextIntegrityReportV1` — the bounded JSON/text/HTML report produced by evaluating one frozen context-integrity fixture (`failed-run` or `corrected-replay`) through `buildContextIntegrityReport` in `src/report/experiments/buildContextIntegrityReport.ts`. It documents structure only. For what each field *means*, see the "Context-integrity metrics (v0.4.5, implemented, unreleased)" section of [METRICS.md](METRICS.md) — this document does not duplicate those definitions.
 
-Model source: `src/report/experiments/contextIntegrityReportModel.ts`. Renderers: `renderContextIntegrityJsonReport.ts` (raw `JSON.stringify`), `renderContextIntegrityText.ts` (11 numbered plain-text sections), `renderContextIntegrityHtml.ts` (bounded HTML tables and badges). All three renderers render the same `ContextIntegrityReportV1` object; none recompute anything.
+Model source: `src/report/experiments/contextIntegrityReportModel.ts`. Renderers: `renderContextIntegrityJsonReport.ts` (raw `JSON.stringify`), `renderContextIntegrityText.ts` (11 numbered plain-text sections), `renderContextIntegrityHtml.ts` (a summary header, 5 top-level sections, and bounded agreement subsections). All three renderers render the same `ContextIntegrityReportV1` object; none recompute anything.
 
-## Section order (text and HTML renderers)
+## Text section order
 
-Both the text and HTML renderers present the report in this fixed order:
+The text renderer presents 11 explicit numbered sections in this fixed order:
 
 1. Context-integrity summary
 2. Fixture and provenance
@@ -19,6 +19,18 @@ Both the text and HTML renderers present the report in this fixed order:
 9. Determinism and immutability
 10. Contradictions and unavailable evidence
 11. Limitations
+
+## HTML section structure
+
+The HTML renderer presents the context-integrity summary as the page heading and status badge, not as a top-level `<section>`. For a corrected replay, the required `fixture.correctedReplayLimitation` string appears in a separate paragraph immediately after that summary; the paragraph is omitted for other fixture kinds. The renderer then emits 5 top-level `<h2>` sections in this fixed order:
+
+1. Fixture and provenance
+2. Producer allocation and omissions
+3. Condition coverage
+4. Determinism and immutability
+5. Limitations
+
+Between Condition coverage and Determinism and immutability, the renderer emits these 10 ordered `<h3>` agreement subsections: Producer-condition agreement; `requiredEvidenceLost` agreement; Producer/readiness relationship; Readiness/prompt agreement; Readiness/expected-judge agreement; Expected/actual-judge agreement; Judge/correction agreement; Judge/final-eligibility agreement; Eligibility/final-artifact agreement; and Lifecycle-integrity agreement. Contradiction tables appear conditionally within the applicable agreement subsection when its bounded contradiction list is non-empty. There is no separate top-level HTML section for contradictions or unavailable evidence. Failed-run and corrected-replay reports use the same top-level and subsection structure; their conditional limitation paragraph and contradiction tables differ according to the report data.
 
 ## Top-level JSON fields
 
@@ -47,7 +59,7 @@ Both the text and HTML renderers present the report in this fixed order:
 | `endToEnd` | `ContextIntegrityReportEndToEndV1 \| null` | Aggregated `category` plus `componentOutcomes`/`contradictingComponents`; `null` only if the bridge produced no run-integrity evaluation at all. |
 | `determinism` | `ContextIntegrityReportDeterminismV1` | Repeated-evaluation determinism result. |
 | `immutability` | `ContextIntegrityReportImmutabilityV1` | Fixture self-immutability result (hash re-verification), not live-target mutation. |
-| `limitations` | `ContextIntegrityReportLimitationsV1` | `unavailableSections` (which top-level sections reported `unavailable`/`not-applicable` and why) and `notes` (free-text limitation statements, including the corrected-replay framing when applicable). |
+| `limitations` | `ContextIntegrityReportLimitationsV1` | Always-present object with two always-present string arrays: `unavailableSections: string[]` identifies unavailable report areas, and `notes: string[]` carries additional free-text limitations when the builder supplies them. The current builder emits `notes: []` for both frozen fixture kinds; the corrected-replay framing is not stored here and instead lives in `fixture.correctedReplayLimitation`. `unavailableSections` can be empty (corrected replay) or populated according to unavailable evidence (for example, `condition-coverage` in the failed run). |
 
 ## Availability and outcome values
 
