@@ -10,12 +10,11 @@ const args = parseArgs(rawArgs);
 
 const toolRoot = resolveToolRoot(import.meta.url);
 
-let targetRoot: string;
+let target;
 try {
-  const target = resolveValidationTarget(args.target, toolRoot);
-  targetRoot = target.targetRoot;
+  target = resolveValidationTarget(args.target, toolRoot);
   if (!target.isSelf) {
-    console.log(`Target: ${targetRoot}`);
+    console.log(`Target: ${target.targetRoot}`);
   }
 } catch (err) {
   console.error(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
@@ -32,7 +31,7 @@ const config = {
 console.log("Running package content checks...");
 console.log(`Report directory: ${config.reportDir}`);
 
-const output = await runPackageChecks({ cwd: targetRoot, config });
+const output = await runPackageChecks({ cwd: target.targetRoot, config, target });
 
 const passed = output.checks.filter((c) => c.status === "passed").length;
 const failed = output.checks.filter((c) => c.status === "failed").length;

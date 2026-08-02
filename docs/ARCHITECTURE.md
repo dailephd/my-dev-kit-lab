@@ -222,7 +222,7 @@ flowchart LR
   Verdict --> Reports[Text + JSON reports]
 ```
 
-For an external target, dependency, package, and supported static checks use the target project. If the target declares `test:security`, validation runs that script in the target root. The framework records command cwd, exit status, and bounded output summaries. Tool-specific self-tests remain clearly labeled.
+For an external target, dependency, package, and supported static checks use the target project. Package inspection selects an explicit policy from the canonical resolved target: self mode keeps the lab's fixed mandatory package contract, while external mode derives concrete public/runtime entrypoints from target metadata and compares them with npm's packed-file inventory. The target `files` field is inclusion policy rather than a substitute lab file list; forbidden-content and package-boundary checks remain common to both modes. If the target declares `test:security`, validation runs that script in the target root. The framework records command cwd, exit status, and bounded output summaries. Tool-specific self-tests remain clearly labeled.
 
 `src/securityValidation/attackScenarios` is now part of the implemented validation layer. It contains the `AttackScenario` contract, `AttackResult` bridge model, reusable profiles, payload/evidence helpers, the integrated attack runner, and concrete scenarios for boundary, subprocess, secrets, and network checks.
 

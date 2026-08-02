@@ -38,8 +38,10 @@ export function resolveLocalProjectTarget(
     }
   }
 
-  const resolvedTargetRoot = path.resolve(targetRoot);
-  const resolvedToolRoot = path.resolve(toolRoot);
+  // realpath collapses symlinks/junctions before the self-versus-external
+  // policy decision, so an alias cannot select a weaker target policy.
+  const resolvedTargetRoot = fs.realpathSync.native(path.resolve(targetRoot));
+  const resolvedToolRoot = fs.realpathSync.native(path.resolve(toolRoot));
   const packageMetadata = readPackageMetadata(resolvedTargetRoot);
 
   return {

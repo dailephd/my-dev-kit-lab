@@ -4,6 +4,11 @@ import { writeCheckResult } from "../artifacts.js";
 import { parseNpmPackDryRun } from "./parseNpmPackDryRun.js";
 import { detectForbiddenContents } from "./forbiddenPackageContents.js";
 import { detectMissingRequiredContents } from "./requiredPackageContents.js";
+import {
+  attachPackagePolicyContext,
+  buildPackageContentPolicy,
+  type PackagePolicyTarget,
+} from "./packageContentPolicy.js";
 import type { SecurityCheckResult, SecurityFinding } from "../types.js";
 import type { SecurityValidationConfig } from "../config.js";
 
@@ -17,8 +22,9 @@ export type PackageChecksOutput = {
 export async function runPackageChecks(options: {
   cwd: string;
   config: SecurityValidationConfig;
+  target: PackagePolicyTarget;
 }): Promise<PackageChecksOutput> {
-  const { cwd, config } = options;
+  const { cwd, config, target } = options;
   const { reportDir, rawOutputDir, commandTimeoutMs, forbiddenPackagePatterns, allowedPackageExceptions } = config;
   const allFindings: SecurityFinding[] = [];
   const checks: SecurityCheckResult[] = [];
@@ -28,7 +34,7 @@ export async function runPackageChecks(options: {
   const startedAt = new Date().toISOString();
   const cmd = await runSecurityCommand({
     command: npm,
-    args: ["pack", "--dry-run"],
+    args: ["pack", "--dry-run", "--json"],
     cwd,
     timeoutMs: commandTimeoutMs,
   });
@@ -37,10 +43,16 @@ export async function runPackageChecks(options: {
   // npm pack --dry-run writes the tarball filename to stdout on some npm
   // versions and the detailed file list to stderr. Prefer whichever stream
   // contains the tarball contents section, then fall back to combined output.
-  const packOutput =
-    [cmd.stdout, cmd.stderr].find((stream) => /tarball contents/i.test(stream)) ??
-    [cmd.stdout, cmd.stderr].filter(Boolean).join("\n");
-  const parsed = parseNpmPackDryRun(packOutput);
+  const streamCandidates = [cmd.stdout, cmd.stderr].filter(Boolean);
+  const parsedCandidates = streamCandidates.map((stream) => parseNpmPackDryRun(stream));
+  const parsed =
+    parsedCandidates.find((candidate) => candidate.files.length > 0) ??
+    parseNpmPackDryRun(streamCandidates.join("\n"));
+  const policy = buildPackageContentPolicy({
+    target,
+    packedFiles: parsed.files,
+    checkId: "npm-pack",
+  });
 
   const { findings: contentFindings } = detectForbiddenContents({
     files: parsed.files,
@@ -50,21 +62,93 @@ export async function runPackageChecks(options: {
   });
   const { findings: missingRequiredFindings } = detectMissingRequiredContents({
     files: parsed.files,
+    requirements: policy.requirements,
     checkId: "npm-pack",
   });
-  const packageFindings = [...contentFindings, ...missingRequiredFindings];
+  const packedEvidence = `${parsed.files.length} packed file(s) observed`;
+  const contextualContentFindings = contentFindings.map((finding) =>
+    attachPackagePolicyContext({
+      finding,
+      target,
+      mode: policy.mode,
+      source: policy.source,
+      expectedPath: finding.affectedFiles?.[0],
+      observedPackedFileEvidence: finding.evidence ?? packedEvidence,
+    }),
+  );
+  const contextualRequiredFindings = missingRequiredFindings.map((finding, index) => {
+    const requirement = policy.requirements.filter((candidate) => {
+      const expected = candidate.expectedPath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
+      return finding.affectedFiles?.[0] === expected;
+    })[0];
+    return attachPackagePolicyContext({
+      finding,
+      target,
+      mode: policy.mode,
+      source: requirement?.policySource ?? policy.source,
+      expectedPath: finding.affectedFiles?.[0],
+      declaringMetadataField: requirement?.declaringMetadataField,
+      observedPackedFileEvidence: `${packedEvidence}; required path absent (finding ${index + 1})`,
+    });
+  });
+  const commandFindings: SecurityFinding[] = [];
+  if (cmd.timedOut || (cmd.exitCode !== 0 && cmd.exitCode !== null)) {
+    commandFindings.push(attachPackagePolicyContext({
+      finding: {
+        id: "npm-pack-command-failed",
+        title: "npm package inventory command failed",
+        severity: "blocker",
+        category: "package-content",
+        description: "npm pack --dry-run --json did not complete successfully",
+        evidence: `Exit code: ${String(cmd.exitCode)}; timed out: ${String(cmd.timedOut)}`,
+        recommendation: "Correct the target package configuration so npm can generate a dry-run inventory",
+        releaseImpact: "Blocker: package contents cannot be validated",
+      },
+      target,
+      mode: policy.mode,
+      source: policy.source,
+      observedPackedFileEvidence: packedEvidence,
+    }));
+  }
+  if (parsed.files.length === 0) {
+    commandFindings.push(attachPackagePolicyContext({
+      finding: {
+        id: "npm-pack-inventory-empty",
+        title: "npm package inventory is empty or unreadable",
+        severity: "blocker",
+        category: "package-content",
+        description: parsed.parseError ?? "npm produced an empty packed file list",
+        evidence: parsed.parseError ?? "No packed files observed",
+        recommendation: "Produce a nonempty, parseable npm pack dry-run inventory",
+        releaseImpact: "Blocker: package contents cannot be established",
+      },
+      target,
+      mode: policy.mode,
+      source: policy.source,
+      observedPackedFileEvidence: packedEvidence,
+    }));
+  }
+  const packageFindings = [
+    ...policy.findings,
+    ...contextualContentFindings,
+    ...contextualRequiredFindings,
+    ...commandFindings,
+  ].sort((left, right) => left.id.localeCompare(right.id));
+  const hasFailingFinding = packageFindings.some(
+    (finding) => finding.severity === "blocker" || finding.severity === "major",
+  );
   allFindings.push(...packageFindings);
 
   const packCheck: SecurityCheckResult = {
     id: "npm-pack-dry-run",
     name: "npm pack --dry-run (tarball file list)",
     category: "package-content",
-    status: cmd.timedOut
+    status: cmd.timedOut || hasFailingFinding
       ? "failed"
       : parsed.parseError && parsed.files.length === 0
         ? "warning"
         : packageFindings.length > 0
-          ? "failed"
+          ? "warning"
           : "passed",
     severity: packageFindings.length > 0
       ? packageFindings.some((f) => f.severity === "blocker")
@@ -76,7 +160,21 @@ export async function runPackageChecks(options: {
     durationMs: cmd.durationMs,
     findings: packageFindings,
     skippedReason: undefined,
-    command: "npm pack --dry-run",
+    command: "npm pack --dry-run --json",
+    commandCwd: cwd,
+    exitCode: cmd.exitCode,
+    packagePolicy: {
+      mode: policy.mode,
+      source: policy.source,
+      targetRoot: target.targetRoot,
+      packageName: target.packageName,
+      packageVersion: target.packageVersion,
+      requiredPaths: policy.requirements.map((requirement) => ({
+        expectedPath: requirement.expectedPath,
+        declaringMetadataField: requirement.declaringMetadataField,
+      })),
+      packedFileCount: parsed.files.length,
+    },
   };
   await writeCheckResult({
     result: packCheck,

@@ -118,6 +118,64 @@ describe("JSON report — Batch 5 fields", () => {
       expect(Object.prototype.hasOwnProperty.call(parsed, key)).toBe(true);
     }
   });
+
+  it("preserves package-policy provenance in JSON and text reports", () => {
+    const now = new Date().toISOString();
+    const packagePolicy = {
+      mode: "external" as const,
+      source: "external target package.json and npm pack inventory",
+      targetRoot: "/target",
+      packageName: "@example/tool",
+      packageVersion: "1.2.3",
+      requiredPaths: [
+        { expectedPath: "dist/cli.js", declaringMetadataField: "package.json#bin.tool" },
+      ],
+      packedFileCount: 4,
+    };
+    const report = makeReport({
+      allChecks: [{
+        id: "npm-pack-dry-run",
+        name: "npm pack --dry-run",
+        category: "package-content",
+        status: "passed",
+        severity: "informational",
+        startedAt: now,
+        finishedAt: now,
+        durationMs: 1,
+        findings: [],
+        packagePolicy,
+      }],
+      allFindings: [{
+        id: "missing-entrypoint",
+        title: "Missing entrypoint",
+        severity: "blocker",
+        category: "package-content",
+        description: "The declared entrypoint is absent",
+        releaseImpact: "Blocker",
+        packagePolicy: {
+          mode: packagePolicy.mode,
+          source: packagePolicy.source,
+          targetRoot: packagePolicy.targetRoot,
+          packageName: packagePolicy.packageName,
+          packageVersion: packagePolicy.packageVersion,
+          expectedPath: "dist/cli.js",
+          declaringMetadataField: "package.json#bin.tool",
+          observedPackedFileEvidence: "4 packed files; entrypoint absent",
+          affectsReleaseReadiness: true,
+        },
+      }],
+    });
+
+    const parsed = JSON.parse(renderJsonReport(report)) as {
+      checks: Array<{ packagePolicy: typeof packagePolicy | null }>;
+      findings: Array<{ packagePolicy: { expectedPath?: string } | null }>;
+    };
+    expect(parsed.checks[0]?.packagePolicy).toEqual(packagePolicy);
+    expect(parsed.findings[0]?.packagePolicy?.expectedPath).toBe("dist/cli.js");
+    const text = renderTextReport(report);
+    expect(text).toContain("Package policy: external");
+    expect(text).toContain("Required: dist/cli.js <- package.json#bin.tool");
+  });
 });
 
 describe("text report — Batch 5 fields", () => {

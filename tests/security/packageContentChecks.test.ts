@@ -3,8 +3,10 @@ import { parseNpmPackDryRun } from "../../src/securityValidation/packageChecks/p
 import { detectForbiddenContents } from "../../src/securityValidation/packageChecks/forbiddenPackageContents.js";
 import {
   detectMissingRequiredContents,
-  REQUIRED_PACKAGE_CONTENTS,
 } from "../../src/securityValidation/packageChecks/requiredPackageContents.js";
+import {
+  LAB_SELF_REQUIRED_PACKAGE_CONTENTS,
+} from "../../src/securityValidation/packageChecks/packageContentPolicy.js";
 import { DEFAULT_SECURITY_CONFIG } from "../../src/securityValidation/config.js";
 import {
   resolveNpmCommand,
@@ -182,11 +184,15 @@ describe("required npm package contents", () => {
   it("reports missing required paths in deterministic order", () => {
     const result = detectMissingRequiredContents({
       files: ["package/package.json", "package/README.md"],
-      requiredFiles: ["README.md", "CHANGELOG.md", "package.json"],
+      requirements: ["README.md", "CHANGELOG.md", "package.json"].map((expectedPath) => ({
+        expectedPath,
+        declaringMetadataField: "test contract",
+        policySource: "test",
+      })),
       checkId: "test",
     });
 
-    expect(result.missing).toEqual(["CHANGELOG.md"]);
+    expect(result.missing.map((requirement) => requirement.expectedPath)).toEqual(["CHANGELOG.md"]);
     expect(result.findings[0]?.title).toBe(
       "Required file missing from npm tarball: package/CHANGELOG.md",
     );
@@ -207,7 +213,11 @@ describe("required npm package contents", () => {
     const files = inventory[0]?.files.map((entry) => entry.path) ?? [];
     const required = detectMissingRequiredContents({
       files,
-      requiredFiles: REQUIRED_PACKAGE_CONTENTS,
+      requirements: LAB_SELF_REQUIRED_PACKAGE_CONTENTS.map((expectedPath) => ({
+        expectedPath,
+        declaringMetadataField: "lab self-package contract",
+        policySource: "self",
+      })),
       checkId: "actual-npm-pack",
     });
     const forbidden = detectForbiddenContents({
@@ -218,8 +228,8 @@ describe("required npm package contents", () => {
     });
 
     expect(
-      required.missing,
-      `Missing required npm package files: ${required.missing.map((file) => `package/${file}`).join(", ")}`,
+      required.missing.map((requirement) => requirement.expectedPath),
+      `Missing required npm package files: ${required.missing.map((requirement) => `package/${requirement.expectedPath}`).join(", ")}`,
     ).toEqual([]);
     expect(forbidden.matches).toEqual([]);
   });

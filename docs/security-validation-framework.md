@@ -26,7 +26,7 @@ Android validation is static and non-destructive by default. Its nineteen defaul
 | Layer | Implementation |
 |---|---|
 | Dependency checks | `npm audit`, runtime-only audit, `npm ls`, `npm outdated`, and optional OSV-Scanner |
-| Package checks | `npm pack --dry-run` parsing and forbidden-content detection |
+| Package checks | Target-aware `npm pack --dry-run --json` inventory, declared-entrypoint verification, and forbidden-content detection |
 | CLI adversarial checks | path boundaries, read-only boundaries, malformed artifacts, JSON output, subprocess/DOT safety, and bounded data-volume scenarios |
 | Attack scenarios | boundary, subprocess, secrets, and network scenarios with profile filtering, payload corpus, evidence, and redaction |
 | Static scans | CodeQL availability/execution integration and Semgrep integration |
@@ -63,6 +63,8 @@ Target resolution reads available package, lockfile, and Git metadata without mo
 
 For an external target, `security:validate` runs the target's `npm run test:security` from that target when the script exists. Missing target scripts and optional tools remain explicit in the results.
 
+Package-content policy also follows the resolved target. Self-validation retains the lab's strict mandatory-file contract. External-target validation instead derives required runtime and public entrypoints from that target's `package.json` (`bin`, `main`, `module`, `types`, `typings`, and statically explicit string leaves under `exports`) and verifies them against npm's generated packed-file inventory. The `files` field is treated as npm inclusion policy—directories and supported globs are checked against the inventory, while negative or unsupported patterns remain explicit rather than being guessed. Safe package-relative paths, package identity, nonempty inventory, forbidden-content rules, and report placement under the lab root remain enforced in both modes. The package check does not write a tarball or report into the external target.
+
 Validation records target-mutation evidence. It does not clean, reset, or otherwise hide a mutation after the run; an unexpected change must remain visible and affect interpretation.
 
 Target-aware behavior is implemented in:
@@ -70,6 +72,7 @@ Target-aware behavior is implemented in:
 - `src/securityValidation/validate/resolveTarget.ts`
 - `src/securityValidation/validate/runCliSecuritySuiteCheck.ts`
 - `src/securityValidation/validate/runSecurityValidation.ts`
+- `src/securityValidation/packageChecks/packageContentPolicy.ts`
 - `scripts/security/validate.ts`
 
 ## Commands

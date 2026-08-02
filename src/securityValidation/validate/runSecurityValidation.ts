@@ -120,7 +120,7 @@ export async function runSecurityValidation(
   // missing package.json gracefully.
   if (selectedChecks.has("package")) {
     try {
-      const pkgOutput = await runPackageChecks({ cwd: target.targetRoot, config });
+      const pkgOutput = await runPackageChecks({ cwd: target.targetRoot, config, target });
       collectMany(pkgOutput.checks);
     } catch (err) {
       collect(errorCheck("package-content", "Package content checks", "package-content", err));

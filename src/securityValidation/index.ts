@@ -34,6 +34,10 @@ export { runDependencyChecks } from "./dependencies/runDependencyChecks.js";
 export { parseNpmPackDryRun } from "./packageChecks/parseNpmPackDryRun.js";
 export { detectForbiddenContents } from "./packageChecks/forbiddenPackageContents.js";
 export { runPackageChecks } from "./packageChecks/runPackageChecks.js";
+export {
+  buildPackageContentPolicy,
+  LAB_SELF_REQUIRED_PACKAGE_CONTENTS,
+} from "./packageChecks/packageContentPolicy.js";
 
 export { createTempWorkspace, snapshotDir, diffSnapshots, findWritesOutside, findNewFiles } from "./cliAdversarial/tempWorkspace.js";
 export type { TempWorkspace, FileSnapshot, SnapshotDiff } from "./cliAdversarial/tempWorkspace.js";

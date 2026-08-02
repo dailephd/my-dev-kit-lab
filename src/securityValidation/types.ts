@@ -123,6 +123,17 @@ export type SecurityFinding = {
   affectedFiles?: string[];
   recommendation?: string;
   releaseImpact: string;
+  packagePolicy?: {
+    mode: "self" | "external";
+    source: string;
+    targetRoot: string;
+    packageName: string | null;
+    packageVersion: string | null;
+    expectedPath?: string;
+    declaringMetadataField?: string;
+    observedPackedFileEvidence: string;
+    affectsReleaseReadiness: boolean;
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -165,6 +176,18 @@ export type SecurityCheckResult = {
   stdoutPath?: string;
   stderrPath?: string;
   artifactPaths?: string[];
+  packagePolicy?: {
+    mode: "self" | "external";
+    source: string;
+    targetRoot: string;
+    packageName: string | null;
+    packageVersion: string | null;
+    requiredPaths: Array<{
+      expectedPath: string;
+      declaringMetadataField: string;
+    }>;
+    packedFileCount: number;
+  };
   // v0.2.2 Batch 6 — carried through from an AttackScenario's declared
   // verdictImpact (via AttackResult) so verdict.ts can categorize the check
   // without owning a separate scenario-id map. Undefined for non-scenario

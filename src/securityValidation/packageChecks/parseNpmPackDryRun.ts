@@ -21,6 +21,24 @@ export function parseNpmPackDryRun(stdout: string): NpmPackDryRunParseResult {
     return { files: [], parseError: "npm pack --dry-run produced no output" };
   }
 
+  try {
+    const parsed = JSON.parse(stdout) as unknown;
+    if (Array.isArray(parsed)) {
+      const first = parsed[0] as { files?: Array<{ path?: unknown }>; unpackedSize?: unknown } | undefined;
+      const jsonFiles = first?.files
+        ?.map((entry) => entry.path)
+        .filter((entry): entry is string => typeof entry === "string") ?? [];
+      if (jsonFiles.length > 0) {
+        return {
+          files: jsonFiles,
+          ...(typeof first?.unpackedSize === "number" ? { totalSize: String(first.unpackedSize) } : {}),
+        };
+      }
+    }
+  } catch {
+    // Older npm versions emit the human-readable notice format parsed below.
+  }
+
   const files: string[] = [];
   let inContents = false;
   let totalSize: string | undefined;

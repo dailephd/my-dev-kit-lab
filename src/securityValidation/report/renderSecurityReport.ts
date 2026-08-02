@@ -198,6 +198,14 @@ export function renderTextReport(report: SecurityReport): string {
       if (check.exitCode !== undefined) {
         lines.push(`       Exit code: ${String(check.exitCode)}`);
       }
+      if (check.packagePolicy) {
+        lines.push(`       Package policy: ${check.packagePolicy.mode} (${sanitizeForTextReport(check.packagePolicy.source)})`);
+        lines.push(`       Package target: ${sanitizeForTextReport(check.packagePolicy.packageName ?? "unknown")}@${sanitizeForTextReport(check.packagePolicy.packageVersion ?? "unknown")}`);
+        lines.push(`       Packed files: ${check.packagePolicy.packedFileCount}`);
+        for (const requirement of check.packagePolicy.requiredPaths) {
+          lines.push(`       Required: ${sanitizeForTextReport(requirement.expectedPath)} <- ${sanitizeForTextReport(requirement.declaringMetadataField)}`);
+        }
+      }
       if (check.stdoutSummary) {
         lines.push(`       Stdout: ${sanitizeForTextReport(check.stdoutSummary).slice(0, 200)}`);
       }
@@ -346,6 +354,7 @@ export function renderJsonReport(report: SecurityReport): string {
     exitCode: c.exitCode ?? null,
     stdoutSummary: c.stdoutSummary ?? null,
     stderrSummary: c.stderrSummary ?? null,
+    packagePolicy: c.packagePolicy ?? null,
   }));
 
   const sanitizedFindings = allFindings.map((f) => ({
@@ -358,6 +367,7 @@ export function renderJsonReport(report: SecurityReport): string {
       affectedFiles: f.affectedFiles ?? [],
       recommendation: f.recommendation ?? undefined,
       releaseImpact: f.releaseImpact,
+      packagePolicy: f.packagePolicy ?? null,
     }));
 
   const sanitizedAttackResults = (attackResults ?? []).map((r) => ({
