@@ -19,6 +19,8 @@ The latest published release is v0.4.5 (context-integrity validation), compatibl
 
 ## Quickstart
 
+The current Quickstart is a source-checkout workflow. Clone the repository and run these commands from the checkout. The planned v0.4.6 patch will add a coherent installed/npx CLI for supported user-facing workflows; that installed command surface is not implemented in v0.4.5.
+
 ### Install
 
 ```bash
