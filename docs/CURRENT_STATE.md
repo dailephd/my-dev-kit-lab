@@ -7,7 +7,7 @@ This document records the repository's operational state. It is the source of tr
 - Package: `@dailephd/my-dev-kit-lab`
 - Package version: `0.4.5`
 - Latest release: `v0.4.5` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.4`)
-- Active planned version: `v0.5.0` (warm-index reuse experiment support)
+- Active planned version: `v0.4.6` (installed-package CLI and runtime-boundary correction)
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
@@ -19,7 +19,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Historical implementation branch: `fix/v0.4.5-context-integrity-validation`
 - Workflow stage: `v0.4.5` is released; implementation, individual readiness, coordinated cross-repository validation, published-upstream revalidation, release validation, tagging, GitHub Release creation, and npm publication are complete.
 - Validation result: the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
-- Exact next action: preserve the v0.4.5 contract and fixture constraints while planning v0.5.0; do not begin the next implementation version as part of the v0.4.5 release workflow.
+- Exact next action: plan and implement v0.4.6 as a structural correction before v0.5.0, preserving the published v0.4.5 contracts and keeping warm-index work out of this patch.
 
 ## Implemented
 
@@ -87,6 +87,7 @@ The following remain planned, not implemented:
 - Some security tools are optional and may be reported as skipped when unavailable.
 - Fake-agent token totals are estimates. Provider telemetry differs by adapter and can be unavailable.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
+- The published npm package currently exposes `my-dev-kit-lab` through the compiled final-demo entrypoint only. Documented repository commands such as `npm run security:validate` and `npm run audit` still depend on the source checkout's `scripts/*.ts` paths, so a source checkout is currently required for those workflows; v0.4.6 is planned to correct this package/runtime boundary.
 - Only one experiment plugin is currently registered.
 - The published upstream `ContextCapsule`/`RetrievalAuditRecord` artifacts that the implemented `v0.4.3` readers consume do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` with an explicit reason rather than zero.
 - Estimated token counts in the `v0.4.3` context-size metric use `ceil(characterCount / 4)` per source and are heuristic, not provider telemetry.
@@ -109,4 +110,4 @@ Release blockers: none. There are no known documentation, factual, implementatio
 
 ## Next step
 
-Write the post-publication project handoff, compress v0.4.5 into a published-version summary, preserve its fixture/report/contract constraints, and identify v0.5.0 as the next planned roadmap version without beginning its implementation.
+Begin v0.4.6 planning and implementation for the installed-package CLI/runtime correction. Preserve all published v0.4.5 fixture/report/contract constraints, and keep v0.5.0 warm-index reuse as the following planned version.
