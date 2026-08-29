@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
-    "my-dev-kit-lab": "dist/scripts/run-final-demo.js"
+    "my-dev-kit-lab": "dist/scripts/cli.js"
   },
   "files": [
     "CHANGELOG.md",

@@ -4,6 +4,7 @@ export const REQUIRED_PACKAGE_CONTENTS = [
   "CHANGELOG.md",
   "LICENSE",
   "README.md",
+  "dist/scripts/cli.js",
   "dist/scripts/run-final-demo.js",
   "dist/src/index.js",
   "package.json",
