@@ -360,11 +360,9 @@ Publication includes:
 
 Do not collapse these stages into implementation work.
 
-### v0.4.4 release preparation and publication procedure
+### Historical v0.4.4 release preparation and publication procedure
 
-This procedure is inactive until a separately authorized release workflow
-begins. Completing the correction or readiness workflow does not authorize any
-step below.
+This subsection is preserved as historical release-procedure evidence for v0.4.4. It is not the current release procedure and must not be copied forward as a version-specific template. Current and future releases use the generic release-preparation/publication invariants in this document plus the repository's current release workflow. Completing implementation, correction, or readiness work never authorizes publication.
 
 1. Require published `my-dev-kit@1.10.3`.
 2. Require published `my-dev-kit-orchestrator@1.2.2`.
