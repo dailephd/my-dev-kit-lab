@@ -313,6 +313,10 @@ These analyzers provide candidate evidence. They do not provide type checking, f
 
 ## Future architecture
 
+The next planned architecture correction is v0.4.6. It is not implemented in the current v0.4.5 codebase.
+
+- v0.4.6 installed-package CLI/runtime correction: introduce one supported installed command router over the existing subsystem owners; separate read-only package root, writable lab workspace/output root, and read-only-by-default target root; make repository npm aliases and installed execution converge on the same underlying handlers; audit runtime dependencies and package resources; and validate the exact packed tarball in clean cross-platform environments. This correction must not duplicate security, audit, experiment, report, or Android implementations.
+
 The following layers are planned and must not be treated as current published or checked-out behavior:
 
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
