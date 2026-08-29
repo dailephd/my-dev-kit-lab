@@ -6,6 +6,12 @@ This reference describes the implemented my-dev-kit-lab command surface. It cove
 
 ## Installation and validation
 
+### Current execution boundary
+
+The commands documented in this file are the current repository command surface unless a section explicitly says otherwise. In v0.4.5, the published npm package exposes the `my-dev-kit-lab` binary through `dist/scripts/run-final-demo.js`, while repository commands such as `npm run security:validate`, `npm run audit`, and the other `npm run ...` entrypoints still resolve TypeScript files under the source checkout's `scripts/` tree.
+
+Therefore, the documented `npm run` security, audit, experiment, report, plot, and gallery workflows currently require a source checkout with dependencies installed. Do not describe planned v0.4.6 installed/npx subcommands as current syntax until implementation and packed-package validation prove them. v0.4.6 is planned to unify the supported installed CLI with the existing behavior owners while retaining repository `npm run` commands as contributor aliases where appropriate.
+
 Current repository validation commands:
 
 - `npm install`
