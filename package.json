@@ -72,6 +72,7 @@
     "test:plots": "vitest run tests/plots tests/commands/generateExperimentPlotsCommand.spec.ts",
     "test:visualization-demos": "vitest run tests/visualizationDemos tests/commands/runVisualizationDemosCommand.spec.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
+    "verify:packed-package": "node scripts/verify-packed-package.mjs",
     "docs:check": "node scripts/check-docs.mjs",
     "verify": "npm run build && npm run verify:benchmarks",
     "security:deps": "tsx scripts/security/runDependencyChecks.ts",
@@ -95,6 +96,6 @@
     "vite": "7.3.6"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   }
 }

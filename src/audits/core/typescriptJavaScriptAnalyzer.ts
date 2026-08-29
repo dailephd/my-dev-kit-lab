@@ -1,4 +1,4 @@
-import ts from "typescript";
+import type ts from "typescript";
 import type { AnalyzeFileInput, LanguageAnalyzer } from "./languageAnalyzerRegistry.js";
 import type {
   DeclarationFact,
@@ -53,7 +53,26 @@ export const TYPESCRIPT_JAVASCRIPT_ANALYZER: LanguageAnalyzer = {
   analyzeFile,
 };
 
-function analyzeFile(input: AnalyzeFileInput): SourceFileFacts {
+// v0.4.6 Batch 5 -- the `typescript` package is a devDependency, not a
+// runtime dependency: an installed my-dev-kit-lab consumer does not have it.
+// The compiler API is loaded lazily (once, memoized) only when a file is
+// actually analyzed, rather than imported at module scope, so merely
+// loading this module (which happens on every CLI invocation, since the
+// language analyzer registry is wired in unconditionally) never requires
+// `typescript` to be present. Only the *type* import above is needed at the
+// top level -- type-only imports are erased entirely at compile time.
+let cachedTypeScriptModule: typeof import("typescript") | undefined;
+async function loadTypeScript(): Promise<typeof import("typescript")> {
+  if (!cachedTypeScriptModule) {
+    const imported = await import("typescript");
+    cachedTypeScriptModule =
+      (imported as { default?: typeof import("typescript") }).default ??
+      (imported as unknown as typeof import("typescript"));
+  }
+  return cachedTypeScriptModule;
+}
+
+async function analyzeFile(input: AnalyzeFileInput): Promise<SourceFileFacts> {
   const { relativePath, language, role, content, inventoryEntry } = input;
 
   if (Buffer.byteLength(content, "utf8") > MAX_ANALYZABLE_BYTES) {
@@ -80,9 +99,10 @@ function analyzeFile(input: AnalyzeFileInput): SourceFileFacts {
     };
   }
 
-  const scriptKind = resolveScriptKind(inventoryEntry.extension);
+  const ts = await loadTypeScript();
+  const scriptKind = resolveScriptKind(ts, inventoryEntry.extension);
   const sourceFile = ts.createSourceFile(relativePath, content, ts.ScriptTarget.Latest, true, scriptKind);
-  const diagnostics = getSyntaxDiagnostics(relativePath, sourceFile);
+  const diagnostics = getSyntaxDiagnostics(ts, relativePath, sourceFile);
 
   const imports: ImportFact[] = [];
   const exports: ExportFact[] = [];
@@ -92,8 +112,8 @@ function analyzeFile(input: AnalyzeFileInput): SourceFileFacts {
   const lineOf = (node: ts.Node): number => sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
 
   function pushDeclaration(node: ts.Node, name: string | undefined, kind: DeclarationFactKind): void {
-    const isExported = hasModifier(node, ts.SyntaxKind.ExportKeyword);
-    const isDefault = hasModifier(node, ts.SyntaxKind.DefaultKeyword);
+    const isExported = hasModifier(ts, node, ts.SyntaxKind.ExportKeyword);
+    const isDefault = hasModifier(ts, node, ts.SyntaxKind.DefaultKeyword);
 
     if (name) {
       declarations.push({ name, kind, exported: isExported, line: lineOf(node) });
@@ -164,7 +184,7 @@ function analyzeFile(input: AnalyzeFileInput): SourceFileFacts {
   }
 
   function handleVariableStatement(node: ts.VariableStatement): void {
-    const isExported = hasModifier(node, ts.SyntaxKind.ExportKeyword);
+    const isExported = hasModifier(ts, node, ts.SyntaxKind.ExportKeyword);
     const isConst = (node.declarationList.flags & ts.NodeFlags.Const) !== 0;
     for (const decl of node.declarationList.declarations) {
       // Destructuring patterns (`const { a, b } = x`) are conservatively
@@ -263,7 +283,7 @@ function analyzeFile(input: AnalyzeFileInput): SourceFileFacts {
   };
 }
 
-function resolveScriptKind(extension: string): ts.ScriptKind {
+function resolveScriptKind(ts: typeof import("typescript"), extension: string): ts.ScriptKind {
   switch (extension) {
     case ".tsx":
       return ts.ScriptKind.TSX;
@@ -281,7 +301,7 @@ function resolveScriptKind(extension: string): ts.ScriptKind {
   }
 }
 
-function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+function hasModifier(ts: typeof import("typescript"), node: ts.Node, kind: ts.SyntaxKind): boolean {
   if (!ts.canHaveModifiers(node)) return false;
   const modifiers = ts.getModifiers(node);
   return modifiers?.some((m) => m.kind === kind) ?? false;
@@ -297,12 +317,20 @@ function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
 // transpileModule() over this repo's own ~375 TS/JS files, which matters
 // because collectSourceFacts.ts calls this analyzer once per eligible file
 // on every audit run (including this repo's own self-audit).
-function getSyntaxDiagnostics(relativePath: string, sourceFile: ts.SourceFile): SourceFactDiagnostic[] {
+function getSyntaxDiagnostics(
+  ts: typeof import("typescript"),
+  relativePath: string,
+  sourceFile: ts.SourceFile
+): SourceFactDiagnostic[] {
   const parseDiagnostics = (sourceFile as unknown as { parseDiagnostics?: ts.Diagnostic[] }).parseDiagnostics ?? [];
-  return parseDiagnostics.map((diagnostic) => toSourceFactDiagnostic(relativePath, diagnostic));
+  return parseDiagnostics.map((diagnostic) => toSourceFactDiagnostic(ts, relativePath, diagnostic));
 }
 
-function toSourceFactDiagnostic(relativePath: string, diagnostic: ts.Diagnostic): SourceFactDiagnostic {
+function toSourceFactDiagnostic(
+  ts: typeof import("typescript"),
+  relativePath: string,
+  diagnostic: ts.Diagnostic
+): SourceFactDiagnostic {
   const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
   const line =
     diagnostic.file && diagnostic.start !== undefined

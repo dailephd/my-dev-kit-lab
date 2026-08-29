@@ -34,8 +34,8 @@ jobs:
           - macos-latest
           - windows-latest
         node-version:
-          - "22"
           - "24"
+          - "latest"
 
     steps:
       - name: Check out repository
@@ -79,5 +79,5 @@ jobs:
       - name: Verify
         run: npm run verify
 
-      - name: Package dry run
-        run: npm pack --dry-run
+      - name: Verify packed package
+        run: npm run verify:packed-package
