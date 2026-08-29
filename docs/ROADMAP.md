@@ -11,7 +11,7 @@ flowchart LR
   V020[v0.2.0] --> V021[v0.2.1] --> V022[v0.2.2]
   V022 --> V030[v0.3.0] --> V031[v0.3.1] --> V032[v0.3.2] --> V033[v0.3.3] --> V034[v0.3.4]
   V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3] --> V044[v0.4.4]
-  V044 --> V045[v0.4.5] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
+  V044 --> V045[v0.4.5] --> V046[v0.4.6] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
   V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
@@ -327,7 +327,7 @@ Acceptance:
 
 * The opt-in audit path exposes Android summaries, report references, and mapped Android security findings.
 * Generic audit output remains schema-stable and the standalone validator remains authoritative for complete Android validation evidence.
-* Package metadata, the `v0.4.2` tag, and the GitHub Release are published; `v0.4.2` is the current npm baseline.
+* Package metadata, the `v0.4.2` tag, and the GitHub Release are published. This is historical release state; newer published releases supersede it as the npm baseline.
 
 ### v0.4.3 — stage-specific bounded-context and workflow-instruction evaluation
 
@@ -454,6 +454,47 @@ Acceptance:
 * Required and optional evidence omission remain distinguishable everywhere they are reported, including through the false-negative regression fixture.
 * The frozen failed-run fixture evaluates deterministically to `contradiction-present`; the corrected-replay fixture evaluates deterministically to `full-agreement`; both remain stable across repeated evaluation and fixture-immutability checks.
 * No upstream producer, orchestrator, readiness, judge, correction, or lifecycle policy is reimplemented or overridden by a lab-owned verdict.
+
+### v0.4.6 — installed-package CLI and runtime-boundary correction
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Correct the installed-package architecture so the published npm package exposes the existing user-facing lab capabilities through a coherent supported CLI instead of requiring a source checkout for documented security, audit, and related workflows.
+* Separate the installed package location, writable lab workspace/output location, and inspected target-project location so the npm installation itself is not treated as the writable tool workspace.
+* Preserve all existing experiment, audit, security-validation, Android, report, gallery, and v0.4.3-v0.4.5 evaluation behavior while fixing packaging and command-surface structure before v0.5.0 warm-index work begins.
+
+Features:
+
+* Replace the current demo-only package entrypoint with one supported `my-dev-kit-lab` command router whose subcommands delegate to existing implementation owners rather than duplicating product logic.
+* Expose the existing user-facing command families through installed-package/npx execution, including experiment discovery/execution, security validation, audits, report rendering, plot generation, gallery generation, and the final demo where those surfaces are confirmed safe and appropriate.
+* Preserve repository `npm run` commands as contributor/development aliases into the same underlying command handlers where practical, instead of maintaining separate source-checkout-only execution paths.
+* Keep developer-only commands such as test, documentation-check, benchmark-verification, fuzz-smoke, and fixture/report-smoke utilities as repository commands rather than automatically promoting every package script into the public CLI.
+* Introduce an explicit runtime path model that distinguishes: (1) the read-only installed package root and bundled runtime resources, (2) a writable lab workspace/output root, and (3) the target project root, which remains non-destructive/read-only by default.
+* Define safe default output behavior for installed execution so generated reports and experiment artifacts do not write into the global npm installation directory or the inspected target project unless the user explicitly selects an output path.
+* Audit the compiled runtime dependency graph and ensure every installed CLI path depends only on Node built-ins, packaged internal modules/resources, and declared runtime or optional dependencies.
+* Tighten npm package contents around intentional runtime requirements while retaining every bundled fixture/resource that installed commands actually need.
+* Add installed-package `--help` and `--version` behavior and preserve backward compatibility for the existing final-demo entrypoint where feasible during the v0.x line.
+* Add a permanent packed-tarball acceptance gate: build, `npm pack`, install the exact tarball into a clean temporary environment, run supported installed CLI commands against bounded fixtures/targets, verify expected reports, and verify target immutability.
+* Add cross-platform installed-package smoke coverage on the repository's supported CI operating systems.
+* Reconcile README, COMMANDS, WORKFLOWS, ARCHITECTURE, CURRENT_STATE, TUTORIAL, package metadata, and release/package checks with the final installed-package contract after implementation.
+
+Acceptance:
+
+* A user can install or invoke the published package without cloning the repository and run the supported installed CLI command families documented for v0.4.6.
+* `npm run` contributor aliases and the installed CLI use the same underlying behavior owners; there is no second security, audit, experiment, or report implementation created for packaging.
+* The package installation directory is not used as the default writable report/experiment workspace, and target projects remain unchanged by default.
+* Packed-tarball tests prove the exact npm artifact contains every required runtime module/resource and no installed command depends on source-only `scripts/*.ts`, undeclared development dependencies, or repository-only files.
+* Linux, macOS, and Windows installed-package smoke checks pass on the supported CI matrix before release.
+* Existing v0.4.3, v0.4.4, and v0.4.5 fixtures, metrics, reports, audits, security validation, Android validation, and experiment behavior remain compatible.
+
+Explicit exclusions:
+
+* No warm-index reuse experiment implementation; that remains v0.5.0.
+* No new security checks, Android checks, audit detector families, experiment metrics, scoring rules, or upstream producer/orchestrator policy.
+* No manual pentest work.
+* No release-process redesign beyond the package/installed-CLI checks required to verify the corrected runtime contract.
 
 ### Post-v1 / version TBD — manual pentest
 
