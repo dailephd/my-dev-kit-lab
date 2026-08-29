@@ -24,7 +24,7 @@ Context-integrity validation for the published my-dev-kit v1.10.4 and my-dev-kit
 
 ## [0.4.3] - 2026-07-22
 
-`v0.4.3` (stage-specific bounded-context and workflow-instruction evaluation) is published. `v0.4.4` is the current release. Its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
+`v0.4.3` (stage-specific bounded-context and workflow-instruction evaluation) is published. Its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ### Added
 
