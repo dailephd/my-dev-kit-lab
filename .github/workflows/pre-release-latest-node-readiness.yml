@@ -1,4 +1,4 @@
-name: Pre-release Node 26 readiness
+name: Pre-release latest Node readiness
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   latest-node-readiness:
-    name: ${{ matrix.os }} / Node 26
+    name: ${{ matrix.os }} / Node latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
 
@@ -35,7 +35,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "26"
+          node-version: "latest"
           cache: npm
 
       - name: Set up Python
@@ -83,7 +83,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: readiness-reports-${{ matrix.os }}-node-26
+          name: readiness-reports-${{ matrix.os }}-node-latest
           path: |
             reports/audits/code-rot/
             reports/security/
