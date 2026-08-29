@@ -4,15 +4,19 @@ import { parseAgentId } from "../agents/agentRegistry.js";
 import { readBenchmarkProjectProfiles, readEvaluationCases } from "../evaluation/index.js";
 import { contextStrategyComparisonPlugin, resolveExperimentTarget } from "../experiments/index.js";
 import { parsePromptComplexityLevel, parsePromptStrategy } from "../prompts/index.js";
+import { createLabExecutionContext, resolvePackageResource } from "../runtime/index.js";
 import type { AgentCommandTemplate } from "../agents/types.js";
 import type { PromptComplexityLevel } from "../prompts/types.js";
 import type { ExperimentAgentId, ExperimentMatrixConfig, ExperimentStrategy } from "../evaluation/controlledExperimentTypes.js";
+import type { LabExecutionContext } from "../runtime/index.js";
 
 export type ParsedRunControlledExperimentArgs = ExperimentMatrixConfig;
 
+const DEFAULT_PROJECT_PROFILES_RESOURCE = "benchmarks/contracts/benchmark-project-profiles.json";
+
 export function parseRunControlledExperimentArgs(argv: string[]): ParsedRunControlledExperimentArgs {
   let casesPath = "";
-  let projectProfilesPath = "benchmarks/contracts/benchmark-project-profiles.json";
+  let projectProfilesPath: string | undefined;
   let outDir = "";
   const caseIds: string[] = [];
   const benchmarkProjects: string[] = [];
@@ -106,8 +110,14 @@ export function parseRunControlledExperimentArgs(argv: string[]): ParsedRunContr
   };
 }
 
-export async function runControlledExperimentFromArgs(args: ParsedRunControlledExperimentArgs, repoRoot = process.cwd()) {
-  const projectProfilesPath = path.resolve(repoRoot, args.projectProfilesPath ?? "benchmarks/contracts/benchmark-project-profiles.json");
+export async function runControlledExperimentFromArgs(
+  args: ParsedRunControlledExperimentArgs,
+  repoRoot = process.cwd(),
+  context?: LabExecutionContext
+) {
+  const projectProfilesPath = args.projectProfilesPath
+    ? path.resolve(repoRoot, args.projectProfilesPath)
+    : resolvePackageResource(context ?? createLabExecutionContext(), DEFAULT_PROJECT_PROFILES_RESOURCE);
   const casesPath = path.resolve(repoRoot, args.casesPath);
   const projectProfiles = await readBenchmarkProjectProfiles(projectProfilesPath, repoRoot);
   const cases = await readEvaluationCases(casesPath, repoRoot, {

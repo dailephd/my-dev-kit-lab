@@ -50,7 +50,7 @@ function expectHelpNoWork(args: string[]) {
   const result = runValidateCli([...args, "--out", outDir]);
 
   expect(result.status).toBe(0);
-  expect(result.stdout).toContain("Usage: npm run security:validate");
+  expect(result.stdout).toContain("Usage: my-dev-kit-lab security validate");
   expect(result.stdout).toContain("node-cli-package|local-tool|npm-package|android");
   expect(result.stdout).toContain("--android-gradle-operations");
   expect(result.stdout).toContain("wrapper-version, tasks, assemble-debug, unit-test-debug, lint-debug");
@@ -85,7 +85,7 @@ describe("security:validate help and unknown-option CLI behavior", () => {
 
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("Unknown option: --definitely-unknown-option.");
-    expect(result.stderr).toContain("Usage: npm run security:validate");
+    expect(result.stderr).toContain("Usage: my-dev-kit-lab security validate");
     expect(result.stdout).toBe("");
     expect(existsSync(outDir)).toBe(false);
   });

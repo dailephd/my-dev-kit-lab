@@ -1,0 +1,309 @@
+import path from "node:path";
+import { runSecurityValidation } from "../securityValidation/validate/runSecurityValidation.js";
+import { resolveValidationTarget, reportFilenamePrefix } from "../securityValidation/validate/resolveTarget.js";
+import { buildSecurityReportFromSummary } from "../securityValidation/report/buildSecurityReport.js";
+import { renderTextReport } from "../securityValidation/report/renderSecurityReport.js";
+import { writeSecurityReportFiles } from "../securityValidation/report/writeSecurityReportFiles.js";
+import {
+  parseSecurityValidateArgs,
+  normalizeSecurityValidateConfig,
+  applyProfileDefaultChecksIfApplicable
+} from "../securityValidation/validate/cliOptions.js";
+import { resolveAttackProfile } from "../securityValidation/attackScenarios/attackProfile.js";
+import { findingsBreachFailOnThreshold } from "../securityValidation/validate/verdict.js";
+import { validateAndroidTarget } from "../mobile/android/validate/validateAndroidTarget.js";
+import { toAndroidReportModel } from "../mobile/android/report/model.js";
+import { renderAndroidTextReport } from "../mobile/android/report/renderAndroidReport.js";
+import { writeAndroidReportFiles } from "../mobile/android/report/writeAndroidReportFiles.js";
+import { createLabExecutionContext } from "../runtime/index.js";
+import type { LabExecutionContext } from "../runtime/index.js";
+
+// ---------------------------------------------------------------------------
+// v0.4.6 Batch 4 -- reusable security-validation command owner.
+//
+// Extracted from scripts/security/validate.ts (formerly a top-level script
+// with inline try/catch + process.exit()) so both the contributor npm script
+// and the installed CLI router (src/cli/) call the same argument-parsing/
+// target-resolution/report-writing/exit-mapping path. Mirrors the audit
+// command extraction in src/commands/runAuditCommand.ts (Batch 3). Detector/
+// verdict/severity policy, the Android validator, and the classic check
+// pipeline are untouched -- this module only owns CLI wiring.
+// ---------------------------------------------------------------------------
+
+export const SECURITY_VALIDATE_USAGE =
+  "Usage: my-dev-kit-lab security validate [--target <path>] [--out <dir>] [--report-prefix <name>] " +
+  "[--checks deps,package,static,cli-adversarial,fuzz,boundary,subprocess,secrets,network] " +
+  "[--profile node-cli-package|local-tool|npm-package|android] [--format text,json] [--fail-on blocker|high|medium|low] " +
+  "[--android-gradle-operations wrapper-version,tasks,assemble-debug,unit-test-debug,lint-debug] " +
+  "[--android-external-tools semgrep,osv,android-lint,dependency-check] " +
+  "[--android-external-network deny|allow-requested]\n" +
+  "\n" +
+  "Android profile:\n" +
+  "  --profile android performs static, read-only Android project detection, manifest parsing,\n" +
+  "  permission/exported-component/intent-filter/deep-link audits, static Gradle metadata\n" +
+  "  extraction, and (as of v0.4.1 Batch 8) eleven internal advanced security checks (network\n" +
+  "  security config, backup/release configuration, hardcoded secrets, signing configuration,\n" +
+  "  WebView, FileProvider, sensitive storage/logging, clipboard, and Firebase/Google services).\n" +
+  "  Gradle and external tools are never executed by default.\n" +
+  "  --android-gradle-operations explicitly opts into running ONLY the listed allowlisted Gradle\n" +
+  "  operations (wrapper-version, tasks, assemble-debug, unit-test-debug, lint-debug) via the\n" +
+  "  project's own Gradle wrapper. Arbitrary Gradle tasks cannot be passed. This option is only\n" +
+  "  valid together with --profile android.\n" +
+  "  --android-external-tools explicitly opts into running ONLY the listed allowlisted optional\n" +
+  "  external security tools (semgrep, osv, android-lint, dependency-check). No arbitrary tool\n" +
+  "  names, commands, or arguments can be passed. This option is only valid together with\n" +
+  "  --profile android.\n" +
+  "  --android-external-network controls whether a requested tool may use network access.\n" +
+  "  Defaults to deny (osv is skipped unless supported offline data is available; semgrep,\n" +
+  "  android-lint, and dependency-check always run offline/no-update regardless of this flag).\n" +
+  "  allow-requested authorizes network only for an explicitly requested tool whose Batch 7\n" +
+  "  contract supports it (currently only osv). This option is only valid together with\n" +
+  "  --profile android.\n" +
+  "  Example: my-dev-kit-lab security validate --target \"<android-project-path>\" --profile android\n" +
+  "  Example: my-dev-kit-lab security validate --target \"<android-project-path>\" --profile android --android-gradle-operations wrapper-version,tasks\n" +
+  "  Example: my-dev-kit-lab security validate --target \"<android-project-path>\" --profile android --android-external-tools semgrep,android-lint\n" +
+  "  Example: my-dev-kit-lab security validate --target \"<android-project-path>\" --profile android --android-external-tools osv --android-external-network allow-requested";
+
+export type RunSecurityValidationCommandOptions = {
+  // Used for self-target fallback (no --target) and, unless defaultOutRoot is
+  // given, for the default --out root too. Defaults to a freshly discovered
+  // LabExecutionContext's packageRoot, matching the previous script's
+  // resolveToolRoot(import.meta.url) behavior.
+  context?: LabExecutionContext;
+  // Root used only when --out was not supplied. Defaults to the target
+  // toolRoot (context.packageRoot) -- the contributor npm script's exact
+  // current behavior. The installed CLI router passes context.workspaceRoot
+  // here so installed execution never defaults report output under the
+  // package root.
+  defaultOutRoot?: string;
+};
+
+export async function runSecurityValidationCommandFromArgs(
+  argv: string[],
+  options: RunSecurityValidationCommandOptions = {}
+): Promise<number> {
+  const context = options.context ?? createLabExecutionContext();
+  const toolRoot = context.packageRoot;
+  const defaultOutRoot = options.defaultOutRoot ?? toolRoot;
+
+  // Help deliberately wins over every other argument. It must remain a
+  // no-work path: no target/default resolution, option normalization, report
+  // directory creation, validation orchestration, or subprocess execution.
+  if (argv.includes("--help") || argv.includes("-h")) {
+    console.log(SECURITY_VALIDATE_USAGE);
+    return 0;
+  }
+
+  let args: ReturnType<typeof parseSecurityValidateArgs>;
+  let config: ReturnType<typeof normalizeSecurityValidateConfig>;
+  try {
+    args = parseSecurityValidateArgs(argv);
+    config = normalizeSecurityValidateConfig(args, defaultOutRoot);
+    // v0.2.2 Batch 5: --profile with no --checks uses that profile's declared
+    // default checks. No-op unless the user passed --profile without --checks
+    // (see applyProfileDefaultChecksIfApplicable's guard) -- the true no-flag
+    // case and any explicit --checks case are always unaffected. Skipped for
+    // "android": that profile does not use the classic --checks pipeline.
+    if (config.profile !== "android") {
+      config = applyProfileDefaultChecksIfApplicable(config, resolveAttackProfile(config.profile).defaultCheckIds);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`\nERROR: ${msg}`);
+    console.error(SECURITY_VALIDATE_USAGE);
+    return 2;
+  }
+
+  // Resolve and validate target early so we can fail fast with a clean error.
+  let target: ReturnType<typeof resolveValidationTarget>;
+  try {
+    target = resolveValidationTarget(args.target, toolRoot);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`\nERROR: ${msg}`);
+    console.error(SECURITY_VALIDATE_USAGE);
+    return 1;
+  }
+
+  console.log("=".repeat(60));
+  console.log("my-dev-kit-lab security:validate");
+  console.log("=".repeat(60));
+  console.log(`Tool root  : ${toolRoot}`);
+  if (!target.isSelf) {
+    console.log(`Target     : ${target.targetRoot}`);
+    if (target.packageName) console.log(`Package    : ${target.packageName}${target.packageVersion ? `@${target.packageVersion}` : ""}`);
+  } else {
+    console.log(`Mode       : self-validation`);
+  }
+  console.log(`Profile    : ${config.profile}`);
+
+  // ---------------------------------------------------------------------------
+  // v0.4.0 Batch 5 -- Android profile path.
+  //
+  // A separate orchestrator (not the classic check-group/attack-scenario
+  // pipeline below) because the Android check/finding/status vocabulary
+  // established in Batches 1-4 does not fit SecurityCheckId/SecurityCheckResult.
+  // Same command, same --profile flag, same reports/security/ output root.
+  // ---------------------------------------------------------------------------
+  if (config.profile === "android") {
+    if (config.androidGradleOperationIds.length > 0) {
+      console.log(`Gradle ops : ${config.androidGradleOperationIds.join(", ")} (explicitly requested — will execute via the target's Gradle wrapper)`);
+    } else {
+      console.log(`Gradle ops : (none requested — static-only validation, zero Gradle process execution)`);
+    }
+    // v0.4.1 Batch 8 -- external tools remain explicit opt-in, mirroring Gradle
+    // operations exactly. "allow-requested" (the CLI-facing value) maps to the
+    // Batch 7 dispatcher's "allow-for-requested-tool" network policy value.
+    const externalNetworkPolicy = config.androidExternalNetworkPolicy === "allow-requested" ? "allow-for-requested-tool" : "deny";
+    if (config.androidExternalToolIds.length > 0) {
+      console.log(`External   : ${config.androidExternalToolIds.join(", ")} (explicitly requested — network policy: ${config.androidExternalNetworkPolicy})`);
+    } else {
+      console.log(`External   : (none requested — zero external-tool process execution)`);
+    }
+    console.log("");
+
+    const reportsDir = config.out;
+
+    let result: Awaited<ReturnType<typeof validateAndroidTarget>>;
+    try {
+      result = await validateAndroidTarget({
+        toolRoot,
+        targetPath: args.target,
+        requestedGradleOperationIds: config.androidGradleOperationIds,
+        requestedExternalToolIds: config.androidExternalToolIds,
+        externalNetworkPolicy: externalNetworkPolicy,
+        externalToolArtifactRoot: path.join(reportsDir, "external-tools")
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`\nERROR: Android validation failed to run: ${msg}`);
+      return 3;
+    }
+
+    const reportModel = toAndroidReportModel(result, {
+      profile: config.profile,
+      requestedGradleOperations: config.androidGradleOperationIds,
+      requestedExternalTools: config.androidExternalToolIds,
+      externalNetworkPolicy: config.androidExternalNetworkPolicy
+    });
+    const textReport = renderAndroidTextReport(reportModel);
+    const prefix =
+      args.reportPrefix ??
+      reportFilenamePrefix({
+        isSelf: result.target.local.isSelf,
+        packageName: result.target.local.packageName,
+        packageVersion: result.target.local.packageVersion,
+        targetRoot: result.target.local.targetRoot
+      });
+
+    let writtenPaths: string[];
+    try {
+      ({ writtenPaths } = writeAndroidReportFiles({ outDir: reportsDir, prefix, report: reportModel, formats: config.formats }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`\nERROR: Failed to write Android report files: ${msg}`);
+      console.error("Validation completed but the report could not be written. The in-memory result was not persisted.");
+      return 4;
+    }
+
+    console.log(textReport);
+    console.log(`\nReports written:`);
+    for (const p of writtenPaths) {
+      console.log(`  ${p}`);
+    }
+
+    const blockerExists = result.verdict === "not-ready-security-blocker-remains";
+    const inconclusive = result.verdict === "inconclusive-audit-environment-incomplete";
+
+    if (blockerExists) {
+      console.error("\nExit 1 — security blocker remains.");
+      return 1;
+    } else if (inconclusive) {
+      console.warn("\nExit 2 — android environment incomplete.");
+      return 2;
+    } else {
+      console.log("\nExit 0 — validation completed.");
+      return 0;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Classic check-group/attack-scenario pipeline (unchanged from prior versions).
+  // ---------------------------------------------------------------------------
+  if (!config.checksWereDefault) {
+    console.log(`Checks     : ${config.checks.join(", ")}`);
+  }
+  if (config.plannedChecksRequested.length > 0) {
+    console.log(
+      `Note       : ${config.plannedChecksRequested.join(", ")} are routed through the attack-scenario framework rather than the classic check-group runners. Review the attack-scenario section in the report for their concrete results.`
+    );
+  }
+  console.log("");
+
+  const summary = await runSecurityValidation({
+    cwd: toolRoot,
+    targetPath: args.target,
+    fuzzIterations: parseInt(process.env["FUZZ_ITERATIONS"] ?? "50", 10),
+    fuzzSeed: parseInt(process.env["FUZZ_SEED"] ?? "0xDEADBEEF", 16),
+    // Full selection (implemented + planned/attack-scenario ids) -- the runner
+    // gates both implemented check groups and attack-scenario checks off the
+    // same selectedChecks set.
+    selectedChecks: config.checks,
+    profile: config.profile
+  });
+
+  // v0.2.2 Batch 5: --fail-on breach is additive to (never a substitute for)
+  // the existing verdict-based exit decision below -- it can only escalate
+  // exit 0 to exit 1 (e.g. --fail-on medium/low catching minor/informational
+  // findings the verdict policy doesn't already treat as blocking), never
+  // downgrade an existing blocker.
+  const failOnBreached = findingsBreachFailOnThreshold(summary.findings, config.failOnThreshold);
+
+  // Build report object
+  const report = buildSecurityReportFromSummary(summary, {
+    profile: config.profile,
+    selectedChecks: config.checks,
+    failOnThreshold: config.failOnThreshold,
+    formats: config.formats,
+    failOnBreached
+  });
+  const textReport = renderTextReport(report);
+
+  // Determine output directory
+  const reportsDir = config.out;
+
+  // Determine report filename prefix
+  const prefix = args.reportPrefix ?? reportFilenamePrefix(target);
+  const { writtenPaths } = writeSecurityReportFiles({
+    outDir: reportsDir,
+    prefix,
+    report,
+    formats: config.formats
+  });
+
+  // Print report to stdout
+  console.log(textReport);
+
+  console.log(`\nReports written:`);
+  for (const p of writtenPaths) {
+    console.log(`  ${p}`);
+  }
+
+  // Exit code based on verdict, escalated (never downgraded) by --fail-on.
+  const blockerExists = summary.verdict === "not-ready-security-blocker-remains";
+  const inconclusive = summary.verdict === "inconclusive-audit-environment-incomplete";
+
+  if (blockerExists) {
+    console.error("\nExit 1 — security blocker remains.");
+    return 1;
+  } else if (inconclusive) {
+    console.warn("\nExit 2 — audit environment incomplete.");
+    return 2;
+  } else if (failOnBreached) {
+    console.error(`\nExit 1 — --fail-on ${config.failOnThreshold} threshold breached.`);
+    return 1;
+  } else {
+    console.log("\nExit 0 — validation completed.");
+    return 0;
+  }
+}

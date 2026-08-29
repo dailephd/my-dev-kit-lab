@@ -11,7 +11,7 @@ flowchart LR
   V020[v0.2.0] --> V021[v0.2.1] --> V022[v0.2.2]
   V022 --> V030[v0.3.0] --> V031[v0.3.1] --> V032[v0.3.2] --> V033[v0.3.3] --> V034[v0.3.4]
   V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3] --> V044[v0.4.4]
-  V044 --> V045[v0.4.5] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
+  V044 --> V045[v0.4.5] --> V046[v0.4.6] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
   V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
@@ -454,6 +454,43 @@ Acceptance:
 * Required and optional evidence omission remain distinguishable everywhere they are reported, including through the false-negative regression fixture.
 * The frozen failed-run fixture evaluates deterministically to `contradiction-present`; the corrected-replay fixture evaluates deterministically to `full-agreement`; both remain stable across repeated evaluation and fixture-immutability checks.
 * No upstream producer, orchestrator, readiness, judge, correction, or lifecycle policy is reimplemented or overridden by a lab-owned verdict.
+
+### v0.4.6 — installed-package CLI and runtime-boundary correction
+
+Status: **published**.
+
+Purpose:
+
+* Correct the installed-package architecture so the published npm package exposes the existing user-facing lab capabilities through a coherent supported CLI instead of requiring a source checkout for documented security, audit, and related workflows.
+* Separate the installed package location, writable lab workspace/output location, and inspected target-project location so the npm installation itself is not treated as the writable tool workspace.
+* Preserve all existing experiment, audit, security-validation, Android, report, gallery, and v0.4.3-v0.4.5 evaluation behavior while fixing packaging and command-surface structure before v0.5.0 warm-index work begins.
+
+Implemented:
+
+* One compiled installed CLI router (`dist/scripts/cli.js`, routed through `src/cli/runLabCli.ts`) whose subcommands delegate to existing implementation owners under `src/commands/` rather than duplicating product logic. Public routes: `--help`/`--version`, `security validate`, `audit`, `experiment list`/`describe`/`run`/`controlled`, `report render`, `plots generate`, `gallery build`, `demo final`, plus the historical direct final-demo invocation form.
+* Repository `npm run` commands refactored into thin adapters over the same `src/commands/` owners the installed CLI calls — one implementation per capability. Developer-only commands (`security:deps`/`package`/`codeql`/`semgrep`, fuzz smoke, `test`, `docs:check`, benchmark verification, `report:context-integrity-smoke`, visualization demos) remain repository-only `npm run` commands; none were promoted into the public installed CLI.
+* An explicit runtime path model (`src/runtime/`, `LabExecutionContext`): read-only `packageRoot` (discovered by walking up from the executing module's own location, never from `process.cwd()`), `invocationCwd` (explicit relative paths resolve here), writable `workspaceRoot` (default `<home>/.my-dev-kit-lab`, overridable via a global `--workspace <path>` that must precede the command), and `resourceRoot` for bundled runtime resources, resolved with path-semantics containment rather than string-prefix matching.
+* Safe default output behavior for installed execution: `audit` and `security validate` root their implicit (no explicit `--out`) output under `workspaceRoot` when invoked through the installed CLI, never under the installed package directory or the inspected target; `experiment run`'s implicit output root moved under `workspaceRoot/lab-output/experiments/...` (same subdirectory shape as before). Explicit output paths keep unchanged resolution semantics.
+* A reconciled npm package-content allowlist limited to the resources the installed CLI and its bundled runtime resources actually require, with a package-content regression test confirming removed developer-only content does not reappear.
+* A permanent packed-tarball acceptance gate (`npm run verify:packed-package`): build, a real `npm pack`, install the exact tarball into a clean temporary consumer project, execute the installed binary, and verify default-workspace output, explicit-workspace output, target immutability, and installed-package immutability via recursive SHA-256 snapshot comparison.
+* `engines.node` raised to `>=24`; GitHub Actions CI standardized on Node `24` and `latest` across Ubuntu/macOS/Windows; the pre-release readiness workflow tracks Node `latest`; both workflows run `npm run verify:packed-package`.
+* A resolved transitive `nanoid` devDependency security advisory (lockfile-only correction); the published runtime dependency tree was unaffected.
+
+Acceptance (met):
+
+* A user can install or invoke the published package without cloning the repository and run the supported installed CLI command families listed above — proven by the packed-package acceptance gate against a real tarball in a clean consumer project.
+* `npm run` contributor aliases and the installed CLI use the same underlying behavior owners; there is no second security, audit, experiment, or report implementation.
+* The package installation directory and target projects are not used as the default writable location; the acceptance gate proves both remain byte-for-byte unchanged after installed audit/security execution.
+* The exact npm artifact contains every required runtime module/resource; no installed command depends on source-only `scripts/*.ts`, `tsx`, TypeScript, Vitest, or Playwright.
+* GitHub CI passed for Linux/macOS/Windows × Node 24/latest against the release PR and merged main.
+* Existing v0.4.3, v0.4.4, and v0.4.5 fixtures, metrics, reports, audits, security validation, Android validation, and experiment behavior remain compatible — no security check, audit detector, Android behavior, experiment scoring, or report schema changed.
+
+Explicit exclusions (deferred, not part of v0.4.6):
+
+* No warm-index reuse experiment implementation; that remains v0.5.0.
+* No new security checks, Android checks, audit detector families, experiment metrics, scoring rules, or upstream producer/orchestrator policy.
+* No manual pentest work.
+* No public visualization-demo CLI routing.
 
 ### Post-v1 / version TBD — manual pentest
 

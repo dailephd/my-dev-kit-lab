@@ -15,6 +15,9 @@ my-dev-kit-lab is the experiment, evidence, audit, and validation companion for 
 ```text
 src/
   core/                                      shared process, path, token, and target utilities
+  runtime/                                   v0.4.6 execution-context foundation: package-root discovery, LabExecutionContext (invocationCwd/packageRoot/workspaceRoot/resourceRoot), package-resource resolution
+  cli/                                       v0.4.6 installed CLI router (runLabCli) and its help renderers; owns argument/command routing only, delegates to command owners under src/commands/
+  commands/                                  shared command owners (argument parsing, target/output resolution, exit-code mapping) called by both the installed CLI router and the contributor npm-script thin adapters under scripts/ -- one implementation per capability, not two
   experiments/                               plugin runtime
     config.ts                                shared configuration loading
     defaultRegistry.ts                       built-in plugin registration
@@ -57,10 +60,11 @@ src/
   visualizationDemos/                        my-dev-kit visualization runs
 
 scripts/
-  experiments/                               experiment:list, experiment:describe, experiment:run
-  security/                                  security checks and security:validate
-  audits/                                    runAudit.ts — npm run audit entrypoint
-  ...                                        legacy/demo/report/plot/gallery entrypoints
+  cli.ts                                     installed my-dev-kit-lab bin entrypoint (v0.4.6); thin process adapter over src/cli/runLabCli.ts, contains no routing/product logic itself
+  experiments/                               thin npm-script adapters (experiment:list, experiment:describe, experiment:run) over src/commands/runExperimentListCommand.ts / runExperimentDescribeCommand.ts / runExperimentRunCommand.ts
+  security/                                  security:validate thin adapter over src/commands/runSecurityValidationCommand.ts, plus source-checkout-only helpers (security:deps/package/codeql/semgrep, fuzz smoke) with no installed-CLI equivalent
+  audits/                                    runAudit.ts — npm run audit thin adapter over src/commands/runAuditCommand.ts
+  ...                                        legacy/demo/report/plot/gallery entrypoints, each a thin adapter over the matching src/commands/ owner
 ```
 
 The supporting ownership roots are `src/agents` for provider adapters, `src/prompts` for prompt variants/complexity, and `src/visualizationDemos` for visualization runs. They remain shared by the experiment/report flow rather than becoming separate pipelines.
@@ -199,6 +203,35 @@ See [context-integrity-fixtures.md](context-integrity-fixtures.md) for the froze
 Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project. Experiment outputs remain in lab-controlled output directories by default; security reports remain under `reports/security` unless an explicit output directory is provided.
 
 `src/core/localProjectTarget.ts` supplies shared local-project metadata. Experiment target resolution lives in `src/experiments/target.ts`; security target resolution lives in `src/securityValidation/validate/resolveTarget.ts`.
+
+## Installed-package architecture (v0.4.6)
+
+This section documents the current installed-package architecture, shipped in v0.4.6.
+
+### Path model
+
+`src/runtime/labExecutionContext.ts` defines `LabExecutionContext`, a read-only structure with four distinct roots. Callers never collapse these into one path:
+
+- **packageRoot** — the installed or checked-out my-dev-kit-lab package root. Discovered by `src/runtime/packageRoot.ts` by walking up from the executing module's own location (never from `process.cwd()`) until it finds the `package.json` whose `name` is `@dailephd/my-dev-kit-lab`. Treated as read-only by every command's default behavior.
+- **invocationCwd** — the directory the user launched the command from (`process.cwd()` unless overridden for testing). Explicit relative paths supplied by the user (`--out`, `--target`, an explicit `--workspace`, an explicit `--project-profiles`/`--cases`) resolve against this, never against packageRoot or workspaceRoot.
+- **workspaceRoot** — the writable location my-dev-kit-lab owns. Defaults to `<home>/.my-dev-kit-lab`; an explicit `--workspace` overrides it (absolute used as-is, relative resolved against invocationCwd). Commands with an implicit/default writable output (`audit`, `security validate`) root that default under workspaceRoot when running through the installed CLI; the contributor `npm run audit` / `npm run security:validate` scripts keep their existing packageRoot-relative default unchanged.
+- **resourceRoot** — the root bundled runtime resources are resolved from. Equal to packageRoot in the current package layout, kept as a distinct field because it has a different responsibility. `src/runtime/packageResource.ts` resolves a package-relative resource path against resourceRoot with path-semantics containment (not string-prefix matching), rejecting empty, absolute, or traversal-escaping inputs.
+
+A fifth root, **targetRoot** (the inspected external project, or packageRoot itself in self mode), is unrelated to and never conflated with workspaceRoot — target directories remain non-destructive/read-only by default regardless of workspace configuration.
+
+### Router → command owners → subsystem owners
+
+The installed bin (`dist/scripts/cli.js`, source `scripts/cli.ts`) is a thin process adapter: it reads `process.argv`, calls `src/cli/runLabCli.ts`'s `runLabCli()`, and sets `process.exitCode` from the returned number. It owns no routing or product logic itself.
+
+`runLabCli()` owns: global `--workspace` parsing (must precede the command), top-level `--help`/`--version`, command-family routing, bounded family/command-level help rendering, and explicit legacy-final-demo flag detection (an allowlist of the exact flags `demo final` accepts — never a catch-all "unknown input must be final-demo" rule). It does not own experiment execution, security/audit logic, or report/plot/gallery generation; each route delegates to an existing `src/commands/` owner.
+
+`src/commands/` owners (e.g. `runAuditCommand.ts`, `runSecurityValidationCommand.ts`, `runExperimentListCommand.ts`/`runExperimentDescribeCommand.ts`/`runExperimentRunCommand.ts`, `runControlledExperimentCommand.ts`, `renderExperimentReportCommand.ts`, `generateExperimentPlotsCommand.ts`, `buildGalleryCommand.ts`, `runFinalDemoCommand.ts`) own CLI-level argument parsing, target/output-path resolution, and exit-code mapping for one capability each, then call the existing subsystem owner (`src/audits/`, `src/securityValidation/`, `src/experiments/`, `src/report/`, `src/plots/`, `src/gallery/`) for the actual work. Subsystem behavior (detector logic, security checks, experiment scoring, report schemas) is unchanged by this layer.
+
+The contributor `scripts/*.ts` npm-script entrypoints are thin adapters over the same `src/commands/` owners — there is one implementation per capability, not a separate one for `npm run` versus the installed CLI. A command owner that needs execution-context information accepts it through an optional parameter (e.g. `{ context, defaultOutRoot }`) rather than requiring every existing caller to construct one immediately.
+
+### Packed-package acceptance boundary
+
+`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
 
 ## Automated security-validation architecture
 

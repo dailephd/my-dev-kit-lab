@@ -4,6 +4,129 @@
 
 This reference describes the implemented my-dev-kit-lab command surface. It covers repository verification, experiments, evidence rendering, generic audits, security validation, Android validation, and documentation checks. Planned commands and flags belong in [ROADMAP.md](ROADMAP.md), not in current syntax examples.
 
+### Current execution boundary
+
+v0.4.6 ships a supported installed `my-dev-kit-lab` CLI (see "Installed CLI commands" below). The commands documented there are available without cloning this repository. The `npm run` commands documented under "Contributor / developer npm scripts" remain available from a source checkout. Both paths call the same underlying command owners — there is no separate implementation.
+
+## Installed CLI commands
+
+Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
+
+```
+my-dev-kit-lab --help | -h
+my-dev-kit-lab --version | -V
+
+my-dev-kit-lab [--workspace <path>] security validate [options]
+my-dev-kit-lab [--workspace <path>] audit [options]
+
+my-dev-kit-lab [--workspace <path>] experiment list
+my-dev-kit-lab [--workspace <path>] experiment describe --experiment <id>
+my-dev-kit-lab [--workspace <path>] experiment run --experiment <id> [options]
+my-dev-kit-lab [--workspace <path>] experiment controlled [options]
+
+my-dev-kit-lab [--workspace <path>] report render [options]
+my-dev-kit-lab [--workspace <path>] plots generate [options]
+my-dev-kit-lab [--workspace <path>] gallery build [options]
+
+my-dev-kit-lab demo final [options]
+```
+
+Every command and family also accepts `--help`/`-h` for bounded usage text. `--help`/`--version` with no other arguments, and no arguments at all, print top-level help and exit `0`.
+
+### Global `--workspace` option
+
+`--workspace <path>` is a global option and, when used, must appear before the command (for example `my-dev-kit-lab --workspace ./lab-state audit ...`). It selects the writable lab workspace:
+
+- omitted: defaults to `<home>/.my-dev-kit-lab`
+- absolute path: used as given
+- relative path: resolved against the directory the command was invoked from (not the installed package location)
+
+Commands that have an implicit (no explicit `--out`) writable output — currently `audit` and `security validate` — write that implicit output beneath the workspace. Commands that require an explicit `--out`/output option (`experiment run`, `experiment controlled`, `report render`, `plots generate`, `gallery build`, `demo final`) keep that path's existing resolution behavior unchanged; explicit paths are never redirected under the workspace. The installed package directory and the inspected `--target` project are never used as the default writable location.
+
+### `my-dev-kit-lab security validate`
+
+Same command owner and options as `npm run security:validate` (see "Security-validation commands" below), reached through the installed CLI instead of a source checkout. `--out` defaults to `<workspace>/reports/security` when omitted.
+
+### `my-dev-kit-lab audit`
+
+Same command owner and options as `npm run audit` (see "Audit commands" below). `--out` defaults to `<workspace>/reports/audits/<type>` when omitted.
+
+### `my-dev-kit-lab experiment list`
+
+Lists registered experiment plugins (currently `context-strategy-comparison`). Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+
+### `my-dev-kit-lab experiment describe --experiment <id>`
+
+Describes one registered experiment plugin: metadata, purpose, supported variants, required/optional config fields, target behavior, and expected reports. Accepts `--json`. Read-only. Unknown plugin IDs fail with exit code `1`.
+
+### `my-dev-kit-lab experiment run --experiment <id> [options]`
+
+Same command owner and options as `npm run experiment:run` (see "Experiment commands" below). Two differences from the source-checkout script:
+
+- The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
+- When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
+
+### `my-dev-kit-lab experiment controlled [options]`
+
+Runs the `context-strategy-comparison` plugin's legacy controlled-experiment path directly (not through the generic plugin runner). Options:
+
+| Option | Allowed value or default |
+|---|---|
+| `--cases <path>` | Required |
+| `--out <dir>` | Required |
+| `--project-profiles <path>` | Defaults to the bundled `benchmarks/contracts/benchmark-project-profiles.json` package resource |
+| `--case <ids>` | Optional comma-separated case filter |
+| `--benchmark-project <ids>` | Optional comma-separated project filter |
+| `--agents <ids>` | `fake-agent`, `codex`, `claude`; defaults to `fake-agent` |
+| `--strategies <ids>` | `raw-full-file`, `my-dev-kit-guided` |
+| `--complexities <ids>` | `short`, `medium`, `long`, `multi-step` |
+| `--timeout-ms <n>` / `--max-runs <n>` | Optional positive integers |
+| `--continue-on-failure` / `--no-continue-on-failure` | Defaults to continue |
+| `--require-agents` / `--include-real-agents` | Require or allow configured provider CLIs |
+| `--command-template-codex <template>` / `--command-template-claude <template>` | Optional provider command templates |
+
+### `my-dev-kit-lab report render [options]`
+
+| Option | Allowed value or default |
+|---|---|
+| `--experiment <dir>` | Required; a controlled-experiment output directory |
+| `--out <dir>` | Required |
+| `--title <title>` / `--subtitle <subtitle>` | Optional |
+| `--screenshot` / `--no-screenshot` | Defaults to no screenshot |
+| `--require-screenshot` | Fails unless a screenshot was captured; implies `--screenshot` |
+| `--max-prompt-chars <n>` / `--max-file-tree-entries <n>` | Optional positive integers |
+| `--plots <dir>` / `--visualizations <dir>` | Optional; included in the report when present |
+
+### `my-dev-kit-lab plots generate [options]`
+
+| Option | Allowed value or default |
+|---|---|
+| `--experiment <dir>` | Required |
+| `--out <dir>` | Required |
+
+### `my-dev-kit-lab gallery build [options]`
+
+| Option | Allowed value or default |
+|---|---|
+| `--out <dir>` | Required |
+| `--report <dir>` / `--plots <dir>` / `--visualizations <dir>` / `--experiment <dir>` | Optional; included in the manifest when present |
+
+### `my-dev-kit-lab demo final [options]`
+
+Same command owner and options as `npm run run-final-demo` (see "Reports, plots, and gallery" below). Runs the full deterministic pipeline: controlled experiment → report → plots → visualization demos → gallery. `--cases`, `--out`, and `--kit-command` are required.
+
+### Legacy direct final-demo invocation
+
+The historical form — the same flags `demo final` accepts, without the `demo final` prefix (for example `my-dev-kit-lab --cases ... --out ... --kit-command ...`) — continues to work for backward compatibility. The router recognizes it only when the first argument is one of the flags final-demo actually accepts; unrecognized top-level commands are rejected rather than silently treated as final-demo.
+
+### Not yet routed through the installed CLI
+
+`security deps`, `security package`, `security codeql`, `security semgrep`, `security fuzz`, and any visualization-demo subcommand are not implemented as installed CLI routes. Attempting them returns the usage exit code. They remain source-checkout `npm run` workflows (see below).
+
+## Contributor / developer npm scripts
+
+The commands in this section run from a cloned repository checkout. Some are contributor aliases into the same command owners the installed CLI uses (`security:validate`, `audit`, `experiment:list`/`describe`/`run`, `run-controlled-experiment`, `render-experiment-report`, `generate-experiment-plots`, `build-gallery`, `run-final-demo`); others are source-checkout-only developer tooling with no installed-CLI equivalent (`security:deps`, `security:package`, `security:codeql`, `security:semgrep`, `test:fuzz:smoke`, `report:context-integrity-smoke`, `run-visualization-demos`, and the build/test/verify/docs-check commands below).
+
 ## Installation and validation
 
 Current repository validation commands:

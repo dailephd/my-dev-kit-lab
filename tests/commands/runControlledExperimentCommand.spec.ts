@@ -1,9 +1,15 @@
-import { existsSync, mkdtempSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { runControlledExperimentCommand } from "../../src/commands/runControlledExperimentCommand.js";
+import {
+  runControlledExperimentCommand,
+  runControlledExperimentFromArgs
+} from "../../src/commands/runControlledExperimentCommand.js";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 const tempDirs: string[] = [];
 
@@ -67,5 +73,39 @@ describe("runControlledExperimentCommand", () => {
     expect(await runControlledExperimentCommand(baseArgs(outDir))).toBe(0);
     const summary = JSON.parse(await readFile(path.join(outDir, "experiment-summary.json"), "utf8"));
     expect(summary.failedRuns).toBe(2);
+  });
+
+  it("locates the default benchmark project profiles without depending on repoRoot/cwd", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "controlled-command-"));
+    tempDirs.push(outDir);
+
+    // A repoRoot that has the benchmark project fixtures (needed by the
+    // existing, unchanged rootPath validation) but deliberately has no
+    // benchmarks/contracts/ directory, so the old repoRoot-relative lookup
+    // of benchmark-project-profiles.json would fail with ENOENT here.
+    const fakeRepoRoot = mkdtempSync(path.join(os.tmpdir(), "controlled-command-fake-repo-"));
+    tempDirs.push(fakeRepoRoot);
+    mkdirSync(path.join(fakeRepoRoot, "benchmarks"), { recursive: true });
+    symlinkSync(
+      path.join(REPO_ROOT, "benchmarks", "projects"),
+      path.join(fakeRepoRoot, "benchmarks", "projects"),
+      "junction"
+    );
+    expect(existsSync(path.join(fakeRepoRoot, "benchmarks", "contracts"))).toBe(false);
+
+    const { projectProfiles, artifacts } = await runControlledExperimentFromArgs(
+      {
+        casesPath: path.join(REPO_ROOT, "examples", "token-savings-cases.json"),
+        caseIds: ["todo-ts-create-task"],
+        agents: ["fake-agent"],
+        strategies: ["raw-full-file", "my-dev-kit-guided"],
+        complexityLevels: ["short"],
+        outDir
+      },
+      fakeRepoRoot
+    );
+
+    expect(projectProfiles.length).toBeGreaterThan(0);
+    expect(artifacts.summary.totalRuns).toBe(2);
   });
 });

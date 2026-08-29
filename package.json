@@ -1,20 +1,19 @@
 {
   "name": "@dailephd/my-dev-kit-lab",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
-    "my-dev-kit-lab": "dist/scripts/run-final-demo.js"
+    "my-dev-kit-lab": "dist/scripts/cli.js"
   },
   "files": [
     "CHANGELOG.md",
-    "dist/scripts/",
-    "!dist/scripts/docs/",
+    "dist/scripts/cli.js",
+    "dist/scripts/run-final-demo.js",
     "dist/src/",
     "benchmarks/",
     "docs/METRICS.md",
-    "examples/",
-    "tests/fixtures/"
+    "examples/token-savings-cases.json"
   ],
   "repository": {
     "type": "git",
@@ -72,6 +71,7 @@
     "test:plots": "vitest run tests/plots tests/commands/generateExperimentPlotsCommand.spec.ts",
     "test:visualization-demos": "vitest run tests/visualizationDemos tests/commands/runVisualizationDemosCommand.spec.ts",
     "verify:benchmarks": "tsx scripts/verify-benchmarks.ts",
+    "verify:packed-package": "node scripts/verify-packed-package.mjs",
     "docs:check": "node scripts/check-docs.mjs",
     "verify": "npm run build && npm run verify:benchmarks",
     "security:deps": "tsx scripts/security/runDependencyChecks.ts",
@@ -95,6 +95,6 @@
     "vite": "7.3.6"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   }
 }

@@ -4,7 +4,9 @@ my-dev-kit-lab is the experiment, audit, and evidence companion for [my-dev-kit]
 
 my-dev-kit provides local repository indexing and graph-guided retrieval. my-dev-kit-lab supplies the controlled benchmarks, agent adapters, metrics, security checks, and reports needed to evaluate when that retrieval is useful. Results are evidence for a specific target and configuration; they do not guarantee token savings or security.
 
-The latest published release is v0.4.5 (context-integrity validation), compatible with published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
+The latest published release is v0.4.6 (installed-package CLI and runtime-boundary correction), compatible with published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
+
+v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--version`, `security validate`, `audit`, the `experiment` family, `report render`, `plots generate`, `gallery build`, `demo final`, and the historical direct final-demo invocation form), a writable lab workspace model kept separate from the installed package and the inspected target, and a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`). See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for status detail and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime path model. The "Installed CLI" section below documents the shipped command surface; the source-checkout `npm run` workflow in Quickstart remains available for contributors.
 
 ## Current capabilities
 
@@ -17,7 +19,39 @@ The latest published release is v0.4.5 (context-integrity validation), compatibl
 - **Evaluate the producer-readiness bridge (v0.4.4):** optionally extend `combined-bounded-stage-context` with the frozen my-dev-kit-orchestrator supplemental implementation/test-context packet and retrieval-report documents plus an observed readiness result, all supplied programmatically (there is no CLI flag), to measure owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay evidence without reimplementing upstream owner-selection, allocation, producer-parity, or readiness policy.
 - **Evaluate context integrity (v0.4.5):** compare condition-aware producer evidence from my-dev-kit v1.10.4 (role condition coverage, allocation/spillover, required-evidence-loss) against my-dev-kit-orchestrator v1.2.3 run-integrity evidence (run-integrity gate, judge integrity, final-report eligibility, artifact lifecycle state), reporting agreement or contradiction between them rather than re-deriving a verdict. Evaluation runs against a frozen, hash-verified regression fixture pair — a byte-exact real historical failed run and a hand-distilled corrected-replay counterpart representing the same validated contracts — and is programmatic/test-driven only. `npm run report:context-integrity-smoke` renders both fixtures' reports for manual inspection; it takes no arguments and is a developer convenience, not a configurable evaluation CLI.
 
-## Quickstart
+## Installed CLI
+
+Installing or invoking the package (for example via `npm install -g @dailephd/my-dev-kit-lab` or `npx @dailephd/my-dev-kit-lab@<version>`) exposes one `my-dev-kit-lab` binary. Users do not need to clone this repository to use these commands. The installed CLI requires Node `>=24`.
+
+```
+my-dev-kit-lab --help
+my-dev-kit-lab --version
+
+my-dev-kit-lab security validate [options]
+my-dev-kit-lab audit [options]
+
+my-dev-kit-lab experiment list
+my-dev-kit-lab experiment describe --experiment <id>
+my-dev-kit-lab experiment run --experiment <id> [options]
+my-dev-kit-lab experiment controlled [options]
+
+my-dev-kit-lab report render [options]
+my-dev-kit-lab plots generate [options]
+my-dev-kit-lab gallery build [options]
+my-dev-kit-lab demo final [options]
+```
+
+A global `--workspace <path>` option, placed before the command, selects the writable lab workspace. The default workspace, used when `--workspace` is omitted, is `<home>/.my-dev-kit-lab`. Generated reports and experiment output are written under the workspace by default, never under the installed package directory or an inspected `--target` project. Explicit output paths (`--out`, and similar flags) keep their existing resolution behavior and are never redirected under the workspace.
+
+The historical direct final-demo invocation form — the same flags `demo final` accepts, without the `demo final` prefix — continues to work for backward compatibility.
+
+Low-level developer helpers (`security:deps`, `security:package`, `security:codeql`, `security:semgrep`, fuzz smoke, visualization demos, build/test/verify) are not part of the installed CLI. They remain source-checkout contributor workflows; see below.
+
+See [docs/COMMANDS.md](docs/COMMANDS.md) for full command syntax and flags.
+
+## Quickstart (contributor / source-checkout workflow)
+
+The commands in this section run from a cloned repository checkout and are the contributor/development workflow. They are not required to use the installed CLI documented above.
 
 ### Install
 
@@ -174,7 +208,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Security validation
 
-`npm run security:validate` is the standalone security-validation command. It checks local CLI/package boundaries and can inspect another local project with `--target <path>`. The generic audit command can reuse those results through `--types security`, but it does not replace the standalone validator or its reports.
+`npm run security:validate` (contributor/source-checkout) and `my-dev-kit-lab security validate` (installed CLI) both call the same standalone security-validation command owner. It checks local CLI/package boundaries and can inspect another local project with `--target <path>`. The generic audit command can reuse those results through `--types security`, but it does not replace the standalone validator or its reports.
 
 Android validation uses `--profile android`. Its default path is static and non-destructive: it starts zero Gradle processes, zero external tools, and zero network operations. Only confirmed `SecurityFinding` records can become audit issues; Android `CandidateEvidence` remains review-only evidence.
 

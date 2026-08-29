@@ -6,6 +6,32 @@ The repository supports experiment campaigns, evidence rendering, generic audits
 
 Android defaults remain static and start zero Gradle, external tool, and network processes. Release chronology belongs in [CHANGELOG.md](../CHANGELOG.md); future scope belongs in [ROADMAP.md](ROADMAP.md).
 
+## Installed-package workflow (v0.4.6)
+
+This is the workflow for a user of the published package. It is separate from the contributor workflow below, which every other section in this document uses.
+
+**Goal:** run supported my-dev-kit-lab commands against a project without cloning this repository.
+
+**Steps:**
+
+```
+install or npx the package        (e.g. npm install -g @dailephd/my-dev-kit-lab, or npx @dailephd/my-dev-kit-lab@<version>)
+  -> invoke the installed my-dev-kit-lab binary
+  -> optionally pass --workspace <path> before the command to select a writable workspace (default: <home>/.my-dev-kit-lab)
+  -> inspect an external target with --target <path> where the command supports it
+  -> generated reports/experiment output are written under the workspace by default, never under the installed package or the target
+```
+
+See [COMMANDS.md](COMMANDS.md) for the full installed command tree and [ARCHITECTURE.md](ARCHITECTURE.md) for the `packageRoot`/`invocationCwd`/`workspaceRoot`/`resourceRoot`/`targetRoot` path model behind it.
+
+**Failure handling:** an unrecognized top-level command or an unimplemented route (for example the low-level `security` helper commands, or `experiment list`/`describe`/`run` typos) returns a usage exit code rather than silently doing something else.
+
+**Completion:** the invoked command exits, and (for commands with a writable output) the expected report/artifact files exist under the resolved output location (the workspace by default, or the explicit path supplied).
+
+## Contributor / source-checkout workflow
+
+The remaining workflow sections in this document run from a cloned repository checkout with dependencies installed (`npm ci` or `npm install`). This is the only currently published way to reach these commands (the published `v0.4.5` package's binary only runs the final-demo entrypoint); it remains available as the contributor/development path after v0.4.6 publishes too, since the installed CLI and these `npm run` commands call the same underlying command owners.
+
 ## Fake-agent final demo
 
 **Goal:** validate the complete experiment-to-gallery pipeline without external agent CLIs.
@@ -360,11 +386,9 @@ Publication includes:
 
 Do not collapse these stages into implementation work.
 
-### v0.4.4 release preparation and publication procedure
+### Historical v0.4.4 release preparation and publication procedure
 
-This procedure is inactive until a separately authorized release workflow
-begins. Completing the correction or readiness workflow does not authorize any
-step below.
+This subsection is preserved as historical release-procedure evidence for v0.4.4. It is not the current release procedure and must not be copied forward as a version-specific template. Current and future releases, including the pending v0.4.6 pre-release readiness and publication stage, use the generic release-preparation/publication invariants in this document plus the repository's current release workflow. Completing implementation, correction, or readiness work never authorizes publication.
 
 1. Require published `my-dev-kit@1.10.3`.
 2. Require published `my-dev-kit-orchestrator@1.2.2`.

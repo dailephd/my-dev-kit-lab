@@ -2,6 +2,22 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
+## [0.4.6] - 2026-08-29
+
+Installed-package CLI and runtime-boundary correction. `@dailephd/my-dev-kit-lab` now ships a supported, cross-platform installed CLI (`my-dev-kit-lab`) alongside the existing contributor npm scripts.
+
+- Added a compiled, cross-platform installed CLI router (`dist/scripts/cli.js`, `src/cli/runLabCli.ts`) exposing `my-dev-kit-lab --help`/`--version`, `security validate`, `audit`, the `experiment` family (`list`/`describe`/`run`/`controlled`), `report render`, `plots generate`, `gallery build`, and `demo final`, plus the historical direct final-demo invocation form for backward compatibility. A global `--workspace <path>` option is supported before any subcommand.
+- Added a `LabExecutionContext` runtime foundation (`src/runtime/`) distinguishing `invocationCwd`, read-only `packageRoot` (discovered independent of `process.cwd()`), writable `workspaceRoot` (default `<home>/.my-dev-kit-lab`, overridable with `--workspace`), `resourceRoot`, and the separately resolved inspected target root, plus cwd-independent, containment-checked package-resource resolution.
+- `security validate`, `audit`, and `experiment` npm scripts now delegate to shared `src/commands/` owners also used by the installed CLI, so both surfaces run the same implementation. Installed `audit`/`security validate` default implicit report output under the writable workspace instead of the package root; installed `experiment run`'s implicit output is under the workspace's `lab-output/experiments/` tree. Explicit output paths and all target-resolution semantics are unchanged.
+- Added a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`): builds, runs a real `npm pack`, installs the exact tarball into a clean temporary consumer project, executes the installed binary, and verifies default/explicit workspace output and target/installed-package immutability via recursive SHA-256 snapshot comparison.
+- Fixed an installed-runtime defect the acceptance gate surfaced: the TypeScript/JavaScript audit source-facts analyzer imported the `typescript` devDependency eagerly at module load, so even `--help` required it in a clean install; it now loads lazily, only when a source file is actually analyzed. Detector output is unchanged.
+- Reconciled the npm package `files` allowlist against proven installed-runtime requirements: narrowed `dist/scripts/` to the two files the installed CLI and legacy bin target need, narrowed `examples/` to the one file an installed command reads by default, and removed `tests/fixtures/` (developer/test-only, not read by any installed command). `benchmarks/` and `docs/METRICS.md` remain packaged.
+- Raised `engines.node` to `>=24`. Standardized GitHub Actions CI on Node `24` and `latest` across Ubuntu/macOS/Windows, and switched the pre-release readiness workflow from a hard-coded Node version to Node `latest`; both workflows run the packed-package acceptance gate.
+- Resolved a transitive devDependency vulnerability (nanoid, GHSA-2v37-7h3g-55p8) via a lockfile-only update; the published runtime dependency tree was unaffected throughout.
+- No security check, security verdict rule, audit detector, Android behavior, experiment scoring, report schema, or existing CLI syntax changed.
+
 ## [0.4.5] - 2026-08-01
 
 Context-integrity validation for the published my-dev-kit v1.10.4 and my-dev-kit-orchestrator v1.2.3 contracts.
