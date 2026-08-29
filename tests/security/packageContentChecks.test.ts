@@ -223,4 +223,41 @@ describe("required npm package contents", () => {
     ).toEqual([]);
     expect(forbidden.matches).toEqual([]);
   });
+
+  // v0.4.6 Batch 6 -- package-content reconciliation. These paths were
+  // developer/test-only (no supported installed command reads them; see
+  // package.json's "files" allowlist and its accompanying comment history)
+  // and were removed from the npm files allowlist in this batch. This
+  // guards against a future change accidentally re-broadening the
+  // allowlist back to shipping them.
+  it("does not re-include developer/test-only content removed from the package surface", async () => {
+    const command = await runSecurityCommand({
+      command: resolveNpmCommand(),
+      args: ["pack", "--json", "--dry-run"],
+      cwd: process.cwd(),
+      timeoutMs: 30_000,
+    });
+
+    expect(command.exitCode, command.stderr).toBe(0);
+    const inventory = JSON.parse(command.stdout) as Array<{
+      files: Array<{ path: string }>;
+    }>;
+    const files = inventory[0]?.files.map((entry) => entry.path) ?? [];
+
+    const stillPresent = files.filter((file) =>
+      [
+        "tests/fixtures/",
+        "dist/scripts/audits/",
+        "dist/scripts/experiments/",
+        "dist/scripts/security/",
+        "dist/scripts/verify-packed-package",
+        "dist/scripts/verifyPackedPackageHelpers",
+        "examples/demo-report-input.json",
+        "examples/lab-demo-cases.json",
+        "examples/real-agent-campaign-cases.json",
+      ].some((prefix) => file.startsWith(prefix)),
+    );
+
+    expect(stillPresent).toEqual([]);
+  });
 });

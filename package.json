@@ -8,13 +8,12 @@
   },
   "files": [
     "CHANGELOG.md",
-    "dist/scripts/",
-    "!dist/scripts/docs/",
+    "dist/scripts/cli.js",
+    "dist/scripts/run-final-demo.js",
     "dist/src/",
     "benchmarks/",
     "docs/METRICS.md",
-    "examples/",
-    "tests/fixtures/"
+    "examples/token-savings-cases.json"
   ],
   "repository": {
     "type": "git",

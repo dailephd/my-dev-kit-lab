@@ -192,7 +192,7 @@ Current report/schema details:
 
 ## Fortification status and audit relationship
 
-The current framework keeps automated security validation, the generic audit framework, language-aware code-rot analysis, and Android validation as distinct responsibilities. Their release history is recorded in [CHANGELOG.md](../CHANGELOG.md); v0.4.4 is the current published release.
+The current framework keeps automated security validation, the generic audit framework, language-aware code-rot analysis, and Android validation as distinct responsibilities. Their release history is recorded in [CHANGELOG.md](../CHANGELOG.md); v0.4.5 is the latest published release. v0.4.6 is implemented on the development branch but not yet published; it does not change any security check, verdict rule, or evidence semantic described in this document — it only adds an installed CLI route (`my-dev-kit-lab security validate`) that calls the same standalone command owner as the current `npm run security:validate`, with implicit report output rooted under the installed CLI's writable workspace instead of the package root. Until v0.4.6 is published, `npm run security:validate` from a source checkout is the only way to reach this command.
 
 `security:validate` remains the standalone, focused security command. `npm run audit -- --types security` uses an adapter rather than another scanner family. The adapter calls the same exported `runSecurityValidation()` function, maps confirmed findings into the shared issue model, and adds `securitySummary` to audit reports.
 

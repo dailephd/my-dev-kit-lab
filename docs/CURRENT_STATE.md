@@ -5,21 +5,26 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.4.5`
-- Latest release: `v0.4.5` published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.4`)
-- Active planned version: `v0.5.0` (warm-index reuse experiment support)
+- Package version: `0.4.5` (unchanged by the v0.4.6 implementation work; version bump belongs to release preparation)
+- Latest release: `v0.4.5`, published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.4`)
+- Current repository implementation: `v0.4.6` (installed-package architecture correction) is implementation-complete on the development branch but **not yet published**. Do not treat it as available in the published `v0.4.5` package.
+- Active planned version: `v0.5.0` (warm-index reuse experiment support), planned to begin after `v0.4.6` publishes. `v0.5.0` implementation has not begun.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
+- Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
 ## Operational state
 
-- Current branch: `main`
+- Latest published-release branch: `main` (published `v0.4.5` state)
 - `v0.4.5` release branch: `release/v0.4.5` (merged to main)
 - Historical implementation branch: `fix/v0.4.5-context-integrity-validation`
-- Workflow stage: `v0.4.5` is released; implementation, individual readiness, coordinated cross-repository validation, published-upstream revalidation, release validation, tagging, GitHub Release creation, and npm publication are complete.
-- Validation result: the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
-- Exact next action: preserve the v0.4.5 contract and fixture constraints while planning v0.5.0; do not begin the next implementation version as part of the v0.4.5 release workflow.
+- Current v0.4.6 implementation branch: `fix/v0.4.6-runtime-context-foundation`
+- Published-release workflow stage: `v0.4.5` is released; implementation, individual readiness, coordinated cross-repository validation, published-upstream revalidation, release validation, tagging, GitHub Release creation, and npm publication are complete.
+- v0.4.6 workflow stage: all six implementation batches (runtime/package-resource foundation, CLI router, low-risk installed routes, security/experiment routes, packed-package acceptance gate + CI, package-content and documentation reconciliation) are complete. **Pre-release readiness for v0.4.6 has not started.** v0.4.6 has not been tagged, released, or published.
+- Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
+- Validation result (v0.4.6, unpublished): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run verify:packed-package`) passes on the implementation branch; see "Validation state" below for the exact gates run.
+- Exact next action: run v0.4.6 pre-release readiness (full local validation, GitHub Node 24/latest CI evidence, release/package/documentation readiness gates) before any release preparation, tagging, or publication.
 
 ## Implemented
 
@@ -48,6 +53,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Implemented but unpublished compatibility work accepts my-dev-kit's additive major-1 audit repository identity, preserves absence in legacy audits, and extends existing pair diagnostics to detect repository-root and manifest-schema disagreement. No new CLI command or orchestrator-readiness implementation is added.
 - `v0.4.4` producer-readiness bridge is released: exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator's readiness result (`src/evaluation/upstreamArtifacts`); deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics (`src/evaluation/stageContextMetrics`); an additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) that composes those metrics over already-loaded evidence; additive optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`); optional producer-readiness bridge inputs on the `combined-bounded-stage-context` strategy, loaded once per run and reported through the existing `report.json`/`report.txt`/`report.html` pipeline as an additive, optional section. Readiness remains a programmatic plain-object input only — the frozen orchestrator commit exposes no on-disk readiness artifact, and no readiness/producer-parity/owner-selection/allocation policy is duplicated. No public CLI flags were added.
 - `v0.4.5` context-integrity validation is released: condition-aware producer evidence mirrored from the published `my-dev-kit` `v1.10.4` contract (`roleConditionCoverage`, allocation/spillover `GroupTruncationEntry` fields, `truncation.requiredEvidenceLost`) in `src/evaluation/upstreamArtifacts`; allocation, spillover, condition-coverage, and agreement metrics in `src/evaluation/stageContextMetrics`; run-integrity evidence mirrored from the published `my-dev-kit-orchestrator` `v1.2.3` contract (`RunIntegrityGateResult`, `JudgeIntegrityResult`, `FinalReportEligibilityResult`, plus `artifact-state.json` lifecycle records) and corresponding agreement calculators, composed additively through the existing `evaluateProducerReadinessBridge`; a frozen, hash-verified ecosystem regression fixture pair under `tests/fixtures/ecosystem/context-integrity/v0.4.5/` — a byte-exact real historical failed run and a hand-distilled corrected-replay counterpart representing the same validated `v1.10.4`/`v1.2.3` contracts, plus a 49-case negative matrix, hash verification, determinism, and fixture-immutability checks; and a bounded, additive `ContextIntegrityReportV1` JSON/text/HTML report layer in `src/report/experiments` that reuses the existing bounded-list/availability report primitives rather than duplicating them. The lab evaluates **agreement** between producer, readiness, judge, correction, eligibility, and lifecycle evidence — it does not reimplement or duplicate upstream policy, and it reports contradictions rather than resolving them. No CLI flags and no composite score, grade, ranking, or winner were added.
+- `v0.4.6` installed-package architecture correction is **implemented but not yet published**: a `LabExecutionContext` runtime foundation (`src/runtime/`) with distinct `invocationCwd`/`packageRoot`/`workspaceRoot`/`resourceRoot` roots and cwd-independent package-root discovery and package-resource resolution; one compiled installed CLI router (`src/cli/`, bin `dist/scripts/cli.js`) exposing `--help`, `--version`, `security validate`, `audit`, the `experiment` family (`list`/`describe`/`run`/`controlled`), `report render`, `plots generate`, `gallery build`, and `demo final`, plus the historical direct final-demo invocation form for backward compatibility; shared `src/commands/` owners called by both the installed CLI and the existing `npm run` contributor scripts (no duplicated implementations); a global `--workspace` option defaulting to `<home>/.my-dev-kit-lab`, used for implicit audit/security output without redirecting explicit output paths or moving target/package roots; a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`) that builds, packs, installs the exact tarball into a clean consumer, executes the installed binary, and verifies target/installed-package immutability and workspace output boundaries; removal of an eager `typescript` devDependency import from audit module initialization (now loaded lazily, only when a source file is actually analyzed) that the acceptance gate surfaced as a real installed-runtime defect; `engines.node` raised to `>=24`; GitHub Actions CI standardized on Node `24` and `latest` across Ubuntu/macOS/Windows, with the pre-release workflow tracking Node `latest`; and a reconciled npm package-content allowlist (see [ROADMAP.md](ROADMAP.md) for the full six-batch breakdown). No security check, audit detector, Android behavior, experiment scoring, report schema, or CLI syntax for any existing route changed.
 
 ## Current commands
 
@@ -66,6 +72,8 @@ The audit framework, language-aware code-rot detectors, security adapter, Androi
 `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published; see the `Implemented` section above. Within that implementation, CLI flags for selecting the six new strategies through `experiment:run` are **not implemented** — they are configured programmatically. Plots, screenshots, and gallery integration for the new stage-context evidence are likewise **not implemented**.
 
 `v0.4.5` context-integrity validation is published; see the `Implemented` section above. It has no CLI flags (evaluation remains programmatic/test-driven, as with `v0.4.3`), no plots/screenshot/gallery integration, and no live full ten-stage replay — the corrected-replay fixture is a hand-distilled representation of the validated `v1.10.4`/`v1.2.3` contracts, not a byte-exact generated run.
+
+`v0.4.6` installed-package architecture correction is implemented on the current branch but **not published**; see the `Implemented` section above. Within its implemented scope, none of the following were added: `security deps`/`package`/`codeql`/`semgrep`/fuzz-smoke routing, visualization-demo routing, warm-index reuse, a new security check, a new audit detector, or any new Android capability — all remain source-checkout-only or future-version scope. Do not treat the installed CLI routes documented in [COMMANDS.md](COMMANDS.md) as available until v0.4.6 is actually published.
 
 The following remain planned, not implemented:
 
@@ -103,10 +111,14 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 
 `v0.4.5` completed individual pre-release readiness after clean installation, full and focused tests, fixture/Git-blob portability, determinism, immutability, report smoke and inspection, documentation, security, code-rot, package-content, and Windows/Linux/macOS × Node.js 22/24 CI validation. The corrected candidates then passed coordinated cross-repository validation, and the exact lab candidate passed published-upstream revalidation against the registry releases before release preparation.
 
+`v0.4.6` (unpublished) local validation on Node 24, run at the end of each implementation batch and again after package/documentation reconciliation: `npm run typecheck`, `npm run verify` (build + benchmark verification), the full `npm run test` suite, and the real `npm run verify:packed-package` acceptance gate (build → actual `npm pack` → install the exact tarball into a clean temporary consumer → execute the installed binary against help/version/experiment/audit/security routes → verify default and explicit workspace output locations, target immutability, and installed-package immutability) all pass. GitHub Actions CI (Ubuntu/macOS/Windows × Node 24/latest) is configured for this branch; whether it has actually run against the latest push should be checked directly rather than assumed from this document.
+
 ## Blockers
 
-Release blockers: none. There are no known documentation, factual, implementation, validation, or publication blockers for released `v0.4.5`.
+Release blockers for published `v0.4.5`: none.
+
+`v0.4.6` (unpublished) blockers: none known against the implemented scope. It has not undergone pre-release readiness, has not been tagged, and has not been published — those are upcoming workflow stages, not blockers.
 
 ## Next step
 
-Write the post-publication project handoff, compress v0.4.5 into a published-version summary, preserve its fixture/report/contract constraints, and identify v0.5.0 as the next planned roadmap version without beginning its implementation.
+Run v0.4.6 pre-release readiness: full local validation on Node 24, GitHub Node 24/latest CI evidence, and release/package/documentation readiness gates, to determine whether the implementation is ready for release preparation (version bump, tagging, publication). Do not begin v0.5.0 implementation before v0.4.6 pre-release readiness and publication are complete.

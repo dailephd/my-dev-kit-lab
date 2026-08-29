@@ -4,10 +4,22 @@ export const REQUIRED_PACKAGE_CONTENTS = [
   "CHANGELOG.md",
   "LICENSE",
   "README.md",
-  "dist/scripts/cli.js",
-  "dist/scripts/run-final-demo.js",
-  "dist/src/index.js",
   "package.json",
+  // Public bin target (installed CLI router entrypoint).
+  "dist/scripts/cli.js",
+  // Legacy final-demo bin-target compatibility (pre-v0.4.6 package.json bin).
+  "dist/scripts/run-final-demo.js",
+  // Compiled runtime the installed CLI router and its shared command owners
+  // depend on.
+  "dist/src/index.js",
+  "dist/src/cli/runLabCli.js",
+  "dist/src/runtime/labExecutionContext.js",
+  "dist/src/runtime/packageRoot.js",
+  "dist/src/runtime/packageResource.js",
+  // Bundled runtime resources public installed commands read by default
+  // (experiment run/controlled, demo final, legacy final-demo invocation).
+  "benchmarks/contracts/benchmark-project-profiles.json",
+  "examples/token-savings-cases.json",
 ] as const;
 
 function normalizeTarballPath(file: string): string {
