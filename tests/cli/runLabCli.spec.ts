@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { runLabCli } from "../../src/cli/index.js";
 import type { LabCliWriters } from "../../src/cli/index.js";
 import { createFakeExperimentFixture } from "../report/experimentReportTestHelpers.js";
@@ -16,6 +16,7 @@ const FAKE_KIT_COMMAND = "node tests/fixtures/fake-my-dev-kit-cli.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
@@ -34,6 +35,21 @@ function createWriters(): { writers: LabCliWriters; stdout: string[]; stderr: st
     stdout,
     stderr
   };
+}
+
+// Some routed command owners (security validate, experiment list/describe)
+// print via raw console.log/console.error rather than the router's
+// injectable writers, matching every other delegated command owner. Spy on
+// the real console for tests that need to inspect their output.
+function spyOnConsole(): { logSpy: ReturnType<typeof vi.spyOn>; errorSpy: ReturnType<typeof vi.spyOn> } {
+  return {
+    logSpy: vi.spyOn(console, "log").mockImplementation(() => {}),
+    errorSpy: vi.spyOn(console, "error").mockImplementation(() => {})
+  };
+}
+
+function joinSpyCalls(spy: ReturnType<typeof vi.spyOn>): string {
+  return spy.mock.calls.map((call) => call.join(" ")).join("\n");
 }
 
 function baseFinalDemoArgs(outDir: string): string[] {
@@ -72,17 +88,35 @@ describe("runLabCli", () => {
     }
   });
 
-  it("lists every newly routed command and omits still-unimplemented ones in top-level help", async () => {
+  it("lists every routed command and omits still-unimplemented ones in top-level help", async () => {
     const { writers, stdout } = createWriters();
     await runLabCli(["--help"], { writers });
     const output = stdout.join("\n");
-    for (const routed of ["audit", "experiment controlled", "report render", "plots generate", "gallery build", "demo final", "--workspace"]) {
+    for (const routed of [
+      "security validate",
+      "audit",
+      "experiment list",
+      "experiment describe",
+      "experiment run",
+      "experiment controlled",
+      "report render",
+      "plots generate",
+      "gallery build",
+      "demo final",
+      "--workspace"
+    ]) {
       expect(output).toContain(routed);
     }
-    expect(output.toLowerCase()).not.toContain("security");
-    expect(output).not.toContain("experiment list");
-    expect(output).not.toContain("experiment describe");
-    expect(output).not.toContain("experiment run");
+    for (const notYetRouted of [
+      "security deps",
+      "security package",
+      "security codeql",
+      "security semgrep",
+      "security fuzz",
+      "visualization"
+    ]) {
+      expect(output).not.toContain(notYetRouted);
+    }
   });
 
   it("prints the exact package.json version for --version and -V, independent of cwd", async () => {
@@ -160,24 +194,25 @@ describe("runLabCli", () => {
     expect(stderr.join("\n")).toContain("Unknown command");
   });
 
-  it("does not route the still-unimplemented `security` command into final-demo or any placeholder handler", async () => {
-    const { writers, stderr } = createWriters();
-    const code = await runLabCli(["security"], { writers });
-    expect(code).toBe(2);
-    expect(stderr.join("\n")).toContain("Unknown command");
-  });
-
-  it.each(["list", "describe", "run"])(
-    "rejects `experiment %s` (not yet implemented) with exit code 2 and does not execute a controlled experiment",
+  it.each(["deps", "package", "codeql", "semgrep", "fuzz"])(
+    "rejects developer-only `security %s` with exit code 2 (stays private)",
     async (subcommand) => {
       const { writers, stderr } = createWriters();
-      const code = await runLabCli(["experiment", subcommand], { writers });
+      const code = await runLabCli(["security", subcommand], { writers });
       expect(code).toBe(2);
       expect(stderr.join("\n")).toContain("Unknown command");
     }
   );
 
+  it("does not route `security` alone (no subcommand) into validate", async () => {
+    const { writers, stdout } = createWriters();
+    const code = await runLabCli(["security"], { writers });
+    expect(code).toBe(0);
+    expect(stdout.join("\n")).toContain("validate");
+  });
+
   it.each([
+    ["experiment", "bogus"],
     ["report", "nonsense"],
     ["plots", "nonsense"],
     ["gallery", "nonsense"]
@@ -188,11 +223,86 @@ describe("runLabCli", () => {
     expect(stderr.join("\n")).toContain("Unknown command");
   });
 
-  it("shows experiment family help listing the controlled command", async () => {
+  it("shows experiment family help listing list/describe/run/controlled", async () => {
     const { writers, stdout } = createWriters();
     const code = await runLabCli(["experiment", "--help"], { writers });
     expect(code).toBe(0);
-    expect(stdout.join("\n")).toContain("controlled");
+    const output = stdout.join("\n");
+    expect(output).toContain("list");
+    expect(output).toContain("describe");
+    expect(output).toContain("run");
+    expect(output).toContain("controlled");
+  });
+
+  it("shows security family help listing the validate command", async () => {
+    const { writers, stdout } = createWriters();
+    const code = await runLabCli(["security", "--help"], { writers });
+    expect(code).toBe(0);
+    expect(stdout.join("\n")).toContain("validate");
+  });
+
+  it("shows security validate help reflecting the actual current parser", async () => {
+    const { logSpy } = spyOnConsole();
+    const code = await runLabCli(["security", "validate", "--help"]);
+    expect(code).toBe(0);
+    const output = joinSpyCalls(logSpy);
+    for (const flag of [
+      "--target",
+      "--out",
+      "--report-prefix",
+      "--checks",
+      "--profile",
+      "--format",
+      "--fail-on",
+      "--android-gradle-operations",
+      "--android-external-tools",
+      "--android-external-network"
+    ]) {
+      expect(output).toContain(flag);
+    }
+  });
+
+  it("shows experiment list help", async () => {
+    const { writers, stdout } = createWriters();
+    const code = await runLabCli(["experiment", "list", "--help"], { writers });
+    expect(code).toBe(0);
+    expect(stdout.join("\n")).toContain("--json");
+  });
+
+  it("shows experiment describe help", async () => {
+    const { writers, stdout } = createWriters();
+    const code = await runLabCli(["experiment", "describe", "--help"], { writers });
+    expect(code).toBe(0);
+    expect(stdout.join("\n")).toContain("--experiment");
+  });
+
+  it("shows experiment run help reflecting the actual current parser", async () => {
+    const { writers, stdout } = createWriters();
+    const code = await runLabCli(["experiment", "run", "--help"], { writers });
+    expect(code).toBe(0);
+    const output = stdout.join("\n");
+    for (const flag of [
+      "--experiment",
+      "--target",
+      "--out",
+      "--cases",
+      "--project-profiles",
+      "--case",
+      "--benchmark-project",
+      "--agents",
+      "--strategies",
+      "--complexities",
+      "--timeout-ms",
+      "--max-runs",
+      "--continue-on-failure",
+      "--no-continue-on-failure",
+      "--require-agents",
+      "--include-real-agents",
+      "--command-template-codex",
+      "--command-template-claude"
+    ]) {
+      expect(output).toContain(flag);
+    }
   });
 
   it("shows experiment controlled help listing the existing accepted flags", async () => {
@@ -351,5 +461,31 @@ describe("runLabCli", () => {
   it("returns the routed command owner's failure code rather than converting it to success", async () => {
     const code = await runLabCli(["experiment", "controlled", "--cases", "examples/token-savings-cases.json"]);
     expect(code).toBe(1);
+  });
+
+  it("delegates `experiment list` to the existing experiment registry", async () => {
+    const { logSpy } = spyOnConsole();
+    const code = await runLabCli(["experiment", "list"]);
+    expect(code).toBe(0);
+    const output = joinSpyCalls(logSpy);
+    expect(output).toContain("context-strategy-comparison");
+    expect(output).toContain("raw-full-file");
+    expect(output).toContain("my-dev-kit-guided");
+  });
+
+  it("delegates `experiment describe` to the existing experiment registry", async () => {
+    const { logSpy } = spyOnConsole();
+    const code = await runLabCli(["experiment", "describe", "--experiment", "context-strategy-comparison"]);
+    expect(code).toBe(0);
+    const output = joinSpyCalls(logSpy);
+    expect(output).toContain("Context Strategy Comparison");
+    expect(output).toContain("Purpose:");
+  });
+
+  it("returns exit 1 for `experiment describe` on an unknown plugin, unchanged", async () => {
+    const { errorSpy } = spyOnConsole();
+    const code = await runLabCli(["experiment", "describe", "--experiment", "does-not-exist"]);
+    expect(code).toBe(1);
+    expect(joinSpyCalls(errorSpy)).toContain("Experiment plugin not found: does-not-exist");
   });
 });

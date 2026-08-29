@@ -2,15 +2,23 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { runFinalDemoCommand } from "../commands/runFinalDemoCommand.js";
 import { runAuditCommandFromArgs } from "../commands/runAuditCommand.js";
+import { runSecurityValidationCommandFromArgs } from "../commands/runSecurityValidationCommand.js";
 import { runControlledExperimentCommand } from "../commands/runControlledExperimentCommand.js";
+import { runExperimentListCommandFromArgs } from "../commands/runExperimentListCommand.js";
+import { runExperimentDescribeCommandFromArgs } from "../commands/runExperimentDescribeCommand.js";
+import { runExperimentRunCommandFromArgs } from "../commands/runExperimentRunCommand.js";
 import { runRenderExperimentReportCommand } from "../commands/renderExperimentReportCommand.js";
 import { runGenerateExperimentPlotsCommand } from "../commands/generateExperimentPlotsCommand.js";
 import { runBuildGalleryCommand } from "../commands/buildGalleryCommand.js";
 import { createLabExecutionContext, discoverPackageRoot } from "../runtime/index.js";
+import type { LabExecutionContext } from "../runtime/index.js";
 import {
   renderDemoHelp,
   renderExperimentControlledHelp,
+  renderExperimentDescribeHelp,
   renderExperimentHelp,
+  renderExperimentListHelp,
+  renderExperimentRunHelp,
   renderFinalDemoHelp,
   renderGalleryBuildHelp,
   renderGalleryHelp,
@@ -18,6 +26,7 @@ import {
   renderPlotsHelp,
   renderReportHelp,
   renderReportRenderHelp,
+  renderSecurityHelp,
   renderTopLevelHelp,
   renderUnknownCommandError
 } from "./help.js";
@@ -95,12 +104,16 @@ export async function runLabCli(argv: string[], options: RunLabCliOptions = {}):
     return 0;
   }
 
+  if (command === "security") {
+    return runSecurityFamily(rest, writers, context);
+  }
+
   if (command === "audit") {
     return runAuditCommandFromArgs(rest, { context, defaultOutRoot: context.workspaceRoot });
   }
 
   if (command === "experiment") {
-    return runExperimentFamily(rest, writers);
+    return runExperimentFamily(rest, writers, context);
   }
 
   if (command === "report") {
@@ -164,12 +177,52 @@ async function runDemoCommand(argv: string[], writers: LabCliWriters): Promise<n
   return CLI_USAGE_EXIT_CODE;
 }
 
-async function runExperimentFamily(argv: string[], writers: LabCliWriters): Promise<number> {
+async function runSecurityFamily(argv: string[], writers: LabCliWriters, context: LabExecutionContext): Promise<number> {
+  const [subcommand, ...rest] = argv;
+
+  if (argv.length === 0 || subcommand === "--help" || subcommand === "-h") {
+    writers.stdout(renderSecurityHelp());
+    return 0;
+  }
+
+  if (subcommand === "validate") {
+    return runSecurityValidationCommandFromArgs(rest, { context, defaultOutRoot: context.workspaceRoot });
+  }
+
+  writers.stderr(renderUnknownCommandError(`security ${subcommand}`));
+  return CLI_USAGE_EXIT_CODE;
+}
+
+async function runExperimentFamily(argv: string[], writers: LabCliWriters, context: LabExecutionContext): Promise<number> {
   const [subcommand, ...rest] = argv;
 
   if (argv.length === 0 || subcommand === "--help" || subcommand === "-h") {
     writers.stdout(renderExperimentHelp());
     return 0;
+  }
+
+  if (subcommand === "list") {
+    if (rest[0] === "--help" || rest[0] === "-h") {
+      writers.stdout(renderExperimentListHelp());
+      return 0;
+    }
+    return runExperimentListCommandFromArgs(rest);
+  }
+
+  if (subcommand === "describe") {
+    if (rest[0] === "--help" || rest[0] === "-h") {
+      writers.stdout(renderExperimentDescribeHelp());
+      return 0;
+    }
+    return runExperimentDescribeCommandFromArgs(rest);
+  }
+
+  if (subcommand === "run") {
+    if (rest[0] === "--help" || rest[0] === "-h") {
+      writers.stdout(renderExperimentRunHelp());
+      return 0;
+    }
+    return runExperimentRunCommandFromArgs(rest, { context, installedDefaultOutputRoot: context.workspaceRoot });
   }
 
   if (subcommand === "controlled") {

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
-import { parseRunExperimentArgs } from "../../scripts/experiments/runExperiment.js";
+import { parseRunExperimentArgs } from "../../src/commands/runExperimentRunCommand.js";
 
 const tempDirs: string[] = [];
 
@@ -51,7 +51,7 @@ describe("experiment npm scripts", () => {
     expect(result.stdout).toContain("Supported variants: raw-full-file, my-dev-kit-guided");
     expect(result.stdout).toContain("Target behavior:");
     expect(result.stdout).toContain("Expected reports:");
-    expect(result.stdout).toContain("npm run experiment:run");
+    expect(result.stdout).toContain("my-dev-kit-lab experiment run");
   }, 15000);
 
   it("experiment:describe fails cleanly for an unknown plugin", () => {
