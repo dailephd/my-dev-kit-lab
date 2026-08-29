@@ -7,6 +7,7 @@ import { runGenerateExperimentPlotsFromArgs } from "./generateExperimentPlotsCom
 import { runVisualizationDemosFromArgs } from "./runVisualizationDemosCommand.js";
 import { runBuildGalleryFromArgs } from "./buildGalleryCommand.js";
 import type { ExperimentAgentId } from "../evaluation/controlledExperimentTypes.js";
+import type { LabExecutionContext } from "../runtime/index.js";
 
 export type ParsedRunFinalDemoArgs = {
   casesPath: string;
@@ -60,7 +61,11 @@ export function parseRunFinalDemoArgs(argv: string[]): ParsedRunFinalDemoArgs {
   return { casesPath, outDir, kitCommand, agents, strategies, complexities, caseIds, benchmarkProjects, maxRuns, screenshot, includeRealAgents, continueOnFailure, timeoutMs };
 }
 
-export async function runFinalDemoFromArgs(args: ParsedRunFinalDemoArgs, repoRoot = process.cwd()) {
+export async function runFinalDemoFromArgs(
+  args: ParsedRunFinalDemoArgs,
+  repoRoot = process.cwd(),
+  context?: LabExecutionContext
+) {
   const rootOut = path.resolve(repoRoot, args.outDir);
   const experimentDir = path.join(rootOut, "controlled-experiment");
   const plotsDir = path.join(rootOut, "plots");
@@ -69,7 +74,6 @@ export async function runFinalDemoFromArgs(args: ParsedRunFinalDemoArgs, repoRoo
   const galleryDir = path.join(rootOut, "gallery");
   const experiment = await runControlledExperimentFromArgs({
     casesPath: args.casesPath,
-    projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
     outDir: experimentDir,
     agents: args.agents,
     strategies: args.strategies,
@@ -80,7 +84,7 @@ export async function runFinalDemoFromArgs(args: ParsedRunFinalDemoArgs, repoRoo
     includeRealAgents: args.includeRealAgents,
     continueOnFailure: args.continueOnFailure,
     timeoutMs: args.timeoutMs
-  }, repoRoot);
+  }, repoRoot, context);
   const plots = await runGenerateExperimentPlotsFromArgs({ experimentDir, outDir: plotsDir }, repoRoot);
   const firstProject = experiment.projectProfiles[0]?.rootPath ?? "benchmarks/projects/todo-ts";
   const visualization = await runVisualizationDemosFromArgs({ projectPath: firstProject, kitCommand: args.kitCommand, outDir: visualizationsDir, timeoutMs: args.timeoutMs }, repoRoot);
