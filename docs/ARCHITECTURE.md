@@ -204,9 +204,9 @@ Experiment and security commands distinguish the tool root from the target root.
 
 `src/core/localProjectTarget.ts` supplies shared local-project metadata. Experiment target resolution lives in `src/experiments/target.ts`; security target resolution lives in `src/securityValidation/validate/resolveTarget.ts`.
 
-## Installed-package architecture (v0.4.6, implemented; not yet published)
+## Installed-package architecture (v0.4.6)
 
-v0.4.6 is implemented on this branch but has not been published to npm; the latest published package is v0.4.5. This section documents the implemented architecture so it is not mistaken for the v0.4.5 published behavior.
+This section documents the current installed-package architecture, shipped in v0.4.6.
 
 ### Path model
 

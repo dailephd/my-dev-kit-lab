@@ -6,9 +6,9 @@ The repository supports experiment campaigns, evidence rendering, generic audits
 
 Android defaults remain static and start zero Gradle, external tool, and network processes. Release chronology belongs in [CHANGELOG.md](../CHANGELOG.md); future scope belongs in [ROADMAP.md](ROADMAP.md).
 
-## Installed-package workflow (v0.4.6, implemented; not yet published)
+## Installed-package workflow (v0.4.6)
 
-This is the workflow for a user of the published package once v0.4.6 ships. It is separate from the contributor workflow below, which every other section in this document (and the current published `v0.4.5` package) uses.
+This is the workflow for a user of the published package. It is separate from the contributor workflow below, which every other section in this document uses.
 
 **Goal:** run supported my-dev-kit-lab commands against a project without cloning this repository.
 

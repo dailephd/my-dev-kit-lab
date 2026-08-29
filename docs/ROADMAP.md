@@ -457,7 +457,7 @@ Acceptance:
 
 ### v0.4.6 — installed-package CLI and runtime-boundary correction
 
-Status: **implemented; not yet published**. Implemented across six batches on branch `fix/v0.4.6-runtime-context-foundation`; local Node 24 validation (typecheck, build, full test suite, real packed-tarball acceptance gate) passes. Pre-release readiness has not started; v0.4.6 has not been tagged, released, or published to npm. The published package remains `v0.4.5`.
+Status: **published**.
 
 Purpose:
 
@@ -467,32 +467,30 @@ Purpose:
 
 Implemented:
 
-* One compiled installed CLI router (`scripts/cli.ts` / `dist/scripts/cli.js`, routed through `src/cli/runLabCli.ts`) whose subcommands delegate to existing implementation owners under `src/commands/` rather than duplicating product logic. Public routes: `--help`/`--version`, `security validate`, `audit`, `experiment list`/`describe`/`run`/`controlled`, `report render`, `plots generate`, `gallery build`, `demo final`, plus the historical direct final-demo invocation form.
-* Repository `npm run` commands (`security:validate`, `audit`, `experiment:list`/`describe`/`run`, `run-controlled-experiment`, `render-experiment-report`, `generate-experiment-plots`, `build-gallery`, `run-final-demo`) refactored into thin adapters over the same `src/commands/` owners the installed CLI calls — one implementation per capability.
-* Developer-only commands (`security:deps`/`package`/`codeql`/`semgrep`, fuzz smoke, `test`, `docs:check`, benchmark verification, `report:context-integrity-smoke`, visualization demos) remain repository-only `npm run` commands; none were promoted into the public installed CLI.
+* One compiled installed CLI router (`dist/scripts/cli.js`, routed through `src/cli/runLabCli.ts`) whose subcommands delegate to existing implementation owners under `src/commands/` rather than duplicating product logic. Public routes: `--help`/`--version`, `security validate`, `audit`, `experiment list`/`describe`/`run`/`controlled`, `report render`, `plots generate`, `gallery build`, `demo final`, plus the historical direct final-demo invocation form.
+* Repository `npm run` commands refactored into thin adapters over the same `src/commands/` owners the installed CLI calls — one implementation per capability. Developer-only commands (`security:deps`/`package`/`codeql`/`semgrep`, fuzz smoke, `test`, `docs:check`, benchmark verification, `report:context-integrity-smoke`, visualization demos) remain repository-only `npm run` commands; none were promoted into the public installed CLI.
 * An explicit runtime path model (`src/runtime/`, `LabExecutionContext`): read-only `packageRoot` (discovered by walking up from the executing module's own location, never from `process.cwd()`), `invocationCwd` (explicit relative paths resolve here), writable `workspaceRoot` (default `<home>/.my-dev-kit-lab`, overridable via a global `--workspace <path>` that must precede the command), and `resourceRoot` for bundled runtime resources, resolved with path-semantics containment rather than string-prefix matching.
 * Safe default output behavior for installed execution: `audit` and `security validate` root their implicit (no explicit `--out`) output under `workspaceRoot` when invoked through the installed CLI, never under the installed package directory or the inspected target; `experiment run`'s implicit output root moved under `workspaceRoot/lab-output/experiments/...` (same subdirectory shape as before). Explicit output paths keep unchanged resolution semantics.
-* A compiled-runtime dependency audit that found and fixed one real defect: the TypeScript/JavaScript audit source-facts analyzer imported the `typescript` devDependency eagerly at module load, so even `--help` required it in a clean install; fixed by loading it lazily (memoized dynamic import) only when a file is actually analyzed, with detector output unchanged.
-* A reconciled npm package-content allowlist: an explicit `dist/scripts/` allowlist (`cli.js`, `run-final-demo.js`) instead of shipping every compiled developer script; `examples/` narrowed to the one file (`token-savings-cases.json`) an installed command actually reads by default; `tests/fixtures/` removed (no installed command reads it); `benchmarks/` and `docs/METRICS.md` retained (the former because benchmark-profile validation requires the full registered project tree, the latter because generated report output references it by name). `src/securityValidation/packageChecks/requiredPackageContents.ts` extended to require the installed CLI's compiled runtime and bundled resources, plus a package-content regression test confirming removed developer-only content does not reappear.
-* A permanent packed-tarball acceptance gate (`scripts/verify-packed-package.mjs`, `npm run verify:packed-package`): build, a real `npm pack` (not `--dry-run`), install the exact tarball into a clean temporary consumer project, execute the installed binary, and verify default-workspace output, explicit-workspace output, target immutability, and installed-package immutability via recursive SHA-256 snapshot comparison — all using Node built-ins only, no shell scripting.
-* `engines.node` raised to `>=24`; GitHub Actions CI (`ci.yml`) standardized on Node `24` and `latest` across Ubuntu/macOS/Windows (Node `22` removed); the pre-release readiness workflow (`pre-release-latest-node-readiness.yml`) switched from a hard-coded Node `26` to Node `latest`; both workflows run `npm run verify:packed-package` after their existing build/test/verify gates.
+* A reconciled npm package-content allowlist limited to the resources the installed CLI and its bundled runtime resources actually require, with a package-content regression test confirming removed developer-only content does not reappear.
+* A permanent packed-tarball acceptance gate (`npm run verify:packed-package`): build, a real `npm pack`, install the exact tarball into a clean temporary consumer project, execute the installed binary, and verify default-workspace output, explicit-workspace output, target immutability, and installed-package immutability via recursive SHA-256 snapshot comparison.
+* `engines.node` raised to `>=24`; GitHub Actions CI standardized on Node `24` and `latest` across Ubuntu/macOS/Windows; the pre-release readiness workflow tracks Node `latest`; both workflows run `npm run verify:packed-package`.
+* A resolved transitive `nanoid` devDependency security advisory (lockfile-only correction); the published runtime dependency tree was unaffected.
 
 Acceptance (met):
 
 * A user can install or invoke the published package without cloning the repository and run the supported installed CLI command families listed above — proven by the packed-package acceptance gate against a real tarball in a clean consumer project.
 * `npm run` contributor aliases and the installed CLI use the same underlying behavior owners; there is no second security, audit, experiment, or report implementation.
 * The package installation directory and target projects are not used as the default writable location; the acceptance gate proves both remain byte-for-byte unchanged after installed audit/security execution.
-* The exact npm artifact contains every required runtime module/resource (package-content tests validate this dynamically against the real `npm pack` inventory); no installed command depends on source-only `scripts/*.ts`, `tsx`, TypeScript, Vitest, or Playwright.
-* GitHub CI is configured for Linux/macOS/Windows × Node 24/latest; actual GitHub-hosted execution results should be checked directly rather than assumed from this document.
+* The exact npm artifact contains every required runtime module/resource; no installed command depends on source-only `scripts/*.ts`, `tsx`, TypeScript, Vitest, or Playwright.
+* GitHub CI passed for Linux/macOS/Windows × Node 24/latest against the release PR and merged main.
 * Existing v0.4.3, v0.4.4, and v0.4.5 fixtures, metrics, reports, audits, security validation, Android validation, and experiment behavior remain compatible — no security check, audit detector, Android behavior, experiment scoring, or report schema changed.
 
-Explicit exclusions (still deferred, not part of v0.4.6):
+Explicit exclusions (deferred, not part of v0.4.6):
 
 * No warm-index reuse experiment implementation; that remains v0.5.0.
 * No new security checks, Android checks, audit detector families, experiment metrics, scoring rules, or upstream producer/orchestrator policy.
 * No manual pentest work.
 * No public visualization-demo CLI routing.
-* No package version bump, tag, GitHub Release, or npm publication — those belong to the pre-release readiness and release-preparation stages that follow v0.4.6 implementation.
 
 ### Post-v1 / version TBD — manual pentest
 

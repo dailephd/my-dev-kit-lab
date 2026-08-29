@@ -6,13 +6,11 @@ This reference describes the implemented my-dev-kit-lab command surface. It cove
 
 ### Current execution boundary
 
-v0.4.6 implements a supported installed `my-dev-kit-lab` CLI (see "Installed CLI commands" below) but has not been published to npm; the latest published package remains v0.4.5. In the currently published v0.4.5 package, the `my-dev-kit-lab` binary only runs the final-demo entrypoint, and commands such as `security:validate`, `audit`, and the `experiment` family are only reachable through `npm run ...` from a source checkout.
+v0.4.6 ships a supported installed `my-dev-kit-lab` CLI (see "Installed CLI commands" below). The commands documented there are available without cloning this repository. The `npm run` commands documented under "Contributor / developer npm scripts" remain available from a source checkout. Both paths call the same underlying command owners — there is no separate implementation.
 
-Once v0.4.6 is published, the commands documented under "Installed CLI commands" become available without cloning this repository. Until then, use the `npm run` commands documented under "Contributor / developer npm scripts". Both paths call the same underlying command owners — there is no separate implementation.
+## Installed CLI commands
 
-## Installed CLI commands (v0.4.6, not yet published)
-
-After v0.4.6 is published, invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
+Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
 ```
 my-dev-kit-lab --help | -h

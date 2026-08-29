@@ -73,6 +73,7 @@ AGENTS.md
 agents.txt
 CLAUDE.md
 claude.txt
+.claude/
 project_tree.txt
 
 .junie/
