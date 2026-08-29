@@ -34,8 +34,8 @@ jobs:
           - macos-latest
           - windows-latest
         node-version:
-          - "22"
           - "24"
+          - "latest"
 
     steps:
       - name: Check out repository
