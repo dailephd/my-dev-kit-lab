@@ -124,15 +124,34 @@ for (const version of manifest.changelog?.requiredPublishedReleases || []) {
 
 const currentDocs = ["README.md", "docs/PROJECT_OVERVIEW.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/WORKFLOWS.md", "docs/security-validation-framework.md"]
   .map((file) => ({ file, body: read(file) }));
+const latestPublishedMarker = latestPublished ? `v${latestPublished}` : "";
 const staleRules = [
   [/v0\.4\.1[^\n]{0,100}(?:current published|published baseline)|current published[^\n]{0,100}v0\.4\.1/i, "latest published version", "v0.4.2", "replace stale v0.4.1-current wording with v0.4.2"],
   [/0\.4\.2[^\n]{0,100}(?:release-prepared|not yet published|publication[^\n]{0,30}(?:remain|pending))|publication[^\n]{0,80}(?:remain|pending)[^\n]{0,80}0\.4\.2/i, "v0.4.2 publication state", "published", "remove stale release-preparation wording"],
   [/Android[^\n]{0,80}(?:not implemented|remains planned|profiles? (?:is|are) planned)/i, "Android implementation state", "implemented and published", "describe only additional mobile profiles as planned"],
+  [/\bthe only currently published way\b/i, "current installed-package workflow", "the published installed CLI and contributor workflow described separately", "remove stale wording that treats source checkout as the only published command path"],
+  ...(latestPublishedMarker ? [[
+    new RegExp(`\\bpending\\b[^\\n]{0,160}\\b${escapeRegex(latestPublishedMarker)}\\b|\\b${escapeRegex(latestPublishedMarker)}\\b[^\\n]{0,160}\\bpending\\b`, "i"),
+    `${latestPublishedMarker} lifecycle wording`,
+    "published/current or historical wording that does not call the latest release pending",
+    `remove stale pending-state language for ${latestPublishedMarker}`,
+  ]] : []),
 ];
 for (const { file, body } of currentDocs) for (const [pattern, rule, expected, correction] of staleRules) {
   const match = body.match(pattern);
   if (match) fail(file, rule, expected, match[0].trim(), correction);
 }
+const workflows = read("docs/WORKFLOWS.md");
+if (!/npm publish --access public` must be the final state-changing command/i.test(workflows)) {
+  fail("docs/WORKFLOWS.md", "publication-order invariant", "npm publish --access public is the final state-changing command", "missing", "restore the final-publication-command invariant");
+}
+if (!/release documentation[\s\S]{0,500}final post-publication state[\s\S]{0,500}before/i.test(workflows)) {
+  fail("docs/WORKFLOWS.md", "release-documentation final-state invariant", "release docs reach final post-publication state before merge/tag/GitHub Release/package publication", "missing", "require final release documentation before publication-side state changes");
+}
+if (/If docs need to be updated to reflect the now-published state/i.test(workflows)) {
+  fail("docs/WORKFLOWS.md", "planned post-publication documentation repair", "absent", "present", "require release documentation to be final before npm publish; handle later-discovered defects as a separate correction workflow");
+}
+
 for (const { file, body } of currentDocs) {
   for (const line of body.split(/\r?\n/)) {
     for (const [version, kind] of [[latestPublished, "published"], [nextPlanned, "planned"]]) {

@@ -30,7 +30,7 @@ See [COMMANDS.md](COMMANDS.md) for the full installed command tree and [ARCHITEC
 
 ## Contributor / source-checkout workflow
 
-The remaining workflow sections in this document run from a cloned repository checkout with dependencies installed (`npm ci` or `npm install`). This is the only currently published way to reach these commands (the published `v0.4.5` package's binary only runs the final-demo entrypoint); it remains available as the contributor/development path after v0.4.6 publishes too, since the installed CLI and these `npm run` commands call the same underlying command owners.
+The remaining workflow sections in this document run from a cloned repository checkout with dependencies installed (`npm ci` or `npm install`). They remain the contributor/development path. The published v0.4.6 installed CLI reaches the supported public command owners without a repository clone, while the `npm run` commands below use those same underlying command owners for contributor workflows.
 
 ## Fake-agent final demo
 
@@ -388,7 +388,7 @@ Do not collapse these stages into implementation work.
 
 ### Historical v0.4.4 release preparation and publication procedure
 
-This subsection is preserved as historical release-procedure evidence for v0.4.4. It is not the current release procedure and must not be copied forward as a version-specific template. Current and future releases, including the pending v0.4.6 pre-release readiness and publication stage, use the generic release-preparation/publication invariants in this document plus the repository's current release workflow. Completing implementation, correction, or readiness work never authorizes publication.
+This subsection is preserved as historical release-procedure evidence for v0.4.4. It is not the current release procedure and must not be copied forward as a version-specific template. Current and future releases use the generic release-preparation/publication invariants in this document plus the repository's current release workflow. Completing implementation, correction, or readiness work never authorizes publication.
 
 1. Require published `my-dev-kit@1.10.3`.
 2. Require published `my-dev-kit-orchestrator@1.2.2`.
@@ -418,7 +418,7 @@ This subsection is preserved as historical release-procedure evidence for v0.4.4
 
 ### Publication-order invariant
 
-`npm publish --access public` must be the final state-changing command of the full release workflow. All GitHub repository work must finish before npm publication. Specifically, the following must all complete before `npm publish` runs:
+`npm publish --access public` must be the final state-changing command of the full release workflow. Release documentation must already describe the target version in its final post-publication state before the release commit is merged, tagged, turned into a GitHub Release, or packed for npm, so publication does not knowingly create documentation drift. All GitHub repository work must finish before npm publication. Specifically, the following must all complete before `npm publish` runs:
 
 - release docs (CHANGELOG, README, docs) committed
 - release-prep and merge commits made
@@ -436,7 +436,7 @@ After `npm publish` succeeds, only read-only verification commands are allowed:
 - `gh release view <tag>`
 - `git status --short`
 
-No commits, tags, pushes, or GitHub Release creation may happen after `npm publish`. If docs need to be updated to reflect the now-published state, that update is a separate, explicit follow-up commit — it does not change the invariant that no further GitHub-side release work happens before `npm publish` in the same release.
+No commits, tags, pushes, GitHub Release creation, release-documentation edits, or cleanup commands may happen after `npm publish`. A release workflow must not intentionally publish stale documentation and plan to repair it afterward. If a documentation defect is discovered only after publication, handle it as a new, explicit correction workflow rather than as a planned continuation of the release.
 
 ### Release-channel parity gate
 
