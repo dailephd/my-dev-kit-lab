@@ -174,6 +174,8 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 ## Security validation
 
+The current published package exposes the `my-dev-kit-lab` executable through the final-demo entrypoint, while repository workflows such as `npm run security:validate` and `npm run audit` still run TypeScript entrypoints from the source checkout. A source checkout is currently required for these documented repository commands. The planned v0.4.6 patch corrects that installed-package/runtime boundary; until it is implemented and published, do not treat the planned installed CLI subcommands as current behavior.
+
 `npm run security:validate` is the standalone security-validation command. It checks local CLI/package boundaries and can inspect another local project with `--target <path>`. The generic audit command can reuse those results through `--types security`, but it does not replace the standalone validator or its reports.
 
 Android validation uses `--profile android`. Its default path is static and non-destructive: it starts zero Gradle processes, zero external tools, and zero network operations. Only confirmed `SecurityFinding` records can become audit issues; Android `CandidateEvidence` remains review-only evidence.
