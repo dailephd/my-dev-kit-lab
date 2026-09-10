@@ -40,7 +40,7 @@ Context-integrity validation for the published my-dev-kit v1.10.4 and my-dev-kit
 
 ## [0.4.3] - 2026-07-22
 
-`v0.4.3` (stage-specific bounded-context and workflow-instruction evaluation) is published. `v0.4.4` is the current release. Its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
+`v0.4.3` (stage-specific bounded-context and workflow-instruction evaluation) was published and was later superseded by `v0.4.4`. Its complete scope, dependencies, exclusions, and acceptance criteria are preserved in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ### Added
 
@@ -172,7 +172,7 @@ Python code-rot support and a first security-validation audit adapter, implement
 ### Added
 
 - Added a dependency-free Python source-facts analyzer (`src/audits/core/pythonAnalyzer.ts`) that extracts imports (including relative dotted imports), `__all__`, and module-level/class-body declarations from `.py` files, registered in the language analyzer registry alongside the existing TypeScript/JavaScript analyzer.
-- Added Python project/config metadata collection (`src/audits/core/pythonProjectMetadata.ts`): presence detection for `pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `tox.ini`, and `pytest.ini`, plus a best-effort project name and pytest-configuration flag. Never executes Python/pip/pytest/tox tooling.
+- Added Python project/config metadata collection (`src/audits/core/pythonProjectMetadata.ts`): presence detection for `pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `tox.ini`, and `pytest.ini`, plus a best-effort project name and pytest-configuration flag. Never executes Python tooling.
 - Added Python-aware signals to the existing `dead-code-candidate`, `duplicate-implementation-candidate`, and `test-rot` code-rot detectors, using an analyzer-id-scoped grouping key so the pre-existing TypeScript/JavaScript duplicate-declaration grouping is unaffected.
 - Added `sourceFacts.filesWithDiagnosticsCount` to the audit report's source-facts summary — a language-agnostic count of analyzed files carrying at least one per-file diagnostic.
 - Added `pythonProjectMetadata` as a top-level audit report field (JSON and text), populated unconditionally alongside `sourceFacts`.
