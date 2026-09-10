@@ -46,10 +46,11 @@ This compiles TypeScript sources to `dist/`. Always run this before executing la
 ## Step 3: Verify the installation
 
 ```bash
+npm test
 npm run verify
 ```
 
-This runs the full verification suite. All checks should pass before you run experiments.
+`npm test` runs the canonical Vitest suite. `npm run verify` runs the non-test verification chain (build plus benchmark-fixture verification). Both should pass before you run experiments.
 
 ---
 

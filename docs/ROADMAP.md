@@ -327,7 +327,7 @@ Acceptance:
 
 * The opt-in audit path exposes Android summaries, report references, and mapped Android security findings.
 * Generic audit output remains schema-stable and the standalone validator remains authoritative for complete Android validation evidence.
-* Package metadata, the `v0.4.2` tag, and the GitHub Release are published; `v0.4.2` is the current npm baseline.
+* Package metadata, the `v0.4.2` tag, and the GitHub Release were published for v0.4.2; that release superseded v0.4.1 at publication.
 
 ### v0.4.3 — stage-specific bounded-context and workflow-instruction evaluation
 
