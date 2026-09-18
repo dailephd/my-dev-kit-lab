@@ -31,6 +31,26 @@ my-dev-kit-lab [--workspace <path>] gallery build [options]
 my-dev-kit-lab demo final [options]
 ```
 
+### `my-dev-kit-lab tutorial`
+
+The tutorial family validates and runs declarative `TutorialScenarioV1` browser scenarios. Validation is read-only and does not require Chromium; execution requires a compatible locally installed Chromium because the package does not download browser binaries automatically.
+
+```text
+my-dev-kit-lab tutorial --help
+my-dev-kit-lab tutorial validate --scenario <path>
+my-dev-kit-lab tutorial validate --scenario <path> --target-contract <path>
+my-dev-kit-lab tutorial validate --scenario <path> --target-contract <path> --json
+my-dev-kit-lab tutorial run --scenario <path> --target-contract <path>
+my-dev-kit-lab tutorial run --scenario <path> --target-contract <path> --out <path>
+my-dev-kit-lab tutorial run --scenario <path> --target-contract <path> --json
+```
+
+`tutorial validate` accepts `--scenario`, optional `--target-contract`, and `--json`. It returns `0` for valid contracts, `1` for content validation failures, and `2` for usage errors. `tutorial run` requires both contract paths and accepts optional `--out` and `--json`; it returns `0` only for a passed run, `1` for every valid but unsuccessful run (including unavailable Chromium), and `2` for usage errors.
+
+Without `--out`, tutorial runs are created under `<home>/.my-dev-kit-lab/tutorials/<scenario-id>/<run-id>/`, or under the selected global `--workspace`. A relative `--out` resolves against the invocation directory and an absolute `--out` is used exactly as supplied. A run contains `target/`, `artifacts/`, `screenshots/`, `logs/`, and `temporary/` roots.
+
+Canonical artifacts are `artifacts/tutorial.webm`, `artifacts/tutorial.srt`, `artifacts/tutorial.vtt`, `artifacts/tutorial.md`, `artifacts/tutorial-manifest.json`, and the requested `screenshots/<screenshot-id>.png` files. The manifest records scenario/target identity, step actions and assertions, timeline, artifact status, warnings, and cleanup errors. It is runtime evidence; video is reviewable recording, not a substitute for passing assertions.
+
 Every command and family also accepts `--help`/`-h` for bounded usage text. `--help`/`--version` with no other arguments, and no arguments at all, print top-level help and exit `0`.
 
 ### Global `--workspace` option

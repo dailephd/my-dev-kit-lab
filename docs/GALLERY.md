@@ -19,6 +19,8 @@ The gallery manifest references artifacts from:
 - Visualization demo artifacts
 - Any additional screenshots captured during the pipeline
 
+Tutorial runs also produce a separate `tutorial-manifest.json`, WebM, screenshots, subtitles, and Markdown. v0.4.7 generates those tutorial artifacts but the current gallery does not consume or browse tutorial manifests; tutorial-manifest gallery integration remains future scope.
+
 ---
 
 ## How the gallery relates to other outputs

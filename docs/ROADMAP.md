@@ -496,7 +496,7 @@ Explicit exclusions (deferred, not part of v0.4.6):
 
 ### v0.4.7 — declarative browser tutorial and video automation
 
-Status: **planned; not implemented**.
+Status: **implementation complete; documentation reconciled; pre-release readiness pending; not published**.
 
 Purpose:
 
@@ -507,12 +507,12 @@ Purpose:
 Dependencies and ownership:
 
 * v0.4.6 is the required architectural baseline: `LabExecutionContext`, the installed CLI router, shared `src/commands/` owners, `resolveCommand`, package-resource resolution, workspace isolation, and `verify:packed-package` remain authoritative.
-* Existing one-shot report screenshot behavior remains owned by `src/screenshot`; v0.4.7 may extract genuinely shared Playwright loading/launch behavior into a broader browser-runtime owner, but must not turn `captureReportScreenshot` into the persistent tutorial engine.
-* Long-running demo/viewer processes require a dedicated managed-process owner that reuses existing command resolution and process-tree cleanup conventions while adding readiness probes, explicit stop, bounded logs, and cleanup on failure.
+* Existing one-shot report screenshot behavior remains owned by `src/screenshot`; shared Playwright loading/launch behavior is implemented in `src/browser/` and does not turn `captureReportScreenshot` into the persistent tutorial engine.
+* Long-running demo/viewer processes use the dedicated managed-process owner that reuses existing command resolution and process-tree cleanup conventions while providing readiness probes, explicit stop, bounded logs, and cleanup on failure.
 * `my-frontend-observer` owns the deterministic demo template, stable demo-target identifiers, visual variants, reference images, demo materialization/reset behavior, readiness/start contract, and Observer-specific tutorial scenario definitions. Normal my-dev-kit-lab tests must not require a sibling Observer checkout.
 * my-dev-kit retrieval is not a tutorial runtime dependency. Static repository retrieval evidence, tutorial runtime assertions, screenshots, and video remain distinct evidence types.
 
-Planned tutorial contracts:
+Implemented tutorial contracts:
 
 * Add a versioned, declarative JSON scenario contract (`TutorialScenarioV1`) with scenario identity, title/purpose, browser configuration, ordered steps, narration, optional highlight/callout behavior, timing, screenshot requests, and bounded assertions.
 * Add a separate trusted target/demo contract (`TutorialTargetContractV1` or equivalent) describing materialization, process start, readiness, application URL, and working-copy boundaries. Process specifications must use executable-plus-argument structures rather than shell-interpolated strings.
@@ -521,7 +521,7 @@ Planned tutorial contracts:
 * Keep assertions bounded and declarative. Initial assertion families should cover element visibility, text equality/containment, URL/path state, DOM attribute/state, HTTP JSON fields, local JSON artifact fields, and file existence.
 * Do not add arbitrary JavaScript callbacks, arbitrary page evaluation, or arbitrary shell commands as scenario actions or assertions.
 
-Planned runtime and artifact flow:
+Implemented runtime and artifact flow:
 
 ```mermaid
 flowchart TD
@@ -550,14 +550,14 @@ flowchart TD
 * Keep generated artifacts under the configured lab workspace/output. A tutorial run must keep the immutable source template, disposable target working copy, generated artifacts, logs, and temporary browser/video files distinct.
 * Successful finalization cleans temporary recording data. Failed runs may retain useful finalized partial video, screenshots, logs, and manifest evidence, but must not leave abandoned temporary browser/process directories indefinitely.
 
-Planned installed CLI:
+Implemented installed CLI:
 
-* Add `my-dev-kit-lab tutorial validate --scenario <path>` for schema/contract validation that does not require Chromium.
-* Add `my-dev-kit-lab tutorial run --scenario <path> ...` through the existing installed CLI router and a thin `src/commands/` owner; exact target-contract option naming is frozen during implementation planning.
-* Tutorial recording is a primary command purpose, so missing required browser runtime must produce an explicit unavailable/failure result and nonzero command outcome with setup guidance; it must not silently pass without video.
-* Promote the Playwright npm library from contributor-only development use to the explicit runtime dependency model required by the installed tutorial command. Chromium browser-binary availability remains a separate setup/runtime check rather than an assumption hidden by the package.
+* `my-dev-kit-lab tutorial validate --scenario <path>` performs schema/contract validation without requiring Chromium.
+* `my-dev-kit-lab tutorial run --scenario <path> ...` runs through the existing installed CLI router and a thin `src/commands/` owner; `--target-contract` is the required trusted-target option.
+* Tutorial recording is a primary command purpose, so missing required browser runtime produces an explicit unavailable/failure result and nonzero command outcome with setup guidance; it does not silently pass without video.
+* Playwright is an exact runtime dependency required by the installed tutorial command. Chromium browser-binary availability remains a separate setup/runtime check and is not hidden by the package.
 
-Planned implementation sequence inside this single patch:
+Implementation sequence inside this single patch:
 
 1. **Browser/process foundation** — shared Playwright runtime, persistent browser lifecycle, managed long-running process owner, readiness, logging, and cleanup while preserving current screenshot semantics.
 2. **Tutorial domain and execution** — freeze scenario/target contracts, locators, actions, assertions, timeline/result model, workspace layout, tutorial session, and installed CLI routing.
@@ -570,7 +570,7 @@ Cross-repository consumer work:
 * Observer-specific scenarios should teach the Observer lifecycle distinctions and verify real Observer/browser/evidence state. They remain product documentation owned by Observer and are not copied into my-dev-kit-lab production code.
 * The lab must carry its own generic deterministic tutorial fixture for unit/integration/packed-package testing. Observer-specific acceptance is an explicit consumer/cross-repository workflow, never a requirement for normal lab CI.
 
-Acceptance:
+Acceptance (met; broad release validation remains for pre-release readiness):
 
 * A valid generic tutorial scenario can be validated without launching a browser and can run through the installed CLI against a disposable local fixture when the browser runtime is available.
 * One scenario is the single source of truth for ordered actions, narration, timing, screenshots, assertions, subtitles, and Markdown output.

@@ -4,6 +4,17 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### v0.4.7 implementation complete; unreleased
+
+The v0.4.7 implementation adds generic declarative browser tutorial automation while preserving product-specific demo ownership outside this repository.
+
+- Added the shared Playwright browser runtime, managed local process lifecycle/readiness, and persistent tutorial browser sessions.
+- Added strict `TutorialScenarioV1` and `TutorialTargetContractV1` contracts with bounded locators, actions, and assertions.
+- Added tutorial-only cursor/click feedback, highlights, callouts, WebM recording, step screenshots, SRT/VTT subtitles, Markdown, and `tutorial-manifest.json`.
+- Added installed `tutorial validate` and `tutorial run` routes, an exact Playwright runtime dependency, and the packaged generic `examples/tutorial-browser/` fixture.
+- Extended exact packed-tarball clean-consumer acceptance to validate tutorial help/contracts, browser-unavailable behavior without auto-download, real Chromium execution, canonical artifacts, manifest boundaries, workspace routing, and package/example immutability.
+- v0.4.7 is not published; pre-release readiness, cross-platform CI, security validation, and code-rot audit remain separate next-stage work.
+
 ## [0.4.6] - 2026-08-29
 
 Installed-package CLI and runtime-boundary correction. `@dailephd/my-dev-kit-lab` now ships a supported, cross-platform installed CLI (`my-dev-kit-lab`) alongside the existing contributor npm scripts.

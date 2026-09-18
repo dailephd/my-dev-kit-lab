@@ -43,6 +43,26 @@ This compiles TypeScript sources to `dist/`. Always run this before executing la
 
 ---
 
+## Declarative browser tutorial
+
+The repository includes a generic deterministic tutorial example under `examples/tutorial-browser/`. It contains the scenario and reusable local application resources; the target contract is a separate trusted contract that supplies the disposable-target preparation command, loopback server process, readiness URL, and matching target ID.
+
+Tutorial validation does not require a browser. Tutorial execution requires the exact package Playwright runtime and a compatible local Chromium binary. Install that binary separately when needed; package installation and `tutorial run` never download it automatically.
+
+```bash
+node dist/scripts/cli.js tutorial validate --scenario examples/tutorial-browser/scenario.json
+node dist/scripts/cli.js tutorial validate --scenario <scenario> --target-contract <target-contract> --json
+my-dev-kit-lab tutorial run --scenario <scenario> --target-contract <target-contract> --out lab-output/tutorial --json
+```
+
+Use a `TutorialTargetContractV1` with `schemaVersion: "1.0.0"`, the example's `lab-browser-fixture` ID, an executable-plus-args `prepare` command, a loopback HTTP-ready server process, and an application URL on that same loopback port. The packed-package verifier generates such a temporary contract for the packaged example without modifying the installed source.
+
+After a successful run, inspect the JSON result and the run root. The canonical outputs are `artifacts/tutorial.webm`, `screenshots/<screenshot-id>.png`, `artifacts/tutorial.srt`, `artifacts/tutorial.vtt`, `artifacts/tutorial.md`, and `artifacts/tutorial-manifest.json`; the manifest records step assertions, artifact statuses, warnings, and cleanup errors. Treat the video as a reviewable recording and the assertions/manifest as runtime evidence.
+
+For default output, omit `--out` and the run is created under `<home>/.my-dev-kit-lab/tutorials/<scenario-id>/<run-id>/`; use global `--workspace <path>` before `tutorial run` to select another workspace. An explicit absolute `--out` is used exactly as supplied, while a relative one resolves from the invocation directory.
+
+---
+
 ## Step 3: Verify the installation
 
 ```bash

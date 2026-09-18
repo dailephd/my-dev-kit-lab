@@ -88,9 +88,9 @@ function roadmapSections() {
   return sections;
 }
 const sections = roadmapSections();
-const negatedPublication = /\b(?:not\s+(?:yet\s+)?published|unpublished|unreleased|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
+const negatedPublication = /\b(?:(?:has|is)\s+not\s+(?:yet\s+)?published|not\s+(?:yet\s+)?published|unpublished|unreleased(?!\s+v\d)|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
 const positivePublication = (text) => /\bpublished\b/i.test(text || "") && !negatedPublication.test(text || "");
-const plannedLifecycle = /\b(?:planned|future|deferred|not implemented|not started)\b/i;
+const plannedLifecycle = /\b(?:planned|future|deferred|not implemented|not started|pre-release readiness pending)\b/i;
 for (const version of requiredVersions) {
   const count = [...(sections.get(version.slice(1))?.body || "").matchAll(/^Status:/gmi)].length;
   if (count !== 1) fail("docs/ROADMAP.md", `${version} lifecycle status`, "exactly one explicit Status: line", `${count} lines`, `retain one concise Status line in ${version}`);
