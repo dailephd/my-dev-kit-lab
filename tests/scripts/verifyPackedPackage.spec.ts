@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   diffSnapshots,
   findExactlyOneTarball,
+  missingRequiredTarballPaths,
+  validateManifestRelativePaths,
+  validatePlaywrightRuntimeDependency,
   snapshotDirectory,
   validateInstalledPackageIdentity
 } from "../../scripts/verifyPackedPackageHelpers.js";
@@ -70,6 +73,24 @@ describe("validateInstalledPackageIdentity", () => {
     expect(problems.some((p: string) => p.includes("version mismatch"))).toBe(true);
     expect(problems.some((p: string) => p.includes("engines.node mismatch"))).toBe(true);
     expect(problems.some((p: string) => p.includes("bin.my-dev-kit-lab mismatch"))).toBe(true);
+  });
+});
+
+describe("packed tutorial package helpers", () => {
+  it("requires the exact runtime Playwright dependency", () => {
+    expect(validatePlaywrightRuntimeDependency({ dependencies: { playwright: "1.60.0" } }, "1.60.0")).toEqual([]);
+    expect(validatePlaywrightRuntimeDependency({ devDependencies: { playwright: "1.60.0" } }, "1.60.0")).toHaveLength(2);
+  });
+
+  it("finds missing required tarball resources", () => {
+    expect(missingRequiredTarballPaths(["package.json", "examples/tutorial-browser/index.html"], ["package.json", "examples/tutorial-browser/index.html", "dist/src/tutorial/runTutorial.js"])).toEqual([
+      "dist/src/tutorial/runTutorial.js"
+    ]);
+  });
+
+  it("rejects absolute, escaped, and Windows manifest paths", () => {
+    expect(validateManifestRelativePaths({ artifacts: [{ path: "artifacts/tutorial.webm" }] })).toEqual([]);
+    expect(validateManifestRelativePaths({ artifacts: [{ path: "C:/bad.webm" }, { path: "../bad.webm" }, { path: "artifacts\\bad.webm" }] })).toHaveLength(3);
   });
 });
 

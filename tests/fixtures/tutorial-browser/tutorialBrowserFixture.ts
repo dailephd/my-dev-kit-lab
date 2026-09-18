@@ -15,7 +15,14 @@ import { fileURLToPath } from "node:url";
  * concrete loopback port.
  */
 
-export const TUTORIAL_FIXTURE_DIR = path.dirname(fileURLToPath(import.meta.url));
+export const TUTORIAL_FIXTURE_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "examples",
+  "tutorial-browser"
+);
 export const TUTORIAL_FIXTURE_SCENARIO_PATH = path.join(TUTORIAL_FIXTURE_DIR, "scenario.json");
 export const TUTORIAL_FIXTURE_TARGET_ID = "lab-browser-fixture";
 
