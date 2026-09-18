@@ -11,7 +11,7 @@ flowchart LR
   V020[v0.2.0] --> V021[v0.2.1] --> V022[v0.2.2]
   V022 --> V030[v0.3.0] --> V031[v0.3.1] --> V032[v0.3.2] --> V033[v0.3.3] --> V034[v0.3.4]
   V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3] --> V044[v0.4.4]
-  V044 --> V045[v0.4.5] --> V046[v0.4.6] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
+  V044 --> V045[v0.4.5] --> V046[v0.4.6] --> V047[v0.4.7] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
   V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
@@ -32,6 +32,7 @@ The strongest product thesis remains:
 * my-dev-kit-lab should prove when my-dev-kit is useful, not claim that my-dev-kit always saves tokens.
 * The most important usefulness cases are large repositories, localized tasks, warm index reuse, context-window limits, retrieval precision, stale-index risk detection, and better coding-agent edit quality.
 * Security validation, audit reporting, code rot detection, code quality checks, mobile validation, and manual pentest support should strengthen release-readiness and implementation-readiness workflows around this evidence system.
+* Browser tutorial automation should turn one declarative scenario into assertion-backed runtime evidence and synchronized human-facing artifacts without becoming a general video editor or absorbing product-specific demo ownership.
 
 ## Release continuity and planned sequence
 
@@ -463,7 +464,7 @@ Purpose:
 
 * Correct the installed-package architecture so the published npm package exposes the existing user-facing lab capabilities through a coherent supported CLI instead of requiring a source checkout for documented security, audit, and related workflows.
 * Separate the installed package location, writable lab workspace/output location, and inspected target-project location so the npm installation itself is not treated as the writable tool workspace.
-* Preserve all existing experiment, audit, security-validation, Android, report, gallery, and v0.4.3-v0.4.5 evaluation behavior while fixing packaging and command-surface structure before v0.5.0 warm-index work begins.
+* Preserve all existing experiment, audit, security-validation, Android, report, gallery, and v0.4.3-v0.4.5 evaluation behavior while fixing packaging and command-surface structure and providing the runtime-boundary foundation required by the planned v0.4.7 tutorial automation work before v0.5.0 warm-index work begins.
 
 Implemented:
 
@@ -487,10 +488,108 @@ Acceptance (met):
 
 Explicit exclusions (deferred, not part of v0.4.6):
 
+* No tutorial/browser automation implementation; that is planned for v0.4.7.
 * No warm-index reuse experiment implementation; that remains v0.5.0.
 * No new security checks, Android checks, audit detector families, experiment metrics, scoring rules, or upstream producer/orchestrator policy.
 * No manual pentest work.
 * No public visualization-demo CLI routing.
+
+### v0.4.7 — declarative browser tutorial and video automation
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Add a generic, installed tutorial runtime that executes declarative, assertion-backed browser scenarios in persistent Playwright sessions and turns one scenario definition into synchronized runtime evidence and human-facing tutorial artifacts.
+* Build directly on the v0.4.6 installed-CLI, workspace, package-resource, command-owner, command-resolution, and packed-package boundaries rather than creating a separate script-only automation stack.
+* Keep product-specific demo websites and product-specific tutorial scenarios with the product repository that owns them. The first intended consumer is `my-frontend-observer`; my-dev-kit-lab owns the generic runtime, not the Observer demo or Observer-specific selectors.
+
+Dependencies and ownership:
+
+* v0.4.6 is the required architectural baseline: `LabExecutionContext`, the installed CLI router, shared `src/commands/` owners, `resolveCommand`, package-resource resolution, workspace isolation, and `verify:packed-package` remain authoritative.
+* Existing one-shot report screenshot behavior remains owned by `src/screenshot`; v0.4.7 may extract genuinely shared Playwright loading/launch behavior into a broader browser-runtime owner, but must not turn `captureReportScreenshot` into the persistent tutorial engine.
+* Long-running demo/viewer processes require a dedicated managed-process owner that reuses existing command resolution and process-tree cleanup conventions while adding readiness probes, explicit stop, bounded logs, and cleanup on failure.
+* `my-frontend-observer` owns the deterministic demo template, stable demo-target identifiers, visual variants, reference images, demo materialization/reset behavior, readiness/start contract, and Observer-specific tutorial scenario definitions. Normal my-dev-kit-lab tests must not require a sibling Observer checkout.
+* my-dev-kit retrieval is not a tutorial runtime dependency. Static repository retrieval evidence, tutorial runtime assertions, screenshots, and video remain distinct evidence types.
+
+Planned tutorial contracts:
+
+* Add a versioned, declarative JSON scenario contract (`TutorialScenarioV1`) with scenario identity, title/purpose, browser configuration, ordered steps, narration, optional highlight/callout behavior, timing, screenshot requests, and bounded assertions.
+* Add a separate trusted target/demo contract (`TutorialTargetContractV1` or equivalent) describing materialization, process start, readiness, application URL, and working-copy boundaries. Process specifications must use executable-plus-argument structures rather than shell-interpolated strings.
+* Keep scenario actions bounded and serializable. Initial actions: `goto`, `click`, `fill`, `press`, `hover`, `drag`, and `wait-for`.
+* Keep locator forms bounded. Initial locator families should cover accessible role/name, visible text, CSS, and stable test/demo identifiers.
+* Keep assertions bounded and declarative. Initial assertion families should cover element visibility, text equality/containment, URL/path state, DOM attribute/state, HTTP JSON fields, local JSON artifact fields, and file existence.
+* Do not add arbitrary JavaScript callbacks, arbitrary page evaluation, or arbitrary shell commands as scenario actions or assertions.
+
+Planned runtime and artifact flow:
+
+```mermaid
+flowchart TD
+  Contract[Trusted tutorial target contract] --> Materialize[Materialize disposable target working copy]
+  Materialize --> Processes[Managed demo/viewer processes]
+  Processes --> Ready[Readiness probes]
+  Ready --> Scenario[TutorialScenarioV1]
+  Scenario --> Browser[Persistent real Playwright browser session]
+  Browser --> Actions[Actions + synthetic cursor + callouts]
+  Actions --> Assertions[Runtime assertions]
+  Assertions --> Timeline[Recorded step timeline]
+  Timeline --> Video[tutorial.webm]
+  Timeline --> Shots[Named step screenshots]
+  Timeline --> SRT[tutorial.srt]
+  Timeline --> VTT[tutorial.vtt]
+  Timeline --> Markdown[tutorial.md]
+  Timeline --> Manifest[tutorial-manifest.json]
+```
+
+* Introduce a generic shared browser-runtime owner for Playwright loading, Chromium launch, availability classification, and common cleanup. `src/screenshot` keeps one-shot report capture; `src/tutorial` owns persistent tutorial sessions.
+* Add visible tutorial-only cursor and click feedback plus deterministic pointer-events-none callout/highlight overlays. These overlays must not become application state or product evidence.
+* Record Playwright WebM as the first supported video format. The finalized `tutorial.webm` is a canonical tutorial artifact; FFmpeg/MP4 conversion is not required for this release.
+* Record actual step timeline boundaries and generate `tutorial.srt` and `tutorial.vtt` from the same narration text used by the scenario. Do not maintain independent handwritten subtitle sources.
+* Generate `tutorial.md` from the same scenario, including ordered explanation and configured step screenshots.
+* Write a dedicated `tutorial-manifest.json` containing schema version, scenario/run identity, overall status, environment metadata, step/action/assertion results, artifact paths/status, warnings, and process/log references. Do not overload `GalleryManifest`.
+* Keep generated artifacts under the configured lab workspace/output. A tutorial run must keep the immutable source template, disposable target working copy, generated artifacts, logs, and temporary browser/video files distinct.
+* Successful finalization cleans temporary recording data. Failed runs may retain useful finalized partial video, screenshots, logs, and manifest evidence, but must not leave abandoned temporary browser/process directories indefinitely.
+
+Planned installed CLI:
+
+* Add `my-dev-kit-lab tutorial validate --scenario <path>` for schema/contract validation that does not require Chromium.
+* Add `my-dev-kit-lab tutorial run --scenario <path> ...` through the existing installed CLI router and a thin `src/commands/` owner; exact target-contract option naming is frozen during implementation planning.
+* Tutorial recording is a primary command purpose, so missing required browser runtime must produce an explicit unavailable/failure result and nonzero command outcome with setup guidance; it must not silently pass without video.
+* Promote the Playwright npm library from contributor-only development use to the explicit runtime dependency model required by the installed tutorial command. Chromium browser-binary availability remains a separate setup/runtime check rather than an assumption hidden by the package.
+
+Planned implementation sequence inside this single patch:
+
+1. **Browser/process foundation** — shared Playwright runtime, persistent browser lifecycle, managed long-running process owner, readiness, logging, and cleanup while preserving current screenshot semantics.
+2. **Tutorial domain and execution** — freeze scenario/target contracts, locators, actions, assertions, timeline/result model, workspace layout, tutorial session, and installed CLI routing.
+3. **Visual and documentation artifacts** — synthetic cursor, callouts, same-session screenshots, WebM recording, SRT/VTT, Markdown, tutorial manifest, and real-browser integration coverage.
+4. **Installed-package hardening** — Playwright/browser availability contract, package contents, packed-tarball execution, temporary-file policy, path/security review, generic packaged tutorial fixture, documentation, and cross-platform validation.
+
+Cross-repository consumer work:
+
+* `my-frontend-observer` should add a version-controlled deterministic demo template, stable demo targets, deterministic visual variants, reference images, a caller-selected materialization/reset path, a serve/readiness contract, and Observer-specific scenarios.
+* Observer-specific scenarios should teach the Observer lifecycle distinctions and verify real Observer/browser/evidence state. They remain product documentation owned by Observer and are not copied into my-dev-kit-lab production code.
+* The lab must carry its own generic deterministic tutorial fixture for unit/integration/packed-package testing. Observer-specific acceptance is an explicit consumer/cross-repository workflow, never a requirement for normal lab CI.
+
+Acceptance:
+
+* A valid generic tutorial scenario can be validated without launching a browser and can run through the installed CLI against a disposable local fixture when the browser runtime is available.
+* One scenario is the single source of truth for ordered actions, narration, timing, screenshots, assertions, subtitles, and Markdown output.
+* A successful generic fixture run produces a non-empty WebM, selected screenshots, SRT, VTT, Markdown, logs, and a structured tutorial manifest; required assertion failure prevents a successful tutorial verdict.
+* Browser and managed-process resources are closed on both success and failure, and target/source/package immutability and workspace containment remain provable.
+* The existing one-shot report screenshot contract remains compatible; tutorial screenshots use the persistent tutorial session rather than launching a fresh browser per step.
+* The packed npm candidate can execute the supported tutorial workflow from a clean consumer project according to the chosen Playwright/browser setup contract.
+* Normal lab CI and packed-package tests do not require `my-frontend-observer` or any other sibling repository.
+* Linux, macOS, and Windows validation covers supported tutorial runtime paths without duplicating Windows command-shim/process-tree logic.
+
+Explicit exclusions:
+
+* FFmpeg integration and MP4 conversion.
+* Generated speech, text-to-speech, audio narration, audio/video muxing, background music, intros/outros, chapter-card rendering, or a general-purpose video editor.
+* Gallery integration beyond producing the canonical tutorial manifest; gallery consumption is planned as part of later report/gallery generalization.
+* Observer-specific selectors, semantics, demo source, or product behavior inside my-dev-kit-lab production code.
+* Arbitrary JavaScript/page-evaluation escape hatches or arbitrary shell commands in scenario steps.
+* A runtime dependency on my-dev-kit or my-dev-kit-orchestrator.
+* Warm-index reuse; that remains v0.5.0.
 
 ### Post-v1 / version TBD — manual pentest
 
@@ -890,6 +989,7 @@ Features:
 * Add report-level caveats generated from metric reliability.
 * Improve static HTML report UX.
 * Make gallery the entry point for many experiment outputs.
+* Add additive consumption of canonical tutorial manifests so the gallery can surface tutorial title/status, WebM video, selected screenshots, and generated Markdown without changing the tutorial manifest into a gallery-specific schema.
 
 Acceptance:
 
@@ -898,6 +998,7 @@ Acceptance:
 * Existing context-strategy report renders through generic report framework.
 * Warm-index, retrieval, context-window, audit, security, and mobile reports can share or link through consistent infrastructure where appropriate.
 * Gallery can browse multiple experiment and validation outputs.
+* Gallery can browse finalized tutorial artifacts through the canonical tutorial manifest without forcing tutorial execution to depend on gallery generation.
 
 ## Stable and post-stable releases
 
@@ -921,6 +1022,8 @@ Required capabilities:
 * Stable audit framework with code rot, quality, and security summary support.
 * Stable automated security validation.
 * Android validation profile support.
+* Stable declarative browser-tutorial runtime with supported installed validation/execution commands.
+* Stable tutorial scenario, target-contract, and tutorial-manifest versioning.
 * Stable artifact schema versioning.
 * Stable report output.
 * Stable gallery output.
@@ -1008,6 +1111,7 @@ Features:
 * Comparison summaries across experiment types.
 * Audit and security evidence summaries.
 * Android validation example reports.
+* Curated tutorial/video evidence generated from canonical tutorial manifests.
 * Documentation for interpreting evidence responsibly.
 * Gallery as a navigable evidence portal.
 
@@ -1047,7 +1151,7 @@ my-dev-kit-lab mobile support does not mean:
 
 ## Architecture direction
 
-Future versions must extend the existing experiment, audit, security-validation, Android, report, and gallery ownership boundaries rather than create parallel runners, adapters, or presentation systems. Production indexing and workflow orchestration remain outside my-dev-kit-lab. See [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership and each version section above for planned dependencies and exclusions.
+Future versions must extend the existing experiment, audit, security-validation, Android, report, gallery, installed-CLI, workspace, and process/runtime ownership boundaries rather than create parallel runners, adapters, command resolvers, or presentation systems. The planned tutorial runtime must keep persistent browser/session ownership separate from the existing one-shot report screenshot owner, and product-specific demo/scenario ownership outside the lab. Production indexing and workflow orchestration remain outside my-dev-kit-lab. See [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership and each version section above for planned dependencies and exclusions.
 
 ## Validation expectations for every release
 
