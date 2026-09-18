@@ -92,6 +92,8 @@ function renderRunSummary(result: TutorialRunResultV1): string {
   if (failedStep) {
     lines.push(`Failed step: ${failedStep.id}`);
   }
+
+  lines.push(...renderArtifactLines(result));
   if (result.error) {
     lines.push(`Error: ${result.error}`);
   }
@@ -102,6 +104,45 @@ function renderRunSummary(result: TutorialRunResultV1): string {
     lines.push(`Cleanup error: ${cleanupError}`);
   }
   return lines.join("\n");
+}
+
+/**
+ * One line per canonical artifact that was actually written, plus a screenshot
+ * count. Failed or skipped artifacts are named so a reader sees why, but the
+ * manifest itself is never dumped here -- that is what --json is for.
+ */
+function renderArtifactLines(result: TutorialRunResultV1): string[] {
+  const artifacts = result.artifacts;
+  const lines: string[] = [];
+  const named: Array<[string, typeof artifacts.video]> = [
+    ["Video", artifacts.video],
+    ["SRT", artifacts.srt],
+    ["VTT", artifacts.vtt],
+    ["Markdown", artifacts.markdown],
+    ["Manifest", artifacts.manifest]
+  ];
+
+  const written = named.filter(([, record]) => record?.status === "written");
+  for (const [label, record] of written) {
+    lines.push(`${label}: ${record!.path ?? ""}`);
+  }
+
+  const writtenScreenshots = artifacts.screenshots.filter((record) => record.status === "written");
+  if (artifacts.screenshots.length > 0) {
+    lines.push(`Screenshots: ${writtenScreenshots.length} of ${artifacts.screenshots.length} written`);
+  }
+
+  for (const [label, record] of named) {
+    if (record && record.status !== "written") {
+      lines.push(`${label} artifact ${record.status}: ${record.error ?? "no detail"}`);
+    }
+  }
+  for (const record of artifacts.screenshots) {
+    if (record.status !== "written") {
+      lines.push(`Screenshot ${record.id ?? "?"} ${record.status}: ${record.error ?? "no detail"}`);
+    }
+  }
+  return lines;
 }
 
 function summarizeSteps(result: TutorialRunResultV1): {

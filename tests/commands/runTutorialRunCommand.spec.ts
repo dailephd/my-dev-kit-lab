@@ -53,6 +53,16 @@ function fakeResult(overrides: Partial<TutorialRunResultV1> = {}): TutorialRunRe
     steps: [
       { id: "one", status: "passed", assertions: [], screenshotRequested: false, highlightRequested: false, calloutRequested: false }
     ],
+    artifacts: {
+      video: { kind: "video", status: "written", path: "artifacts/tutorial.webm", sizeBytes: 2048 },
+      srt: { kind: "srt", status: "written", path: "artifacts/tutorial.srt", sizeBytes: 64 },
+      vtt: { kind: "vtt", status: "written", path: "artifacts/tutorial.vtt", sizeBytes: 70 },
+      markdown: { kind: "markdown", status: "written", path: "artifacts/tutorial.md", sizeBytes: 128 },
+      manifest: { kind: "manifest", status: "written", path: "artifacts/tutorial-manifest.json", sizeBytes: 512 },
+      screenshots: [
+        { kind: "screenshot", id: "one", status: "written", path: "screenshots/one.png", sizeBytes: 900 }
+      ]
+    },
     warnings: [],
     cleanupErrors: [],
     ...overrides

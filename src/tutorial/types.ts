@@ -227,6 +227,14 @@ export type TutorialStepResultV1 = {
   startedAt?: string;
   endedAt?: string;
   durationMs?: number;
+  /**
+   * Milliseconds from the start of the recorded tutorial session, measured with
+   * a monotonic clock. These -- not the wall-clock ISO fields -- are what
+   * subtitles are timed from. Present for executed steps only; a not-run step
+   * has no timeline because it never happened.
+   */
+  timelineStartMs?: number;
+  timelineEndMs?: number;
   action?: TutorialActionResultV1;
   assertions: TutorialAssertionResultV1[];
   /**
@@ -250,7 +258,46 @@ export type TutorialRunStatus =
   | "browser-unavailable"
   | "browser-failed"
   | "step-failed"
+  | "video-finalization-failed"
+  | "artifact-failed"
   | "cleanup-failed";
+
+export type TutorialArtifactStatus = "written" | "skipped" | "failed";
+
+export type TutorialArtifactKind =
+  | "video"
+  | "srt"
+  | "vtt"
+  | "markdown"
+  | "manifest"
+  | "screenshot"
+  | "stdout-log"
+  | "stderr-log";
+
+export type TutorialArtifactRecordV1 = {
+  kind: TutorialArtifactKind;
+  /** Screenshot id for screenshot records; process id for log records. */
+  id?: string;
+  status: TutorialArtifactStatus;
+  /** Run-root-relative POSIX path. Never an absolute machine path. */
+  path?: string;
+  sizeBytes?: number;
+  error?: string;
+};
+
+/**
+ * Bounded artifact summary carried on the run result so a CLI consumer never has
+ * to open tutorial-manifest.json just to learn whether artifact generation
+ * succeeded.
+ */
+export type TutorialRunArtifactsV1 = {
+  video?: TutorialArtifactRecordV1;
+  srt?: TutorialArtifactRecordV1;
+  vtt?: TutorialArtifactRecordV1;
+  markdown?: TutorialArtifactRecordV1;
+  manifest?: TutorialArtifactRecordV1;
+  screenshots: TutorialArtifactRecordV1[];
+};
 
 export type TutorialRunResultV1 = {
   schemaVersion: "1.0.0";
@@ -263,6 +310,7 @@ export type TutorialRunResultV1 = {
   durationMs: number;
   paths?: TutorialRunPaths;
   steps: TutorialStepResultV1[];
+  artifacts: TutorialRunArtifactsV1;
   warnings: string[];
   cleanupErrors: string[];
   error?: string;

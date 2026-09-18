@@ -19,7 +19,7 @@ function scenarioWithSteps(steps: TutorialScenarioV1["steps"]): TutorialScenario
 describe("openTutorialSession", () => {
   it("creates exactly one context and one page and forwards the viewport", async () => {
     const browser = createFakeBrowser();
-    const opened = await openTutorialSession(browser, { width: 1280, height: 720 });
+    const opened = await openTutorialSession(browser, { viewport: { width: 1280, height: 720 } });
 
     expect(opened.ok).toBe(true);
     expect(browser.contextsCreated()).toBe(1);
@@ -29,7 +29,7 @@ describe("openTutorialSession", () => {
 
   it("reports a clear failure when the runtime cannot create contexts", async () => {
     const browser = createFakeBrowser({ omitNewContext: true });
-    const opened = await openTutorialSession(browser, { width: 1280, height: 720 });
+    const opened = await openTutorialSession(browser, { viewport: { width: 1280, height: 720 } });
 
     expect(opened.ok).toBe(false);
     if (opened.ok) throw new Error("expected failure");
@@ -38,7 +38,7 @@ describe("openTutorialSession", () => {
 
   it("closes the context when the page cannot be created", async () => {
     const browser = createFakeBrowser({ newPageError: new Error("page crashed on create") });
-    const opened = await openTutorialSession(browser, { width: 1280, height: 720 });
+    const opened = await openTutorialSession(browser, { viewport: { width: 1280, height: 720 } });
 
     expect(opened.ok).toBe(false);
     if (opened.ok) throw new Error("expected failure");
@@ -48,7 +48,7 @@ describe("openTutorialSession", () => {
 
   it("collects cleanup errors instead of throwing", async () => {
     const browser = createFakeBrowser({ contextCloseError: new Error("context stuck") });
-    const opened = await openTutorialSession(browser, { width: 1280, height: 720 });
+    const opened = await openTutorialSession(browser, { viewport: { width: 1280, height: 720 } });
     if (!opened.ok) throw new Error(opened.error);
 
     const errors = await closeTutorialSession(opened.session);
@@ -131,9 +131,10 @@ describe("executeTutorialSteps", () => {
       highlightRequested: false,
       calloutRequested: false
     });
-    // No overlay injection, no capture: the fake page throws if screenshot() is
-    // ever called, and nothing but goto/locator traffic is recorded.
+    // Visuals are off and no output paths were supplied, so nothing is rendered
+    // or captured even though all three declarations were requested.
     expect(page.calls.some((call) => call.method === "screenshot")).toBe(false);
+    expect(page.evaluateCalls).toEqual([]);
   });
 
   it("skips a step's assertions when its action fails and stops later steps", async () => {

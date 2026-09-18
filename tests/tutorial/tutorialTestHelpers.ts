@@ -1,8 +1,10 @@
+import { writeFile } from "node:fs/promises";
 import type {
   PlaywrightLikeBrowser,
   PlaywrightLikeBrowserContext,
   PlaywrightLikeLocator,
-  PlaywrightLikeTutorialPage
+  PlaywrightLikeTutorialPage,
+  PlaywrightLikeVideo
 } from "../../src/browser/types.js";
 import type { TutorialScenarioV1, TutorialTargetContractV1 } from "../../src/tutorial/types.js";
 
@@ -25,6 +27,8 @@ export type FakeLocatorBehavior = {
   visible?: boolean;
   text?: string | null;
   attributes?: Record<string, string>;
+  boundingBox?: { x: number; y: number; width: number; height: number } | null;
+  boundingBoxError?: Error;
 };
 
 export type FakeLocator = PlaywrightLikeLocator & {
@@ -78,6 +82,14 @@ export function createFakeLocator(key: string, behavior: FakeLocatorBehavior = {
     async getAttribute(name, options) {
       record("getAttribute", name, options);
       return behavior.attributes?.[name] ?? null;
+    },
+    async boundingBox() {
+      record("boundingBox");
+      if (behavior.boundingBoxError) throw behavior.boundingBoxError;
+      // Default geometry so visual code paths run without every test declaring one.
+      return behavior.boundingBox === undefined
+        ? { x: 10, y: 20, width: 100, height: 40 }
+        : behavior.boundingBox;
     }
   };
   return locator;
@@ -85,9 +97,20 @@ export function createFakeLocator(key: string, behavior: FakeLocatorBehavior = {
 
 export type PageCall = { method: string; args: unknown[] };
 
+export type EvaluateCall = { fnName: string; arg: unknown };
+
 export type FakePageOptions = {
   url?: string;
   gotoError?: Error;
+  screenshotError?: Error;
+  /** Runs injected scripts against a stub document instead of recording only. */
+  document?: unknown;
+  evaluateError?: Error;
+  /**
+   * Recorded video for this page. Defaults to a working fake, mirroring real
+   * Playwright with recordVideo enabled; pass null to simulate no recording.
+   */
+  video?: PlaywrightLikeVideo | null;
   /** Behavior keyed by the canonical locator key the resolver produces. */
   locators?: Record<string, FakeLocatorBehavior>;
   defaultLocator?: FakeLocatorBehavior;
@@ -96,6 +119,8 @@ export type FakePageOptions = {
 export type FakePage = PlaywrightLikeTutorialPage & {
   readonly calls: PageCall[];
   readonly locators: Map<string, FakeLocator>;
+  readonly evaluateCalls: EvaluateCall[];
+  readonly screenshotCalls: Array<{ path: string; fullPage: boolean }>;
   readonly closed: () => number;
   setUrl(url: string): void;
 };
@@ -109,8 +134,11 @@ export type FakePage = PlaywrightLikeTutorialPage & {
 export function createFakePage(options: FakePageOptions = {}): FakePage {
   const calls: PageCall[] = [];
   const locators = new Map<string, FakeLocator>();
+  const evaluateCalls: EvaluateCall[] = [];
+  const screenshotCalls: Array<{ path: string; fullPage: boolean }> = [];
   let url = options.url ?? "http://127.0.0.1:3000/";
   let closeCount = 0;
+  const defaultVideo = createFakeVideo();
 
   const obtain = (key: string): FakeLocator => {
     const existing = locators.get(key);
@@ -123,6 +151,8 @@ export function createFakePage(options: FakePageOptions = {}): FakePage {
   const page: FakePage = {
     calls,
     locators,
+    evaluateCalls,
+    screenshotCalls,
     closed: () => closeCount,
     setUrl(next: string) {
       url = next;
@@ -134,7 +164,24 @@ export function createFakePage(options: FakePageOptions = {}): FakePage {
     },
     async screenshot(screenshotOptions) {
       calls.push({ method: "screenshot", args: [screenshotOptions] });
-      throw new Error("Prompt 2 must never capture screenshots.");
+      screenshotCalls.push({ path: screenshotOptions.path, fullPage: screenshotOptions.fullPage });
+      if (options.screenshotError) throw options.screenshotError;
+      // Writes real bytes so artifact size verification is exercised honestly.
+      await writeFile(screenshotOptions.path, FAKE_PNG_BYTES);
+    },
+    video() {
+      calls.push({ method: "video", args: [] });
+      return options.video === undefined ? defaultVideo : options.video;
+    },
+    async evaluate(fn, arg) {
+      evaluateCalls.push({ fnName: fn.name, arg });
+      if (options.evaluateError) throw options.evaluateError;
+      if (options.document !== undefined) {
+        // Runs the real injected script against a stub document so DOM effects
+        // (ids, pointer-events, geometry, removal) are genuinely covered.
+        return withStubDocument(options.document, () => fn(arg)) as never;
+      }
+      return undefined as never;
     },
     locator(selector) {
       calls.push({ method: "locator", args: [selector] });
@@ -177,12 +224,14 @@ export type FakeBrowser = PlaywrightLikeBrowser & {
   readonly page: FakePage;
   readonly events: string[];
   readonly viewports: Array<{ width: number; height: number } | undefined>;
+  readonly recordVideoOptions: Array<{ dir: string; size: { width: number; height: number } } | undefined>;
 };
 
 export function createFakeBrowser(options: FakeBrowserOptions = {}): FakeBrowser {
   const page = options.page ?? createFakePage();
   const events: string[] = [];
   const viewports: Array<{ width: number; height: number } | undefined> = [];
+  const recordVideoOptions: Array<{ dir: string; size: { width: number; height: number } } | undefined> = [];
   let contextsCreated = 0;
   let pagesCreated = 0;
 
@@ -190,6 +239,7 @@ export function createFakeBrowser(options: FakeBrowserOptions = {}): FakeBrowser
     page,
     events,
     viewports,
+    recordVideoOptions,
     contextsCreated: () => contextsCreated,
     pagesCreated: () => pagesCreated,
     async newPage() {
@@ -206,6 +256,7 @@ export function createFakeBrowser(options: FakeBrowserOptions = {}): FakeBrowser
       events.push("context.create");
       contextsCreated += 1;
       viewports.push(contextOptions?.viewport);
+      recordVideoOptions.push(contextOptions?.recordVideo);
       if (options.newContextError) throw options.newContextError;
       return {
         async newPage() {
@@ -259,4 +310,157 @@ export function minimalTargetContract(
     applicationUrl: "http://127.0.0.1:3000/",
     ...overrides
   } as TutorialTargetContractV1;
+}
+
+// ---------------------------------------------------------------------------
+// Stub DOM
+//
+// The injected cursor/overlay scripts only use a handful of document APIs, so a
+// tiny stub lets unit tests drive the real browser-side code (ids, styles,
+// pointer-events, geometry, removal) without launching a browser. The scripts
+// read `globalThis.document`, so it is swapped in for the duration of one call.
+// ---------------------------------------------------------------------------
+
+export type StubElement = {
+  id: string;
+  tagName: string;
+  textContent: string;
+  attributes: Record<string, string>;
+  styles: Record<string, string>;
+  children: StubElement[];
+  parent: StubElement | null;
+  setAttribute(name: string, value: string): void;
+  appendChild(node: StubElement): void;
+  remove(): void;
+  style: { setProperty(name: string, value: string): void };
+};
+
+export type StubDocument = {
+  body: StubElement;
+  byId: Map<string, StubElement>;
+  getElementById(id: string): StubElement | null;
+  createElement(tag: string): StubElement;
+  /** Every element currently attached anywhere beneath body. */
+  all(): StubElement[];
+};
+
+export function createStubDocument(): StubDocument {
+  const byId = new Map<string, StubElement>();
+
+  const makeElement = (tagName: string): StubElement => {
+    const element: StubElement = {
+      id: "",
+      tagName,
+      textContent: "",
+      attributes: {},
+      styles: {},
+      children: [],
+      parent: null,
+      setAttribute(name, value) {
+        element.attributes[name] = value;
+      },
+      appendChild(node) {
+        node.parent = element;
+        element.children.push(node);
+        if (node.id) {
+          byId.set(node.id, node);
+        }
+      },
+      remove() {
+        if (element.parent) {
+          element.parent.children = element.parent.children.filter((child) => child !== element);
+          element.parent = null;
+        }
+        // A real getElementById cannot find anything in a detached subtree, so
+        // the whole subtree is deregistered, not just this node.
+        const deregister = (node: StubElement): void => {
+          if (node.id) {
+            byId.delete(node.id);
+          }
+          for (const child of node.children) {
+            deregister(child);
+          }
+        };
+        deregister(element);
+      },
+      style: {
+        setProperty(name, value) {
+          element.styles[name] = value;
+        }
+      }
+    };
+    return element;
+  };
+
+  const body = makeElement("body");
+  const document: StubDocument = {
+    body,
+    byId,
+    getElementById(id) {
+      return byId.get(id) ?? null;
+    },
+    createElement(tag) {
+      return makeElement(tag);
+    },
+    all() {
+      const collected: StubElement[] = [];
+      const walk = (node: StubElement): void => {
+        for (const child of node.children) {
+          collected.push(child);
+          walk(child);
+        }
+      };
+      walk(body);
+      return collected;
+    }
+  };
+  return document;
+}
+
+/** Runs `operation` with `globalThis.document` temporarily set to `document`. */
+export function withStubDocument<T>(document: unknown, operation: () => T): T {
+  const globals = globalThis as unknown as Record<string, unknown>;
+  const previous = globals.document;
+  globals.document = document;
+  try {
+    return operation();
+  } finally {
+    if (previous === undefined) {
+      delete globals.document;
+    } else {
+      globals.document = previous;
+    }
+  }
+}
+
+/** Minimal valid PNG header bytes; enough to prove a non-empty artifact. */
+export const FAKE_PNG_BYTES = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52
+]);
+
+export type FakeVideo = PlaywrightLikeVideo & { readonly savedTo: string[] };
+
+export function createFakeVideo(options: {
+  rawPath?: string;
+  pathError?: Error;
+  saveAsError?: Error;
+  onSave?: (target: string) => Promise<void> | void;
+} = {}): FakeVideo {
+  const savedTo: string[] = [];
+  return {
+    savedTo,
+    async path() {
+      if (options.pathError) throw options.pathError;
+      return options.rawPath ?? "/tmp/raw-tutorial-video.webm";
+    },
+    async saveAs(target) {
+      savedTo.push(target);
+      if (options.saveAsError) throw options.saveAsError;
+      if (options.onSave) {
+        await options.onSave(target);
+        return;
+      }
+      await writeFile(target, Buffer.from("fake-webm-bytes"));
+    }
+  };
 }

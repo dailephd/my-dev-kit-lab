@@ -260,8 +260,11 @@ describe("runTutorial - complete run", () => {
     }
   });
 
-  // Required batch-boundary guard: Prompt 3 owns every visual artifact.
-  it("produces no video, subtitle, markdown, manifest or screenshot artifacts", async () => {
+  // v0.4.7 Batch 3 moved this boundary: the artifacts this test previously
+  // asserted were absent are now the batch's deliverable, so the assertion is
+  // inverted rather than dropped. The batch guard that remains is the one that
+  // is still true -- no FFmpeg/MP4/audio output of any kind.
+  it("writes every canonical tutorial artifact and no out-of-scope media", async () => {
     const port = await reservePort();
     const fixture = writeFixture({
       port,
@@ -307,15 +310,97 @@ describe("runTutorial - complete run", () => {
     };
     walk(result.paths!.runRoot);
 
-    for (const forbidden of ["tutorial.webm", "tutorial.srt", "tutorial.vtt", "tutorial.md", "tutorial-manifest.json"]) {
-      expect(produced).not.toContain(forbidden);
+    for (const expected of [
+      "tutorial.webm",
+      "tutorial.srt",
+      "tutorial.vtt",
+      "tutorial.md",
+      "tutorial-manifest.json"
+    ]) {
+      expect(produced).toContain(expected);
     }
-    expect(produced.some((name) => name.endsWith(".png"))).toBe(false);
-    expect(produced.some((name) => name.endsWith(".webm"))).toBe(false);
-    expect(readdirSync(result.paths!.screenshotsRoot)).toEqual([]);
-    expect(readdirSync(result.paths!.artifactsRoot)).toEqual([]);
-    // The fake page throws if screenshot() is ever invoked.
-    expect(page.calls.some((call) => call.method === "screenshot")).toBe(false);
+    expect(produced).toContain("demo-open.png");
+    expect(readdirSync(result.paths!.screenshotsRoot)).toEqual(["demo-open.png"]);
+
+    // Still out of scope for v0.4.7: no converted video, no audio of any kind.
+    for (const suffix of [".mp4", ".mov", ".mkv", ".mp3", ".wav", ".aac", ".m4a", ".ogg"]) {
+      expect(produced.some((name) => name.endsWith(suffix))).toBe(false);
+    }
+    expect(page.calls.some((call) => call.method === "screenshot")).toBe(true);
+  });
+
+  it("reports every canonical artifact in the run result summary", async () => {
+    const port = await reservePort();
+    const fixture = writeFixture({
+      port,
+      scenario: {
+        steps: [
+          {
+            id: "open",
+            narration: "Open the demo.",
+            action: { type: "goto", path: "/" },
+            screenshot: { id: "demo-open" }
+          }
+        ]
+      }
+    });
+    const browser = createFakeBrowser({ page: createFakePage({ url: `http://127.0.0.1:${port}/` }) });
+
+    const result = await runTutorial({
+      scenarioPath: fixture.scenarioPath,
+      targetContractPath: fixture.targetContractPath,
+      context: context(fixture),
+      outDir: fixture.outDir,
+      launchBrowser: fakeLauncher(browser),
+      generateRunId: () => RUN_ID
+    });
+
+    expect(result.status).toBe("passed");
+    expect(result.artifacts.video).toMatchObject({ kind: "video", status: "written", path: "artifacts/tutorial.webm" });
+    expect(result.artifacts.srt).toMatchObject({ status: "written", path: "artifacts/tutorial.srt" });
+    expect(result.artifacts.vtt).toMatchObject({ status: "written", path: "artifacts/tutorial.vtt" });
+    expect(result.artifacts.markdown).toMatchObject({ status: "written", path: "artifacts/tutorial.md" });
+    expect(result.artifacts.manifest).toMatchObject({
+      status: "written",
+      path: "artifacts/tutorial-manifest.json"
+    });
+    expect(result.artifacts.screenshots).toEqual([
+      expect.objectContaining({ kind: "screenshot", id: "demo-open", status: "written", path: "screenshots/demo-open.png" })
+    ]);
+    for (const record of [
+      result.artifacts.video,
+      result.artifacts.srt,
+      result.artifacts.vtt,
+      result.artifacts.markdown,
+      result.artifacts.manifest,
+      ...result.artifacts.screenshots
+    ]) {
+      expect(record?.sizeBytes).toBeGreaterThan(0);
+      // Never an absolute machine path.
+      expect(record?.path).not.toMatch(/^([A-Za-z]:|\/)/);
+    }
+  });
+
+  it("requests recording at the scenario viewport into the run temporary directory", async () => {
+    const port = await reservePort();
+    const fixture = writeFixture({ port });
+    const browser = createFakeBrowser({ page: createFakePage({ url: `http://127.0.0.1:${port}/` }) });
+
+    const result = await runTutorial({
+      scenarioPath: fixture.scenarioPath,
+      targetContractPath: fixture.targetContractPath,
+      context: context(fixture),
+      outDir: fixture.outDir,
+      launchBrowser: fakeLauncher(browser),
+      generateRunId: () => RUN_ID
+    });
+
+    expect(result.status).toBe("passed");
+    expect(browser.recordVideoOptions).toHaveLength(1);
+    expect(browser.recordVideoOptions[0]?.size).toEqual({ width: 1280, height: 720 });
+    expect(browser.viewports[0]).toEqual({ width: 1280, height: 720 });
+    const relative = path.relative(result.paths!.temporaryRoot, browser.recordVideoOptions[0]!.dir);
+    expect(relative.startsWith("..")).toBe(false);
   });
 });
 

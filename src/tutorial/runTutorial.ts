@@ -9,11 +9,22 @@ import { describeTargetIdMismatch, tutorialTargetIdsMatch } from "./targetContra
 import { buildTutorialRunPaths, createTutorialRunDirectories, generateTutorialRunId } from "./tutorialPaths.js";
 import { closeTutorialSession, executeTutorialSteps, openTutorialSession } from "./tutorialSession.js";
 import {
+  buildTutorialArtifactPaths,
+  finalizeTutorialVideo,
+  writeTextArtifact
+} from "./tutorialArtifacts.js";
+import { buildSubtitleCues, renderSrt, renderVtt } from "./subtitleWriter.js";
+import { renderTutorialMarkdown } from "./markdownTutorialWriter.js";
+import { buildTutorialManifest, renderTutorialManifest } from "./tutorialManifest.js";
+import {
   TARGET_ROOT_PLACEHOLDER,
   TUTORIAL_RUN_RESULT_SCHEMA_VERSION,
+  type TutorialArtifactRecordV1,
+  type TutorialRunArtifactsV1,
   type TutorialRunPaths,
   type TutorialRunResultV1,
   type TutorialRunStatus,
+  type TutorialScenarioV1,
   type TutorialStepResultV1,
   type TutorialTargetContractV1,
   type TutorialTargetProcessV1
@@ -60,6 +71,7 @@ export async function runTutorial(options: RunTutorialOptions): Promise<Tutorial
       endedAt: new Date(endedAtMs).toISOString(),
       durationMs: endedAtMs - startedAtMs,
       steps: [],
+      artifacts: { screenshots: [] },
       warnings,
       cleanupErrors,
       ...extra
@@ -110,16 +122,76 @@ export async function runTutorial(options: RunTutorialOptions): Promise<Tutorial
   try {
     await createTutorialRunDirectories(paths);
   } catch (error) {
+    // No run layout, so no artifacts and no manifest are possible or expected.
     return finish("prepare-failed", {
       ...identity,
       error: `Tutorial run directory could not be created at ${paths.runRoot}: ${messageOf(error)}`
     });
   }
 
+  /**
+   * Ends a run that failed before step execution produced anything recordable.
+   *
+   * The run layout exists, so a manifest is still written: it reports the real
+   * failure and marks every tutorial artifact as skipped rather than pretending
+   * one was produced. The failure status is never replaced by an artifact
+   * status -- an early failure is not a video problem.
+   */
+  const finishBeforeArtifacts = async (
+    status: TutorialRunStatus,
+    error: string,
+    reason: string
+  ): Promise<TutorialRunResultV1> => {
+    const skipped = (kind: TutorialArtifactRecordV1["kind"]): TutorialArtifactRecordV1 => ({
+      kind,
+      status: "skipped",
+      error: reason
+    });
+    const artifacts: TutorialRunArtifactsV1 = {
+      video: skipped("video"),
+      srt: skipped("srt"),
+      vtt: skipped("vtt"),
+      markdown: skipped("markdown"),
+      screenshots: []
+    };
+
+    const endedAtMs = Date.now();
+    const manifest = buildTutorialManifest({
+      scenario,
+      targetContract,
+      run: {
+        id: runId,
+        status,
+        startedAt,
+        endedAt: new Date(endedAtMs).toISOString(),
+        durationMs: endedAtMs - startedAtMs
+      },
+      steps: [],
+      artifacts: [artifacts.video!, artifacts.srt!, artifacts.vtt!, artifacts.markdown!],
+      warnings,
+      cleanupErrors
+    });
+    artifacts.manifest = await writeTextArtifact({
+      kind: "manifest",
+      runRoot: paths.runRoot,
+      filePath: buildTutorialArtifactPaths(paths).manifest,
+      contents: renderTutorialManifest(manifest)
+    });
+    if (artifacts.manifest.status === "failed") {
+      warnings.push(artifacts.manifest.error ?? "Tutorial manifest could not be written.");
+    }
+
+    return finish(status, { ...identity, artifacts, error });
+  };
+
   // ---- 4. Prepare ---------------------------------------------------------
   const prepareResult = await runPrepare(targetContract, contractRoot, paths);
   if (prepareResult) {
-    return finish("prepare-failed", { ...identity, error: prepareResult });
+    return finishBeforeArtifacts(
+      "prepare-failed",
+      prepareResult,
+      "Tutorial preparation failed before any recording started."
+    );
   }
 
   // ---- 5. Processes + readiness ------------------------------------------
@@ -127,7 +199,11 @@ export async function runTutorial(options: RunTutorialOptions): Promise<Tutorial
   const startup = await startTargetProcesses(targetContract, contractRoot, paths, started);
   if (startup) {
     cleanupErrors.push(...(await stopProcessesInReverse(started)));
-    return finish(startup.status, { ...identity, error: startup.error });
+    return finishBeforeArtifacts(
+      startup.status,
+      startup.error,
+      "Target processes did not become ready, so no recording started."
+    );
   }
 
   // ---- 6. Browser ---------------------------------------------------------
@@ -139,58 +215,226 @@ export async function runTutorial(options: RunTutorialOptions): Promise<Tutorial
       launch.status === "unavailable"
         ? `Tutorial browser runtime is unavailable (${launch.reason}): ${launch.error}`
         : `Tutorial browser failed to launch: ${launch.error}`;
-    return finish(status, { ...identity, error });
+    return finishBeforeArtifacts(
+      status,
+      error,
+      "Tutorial recording never started because the browser was not available."
+    );
   }
   const browser = launch.browser;
 
   // ---- 7. Session + steps -------------------------------------------------
+  const artifactPaths = buildTutorialArtifactPaths(paths);
   let steps: TutorialStepResultV1[] = [];
+  let screenshots: TutorialArtifactRecordV1[] = [];
   let primaryStatus: TutorialRunStatus = "passed";
   let primaryError: string | undefined;
+  let videoRecordingStarted = false;
+  let videoRecord: TutorialArtifactRecordV1 | undefined;
 
-  const opened = await openTutorialSession(browser, scenario.browser.viewport);
+  const opened = await openTutorialSession(browser, {
+    viewport: scenario.browser.viewport,
+    recordVideoDir: artifactPaths.videoTempDir
+  });
   if (!opened.ok) {
     primaryStatus = "browser-failed";
     primaryError = opened.error;
   } else {
+    videoRecordingStarted = true;
     const execution = await executeTutorialSteps({
       page: opened.session.page,
       scenario,
       applicationUrl: targetContract.applicationUrl,
       targetRoot: paths.targetRoot,
+      visuals: true,
+      paths,
       ...(options.sleep ? { sleep: options.sleep } : {})
     });
     steps = execution.steps;
+    screenshots = execution.screenshots;
+    warnings.push(...execution.visualWarnings);
     if (execution.failedStepId !== undefined) {
       primaryStatus = "step-failed";
       primaryError = execution.error;
     }
+
+    // Playwright finalizes a recording only on page close, so the session is
+    // closed before the video is saved. A failed tutorial still gets its video.
     cleanupErrors.push(...(await closeTutorialSession(opened.session)));
+
+    const finalized = await finalizeTutorialVideo({
+      video: opened.session.video,
+      runRoot: paths.runRoot,
+      videoPath: artifactPaths.video,
+      videoTempDir: artifactPaths.videoTempDir
+    });
+    videoRecord = finalized.record;
+    warnings.push(...finalized.warnings);
   }
 
-  // ---- 8. Cleanup ---------------------------------------------------------
+  // ---- 8. Browser cleanup -------------------------------------------------
   // Browser resources are released before the processes they were talking to.
   const browserCloseError = await closeQuietly(() => browser.close());
   if (browserCloseError) {
     cleanupErrors.push(`Tutorial browser close failed: ${browserCloseError}`);
   }
+
+  // ---- 9. Artifacts -------------------------------------------------------
+  if (!videoRecord) {
+    videoRecord = {
+      kind: "video",
+      status: "skipped",
+      error: "Tutorial recording never started, so no canonical WebM was expected."
+    };
+  }
+
+  const cues = buildSubtitleCues({ scenario, steps });
+  const srtRecord = await writeTextArtifact({
+    kind: "srt",
+    runRoot: paths.runRoot,
+    filePath: artifactPaths.srt,
+    contents: renderSrt(cues)
+  });
+  const vttRecord = await writeTextArtifact({
+    kind: "vtt",
+    runRoot: paths.runRoot,
+    filePath: artifactPaths.vtt,
+    contents: renderVtt(cues)
+  });
+  const markdownRecord = await writeTextArtifact({
+    kind: "markdown",
+    runRoot: paths.runRoot,
+    filePath: artifactPaths.markdown,
+    contents: renderTutorialMarkdown({ scenario, steps, screenshots })
+  });
+
+  // ---- 10. Process cleanup ------------------------------------------------
   cleanupErrors.push(...(await stopProcessesInReverse(started)));
 
-  // A cleanup failure never overwrites a real failure; it only downgrades an
-  // otherwise-passing run, because "passed" would misreport a leaked resource.
-  if (primaryStatus === "passed" && cleanupErrors.length > 0) {
+  // ---- 11. Final status ---------------------------------------------------
+  // Precedence for an otherwise-passing run, most specific first: a missing
+  // required video, then any other failed required artifact, then cleanup.
+  // A real execution failure is never replaced by an artifact problem.
+  const artifactFailures = [videoRecord, srtRecord, vttRecord, markdownRecord, ...screenshots].filter(
+    (record) => record.status === "failed"
+  );
+  const videoFailed = videoRecord.status === "failed" || (videoRecordingStarted && videoRecord.status === "skipped");
+  const nonVideoArtifactFailed = artifactFailures.some((record) => record.kind !== "video");
+
+  let finalStatus: TutorialRunStatus = primaryStatus;
+  let finalError: string | undefined = primaryError;
+  if (primaryStatus === "passed") {
+    if (videoFailed) {
+      finalStatus = "video-finalization-failed";
+      finalError = videoRecord.error ?? "Canonical tutorial video could not be finalized.";
+    } else if (nonVideoArtifactFailed) {
+      finalStatus = "artifact-failed";
+      finalError = artifactFailures
+        .filter((record) => record.kind !== "video")
+        .map((record) => record.error ?? `${record.kind} artifact failed`)
+        .join("; ");
+    }
+  } else {
+    // Artifact problems are recorded but must not mask the real failure.
+    for (const record of artifactFailures) {
+      warnings.push(record.error ?? `${record.kind} artifact failed`);
+    }
+  }
+
+  // ---- 12. Manifest -------------------------------------------------------
+  const allArtifacts: TutorialArtifactRecordV1[] = [
+    videoRecord,
+    srtRecord,
+    vttRecord,
+    markdownRecord,
+    ...screenshots,
+    ...collectProcessLogRecords(targetContract, paths)
+  ];
+
+  const manifestEndedAtMs = Date.now();
+  const manifest = buildTutorialManifest({
+    scenario,
+    targetContract,
+    run: {
+      id: runId,
+      status: finalStatus,
+      startedAt,
+      endedAt: new Date(manifestEndedAtMs).toISOString(),
+      durationMs: manifestEndedAtMs - startedAtMs
+    },
+    steps,
+    artifacts: allArtifacts,
+    warnings,
+    cleanupErrors
+  });
+  const manifestRecord = await writeTextArtifact({
+    kind: "manifest",
+    runRoot: paths.runRoot,
+    filePath: artifactPaths.manifest,
+    contents: renderTutorialManifest(manifest)
+  });
+
+  if (manifestRecord.status === "failed") {
+    if (finalStatus === "passed") {
+      finalStatus = "artifact-failed";
+      finalError = manifestRecord.error;
+    } else {
+      warnings.push(manifestRecord.error ?? "Tutorial manifest could not be written.");
+    }
+  }
+
+  const artifacts: TutorialRunArtifactsV1 = {
+    video: videoRecord,
+    srt: srtRecord,
+    vtt: vttRecord,
+    markdown: markdownRecord,
+    manifest: manifestRecord,
+    screenshots
+  };
+
+  // A cleanup failure only downgrades an otherwise-clean run, because "passed"
+  // would misreport a leaked resource.
+  if (finalStatus === "passed" && cleanupErrors.length > 0) {
     return finish("cleanup-failed", {
       ...identity,
       steps,
+      artifacts,
       error: `Tutorial run completed but cleanup failed: ${cleanupErrors.join("; ")}`
     });
   }
 
-  return finish(primaryStatus, {
+  return finish(finalStatus, {
     ...identity,
     steps,
-    ...(primaryError !== undefined ? { error: primaryError } : {})
+    artifacts,
+    ...(finalError !== undefined ? { error: finalError } : {})
   });
+}
+
+/**
+ * Managed-process log paths are known from the contract and the run layout, so
+ * they are recorded from structured data rather than by scanning the directory.
+ */
+function collectProcessLogRecords(
+  targetContract: TutorialTargetContractV1,
+  paths: TutorialRunPaths
+): TutorialArtifactRecordV1[] {
+  const records: TutorialArtifactRecordV1[] = [];
+  for (const declared of targetContract.processes) {
+    records.push({
+      kind: "stdout-log",
+      id: declared.id,
+      status: "written",
+      path: `logs/processes/${declared.id}.stdout.txt`
+    });
+    records.push({
+      kind: "stderr-log",
+      id: declared.id,
+      status: "written",
+      path: `logs/processes/${declared.id}.stderr.txt`
+    });
+  }
+  return records;
 }
 
 /** Returns an error message when prepare failed, otherwise undefined. */
