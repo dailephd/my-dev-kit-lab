@@ -8,7 +8,7 @@ This document records the repository's operational state. It is the source of tr
 - Package version: `0.4.6`
 - Latest release: `v0.4.6` (installed-package CLI and runtime-boundary correction), published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.5`)
 - `v0.4.6` adds a supported installed `my-dev-kit-lab` CLI router, a `LabExecutionContext` runtime foundation separating `invocationCwd`/`packageRoot`/`workspaceRoot`/`resourceRoot` from the inspected target, and a permanent packed-tarball installation/execution acceptance gate. See "Implemented" below for the full scope.
-- Active planned version: `v0.5.0` (warm-index reuse experiment support). `v0.5.0` implementation has not begun.
+- Active planned version: `v0.4.7` (declarative browser tutorial and video automation). `v0.4.7` implementation has not begun. `v0.5.0` warm-index reuse remains the next experiment version after v0.4.7.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
 - Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
 
@@ -22,7 +22,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Workflow stage: `v0.4.6` is released; implementation (six batches: runtime/package-resource foundation, CLI router, low-risk installed routes, security/experiment routes, packed-package acceptance gate + CI, package-content and documentation reconciliation), a resolved transitive-devDependency security correction, pre-release readiness, release validation, tagging, GitHub Release creation, and npm publication are complete.
 - Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
 - Validation result (v0.4.6, published): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run security:validate`, `npm run audit`, `npm run verify:packed-package`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the pre-release latest-Node readiness workflow passed on Ubuntu/macOS/Windows; see "Validation state" below for the exact gates run.
-- Exact next action: begin `v0.5.0` (warm-index reuse experiment support) planning and implementation.
+- Exact next action: begin `v0.4.7` architecture and implementation planning for the generic tutorial runtime, then execute the four planned lab implementation batches.
 
 ## Implemented
 
@@ -59,7 +59,7 @@ The implemented command families cover experiments, reports and visualizations, 
 
 ## Current architecture
 
-The repository has one experiment runtime, one audit framework, one standalone security-validation framework, and one Android subsystem integrated through the existing security adapter. Shared reporting and presentation modules serve all four. See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership, flows, contracts, extension points, and failure boundaries.
+The repository has one experiment runtime, one audit framework, one standalone security-validation framework, and one Android subsystem integrated through the existing security adapter. Shared reporting and presentation modules serve all four. The planned v0.4.7 generic browser/tutorial subsystem, managed long-running-process owner, tutorial scenario contracts, and tutorial CLI routes do not exist yet; the current Playwright-backed report screenshot path remains a separate one-shot presentation capability. See [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership and the clearly labeled planned v0.4.7 architecture.
 
 ## Experimental versus planned
 
@@ -71,7 +71,7 @@ The audit framework, language-aware code-rot detectors, security adapter, Androi
 
 `v0.4.5` context-integrity validation is published; see the `Implemented` section above. It has no CLI flags (evaluation remains programmatic/test-driven, as with `v0.4.3`), no plots/screenshot/gallery integration, and no live full ten-stage replay — the corrected-replay fixture is a hand-distilled representation of the validated `v1.10.4`/`v1.2.3` contracts, not a byte-exact generated run.
 
-`v0.4.6` installed-package CLI and runtime-boundary correction is **released**; see the `Implemented` section above. Within its released scope, none of the following were added: `security deps`/`package`/`codeql`/`semgrep`/fuzz-smoke routing, visualization-demo routing, warm-index reuse, a new security check, a new audit detector, or any new Android capability — those remain source-checkout-only or future-version scope. The installed CLI routes documented in [COMMANDS.md](COMMANDS.md) are available now.
+`v0.4.6` installed-package CLI and runtime-boundary correction is **released**; see the `Implemented` section above. Within its released scope, none of the following were added: tutorial/browser automation, `security deps`/`package`/`codeql`/`semgrep`/fuzz-smoke routing, visualization-demo routing, warm-index reuse, a new security check, a new audit detector, or any new Android capability — those remain future-version or source-checkout-only scope. The installed CLI routes documented in [COMMANDS.md](COMMANDS.md) are available now.
 
 The following remain planned, not implemented:
 
@@ -81,6 +81,7 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
+- v0.4.7 declarative browser tutorial/video automation: shared browser runtime, managed long-running processes/readiness, versioned scenario/target contracts, bounded browser actions/assertions, synthetic cursor/callouts, WebM recording, step screenshots, SRT/VTT, Markdown, tutorial manifest, installed tutorial CLI routes, and packed-package/browser-runtime acceptance
 - warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.5.x` through `v0.8.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
@@ -117,4 +118,4 @@ Release blockers for published `v0.4.6`: none.
 
 ## Next step
 
-Begin `v0.5.0` (warm-index reuse experiment support) planning and implementation.
+Begin `v0.4.7` (declarative browser tutorial and video automation) planning and implementation. Preserve v0.5.0 warm-index reuse unchanged as the next experiment version after v0.4.7.
