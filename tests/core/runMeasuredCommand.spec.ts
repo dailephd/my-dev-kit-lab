@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { parseCommandString, runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
+import { resolveCommandInvocation } from "../../src/core/resolveCommand.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -123,6 +124,46 @@ describe("runMeasuredCommand", () => {
     });
     expect(result.ok).toBe(true);
     expect(result.stdout).toContain("stdin-ended");
+  });
+
+  // Regression guard for the v0.4.7 extraction of shim-argument assembly into
+  // resolveCommand.ts: runMeasuredCommand must spawn exactly what the shared
+  // invocation helper produces, on every platform.
+  it("spawns exactly the invocation the shared resolver produces", async () => {
+    const rootDir = mkdtempSync(path.join(os.tmpdir(), "measured-invocation-"));
+    const binDir = path.join(rootDir, "bin with spaces");
+    const outDir = path.join(rootDir, "out");
+    const nodeBinDir = path.dirname(process.execPath);
+    const shimName = process.platform === "win32" ? "echo-args.cmd" : "echo-args";
+    tempDirs.push(rootDir);
+    mkdirSync(binDir, { recursive: true });
+    mkdirSync(outDir, { recursive: true });
+    writeHostExecutable(path.join(binDir, shimName), "console.log(process.argv.slice(1).join('|'))");
+
+    const env = {
+      Path: `${binDir}${path.delimiter}${nodeBinDir}`,
+      PATH: `${binDir}${path.delimiter}${nodeBinDir}`
+    };
+    const extraArgs = ["alpha", "two words"];
+    const expected = resolveCommandInvocation("echo-args", extraArgs, {
+      cwd: process.cwd(),
+      env: { ...process.env, ...env }
+    });
+
+    const result = await runMeasuredCommand({
+      commandId: "invocation",
+      commandString: "echo-args",
+      cwd: process.cwd(),
+      outDir,
+      extraArgs,
+      env,
+      timeoutMs: 5000
+    });
+
+    expect(result.executable).toBe(expected.executable);
+    expect(result.args).toEqual(expected.args);
+    expect(result.resolvedCommand?.resolutionKind).toBe(expected.resolvedCommand.resolutionKind);
+    expect(result.ok).toBe(true);
   });
 
   it("executes host-platform PATH shims from a path containing spaces", async () => {

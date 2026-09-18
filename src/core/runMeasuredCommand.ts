@@ -2,7 +2,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { parseCommandString } from "./commandLine.js";
-import { resolveCommand, type ResolvedCommand } from "./resolveCommand.js";
+import { forceTerminateProcess } from "./processTree.js";
+import {
+  buildResolvedCommandInvocation,
+  resolveCommandInvocation,
+  type ResolvedCommand
+} from "./resolveCommand.js";
 
 export { parseCommandString } from "./commandLine.js";
 
@@ -39,27 +44,31 @@ export async function runMeasuredCommand(options: {
 }): Promise<MeasuredCommandResult> {
   await mkdir(options.outDir, { recursive: true });
   const parsed = parseCommandString(options.commandString);
-  const resolution =
+  const trailingArgs = [...parsed.args, ...(options.extraArgs ?? [])];
+  // Windows .cmd/.bat/.ps1 argument assembly is owned by resolveCommand.ts so
+  // that every spawn site (measured commands and managed long-running processes)
+  // shares exactly one shim rule.
+  const invocation =
     options.resolveCommand === false
-      ? {
-          originalCommand: parsed.executable,
-          command: parsed.executable,
-          argsPrefix: [],
-          resolutionKind: "direct" as const,
-          resolvedPath: parsed.executable,
-          warnings: []
-        }
-      : resolveCommand(parsed.executable, {
+      ? buildResolvedCommandInvocation(
+          {
+            originalCommand: parsed.executable,
+            command: parsed.executable,
+            argsPrefix: [],
+            resolutionKind: "direct" as const,
+            resolvedPath: parsed.executable,
+            warnings: []
+          },
+          trailingArgs
+        )
+      : resolveCommandInvocation(parsed.executable, trailingArgs, {
           cwd: options.cwd,
           env: { ...process.env, ...options.env },
           allowPowerShellShim: options.allowPowerShellShim
         });
-  const executable = resolution.command;
-  const trailingArgs = [...parsed.args, ...(options.extraArgs ?? [])];
-  const args =
-    resolution.resolutionKind === "windows-cmd-shim" && resolution.resolvedPath
-      ? [...resolution.argsPrefix, resolution.resolvedPath, ...trailingArgs]
-      : [...resolution.argsPrefix, ...trailingArgs];
+  const resolution = invocation.resolvedCommand;
+  const executable = invocation.executable;
+  const args = invocation.args;
   const stdoutPath = path.join(options.outDir, `${options.commandId}.stdout.txt`);
   const stderrPath = path.join(options.outDir, `${options.commandId}.stderr.txt`);
   const telemetryPath = path.join(options.outDir, `${options.commandId}.telemetry.json`);
@@ -125,7 +134,7 @@ export async function runMeasuredCommand(options: {
       timeout = setTimeout(() => {
         timedOut = true;
         spawnError = `Command timed out after ${options.timeoutMs}ms.`;
-        killProcessTree(child.pid);
+        forceTerminateProcess(child.pid);
       }, options.timeoutMs);
     }
     child.on("close", async (exitCode) => {
@@ -166,20 +175,4 @@ export async function runMeasuredCommand(options: {
 async function writeArtifact(filePath: string, value: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, value, "utf8");
-}
-
-function killProcessTree(pid: number | undefined): void {
-  if (!pid) {
-    return;
-  }
-  if (process.platform === "win32") {
-    const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { shell: false, stdio: "ignore" });
-    killer.on("error", () => undefined);
-    return;
-  }
-  try {
-    process.kill(pid, "SIGTERM");
-  } catch {
-    // The child may have exited between timeout scheduling and kill.
-  }
 }

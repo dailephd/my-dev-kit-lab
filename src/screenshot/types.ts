@@ -8,18 +8,16 @@ export type ScreenshotCaptureResult = {
   error?: string;
 };
 
-export type PlaywrightLikePage = {
-  goto(url: string, options?: { waitUntil?: string }): Promise<void>;
-  screenshot(options: { path: string; fullPage: boolean }): Promise<void>;
-};
-
-export type PlaywrightLikeBrowser = {
-  newPage(options: { viewport: { width: number; height: number } }): Promise<PlaywrightLikePage>;
-  close(): Promise<void>;
-};
-
-export type PlaywrightLikeModule = {
-  chromium: {
-    launch(options: { headless: boolean }): Promise<PlaywrightLikeBrowser>;
-  };
-};
+/**
+ * The structural Playwright types now live in the shared browser-runtime owner
+ * (`src/browser/types.ts`) because one-shot report capture is no longer their
+ * only consumer. They are re-exported here unchanged so every existing import
+ * of `src/screenshot/types.js` -- including `src/index.ts`'s public surface and
+ * the screenshot tests -- keeps working against the same declarations.
+ */
+export type {
+  PlaywrightLikeBrowser,
+  PlaywrightLikeBrowserContext,
+  PlaywrightLikeModule,
+  PlaywrightLikePage
+} from "../browser/types.js";

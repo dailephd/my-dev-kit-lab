@@ -204,3 +204,62 @@ function isExecutableFile(candidatePath: string): boolean {
     return false;
   }
 }
+
+/**
+ * A resolved command plus the exact argument array to hand to `spawn`.
+ *
+ * Every spawn site that must honor Windows shim semantics builds its argument
+ * array here instead of reimplementing the `.cmd`/`.bat`/`.ps1` rules. The
+ * embedded `resolvedCommand` is unchanged from `resolveCommand()` so callers
+ * can still inspect `resolutionKind`, `resolvedPath`, and `warnings`.
+ */
+export type ResolvedCommandInvocation = {
+  executable: string;
+  args: string[];
+  resolvedCommand: ResolvedCommand;
+};
+
+/**
+ * Builds the spawn-ready invocation for an already-resolved command.
+ *
+ * Exposed separately from `resolveCommandInvocation` so callers that legitimately
+ * bypass PATH resolution (for example `runMeasuredCommand({ resolveCommand: false })`)
+ * still share one argument-assembly rule.
+ *
+ * `windows-cmd-shim` resolutions run `cmd.exe /d /s /c call <resolvedPath> ...`,
+ * so the resolved shim path is inserted after the prefix. Every other resolution
+ * kind (including `windows-powershell-shim`, whose `argsPrefix` already ends with
+ * `-File <resolvedPath>`) only needs prefix + caller arguments.
+ */
+export function buildResolvedCommandInvocation(
+  resolvedCommand: ResolvedCommand,
+  args: readonly string[]
+): ResolvedCommandInvocation {
+  const trailingArgs = [...args];
+  const invocationArgs =
+    resolvedCommand.resolutionKind === "windows-cmd-shim" && resolvedCommand.resolvedPath
+      ? [...resolvedCommand.argsPrefix, resolvedCommand.resolvedPath, ...trailingArgs]
+      : [...resolvedCommand.argsPrefix, ...trailingArgs];
+
+  return {
+    executable: resolvedCommand.command,
+    args: invocationArgs,
+    resolvedCommand
+  };
+}
+
+/**
+ * Resolves `executable` through `resolveCommand()` and returns the spawn-ready
+ * executable/argument pair. Never introduces `shell: true`.
+ *
+ * An unavailable command is returned as a structured invocation whose
+ * `resolvedCommand.resolutionKind` is "unavailable"; callers decide whether that
+ * is a skip or a failure.
+ */
+export function resolveCommandInvocation(
+  executable: string,
+  args: readonly string[],
+  options: ResolveCommandOptions = {}
+): ResolvedCommandInvocation {
+  return buildResolvedCommandInvocation(resolveCommand(executable, options), args);
+}

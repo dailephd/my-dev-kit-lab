@@ -1,36 +1,37 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import type { PlaywrightLikeModule, ScreenshotCaptureResult } from "./types.js";
+import {
+  closeBrowserQuietly,
+  errorMessage,
+  isMissingBrowserRuntimeError,
+  launchChromium,
+  type PlaywrightLikeBrowser,
+  type PlaywrightLikeModule
+} from "../browser/index.js";
+import type { ScreenshotCaptureResult } from "./types.js";
 
 const SKIP_WARNING = "PNG screenshot skipped because Playwright or browser runtime is unavailable.";
 
-function isMissingBrowserRuntime(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.includes("Executable doesn't exist") ||
-    message.includes("browserType.launch") ||
-    message.includes("playwright install") ||
-    message.includes("Failed to launch") ||
-    message.includes("Could not find Chrome") ||
-    message.includes("ENOENT")
-  );
-}
+const REPORT_VIEWPORT = { width: 1440, height: 1080 } as const;
 
-async function defaultLoadPlaywright(): Promise<PlaywrightLikeModule> {
-  return (await import("playwright")) as unknown as PlaywrightLikeModule;
-}
-
+/**
+ * Captures a one-shot PNG of a local HTML report.
+ *
+ * Playwright loading, Chromium launch, and browser-availability classification
+ * are owned by `src/browser`; this module owns only the report-specific policy
+ * of mapping a generic runtime outcome onto captured/skipped/failed. A missing
+ * Playwright package and a missing Chromium binary are both non-fatal for a
+ * report (the HTML report is still produced), so both become "skipped".
+ */
 export async function captureReportScreenshot(
   htmlPath: string,
   pngPath: string,
   options?: { loadPlaywright?: () => Promise<PlaywrightLikeModule> }
 ): Promise<ScreenshotCaptureResult> {
-  const loadPlaywright = options?.loadPlaywright ?? defaultLoadPlaywright;
-
   try {
     await access(htmlPath);
-  } catch (error) {
+  } catch {
     return {
       status: "failed",
       htmlPath,
@@ -39,10 +40,8 @@ export async function captureReportScreenshot(
     };
   }
 
-  let playwright: PlaywrightLikeModule;
-  try {
-    playwright = await loadPlaywright();
-  } catch {
+  const launch = await launchChromium({ headless: true, loadPlaywright: options?.loadPlaywright });
+  if (launch.status === "unavailable") {
     return {
       status: "skipped",
       htmlPath,
@@ -50,11 +49,18 @@ export async function captureReportScreenshot(
       warning: SKIP_WARNING
     };
   }
+  if (launch.status === "failed") {
+    return {
+      status: "failed",
+      htmlPath,
+      pngPath,
+      error: launch.error
+    };
+  }
 
-  let browser;
+  const browser: PlaywrightLikeBrowser = launch.browser;
   try {
-    browser = await playwright.chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
+    const page = await browser.newPage({ viewport: { ...REPORT_VIEWPORT } });
     await page.goto(pathToFileURL(path.resolve(htmlPath)).href, { waitUntil: "load" });
     await page.screenshot({ path: pngPath, fullPage: true });
     await browser.close();
@@ -64,11 +70,12 @@ export async function captureReportScreenshot(
       pngPath
     };
   } catch (error) {
-    if (browser) {
-      await browser.close().catch(() => undefined);
-    }
+    await closeBrowserQuietly(browser);
 
-    if (isMissingBrowserRuntime(error)) {
+    // A post-launch failure can still be a missing-browser-runtime symptom (for
+    // example a browser process that dies on first page use), so the same closed
+    // classifier applies here as at launch time.
+    if (isMissingBrowserRuntimeError(error)) {
       return {
         status: "skipped",
         htmlPath,
@@ -81,7 +88,7 @@ export async function captureReportScreenshot(
       status: "failed",
       htmlPath,
       pngPath,
-      error: error instanceof Error ? error.message : String(error)
+      error: errorMessage(error)
     };
   }
 }

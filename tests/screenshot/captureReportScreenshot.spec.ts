@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { captureReportScreenshot, SCREENSHOT_SKIP_WARNING } from "../../src/screenshot/captureReportScreenshot.js";
-import type { PlaywrightLikeModule } from "../../src/screenshot/types.js";
+import type { PlaywrightLikeBrowser, PlaywrightLikeModule } from "../../src/screenshot/types.js";
 
 const tempDirs: string[] = [];
 
@@ -74,7 +74,7 @@ describe("captureReportScreenshot", () => {
     const result = await captureReportScreenshot(fixture.htmlPath, fixture.pngPath, {
       loadPlaywright: async () => ({
         chromium: {
-          async launch() {
+          async launch(): Promise<PlaywrightLikeBrowser> {
             throw new Error("Executable doesn't exist. Please run npx playwright install");
           }
         }
@@ -82,5 +82,116 @@ describe("captureReportScreenshot", () => {
     });
     expect(result.status).toBe("skipped");
     expect(result.warning).toBe(SCREENSHOT_SKIP_WARNING);
+  });
+
+  it("returns failed for an unexpected browser error", async () => {
+    const fixture = await createHtmlFixture();
+    const result = await captureReportScreenshot(fixture.htmlPath, fixture.pngPath, {
+      loadPlaywright: async () => ({
+        chromium: {
+          async launch(): Promise<PlaywrightLikeBrowser> {
+            throw new Error("unexpected protocol error while starting");
+          }
+        }
+      })
+    });
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("unexpected protocol error");
+    expect(result.warning).toBeUndefined();
+  });
+
+  it("closes the browser after a successful capture", async () => {
+    const fixture = await createHtmlFixture();
+    let closed = 0;
+    const result = await captureReportScreenshot(fixture.htmlPath, fixture.pngPath, {
+      loadPlaywright: async () => ({
+        chromium: {
+          async launch(): Promise<PlaywrightLikeBrowser> {
+            return {
+              async newPage() {
+                return {
+                  async goto() {},
+                  async screenshot(options) {
+                    await writeFile(options.path, "png-data", "utf8");
+                  }
+                };
+              },
+              async close() {
+                closed += 1;
+              }
+            };
+          }
+        }
+      })
+    });
+    expect(result.status).toBe("captured");
+    expect(closed).toBe(1);
+  });
+
+  it("closes the browser after a post-launch capture failure", async () => {
+    const fixture = await createHtmlFixture();
+    let closed = 0;
+    const result = await captureReportScreenshot(fixture.htmlPath, fixture.pngPath, {
+      loadPlaywright: async () => ({
+        chromium: {
+          async launch(): Promise<PlaywrightLikeBrowser> {
+            return {
+              async newPage() {
+                return {
+                  async goto() {},
+                  async screenshot(): Promise<void> {
+                    throw new Error("page crashed while capturing");
+                  }
+                };
+              },
+              async close() {
+                closed += 1;
+              }
+            };
+          }
+        }
+      })
+    });
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("page crashed");
+    expect(closed).toBe(1);
+  });
+
+  it("uses the 1440x1080 full-page report viewport", async () => {
+    const fixture = await createHtmlFixture();
+    const viewports: Array<{ width: number; height: number }> = [];
+    const fullPageFlags: boolean[] = [];
+    const result = await captureReportScreenshot(fixture.htmlPath, fixture.pngPath, {
+      loadPlaywright: async () => ({
+        chromium: {
+          async launch(): Promise<PlaywrightLikeBrowser> {
+            return {
+              async newPage(options) {
+                viewports.push(options.viewport);
+                return {
+                  async goto() {},
+                  async screenshot(options) {
+                    fullPageFlags.push(options.fullPage);
+                    await writeFile(options.path, "png-data", "utf8");
+                  }
+                };
+              },
+              async close() {}
+            };
+          }
+        }
+      })
+    });
+    expect(result.status).toBe("captured");
+    expect(viewports).toEqual([{ width: 1440, height: 1080 }]);
+    expect(fullPageFlags).toEqual([true]);
+  });
+
+  // The skip warning is part of the published screenshot contract; it must stay
+  // byte-for-byte identical across the v0.4.7 shared-browser-runtime migration.
+  it("keeps SCREENSHOT_SKIP_WARNING byte-for-byte unchanged", () => {
+    expect(SCREENSHOT_SKIP_WARNING).toBe(
+      "PNG screenshot skipped because Playwright or browser runtime is unavailable."
+    );
   });
 });
