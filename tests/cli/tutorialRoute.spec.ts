@@ -39,7 +39,7 @@ function spyOnConsole(): { log: ReturnType<typeof vi.spyOn> } {
 }
 
 function joinSpy(spy: ReturnType<typeof vi.spyOn>): string {
-  return spy.mock.calls.map((call) => call.join(" ")).join("\n");
+  return spy.mock.calls.map((call: unknown[]) => call.join(" ")).join("\n");
 }
 
 describe("tutorial CLI route", () => {

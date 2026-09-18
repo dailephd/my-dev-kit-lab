@@ -2,6 +2,9 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // Vitest 4's default discovery also sees compiled tests under dist/;
+    // keep generated build output out of the source test graph.
+    exclude: ["dist/**"],
     maxWorkers: 2,
     testTimeout: 30_000,
     // v0.3.4 pre-release-readiness correction -- tests/audits/ and
