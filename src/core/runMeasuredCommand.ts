@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { parseCommandString } from "./commandLine.js";
+import { parseCommandString, serializeCommand } from "./commandLine.js";
 import { forceTerminateProcess } from "./processTree.js";
 import {
   buildResolvedCommandInvocation,
@@ -31,9 +31,8 @@ export type MeasuredCommandResult = {
   resolvedCommand?: ResolvedCommand;
 };
 
-export async function runMeasuredCommand(options: {
+type MeasuredCommandBaseOptions = {
   commandId: string;
-  commandString: string;
   cwd: string;
   outDir: string;
   extraArgs?: string[];
@@ -41,10 +40,29 @@ export async function runMeasuredCommand(options: {
   resolveCommand?: boolean;
   allowPowerShellShim?: boolean;
   timeoutMs?: number;
-}): Promise<MeasuredCommandResult> {
+};
+
+/**
+ * Two mutually exclusive ways to name the command.
+ *
+ * `commandString` is the original form: a single line that is split with the
+ * repository's quoting rules. `executable` + `args` is the structured form added
+ * in v0.4.7: it skips command-string parsing entirely, which matters for callers
+ * whose executable is an absolute path. `quoteCommandPart()` escapes backslashes
+ * and `parseCommandString()` does not unescape them, so a Windows path round
+ * -tripped through a command string comes back with doubled separators. A caller
+ * that already holds a discrete executable and argument array should never have
+ * to serialize it just to have it re-parsed.
+ */
+export type RunMeasuredCommandOptions =
+  | (MeasuredCommandBaseOptions & { commandString: string; executable?: never; args?: never })
+  | (MeasuredCommandBaseOptions & { executable: string; args?: readonly string[]; commandString?: never });
+
+export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Promise<MeasuredCommandResult> {
   await mkdir(options.outDir, { recursive: true });
-  const parsed = parseCommandString(options.commandString);
-  const trailingArgs = [...parsed.args, ...(options.extraArgs ?? [])];
+  const named = readCommandName(options);
+  const commandString = named.commandString;
+  const trailingArgs = [...named.args, ...(options.extraArgs ?? [])];
   // Windows .cmd/.bat/.ps1 argument assembly is owned by resolveCommand.ts so
   // that every spawn site (measured commands and managed long-running processes)
   // shares exactly one shim rule.
@@ -52,16 +70,16 @@ export async function runMeasuredCommand(options: {
     options.resolveCommand === false
       ? buildResolvedCommandInvocation(
           {
-            originalCommand: parsed.executable,
-            command: parsed.executable,
+            originalCommand: named.executable,
+            command: named.executable,
             argsPrefix: [],
             resolutionKind: "direct" as const,
-            resolvedPath: parsed.executable,
+            resolvedPath: named.executable,
             warnings: []
           },
           trailingArgs
         )
-      : resolveCommandInvocation(parsed.executable, trailingArgs, {
+      : resolveCommandInvocation(named.executable, trailingArgs, {
           cwd: options.cwd,
           env: { ...process.env, ...options.env },
           allowPowerShellShim: options.allowPowerShellShim
@@ -96,7 +114,7 @@ export async function runMeasuredCommand(options: {
       const message = error instanceof Error ? error.message : String(error);
       const measured: MeasuredCommandResult = {
         commandId: options.commandId,
-        commandString: options.commandString,
+        commandString,
         executable,
         args,
         cwd: options.cwd,
@@ -147,7 +165,7 @@ export async function runMeasuredCommand(options: {
       await writeArtifact(stderrPath, stderr);
       const measured: MeasuredCommandResult = {
         commandId: options.commandId,
-        commandString: options.commandString,
+        commandString,
         executable,
         args,
         cwd: options.cwd,
@@ -175,4 +193,29 @@ export async function runMeasuredCommand(options: {
 async function writeArtifact(filePath: string, value: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, value, "utf8");
+}
+
+/**
+ * Normalizes either input form into an executable, its arguments, and a
+ * human-readable command line for the telemetry record. The serialized string is
+ * for display only -- it is never parsed back into arguments.
+ */
+function readCommandName(options: RunMeasuredCommandOptions): {
+  executable: string;
+  args: string[];
+  commandString: string;
+} {
+  if (options.commandString !== undefined) {
+    const parsed = parseCommandString(options.commandString);
+    return { executable: parsed.executable, args: parsed.args, commandString: options.commandString };
+  }
+  if (options.executable !== undefined) {
+    const args = [...(options.args ?? [])];
+    return {
+      executable: options.executable,
+      args,
+      commandString: serializeCommand([options.executable, ...args])
+    };
+  }
+  throw new Error("runMeasuredCommand requires either a commandString or an executable.");
 }
