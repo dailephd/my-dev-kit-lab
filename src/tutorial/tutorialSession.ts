@@ -8,6 +8,7 @@ import type {
 import { executeTutorialAction } from "./tutorialActions.js";
 import { executeTutorialAssertion } from "./tutorialAssertions.js";
 import { resolveTutorialLocator, describeTutorialLocator } from "./tutorialLocators.js";
+import { resolveTutorialFractionPoint, type TutorialPointerPoint } from "./tutorialPointerGeometry.js";
 import { buildScreenshotPath, toRunRelativePosixPath, verifyArtifactFile } from "./tutorialArtifacts.js";
 import {
   CLICK_FEEDBACK_DURATION_MS,
@@ -321,7 +322,7 @@ async function moveCursorForAction(
   warnings: string[],
   stepId: string,
   sleep: (ms: number) => Promise<void>
-): Promise<TutorialBox | undefined> {
+): Promise<TutorialActionVisualPlan | undefined> {
   const locator = cursorLocatorForAction(action);
   if (!locator) {
     return undefined;
@@ -330,10 +331,32 @@ async function moveCursorForAction(
   if (!box) {
     return undefined;
   }
-  await runVisual(warnings, stepId, "move cursor", () => moveTutorialCursor(options.page, centerOfBox(box)));
+  let point: TutorialPointerPoint;
+  let pointerDragEnd: TutorialPointerPoint | undefined;
+  try {
+    if (action.type === "pointer-click") {
+      point = resolveTutorialFractionPoint(box, action.position);
+    } else if (action.type === "pointer-drag") {
+      point = resolveTutorialFractionPoint(box, action.from);
+      pointerDragEnd = resolveTutorialFractionPoint(box, action.to);
+    } else {
+      point = centerOfBox(box);
+    }
+  } catch (error) {
+    warnings.push(
+      `Step ${JSON.stringify(stepId)}: pointer visual for ${describeTutorialLocator(locator)} could not be planned: ${messageOf(error)}`
+    );
+    return undefined;
+  }
+  await runVisual(warnings, stepId, "move cursor", () => moveTutorialCursor(options.page, point));
   await sleep(CURSOR_MOVE_DURATION_MS);
-  return box;
+  return { point, ...(pointerDragEnd ? { pointerDragEnd } : {}) };
 }
+
+type TutorialActionVisualPlan = {
+  point: TutorialPointerPoint;
+  pointerDragEnd?: TutorialPointerPoint;
+};
 
 /** The locator whose center the cursor points at before each action type. */
 export function cursorLocatorForAction(action: TutorialActionV1): TutorialLocatorV1 | undefined {
@@ -342,6 +365,8 @@ export function cursorLocatorForAction(action: TutorialActionV1): TutorialLocato
     case "fill":
     case "press":
     case "hover":
+    case "pointer-click":
+    case "pointer-drag":
       return action.locator;
     case "drag":
       return action.source;
@@ -355,7 +380,7 @@ export function cursorLocatorForAction(action: TutorialActionV1): TutorialLocato
 async function applyPostActionVisuals(
   options: ExecuteTutorialStepsOptions,
   step: TutorialStepV1,
-  cursorTarget: TutorialBox | undefined,
+  cursorTarget: TutorialActionVisualPlan | undefined,
   warnings: string[],
   sleep: (ms: number) => Promise<void>
 ): Promise<void> {
@@ -364,9 +389,9 @@ async function applyPostActionVisuals(
     return;
   }
 
-  if (action.type === "click" && cursorTarget) {
+  if ((action.type === "click" || action.type === "pointer-click") && cursorTarget) {
     await runVisual(warnings, step.id, "click feedback", () =>
-      showTutorialClickFeedback(options.page, centerOfBox(cursorTarget))
+      showTutorialClickFeedback(options.page, cursorTarget.point)
     );
     // Held only long enough for the ripple to be visible in the recording.
     await sleep(CLICK_FEEDBACK_DURATION_MS);
@@ -382,6 +407,14 @@ async function applyPostActionVisuals(
       );
       await sleep(CURSOR_MOVE_DURATION_MS);
     }
+    return;
+  }
+
+  if (action.type === "pointer-drag" && cursorTarget?.pointerDragEnd) {
+    await runVisual(warnings, step.id, "move cursor to pointer-drag endpoint", () =>
+      moveTutorialCursor(options.page, cursorTarget.pointerDragEnd!)
+    );
+    await sleep(CURSOR_MOVE_DURATION_MS);
   }
 }
 

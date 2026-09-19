@@ -14,6 +14,12 @@ const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf
 const lock = JSON.parse(fs.readFileSync(path.join(repoRoot, "package-lock.json"), "utf8")) as {
   packages: { "": { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } };
 };
+const tutorialScenario = JSON.parse(
+  fs.readFileSync(path.join(repoRoot, "examples", "tutorial-browser", "scenario.json"), "utf8")
+) as {
+  schemaVersion: string;
+  steps: Array<{ id: string; action?: { type: string; [key: string]: unknown } }>;
+};
 
 const testScriptNames = Object.keys(pkg.scripts).filter((name) => name.startsWith("test:"));
 
@@ -63,7 +69,7 @@ describe("installed tutorial package contract", () => {
   it("keeps the lockfile root classification and package version stable", () => {
     expect(lock.packages[""].dependencies?.playwright).toBe("1.60.0");
     expect(lock.packages[""].devDependencies?.playwright).toBeUndefined();
-    expect(pkg.version).toBe("0.4.7");
+    expect(pkg.version).toBe("0.4.8");
   });
 
   it("ships only the canonical generic tutorial resources", () => {
@@ -79,5 +85,37 @@ describe("installed tutorial package contract", () => {
     for (const file of ["index.html", "prepare.mjs", "server.mjs", "scenario.json"]) {
       expect(fs.existsSync(path.join(repoRoot, "examples", "tutorial-browser", file))).toBe(true);
     }
+  });
+
+  it("keeps the canonical packaged scenario on schema 1.0.0 with both drag families", () => {
+    expect(tutorialScenario.schemaVersion).toBe("1.0.0");
+    expect(tutorialScenario.steps).toHaveLength(9);
+    expect(tutorialScenario.steps.map((step) => step.id)).toEqual([
+      "open-app",
+      "activate",
+      "fill-name",
+      "submit-name",
+      "hover-button",
+      "drag-card",
+      "pointer-click-surface",
+      "pointer-drag-surface",
+      "wait-banner"
+    ]);
+    expect(tutorialScenario.steps.map((step) => step.action?.type)).toEqual([
+      "goto",
+      "click",
+      "fill",
+      "press",
+      "hover",
+      "drag",
+      "pointer-click",
+      "pointer-drag",
+      "wait-for"
+    ]);
+    expect(tutorialScenario.steps.find((step) => step.id === "drag-card")?.action).toEqual({
+      type: "drag",
+      source: { kind: "test-id", testId: "drag-card" },
+      target: { kind: "test-id", testId: "drop-zone" }
+    });
   });
 });

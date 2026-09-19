@@ -2,6 +2,20 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.4.8] - 2026-09-19
+
+Locator-anchored pointer gestures for declarative browser tutorials.
+
+- Added `pointer-click` and `pointer-drag` declarative tutorial actions anchored to a single `TutorialLocatorV1` interaction surface.
+- Added normalized fraction coordinates (`coordinateSpace: "fraction"`) with inclusive `[0, 1]` bounds and zero-length pointer-drag rejection.
+- Used real Playwright mouse input (`mouse.move`, `mouse.down`, `mouse.up`) with a fixed 8-step drag movement (`POINTER_DRAG_MOVE_STEPS = 8`) and robust `mouse.up` error cleanup.
+- Preserved existing element-to-element `drag` (`source` and `target` locators via Playwright `dragTo`) and all existing scenario action/assertion behaviors without change.
+- Preserved closed security boundaries: no arbitrary JavaScript, no `page.evaluate` callbacks, no generic DOM event dispatch, no shell actions, and no unanchored page/screen coordinates.
+- Extended the generic real-browser fixture (`examples/tutorial-browser/`) with an interactive SVG pointer surface, verifying pointer clicks, pointer drags, and intermediate pointermove tracking through genuine Chromium.
+- Extended packed-package verification (`npm run verify:packed-package`) to validate and execute the new pointer actions against a clean installed-tarball consumer while maintaining package, target, and example immutability.
+- Validated downstream `my-frontend-observer` compatibility evidence as a read-only compatibility consumer (rectangle, line, arrow, point, and note gestures confirmed expressible without Observer code modifications or runtime dependencies).
+- Kept `TutorialScenarioV1`, `TutorialTargetContractV1`, `TutorialRunResultV1`, and `TutorialManifestV1` schemas at version `1.0.0`.
+
 ## [0.4.7] - 2026-09-18
 
 The v0.4.7 implementation adds generic declarative browser tutorial automation while preserving product-specific demo ownership outside this repository.

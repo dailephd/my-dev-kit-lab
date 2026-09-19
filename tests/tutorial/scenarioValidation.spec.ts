@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateTutorialScenario } from "../../src/tutorial/scenarioValidation.js";
-import { MAX_STEP_PAUSE_MS } from "../../src/tutorial/types.js";
+import { MAX_STEP_PAUSE_MS, TUTORIAL_ACTION_TYPES } from "../../src/tutorial/types.js";
 import { minimalScenario } from "./tutorialTestHelpers.js";
 
 function expectInvalid(value: unknown, fragment: string): string[] {
@@ -10,6 +10,12 @@ function expectInvalid(value: unknown, fragment: string): string[] {
   const joined = result.errors.join("\n");
   expect(joined).toContain(fragment);
   return result.errors;
+}
+
+function scenarioWithAction(action: unknown) {
+  return minimalScenario({
+    steps: [{ id: "pointer", narration: "Use the pointer.", action: action as never }]
+  });
 }
 
 describe("validateTutorialScenario", () => {
@@ -60,6 +66,128 @@ describe("validateTutorialScenario", () => {
     const result = validateTutorialScenario(scenario);
     if (!result.ok) throw new Error(result.errors.join("\n"));
     expect(result.value.steps).toHaveLength(7);
+  });
+
+  it("exposes the complete supported action set in stable order", () => {
+    expect([...TUTORIAL_ACTION_TYPES]).toEqual([
+      "goto",
+      "click",
+      "fill",
+      "press",
+      "hover",
+      "drag",
+      "wait-for",
+      "pointer-click",
+      "pointer-drag"
+    ]);
+  });
+
+  describe("pointer-click", () => {
+    const valid = {
+      type: "pointer-click",
+      locator: { kind: "css", selector: "#surface" },
+      position: { x: 0.25, y: 0.5 },
+      coordinateSpace: "fraction"
+    };
+
+    it.each([
+      [{ x: 0.25, y: 0.5 }, "interior"],
+      [{ x: 0, y: 0.5 }, "x=0"],
+      [{ x: 0.5, y: 0 }, "y=0"],
+      [{ x: 1, y: 0.5 }, "x=1"],
+      [{ x: 0.5, y: 1 }, "y=1"]
+    ])("accepts %s", (position) => {
+      expect(validateTutorialScenario(scenarioWithAction({ ...valid, position })).ok).toBe(true);
+    });
+
+    it.each([
+      [{ x: -0.01, y: 0.5 }, "negative x"],
+      [{ x: 0.5, y: -0.01 }, "negative y"],
+      [{ x: 1.01, y: 0.5 }, "x above one"],
+      [{ x: 0.5, y: 1.01 }, "y above one"],
+      [{ x: Number.NaN, y: 0.5 }, "NaN"],
+      [{ x: Number.POSITIVE_INFINITY, y: 0.5 }, "Infinity"]
+    ])("rejects %s", (position) => {
+      expectInvalid(scenarioWithAction({ ...valid, position }), "inclusive bounds [0, 1]");
+    });
+
+    it.each([
+      ["locator", "locator"],
+      ["position", "position"],
+      ["coordinateSpace", "coordinateSpace"]
+    ])("rejects a missing %s", (field, fragment) => {
+      const action = { ...valid } as Record<string, unknown>;
+      delete action[field];
+      expectInvalid(scenarioWithAction(action), fragment);
+    });
+
+    it("rejects coordinate spaces other than fraction", () => {
+      expectInvalid(scenarioWithAction({ ...valid, coordinateSpace: "page" }), 'expected "fraction"');
+    });
+
+    it("rejects unknown action and point fields", () => {
+      expectInvalid(scenarioWithAction({ ...valid, pageX: 100 }), "unknown field");
+      expectInvalid(scenarioWithAction({ ...valid, position: { x: 0.5, y: 0.5, z: 0 } }), "unknown field");
+    });
+
+    it("rejects an invalid timeout", () => {
+      expectInvalid(scenarioWithAction({ ...valid, timeoutMs: 0 }), "finite positive integer");
+    });
+  });
+
+  describe("pointer-drag", () => {
+    const valid = {
+      type: "pointer-drag",
+      locator: { kind: "test-id", testId: "surface" },
+      from: { x: 0.25, y: 0.25 },
+      to: { x: 0.75, y: 0.75 },
+      coordinateSpace: "fraction"
+    };
+
+    it.each([
+      [valid, "distinct interior endpoints"],
+      [{ ...valid, from: { x: 0, y: 0 }, to: { x: 0.5, y: 0.5 } }, "zero boundary"],
+      [{ ...valid, from: { x: 0.5, y: 0.5 }, to: { x: 1, y: 1 } }, "one boundary"],
+      [{ ...valid, to: { x: 0.75, y: 0.25 } }, "only x changes"],
+      [{ ...valid, to: { x: 0.25, y: 0.75 } }, "only y changes"]
+    ])("accepts %s", (action) => {
+      expect(validateTutorialScenario(scenarioWithAction(action)).ok).toBe(true);
+    });
+
+    it.each([
+      [{ x: -0.01, y: 0.25 }, "negative"],
+      [{ x: 1.01, y: 0.25 }, "above one"],
+      [{ x: Number.NEGATIVE_INFINITY, y: 0.25 }, "non-finite"]
+    ])("rejects a %s coordinate", (from) => {
+      expectInvalid(scenarioWithAction({ ...valid, from }), "inclusive bounds [0, 1]");
+    });
+
+    it.each([
+      ["locator", "locator"],
+      ["from", "from"],
+      ["to", "to"],
+      ["coordinateSpace", "coordinateSpace"]
+    ])("rejects a missing %s", (field, fragment) => {
+      const action = { ...valid } as Record<string, unknown>;
+      delete action[field];
+      expectInvalid(scenarioWithAction(action), fragment);
+    });
+
+    it("rejects an invalid coordinate space", () => {
+      expectInvalid(scenarioWithAction({ ...valid, coordinateSpace: "screen" }), 'expected "fraction"');
+    });
+
+    it("rejects identical endpoints", () => {
+      expectInvalid(scenarioWithAction({ ...valid, to: { ...valid.from } }), "zero-length drags");
+    });
+
+    it("rejects unknown fields", () => {
+      expectInvalid(scenarioWithAction({ ...valid, steps: 8 }), "unknown field");
+    });
+
+    it("rejects an invalid timeout", () => {
+      expectInvalid(scenarioWithAction({ ...valid, timeoutMs: 1.5 }), "finite positive integer");
+    });
   });
 
   it("rejects a missing schemaVersion", () => {

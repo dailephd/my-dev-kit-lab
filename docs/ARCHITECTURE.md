@@ -393,11 +393,63 @@ Cross-repository boundary:
 ```mermaid
 flowchart LR
   Observer[my-frontend-observer<br/>deterministic demo template + product scenarios] --> Contract[trusted demo/target contract]
-  Contract --> Lab[my-dev-kit-lab v0.4.7<br/>generic tutorial runtime]
+  Contract --> Lab[my-dev-kit-lab v0.4.8<br/>generic tutorial runtime]
   Lab --> Evidence[WebM + screenshots + SRT/VTT + Markdown + tutorial manifest]
 ```
 
 `my-frontend-observer` owns its demo source, stable target identifiers, deterministic visual variants, reference images, materialization/reset behavior, readiness/start contract, and Observer-specific scenario files. my-dev-kit-lab must not encode Observer selectors or semantics in production code. The lab carries its own generic deterministic fixture, so normal lab CI and packed-package acceptance never require a sibling Observer checkout.
+
+### Released v0.4.8 pointer-gesture extension
+
+The v0.4.7 action model intentionally distinguishes browser elements but could not name two positions inside the same pointer-receiving element. The first Observer v0.9 integration exposed this as a generic capability gap for SVG/canvas drawing and similar editors. v0.4.8 releases an additive tutorial patch, not a product-specific workaround.
+
+Implemented contract:
+
+```ts
+type TutorialFractionPointV1 = { x: number; y: number };
+
+type TutorialPointerClickActionV1 = {
+  type: "pointer-click";
+  locator: TutorialLocatorV1;
+  position: TutorialFractionPointV1;
+  coordinateSpace: "fraction";
+  timeoutMs?: number;
+};
+
+type TutorialPointerDragActionV1 = {
+  type: "pointer-drag";
+  locator: TutorialLocatorV1;
+  from: TutorialFractionPointV1;
+  to: TutorialFractionPointV1;
+  coordinateSpace: "fraction";
+  timeoutMs?: number;
+};
+```
+
+Architecture rules and component ownership:
+
+* **Browser runtime ownership (`src/browser/types.ts`):** `PlaywrightLikeTutorialPage` exposes minimal structural mouse input methods (`PlaywrightLikeMouse`: `move(x, y, options?)`, `down()`, `up()`). Browser abstraction and Playwright loading remain owned by `src/browser/`.
+* **Tutorial runtime ownership (`src/tutorial/`):**
+  - `src/tutorial/types.ts` defines `TutorialFractionPointV1`, `TutorialPointerClickActionV1`, and `TutorialPointerDragActionV1`.
+  - `src/tutorial/scenarioValidation.ts` enforces closed validation, requiring `coordinateSpace: "fraction"`, bounding coordinates to `[0, 1]`, and rejecting zero-length pointer drags.
+  - `src/tutorial/tutorialPointerGeometry.ts` converts validated locator-relative fraction points into absolute page coordinates within the locator bounding box.
+  - `src/tutorial/tutorialActions.ts` executes real Playwright mouse input for `pointer-click` (`move`, `down`, `up`) and `pointer-drag` (sequence `mouse.move(start)`, `mouse.down()`, `mouse.move(end, { steps: 8 })`, `mouse.up()`), with `POINTER_DRAG_MOVE_STEPS = 8` and `mouse.up()` error cleanup.
+  - `src/tutorial/tutorialSession.ts` and `src/tutorial/tutorialCursor.ts` manage non-authoritative synthetic cursor positioning and click feedback at resolved coordinates.
+* **Preservation of existing contracts:**
+  - Existing element-to-element `drag` remains unchanged and continues to use Playwright locator `dragTo`.
+  - `TutorialScenarioV1`, `TutorialTargetContractV1`, `TutorialRunResultV1`, and `TutorialManifestV1` schemas remain version `1.0.0`.
+  - Existing one-shot screenshot ownership, managed processes, target contracts, loopback policy, artifacts, video/subtitle/Markdown writers, and gallery boundaries remain unchanged.
+* **Generic acceptance fixture (`examples/tutorial-browser/`):**
+  - Lab-owned generic fixture carries an interactive SVG pointer surface, 9-step scenario, and pointermove tracking evidence.
+  - Real Chromium integration (`tests/integration/tutorialRealBrowser.spec.ts`) and exact packed-package gate (`scripts/verify-packed-package.mjs`) exercise both actions against clean consumers.
+* **Consumer boundary:**
+  - Downstream `my-frontend-observer` is a read-only compatibility consumer; Observer-specific selectors, demo templates, and product behaviors remain outside the lab. Lab CI remains sibling-independent.
+
+Explicit non-goals:
+
+* No page-wide coordinates, element-pixel mode, configurable drag steps, touch/pen, alternate mouse buttons, arbitrary event payloads, JavaScript callbacks, or shell actions.
+* No Observer-only selectors, fake drag handles, hidden tutorial controls, or alternate product interaction paths.
+* No change to FFmpeg/MP4/audio/gallery scope and no warm-index work.
 
 The following layers remain planned and must not be treated as current behavior:
 
@@ -454,3 +506,10 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.5 ecosystem regression fixture manifest / hash verification / loader (released) | `src/evaluation/ecosystemFixtures/` |
 | v0.4.5 frozen failed-run and corrected-replay fixture pair (released) | `tests/fixtures/ecosystem/context-integrity/v0.4.5/` |
 | v0.4.5 bounded context-integrity report model, builder, and renderers (released) | `src/report/experiments/contextIntegrityReportModel.ts`, `buildContextIntegrityReport.ts`, `renderContextIntegrityJsonReport.ts`, `renderContextIntegrityText.ts`, `renderContextIntegrityHtml.ts` |
+| v0.4.7 tutorial contracts and types (released) | `src/tutorial/types.ts` |
+| v0.4.7 persistent tutorial session and cursor overlay (released) | `src/tutorial/tutorialSession.ts` / `src/tutorial/tutorialCursor.ts` |
+| v0.4.8 pointer actions and fraction point types (released) | `src/tutorial/types.ts` |
+| v0.4.8 pointer geometry resolution (released) | `src/tutorial/tutorialPointerGeometry.ts` |
+| v0.4.8 pointer action execution and move steps (released) | `src/tutorial/tutorialActions.ts` |
+| v0.4.8 structural browser mouse interface (released) | `src/browser/types.ts` |
+| v0.4.8 generic tutorial browser fixture (released) | `examples/tutorial-browser/` |

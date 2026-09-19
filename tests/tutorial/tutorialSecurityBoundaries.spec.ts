@@ -155,7 +155,9 @@ describe("scenarios cannot express JavaScript execution", () => {
       "press",
       "hover",
       "drag",
-      "wait-for"
+      "wait-for",
+      "pointer-click",
+      "pointer-drag"
     ]);
     expect([...TUTORIAL_ASSERTION_TYPES]).toEqual([
       "element-visible",
@@ -176,6 +178,55 @@ describe("scenarios cannot express JavaScript execution", () => {
         minimalScenario({ steps: [{ id: "s", narration: "n", script: "alert(1)" } as never] })
       ).ok
     ).toBe(false);
+  });
+
+  it("keeps pointer-drag locator-anchored and rejects page/screen/script/event controls", () => {
+    const base = {
+      type: "pointer-drag",
+      locator: { kind: "css", selector: "#surface" },
+      from: { x: 0.1, y: 0.2 },
+      to: { x: 0.8, y: 0.9 },
+      coordinateSpace: "fraction"
+    };
+    for (const field of [
+      "pageX",
+      "pageY",
+      "screenX",
+      "screenY",
+      "javascript",
+      "script",
+      "event",
+      "eventType",
+      "button",
+      "pointerType",
+      "steps"
+    ]) {
+      const action = { ...base, [field]: field === "steps" ? 8 : "forbidden" };
+      expect(
+        validateTutorialScenario(
+          minimalScenario({ steps: [{ id: "s", narration: "n", action: action as never }] })
+        ).ok
+      ).toBe(false);
+    }
+  });
+
+  it("rejects page-coordinate-shaped pointer endpoints instead of treating them as fractions", () => {
+    const result = validateTutorialScenario(
+      minimalScenario({
+        steps: [{
+          id: "s",
+          narration: "n",
+          action: {
+            type: "pointer-drag",
+            locator: { kind: "css", selector: "#surface" },
+            from: { pageX: 100, pageY: 100 },
+            to: { pageX: 200, pageY: 200 },
+            coordinateSpace: "fraction"
+          } as never
+        }]
+      })
+    );
+    expect(result.ok).toBe(false);
   });
 });
 

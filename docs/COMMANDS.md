@@ -51,6 +51,75 @@ Without `--out`, tutorial runs are created under `<home>/.my-dev-kit-lab/tutoria
 
 Canonical artifacts are `artifacts/tutorial.webm`, `artifacts/tutorial.srt`, `artifacts/tutorial.vtt`, `artifacts/tutorial.md`, `artifacts/tutorial-manifest.json`, and the requested `screenshots/<screenshot-id>.png` files. The manifest records scenario/target identity, step actions and assertions, timeline, artifact status, warnings, and cleanup errors. It is runtime evidence; video is reviewable recording, not a substitute for passing assertions.
 
+#### Scenario action vocabulary
+
+Tutorial scenarios (`TutorialScenarioV1`) accept the following exact action vocabulary:
+
+- `goto`
+- `click`
+- `fill`
+- `press`
+- `hover`
+- `drag`
+- `wait-for`
+- `pointer-click`
+- `pointer-drag`
+
+##### Action distinction: `click` versus `pointer-click`
+
+- `click`: targets an element directly through Playwright `locator.click()`.
+- `pointer-click`: targets a deliberate normalized position inside one located interaction surface using real Playwright `page.mouse` (`move`, `down`, `up`).
+
+Serialized shape:
+```json
+{
+  "type": "pointer-click",
+  "locator": { "kind": "test-id", "testId": "pointer-surface" },
+  "position": {
+    "x": 0.25,
+    "y": 0.5
+  },
+  "coordinateSpace": "fraction",
+  "timeoutMs": 5000
+}
+```
+
+##### Action distinction: `drag` versus `pointer-drag`
+
+- `drag`: performs element-to-element drag-and-drop between distinct source and target locators through Playwright `source.dragTo(target)`:
+```json
+{
+  "type": "drag",
+  "source": { "kind": "test-id", "testId": "source-element" },
+  "target": { "kind": "test-id", "testId": "target-element" },
+  "timeoutMs": 5000
+}
+```
+- `pointer-drag`: performs a position-to-position pointer drag across two distinct normalized positions inside a single located interaction surface:
+```json
+{
+  "type": "pointer-drag",
+  "locator": { "kind": "test-id", "testId": "pointer-surface" },
+  "from": {
+    "x": 0.2,
+    "y": 0.25
+  },
+  "to": {
+    "x": 0.8,
+    "y": 0.75
+  },
+  "coordinateSpace": "fraction",
+  "timeoutMs": 5000
+}
+```
+
+##### Coordinate space and validation rules
+
+- `coordinateSpace`: required, and must be `"fraction"`. Coordinates are normalized offsets relative to the element's current bounding box. Absolute page coordinates, screen coordinates, and element-pixel mode do not exist.
+- Coordinate bounds: `x` and `y` must be finite numbers in the inclusive range `[0, 1]`. Values `< 0` or `> 1` fail validation.
+- Distinct endpoints: `pointer-drag` endpoints (`from` and `to`) must be distinct. Zero-length pointer drags (`from.x === to.x && from.y === to.y`) fail validation.
+- Mouse movement: `pointer-drag` executes real Playwright mouse moves with a fixed 8-step sequence (`mouse.move(start)`, `mouse.down()`, `mouse.move(end, { steps: 8 })`, `mouse.up()`).
+
 Every command and family also accepts `--help`/`-h` for bounded usage text. `--help`/`--version` with no other arguments, and no arguments at all, print top-level help and exit `0`.
 
 ### Global `--workspace` option

@@ -11,7 +11,7 @@ flowchart LR
   V020[v0.2.0] --> V021[v0.2.1] --> V022[v0.2.2]
   V022 --> V030[v0.3.0] --> V031[v0.3.1] --> V032[v0.3.2] --> V033[v0.3.3] --> V034[v0.3.4]
   V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3] --> V044[v0.4.4]
-  V044 --> V045[v0.4.5] --> V046[v0.4.6] --> V047[v0.4.7] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
+  V044 --> V045[v0.4.5] --> V046[v0.4.6] --> V047[v0.4.7] --> V048[v0.4.8] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
   V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
@@ -583,6 +583,91 @@ Explicit exclusions:
 * Arbitrary JavaScript/page-evaluation escape hatches or arbitrary shell commands in scenario steps.
 * A runtime dependency on my-dev-kit or my-dev-kit-orchestrator.
 * Warm-index reuse; that remains v0.5.0.
+
+### v0.4.8 — locator-anchored pointer gestures for browser tutorials
+
+Status: **published**.
+
+Purpose:
+
+* Close the generic tutorial-expression gap found by the first real downstream consumer, `my-frontend-observer`: v0.4.7 can drag one DOM element to another but cannot reproduce a real free-position pointer gesture inside one SVG/canvas-style interaction surface.
+* Add the smallest bounded input vocabulary needed for drawing, selection rectangles, crop/range gestures, diagram editors, map/timeline selections, and other position-sensitive browser interactions without introducing arbitrary page coordinates, arbitrary JavaScript, or generic DOM event dispatch.
+* Preserve every existing v0.4.7 action and artifact contract. This is an additive tutorial-runtime patch, not an Observer-specific workaround or a redesign of the tutorial target/process/video system.
+
+Planner-owned action contract:
+
+```ts
+type TutorialFractionPointV1 = {
+  x: number;
+  y: number;
+};
+
+type TutorialPointerClickActionV1 = {
+  type: "pointer-click";
+  locator: TutorialLocatorV1;
+  position: TutorialFractionPointV1;
+  coordinateSpace: "fraction";
+  timeoutMs?: number;
+};
+
+type TutorialPointerDragActionV1 = {
+  type: "pointer-drag";
+  locator: TutorialLocatorV1;
+  from: TutorialFractionPointV1;
+  to: TutorialFractionPointV1;
+  coordinateSpace: "fraction";
+  timeoutMs?: number;
+};
+```
+
+Frozen semantics:
+
+* `pointer-click` and `pointer-drag` are anchored to exactly one existing `TutorialLocatorV1`; there is no page-wide or screen-wide coordinate mode.
+* Fraction coordinates are inclusive normalized offsets within the locator's current bounding box: `0 <= x <= 1`, `0 <= y <= 1`. Invalid coordinates fail validation and are never clamped.
+* `pointer-drag` requires distinct `from` and `to` points. Zero-length pointer drags fail validation.
+* `coordinateSpace` is required and the only accepted v0.4.8 value is `"fraction"`. Do not add element-pixel coordinates until a real generic use case requires them.
+* `pointer-click` uses real Playwright mouse input at the resolved point. `pointer-drag` uses real Playwright mouse input in the exact host-side sequence `mouse.move(start)`, `mouse.down()`, `mouse.move(end, { steps: 8 })`, `mouse.up()`.
+* Freeze `POINTER_DRAG_MOVE_STEPS = 8`. Do not expose move-step count, mouse button, pointer type, or arbitrary event properties in this patch.
+* Existing `drag` remains element-to-element `source.dragTo(target)`; its schema and runtime behavior do not change.
+* Synthetic cursor presentation follows the same locator-anchored start/end positions. `pointer-click` reuses existing click feedback. Visual failures remain warnings and never replace action/assertion evidence.
+* Scenario JSON still cannot supply JavaScript, `page.evaluate`, callbacks, shell commands, arbitrary event payloads, or absolute page/screen coordinates.
+
+Schema-version decision:
+
+* Keep `TutorialScenarioV1.schemaVersion = "1.0.0"` for v0.4.8. The patch adds action discriminants while preserving every existing serialized v1.0.0 scenario unchanged; package version `0.4.8` is the capability boundary for scenarios that use the new actions.
+* Keep `TutorialTargetContractV1`, `TutorialRunResultV1`, and `TutorialManifestV1` at schema version `1.0.0`. No target/process, output-layout, artifact-record, or manifest structural change is required.
+* Do not introduce schema `2.0.0`. Revisit a scenario-schema version bump only when a serialized field changes incompatibly or a stronger cross-version compatibility requirement is demonstrated.
+
+Implementation summary (completed):
+
+1. **Pointer contract and runtime.** Extended `src/tutorial/types.ts` with `TutorialFractionPointV1`, `TutorialPointerClickActionV1`, and `TutorialPointerDragActionV1`. Added closed schema validation in `src/tutorial/scenarioValidation.ts` for fraction coordinate space, `[0, 1]` bounds, and distinct endpoint requirements. Added structural Playwright mouse types to `src/browser/types.ts`. Implemented real mouse execution in `src/tutorial/tutorialActions.ts` with fixed 8-step drag movement and `mouse.up()` error cleanup, shared geometry in `src/tutorial/tutorialPointerGeometry.ts`, and synthetic cursor presentation with click feedback in `src/tutorial/tutorialSession.ts`. Added planner-authored validation and action tests covering 0/1 bounds, negative/non-finite coordinates, unknown fields, zero-length drag rejection, mouse call ordering, deterministic 8-step drag movement, cursor start/end positioning, click feedback, and `mouse.up()` error cleanup.
+2. **Generic browser/package acceptance.** Extended the generic `examples/tutorial-browser/` fixture with a real pointer-receiving SVG surface and intermediate pointermove tracking evidence. Added `pointer-click` and `pointer-drag` steps to the generic 9-step scenario, proven in `tests/integration/tutorialRealBrowser.spec.ts` through real Chromium. Extended exact packed-tarball acceptance in `scripts/verify-packed-package.mjs` to validate and execute both actions from a clean installed consumer without source mutation. Preserved downstream `my-frontend-observer` compatibility evidence across rectangle, line, arrow, point, and note gestures with zero Observer modifications and zero runtime dependencies.
+
+Expected production owners:
+
+* `src/tutorial/types.ts` — two new action discriminants and normalized point type.
+* `src/tutorial/scenarioValidation.ts` — closed validation for fraction points and zero-length drag rejection.
+* `src/browser/types.ts` — the minimal structural Playwright mouse surface required by tutorial execution.
+* `src/tutorial/tutorialActions.ts` — real Playwright mouse execution and bounded coordinate conversion.
+* `src/tutorial/tutorialSession.ts` / `tutorialCursor.ts` — synthetic cursor positioning and existing click feedback for the new actions.
+* `src/tutorial/tutorialPointerGeometry.ts` — shared pointer geometry helper preventing duplicate coordinate math between action execution and presentation.
+
+Acceptance:
+
+* Existing v0.4.7 scenarios using `goto`, `click`, `fill`, `press`, `hover`, `drag`, and `wait-for` still validate and execute unchanged.
+* A generic real-browser fixture proves a positional click and a non-zero pointer drag inside one located surface using actual Playwright mouse input.
+* The action model never accepts unanchored page/screen coordinates and never gains arbitrary JavaScript or generic event dispatch.
+* The exact packed npm candidate validates and runs the new pointer actions from a clean consumer while retaining the existing v0.4.7 tutorial artifacts and immutability checks.
+* Windows, Linux, and macOS real-browser readiness proves coordinate behavior through the existing CI/pre-release workflow.
+* When the unchanged Observer compatibility checkout is available, rectangle/line/arrow drawing and point/note placement are expressible through the generic lab actions without tutorial-only Observer controls.
+
+Explicit exclusions:
+
+* No invisible Observer drag handles, alternate Observer annotation APIs, hidden tutorial controls, or Observer-specific selectors/semantics in lab production code.
+* No arbitrary page coordinates, element-pixel mode, configurable drag steps, touch/pen emulation, right/middle/custom buttons, arbitrary `dispatch-event`, JavaScript callbacks, or shell actions.
+* No redesign of `TutorialTargetContractV1`, managed processes, loopback policy, source/target isolation, WebM/SRT/VTT/Markdown generation, tutorial manifests, or gallery behavior.
+* No FFmpeg, MP4, generated audio, or gallery tutorial consumption.
+* Warm-index reuse remains v0.5.0 and follows this bounded v0.4.8 patch.
 
 ### Post-v1 / version TBD — manual pentest
 
