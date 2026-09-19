@@ -49,7 +49,7 @@ function spyOnConsole(): { logSpy: ReturnType<typeof vi.spyOn>; errorSpy: Return
 }
 
 function joinSpyCalls(spy: ReturnType<typeof vi.spyOn>): string {
-  return spy.mock.calls.map((call) => call.join(" ")).join("\n");
+  return spy.mock.calls.map((call: unknown[]) => call.join(" ")).join("\n");
 }
 
 function baseFinalDemoArgs(outDir: string): string[] {

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tutorial Fixture</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; background: #f6f7f9; color: #111; }
+      h1 { margin: 0 0 16px; font-size: 28px; }
+      .panel { background: #fff; border: 1px solid #d8dbe0; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+      .row { display: flex; gap: 16px; align-items: flex-start; }
+      .col { flex: 1; }
+      button { font: inherit; padding: 8px 16px; border-radius: 6px; border: 1px solid #5a6270; background: #fff; cursor: pointer; }
+      button:hover { background: #eef1f5; }
+      input { font: inherit; padding: 8px; border: 1px solid #b8bec8; border-radius: 6px; width: 100%; box-sizing: border-box; }
+      .dropzone { min-height: 72px; border: 2px dashed #9aa3af; border-radius: 8px; padding: 12px; }
+      .card { background: #dde7ff; border: 1px solid #5f7fd6; border-radius: 6px; padding: 10px; width: 140px; }
+      .hidden { display: none; }
+      #status-banner { padding: 10px; border-radius: 6px; background: #e8f5e9; border: 1px solid #66bb6a; }
+    </style>
+  </head>
+  <body>
+    <h1 id="page-title">Tutorial Fixture</h1>
+    <div class="panel"><p id="intro-text">Welcome to the generic tutorial fixture.</p><button id="primary-action" data-testid="primary-action" data-state="idle">Activate</button> <span id="activation-count" data-testid="activation-count">0</span></div>
+    <div class="panel"><label for="name-field">Your name</label><input id="name-field" data-testid="name-field" aria-label="Your name" /><p id="greeting" data-testid="greeting"></p></div>
+    <div class="panel"><button id="hover-target" data-testid="hover-target">Hover me</button><p id="hover-readout" data-testid="hover-readout">not hovered</p></div>
+    <div class="panel row"><div class="col"><div id="drag-card" data-testid="drag-card" class="card" draggable="true">Draggable card</div></div><div class="col"><div id="drop-zone" data-testid="drop-zone" class="dropzone">Drop target</div></div></div>
+    <div class="panel"><div id="status-banner" data-testid="status-banner" class="hidden">Delayed banner is now visible</div></div>
+    <script>
+      (() => {
+        let activations = 0;
+        const primary = document.getElementById("primary-action");
+        primary.addEventListener("click", () => { activations += 1; document.getElementById("activation-count").textContent = String(activations); primary.setAttribute("data-state", "activated"); });
+        const nameField = document.getElementById("name-field");
+        const greeting = document.getElementById("greeting");
+        nameField.addEventListener("input", () => { greeting.textContent = nameField.value ? `Hello, ${nameField.value}` : ""; });
+        nameField.addEventListener("keydown", event => { if (event.key === "Enter") greeting.textContent = `Submitted: ${nameField.value}`; });
+        document.getElementById("hover-target").addEventListener("mouseenter", () => { document.getElementById("hover-readout").textContent = "hovered"; });
+        const dragCard = document.getElementById("drag-card");
+        const dropZone = document.getElementById("drop-zone");
+        dragCard.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", "drag-card"));
+        dropZone.addEventListener("dragover", event => event.preventDefault());
+        dropZone.addEventListener("drop", event => { event.preventDefault(); dropZone.textContent = "Dropped"; dropZone.setAttribute("data-dropped", "true"); });
+        window.setTimeout(() => document.getElementById("status-banner").classList.remove("hidden"), 300);
+      })();
+    </script>
+  </body>
+</html>

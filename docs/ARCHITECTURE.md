@@ -344,9 +344,62 @@ These analyzers provide candidate evidence. They do not provide type checking, f
 
 `src/report` remains the shared report layer. `src/report/experiments` extends it for plugin metadata rather than creating a parallel reporting product. Plots, screenshots, visualization demos, and gallery output consume experiment artifacts and remain reusable across future plugins.
 
-## Future architecture
+## Current browser/tutorial architecture
 
-The following layers are planned and must not be treated as current published or checked-out behavior:
+### v0.4.7 browser/tutorial architecture
+
+The v0.4.7 release adds a generic tutorial runtime without stretching the existing report screenshot owner, duplicating v0.4.6 process/path infrastructure, or embedding product-specific demo logic in my-dev-kit-lab.
+
+Current ownership:
+
+```text
+src/
+  browser/                   shared Playwright loading, browser availability, Chromium launch, common cleanup
+  runtime/
+    managedProcess.ts        long-running child process lifecycle, readiness, logs, stop/forced cleanup
+  tutorial/
+    types.ts                 versioned scenario, target-contract, run/result, step, locator, action, assertion types
+    scenarioValidation.ts    deterministic JSON contract validation
+    tutorialSession.ts       persistent browser/context/page lifecycle and step timeline
+    tutorialActions.ts       bounded action execution
+    tutorialAssertions.ts    bounded runtime/artifact assertions
+    tutorialCursor.ts        tutorial-only visible synthetic pointer/click feedback
+    tutorialOverlay.ts       tutorial-only callout/highlight overlays
+    tutorialArtifacts.ts     run directory and artifact finalization
+    subtitleWriter.ts        SRT/VTT generation from the recorded narration timeline
+    markdownTutorialWriter.ts  Markdown generation from the same scenario source
+    runTutorial.ts           generic orchestration over already-validated contracts
+  commands/
+    ...                      thin installed-CLI owners for tutorial validate/run
+```
+
+The exact filenames may be adjusted during implementation planning, but the responsibility boundaries are fixed:
+
+* **Shared browser runtime, not screenshot ownership:** `src/browser` owns Playwright module loading, package/browser availability classification, Chromium launch defaults, and common cleanup. `src/screenshot` continues to own one-shot report screenshots. `src/tutorial` owns persistent tutorial sessions, actions, assertions, overlays, step screenshots, recording, and timing.
+* **Managed processes reuse existing process rules:** `src/runtime/managedProcess.ts` reuses `resolveCommand`, `shell:false`, current Windows shim behavior, and existing process-tree cleanup conventions. It adds start-without-waiting, bounded stdout/stderr logs, readiness probes/timeouts, explicit stop, graceful/forced cleanup, and failure/abort cleanup without a second command resolver.
+* **Scenario and process trust are separate:** a versioned declarative `TutorialScenarioV1` carries user-visible tutorial steps. A separate trusted target/demo contract carries materialization/start/readiness/application information. Tutorial steps cannot contain arbitrary shell commands or arbitrary JavaScript/page-evaluation callbacks.
+* **Bounded action vocabulary:** the first version is expected to support `goto`, `click`, `fill`, `press`, `hover`, `drag`, and `wait-for`.
+* **Bounded locators and assertions:** locators should cover accessible role/name, text, CSS, and stable test/demo identifiers. Assertions should cover visibility, text equality/containment, URL/path state, DOM attribute/state, HTTP JSON fields, local JSON artifact fields, and file existence.
+* **One scenario is the text/timing source of truth:** narration in the scenario drives visible explanation plus generated SRT, VTT, and Markdown. The runner records actual step boundaries instead of maintaining independent subtitle timings.
+* **Runtime evidence, not recording alone:** a required assertion failure makes the tutorial run unsuccessful even if a video file exists. Video is human-reviewable runtime recording, not a substitute for runtime verification.
+* **Workspace separation:** source demo template, disposable target working copy, tutorial artifacts, logs, and temporary browser/video data are distinct. Generated tutorial output belongs under the configured lab workspace/output, never under the installed package or product source template.
+* **Installed-package behavior:** the implemented commands are `my-dev-kit-lab tutorial validate --scenario <path>` and `my-dev-kit-lab tutorial run --scenario <path> ...`. Validation does not require Chromium. Recording requires the configured browser runtime and fails explicitly with setup guidance when unavailable rather than silently passing without video.
+* **Playwright packaging:** Playwright is an exact runtime dependency of the package. Browser-binary presence is checked separately at runtime, with no package-install hook or automatic download. The current optional one-shot screenshot semantics do not define the tutorial command's required-browser behavior.
+* **Canonical artifacts:** v0.4.7 produces `tutorial.webm`, named step screenshots, `tutorial.srt`, `tutorial.vtt`, `tutorial.md`, process logs, and a versioned `tutorial-manifest.json`. FFmpeg/MP4 and generated audio narration remain outside v0.4.7.
+* **Gallery is downstream:** v0.4.7 produces a canonical tutorial manifest but does not require gallery integration. Later report/gallery generalization may consume that manifest; tutorial execution does not depend on gallery generation.
+
+Cross-repository boundary:
+
+```mermaid
+flowchart LR
+  Observer[my-frontend-observer<br/>deterministic demo template + product scenarios] --> Contract[trusted demo/target contract]
+  Contract --> Lab[my-dev-kit-lab v0.4.7<br/>generic tutorial runtime]
+  Lab --> Evidence[WebM + screenshots + SRT/VTT + Markdown + tutorial manifest]
+```
+
+`my-frontend-observer` owns its demo source, stable target identifiers, deterministic visual variants, reference images, materialization/reset behavior, readiness/start contract, and Observer-specific scenario files. my-dev-kit-lab must not encode Observer selectors or semantics in production code. The lab carries its own generic deterministic fixture, so normal lab CI and packed-package acceptance never require a sibling Observer checkout.
+
+The following layers remain planned and must not be treated as current behavior:
 
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
@@ -354,6 +407,7 @@ The following layers are planned and must not be treated as current published or
 - a human-led manual pentest workflow after `v1.0.0`
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success (`v0.5.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
+- later gallery consumption of the canonical tutorial manifest
 
 `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published (see "Stage-context evaluation architecture (v0.4.3)" above). `v0.4.5` context-integrity evaluation is implemented and published (see "Context-integrity evaluation architecture (v0.4.5)" above).
 

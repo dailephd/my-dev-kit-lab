@@ -4,7 +4,7 @@ my-dev-kit-lab is the experiment, audit, and evidence companion for [my-dev-kit]
 
 my-dev-kit provides local repository indexing and graph-guided retrieval. my-dev-kit-lab supplies the controlled benchmarks, agent adapters, metrics, security checks, and reports needed to evaluate when that retrieval is useful. Results are evidence for a specific target and configuration; they do not guarantee token savings or security.
 
-The latest published release is v0.4.6 (installed-package CLI and runtime-boundary correction). The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines, not a statement that they are the ecosystem's current releases. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
+The latest published release is v0.4.7 (declarative browser tutorial and video automation). It adds bounded browser scenarios, persistent tutorial sessions, synchronized runtime artifacts, and a packaged generic example while preserving product-specific demo ownership outside this repository. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines, not a statement that they are the ecosystem's current releases. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
 v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--version`, `security validate`, `audit`, the `experiment` family, `report render`, `plots generate`, `gallery build`, `demo final`, and the historical direct final-demo invocation form), a writable lab workspace model kept separate from the installed package and the inspected target, and a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`). See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for status detail and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime path model. The "Installed CLI" section below documents the shipped command surface; the source-checkout `npm run` workflow in Quickstart remains available for contributors.
 
@@ -15,6 +15,7 @@ v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--vers
 - **Validate CLI/package security:** inspect dependencies, package contents, path and subprocess boundaries, malformed inputs, optional static scanners, and bounded fuzz targets.
 - **Validate Android projects:** run nineteen static checks by default, with Gradle operations, external tools, and network access available only through explicit opt-in flags.
 - **Review evidence:** generate JSON and HTML reports, SVG plots, optional screenshots, visualization demos, and a static gallery.
+- **Generate declarative browser tutorials:** validate and execute bounded local browser scenarios with WebM recording, step screenshots, SRT/VTT subtitles, Markdown, and a tutorial manifest. Tutorial execution requires a compatible locally installed Chromium; see [docs/COMMANDS.md](docs/COMMANDS.md) and [docs/TUTORIAL.md](docs/TUTORIAL.md) for details.
 - **Evaluate stage-context strategies:** compare the two legacy strategies against six additional bounded stage-context strategies — `architecture-context-only`, `architecture-plus-implementation-refresh`, `architecture-plus-implementation-and-test-refresh`, `full-workflow-library`, `bounded-workflow-instruction-packet`, and `combined-bounded-stage-context` — selected through programmatic configuration, not CLI flags. Each strategy's evidence is reported through bounded `report.json`, `report.html`, and `report.txt` output with an explicit `available`/`unavailable`/`not-applicable` metric-availability model and no composite score, grade, ranking, or winning strategy.
 - **Evaluate the producer-readiness bridge (v0.4.4):** optionally extend `combined-bounded-stage-context` with the frozen my-dev-kit-orchestrator supplemental implementation/test-context packet and retrieval-report documents plus an observed readiness result, all supplied programmatically (there is no CLI flag), to measure owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay evidence without reimplementing upstream owner-selection, allocation, producer-parity, or readiness policy.
 - **Evaluate context integrity (v0.4.5):** compare condition-aware producer evidence from my-dev-kit v1.10.4 (role condition coverage, allocation/spillover, required-evidence-loss) against my-dev-kit-orchestrator v1.2.3 run-integrity evidence (run-integrity gate, judge integrity, final-report eligibility, artifact lifecycle state), reporting agreement or contradiction between them rather than re-deriving a verdict. Evaluation runs against a frozen, hash-verified regression fixture pair — a byte-exact real historical failed run and a hand-distilled corrected-replay counterpart representing the same validated contracts — and is programmatic/test-driven only. `npm run report:context-integrity-smoke` renders both fixtures' reports for manual inspection; it takes no arguments and is a developer convenience, not a configurable evaluation CLI.
@@ -39,6 +40,8 @@ my-dev-kit-lab report render [options]
 my-dev-kit-lab plots generate [options]
 my-dev-kit-lab gallery build [options]
 my-dev-kit-lab demo final [options]
+my-dev-kit-lab tutorial validate --scenario <path> [--target-contract <path>] [--json]
+my-dev-kit-lab tutorial run --scenario <path> --target-contract <path> [--out <dir>] [--json]
 ```
 
 A global `--workspace <path>` option, placed before the command, selects the writable lab workspace. The default workspace, used when `--workspace` is omitted, is `<home>/.my-dev-kit-lab`. Generated reports and experiment output are written under the workspace by default, never under the installed package directory or an inspected `--target` project. Explicit output paths (`--out`, and similar flags) keep their existing resolution behavior and are never redirected under the workspace.
@@ -48,6 +51,8 @@ The historical direct final-demo invocation form — the same flags `demo final`
 Low-level developer helpers (`security:deps`, `security:package`, `security:codeql`, `security:semgrep`, fuzz smoke, visualization demos, build/test/verify) are not part of the installed CLI. They remain source-checkout contributor workflows; see below.
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) for full command syntax and flags.
+
+Tutorial runs keep the scenario source, disposable target, logs, browser recording, and generated artifacts separate. The canonical generic example is packaged at `examples/tutorial-browser/`; product-specific demo sites and scenarios remain owned by their product repositories.
 
 ## Quickstart (contributor / source-checkout workflow)
 
@@ -203,6 +208,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - The published upstream artifacts the stage-context strategies read do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` rather than zero
 - The v0.4.4 producer-readiness bridge is released. All bridge inputs are programmatic — there is no CLI flag. The coordinated upstream releases my-dev-kit@1.10.3 and orchestrator@1.2.2 were verified published before lab publication.
 - The v0.4.5 context-integrity evaluation is released. It has no CLI flags, no plots/screenshot/gallery integration, and produces no composite score, grade, ranking, or winner. Its corrected-replay fixture is a hand-distilled representation of the validated my-dev-kit v1.10.4 and my-dev-kit-orchestrator v1.2.3 contracts, not a live capture of a complete ten-stage workflow. The orchestrator agreement evidence does not read a literal upstream `promptMode` field; `stageMayRenderNormalPrompt`, derived from structured blocked-stage evidence, is the bounded substitute used instead.
+- v0.4.7 adds declarative browser tutorial validation and execution with bounded actions/assertions, persistent Chromium sessions, WebM, screenshots, SRT/VTT, Markdown, and `tutorial-manifest.json`. Chromium is a separate local runtime prerequisite; the package does not download browser binaries automatically. Gallery consumption remains future scope.
 
 ---
 

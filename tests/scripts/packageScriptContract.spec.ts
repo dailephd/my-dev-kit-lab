@@ -6,6 +6,13 @@ import { describe, expect, it } from "vitest";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
   scripts: Record<string, string>;
+  version: string;
+  files: string[];
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+const lock = JSON.parse(fs.readFileSync(path.join(repoRoot, "package-lock.json"), "utf8")) as {
+  packages: { "": { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } };
 };
 
 const testScriptNames = Object.keys(pkg.scripts).filter((name) => name.startsWith("test:"));
@@ -40,5 +47,37 @@ describe("package script contract: test vs verify", () => {
   it("retains the non-test verification gates in verify", () => {
     expect(pkg.scripts.verify).toMatch(/npm run build/);
     expect(pkg.scripts.verify).toMatch(/npm run verify:benchmarks/);
+  });
+});
+
+describe("installed tutorial package contract", () => {
+  it("pins Playwright as the runtime dependency without browser packages or install hooks", () => {
+    expect(pkg.dependencies?.playwright).toBe("1.60.0");
+    expect(pkg.devDependencies?.playwright).toBeUndefined();
+    expect(pkg.dependencies).not.toHaveProperty("@playwright/browser-chromium");
+    expect(pkg.dependencies).not.toHaveProperty("@playwright/browser-firefox");
+    expect(pkg.dependencies).not.toHaveProperty("@playwright/browser-webkit");
+    expect(pkg).not.toHaveProperty("postinstall");
+  });
+
+  it("keeps the lockfile root classification and package version stable", () => {
+    expect(lock.packages[""].dependencies?.playwright).toBe("1.60.0");
+    expect(lock.packages[""].devDependencies?.playwright).toBeUndefined();
+    expect(pkg.version).toBe("0.4.7");
+  });
+
+  it("ships only the canonical generic tutorial resources", () => {
+    expect(pkg.files).toContain("examples/tutorial-browser/");
+    expect(pkg.files).not.toContain("tests/");
+    expect(pkg.files.some((entry) => entry.includes(".webm") || entry.includes("screenshots"))).toBe(false);
+    expect(pkg.files.some((entry) => entry.includes("chromium") || entry.includes("browser-cache"))).toBe(false);
+  });
+
+  it("does not retain a static test fixture copy", () => {
+    expect(fs.existsSync(path.join(repoRoot, "tests", "fixtures", "tutorial-browser", "index.html"))).toBe(false);
+    expect(fs.existsSync(path.join(repoRoot, "tests", "fixtures", "tutorial-browser", "scenario.json"))).toBe(false);
+    for (const file of ["index.html", "prepare.mjs", "server.mjs", "scenario.json"]) {
+      expect(fs.existsSync(path.join(repoRoot, "examples", "tutorial-browser", file))).toBe(true);
+    }
   });
 });

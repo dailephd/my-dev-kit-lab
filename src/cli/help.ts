@@ -14,6 +14,8 @@ export function renderTopLevelHelp(): string {
     "  my-dev-kit-lab [--workspace <path>] report render --experiment <dir> --out <dir> [options]",
     "  my-dev-kit-lab [--workspace <path>] plots generate --experiment <dir> --out <dir>",
     "  my-dev-kit-lab [--workspace <path>] gallery build --out <dir> [options]",
+    "  my-dev-kit-lab tutorial validate --scenario <path> [--target-contract <path>]",
+    "  my-dev-kit-lab [--workspace <path>] tutorial run --scenario <path> --target-contract <path> [options]",
     "  my-dev-kit-lab demo final --cases <path> --out <dir> --kit-command <command> [options]",
     "",
     "Options:",
@@ -32,6 +34,8 @@ export function renderTopLevelHelp(): string {
     "  report render             Render an experiment report from controlled-experiment artifacts",
     "  plots generate             Generate experiment plot artifacts",
     "  gallery build              Build a gallery manifest/index",
+    "  tutorial validate          Validate a tutorial scenario and optional target contract",
+    "  tutorial run               Run a declarative browser tutorial scenario",
     "  demo final                 Run the full final demo workflow",
     "",
     "Run \"my-dev-kit-lab <command> --help\" (or \"my-dev-kit-lab <family> <command> --help\") for details.",
@@ -311,5 +315,80 @@ export function renderUnknownCommandError(command: string): string {
   return [
     `Unknown command: ${command}`,
     "Run \"my-dev-kit-lab --help\" for usage."
+  ].join("\n");
+}
+
+export function renderTutorialHelp(): string {
+  return [
+    "my-dev-kit-lab tutorial - declarative browser tutorial command family",
+    "",
+    "Usage:",
+    "  my-dev-kit-lab tutorial validate --scenario <path> [--target-contract <path>] [--json]",
+    "  my-dev-kit-lab [--workspace <path>] tutorial run --scenario <path> --target-contract <path> [options]",
+    "  my-dev-kit-lab tutorial --help",
+    "",
+    "Commands:",
+    "  validate   Validate a tutorial scenario, and optionally a target contract and their",
+    "             declared target identity. Does not start processes or a browser.",
+    "             Run \"my-dev-kit-lab tutorial validate --help\" for details.",
+    "  run        Prepare a disposable target, start its declared processes, and execute a",
+    "             tutorial scenario in a persistent browser session.",
+    "             Run \"my-dev-kit-lab tutorial run --help\" for details."
+  ].join("\n");
+}
+
+export function renderTutorialValidateHelp(): string {
+  return [
+    "my-dev-kit-lab tutorial validate - validate tutorial contracts",
+    "",
+    "Usage:",
+    "  my-dev-kit-lab tutorial validate --scenario <path> [--target-contract <path>] [--json]",
+    "",
+    "Required:",
+    "  --scenario <path>           Path to a TutorialScenarioV1 JSON file",
+    "",
+    "Options:",
+    "  --target-contract <path>    Also validate a TutorialTargetContractV1 JSON file and",
+    "                              verify that the scenario targetId matches its id",
+    "  --json                      Print a deterministic JSON report instead of a summary",
+    "",
+    "Relative paths resolve against the directory the command was invoked from.",
+    "This command is read-only: it creates no directories, runs no commands, starts no",
+    "processes, and does not require a browser runtime.",
+    "",
+    "Exit codes:",
+    "  0   Contracts are valid",
+    "  1   Contract validation failed",
+    "  2   Invalid command usage"
+  ].join("\n");
+}
+
+export function renderTutorialRunHelp(): string {
+  return [
+    "my-dev-kit-lab tutorial run - run a declarative browser tutorial scenario",
+    "",
+    "Usage:",
+    "  my-dev-kit-lab [--workspace <path>] tutorial run --scenario <path> --target-contract <path> [--out <dir>] [--json]",
+    "",
+    "Required:",
+    "  --scenario <path>           Path to a TutorialScenarioV1 JSON file",
+    "  --target-contract <path>    Path to a TutorialTargetContractV1 JSON file",
+    "",
+    "Options:",
+    "  --out <dir>                 Explicit run directory. An absolute path is used as given;",
+    "                              a relative path resolves against the invocation directory.",
+    "                              When omitted, the run is written to",
+    "                              <workspace>/tutorials/<scenario-id>/<run-id>/",
+    "  --json                      Print the TutorialRunResultV1 JSON instead of a summary",
+    "",
+    "The run prepares a disposable target working copy beneath the run directory, starts the",
+    "processes the target contract declares, waits for each declared local readiness probe,",
+    "then executes every scenario step in one persistent browser page. Process logs are",
+    "written beneath the run directory and are not printed to the terminal.",
+    "",
+    "Exit codes:",
+    "  0   The tutorial run passed",
+    "  1   The invocation was valid but the tutorial did not pass",
+    "  2   Invalid command usage"
   ].join("\n");
 }

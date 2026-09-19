@@ -28,9 +28,51 @@ See [COMMANDS.md](COMMANDS.md) for the full installed command tree and [ARCHITEC
 
 **Completion:** the invoked command exits, and (for commands with a writable output) the expected report/artifact files exist under the resolved output location (the workspace by default, or the explicit path supplied).
 
+## Declarative tutorial generation (v0.4.7)
+
+**Goal:** turn one validated local browser scenario into assertion-backed runtime evidence and synchronized human-facing artifacts without requiring a product-specific repository.
+
+**Prerequisites:** install dependencies and build the checkout; use the packaged or checkout-owned generic example at `examples/tutorial-browser/`. Install the compatible Chromium browser separately when execution is desired:
+
+```bash
+npm install
+npm run build
+npx playwright install chromium
+```
+
+**Steps:**
+
+1. Select or create a `TutorialScenarioV1` scenario and a matching `TutorialTargetContractV1` target contract.
+2. Validate the scenario:
+
+   ```bash
+   node dist/scripts/cli.js tutorial validate --scenario examples/tutorial-browser/scenario.json
+   ```
+
+3. Validate the scenario and target contract together:
+
+   ```bash
+   node dist/scripts/cli.js tutorial validate --scenario <scenario> --target-contract <target-contract> --json
+   ```
+
+4. Install Chromium when the local browser runtime is unavailable.
+5. Run the tutorial with the installed CLI or built checkout CLI:
+
+   ```bash
+   my-dev-kit-lab tutorial run --scenario <scenario> --target-contract <target-contract> --out <run-root> --json
+   ```
+
+6. Inspect the JSON result for `status`, scenario/target identity, step results, warnings, and `cleanupErrors`.
+7. Inspect `artifacts/tutorial.webm`, requested `screenshots/`, `artifacts/tutorial.srt`, `artifacts/tutorial.vtt`, `artifacts/tutorial.md`, and `artifacts/tutorial-manifest.json` beneath the run root.
+8. Interpret assertions and cleanup as runtime evidence. Treat the WebM as a reviewable recording, not as proof of correctness by itself.
+
+**Failure handling:** validation failures return usage/content errors without launching a browser. A missing Chromium runtime returns a nonzero `browser-unavailable` run with setup guidance; it does not trigger an automatic browser download. Assertion, process, target, artifact, and cleanup failures remain distinct in the result and manifest.
+
+**Completion:** the run passes only when every executed step and required artifact succeeds, cleanup errors are empty, and the manifest records the expected scenario and target identity. Product-specific demo sites and scenarios remain owned by their product repositories; gallery consumption of tutorial manifests remains future scope.
+
 ## Contributor / source-checkout workflow
 
-The remaining workflow sections in this document run from a cloned repository checkout with dependencies installed (`npm ci` or `npm install`). They remain the contributor/development path. The published v0.4.6 installed CLI reaches the supported public command owners without a repository clone, while the `npm run` commands below use those same underlying command owners for contributor workflows.
+The remaining workflow sections in this document run from a cloned repository checkout with dependencies installed (`npm ci` or `npm install`). They remain the contributor/development path. The published installed CLI reaches the supported public command owners without a repository clone, while the `npm run` commands below use those same underlying command owners for contributor workflows.
 
 ## Fake-agent final demo
 

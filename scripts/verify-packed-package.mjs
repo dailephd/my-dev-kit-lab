@@ -19,7 +19,8 @@
 
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -33,6 +34,7 @@ const EXPECTED_PACKAGE_VERSION = SOURCE_PACKAGE_JSON.version;
 const EXPECTED_ENGINES_NODE = SOURCE_PACKAGE_JSON.engines?.node;
 const EXPECTED_BIN_NAME = "my-dev-kit-lab";
 const EXPECTED_BIN_TARGET = SOURCE_PACKAGE_JSON.bin?.[EXPECTED_BIN_NAME];
+const EXPECTED_PLAYWRIGHT_VERSION = SOURCE_PACKAGE_JSON.dependencies?.playwright;
 
 // Confirms the tarball carries every runtime file the public routes tested
 // by this gate actually depend on. Not a full package-content reconciliation
@@ -52,8 +54,20 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/commands/runExperimentDescribeCommand.js",
   "dist/src/commands/runExperimentRunCommand.js",
   "dist/src/commands/runControlledExperimentCommand.js",
+  "dist/src/browser/playwrightRuntime.js",
+  "dist/src/runtime/managedProcess.js",
+  "dist/src/tutorial/runTutorial.js",
+  "dist/src/tutorial/tutorialSession.js",
+  "dist/src/tutorial/tutorialArtifacts.js",
+  "dist/src/tutorial/tutorialManifest.js",
+  "dist/src/commands/runTutorialValidateCommand.js",
+  "dist/src/commands/runTutorialRunCommand.js",
   "benchmarks/contracts/benchmark-project-profiles.json",
-  "examples/token-savings-cases.json"
+  "examples/token-savings-cases.json",
+  "examples/tutorial-browser/index.html",
+  "examples/tutorial-browser/prepare.mjs",
+  "examples/tutorial-browser/server.mjs",
+  "examples/tutorial-browser/scenario.json"
 ];
 
 const PUBLIC_ROUTE_HELP_SMOKES = [
@@ -175,6 +189,41 @@ function describeChildResult(result) {
   return [`exit=${result.status}`, `stdout:\n${result.stdout ?? ""}`, `stderr:\n${result.stderr ?? ""}`].join("\n");
 }
 
+async function reserveLoopbackPort() {
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  const port = typeof address === "object" && address ? address.port : undefined;
+  await new Promise((resolve) => server.close(resolve));
+  if (!port) fail("TUTORIAL_CONTRACT", "Could not reserve a loopback port for packed tutorial acceptance.");
+  return port;
+}
+
+function parseJsonOutput(result, gate) {
+  try {
+    return JSON.parse(result.stdout);
+  } catch (error) {
+    fail(gate, `Expected JSON output but received invalid JSON: ${error.message}`, describeChildResult(result));
+  }
+}
+
+function requireNonEmptyFile(filePath, gate) {
+  if (!existsSync(filePath) || !statSync(filePath).isFile() || statSync(filePath).size === 0) {
+    fail(gate, `Expected a non-empty regular file at ${filePath}.`);
+  }
+  return statSync(filePath).size;
+}
+
+function assertWebm(filePath, gate) {
+  const bytes = readFileSync(filePath);
+  if (bytes.length < 4 || !Buffer.from([0x1a, 0x45, 0xdf, 0xa3]).equals(bytes.subarray(0, 4))) {
+    fail(gate, `Expected an EBML/WebM file at ${filePath}.`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main gate sequence
 // ---------------------------------------------------------------------------
@@ -189,7 +238,15 @@ async function main() {
   }
 
   const resolveCommand = await loadResolveCommand();
-  const { findExactlyOneTarball, validateInstalledPackageIdentity, snapshotDirectory, diffSnapshots } =
+  const {
+    findExactlyOneTarball,
+    validateInstalledPackageIdentity,
+    validatePlaywrightRuntimeDependency,
+    missingRequiredTarballPaths,
+    validateManifestRelativePaths,
+    snapshotDirectory,
+    diffSnapshots
+  } =
     await loadHelpers();
 
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), "my-dev-kit-lab-packed-"));
@@ -198,7 +255,10 @@ async function main() {
     consumer: path.join(tempRoot, "consumer"),
     home: path.join(tempRoot, "home"),
     workspace: path.join(tempRoot, "workspace"),
-    target: path.join(tempRoot, "target")
+    target: path.join(tempRoot, "target"),
+    tutorialContracts: path.join(tempRoot, "tutorial-contracts"),
+    tutorialRuns: path.join(tempRoot, "tutorial-runs"),
+    browserCache: path.join(tempRoot, "empty-browser-cache")
   };
 
   try {
@@ -246,7 +306,7 @@ async function main() {
     // 2. Verify critical tarball contents (same artifact, not re-packed).
     // -----------------------------------------------------------------
     const tarballFiles = new Set((packEntry.files ?? []).map((entry) => entry.path.replace(/\\/g, "/")));
-    const missingRequired = REQUIRED_TARBALL_PATHS.filter((required) => !tarballFiles.has(required));
+    const missingRequired = missingRequiredTarballPaths(tarballFiles, REQUIRED_TARBALL_PATHS);
     if (missingRequired.length > 0) {
       fail("PACK_CONTENTS", `Required runtime file(s) missing from the packed tarball: ${missingRequired.join(", ")}`);
     }
@@ -285,6 +345,18 @@ async function main() {
     });
     if (identityProblems.length > 0) {
       fail("CONSUMER_INSTALL", `Installed package identity mismatch: ${identityProblems.join("; ")}`);
+    }
+    const playwrightProblems = validatePlaywrightRuntimeDependency(installedPackageJson, EXPECTED_PLAYWRIGHT_VERSION);
+    if (playwrightProblems.length > 0) {
+      fail("CONSUMER_INSTALL", `Installed Playwright dependency contract failed: ${playwrightProblems.join("; ")}`);
+    }
+    const installedPlaywrightPath = path.join(dirs.consumer, "node_modules", "playwright", "package.json");
+    if (!existsSync(installedPlaywrightPath)) {
+      fail("CONSUMER_INSTALL", "The clean consumer cannot resolve its installed Playwright runtime dependency.");
+    }
+    const installedPlaywrightJson = JSON.parse(await readFile(installedPlaywrightPath, "utf8"));
+    if (installedPlaywrightJson.version !== EXPECTED_PLAYWRIGHT_VERSION) {
+      fail("CONSUMER_INSTALL", `Installed Playwright version is ${installedPlaywrightJson.version}, expected ${EXPECTED_PLAYWRIGHT_VERSION}.`);
     }
     const installedBinPath = path.join(installedPackageRoot, EXPECTED_BIN_TARGET);
     if (!existsSync(installedBinPath)) {
@@ -354,6 +426,107 @@ async function main() {
     }
 
     // -----------------------------------------------------------------
+    // 7. Installed tutorial contracts and browser/runtime acceptance.
+    // -----------------------------------------------------------------
+    const installedExampleRoot = path.join(installedPackageRoot, "examples", "tutorial-browser");
+    const scenarioPath = path.join(installedExampleRoot, "scenario.json");
+    const installedPackageBefore = await snapshotDirectory(installedPackageRoot);
+    const exampleBefore = await snapshotDirectory(installedExampleRoot);
+    const tutorialPort = await reserveLoopbackPort();
+    const targetContractPath = path.join(dirs.tutorialContracts, "target-contract.json");
+    writeFileSync(
+      targetContractPath,
+      `${JSON.stringify({
+        schemaVersion: "1.0.0",
+        id: "lab-browser-fixture",
+        prepare: { executable: process.execPath, args: [path.join(installedExampleRoot, "prepare.mjs"), "{{targetRoot}}"] },
+        processes: [{
+          id: "fixture-server",
+          executable: process.execPath,
+          args: ["{{targetRoot}}/app/server.mjs"],
+          cwd: "target-root",
+          env: { TUTORIAL_FIXTURE_PORT: String(tutorialPort) },
+          readiness: { kind: "http", url: `http://127.0.0.1:${tutorialPort}/`, timeoutMs: 15000, intervalMs: 100 }
+        }],
+        applicationUrl: `http://127.0.0.1:${tutorialPort}/`
+      }, null, 2)}\n`,
+      "utf8"
+    );
+    const tutorialHelpRoutes = [
+      ["tutorial", "--help"],
+      ["tutorial", "validate", "--help"],
+      ["tutorial", "run", "--help"]
+    ];
+    for (const routeArgs of tutorialHelpRoutes) {
+      const result = runInstalledCli(cliCommand, dirs.consumer, routeArgs, envWithBin);
+      if (result.status !== 0) fail("TUTORIAL_HELP", `Installed ${routeArgs.join(" ")} did not exit 0.`, describeChildResult(result));
+    }
+    const validateArgs = ["tutorial", "validate", "--scenario", scenarioPath, "--target-contract", targetContractPath, "--json"];
+    const validation = runInstalledCli(cliCommand, dirs.consumer, validateArgs, envWithBin);
+    if (validation.status !== 0) fail("TUTORIAL_VALIDATE", "Installed tutorial validation failed.", describeChildResult(validation));
+    const validationJson = parseJsonOutput(validation, "TUTORIAL_VALIDATE");
+    if (validationJson.status !== "valid" || validationJson.scenarioId !== "lab-browser-fixture" || validationJson.targetIdMatches !== true) {
+      fail("TUTORIAL_VALIDATE", "Installed tutorial validation returned an unexpected result.", validation.stdout);
+    }
+
+    await mkdir(dirs.browserCache, { recursive: true });
+    const unavailableRoot = path.join(dirs.tutorialRuns, "browser-unavailable");
+    const unavailable = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["tutorial", "run", "--scenario", scenarioPath, "--target-contract", targetContractPath, "--out", unavailableRoot, "--json"],
+      { ...envWithBin, PLAYWRIGHT_BROWSERS_PATH: dirs.browserCache }
+    );
+    if (unavailable.status === 0) fail("TUTORIAL_BROWSER_UNAVAILABLE", "Tutorial unexpectedly passed without a browser binary.", unavailable.stdout);
+    const unavailableJson = parseJsonOutput(unavailable, "TUTORIAL_BROWSER_UNAVAILABLE");
+    if (unavailableJson.status !== "browser-unavailable" || !String(unavailableJson.error ?? "").match(/playwright install|browser/i)) {
+      fail("TUTORIAL_BROWSER_UNAVAILABLE", "Missing Chromium did not produce the supported browser-unavailable result.", unavailable.stdout);
+    }
+    if (readdirSync(dirs.browserCache).length !== 0) fail("TUTORIAL_BROWSER_UNAVAILABLE", "Tutorial execution downloaded a browser into the isolated cache.");
+
+    const realRunRoot = path.join(dirs.tutorialRuns, "real");
+    const realRun = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["tutorial", "run", "--scenario", scenarioPath, "--target-contract", targetContractPath, "--out", realRunRoot, "--json"],
+      envWithBin
+    );
+    if (realRun.status !== 0) {
+      fail("TUTORIAL_REAL_EXECUTION", "Packed tutorial acceptance requires a compatible local Chromium runtime; install it with `npx playwright install chromium` and rerun this gate.", describeChildResult(realRun));
+    }
+    const realJson = parseJsonOutput(realRun, "TUTORIAL_REAL_EXECUTION");
+    if (realJson.status !== "passed" || realJson.scenarioId !== "lab-browser-fixture" || realJson.targetId !== "lab-browser-fixture" || realJson.warnings?.length || realJson.cleanupErrors?.length) {
+      fail("TUTORIAL_REAL_EXECUTION", "Packed tutorial returned an unexpected successful-run result.", realRun.stdout);
+    }
+    if (!realJson.paths?.runRoot || path.resolve(realJson.paths.runRoot) !== path.resolve(realRunRoot)) fail("TUTORIAL_REAL_EXECUTION", "Explicit --out was not honored exactly.");
+    if (realJson.steps?.some((step) => step.status !== "passed")) fail("TUTORIAL_REAL_EXECUTION", "Not every canonical tutorial step passed.");
+    const artifactFiles = {
+      video: path.join(realRunRoot, "artifacts", "tutorial.webm"),
+      srt: path.join(realRunRoot, "artifacts", "tutorial.srt"),
+      vtt: path.join(realRunRoot, "artifacts", "tutorial.vtt"),
+      markdown: path.join(realRunRoot, "artifacts", "tutorial.md"),
+      manifest: path.join(realRunRoot, "artifacts", "tutorial-manifest.json")
+    };
+    const videoSize = requireNonEmptyFile(artifactFiles.video, "TUTORIAL_ARTIFACTS");
+    assertWebm(artifactFiles.video, "TUTORIAL_ARTIFACTS");
+    for (const filePath of [artifactFiles.srt, artifactFiles.vtt, artifactFiles.markdown, artifactFiles.manifest]) requireNonEmptyFile(filePath, "TUTORIAL_ARTIFACTS");
+    const screenshotNames = ["app-open.png", "activated.png", "submitted.png", "dropped.png", "banner-visible.png"];
+    const screenshotSizes = Object.fromEntries(screenshotNames.map((name) => [name, requireNonEmptyFile(path.join(realRunRoot, "screenshots", name), "TUTORIAL_ARTIFACTS")]));
+    const manifest = JSON.parse(readFileSync(artifactFiles.manifest, "utf8"));
+    if (manifest.schemaVersion !== "1.0.0" || manifest.run?.status !== "passed" || manifest.scenario?.id !== "lab-browser-fixture" || manifest.target?.id !== "lab-browser-fixture" || manifest.warnings?.length || manifest.cleanupErrors?.length) fail("TUTORIAL_MANIFEST", "Packed tutorial manifest does not prove a clean passed run.");
+    if (validateManifestRelativePaths(manifest).length > 0) fail("TUTORIAL_MANIFEST", "Packed tutorial manifest contains an invalid artifact path.");
+    for (const record of manifest.artifacts.filter((artifact) => ["video", "srt", "vtt", "markdown"].includes(artifact.kind) || artifact.kind === "screenshot")) {
+      if (record.status !== "written") fail("TUTORIAL_MANIFEST", `Packed artifact ${record.kind} is not written.`);
+    }
+
+    const defaultRun = runInstalledCli(cliCommand, dirs.consumer, ["tutorial", "run", "--scenario", scenarioPath, "--target-contract", targetContractPath, "--json"], { ...envWithBin, HOME: dirs.home, USERPROFILE: dirs.home, PLAYWRIGHT_BROWSERS_PATH: dirs.browserCache });
+    const defaultJson = parseJsonOutput(defaultRun, "TUTORIAL_DEFAULT_WORKSPACE");
+    if (defaultJson.status !== "browser-unavailable" || !defaultJson.paths?.runRoot.startsWith(path.join(dirs.home, ".my-dev-kit-lab", "tutorials", "lab-browser-fixture") + path.sep)) fail("TUTORIAL_DEFAULT_WORKSPACE", "Default tutorial workspace escaped the fake home boundary.");
+    const explicitRun = runInstalledCli(cliCommand, dirs.consumer, ["--workspace", dirs.workspace, "tutorial", "run", "--scenario", scenarioPath, "--target-contract", targetContractPath, "--json"], { ...envWithBin, PLAYWRIGHT_BROWSERS_PATH: dirs.browserCache });
+    const explicitJson = parseJsonOutput(explicitRun, "TUTORIAL_EXPLICIT_WORKSPACE");
+    if (explicitJson.status !== "browser-unavailable" || !explicitJson.paths?.runRoot.startsWith(path.join(dirs.workspace, "tutorials", "lab-browser-fixture") + path.sep)) fail("TUTORIAL_EXPLICIT_WORKSPACE", "Explicit tutorial workspace escaped the requested boundary.");
+
+    // -----------------------------------------------------------------
     // 7. External target + snapshots.
     // -----------------------------------------------------------------
     writeFileSync(
@@ -363,7 +536,6 @@ async function main() {
     );
 
     const targetBefore = await snapshotDirectory(dirs.target);
-    const installedPackageBefore = await snapshotDirectory(installedPackageRoot);
 
     // -----------------------------------------------------------------
     // 8. Default workspace behavior (fake HOME, no --workspace).
@@ -427,6 +599,25 @@ async function main() {
         `Installed package changed during execution: ${installedPackageChanges.join(", ")}`
       );
     }
+    const exampleAfter = await snapshotDirectory(installedExampleRoot);
+    const exampleChanges = diffSnapshots(exampleBefore, exampleAfter);
+    if (exampleChanges.length > 0) {
+      fail("PACKAGED_EXAMPLE_IMMUTABILITY", `Installed packaged tutorial example changed during execution: ${exampleChanges.join(", ")}`);
+    }
+    console.log("TUTORIAL_HELP: PASS");
+    console.log("TUTORIAL_VALIDATE: PASS");
+    console.log("TUTORIAL_BROWSER_UNAVAILABLE: PASS (isolated browser cache remained empty)");
+    console.log("TUTORIAL_REAL_EXECUTION: PASS");
+    console.log(`TUTORIAL_VIDEO: artifacts/tutorial.webm (${videoSize} bytes)`);
+    console.log(`TUTORIAL_SRT: artifacts/tutorial.srt (${statSync(artifactFiles.srt).size} bytes)`);
+    console.log(`TUTORIAL_VTT: artifacts/tutorial.vtt (${statSync(artifactFiles.vtt).size} bytes)`);
+    console.log(`TUTORIAL_MARKDOWN: artifacts/tutorial.md (${statSync(artifactFiles.markdown).size} bytes)`);
+    console.log(`TUTORIAL_MANIFEST: artifacts/tutorial-manifest.json (${statSync(artifactFiles.manifest).size} bytes), schema=${manifest.schemaVersion}, status=${manifest.run.status}`);
+    console.log(`TUTORIAL_SCREENSHOTS: ${JSON.stringify(screenshotSizes)}`);
+    console.log("TUTORIAL_DEFAULT_WORKSPACE: PASS");
+    console.log("TUTORIAL_EXPLICIT_WORKSPACE: PASS");
+    console.log("TUTORIAL_EXPLICIT_OUT: PASS");
+    console.log("PACKAGED_EXAMPLE_IMMUTABILITY: PASS");
 
     // -----------------------------------------------------------------
     // 11. Source repository cleanliness (no .tgz created there).

@@ -30,6 +30,8 @@ export type InstalledPackageJson = {
   version?: string;
   engines?: { node?: string };
   bin?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 };
 
 export type ExpectedPackageIdentity = {
@@ -59,6 +61,45 @@ export function validateInstalledPackageIdentity(
   const actualBinTarget = installedPackageJson.bin?.[expected.binName];
   if (actualBinTarget !== expected.binTarget) {
     problems.push(`bin.${expected.binName} mismatch: expected "${expected.binTarget}", got "${actualBinTarget}"`);
+  }
+  return problems;
+}
+
+export function validatePlaywrightRuntimeDependency(
+  installedPackageJson: InstalledPackageJson,
+  expectedVersion: string
+): string[] {
+  const problems: string[] = [];
+  if (installedPackageJson.dependencies?.playwright !== expectedVersion) {
+    problems.push(`dependencies.playwright mismatch: expected "${expectedVersion}", got "${installedPackageJson.dependencies?.playwright}"`);
+  }
+  if (installedPackageJson.devDependencies?.playwright !== undefined) {
+    problems.push("playwright must not remain in devDependencies");
+  }
+  return problems;
+}
+
+export function missingRequiredTarballPaths(files: Iterable<string>, required: readonly string[]): string[] {
+  const available = new Set(Array.from(files, (file) => file.replace(/\\/g, "/")));
+  return required.filter((file) => !available.has(file));
+}
+
+export function validateManifestRelativePaths(
+  manifest: { artifacts?: Array<{ path?: string }> },
+  runRoot = "runRoot"
+): string[] {
+  const problems: string[] = [];
+  for (const artifact of manifest.artifacts ?? []) {
+    if (!artifact.path) continue;
+    const artifactPath = artifact.path;
+    if (path.posix.isAbsolute(artifactPath) || /^[A-Za-z]:/.test(artifactPath) || artifactPath.includes("\\")) {
+      problems.push(`manifest path is not relative POSIX: ${artifactPath}`);
+      continue;
+    }
+    const resolved = path.posix.normalize(path.posix.join("/", artifactPath));
+    if (artifactPath === ".." || artifactPath.startsWith("../") || resolved === "/" || resolved.startsWith("/../") || resolved === "/..") {
+      problems.push(`manifest path escapes ${runRoot}: ${artifactPath}`);
+    }
   }
   return problems;
 }

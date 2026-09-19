@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveCommand } from "../../src/core/resolveCommand.js";
+import { resolveCommand, resolveCommandInvocation } from "../../src/core/resolveCommand.js";
 
 const tempDirs: string[] = [];
 
@@ -140,4 +140,94 @@ describe("resolveCommand", () => {
       expect(result.resolutionKind).toBe("unavailable");
     }
   );
+});
+
+// resolveCommandInvocation is the one place Windows shim argument assembly
+// lives, so that runMeasuredCommand and startManagedProcess cannot drift apart.
+describe("resolveCommandInvocation", () => {
+  it("leaves a direct POSIX executable and its args untouched", () => {
+    const bin = makePosixExecutableBin(["node"]);
+    const invocation = resolveCommandInvocation("node", ["--flag", "two words"], {
+      platform: "linux",
+      env: { PATH: bin }
+    });
+
+    expect(invocation.executable).toBe("node");
+    expect(invocation.args).toEqual(["--flag", "two words"]);
+    expect(invocation.resolvedCommand.resolutionKind).toBe("direct");
+    expect(invocation.resolvedCommand.resolvedPath).toBe(path.join(bin, "node"));
+  });
+
+  it("builds cmd.exe shim arguments as prefix + resolved shim path + caller args", () => {
+    const bin = makeBin(["codex.cmd"]);
+    const invocation = resolveCommandInvocation("codex", ["alpha", "two words"], {
+      platform: "win32",
+      env: { Path: bin }
+    });
+
+    expect(invocation.executable.toLowerCase()).toContain("cmd");
+    expect(invocation.args).toEqual([
+      "/d",
+      "/s",
+      "/c",
+      "call",
+      path.join(bin, "codex.cmd"),
+      "alpha",
+      "two words"
+    ]);
+    expect(invocation.resolvedCommand.resolutionKind).toBe("windows-cmd-shim");
+  });
+
+  it("builds .bat shim arguments with the same cmd.exe semantics", () => {
+    const bin = makeBin(["tool.bat"]);
+    const invocation = resolveCommandInvocation("tool", ["--x"], {
+      platform: "win32",
+      env: { Path: bin }
+    });
+
+    expect(invocation.args).toEqual(["/d", "/s", "/c", "call", path.join(bin, "tool.bat"), "--x"]);
+  });
+
+  it("does not re-insert the script path for a PowerShell shim", () => {
+    const bin = makeBin(["codex.ps1"]);
+    const invocation = resolveCommandInvocation("codex", ["alpha"], {
+      platform: "win32",
+      env: { Path: bin }
+    });
+
+    expect(invocation.executable).toBe("powershell.exe");
+    // argsPrefix already ends with "-File <resolvedPath>"; duplicating it here
+    // would pass the script path to the script itself.
+    expect(invocation.args).toEqual([
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      path.join(bin, "codex.ps1"),
+      "alpha"
+    ]);
+    expect(invocation.args.filter((arg) => arg.endsWith("codex.ps1"))).toHaveLength(1);
+  });
+
+  it("preserves an unavailable command as a structured unavailable invocation", () => {
+    const bin = makeBin([]);
+    const invocation = resolveCommandInvocation("missing", ["alpha"], {
+      platform: "win32",
+      env: { Path: bin }
+    });
+
+    expect(invocation.resolvedCommand.resolutionKind).toBe("unavailable");
+    expect(invocation.resolvedCommand.warnings[0]).toContain("not found");
+    expect(invocation.args).toEqual(["alpha"]);
+  });
+
+  it("keeps arguments containing spaces intact as separate array entries", () => {
+    const bin = makePosixExecutableBin(["tool"]);
+    const invocation = resolveCommandInvocation("tool", ["--label", "hello world", "/opt/dir with spaces/x"], {
+      platform: "linux",
+      env: { PATH: bin }
+    });
+
+    expect(invocation.args).toEqual(["--label", "hello world", "/opt/dir with spaces/x"]);
+  });
 });

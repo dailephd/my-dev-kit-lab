@@ -5,10 +5,10 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.4.6`
-- Latest release: `v0.4.6` (installed-package CLI and runtime-boundary correction), published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.5`)
-- `v0.4.6` adds a supported installed `my-dev-kit-lab` CLI router, a `LabExecutionContext` runtime foundation separating `invocationCwd`/`packageRoot`/`workspaceRoot`/`resourceRoot` from the inspected target, and a permanent packed-tarball installation/execution acceptance gate. See "Implemented" below for the full scope.
-- Active planned version: `v0.5.0` (warm-index reuse experiment support). `v0.5.0` implementation has not begun.
+- Package version: `0.4.7`
+- Latest release: `v0.4.7` (declarative browser tutorial and video automation), published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.6`)
+- `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
+- Active planned version: `v0.5.0` (warm-index reuse experiment support). `v0.5.0` warm-index reuse is the next planned feature after v0.4.7.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
 - Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
 
@@ -16,13 +16,14 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 ## Operational state
 
-- Current branch: `main` (published `v0.4.6` state)
-- `v0.4.6` release branch: `release/v0.4.6` (merged to main)
-- Historical implementation branch: `fix/v0.4.6-runtime-context-foundation`
-- Workflow stage: `v0.4.6` is released; implementation (six batches: runtime/package-resource foundation, CLI router, low-risk installed routes, security/experiment routes, packed-package acceptance gate + CI, package-content and documentation reconciliation), a resolved transitive-devDependency security correction, pre-release readiness, release validation, tagging, GitHub Release creation, and npm publication are complete.
+- Current branch: `release/v0.4.7` (merged to main for release)
+- `v0.4.7` release branch: `release/v0.4.7` (merged to main)
+- Historical implementation branch: `feature/v0.4.7-browser-process-foundation`
+- Workflow stage: `v0.4.7` is released; implementation, pre-release readiness, release validation, PR merge into main, tagging, GitHub Release creation, and npm publication are complete.
 - Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
 - Validation result (v0.4.6, published): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run security:validate`, `npm run audit`, `npm run verify:packed-package`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the pre-release latest-Node readiness workflow passed on Ubuntu/macOS/Windows; see "Validation state" below for the exact gates run.
-- Exact next action: begin `v0.5.0` (warm-index reuse experiment support) planning and implementation.
+- Validation result (v0.4.7, published): local validation (`docs:check`, `typecheck`, `build`, `test:tutorial-browser`, `test`, `verify`, `verify:packed-package`, `audit`, `security:validate`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; dedicated latest-Node readiness workflow passed; package dry-run and packed-package inspection verified.
+- Exact next action: begin v0.5.0 warm-index reuse planning and implementation.
 
 ## Implemented
 
@@ -51,15 +52,15 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Released compatibility handling accepts my-dev-kit's additive major-1 audit repository identity, preserves absence in legacy audits, and extends existing pair diagnostics to detect repository-root and manifest-schema disagreement. It remains evaluation compatibility behavior; it adds no separate CLI command or orchestrator-readiness policy.
 - `v0.4.4` producer-readiness bridge is released: exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator's readiness result (`src/evaluation/upstreamArtifacts`); deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics (`src/evaluation/stageContextMetrics`); an additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) that composes those metrics over already-loaded evidence; additive optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`); optional producer-readiness bridge inputs on the `combined-bounded-stage-context` strategy, loaded once per run and reported through the existing `report.json`/`report.txt`/`report.html` pipeline as an additive, optional section. Readiness remains a programmatic plain-object input only — the frozen orchestrator commit exposes no on-disk readiness artifact, and no readiness/producer-parity/owner-selection/allocation policy is duplicated. No public CLI flags were added.
 - `v0.4.5` context-integrity validation is released: condition-aware producer evidence mirrored from the published `my-dev-kit` `v1.10.4` contract (`roleConditionCoverage`, allocation/spillover `GroupTruncationEntry` fields, `truncation.requiredEvidenceLost`) in `src/evaluation/upstreamArtifacts`; allocation, spillover, condition-coverage, and agreement metrics in `src/evaluation/stageContextMetrics`; run-integrity evidence mirrored from the published `my-dev-kit-orchestrator` `v1.2.3` contract (`RunIntegrityGateResult`, `JudgeIntegrityResult`, `FinalReportEligibilityResult`, plus `artifact-state.json` lifecycle records) and corresponding agreement calculators, composed additively through the existing `evaluateProducerReadinessBridge`; a frozen, hash-verified ecosystem regression fixture pair under `tests/fixtures/ecosystem/context-integrity/v0.4.5/` — a byte-exact real historical failed run and a hand-distilled corrected-replay counterpart representing the same validated `v1.10.4`/`v1.2.3` contracts, plus a 49-case negative matrix, hash verification, determinism, and fixture-immutability checks; and a bounded, additive `ContextIntegrityReportV1` JSON/text/HTML report layer in `src/report/experiments` that reuses the existing bounded-list/availability report primitives rather than duplicating them. The lab evaluates **agreement** between producer, readiness, judge, correction, eligibility, and lifecycle evidence — it does not reimplement or duplicate upstream policy, and it reports contradictions rather than resolving them. No CLI flags and no composite score, grade, ranking, or winner were added.
-- `v0.4.6` installed-package CLI and runtime-boundary correction is **released**: a `LabExecutionContext` runtime foundation (`src/runtime/`) with distinct `invocationCwd`/`packageRoot`/`workspaceRoot`/`resourceRoot` roots and cwd-independent package-root discovery and package-resource resolution; one compiled installed CLI router (`src/cli/`, bin `dist/scripts/cli.js`) exposing `--help`, `--version`, `security validate`, `audit`, the `experiment` family (`list`/`describe`/`run`/`controlled`), `report render`, `plots generate`, `gallery build`, and `demo final`, plus the historical direct final-demo invocation form for backward compatibility; shared `src/commands/` owners called by both the installed CLI and the existing `npm run` contributor scripts (no duplicated implementations); a global `--workspace` option defaulting to `<home>/.my-dev-kit-lab`, used for implicit audit/security output without redirecting explicit output paths or moving target/package roots; a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`) that builds, packs, installs the exact tarball into a clean consumer, executes the installed binary, and verifies target/installed-package immutability and workspace output boundaries; removal of an eager `typescript` devDependency import from audit module initialization (now loaded lazily, only when a source file is actually analyzed) that the acceptance gate surfaced as a real installed-runtime defect; `engines.node` raised to `>=24`; GitHub Actions CI standardized on Node `24` and `latest` across Ubuntu/macOS/Windows, with the pre-release workflow tracking Node `latest`; a resolved transitive `nanoid` devDependency security advisory (lockfile-only correction, published runtime dependency tree unaffected); and a reconciled npm package-content allowlist. See [ROADMAP.md](ROADMAP.md) for the preserved release scope. No security check, audit detector, Android behavior, experiment scoring, report schema, or CLI syntax for any existing route changed.
+- `v0.4.7` browser/tutorial automation is released: shared Playwright loading in `src/browser/`, managed local processes in `src/runtime/managedProcess.ts`, strict `TutorialScenarioV1` and `TutorialTargetContractV1` contracts, bounded actions/assertions, persistent browser execution, tutorial-only cursor/overlays, WebM/screenshots/SRT/VTT/Markdown, `tutorial-manifest.json`, installed tutorial CLI routes, a packaged generic example, and exact-tarball clean-consumer acceptance. Chromium remains a separate local browser prerequisite and is not downloaded during package installation or tutorial execution.
 
 ## Current commands
 
-The implemented command families cover experiments, reports and visualizations, generic audits, standalone security validation, Android validation, and repository verification. See [COMMANDS.md](COMMANDS.md) for exact syntax, flags, defaults, outputs, and exit behavior.
+The implemented command families cover experiments, reports and visualizations, generic audits, standalone security validation, Android validation, repository verification, and declarative browser tutorials. See [COMMANDS.md](COMMANDS.md) for exact syntax, flags, defaults, outputs, and exit behavior.
 
 ## Current architecture
 
-The repository has one experiment runtime, one audit framework, one standalone security-validation framework, and one Android subsystem integrated through the existing security adapter. Shared reporting and presentation modules serve all four. See [ARCHITECTURE.md](ARCHITECTURE.md) for ownership, flows, contracts, extension points, and failure boundaries.
+The repository has one experiment runtime, one audit framework, one standalone security-validation framework, one Android subsystem integrated through the existing security adapter, and the implemented v0.4.7 browser/tutorial subsystem. Shared reporting and presentation modules serve the established evidence systems; `src/browser/` owns shared Playwright loading, `src/runtime/managedProcess.ts` owns long-running local processes, `src/tutorial/` owns persistent tutorial sessions and artifacts, and `src/screenshot/` remains the separate one-shot report screenshot path. See [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership and boundaries.
 
 ## Experimental versus planned
 
@@ -71,7 +72,7 @@ The audit framework, language-aware code-rot detectors, security adapter, Androi
 
 `v0.4.5` context-integrity validation is published; see the `Implemented` section above. It has no CLI flags (evaluation remains programmatic/test-driven, as with `v0.4.3`), no plots/screenshot/gallery integration, and no live full ten-stage replay — the corrected-replay fixture is a hand-distilled representation of the validated `v1.10.4`/`v1.2.3` contracts, not a byte-exact generated run.
 
-`v0.4.6` installed-package CLI and runtime-boundary correction is **released**; see the `Implemented` section above. Within its released scope, none of the following were added: `security deps`/`package`/`codeql`/`semgrep`/fuzz-smoke routing, visualization-demo routing, warm-index reuse, a new security check, a new audit detector, or any new Android capability — those remain source-checkout-only or future-version scope. The installed CLI routes documented in [COMMANDS.md](COMMANDS.md) are available now.
+`v0.4.6` installed-package CLI and runtime-boundary correction is **released**; see the `Implemented` section above. The v0.4.7 release adds the generic browser/tutorial runtime described below. Within the released v0.4.6 scope, none of the following were added: `security deps`/`package`/`codeql`/`semgrep`/fuzz-smoke routing, visualization-demo routing, warm-index reuse, a new security check, a new audit detector, or any new Android capability — those remain future-version or source-checkout-only scope. The installed CLI routes documented in [COMMANDS.md](COMMANDS.md) are available now.
 
 The following remain planned, not implemented:
 
@@ -81,6 +82,7 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
+- v0.5.0 warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.5.x` through `v0.8.x`)
 - warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.5.x` through `v0.8.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
@@ -111,10 +113,12 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 
 `v0.4.6` released after full validation on Node 24: `npm run typecheck`, `npm run verify` (build + benchmark verification), the full `npm run test` suite (355 test files, 4223 passed, 1 known intentional platform-conditional skip, 0 failed), `npm run security:validate` (`READY EXCEPT OPTIONAL MANUAL CHECKS`, 0 release blockers), `npm run audit -- --types code-rot` (0 release-blocking findings), and the real `npm run verify:packed-package` acceptance gate (build → actual `npm pack` → install the exact tarball into a clean temporary consumer → execute the installed binary against help/version/experiment/audit/security routes → verify default and explicit workspace output locations, target immutability, and installed-package immutability) all passed. A transitive `nanoid` devDependency security advisory was resolved via a lockfile-only correction before release, verified with `npm audit` (full and `--omit=dev`) both clean. GitHub Actions CI (Ubuntu/macOS/Windows × Node 24/latest) and the pre-release latest-Node readiness workflow both passed against the release PR and merged main before tagging and publication.
 
+`v0.4.7` released after full validation on Node 24 and Node latest: local validation (`npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run test:tutorial-browser`, `npm test`, `npm run verify`, `npm run verify:packed-package`, `npm audit`, `npm run security:validate`, and code-rot audit) passed on the release commit; GitHub Actions CI passed across Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the dedicated pre-release latest-Node readiness workflow passed; package dry-run and actual packed-tarball inspection verified.
+
 ## Blockers
 
-Release blockers for published `v0.4.6`: none.
+Release blockers for published `v0.4.7`: none.
 
 ## Next step
 
-Begin `v0.5.0` (warm-index reuse experiment support) planning and implementation.
+Begin `v0.5.0` warm-index reuse planning and implementation.

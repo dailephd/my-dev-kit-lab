@@ -10,6 +10,8 @@ import { runExperimentRunCommandFromArgs } from "../commands/runExperimentRunCom
 import { runRenderExperimentReportCommand } from "../commands/renderExperimentReportCommand.js";
 import { runGenerateExperimentPlotsCommand } from "../commands/generateExperimentPlotsCommand.js";
 import { runBuildGalleryCommand } from "../commands/buildGalleryCommand.js";
+import { runTutorialValidateCommandFromArgs } from "../commands/runTutorialValidateCommand.js";
+import { runTutorialRunCommandFromArgs } from "../commands/runTutorialRunCommand.js";
 import { createLabExecutionContext, discoverPackageRoot } from "../runtime/index.js";
 import type { LabExecutionContext } from "../runtime/index.js";
 import {
@@ -28,6 +30,9 @@ import {
   renderReportRenderHelp,
   renderSecurityHelp,
   renderTopLevelHelp,
+  renderTutorialHelp,
+  renderTutorialRunHelp,
+  renderTutorialValidateHelp,
   renderUnknownCommandError
 } from "./help.js";
 
@@ -126,6 +131,10 @@ export async function runLabCli(argv: string[], options: RunLabCliOptions = {}):
 
   if (command === "gallery") {
     return runGalleryFamily(rest, writers);
+  }
+
+  if (command === "tutorial") {
+    return runTutorialFamily(rest, writers, context);
   }
 
   if (command === "demo") {
@@ -274,6 +283,38 @@ async function runPlotsFamily(argv: string[], writers: LabCliWriters): Promise<n
   }
 
   writers.stderr(renderUnknownCommandError(`plots ${subcommand}`));
+  return CLI_USAGE_EXIT_CODE;
+}
+
+async function runTutorialFamily(
+  argv: string[],
+  writers: LabCliWriters,
+  context: LabExecutionContext
+): Promise<number> {
+  const [subcommand, ...rest] = argv;
+
+  if (argv.length === 0 || subcommand === "--help" || subcommand === "-h") {
+    writers.stdout(renderTutorialHelp());
+    return 0;
+  }
+
+  if (subcommand === "validate") {
+    if (rest[0] === "--help" || rest[0] === "-h") {
+      writers.stdout(renderTutorialValidateHelp());
+      return 0;
+    }
+    return runTutorialValidateCommandFromArgs(rest, { context });
+  }
+
+  if (subcommand === "run") {
+    if (rest[0] === "--help" || rest[0] === "-h") {
+      writers.stdout(renderTutorialRunHelp());
+      return 0;
+    }
+    return runTutorialRunCommandFromArgs(rest, { context });
+  }
+
+  writers.stderr(renderUnknownCommandError(`tutorial ${subcommand}`));
   return CLI_USAGE_EXIT_CODE;
 }
 

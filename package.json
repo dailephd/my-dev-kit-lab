@@ -1,6 +1,6 @@
 {
   "name": "@dailephd/my-dev-kit-lab",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
@@ -13,7 +13,8 @@
     "dist/src/",
     "benchmarks/",
     "docs/METRICS.md",
-    "examples/token-savings-cases.json"
+    "examples/token-savings-cases.json",
+    "examples/tutorial-browser/"
   ],
   "repository": {
     "type": "git",
@@ -79,17 +80,20 @@
     "security:codeql": "tsx scripts/security/runCodeql.ts",
     "security:semgrep": "tsx scripts/security/runSemgrep.ts",
     "test:security": "vitest run tests/security/",
+    "test:tutorial-browser": "vitest run tests/integration/tutorialRealBrowser.spec.ts",
     "test:fuzz:smoke": "tsx scripts/security/runFuzzSmoke.ts",
     "security:validate": "tsx scripts/security/validate.ts",
     "audit": "tsx scripts/audits/runAudit.ts",
     "report:context-integrity-smoke": "tsx scripts/report-context-integrity-smoke.ts"
   },
+  "dependencies": {
+    "playwright": "1.60.0"
+  },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "playwright": "^1.54.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "vite": "7.3.6"

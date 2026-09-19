@@ -29,36 +29,36 @@
     "README.md": {
       "role": "first-use overview",
       "requiredHeadings": ["Current capabilities", "Quickstart", "Where to find outputs", "Current limitations", "Security validation", "Documentation"],
-      "requiredTopics": ["experiment", "audit", "security validation", "Android", "report", "gallery", "evidence", "manual pentest"]
+      "requiredTopics": ["experiment", "audit", "security validation", "Android", "report", "gallery", "evidence", "manual pentest", "tutorial", "Chromium"]
     },
     "docs/PROJECT_OVERVIEW.md": {
       "role": "product model",
       "requiredHeadings": ["What is my-dev-kit-lab?", "Current baseline", "Product flow", "Users", "What the evidence can establish", "Next phases"],
-      "requiredTopics": ["my-dev-kit", "experiment", "audit", "security", "Android", "evidence", "report", "planned"]
+      "requiredTopics": ["my-dev-kit", "experiment", "audit", "security", "Android", "evidence", "report", "planned", "tutorial", "browser"]
     },
     "docs/CURRENT_STATE.md": {
       "role": "operational state",
       "requiredHeadings": ["Version and publication state", "Operational state", "Implemented", "Current commands", "Current architecture", "Experimental versus planned", "Limitations", "Validation state", "Blockers", "Next step"],
-      "requiredTopics": ["Package version", "Latest release", "Current branch", "Active planned version", "Workflow stage", "Release blockers", "Exact next action", "v0.4.2", "v0.4.3", "not implemented"]
+      "requiredTopics": ["Package version", "Latest release", "Current branch", "Active planned version", "Workflow stage", "Release blockers", "Exact next action", "v0.4.2", "v0.4.3", "not implemented", "tutorial", "pre-release readiness"]
     },
     "docs/ARCHITECTURE.md": {
       "role": "current architecture",
       "requiredHeadings": ["Current implemented architecture", "Experiment-plugin runtime", "Target model", "Automated security-validation architecture", "Audit framework architecture", "Shared report and evidence infrastructure", "Key contracts"],
-      "requiredTopics": ["src/experiments", "src/evaluation", "src/agents", "src/prompts", "src/audits", "src/securityValidation", "src/mobile/android", "src/report", "src/plots", "src/screenshot", "src/gallery", "src/visualizationDemos"]
+      "requiredTopics": ["src/experiments", "src/evaluation", "src/agents", "src/prompts", "src/audits", "src/securityValidation", "src/mobile/android", "src/report", "src/plots", "src/screenshot", "src/gallery", "src/visualizationDemos", "src/browser", "src/tutorial", "managedProcess"]
     },
     "docs/COMMANDS.md": {
       "role": "implemented command reference",
       "requiredHeadings": ["Current command families", "Installation and validation", "Experiment commands", "Security-validation commands", "Audit commands"],
-      "requiredTopics": ["experiment:list", "experiment:describe", "experiment:run", "audit", "--android", "security:validate", "--profile android", "docs:check", "verify"]
+      "requiredTopics": ["experiment:list", "experiment:describe", "experiment:run", "audit", "--android", "security:validate", "--profile android", "docs:check", "verify", "tutorial validate", "tutorial run", "tutorial.webm", "tutorial-manifest.json"]
     },
     "docs/WORKFLOWS.md": {
       "role": "procedures",
       "requiredHeadings": ["Current workflow families", "Fake-agent final demo", "Context-strategy experiment run", "Real-agent campaign", "Report, plots, and gallery", "Automated security validation", "Code-rot audit", "Documentation reconciliation", "Pre-release readiness", "Release preparation and publication", "Android validation", "Android extension of the security audit adapter", "Manual pentest"],
-      "requiredTopics": ["experiment", "audit", "security", "Android", "Gradle", "external tool", "release", "documentation"]
+      "requiredTopics": ["experiment", "audit", "security", "Android", "Gradle", "external tool", "release", "documentation", "tutorial", "Chromium"]
     },
-    "docs/TUTORIAL.md": { "role": "first successful run", "requiredHeadings": ["Install dependencies", "Build", "Verify the installation", "Run the fake-agent final demo", "Open the report", "Where outputs are written", "Next steps"] },
+    "docs/TUTORIAL.md": { "role": "first successful run", "requiredHeadings": ["Install dependencies", "Build", "Declarative browser tutorial", "Verify the installation", "Run the fake-agent final demo", "Open the report", "Where outputs are written", "Next steps"] },
     "docs/METRICS.md": { "role": "metric glossary", "requiredHeadings": ["Metric interpretation quick reference", "Project complexity metrics", "Prompt complexity metrics", "Experiment and run metrics", "Planned v0.4.3 metrics"] },
-    "docs/GALLERY.md": { "role": "gallery reference", "requiredHeadings": ["What the gallery contains", "How the gallery relates to other outputs", "How to build a gallery", "Gallery in the final demo", "Current limitations"] },
+    "docs/GALLERY.md": { "role": "gallery reference", "requiredHeadings": ["What the gallery contains", "How the gallery relates to other outputs", "How to build a gallery", "Gallery in the final demo", "Current limitations"], "requiredTopics": ["tutorial-manifest", "future scope"] },
     "docs/security-validation-framework.md": {
       "role": "security model and limitations",
       "requiredHeadings": ["Scope", "Implemented validation layers", "Target-aware validation", "Commands", "Reports and verdicts", "Current limitations", "Fortification status and audit relationship"],
@@ -73,7 +73,7 @@
     "requiredVersions": [
       "v0.2.0", "v0.2.1", "v0.2.2",
       "v0.3.0", "v0.3.1", "v0.3.2", "v0.3.3", "v0.3.4",
-      "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4", "v0.4.5", "v0.4.6",
+      "v0.4.0", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4", "v0.4.5", "v0.4.6", "v0.4.7",
       "v0.5.0", "v0.5.1", "v0.5.2",
       "v0.6.0", "v0.6.1", "v0.6.2", "v0.6.3",
       "v0.7.0", "v0.7.1", "v0.7.2",
@@ -87,10 +87,10 @@
     "forbiddenVersionRangeHeadings": ["v0.5.x-v0.9.x", "v0.5.x–v0.9.x", "v0.3.0-v0.3.4"]
   },
   "changelog": {
-    "requiredPublishedReleases": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.1", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4", "0.4.5", "0.4.6"]
+    "requiredPublishedReleases": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.1", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4", "0.4.5", "0.4.6", "0.4.7"]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.4.6",
+    "latestPublishedVersion": "0.4.7",
     "nextPlannedVersion": "0.5.0",
     "implementedExperimentPlugins": ["context-strategy-comparison"],
     "implementedAuditTypes": ["code-rot", "security"],
