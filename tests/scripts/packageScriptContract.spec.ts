@@ -63,7 +63,7 @@ describe("installed tutorial package contract", () => {
   it("keeps the lockfile root classification and package version stable", () => {
     expect(lock.packages[""].dependencies?.playwright).toBe("1.60.0");
     expect(lock.packages[""].devDependencies?.playwright).toBeUndefined();
-    expect(pkg.version).toBe("0.4.6");
+    expect(pkg.version).toBe("0.4.7");
   });
 
   it("ships only the canonical generic tutorial resources", () => {
