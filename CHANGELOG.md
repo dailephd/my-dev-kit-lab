@@ -2,9 +2,9 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [0.4.8] - Unreleased
+## [0.4.8] - 2026-09-19
 
-Locator-anchored pointer gestures for declarative browser tutorials. Implementation is complete and unreleased on branch `feature/v0.4.8-pointer-gestures`; package version remains `0.4.7` and latest published release remains `v0.4.7`.
+Locator-anchored pointer gestures for declarative browser tutorials.
 
 - Added `pointer-click` and `pointer-drag` declarative tutorial actions anchored to a single `TutorialLocatorV1` interaction surface.
 - Added normalized fraction coordinates (`coordinateSpace: "fraction"`) with inclusive `[0, 1]` bounds and zero-length pointer-drag rejection.

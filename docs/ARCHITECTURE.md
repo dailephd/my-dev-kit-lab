@@ -393,15 +393,15 @@ Cross-repository boundary:
 ```mermaid
 flowchart LR
   Observer[my-frontend-observer<br/>deterministic demo template + product scenarios] --> Contract[trusted demo/target contract]
-  Contract --> Lab[my-dev-kit-lab v0.4.7<br/>generic tutorial runtime]
+  Contract --> Lab[my-dev-kit-lab v0.4.8<br/>generic tutorial runtime]
   Lab --> Evidence[WebM + screenshots + SRT/VTT + Markdown + tutorial manifest]
 ```
 
 `my-frontend-observer` owns its demo source, stable target identifiers, deterministic visual variants, reference images, materialization/reset behavior, readiness/start contract, and Observer-specific scenario files. my-dev-kit-lab must not encode Observer selectors or semantics in production code. The lab carries its own generic deterministic fixture, so normal lab CI and packed-package acceptance never require a sibling Observer checkout.
 
-### Implemented v0.4.8 pointer-gesture extension
+### Released v0.4.8 pointer-gesture extension
 
-The released v0.4.7 action model intentionally distinguishes browser elements but cannot yet name two positions inside the same pointer-receiving element. The first Observer v0.9 integration exposed this as a generic capability gap for SVG/canvas drawing and similar editors. v0.4.8 implements an additive tutorial patch, not a product-specific workaround.
+The v0.4.7 action model intentionally distinguishes browser elements but could not name two positions inside the same pointer-receiving element. The first Observer v0.9 integration exposed this as a generic capability gap for SVG/canvas drawing and similar editors. v0.4.8 releases an additive tutorial patch, not a product-specific workaround.
 
 Implemented contract:
 
@@ -508,8 +508,8 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.5 bounded context-integrity report model, builder, and renderers (released) | `src/report/experiments/contextIntegrityReportModel.ts`, `buildContextIntegrityReport.ts`, `renderContextIntegrityJsonReport.ts`, `renderContextIntegrityText.ts`, `renderContextIntegrityHtml.ts` |
 | v0.4.7 tutorial contracts and types (released) | `src/tutorial/types.ts` |
 | v0.4.7 persistent tutorial session and cursor overlay (released) | `src/tutorial/tutorialSession.ts` / `src/tutorial/tutorialCursor.ts` |
-| v0.4.8 pointer actions and fraction point types | `src/tutorial/types.ts` |
-| v0.4.8 pointer geometry resolution | `src/tutorial/tutorialPointerGeometry.ts` |
-| v0.4.8 pointer action execution and move steps | `src/tutorial/tutorialActions.ts` |
-| v0.4.8 structural browser mouse interface | `src/browser/types.ts` |
-| v0.4.8 generic tutorial browser fixture | `examples/tutorial-browser/` |
+| v0.4.8 pointer actions and fraction point types (released) | `src/tutorial/types.ts` |
+| v0.4.8 pointer geometry resolution (released) | `src/tutorial/tutorialPointerGeometry.ts` |
+| v0.4.8 pointer action execution and move steps (released) | `src/tutorial/tutorialActions.ts` |
+| v0.4.8 structural browser mouse interface (released) | `src/browser/types.ts` |
+| v0.4.8 generic tutorial browser fixture (released) | `examples/tutorial-browser/` |

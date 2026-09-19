@@ -586,7 +586,7 @@ Explicit exclusions:
 
 ### v0.4.8 — locator-anchored pointer gestures for browser tutorials
 
-Status: **implementation complete; not published; pre-release readiness pending**.
+Status: **published**.
 
 Purpose:
 
@@ -668,12 +668,6 @@ Explicit exclusions:
 * No redesign of `TutorialTargetContractV1`, managed processes, loopback policy, source/target isolation, WebM/SRT/VTT/Markdown generation, tutorial manifests, or gallery behavior.
 * No FFmpeg, MP4, generated audio, or gallery tutorial consumption.
 * Warm-index reuse remains v0.5.0 and follows this bounded v0.4.8 patch.
-
-Workflow after implementation:
-
-* Run the normal documentation reconciliation plus implementation-completeness audit (current stage).
-* Run pre-release readiness with full local gates, exact packed-package acceptance, real Chromium, security/code-rot review, and Ubuntu/macOS/Windows × Node 24/latest evidence.
-* Only after `PASS_READY_FOR_RELEASE_PREP` run the standard release-preparation/publication workflow.
 
 ### Post-v1 / version TBD — manual pentest
 

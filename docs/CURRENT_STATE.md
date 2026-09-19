@@ -5,11 +5,11 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.4.7`
-- Latest release: `v0.4.7` (declarative browser tutorial and video automation), published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.6`)
+- Package version: `0.4.8`
+- Latest release: `v0.4.8` (locator-anchored pointer gestures for browser tutorials, adding `pointer-click` and `pointer-drag` using normalized locator-relative fraction positions while existing `drag` remains element-to-element; previous release: `v0.4.7`)
+- `v0.4.8` status: released/current
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
-- Current implementation: `v0.4.8` (locator-anchored pointer gestures for browser tutorials). Implementation is complete; documentation reconciliation is complete; pre-release readiness is pending; release preparation has not been performed; publication has not been performed. Future version after v0.4.8 is `v0.5.0` (warm-index reuse).
-- Active planned version: `v0.4.8` is implementation-complete and unreleased; `v0.5.0` warm-index reuse resumes immediately after v0.4.8 release.
+- Active planned version: `v0.5.0` (warm-index reuse)
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
 - Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
 
@@ -17,16 +17,17 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 ## Operational state
 
-- Current branch: `feature/v0.4.8-pointer-gestures` is the active implementation branch for this stage (not published). `main` remains the canonical published baseline at `v0.4.7`.
+- Current branch: `release/v0.4.8` (release preparation). `main` receives this release upon merge.
 - `v0.4.7` release branch: `release/v0.4.7` (merged to main)
-- Historical implementation branch: `feature/v0.4.7-browser-process-foundation`
-- Active implementation branch: `feature/v0.4.8-pointer-gestures`
-- Workflow stage: `v0.4.8` implementation is complete and documentation reconciliation is complete. Pre-release readiness is pending.
+- Historical implementation branch: `feature/v0.4.8-pointer-gestures`
+- Active release branch: `release/v0.4.8`
+- Workflow stage: release preparation complete; standardized publication workflow follows user approval.
 - Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
 - Validation result (v0.4.6, published): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run security:validate`, `npm run audit`, `npm run verify:packed-package`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the pre-release latest-Node readiness workflow passed on Ubuntu/macOS/Windows; see "Validation state" below for the exact gates run.
 - Validation result (v0.4.7, published): local validation (`docs:check`, `typecheck`, `build`, `test:tutorial-browser`, `test`, `verify`, `verify:packed-package`, `audit`, `security:validate`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; dedicated latest-Node readiness workflow passed; package dry-run and packed-package inspection verified.
-- Validation result (v0.4.8, implementation complete): local validation (`npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run test:tutorial-browser`, `npm test` [379 files, 4676 passed, 1 skipped, 0 failed], `npm run verify`, `npm run verify:packed-package`, focused pointer and security tests) passed on `feature/v0.4.8-pointer-gestures`. Generic real-browser SVG pointer-click and pointer-drag passed through Chromium. Exact installed-package execution verified with clean-consumer immutability. Observer compatibility evidence verified for rectangle, line, arrow, point, and note gestures.
-- Exact next action: `v0.4.8 pre-release readiness`. (Do not perform release preparation or publication; do not bump package version from 0.4.7).
+- Validation result (v0.4.8, released): local validation (`npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run test:tutorial-browser`, `npm test` [379 files, 4676 passed, 1 skipped, 0 failed], `npm run verify`, `npm run verify:packed-package`, focused pointer and security tests) passed on the candidate commit. Generic real-browser SVG pointer-click and pointer-drag passed through Chromium. Exact installed-package execution verified with clean-consumer immutability. Observer compatibility evidence verified for rectangle, line, arrow, point, and note gestures. Cross-platform CI passed across Ubuntu, macOS, and Windows on Node 24 and Node latest.
+- Release blockers: none.
+- Exact next action: begin v0.5.0 warm-index reuse planning and implementation after publication.
 
 ## Implemented
 
@@ -56,7 +57,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.4.4` producer-readiness bridge is released: exact readers for the frozen my-dev-kit-orchestrator supplemental implementation/test context packet and retrieval-report documents, and a bounded plain-object adapter for the orchestrator's readiness result (`src/evaluation/upstreamArtifacts`); deterministic owner, allocation, truncation-cause, supplemental/raw agreement, readiness-agreement, and criticality-overlay metrics (`src/evaluation/stageContextMetrics`); an additive producer-readiness bridge evaluator (`evaluateProducerReadinessBridge`) that composes those metrics over already-loaded evidence; additive optional producer-readiness expectations on `StageContextExpectationFixtureV1` (`src/evaluation/stageContextExpectations`); optional producer-readiness bridge inputs on the `combined-bounded-stage-context` strategy, loaded once per run and reported through the existing `report.json`/`report.txt`/`report.html` pipeline as an additive, optional section. Readiness remains a programmatic plain-object input only — the frozen orchestrator commit exposes no on-disk readiness artifact, and no readiness/producer-parity/owner-selection/allocation policy is duplicated. No public CLI flags were added.
 - `v0.4.5` context-integrity validation is released: condition-aware producer evidence mirrored from the published `my-dev-kit` `v1.10.4` contract (`roleConditionCoverage`, allocation/spillover `GroupTruncationEntry` fields, `truncation.requiredEvidenceLost`) in `src/evaluation/upstreamArtifacts`; allocation, spillover, condition-coverage, and agreement metrics in `src/evaluation/stageContextMetrics`; run-integrity evidence mirrored from the published `my-dev-kit-orchestrator` `v1.2.3` contract (`RunIntegrityGateResult`, `JudgeIntegrityResult`, `FinalReportEligibilityResult`, plus `artifact-state.json` lifecycle records) and corresponding agreement calculators, composed additively through the existing `evaluateProducerReadinessBridge`; a frozen, hash-verified ecosystem regression fixture pair under `tests/fixtures/ecosystem/context-integrity/v0.4.5/` — a byte-exact real historical failed run and a hand-distilled corrected-replay counterpart representing the same validated `v1.10.4`/`v1.2.3` contracts, plus a 49-case negative matrix, hash verification, determinism, and fixture-immutability checks; and a bounded, additive `ContextIntegrityReportV1` JSON/text/HTML report layer in `src/report/experiments` that reuses the existing bounded-list/availability report primitives rather than duplicating them. The lab evaluates **agreement** between producer, readiness, judge, correction, eligibility, and lifecycle evidence — it does not reimplement or duplicate upstream policy, and it reports contradictions rather than resolving them. No CLI flags and no composite score, grade, ranking, or winner were added.
 - `v0.4.7` browser/tutorial automation is released: shared Playwright loading in `src/browser/`, managed local processes in `src/runtime/managedProcess.ts`, strict `TutorialScenarioV1` and `TutorialTargetContractV1` contracts, bounded actions/assertions, persistent browser execution, tutorial-only cursor/overlays, WebM/screenshots/SRT/VTT/Markdown, `tutorial-manifest.json`, installed tutorial CLI routes, a packaged generic example, and exact-tarball clean-consumer acceptance. Chromium remains a separate local browser prerequisite and is not downloaded during package installation or tutorial execution.
-- `v0.4.8` locator-anchored pointer gestures are implemented and unreleased: `pointer-click` and `pointer-drag` actions in `src/tutorial/tutorialActions.ts`, fraction coordinate geometry in `src/tutorial/tutorialPointerGeometry.ts`, closed validation in `src/tutorial/scenarioValidation.ts`, structural mouse types in `src/browser/types.ts`, synthetic cursor/click feedback in `src/tutorial/tutorialSession.ts`, generic SVG surface in `examples/tutorial-browser/`, and real-browser/packed-package acceptance tests. Existing element-to-element `drag` remains unchanged.
+- `v0.4.8` locator-anchored pointer gestures are released: `pointer-click` and `pointer-drag` actions in `src/tutorial/tutorialActions.ts`, fraction coordinate geometry in `src/tutorial/tutorialPointerGeometry.ts`, closed validation in `src/tutorial/scenarioValidation.ts`, structural mouse types in `src/browser/types.ts`, synthetic cursor/click feedback in `src/tutorial/tutorialSession.ts`, generic SVG surface in `examples/tutorial-browser/`, and real-browser/packed-package acceptance tests. Existing element-to-element `drag` remains unchanged.
 
 ## Current commands
 
@@ -119,12 +120,12 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 
 `v0.4.7` released after full validation on Node 24 and Node latest: local validation (`npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run test:tutorial-browser`, `npm test`, `npm run verify`, `npm run verify:packed-package`, `npm audit`, `npm run security:validate`, and code-rot audit) passed on the release commit; GitHub Actions CI passed across Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the dedicated pre-release latest-Node readiness workflow passed; package dry-run and actual packed-tarball inspection verified.
 
+`v0.4.8` released after full validation on Node 24 and Node latest: local validation (`npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run test:tutorial-browser`, `npm test`, `npm run verify`, `npm run verify:packed-package`, `npm audit`, `npm run security:validate`, and code-rot audit) passed on the candidate commit; pre-release readiness completed with 0 release blockers; GitHub Actions CI passed across Ubuntu/macOS/Windows × Node 24/latest; the dedicated pre-release latest-Node readiness workflow passed; package dry-run and packed-tarball inspection verified at version 0.4.8.
+
 ## Blockers
 
-Release blockers for published `v0.4.7`: none.
-
-v0.4.8 implementation blockers: none (both new pointer actions are implemented and validated). Downstream Observer v0.9 compatibility confirmed in evidence. Pre-release readiness remains pending before release preparation.
+Release blockers: none.
 
 ## Next step
 
-Execute the `v0.4.8 pre-release readiness` workflow. After pre-release readiness passes, execute release preparation and publication, then resume `v0.5.0` warm-index reuse.
+Begin `v0.5.0` warm-index reuse planning and implementation after publication.
