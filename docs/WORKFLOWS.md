@@ -28,7 +28,7 @@ See [COMMANDS.md](COMMANDS.md) for the full installed command tree and [ARCHITEC
 
 **Completion:** the invoked command exits, and (for commands with a writable output) the expected report/artifact files exist under the resolved output location (the workspace by default, or the explicit path supplied).
 
-## Declarative tutorial generation (v0.4.7)
+## Declarative tutorial generation
 
 **Goal:** turn one validated local browser scenario into assertion-backed runtime evidence and synchronized human-facing artifacts without requiring a product-specific repository.
 

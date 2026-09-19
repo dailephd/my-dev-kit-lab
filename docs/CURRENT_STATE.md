@@ -65,7 +65,7 @@ The implemented command families cover experiments, reports and visualizations, 
 
 ## Current architecture
 
-The repository has one experiment runtime, one audit framework, one standalone security-validation framework, one Android subsystem integrated through the existing security adapter, and the implemented v0.4.7 browser/tutorial subsystem. Shared reporting and presentation modules serve the established evidence systems; `src/browser/` owns shared Playwright loading, `src/runtime/managedProcess.ts` owns long-running local processes, `src/tutorial/` owns persistent tutorial sessions and artifacts, and `src/screenshot/` remains the separate one-shot report screenshot path. See [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership and boundaries.
+The repository has one experiment runtime, one audit framework, one standalone security-validation framework, one Android subsystem integrated through the existing security adapter, and the implemented browser/tutorial subsystem introduced in v0.4.7 and extended in v0.4.8. Shared reporting and presentation modules serve the established evidence systems; `src/browser/` owns shared Playwright loading, `src/runtime/managedProcess.ts` owns long-running local processes, `src/tutorial/` owns persistent tutorial sessions and artifacts, and `src/screenshot/` remains the separate one-shot report screenshot path. See [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership and boundaries.
 
 ## Experimental versus planned
 
