@@ -57,6 +57,8 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/browser/playwrightRuntime.js",
   "dist/src/runtime/managedProcess.js",
   "dist/src/tutorial/runTutorial.js",
+  "dist/src/tutorial/tutorialActions.js",
+  "dist/src/tutorial/tutorialPointerGeometry.js",
   "dist/src/tutorial/tutorialSession.js",
   "dist/src/tutorial/tutorialArtifacts.js",
   "dist/src/tutorial/tutorialManifest.js",
@@ -465,7 +467,7 @@ async function main() {
     const validation = runInstalledCli(cliCommand, dirs.consumer, validateArgs, envWithBin);
     if (validation.status !== 0) fail("TUTORIAL_VALIDATE", "Installed tutorial validation failed.", describeChildResult(validation));
     const validationJson = parseJsonOutput(validation, "TUTORIAL_VALIDATE");
-    if (validationJson.status !== "valid" || validationJson.scenarioId !== "lab-browser-fixture" || validationJson.targetIdMatches !== true) {
+    if (validationJson.status !== "valid" || validationJson.scenarioId !== "lab-browser-fixture" || validationJson.targetIdMatches !== true || validationJson.stepCount !== 9) {
       fail("TUTORIAL_VALIDATE", "Installed tutorial validation returned an unexpected result.", validation.stdout);
     }
 
@@ -499,7 +501,15 @@ async function main() {
       fail("TUTORIAL_REAL_EXECUTION", "Packed tutorial returned an unexpected successful-run result.", realRun.stdout);
     }
     if (!realJson.paths?.runRoot || path.resolve(realJson.paths.runRoot) !== path.resolve(realRunRoot)) fail("TUTORIAL_REAL_EXECUTION", "Explicit --out was not honored exactly.");
-    if (realJson.steps?.some((step) => step.status !== "passed")) fail("TUTORIAL_REAL_EXECUTION", "Not every canonical tutorial step passed.");
+    if (realJson.steps?.length !== 9 || realJson.steps.some((step) => step.status !== "passed")) fail("TUTORIAL_REAL_EXECUTION", "The canonical tutorial did not return exactly nine passed steps.");
+    const pointerClickStep = realJson.steps.find((step) => step.id === "pointer-click-surface");
+    if (pointerClickStep?.action?.type !== "pointer-click" || pointerClickStep.action.status !== "passed" || pointerClickStep.assertions?.some((assertion) => assertion.status !== "passed")) {
+      fail("TUTORIAL_POINTER_CLICK", "Packed pointer-click action or its DOM assertions did not pass.");
+    }
+    const pointerDragStep = realJson.steps.find((step) => step.id === "pointer-drag-surface");
+    if (pointerDragStep?.action?.type !== "pointer-drag" || pointerDragStep.action.status !== "passed" || pointerDragStep.assertions?.some((assertion) => assertion.status !== "passed")) {
+      fail("TUTORIAL_POINTER_DRAG", "Packed pointer-drag action or its DOM assertions did not pass.");
+    }
     const artifactFiles = {
       video: path.join(realRunRoot, "artifacts", "tutorial.webm"),
       srt: path.join(realRunRoot, "artifacts", "tutorial.srt"),
@@ -510,10 +520,12 @@ async function main() {
     const videoSize = requireNonEmptyFile(artifactFiles.video, "TUTORIAL_ARTIFACTS");
     assertWebm(artifactFiles.video, "TUTORIAL_ARTIFACTS");
     for (const filePath of [artifactFiles.srt, artifactFiles.vtt, artifactFiles.markdown, artifactFiles.manifest]) requireNonEmptyFile(filePath, "TUTORIAL_ARTIFACTS");
-    const screenshotNames = ["app-open.png", "activated.png", "submitted.png", "dropped.png", "banner-visible.png"];
+    const screenshotNames = ["app-open.png", "activated.png", "submitted.png", "dropped.png", "pointer-clicked.png", "pointer-dragged.png", "banner-visible.png"];
     const screenshotSizes = Object.fromEntries(screenshotNames.map((name) => [name, requireNonEmptyFile(path.join(realRunRoot, "screenshots", name), "TUTORIAL_ARTIFACTS")]));
     const manifest = JSON.parse(readFileSync(artifactFiles.manifest, "utf8"));
-    if (manifest.schemaVersion !== "1.0.0" || manifest.run?.status !== "passed" || manifest.scenario?.id !== "lab-browser-fixture" || manifest.target?.id !== "lab-browser-fixture" || manifest.warnings?.length || manifest.cleanupErrors?.length) fail("TUTORIAL_MANIFEST", "Packed tutorial manifest does not prove a clean passed run.");
+    if (manifest.schemaVersion !== "1.0.0" || manifest.run?.status !== "passed" || manifest.scenario?.id !== "lab-browser-fixture" || manifest.target?.id !== "lab-browser-fixture" || manifest.steps?.length !== 9 || manifest.warnings?.length || manifest.cleanupErrors?.length) fail("TUTORIAL_MANIFEST", "Packed tutorial manifest does not prove a clean nine-step run.");
+    if (manifest.steps.find((step) => step.id === "pointer-click-surface")?.action?.type !== "pointer-click" || manifest.steps.find((step) => step.id === "pointer-click-surface")?.action?.status !== "passed") fail("TUTORIAL_MANIFEST", "Packed tutorial manifest lacks a passed pointer-click action.");
+    if (manifest.steps.find((step) => step.id === "pointer-drag-surface")?.action?.type !== "pointer-drag" || manifest.steps.find((step) => step.id === "pointer-drag-surface")?.action?.status !== "passed") fail("TUTORIAL_MANIFEST", "Packed tutorial manifest lacks a passed pointer-drag action.");
     if (validateManifestRelativePaths(manifest).length > 0) fail("TUTORIAL_MANIFEST", "Packed tutorial manifest contains an invalid artifact path.");
     for (const record of manifest.artifacts.filter((artifact) => ["video", "srt", "vtt", "markdown"].includes(artifact.kind) || artifact.kind === "screenshot")) {
       if (record.status !== "written") fail("TUTORIAL_MANIFEST", `Packed artifact ${record.kind} is not written.`);
@@ -608,6 +620,8 @@ async function main() {
     console.log("TUTORIAL_VALIDATE: PASS");
     console.log("TUTORIAL_BROWSER_UNAVAILABLE: PASS (isolated browser cache remained empty)");
     console.log("TUTORIAL_REAL_EXECUTION: PASS");
+    console.log("TUTORIAL_POINTER_CLICK: PASS");
+    console.log("TUTORIAL_POINTER_DRAG: PASS");
     console.log(`TUTORIAL_VIDEO: artifacts/tutorial.webm (${videoSize} bytes)`);
     console.log(`TUTORIAL_SRT: artifacts/tutorial.srt (${statSync(artifactFiles.srt).size} bytes)`);
     console.log(`TUTORIAL_VTT: artifacts/tutorial.vtt (${statSync(artifactFiles.vtt).size} bytes)`);

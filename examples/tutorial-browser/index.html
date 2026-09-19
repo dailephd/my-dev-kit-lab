@@ -14,16 +14,18 @@
       input { font: inherit; padding: 8px; border: 1px solid #b8bec8; border-radius: 6px; width: 100%; box-sizing: border-box; }
       .dropzone { min-height: 72px; border: 2px dashed #9aa3af; border-radius: 8px; padding: 12px; }
       .card { background: #dde7ff; border: 1px solid #5f7fd6; border-radius: 6px; padding: 10px; width: 140px; }
+      #pointer-surface { display: block; width: 400px; height: 240px; background: #eef4ff; box-shadow: inset 0 0 0 2px #7890c2; touch-action: none; user-select: none; }
       .hidden { display: none; }
       #status-banner { padding: 10px; border-radius: 6px; background: #e8f5e9; border: 1px solid #66bb6a; }
     </style>
   </head>
   <body>
     <h1 id="page-title">Tutorial Fixture</h1>
+    <div class="panel row"><div class="col"><div id="drag-card" data-testid="drag-card" class="card" draggable="true">Draggable card</div></div><div class="col"><div id="drop-zone" data-testid="drop-zone" class="dropzone">Drop target</div></div></div>
+    <div class="panel"><svg id="pointer-surface" data-testid="pointer-surface" width="400" height="240" viewBox="0 0 400 240" aria-label="Pointer gesture surface" data-pointer-click-count="0" data-last-pointer-click-zone="none" data-pointer-drag-count="0" data-pointer-drag-start-zone="none" data-pointer-drag-end-zone="none" data-pointer-drag-intermediate="false"><line id="pointer-drag-evidence" x1="0" y1="0" x2="0" y2="0" stroke="#3659a2" stroke-width="4" visibility="hidden" pointer-events="none"></line><circle id="pointer-click-evidence" cx="0" cy="0" r="8" fill="#d94f04" visibility="hidden" pointer-events="none"></circle></svg></div>
     <div class="panel"><p id="intro-text">Welcome to the generic tutorial fixture.</p><button id="primary-action" data-testid="primary-action" data-state="idle">Activate</button> <span id="activation-count" data-testid="activation-count">0</span></div>
     <div class="panel"><label for="name-field">Your name</label><input id="name-field" data-testid="name-field" aria-label="Your name" /><p id="greeting" data-testid="greeting"></p></div>
     <div class="panel"><button id="hover-target" data-testid="hover-target">Hover me</button><p id="hover-readout" data-testid="hover-readout">not hovered</p></div>
-    <div class="panel row"><div class="col"><div id="drag-card" data-testid="drag-card" class="card" draggable="true">Draggable card</div></div><div class="col"><div id="drop-zone" data-testid="drop-zone" class="dropzone">Drop target</div></div></div>
     <div class="panel"><div id="status-banner" data-testid="status-banner" class="hidden">Delayed banner is now visible</div></div>
     <script>
       (() => {
@@ -40,6 +42,66 @@
         dragCard.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", "drag-card"));
         dropZone.addEventListener("dragover", event => event.preventDefault());
         dropZone.addEventListener("drop", event => { event.preventDefault(); dropZone.textContent = "Dropped"; dropZone.setAttribute("data-dropped", "true"); });
+        const pointerSurface = document.getElementById("pointer-surface");
+        const clickEvidence = document.getElementById("pointer-click-evidence");
+        const dragEvidence = document.getElementById("pointer-drag-evidence");
+        const POINTER_CLICK_THRESHOLD = 0.01;
+        let activePointerId = null;
+        let pointerStart = null;
+        let pointerLatest = null;
+        let activeMoveCount = 0;
+        let pointerClickCount = 0;
+        let pointerDragCount = 0;
+        const fractionPoint = event => {
+          const box = pointerSurface.getBoundingClientRect();
+          return {
+            x: Math.max(0, Math.min(1, (event.clientX - box.left) / box.width)),
+            y: Math.max(0, Math.min(1, (event.clientY - box.top) / box.height))
+          };
+        };
+        const zoneFor = point => point.x < 0.5
+          ? (point.y < 0.5 ? "upper-left" : "lower-left")
+          : (point.y < 0.5 ? "upper-right" : "lower-right");
+        pointerSurface.addEventListener("pointerdown", event => {
+          activePointerId = event.pointerId;
+          pointerStart = fractionPoint(event);
+          pointerLatest = pointerStart;
+          activeMoveCount = 0;
+          pointerSurface.setPointerCapture(event.pointerId);
+        });
+        pointerSurface.addEventListener("pointermove", event => {
+          if (event.pointerId !== activePointerId || !pointerStart) return;
+          activeMoveCount += 1;
+          pointerLatest = fractionPoint(event);
+        });
+        pointerSurface.addEventListener("pointerup", event => {
+          if (event.pointerId !== activePointerId || !pointerStart) return;
+          const pointerEnd = fractionPoint(event);
+          const distance = Math.hypot(pointerEnd.x - pointerStart.x, pointerEnd.y - pointerStart.y);
+          if (distance <= POINTER_CLICK_THRESHOLD) {
+            pointerClickCount += 1;
+            pointerSurface.setAttribute("data-pointer-click-count", String(pointerClickCount));
+            pointerSurface.setAttribute("data-last-pointer-click-zone", zoneFor(pointerEnd));
+            clickEvidence.setAttribute("cx", String(pointerEnd.x * 400));
+            clickEvidence.setAttribute("cy", String(pointerEnd.y * 240));
+            clickEvidence.setAttribute("visibility", "visible");
+          } else {
+            pointerDragCount += 1;
+            pointerSurface.setAttribute("data-pointer-drag-count", String(pointerDragCount));
+            pointerSurface.setAttribute("data-pointer-drag-start-zone", zoneFor(pointerStart));
+            pointerSurface.setAttribute("data-pointer-drag-end-zone", zoneFor(pointerEnd));
+            pointerSurface.setAttribute("data-pointer-drag-intermediate", String(activeMoveCount >= 2));
+            dragEvidence.setAttribute("x1", String(pointerStart.x * 400));
+            dragEvidence.setAttribute("y1", String(pointerStart.y * 240));
+            dragEvidence.setAttribute("x2", String(pointerEnd.x * 400));
+            dragEvidence.setAttribute("y2", String(pointerEnd.y * 240));
+            dragEvidence.setAttribute("visibility", "visible");
+          }
+          pointerLatest = pointerEnd;
+          activePointerId = null;
+          pointerStart = null;
+          void pointerLatest;
+        });
         window.setTimeout(() => document.getElementById("status-banner").classList.remove("hidden"), 300);
       })();
     </script>

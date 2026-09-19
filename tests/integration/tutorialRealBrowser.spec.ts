@@ -103,9 +103,10 @@ describe("tutorial run against real Chromium", () => {
               const page = await originalNewPage();
               const originalScreenshot = page.screenshot.bind(page);
               page.screenshot = async (screenshotOptions) => {
-                liveVisualState.push(
-                  (await page.evaluate(
-                    (ids: { root: string; cursor: string; highlight: string; callout: string }) => {
+                liveVisualState.push({
+                  screenshot: path.basename(screenshotOptions.path),
+                  ...((await page.evaluate(
+                    (ids: { root: string; cursor: string; highlight: string; callout: string; pointer: string }) => {
                       const read = (id: string) => {
                         const node = document.getElementById(id);
                         if (!node) return null;
@@ -120,17 +121,29 @@ describe("tutorial run against real Chromium", () => {
                         root: read(ids.root),
                         cursor: read(ids.cursor),
                         highlight: read(ids.highlight),
-                        callout: read(ids.callout)
+                        callout: read(ids.callout),
+                        pointer: (() => {
+                          const surface = document.getElementById(ids.pointer);
+                          return surface ? {
+                            clickCount: surface.getAttribute("data-pointer-click-count"),
+                            clickZone: surface.getAttribute("data-last-pointer-click-zone"),
+                            dragCount: surface.getAttribute("data-pointer-drag-count"),
+                            dragStartZone: surface.getAttribute("data-pointer-drag-start-zone"),
+                            dragEndZone: surface.getAttribute("data-pointer-drag-end-zone"),
+                            dragIntermediate: surface.getAttribute("data-pointer-drag-intermediate")
+                          } : null;
+                        })()
                       };
                     },
                     {
                       root: TUTORIAL_VISUAL_ROOT_ID,
                       cursor: TUTORIAL_CURSOR_ID,
                       highlight: TUTORIAL_HIGHLIGHT_ID,
-                      callout: TUTORIAL_CALLOUT_ID
+                      callout: TUTORIAL_CALLOUT_ID,
+                      pointer: "pointer-surface"
                     }
-                  )) as Record<string, unknown>
-                );
+                  )) as Record<string, unknown>)
+                });
                 return originalScreenshot(screenshotOptions);
               };
               return page;
@@ -144,20 +157,41 @@ describe("tutorial run against real Chromium", () => {
       // ---- Run outcome ----------------------------------------------------
       expect(result.error ?? "").toBe("");
       expect(result.status).toBe("passed");
-      expect(result.steps.map((step) => step.status)).toEqual([
-        "passed",
-        "passed",
-        "passed",
-        "passed",
-        "passed",
-        "passed",
-        "passed"
+      expect(result.steps.map((step) => [step.id, step.status])).toEqual([
+        ["open-app", "passed"],
+        ["activate", "passed"],
+        ["fill-name", "passed"],
+        ["submit-name", "passed"],
+        ["hover-button", "passed"],
+        ["drag-card", "passed"],
+        ["pointer-click-surface", "passed"],
+        ["pointer-drag-surface", "passed"],
+        ["wait-banner", "passed"]
       ]);
 
       // At least one real action and one real assertion actually ran.
       const clickStep = result.steps.find((step) => step.id === "activate");
       expect(clickStep?.action).toMatchObject({ type: "click", status: "passed" });
       expect(clickStep?.assertions.every((assertion) => assertion.status === "passed")).toBe(true);
+      const pointerClickStep = result.steps.find((step) => step.id === "pointer-click-surface");
+      expect(pointerClickStep?.action).toMatchObject({ type: "pointer-click", status: "passed" });
+      expect(pointerClickStep?.assertions).toHaveLength(2);
+      expect(pointerClickStep?.assertions.every((assertion) => assertion.status === "passed")).toBe(true);
+      const pointerDragStep = result.steps.find((step) => step.id === "pointer-drag-surface");
+      expect(pointerDragStep?.action).toMatchObject({ type: "pointer-drag", status: "passed" });
+      expect(pointerDragStep?.assertions).toHaveLength(4);
+      expect(pointerDragStep?.assertions.every((assertion) => assertion.status === "passed")).toBe(true);
+      expect(result.steps.map((step) => step.action?.type)).toEqual([
+        "goto",
+        "click",
+        "fill",
+        "press",
+        "hover",
+        "drag",
+        "pointer-click",
+        "pointer-drag",
+        "wait-for"
+      ]);
       expect(result.steps.flatMap((step) => step.assertions).length).toBeGreaterThan(5);
 
       // ---- Live visual state during execution ------------------------------
@@ -176,6 +210,24 @@ describe("tutorial run against real Chromium", () => {
       expect(firstCapture.callout?.present).toBe(true);
       expect(firstCapture.callout?.pointerEvents).toBe("none");
       expect(firstCapture.callout?.text).toBe("This is the fixture application.");
+      const pointerClickCapture = liveVisualState.find((capture) => capture.screenshot === "pointer-clicked.png") as {
+        pointer: { clickCount: string; clickZone: string } | null;
+      };
+      expect(pointerClickCapture.pointer).toMatchObject({ clickCount: "1", clickZone: "upper-left" });
+      const pointerDragCapture = liveVisualState.find((capture) => capture.screenshot === "pointer-dragged.png") as {
+        pointer: {
+          dragCount: string;
+          dragStartZone: string;
+          dragEndZone: string;
+          dragIntermediate: string;
+        } | null;
+      };
+      expect(pointerDragCapture.pointer).toMatchObject({
+        dragCount: "1",
+        dragStartZone: "upper-left",
+        dragEndZone: "lower-right",
+        dragIntermediate: "true"
+      });
 
       // ---- Canonical artifacts --------------------------------------------
       const paths = result.paths!;
@@ -203,6 +255,8 @@ describe("tutorial run against real Chromium", () => {
         "app-open.png",
         "banner-visible.png",
         "dropped.png",
+        "pointer-clicked.png",
+        "pointer-dragged.png",
         "submitted.png"
       ]);
       for (const file of screenshotFiles) {
@@ -221,6 +275,8 @@ describe("tutorial run against real Chromium", () => {
       const srt = readFileSync(path.join(paths.artifactsRoot, "tutorial.srt"), "utf8");
       expect(srt.startsWith("1\n")).toBe(true);
       expect(srt).toContain("Open the fixture application in the browser.");
+      expect(srt).toContain("Click a deliberate position inside the pointer gesture surface.");
+      expect(srt).toContain("Drag across two distinct positions inside the same pointer gesture surface.");
       const vtt = readFileSync(path.join(paths.artifactsRoot, "tutorial.vtt"), "utf8");
       expect(vtt.startsWith("WEBVTT\n")).toBe(true);
 
@@ -229,13 +285,25 @@ describe("tutorial run against real Chromium", () => {
       // Alt text is the step id; the link target is the screenshot id.
       expect(markdown).toContain("![open-app](../screenshots/app-open.png)");
       expect(markdown).toContain("## Step 1: open-app");
+      expect(markdown).toContain("## Step 7: pointer-click-surface");
+      expect(markdown).toContain("![pointer-click-surface](../screenshots/pointer-clicked.png)");
+      expect(markdown).toContain("## Step 8: pointer-drag-surface");
+      expect(markdown).toContain("![pointer-drag-surface](../screenshots/pointer-dragged.png)");
 
       const manifest = JSON.parse(
         readFileSync(path.join(paths.artifactsRoot, "tutorial-manifest.json"), "utf8")
       ) as TutorialManifestV1;
       expect(manifest.schemaVersion).toBe("1.0.0");
       expect(manifest.run.status).toBe("passed");
-      expect(manifest.steps).toHaveLength(7);
+      expect(manifest.steps).toHaveLength(9);
+      expect(manifest.steps.find((step) => step.id === "pointer-click-surface")?.action).toMatchObject({
+        type: "pointer-click",
+        status: "passed"
+      });
+      expect(manifest.steps.find((step) => step.id === "pointer-drag-surface")?.action).toMatchObject({
+        type: "pointer-drag",
+        status: "passed"
+      });
       expect(manifest.steps[0].timelineStartMs).toBeGreaterThanOrEqual(0);
       for (const record of manifest.artifacts) {
         if (record.path !== undefined) {
