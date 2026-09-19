@@ -8,7 +8,7 @@ This document records the repository's operational state. It is the source of tr
 - Package version: `0.4.7`
 - Latest release: `v0.4.7` (declarative browser tutorial and video automation), published on npm, as a Git tag, and as a GitHub Release (previous release: `v0.4.6`)
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
-- Active planned version: `v0.5.0` (warm-index reuse experiment support). `v0.5.0` warm-index reuse is the next planned feature after v0.4.7.
+- Active planned version: `v0.4.8` (locator-anchored pointer gestures for browser tutorials). This bounded patch adds `pointer-click` and `pointer-drag` so one real DOM interaction surface can receive fraction-based positional input; `v0.5.0` warm-index reuse resumes immediately afterward.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
 - Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
 
@@ -16,14 +16,14 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 ## Operational state
 
-- Current branch: `release/v0.4.7` (merged to main for release)
+- Current branch: `main` is the canonical published baseline; v0.4.8 planning is documentation-only until implementation begins.
 - `v0.4.7` release branch: `release/v0.4.7` (merged to main)
 - Historical implementation branch: `feature/v0.4.7-browser-process-foundation`
-- Workflow stage: `v0.4.7` is released; implementation, pre-release readiness, release validation, PR merge into main, tagging, GitHub Release creation, and npm publication are complete.
+- Workflow stage: `v0.4.7` is released. `v0.4.8` is planned and not implemented; it addresses the confirmed generic pointer-gesture gap found by the `my-frontend-observer` v0.9 tutorial integration.
 - Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
 - Validation result (v0.4.6, published): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run security:validate`, `npm run audit`, `npm run verify:packed-package`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the pre-release latest-Node readiness workflow passed on Ubuntu/macOS/Windows; see "Validation state" below for the exact gates run.
 - Validation result (v0.4.7, published): local validation (`docs:check`, `typecheck`, `build`, `test:tutorial-browser`, `test`, `verify`, `verify:packed-package`, `audit`, `security:validate`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; dedicated latest-Node readiness workflow passed; package dry-run and packed-package inspection verified.
-- Exact next action: begin v0.5.0 warm-index reuse planning and implementation.
+- Exact next action: implement v0.4.8 in two bounded implementation prompts: first the locator-anchored `pointer-click`/`pointer-drag` contract and real-mouse runtime, then the generic real-browser/packed-package acceptance and optional read-only Observer compatibility spike. After implementation, run the normal documentation-completeness and pre-release readiness stages before release.
 
 ## Implemented
 
@@ -119,6 +119,8 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 
 Release blockers for published `v0.4.7`: none.
 
+Downstream integration blocker driving planned `v0.4.8`: released v0.4.7 can express element-to-element `drag`, but it cannot express a positional click or non-zero pointer drag inside one pointer-receiving SVG/canvas-style surface. Observer v0.9 tutorial integration therefore remains blocked until the generic lab patch is implemented and released.
+
 ## Next step
 
-Begin `v0.5.0` warm-index reuse planning and implementation.
+Implement `v0.4.8` locator-anchored pointer gestures, then run documentation reconciliation, pre-release readiness, and the standard release workflow. Resume `v0.5.0` warm-index reuse after the patch release.

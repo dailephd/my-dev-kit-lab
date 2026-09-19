@@ -399,6 +399,49 @@ flowchart LR
 
 `my-frontend-observer` owns its demo source, stable target identifiers, deterministic visual variants, reference images, materialization/reset behavior, readiness/start contract, and Observer-specific scenario files. my-dev-kit-lab must not encode Observer selectors or semantics in production code. The lab carries its own generic deterministic fixture, so normal lab CI and packed-package acceptance never require a sibling Observer checkout.
 
+### Planned v0.4.8 pointer-gesture extension
+
+The released v0.4.7 action model intentionally distinguishes browser elements but cannot yet name two positions inside the same pointer-receiving element. The first Observer v0.9 integration exposed this as a generic capability gap for SVG/canvas drawing and similar editors. v0.4.8 is planned as an additive tutorial patch, not a product-specific workaround.
+
+Frozen planned contract:
+
+```ts
+type TutorialFractionPointV1 = { x: number; y: number };
+
+type TutorialPointerClickActionV1 = {
+  type: "pointer-click";
+  locator: TutorialLocatorV1;
+  position: TutorialFractionPointV1;
+  coordinateSpace: "fraction";
+  timeoutMs?: number;
+};
+
+type TutorialPointerDragActionV1 = {
+  type: "pointer-drag";
+  locator: TutorialLocatorV1;
+  from: TutorialFractionPointV1;
+  to: TutorialFractionPointV1;
+  coordinateSpace: "fraction";
+  timeoutMs?: number;
+};
+```
+
+Architecture rules:
+
+* Both actions stay anchored to one canonical tutorial locator. Fraction coordinates are bounded to `[0, 1]`; `pointer-drag` rejects identical endpoints.
+* Real input comes from Playwright `page.mouse`, never DOM event dispatch through scenario-controlled `page.evaluate`. The first drag sequence is fixed to `mouse.move(start)`, `mouse.down()`, `mouse.move(end, { steps: 8 })`, `mouse.up()`; left-button mouse input is the only pointer mode in this patch.
+* Existing element-to-element `drag` remains unchanged and continues to use locator `dragTo`.
+* The structural browser type gains only the minimal mouse surface needed by tutorial execution. Existing one-shot screenshot ownership, managed processes, target contracts, loopback policy, artifacts, video/subtitle/Markdown writers, and gallery boundary remain unchanged.
+* Synthetic cursor presentation follows the same bounded points. `pointer-click` reuses click feedback. Visual state remains tutorial-owned, pointer-events-none, and non-authoritative.
+* `TutorialScenarioV1` remains schema `1.0.0` because all existing serialized scenarios remain valid unchanged and the package version is the capability boundary for the additive action kinds. Target-contract, run-result, and tutorial-manifest schemas remain `1.0.0`.
+* The lab-owned generic browser fixture, real Chromium integration, and exact packed-package gate must exercise both actions. Observer may be used as an optional read-only compatibility consumer, but lab CI must remain sibling-independent.
+
+Explicit non-goals:
+
+* No page-wide coordinates, element-pixel mode, configurable drag steps, touch/pen, alternate mouse buttons, arbitrary event payloads, JavaScript callbacks, or shell actions.
+* No Observer-only selectors, fake drag handles, hidden tutorial controls, or alternate product interaction paths.
+* No change to FFmpeg/MP4/audio/gallery scope and no warm-index work.
+
 The following layers remain planned and must not be treated as current behavior:
 
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
