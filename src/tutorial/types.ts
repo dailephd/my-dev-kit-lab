@@ -50,6 +50,13 @@ export const TUTORIAL_LOCATOR_KINDS = ["role", "text", "css", "test-id"] as cons
 // Actions
 // ---------------------------------------------------------------------------
 
+export type TutorialFractionPointV1 = {
+  x: number;
+  y: number;
+};
+
+export const TUTORIAL_POINTER_COORDINATE_SPACES = ["fraction"] as const;
+
 export type TutorialActionV1 =
   | { type: "goto"; path: string; waitUntil?: "load" | "domcontentloaded" | "networkidle" }
   | { type: "click"; locator: TutorialLocatorV1; timeoutMs?: number }
@@ -57,6 +64,21 @@ export type TutorialActionV1 =
   | { type: "press"; locator: TutorialLocatorV1; key: string; timeoutMs?: number }
   | { type: "hover"; locator: TutorialLocatorV1; timeoutMs?: number }
   | { type: "drag"; source: TutorialLocatorV1; target: TutorialLocatorV1; timeoutMs?: number }
+  | {
+      type: "pointer-click";
+      locator: TutorialLocatorV1;
+      position: TutorialFractionPointV1;
+      coordinateSpace: "fraction";
+      timeoutMs?: number;
+    }
+  | {
+      type: "pointer-drag";
+      locator: TutorialLocatorV1;
+      from: TutorialFractionPointV1;
+      to: TutorialFractionPointV1;
+      coordinateSpace: "fraction";
+      timeoutMs?: number;
+    }
   | {
       type: "wait-for";
       locator: TutorialLocatorV1;
@@ -71,7 +93,9 @@ export const TUTORIAL_ACTION_TYPES = [
   "press",
   "hover",
   "drag",
-  "wait-for"
+  "wait-for",
+  "pointer-click",
+  "pointer-drag"
 ] as const;
 
 export const TUTORIAL_GOTO_WAIT_UNTIL = ["load", "domcontentloaded", "networkidle"] as const;

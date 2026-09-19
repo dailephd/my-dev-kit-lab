@@ -5,6 +5,7 @@ export * from "./loadTutorialContracts.js";
 export * from "./tutorialPaths.js";
 export * from "./tutorialLocators.js";
 export * from "./tutorialActions.js";
+export * from "./tutorialPointerGeometry.js";
 export * from "./tutorialAssertions.js";
 export * from "./tutorialCursor.js";
 export * from "./tutorialOverlay.js";

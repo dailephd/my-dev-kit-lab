@@ -1,5 +1,6 @@
-import type { PlaywrightLikeTutorialPage } from "../browser/types.js";
+import type { PlaywrightLikeMouse, PlaywrightLikeTutorialPage } from "../browser/types.js";
 import { describeTutorialLocator, resolveTutorialLocator } from "./tutorialLocators.js";
+import { resolveTutorialFractionPoint } from "./tutorialPointerGeometry.js";
 import {
   DEFAULT_TUTORIAL_ACTION_TIMEOUT_MS,
   type TutorialActionResultV1,
@@ -10,6 +11,8 @@ export type TutorialActionContext = {
   /** Validated loopback origin the scenario is allowed to drive. */
   applicationUrl: string;
 };
+
+export const POINTER_DRAG_MOVE_STEPS = 8;
 
 /**
  * Resolves a scenario `goto` path against the target application's URL and
@@ -99,12 +102,68 @@ async function performAction(
       await source.dragTo(target, { timeout: timeoutFor(action.timeoutMs) });
       return;
     }
+    case "pointer-click": {
+      const locator = resolveTutorialLocator(page, action.locator);
+      await locator.waitFor({ state: "visible", timeout: timeoutFor(action.timeoutMs) });
+      const box = await locator.boundingBox();
+      if (!box) {
+        throw new Error("locator has no bounding box");
+      }
+      const point = resolveTutorialFractionPoint(box, action.position);
+      await page.mouse.move(point.x, point.y);
+      await runWithMouseDown(page.mouse, async () => {});
+      return;
+    }
+    case "pointer-drag": {
+      const locator = resolveTutorialLocator(page, action.locator);
+      await locator.waitFor({ state: "visible", timeout: timeoutFor(action.timeoutMs) });
+      const box = await locator.boundingBox();
+      if (!box) {
+        throw new Error("locator has no bounding box");
+      }
+      const start = resolveTutorialFractionPoint(box, action.from);
+      const end = resolveTutorialFractionPoint(box, action.to);
+      await page.mouse.move(start.x, start.y);
+      await runWithMouseDown(page.mouse, () =>
+        page.mouse.move(end.x, end.y, { steps: POINTER_DRAG_MOVE_STEPS })
+      );
+      return;
+    }
     case "wait-for":
       await resolveTutorialLocator(page, action.locator).waitFor({
         ...(action.state !== undefined ? { state: action.state } : {}),
         timeout: timeoutFor(action.timeoutMs)
       });
       return;
+  }
+}
+
+async function runWithMouseDown(mouse: PlaywrightLikeMouse, operation: () => Promise<void>): Promise<void> {
+  await mouse.down();
+  let primaryError: unknown;
+  let primaryFailed = false;
+  try {
+    await operation();
+  } catch (error) {
+    primaryFailed = true;
+    primaryError = error;
+  }
+
+  try {
+    await mouse.up();
+  } catch (cleanupError) {
+    if (primaryFailed) {
+      const primaryMessage = messageOf(primaryError);
+      const cleanupMessage = messageOf(cleanupError);
+      throw new Error(`${primaryMessage} (mouse.up cleanup also failed: ${cleanupMessage})`, {
+        cause: primaryError
+      });
+    }
+    throw cleanupError;
+  }
+
+  if (primaryFailed) {
+    throw primaryError;
   }
 }
 
@@ -135,6 +194,10 @@ function describeActionError(action: TutorialActionV1, error: unknown): string {
       return `goto ${JSON.stringify(action.path)} failed: ${message}`;
     case "drag":
       return `drag from ${describeTutorialLocator(action.source)} to ${describeTutorialLocator(action.target)} failed: ${message}`;
+    case "pointer-click":
+      return `pointer-click on ${describeTutorialLocator(action.locator)} at fraction ${describeFractionPoint(action.position)} failed: ${message}`;
+    case "pointer-drag":
+      return `pointer-drag on ${describeTutorialLocator(action.locator)} from fraction ${describeFractionPoint(action.from)} to ${describeFractionPoint(action.to)} failed: ${message}`;
     case "click":
     case "fill":
     case "press":
@@ -142,4 +205,12 @@ function describeActionError(action: TutorialActionV1, error: unknown): string {
     case "wait-for":
       return `${action.type} on ${describeTutorialLocator(action.locator)} failed: ${message}`;
   }
+}
+
+function describeFractionPoint(point: { x: number; y: number }): string {
+  return `(${String(point.x)}, ${String(point.y)})`;
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

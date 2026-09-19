@@ -3,6 +3,7 @@ import type {
   PlaywrightLikeBrowser,
   PlaywrightLikeBrowserContext,
   PlaywrightLikeLocator,
+  PlaywrightLikeMouse,
   PlaywrightLikeTutorialPage,
   PlaywrightLikeVideo
 } from "../../src/browser/types.js";
@@ -36,10 +37,16 @@ export type FakeLocator = PlaywrightLikeLocator & {
   readonly calls: LocatorCall[];
 };
 
-export function createFakeLocator(key: string, behavior: FakeLocatorBehavior = {}): FakeLocator {
+export function createFakeLocator(
+  key: string,
+  behavior: FakeLocatorBehavior = {},
+  onCall?: (call: LocatorCall) => void
+): FakeLocator {
   const calls: LocatorCall[] = [];
   const record = (method: string, ...args: unknown[]): void => {
-    calls.push({ method, args });
+    const call = { method, args };
+    calls.push(call);
+    onCall?.(call);
   };
   const locator: FakeLocator = {
     key,
@@ -99,6 +106,17 @@ export type PageCall = { method: string; args: unknown[] };
 
 export type EvaluateCall = { fnName: string; arg: unknown };
 
+export type FakeMouseBehavior = {
+  moveErrors?: Array<Error | undefined>;
+  downError?: Error;
+  upError?: Error;
+};
+
+export type FakeMouse = PlaywrightLikeMouse & {
+  readonly calls: PageCall[];
+  reset(): void;
+};
+
 export type FakePageOptions = {
   url?: string;
   gotoError?: Error;
@@ -114,10 +132,13 @@ export type FakePageOptions = {
   /** Behavior keyed by the canonical locator key the resolver produces. */
   locators?: Record<string, FakeLocatorBehavior>;
   defaultLocator?: FakeLocatorBehavior;
+  mouse?: FakeMouseBehavior;
 };
 
 export type FakePage = PlaywrightLikeTutorialPage & {
+  readonly mouse: FakeMouse;
   readonly calls: PageCall[];
+  readonly interactionCalls: PageCall[];
   readonly locators: Map<string, FakeLocator>;
   readonly evaluateCalls: EvaluateCall[];
   readonly screenshotCalls: Array<{ path: string; fullPage: boolean }>;
@@ -133,6 +154,7 @@ export type FakePage = PlaywrightLikeTutorialPage & {
  */
 export function createFakePage(options: FakePageOptions = {}): FakePage {
   const calls: PageCall[] = [];
+  const interactionCalls: PageCall[] = [];
   const locators = new Map<string, FakeLocator>();
   const evaluateCalls: EvaluateCall[] = [];
   const screenshotCalls: Array<{ path: string; fullPage: boolean }> = [];
@@ -143,13 +165,53 @@ export function createFakePage(options: FakePageOptions = {}): FakePage {
   const obtain = (key: string): FakeLocator => {
     const existing = locators.get(key);
     if (existing) return existing;
-    const created = createFakeLocator(key, options.locators?.[key] ?? options.defaultLocator ?? {});
+    const created = createFakeLocator(
+      key,
+      options.locators?.[key] ?? options.defaultLocator ?? {},
+      (call) => interactionCalls.push({ method: `locator.${call.method}`, args: call.args })
+    );
     locators.set(key, created);
     return created;
   };
 
+  const mouseCalls: PageCall[] = [];
+  let moveIndex = 0;
+  const recordMouse = (method: string, args: unknown[]): void => {
+    const call = { method, args };
+    mouseCalls.push(call);
+    interactionCalls.push(call);
+  };
+  const mouse: FakeMouse = {
+    calls: mouseCalls,
+    async move(x, y, moveOptions) {
+      recordMouse("mouse.move", moveOptions === undefined ? [x, y] : [x, y, moveOptions]);
+      const error = options.mouse?.moveErrors?.[moveIndex];
+      moveIndex += 1;
+      if (error) throw error;
+    },
+    async down() {
+      recordMouse("mouse.down", []);
+      if (options.mouse?.downError) throw options.mouse.downError;
+    },
+    async up() {
+      recordMouse("mouse.up", []);
+      if (options.mouse?.upError) throw options.mouse.upError;
+    },
+    reset() {
+      mouseCalls.length = 0;
+      for (let index = interactionCalls.length - 1; index >= 0; index -= 1) {
+        if (interactionCalls[index].method.startsWith("mouse.")) {
+          interactionCalls.splice(index, 1);
+        }
+      }
+      moveIndex = 0;
+    }
+  };
+
   const page: FakePage = {
     calls,
+    interactionCalls,
+    mouse,
     locators,
     evaluateCalls,
     screenshotCalls,
@@ -175,6 +237,7 @@ export function createFakePage(options: FakePageOptions = {}): FakePage {
     },
     async evaluate(fn, arg) {
       evaluateCalls.push({ fnName: fn.name, arg });
+      interactionCalls.push({ method: `evaluate.${fn.name}`, args: [arg] });
       if (options.evaluateError) throw options.evaluateError;
       if (options.document !== undefined) {
         // Runs the real injected script against a stub document so DOM effects

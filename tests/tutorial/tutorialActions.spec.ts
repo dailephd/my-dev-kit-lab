@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   executeTutorialAction,
+  POINTER_DRAG_MOVE_STEPS,
   resolveTutorialNavigationUrl
 } from "../../src/tutorial/tutorialActions.js";
 import { DEFAULT_TUTORIAL_ACTION_TIMEOUT_MS } from "../../src/tutorial/types.js";
@@ -159,6 +160,186 @@ describe("executeTutorialAction", () => {
         args: ["role:list|name=Done|exact=undefined", { timeout: DEFAULT_TUTORIAL_ACTION_TIMEOUT_MS }]
       }
     ]);
+  });
+
+  it("performs pointer-click with visible readiness and real mouse input in order", async () => {
+    const page = createFakePage({
+      locators: { "css:#surface": { boundingBox: { x: 100, y: 50, width: 400, height: 200 } } }
+    });
+    const result = await executeTutorialAction(
+      page,
+      {
+        type: "pointer-click",
+        locator: { kind: "css", selector: "#surface" },
+        position: { x: 0.25, y: 0.5 },
+        coordinateSpace: "fraction"
+      },
+      CONTEXT
+    );
+
+    expect(result.status).toBe("passed");
+    expect(page.interactionCalls).toEqual([
+      { method: "locator.waitFor", args: [{ state: "visible", timeout: 5000 }] },
+      { method: "locator.boundingBox", args: [] },
+      { method: "mouse.move", args: [200, 150] },
+      { method: "mouse.down", args: [] },
+      { method: "mouse.up", args: [] }
+    ]);
+  });
+
+  it("uses the declared pointer-click timeout only for locator readiness", async () => {
+    const page = createFakePage();
+    await executeTutorialAction(
+      page,
+      {
+        type: "pointer-click",
+        locator: { kind: "test-id", testId: "surface" },
+        position: { x: 0.5, y: 0.5 },
+        coordinateSpace: "fraction",
+        timeoutMs: 1234
+      },
+      CONTEXT
+    );
+
+    expect(page.locators.get("test-id:surface")?.calls[0]).toEqual({
+      method: "waitFor",
+      args: [{ state: "visible", timeout: 1234 }]
+    });
+    expect(page.mouse.calls).toEqual([
+      { method: "mouse.move", args: [60, 40] },
+      { method: "mouse.down", args: [] },
+      { method: "mouse.up", args: [] }
+    ]);
+  });
+
+  it("performs pointer-drag with one box and the fixed eight-step real mouse sequence", async () => {
+    const page = createFakePage({
+      locators: { "css:#surface": { boundingBox: { x: 100, y: 50, width: 400, height: 200 } } }
+    });
+    const result = await executeTutorialAction(
+      page,
+      {
+        type: "pointer-drag",
+        locator: { kind: "css", selector: "#surface" },
+        from: { x: 0.25, y: 0.25 },
+        to: { x: 0.75, y: 0.75 },
+        coordinateSpace: "fraction"
+      },
+      CONTEXT
+    );
+
+    expect(result.status).toBe("passed");
+    expect(POINTER_DRAG_MOVE_STEPS).toBe(8);
+    expect(page.interactionCalls).toEqual([
+      { method: "locator.waitFor", args: [{ state: "visible", timeout: 5000 }] },
+      { method: "locator.boundingBox", args: [] },
+      { method: "mouse.move", args: [200, 100] },
+      { method: "mouse.down", args: [] },
+      { method: "mouse.move", args: [400, 200, { steps: 8 }] },
+      { method: "mouse.up", args: [] }
+    ]);
+    expect(page.locators.get("css:#surface")?.calls.filter((call) => call.method === "boundingBox")).toHaveLength(1);
+  });
+
+  it.each([
+    ["pointer-click", null],
+    ["pointer-click", { x: 0, y: 0, width: 0, height: 20 }],
+    ["pointer-drag", null],
+    ["pointer-drag", { x: 0, y: 0, width: 20, height: 0 }]
+  ] as const)("fails %s before mouse.down when the box is unavailable or non-positive", async (type, boundingBox) => {
+    const page = createFakePage({ locators: { "css:#surface": { boundingBox } } });
+    const action = type === "pointer-click"
+      ? {
+          type,
+          locator: { kind: "css" as const, selector: "#surface" },
+          position: { x: 0.5, y: 0.5 },
+          coordinateSpace: "fraction" as const
+        }
+      : {
+          type,
+          locator: { kind: "css" as const, selector: "#surface" },
+          from: { x: 0.25, y: 0.25 },
+          to: { x: 0.75, y: 0.75 },
+          coordinateSpace: "fraction" as const
+        };
+
+    const result = await executeTutorialAction(page, action, CONTEXT);
+    expect(result.status).toBe("failed");
+    expect(page.mouse.calls.some((call) => call.method === "mouse.down")).toBe(false);
+  });
+
+  it("attempts mouse.up exactly once and preserves an end-move failure", async () => {
+    const page = createFakePage({ mouse: { moveErrors: [undefined, new Error("end move failed")] } });
+    const result = await executeTutorialAction(
+      page,
+      {
+        type: "pointer-drag",
+        locator: { kind: "css", selector: "#surface" },
+        from: { x: 0.25, y: 0.25 },
+        to: { x: 0.75, y: 0.75 },
+        coordinateSpace: "fraction"
+      },
+      CONTEXT
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("end move failed");
+    expect(page.mouse.calls.filter((call) => call.method === "mouse.up")).toHaveLength(1);
+    expect(page.mouse.calls.filter((call) => call.method === "mouse.move")).toHaveLength(2);
+    expect(page.mouse.calls.filter((call) => call.method === "mouse.down")).toHaveLength(1);
+  });
+
+  it("reports mouse.up failure after a successful end move", async () => {
+    const page = createFakePage({ mouse: { upError: new Error("mouse release failed") } });
+    const result = await executeTutorialAction(
+      page,
+      {
+        type: "pointer-drag",
+        locator: { kind: "css", selector: "#surface" },
+        from: { x: 0.25, y: 0.25 },
+        to: { x: 0.75, y: 0.75 },
+        coordinateSpace: "fraction"
+      },
+      CONTEXT
+    );
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("mouse release failed");
+    expect(page.mouse.calls.filter((call) => call.method === "mouse.up")).toHaveLength(1);
+  });
+
+  it("preserves the primary failure and appends bounded cleanup context when both fail", async () => {
+    const page = createFakePage({
+      mouse: { moveErrors: [undefined, new Error("primary move failure")], upError: new Error("cleanup release failure") }
+    });
+    const result = await executeTutorialAction(
+      page,
+      {
+        type: "pointer-drag",
+        locator: { kind: "css", selector: "#surface" },
+        from: { x: 0.25, y: 0.25 },
+        to: { x: 0.75, y: 0.75 },
+        coordinateSpace: "fraction"
+      },
+      CONTEXT
+    );
+    expect(result.error).toContain("primary move failure");
+    expect(result.error).toContain("mouse.up cleanup also failed: cleanup release failure");
+  });
+
+  it("does not call mouse.up when mouse.down never succeeds", async () => {
+    const page = createFakePage({ mouse: { downError: new Error("down failed") } });
+    const result = await executeTutorialAction(
+      page,
+      {
+        type: "pointer-click",
+        locator: { kind: "css", selector: "#surface" },
+        position: { x: 0.5, y: 0.5 },
+        coordinateSpace: "fraction"
+      },
+      CONTEXT
+    );
+    expect(result.status).toBe("failed");
+    expect(page.mouse.calls.filter((call) => call.method === "mouse.up")).toHaveLength(0);
   });
 
   it("performs wait-for with the declared state", async () => {

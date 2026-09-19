@@ -10,10 +10,12 @@ import {
   TUTORIAL_CALLOUT_PLACEMENTS,
   TUTORIAL_GOTO_WAIT_UNTIL,
   TUTORIAL_LOCATOR_KINDS,
+  TUTORIAL_POINTER_COORDINATE_SPACES,
   TUTORIAL_SCHEMA_VERSION,
   TUTORIAL_WAIT_FOR_STATES,
   type TutorialActionV1,
   type TutorialAssertionV1,
+  type TutorialFractionPointV1,
   type TutorialLocatorV1,
   type TutorialScenarioV1,
   type TutorialStepV1,
@@ -370,6 +372,29 @@ export function validateAction(errors: ErrorCollector, location: string, value: 
       validateLocator(errors, `${location}.target`, value.target);
       validateOptionalTimeout(errors, `${location}.timeoutMs`, value.timeoutMs);
       break;
+    case "pointer-click":
+      rejectUnknownKeys(errors, location, value, ["type", "locator", "position", "coordinateSpace", "timeoutMs"]);
+      validateLocator(errors, `${location}.locator`, value.locator);
+      validateFractionPoint(errors, `${location}.position`, value.position);
+      validatePointerCoordinateSpace(errors, `${location}.coordinateSpace`, value.coordinateSpace);
+      validateOptionalTimeout(errors, `${location}.timeoutMs`, value.timeoutMs);
+      break;
+    case "pointer-drag": {
+      rejectUnknownKeys(errors, location, value, ["type", "locator", "from", "to", "coordinateSpace", "timeoutMs"]);
+      validateLocator(errors, `${location}.locator`, value.locator);
+      const fromValid = validateFractionPoint(errors, `${location}.from`, value.from);
+      const toValid = validateFractionPoint(errors, `${location}.to`, value.to);
+      validatePointerCoordinateSpace(errors, `${location}.coordinateSpace`, value.coordinateSpace);
+      validateOptionalTimeout(errors, `${location}.timeoutMs`, value.timeoutMs);
+      if (fromValid && toValid) {
+        const from = value.from as TutorialFractionPointV1;
+        const to = value.to as TutorialFractionPointV1;
+        if (from.x === to.x && from.y === to.y) {
+          errors.add(`${location}.to`, "pointer-drag endpoints must be distinct; zero-length drags are not allowed.");
+        }
+      }
+      break;
+    }
     case "wait-for":
       rejectUnknownKeys(errors, location, value, ["type", "locator", "state", "timeoutMs"]);
       validateLocator(errors, `${location}.locator`, value.locator);
@@ -381,6 +406,30 @@ export function validateAction(errors: ErrorCollector, location: string, value: 
       }
       validateOptionalTimeout(errors, `${location}.timeoutMs`, value.timeoutMs);
       break;
+  }
+}
+
+function validateFractionPoint(errors: ErrorCollector, location: string, value: unknown): boolean {
+  if (!isPlainObject(value)) {
+    errors.add(location, `expected a fraction point object, received ${describeValue(value)}.`);
+    return false;
+  }
+  const startLength = errors.length;
+  rejectUnknownKeys(errors, location, value, ["x", "y"]);
+  validateFractionCoordinate(errors, `${location}.x`, value.x);
+  validateFractionCoordinate(errors, `${location}.y`, value.y);
+  return errors.length === startLength;
+}
+
+function validateFractionCoordinate(errors: ErrorCollector, location: string, value: unknown): void {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+    errors.add(location, `expected a finite number within inclusive bounds [0, 1], received ${describeValue(value)}.`);
+  }
+}
+
+function validatePointerCoordinateSpace(errors: ErrorCollector, location: string, value: unknown): void {
+  if (!TUTORIAL_POINTER_COORDINATE_SPACES.includes(value as never)) {
+    errors.add(location, `expected "fraction", received ${describeValue(value)}.`);
   }
 }
 

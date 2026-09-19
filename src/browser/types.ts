@@ -54,6 +54,12 @@ export type PlaywrightLikeVideo = {
   saveAs(path: string): Promise<void>;
 };
 
+export type PlaywrightLikeMouse = {
+  move(x: number, y: number, options?: { steps?: number }): Promise<void>;
+  down(): Promise<void>;
+  up(): Promise<void>;
+};
+
 /**
  * A page that also exposes the locator/navigation-state surface a persistent
  * tutorial session needs.
@@ -64,6 +70,7 @@ export type PlaywrightLikeVideo = {
  * uses. A real Playwright `Page` satisfies both.
  */
 export type PlaywrightLikeTutorialPage = PlaywrightLikePage & {
+  mouse: PlaywrightLikeMouse;
   locator(selector: string): PlaywrightLikeLocator;
   getByText(text: string, options?: { exact?: boolean }): PlaywrightLikeLocator;
   getByTestId(testId: string): PlaywrightLikeLocator;

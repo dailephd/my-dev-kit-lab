@@ -217,6 +217,124 @@ describe("cursor behavior during step execution", () => {
     expect(page.locators.get("css:.a")?.calls.some((call) => call.method === "click")).toBe(true);
   });
 
+  it("uses the declared fraction for pointer-click and shows feedback after real mouse input", async () => {
+    const page = createFakePage({
+      locators: { "css:#surface": { boundingBox: { x: 100, y: 50, width: 400, height: 200 } } }
+    });
+    const scenario = minimalScenario({
+      steps: [{
+        id: "pointer-click-step",
+        narration: "n",
+        action: {
+          type: "pointer-click",
+          locator: { kind: "css", selector: "#surface" },
+          position: { x: 0.25, y: 0.5 },
+          coordinateSpace: "fraction"
+        }
+      }]
+    });
+
+    const result = await executeTutorialSteps(baseOptions(scenario, page));
+
+    expect(result.steps[0].action?.status).toBe("passed");
+    const moves = page.evaluateCalls.filter((call) => call.fnName === "moveCursorInPage");
+    expect(moves[0]?.arg).toMatchObject({ x: 200, y: 150 });
+    const feedback = page.evaluateCalls.find((call) => call.fnName === "showClickFeedbackInPage");
+    expect(feedback?.arg).toMatchObject({ x: 200, y: 150 });
+    expect(page.mouse.calls).toEqual([
+      { method: "mouse.move", args: [200, 150] },
+      { method: "mouse.down", args: [] },
+      { method: "mouse.up", args: [] }
+    ]);
+    const upIndex = page.interactionCalls.findIndex((call) => call.method === "mouse.up");
+    const feedbackIndex = page.interactionCalls.findIndex((call) => call.method === "evaluate.showClickFeedbackInPage");
+    expect(feedbackIndex).toBeGreaterThan(upIndex);
+  });
+
+  it("moves the pointer-drag cursor from the declared start to end around the real action", async () => {
+    const page = createFakePage({
+      locators: { "test-id:surface": { boundingBox: { x: 100, y: 50, width: 400, height: 200 } } }
+    });
+    const scenario = minimalScenario({
+      steps: [{
+        id: "pointer-drag-step",
+        narration: "n",
+        action: {
+          type: "pointer-drag",
+          locator: { kind: "test-id", testId: "surface" },
+          from: { x: 0.25, y: 0.25 },
+          to: { x: 0.75, y: 0.75 },
+          coordinateSpace: "fraction"
+        }
+      }]
+    });
+
+    const result = await executeTutorialSteps(baseOptions(scenario, page));
+
+    expect(result.steps[0].action?.status).toBe("passed");
+    const moves = page.evaluateCalls.filter((call) => call.fnName === "moveCursorInPage");
+    expect(moves.map((call) => call.arg)).toEqual([
+      { cursorId: TUTORIAL_CURSOR_ID, x: 200, y: 100 },
+      { cursorId: TUTORIAL_CURSOR_ID, x: 400, y: 200 }
+    ]);
+    const realUpIndex = page.interactionCalls.findIndex((call) => call.method === "mouse.up");
+    const cursorMoveIndexes = page.interactionCalls
+      .map((call, index) => call.method === "evaluate.moveCursorInPage" ? index : -1)
+      .filter((index) => index >= 0);
+    expect(cursorMoveIndexes[0]).toBeLessThan(realUpIndex);
+    expect(cursorMoveIndexes[1]).toBeGreaterThan(realUpIndex);
+  });
+
+  it("keeps existing drag cursor behavior source-centered then target-centered", async () => {
+    const page = createFakePage({
+      locators: {
+        "css:#source": { boundingBox: { x: 10, y: 20, width: 40, height: 20 } },
+        "css:#target": { boundingBox: { x: 100, y: 200, width: 60, height: 40 } }
+      }
+    });
+    const scenario = minimalScenario({
+      steps: [{
+        id: "drag-step",
+        narration: "n",
+        action: {
+          type: "drag",
+          source: { kind: "css", selector: "#source" },
+          target: { kind: "css", selector: "#target" }
+        }
+      }]
+    });
+
+    await executeTutorialSteps(baseOptions(scenario, page));
+    const moves = page.evaluateCalls.filter((call) => call.fnName === "moveCursorInPage");
+    expect(moves.map((call) => call.arg)).toEqual([
+      { cursorId: TUTORIAL_CURSOR_ID, x: 30, y: 30 },
+      { cursorId: TUTORIAL_CURSOR_ID, x: 130, y: 220 }
+    ]);
+    expect(page.locators.get("css:#source")?.calls.some((call) => call.method === "dragTo")).toBe(true);
+  });
+
+  it("keeps a successful pointer action passed when synthetic visuals fail", async () => {
+    const page = createFakePage({ evaluateError: new Error("visual renderer unavailable") });
+    const scenario = minimalScenario({
+      steps: [{
+        id: "pointer-click-step",
+        narration: "n",
+        action: {
+          type: "pointer-click",
+          locator: { kind: "css", selector: "#surface" },
+          position: { x: 0.5, y: 0.5 },
+          coordinateSpace: "fraction"
+        }
+      }]
+    });
+
+    const result = await executeTutorialSteps(baseOptions(scenario, page));
+    expect(result.steps[0].status).toBe("passed");
+    expect(result.steps[0].action?.status).toBe("passed");
+    expect(result.visualWarnings.join("\n")).toContain("visual renderer unavailable");
+    expect(page.mouse.calls.map((call) => call.method)).toEqual(["mouse.move", "mouse.down", "mouse.up"]);
+  });
+
   it("does not move the cursor for goto or wait-for", async () => {
     const page = createFakePage();
     const scenario = minimalScenario({
