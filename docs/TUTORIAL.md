@@ -47,7 +47,7 @@ This compiles TypeScript sources to `dist/`. Always run this before executing la
 
 The repository includes a generic deterministic tutorial example under `examples/tutorial-browser/`. It contains the scenario and reusable local application resources; the target contract is a separate trusted contract that supplies the disposable-target preparation command, loopback server process, readiness URL, and matching target ID.
 
-Tutorial validation does not require a browser. Tutorial execution requires the exact package Playwright runtime and a compatible local Chromium binary. Install that binary separately when needed; package installation and `tutorial run` never download it automatically.
+Tutorial validation does not require a browser. Tutorial execution requires the exact package Playwright runtime (Playwright 1.60.0) and a compatible local Chromium binary. Install that binary separately when needed; package installation and `tutorial run` never download it automatically.
 
 ```bash
 node dist/scripts/cli.js tutorial validate --scenario examples/tutorial-browser/scenario.json
@@ -55,11 +55,89 @@ node dist/scripts/cli.js tutorial validate --scenario <scenario> --target-contra
 my-dev-kit-lab tutorial run --scenario <scenario> --target-contract <target-contract> --out lab-output/tutorial --json
 ```
 
-Use a `TutorialTargetContractV1` with `schemaVersion: "1.0.0"`, the example's `lab-browser-fixture` ID, an executable-plus-args `prepare` command, a loopback HTTP-ready server process, and an application URL on that same loopback port. The packed-package verifier generates such a temporary contract for the packaged example without modifying the installed source.
+Use a `TutorialTargetContractV1` with `schemaVersion: "1.0.0"`, the example's `lab-browser-fixture` ID, an executable-plus-args `prepare` command, a loopback HTTP-ready server process, and an application URL on that same loopback port. Both the checkout scripts and the installed CLI (`my-dev-kit-lab tutorial run`) fully support this workflow. The packed-package verifier (`npm run verify:packed-package`) exercises the exact packaged example from a clean installed tarball without modifying the installed source.
 
 After a successful run, inspect the JSON result and the run root. The canonical outputs are `artifacts/tutorial.webm`, `screenshots/<screenshot-id>.png`, `artifacts/tutorial.srt`, `artifacts/tutorial.vtt`, `artifacts/tutorial.md`, and `artifacts/tutorial-manifest.json`; the manifest records step assertions, artifact statuses, warnings, and cleanup errors. Treat the video as a reviewable recording and the assertions/manifest as runtime evidence.
 
 For default output, omit `--out` and the run is created under `<home>/.my-dev-kit-lab/tutorials/<scenario-id>/<run-id>/`; use global `--workspace <path>` before `tutorial run` to select another workspace. An explicit absolute `--out` is used exactly as supplied, while a relative one resolves from the invocation directory.
+
+### Action vocabulary and pointer gestures
+
+Declarative tutorials support an exact nine-action vocabulary under `TutorialScenarioV1`:
+
+- `goto`: navigate to a relative application path.
+- `click`: click an element directly through Playwright locator `click()`.
+- `fill`: fill an input element with text.
+- `press`: press a keyboard key on an element.
+- `hover`: hover the pointer over an element.
+- `drag`: drag-and-drop between two distinct DOM elements.
+- `wait-for`: wait for an element state or assertion.
+- `pointer-click`: positional click at a normalized point inside one located interaction surface.
+- `pointer-drag`: positional drag across two normalized points inside one located interaction surface.
+
+#### Positional pointer actions: `pointer-click` and `pointer-drag`
+
+While `click` targets an element through Playwright's locator center and `drag` moves one element to another, graphical editors (such as SVG drawing surfaces, HTML canvases, timeline range selectors, and map views) require deliberate coordinates inside a single interaction surface.
+
+Both pointer actions are anchored to a single canonical `locator`. Coordinates use normalized fractions relative to that located element's bounding box:
+
+- `coordinateSpace`: required, and must be `"fraction"`.
+- Coordinates `x` and `y` are normalized fractions between `0` and `1` inclusive (`0 <= x <= 1`, `0 <= y <= 1`), representing top-left `(0, 0)` to bottom-right `(1, 1)`. Unanchored page coordinates, screen coordinates, and element-pixel mode do not exist.
+- `pointer-drag` requires distinct endpoints: `from` and `to` cannot have identical coordinates; zero-length pointer drags are rejected during schema validation.
+
+##### `pointer-click` example
+
+```json
+{
+  "type": "pointer-click",
+  "locator": { "kind": "test-id", "testId": "pointer-surface" },
+  "position": { "x": 0.25, "y": 0.25 },
+  "coordinateSpace": "fraction",
+  "timeoutMs": 5000
+}
+```
+
+Execution uses real Playwright mouse input: `mouse.move(resolvedX, resolvedY)`, `mouse.down()`, and `mouse.up()`. Synthetic cursor presentation shows visual click feedback at the resolved coordinates.
+
+##### `pointer-drag` example
+
+```json
+{
+  "type": "pointer-drag",
+  "locator": { "kind": "test-id", "testId": "pointer-surface" },
+  "from": { "x": 0.2, "y": 0.25 },
+  "to": { "x": 0.8, "y": 0.75 },
+  "coordinateSpace": "fraction",
+  "timeoutMs": 5000
+}
+```
+
+Execution uses real Playwright mouse input in a deterministic 4-call sequence:
+1. `mouse.move(startX, startY)`
+2. `mouse.down()`
+3. `mouse.move(endX, endY, { steps: 8 })`
+4. `mouse.up()`
+
+The move step count is fixed to `8` (`POINTER_DRAG_MOVE_STEPS = 8`) to generate realistic intermediate `pointermove` events across the interaction surface. If an intermediate movement fails, `mouse.up()` cleanup is guaranteed before error propagation.
+
+#### Distinguishing `drag` from `pointer-drag`
+
+- **`drag` (element-to-element):** requires separate `source` and `target` locators. Used when dragging an item from a list to a dropzone or between two distinct DOM elements (`source.dragTo(target)`).
+- **`pointer-drag` (within one surface):** requires a single `locator` interaction surface and normalized `from` and `to` fraction coordinates. Used for drawing shapes, selection boxes, or gestures inside one element.
+
+#### Distinguishing `click` from `pointer-click`
+
+- **`click`:** delegates directly to Playwright `locator.click()`.
+- **`pointer-click`:** targets an exact normalized fraction offset within one located element using `page.mouse`.
+
+#### Security boundaries
+
+Tutorial scenarios remain strictly declarative data contracts:
+- No arbitrary JavaScript or `page.evaluate` callbacks.
+- No generic DOM event dispatch (`dispatch-event`).
+- No shell actions or subprocess executions in scenario steps.
+- No unanchored page-wide or screen-wide coordinates.
+- No touch/pen emulation or custom mouse buttons (left button only).
 
 ---
 

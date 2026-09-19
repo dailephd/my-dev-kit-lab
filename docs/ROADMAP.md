@@ -586,7 +586,7 @@ Explicit exclusions:
 
 ### v0.4.8 — locator-anchored pointer gestures for browser tutorials
 
-Status: **planned; not implemented**.
+Status: **implementation complete; not published; pre-release readiness pending**.
 
 Purpose:
 
@@ -638,10 +638,10 @@ Schema-version decision:
 * Keep `TutorialTargetContractV1`, `TutorialRunResultV1`, and `TutorialManifestV1` at schema version `1.0.0`. No target/process, output-layout, artifact-record, or manifest structural change is required.
 * Do not introduce schema `2.0.0`. Revisit a scenario-schema version bump only when a serialized field changes incompatibly or a stronger cross-version compatibility requirement is demonstrated.
 
-Implementation plan — **2 implementation prompts**:
+Implementation summary (completed):
 
-1. **Pointer contract and runtime.** Extend `src/tutorial/types.ts`, closed validation, structural Playwright page/mouse types, action execution, and tutorial cursor/session presentation. Add planner-authored validation and action tests for valid endpoints, 0/1 boundaries, negative/>1/non-finite coordinates, missing fields, unknown fields, invalid coordinate space, zero-length drag, mouse call order, deterministic 8-step drag movement, cursor start/end behavior, click feedback, and `mouse.up()` cleanup when an intermediate drag operation fails. Existing actions must remain behavior-compatible.
-2. **Generic browser/package acceptance.** Extend the lab-owned `examples/tutorial-browser/` fixture with a real pointer-receiving SVG/canvas-style surface and deterministic pointer-event evidence. Add `pointer-click` and `pointer-drag` steps to the generic scenario, prove them in `tests/integration/tutorialRealBrowser.spec.ts`, and extend exact packed-tarball acceptance so the installed CLI validates and executes both actions with real Chromium. If the exact sibling Observer checkout is available, run a read-only compatibility spike proving rectangle/arrow draft count `0 -> 1` and point/note positional click expressibility; normal lab CI must never require Observer.
+1. **Pointer contract and runtime.** Extended `src/tutorial/types.ts` with `TutorialFractionPointV1`, `TutorialPointerClickActionV1`, and `TutorialPointerDragActionV1`. Added closed schema validation in `src/tutorial/scenarioValidation.ts` for fraction coordinate space, `[0, 1]` bounds, and distinct endpoint requirements. Added structural Playwright mouse types to `src/browser/types.ts`. Implemented real mouse execution in `src/tutorial/tutorialActions.ts` with fixed 8-step drag movement and `mouse.up()` error cleanup, shared geometry in `src/tutorial/tutorialPointerGeometry.ts`, and synthetic cursor presentation with click feedback in `src/tutorial/tutorialSession.ts`. Added planner-authored validation and action tests covering 0/1 bounds, negative/non-finite coordinates, unknown fields, zero-length drag rejection, mouse call ordering, deterministic 8-step drag movement, cursor start/end positioning, click feedback, and `mouse.up()` error cleanup.
+2. **Generic browser/package acceptance.** Extended the generic `examples/tutorial-browser/` fixture with a real pointer-receiving SVG surface and intermediate pointermove tracking evidence. Added `pointer-click` and `pointer-drag` steps to the generic 9-step scenario, proven in `tests/integration/tutorialRealBrowser.spec.ts` through real Chromium. Extended exact packed-tarball acceptance in `scripts/verify-packed-package.mjs` to validate and execute both actions from a clean installed consumer without source mutation. Preserved downstream `my-frontend-observer` compatibility evidence across rectangle, line, arrow, point, and note gestures with zero Observer modifications and zero runtime dependencies.
 
 Expected production owners:
 
@@ -650,7 +650,7 @@ Expected production owners:
 * `src/browser/types.ts` — the minimal structural Playwright mouse surface required by tutorial execution.
 * `src/tutorial/tutorialActions.ts` — real Playwright mouse execution and bounded coordinate conversion.
 * `src/tutorial/tutorialSession.ts` / `tutorialCursor.ts` — synthetic cursor positioning and existing click feedback for the new actions.
-* A small shared pointer-geometry helper may be introduced under `src/tutorial/` only if it prevents duplicate coordinate math between action execution and presentation; do not create a second locator resolver.
+* `src/tutorial/tutorialPointerGeometry.ts` — shared pointer geometry helper preventing duplicate coordinate math between action execution and presentation.
 
 Acceptance:
 
@@ -669,9 +669,9 @@ Explicit exclusions:
 * No FFmpeg, MP4, generated audio, or gallery tutorial consumption.
 * Warm-index reuse remains v0.5.0 and follows this bounded v0.4.8 patch.
 
-Workflow after the two implementation prompts:
+Workflow after implementation:
 
-* Run the normal documentation reconciliation plus implementation-completeness audit.
+* Run the normal documentation reconciliation plus implementation-completeness audit (current stage).
 * Run pre-release readiness with full local gates, exact packed-package acceptance, real Chromium, security/code-rot review, and Ubuntu/macOS/Windows × Node 24/latest evidence.
 * Only after `PASS_READY_FOR_RELEASE_PREP` run the standard release-preparation/publication workflow.
 
