@@ -348,7 +348,7 @@ These analyzers provide candidate evidence. They do not provide type checking, f
 
 ### v0.4.7 browser/tutorial architecture
 
-The v0.4.7 implementation adds a generic tutorial runtime without stretching the existing report screenshot owner, duplicating v0.4.6 process/path infrastructure, or embedding product-specific demo logic in my-dev-kit-lab. It is implemented on this branch but is not yet published.
+The v0.4.7 release adds a generic tutorial runtime without stretching the existing report screenshot owner, duplicating v0.4.6 process/path infrastructure, or embedding product-specific demo logic in my-dev-kit-lab.
 
 Current ownership:
 

@@ -496,7 +496,7 @@ Explicit exclusions (deferred, not part of v0.4.6):
 
 ### v0.4.7 — declarative browser tutorial and video automation
 
-Status: **implementation complete; documentation reconciled; pre-release readiness pending; not published**.
+Status: **published**.
 
 Purpose:
 
@@ -557,20 +557,13 @@ Implemented installed CLI:
 * Tutorial recording is a primary command purpose, so missing required browser runtime produces an explicit unavailable/failure result and nonzero command outcome with setup guidance; it does not silently pass without video.
 * Playwright is an exact runtime dependency required by the installed tutorial command. Chromium browser-binary availability remains a separate setup/runtime check and is not hidden by the package.
 
-Implementation sequence inside this single patch:
-
-1. **Browser/process foundation** — shared Playwright runtime, persistent browser lifecycle, managed long-running process owner, readiness, logging, and cleanup while preserving current screenshot semantics.
-2. **Tutorial domain and execution** — freeze scenario/target contracts, locators, actions, assertions, timeline/result model, workspace layout, tutorial session, and installed CLI routing.
-3. **Visual and documentation artifacts** — synthetic cursor, callouts, same-session screenshots, WebM recording, SRT/VTT, Markdown, tutorial manifest, and real-browser integration coverage.
-4. **Installed-package hardening** — Playwright/browser availability contract, package contents, packed-tarball execution, temporary-file policy, path/security review, generic packaged tutorial fixture, documentation, and cross-platform validation.
-
 Cross-repository consumer work:
 
 * `my-frontend-observer` should add a version-controlled deterministic demo template, stable demo targets, deterministic visual variants, reference images, a caller-selected materialization/reset path, a serve/readiness contract, and Observer-specific scenarios.
 * Observer-specific scenarios should teach the Observer lifecycle distinctions and verify real Observer/browser/evidence state. They remain product documentation owned by Observer and are not copied into my-dev-kit-lab production code.
 * The lab must carry its own generic deterministic tutorial fixture for unit/integration/packed-package testing. Observer-specific acceptance is an explicit consumer/cross-repository workflow, never a requirement for normal lab CI.
 
-Acceptance (met; broad release validation remains for pre-release readiness):
+Acceptance (met):
 
 * A valid generic tutorial scenario can be validated without launching a browser and can run through the installed CLI against a disposable local fixture when the browser runtime is available.
 * One scenario is the single source of truth for ordered actions, narration, timing, screenshots, assertions, subtitles, and Markdown output.

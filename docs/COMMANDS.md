@@ -6,7 +6,7 @@ This reference describes the implemented my-dev-kit-lab command surface. It cove
 
 ### Current execution boundary
 
-v0.4.6 ships a supported installed `my-dev-kit-lab` CLI (see "Installed CLI commands" below). The commands documented there are available without cloning this repository. The `npm run` commands documented under "Contributor / developer npm scripts" remain available from a source checkout. Both paths call the same underlying command owners — there is no separate implementation.
+my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" below). The commands documented there are available without cloning this repository. The `npm run` commands documented under "Contributor / developer npm scripts" remain available from a source checkout. Both paths call the same underlying command owners — there is no separate implementation.
 
 ## Installed CLI commands
 
