@@ -17,17 +17,17 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 ## Operational state
 
-- Current branch: `release/v0.4.8` (release preparation). `main` receives this release upon merge.
+- Current branch: `main`
+- `v0.4.8` release branch: `release/v0.4.8` (merged to `main`)
 - `v0.4.7` release branch: `release/v0.4.7` (merged to main)
 - Historical implementation branch: `feature/v0.4.8-pointer-gestures`
-- Active release branch: `release/v0.4.8`
-- Workflow stage: release preparation complete; standardized publication workflow follows user approval.
+- Workflow stage: `v0.4.8` is the current release; `v0.5.0` is the next planned version.
 - Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
 - Validation result (v0.4.6, published): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run security:validate`, `npm run audit`, `npm run verify:packed-package`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the pre-release latest-Node readiness workflow passed on Ubuntu/macOS/Windows; see "Validation state" below for the exact gates run.
 - Validation result (v0.4.7, published): local validation (`docs:check`, `typecheck`, `build`, `test:tutorial-browser`, `test`, `verify`, `verify:packed-package`, `audit`, `security:validate`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; dedicated latest-Node readiness workflow passed; package dry-run and packed-package inspection verified.
 - Validation result (v0.4.8, released): local validation (`npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run test:tutorial-browser`, `npm test` [379 files, 4676 passed, 1 skipped, 0 failed], `npm run verify`, `npm run verify:packed-package`, focused pointer and security tests) passed on the candidate commit. Generic real-browser SVG pointer-click and pointer-drag passed through Chromium. Exact installed-package execution verified with clean-consumer immutability. Observer compatibility evidence verified for rectangle, line, arrow, point, and note gestures. Cross-platform CI passed across Ubuntu, macOS, and Windows on Node 24 and Node latest.
 - Release blockers: none.
-- Exact next action: begin v0.5.0 warm-index reuse planning and implementation after publication.
+- Exact next action: begin `v0.5.0` warm-index reuse planning and implementation.
 
 ## Implemented
 
@@ -128,4 +128,4 @@ Release blockers: none.
 
 ## Next step
 
-Begin `v0.5.0` warm-index reuse planning and implementation after publication.
+Begin `v0.5.0` warm-index reuse planning and implementation.
