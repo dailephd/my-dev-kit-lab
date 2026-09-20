@@ -693,7 +693,7 @@ Purpose:
 Features:
 
 * Before registering the second plugin, remove the current `experiment run` command owner's context-strategy-specific assumption for future plugins. Keep all existing context-strategy flags backward compatible, but do not add one new experiment-ID branch per future plugin.
-* Add one generic plugin-config path, `--config <path>`, owned by `runExperimentRunCommandFromArgs`. The file uses a versioned envelope: `{ "schemaVersion": "1.0.0", "experimentId": "<id>", "config": { ... } }`. The envelope's `experimentId` must exactly match `--experiment`; malformed JSON, unsupported schema major, unknown envelope fields, or mismatch fail before plugin execution. The config-file path resolves against invocation CWD, while relative paths **inside** `config` resolve against the config file's directory through generic config-source metadata supplied to the plugin.
+* Add one generic plugin-config path, `--config <path>`, owned by `runExperimentRunCommandFromArgs`. The file uses a versioned `ExperimentConfigFileV1` envelope: `{ "schemaVersion": "1.0.0", "experimentId": "<id>", "config": { ... } }`. The envelope's `experimentId` must exactly match `--experiment`; malformed JSON, unsupported schema major, unknown envelope fields, or mismatch fail before plugin execution. The config-file path resolves against invocation CWD, while relative paths **inside** `config` resolve against the config file's directory through generic config-source metadata supplied to the plugin.
 * `--config` may be combined with the generic `--experiment`, `--target`, `--out`, and global `--workspace` surfaces. For `context-strategy-comparison`, it is mutually exclusive with the legacy plugin-specific convenience flags (`--cases`, `--project-profiles`, `--case`, `--benchmark-project`, `--agents`, `--strategies`, `--complexities`, timeout/run-count/continuation/real-agent/template flags, and `--no-screenshot`). Those legacy flags keep their current path/default behavior when `--config` is absent.
 * Extend `ExperimentPlugin` additively with an optional plugin-owned `resolveInputs` hook. `runExperiment` calls it after target/config/output resolution only when the programmatic caller did not already supply `RunExperimentOptions.inputs`; explicit programmatic inputs take precedence and bypass automatic input resolution. The hook receives validated config, target/tool/output context, and config-source base metadata, and returns the `inputs` object used by `ExperimentExecutionContext`.
 * Migrate the current context-strategy CLI input-loading branch into the context-strategy plugin's `resolveInputs`/plugin-owned helper while preserving its legacy artifacts and defaults. After v0.5.0, the generic command owner must not contain experiment-ID-specific input-loading branches.
@@ -1310,7 +1310,7 @@ Purpose:
 Features:
 
 * Keep `project` as the cross-cutting architecture/behavior/evolution/operations audit type accumulated across v0.10.1-v0.12.0.
-* Implement `all` as the explicit aggregate of `code-rot`, `quality`, `security`, and `project` in fixed canonical execution order while preserving the default no-flag `code-rot` behavior.
+* Implement `all` as the explicit aggregate of `code-rot`, `quality`, `security`, and `project` while preserving the default no-flag `code-rot` behavior. Expansion controls selection/report metadata only: registered non-security detectors execute once in registry order and the existing security adapter executes once afterward.
 * `all` is exclusive: `--types all,<other>` is invalid. `--dimensions` is valid only with exactly `--types project`; this prevents ambiguous partial execution of an `all` review.
 * Extend audit `--format` with `html` while preserving the existing default `text,json`.
 * Add review-dimension classification for `behavior`, `architecture`, `security`, `operations`, `quality`, and `evolution`; a finding may belong to more than one dimension when warranted.
@@ -1382,7 +1382,7 @@ Required capabilities:
 * Stable architecture-evidence substrate with deterministic graph/topology analysis and explicit partial/unavailable semantics.
 * Stable extensibility/reuse analysis with extension-point bypass and candidate missing-abstraction/plugin/adapter evidence.
 * Stable behavior/test evidence, evolution/change-cost evidence, and operational-quality/resilience analysis.
-* Stable six-dimension project review covering behavior, architecture, security, operations, quality, and evolution without duplicating the underlying audit/security owners.
+* Stable six-dimension combined software review covering behavior, architecture, security, operations, quality, and evolution through the `all` aggregate without duplicating the underlying audit/security owners.
 * Stable software-review metric provenance with source URLs, explicit availability/evidence coverage, and calibrated reference bands where evidence supports them.
 * Stable software-review benchmark/calibration suite with deterministic fixtures and explicit heuristic limitations.
 * No unvalidated overall software-quality score; stable reports expose raw/derived measures, evidence coverage, and serious findings.
