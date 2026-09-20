@@ -44,7 +44,7 @@
     "docs/ARCHITECTURE.md": {
       "role": "current architecture",
       "requiredHeadings": ["Current implemented architecture", "Experiment-plugin runtime", "Target model", "Automated security-validation architecture", "Audit framework architecture", "Shared report and evidence infrastructure", "Key contracts"],
-      "requiredTopics": ["src/experiments", "src/evaluation", "src/agents", "src/prompts", "src/audits", "src/securityValidation", "src/mobile/android", "src/report", "src/plots", "src/screenshot", "src/gallery", "src/visualizationDemos", "src/browser", "src/tutorial", "managedProcess", "ArchitectureEvidenceSnapshot", "ReviewMetricV1", "ReviewConfigV1", "ReviewSymbolSelectorV1", "runAuditCommandFromArgs", "auditCliContract", "warm-index-reuse", "--config", "ISO/IEC 5055"]
+      "requiredTopics": ["src/experiments", "src/evaluation", "src/agents", "src/prompts", "src/audits", "src/securityValidation", "src/mobile/android", "src/report", "src/plots", "src/screenshot", "src/gallery", "src/visualizationDemos", "src/browser", "src/tutorial", "managedProcess", "ArchitectureEvidenceSnapshot", "ReviewMetricV1", "ReviewConfigV1", "ReviewSymbolSelectorV1", "ReviewDimensionV1", "runAuditCommandFromArgs", "auditCliContract", "ExperimentConfigFileV1", "resolveInputs", "softwareReviewCalibration", "warm-index-reuse", "--config", "ISO/IEC 5055"]
     },
     "docs/COMMANDS.md": {
       "role": "implemented command reference",
