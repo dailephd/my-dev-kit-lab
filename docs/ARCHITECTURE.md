@@ -168,13 +168,47 @@ flowchart LR
 
 Planned rules:
 
-* Add `--config <path>` as the generic plugin configuration input. The file contains a JSON object validated by the selected plugin's existing `validateConfig`.
-* `--config` is mutually exclusive with the context-strategy plugin's existing convenience flags in one invocation. Those legacy flags remain supported for backward compatibility.
-* New plugins do not add experiment-ID branches to the command owner for argument parsing or input loading. Plugin-specific files/resources are loaded by the plugin or a plugin-owned helper from validated config.
+* Add `--config <path>` as the generic plugin configuration input. The file uses an `ExperimentConfigFileV1` envelope: `{ schemaVersion: "1.0.0", experimentId, config }`. The envelope ID must match `--experiment`; the command owner validates the envelope and passes only `config` to the selected plugin's existing `validateConfig`.
+* The config file path resolves against invocation CWD. The command context carries generic `configSource.filePath` and `configSource.baseDir` metadata so plugin-owned relative paths resolve against the config file directory instead of packageRoot or an undocumented process CWD.
+* `--config` may coexist only with generic routing/output options (`--experiment`, `--target`, `--out`, and global `--workspace`). It is mutually exclusive with the context-strategy plugin's legacy convenience flags; those legacy flags retain current semantics when `--config` is absent.
+* Extend `ExperimentPlugin` additively with optional `resolveInputs(context)`. `runExperiment` invokes it after config/target/output resolution only when `RunExperimentOptions.inputs` was not explicitly supplied. Programmatic `inputs` take precedence and bypass automatic resolution, preserving existing test/integration injection seams.
+* Migrate the current context-strategy command-side `loadPluginInputs` behavior into the plugin's `resolveInputs` or a plugin-owned helper. After v0.5.0, new plugins do not add experiment-ID branches to the command owner for input/resource loading.
+* Extend plugin metadata with optional CLI examples. `experiment describe` renders plugin-owned examples when present, otherwise a generic `--config <path>` example. It must not generate context-strategy-specific flags for unrelated plugins.
 * `experiment list`, `experiment describe`, and `experiment run` continue to use `createDefaultExperimentPluginRegistry`; a plugin is not public until all three surfaces see the same registration in both installed and source-checkout modes.
-* `experiment describe` must not generate context-strategy-specific example flags for unrelated plugins. Non-legacy plugins receive a generic `--config <path>` run example unless they expose a versioned plugin-owned example contract.
-* The existing installed/source implicit output-root difference remains the only intentional invocation-mode difference. Explicit `--config`, `--target`, and `--out` paths resolve with the same semantics.
+* The existing installed/source implicit output-root difference remains intentional. Explicit `--config`, `--target`, and `--out` paths have identical semantics in both entry paths.
 * This generalization is a v0.5.0 prerequisite for every later plugin, including incremental-change, context-window, retrieval, agent-success, and `software-review-calibration`.
+
+### Planned generic experiment config and input-resolution contract
+
+```ts
+type ExperimentConfigFileV1 = {
+  schemaVersion: "1.0.0";
+  experimentId: string;
+  config: Record<string, unknown>;
+};
+
+type ExperimentConfigSourceV1 = {
+  filePath: string;
+  baseDir: string;
+};
+
+type ExperimentInputResolutionContext<TConfig> = {
+  toolRoot: string;
+  target: ExperimentTarget;
+  outputRoot: string;
+  config: TConfig;
+  configSource?: ExperimentConfigSourceV1;
+};
+
+interface ExperimentPlugin<TConfig = unknown, TResult extends ExperimentRun = ExperimentRun> {
+  // existing metadata/defaultConfig/configDefinition/validateConfig/prepare/run/summarize/cleanup
+  resolveInputs?(
+    context: ExperimentInputResolutionContext<TConfig>
+  ): Promise<Record<string, unknown> | undefined> | Record<string, unknown> | undefined;
+}
+```
+
+Runner rule: explicit `RunExperimentOptions.inputs` wins. Otherwise the selected plugin's `resolveInputs` is called at most once and its result becomes `ExperimentExecutionContext.inputs`. The generic command owner never interprets plugin-specific case/profile/resource fields.
 
 ## Stage-context evaluation architecture (v0.4.3)
 
@@ -579,7 +613,7 @@ type ReviewTestCommandV1 = {
 type ReviewSymbolSelectorV1 = {
   relativePath: string;
   symbolName: string;
-  symbolKind?: "class" | "interface" | "type" | "function" | "enum";
+  symbolKind?: "class" | "interface" | "type" | "function" | "enum" | "variable" | "constant";
 };
 
 type ReviewConfigV1 = {
@@ -608,7 +642,7 @@ type ReviewConfigV1 = {
 };
 ```
 
-The serialized contract is closed for the supported schema version: unknown fields fail rather than being silently ignored. IDs are unique within their collections. `pathPrefixes` are normalized repository-relative POSIX prefixes only; absolute paths, `..`, glob syntax, and symlink traversal are invalid. v1 rejects overlapping layer prefixes rather than inventing hidden precedence. Layer self-dependency is implicitly allowed; `mayDependOn` lists additional declared layer IDs and every reference must resolve. Symbol selectors use repository-relative path + symbol name (+ optional kind) to prevent name-only ambiguity. A configured selector that cannot be uniquely resolved is reported as an explicit requested-policy/evidence problem according to analyzer availability; it is never silently rebound. Test commands are structured argv only, run with `shell:false`, and are executable only after the explicit `--run-target-tests` opt-in. `cwdRelative` must remain within the disposable target copy, `timeoutMs` must be a positive bounded integer, and the v1 config has no arbitrary environment mutation. The config expresses review evidence/policy; it never authorizes source edits.
+The serialized contract is closed for the supported schema version: unknown fields fail rather than being silently ignored. IDs are unique within their collections. `pathPrefixes` are normalized repository-relative POSIX prefixes only; absolute paths, `..`, glob syntax, and symlink traversal are invalid. v1 rejects overlapping layer prefixes rather than inventing hidden precedence. Layer self-dependency is implicitly allowed; `mayDependOn` lists additional declared layer IDs and every reference must resolve. Files outside all declared layer prefixes are unclassified, never automatic violations; layer-rule evidence reports classified/unclassified coverage. Symbol selectors use repository-relative path + symbol name (+ optional kind) to prevent name-only ambiguity. A configured selector that cannot be uniquely resolved is reported as an explicit requested-policy/evidence problem according to analyzer availability; it is never silently rebound. Test commands are structured argv only, run with `shell:false`, and are executable only after the explicit `--run-target-tests` opt-in. `cwdRelative` must remain within the disposable target copy, `timeoutMs` must be a positive bounded integer, and the v1 config has no arbitrary environment mutation. The config expresses review evidence/policy; it never authorizes source edits.
 
 ### Planned review metric evidence contract
 
@@ -638,7 +672,7 @@ type ReviewMetricV1 = {
     | "evolution"
   )[];
   origin: ReviewMetricOriginV1;
-  sourceUrls: readonly string[];
+  sourceUrls: readonly [string, ...string[]];
   definitionVersion: string;
   scope: string;
   availability: ReviewMetricAvailabilityV1;
