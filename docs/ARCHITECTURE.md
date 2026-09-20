@@ -489,6 +489,89 @@ Planned ownership rules:
 * **History and runtime evidence are separate inputs:** v0.11.2 may add bounded read-only Git history for churn/co-committal evidence. Runtime profiling and DORA delivery metrics are not implied by static architecture evidence and require separate explicitly supplied evidence sources.
 
 
+### Planned audit command ownership and exposure parity
+
+The future software-review command surface preserves the v0.4.6 command-owner correction instead of reintroducing source/installed divergence.
+
+```mermaid
+flowchart LR
+  Installed[my-dev-kit-lab audit] --> Router[src/cli/runLabCli.ts]
+  Router --> Owner[src/commands/runAuditCommand.ts<br/>runAuditCommandFromArgs]
+  Source[npm run audit --] --> Thin[scripts/audits/runAudit.ts<br/>thin adapter only]
+  Thin --> Owner
+  Contract[planned src/audits/core/auditCliContract.ts<br/>flag/value/help contract] --> Owner
+  Contract --> Config[src/audits/core/auditConfig.ts]
+  Owner --> Config
+  Owner --> Runner[src/audits/core/auditRunner.ts]
+  Runner --> Registry[AuditDetector registry]
+  Runner --> Security[src/audits/security adapter]
+  Runner --> Reports[src/audits/report]
+```
+
+Planned ownership rules:
+
+* `runLabCli` owns only top-level `audit` routing and the global `--workspace` option. It must never parse software-review-specific audit flags.
+* `scripts/audits/runAudit.ts` remains a thin source-checkout adapter and must never gain an independent parser, help text, default policy, or report logic.
+* `runAuditCommandFromArgs` remains the single command owner for audit help, argument/config normalization, target/evidence resolution, execution, report writing, and fatal error mapping.
+* The first new public review flags (v0.10.1) add one shared audit CLI contract under `src/audits/core` so parser-recognized flags and rendered usage/help cannot drift. Existing `AUDIT_USAGE` semantics are preserved through that owner.
+* `auditConfig.ts` remains the normalized configuration owner. New evidence flags become explicit typed fields; invalid flag combinations fail before `runAudit`.
+* `runAudit` remains the single execution owner. Shared inventory, source facts, architecture evidence, optional history/test evidence, and project metadata are collected once and passed through one detector context; security remains a single adapter invocation after registered detectors.
+* Installed/source parity is mandatory for every release that adds an audit option. Tests must exercise both entry paths with the same option matrix and compare normalized selection/configuration, report semantics, and exit behavior.
+* The existing implicit-output-root difference is intentional and remains documented: installed execution defaults under `workspaceRoot`; source-checkout execution defaults under the package/repository root. Explicit `--out` and all other explicit paths have identical semantics.
+
+The staged public exposure is:
+
+```text
+v0.10.1  project audit + architecture dimension
+v0.10.2  project/architecture gains extensibility and reuse evidence
+v0.11.0  quality audit
+v0.11.1  project gains behavior
+v0.11.2  project gains evolution
+v0.12.0  project gains operations
+v0.12.1  all aggregate + HTML audit report
+```
+
+`project` therefore is **not** an internal-only capability waiting until v0.12.1. The first architecture-review release exposes it through both supported audit entry paths.
+
+#### Planned review configuration contract
+
+The first public project audit also introduces a versioned, declarative `ReviewConfigV1` input for evidence that cannot be inferred safely:
+
+```ts
+type ReviewTestCommandV1 = {
+  id: string;
+  argv: readonly string[];
+  cwdRelative?: string;
+  timeoutMs: number;
+};
+
+type ReviewConfigV1 = {
+  schemaVersion: "1.0.0";
+  architecture?: {
+    layers?: readonly {
+      id: string;
+      paths: readonly string[];
+      mayDependOn: readonly string[];
+    }[];
+    extensionPoints?: readonly {
+      id: string;
+      contractSymbol: string;
+      registrySymbol?: string;
+    }[];
+    changeScenarios?: readonly {
+      id: string;
+      description: string;
+      featureFamily?: string;
+    }[];
+  };
+  behavior?: {
+    testCommands?: readonly ReviewTestCommandV1[];
+  };
+};
+```
+
+The serialized contract is closed for the supported schema version: unknown fields fail rather than being silently ignored. Test commands are structured argv only, run with `shell:false`, and are executable only after the explicit `--run-target-tests` opt-in. The config expresses review evidence/policy; it never authorizes source edits.
+
 ### Planned review metric evidence contract
 
 A future metric model should remain additive to audit evidence and should not become a second verdict engine. A code-shaped target is:
@@ -551,7 +634,8 @@ The following layers remain planned and must not be treated as current behavior:
 - v0.11.1 behavior/test evidence and optional explicitly configured sandboxed target-test evidence
 - v0.11.2 read-only history/change-coupling/change-cost evidence
 - v0.12.0 non-security operational-quality/resilience analysis
-- the `project` and `all` audit selections, cross-type deduplication, and six-dimension project review planned for v0.12.1
+- the `project` audit selection and architecture dimension planned for v0.10.1, with behavior/evolution/operations added incrementally through v0.12.0
+- the `all` aggregate selection, cross-type deduplication, and complete six-dimension combined view planned for v0.12.1
 - the v0.12.2 software-review benchmark/calibration suite
 - a human-led manual pentest workflow after `v1.0.0`
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success (`v0.5.0` and later)
