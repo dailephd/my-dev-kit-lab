@@ -212,6 +212,19 @@ The historical form — the same flags `demo final` accepts, without the `demo f
 
 `security deps`, `security package`, `security codeql`, `security semgrep`, `security fuzz`, and any visualization-demo subcommand are not implemented as installed CLI routes. Attempting them returns the usage exit code. They remain source-checkout `npm run` workflows (see below).
 
+## Cross-tool compatibility handoffs
+
+The canonical command-by-command composition map is [my-dev-kit ecosystem workflow section 9.15](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_DEVELOPMENT_WORKFLOWS.md#915-command-surface-compatibility-map).
+
+Useful current combinations:
+
+- `audit` and `security validate` findings can seed my-dev-kit search/lookup/slice/source investigation against the same target. They are candidate findings, not source-owner or deletion decisions.
+- The `context-strategy-comparison` plugin owns raw-full-file versus my-dev-kit-guided experiments. The released stage-context strategies can consume my-dev-kit capsule/audit evidence and Orchestrator `WorkflowInstructionPacket` evidence through programmatic `v043StrategyInputs` / `v043RunAssurance` configuration. There are no installed CLI flags for arbitrary live stage-context artifact paths.
+- `demo final --kit-command <command>` is the installed surface that explicitly accepts a my-dev-kit-compatible command. Do not assume generic `experiment run` also accepts `--kit-command`.
+- Tutorial PNG screenshots are ordinary image files and may be deliberately selected as Observer external-reference inputs. The tutorial manifest, assertions, authentication state, and behavior do not transfer with the image.
+- `report render --visualizations` and `gallery build --visualizations` expect Lab visualization-demo artifacts. Arbitrary my-dev-kit graph-view directories or Observer evidence roots are not documented drop-in replacements.
+- Lab does not generically ingest Observer observations/comparisons/evaluations or Orchestrator export handoffs. Use a registered experiment/adapter or cite those results separately.
+
 ## Contributor / developer npm scripts
 
 The commands in this section run from a cloned repository checkout. Some are contributor aliases into the same command owners the installed CLI uses (`security:validate`, `audit`, `experiment:list`/`describe`/`run`, `run-controlled-experiment`, `render-experiment-report`, `generate-experiment-plots`, `build-gallery`, `run-final-demo`); others are source-checkout-only developer tooling with no installed-CLI equivalent (`security:deps`, `security:package`, `security:codeql`, `security:semgrep`, `test:fuzz:smoke`, `report:context-integrity-smoke`, `run-visualization-demos`, and the build/test/verify/docs-check commands below).
