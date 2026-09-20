@@ -2,6 +2,23 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
+Semantic native-select option selection for declarative browser tutorials (v0.4.9 candidate). This work is implemented and cross-platform validated but not published; the package version remains `0.4.8`.
+
+- Added the value-only `select-option` declarative tutorial action, anchored to one existing `TutorialLocatorV1` and identifying a native HTML `<select>` option by its stable HTML `value`.
+- Executed the action through Playwright `Locator.selectOption({ value })` using the existing tutorial timeout model, with no retry.
+- Verified the returned selection exactly: the action passes only when the browser reports one selected value equal to the requested value; empty, mismatched, and multiple returned values fail.
+- Added no keyboard fallback: `ArrowDown`/`Enter` emulation, click fallback, `page.evaluate`, and event dispatch are all absent, and `press` remains real keyboard input.
+- Applied closed validation: `locator` and a non-empty trimmed `value` are required, timeouts use the existing contract, and unknown fields — including `label`, `index`, and `values` — are rejected rather than ignored.
+- Moved the synthetic cursor to the select element before execution without fabricating a click ripple or animating the native popup menu.
+- Extended the generic fixture (`examples/tutorial-browser/`) with a visible native `Operation` select whose ordinary `change` handler updates visible application state, and extended the canonical scenario to ten steps.
+- Proved the action against real Chromium, including test-owned live DOM inspection of the selected value and the resulting visible state.
+- Proved the action from the exact packed npm candidate installed into a clean consumer through the new `TUTORIAL_SELECT_OPTION` gate, preserving installed-package, packaged-example, and target immutability.
+- Validated on Windows, macOS, and Linux across Node 24 and Node latest through the existing CI matrix.
+- Confirmed bounded read-only downstream `my-frontend-observer` compatibility: representative native selects are expressible through the generic value-only contract, with no Observer values added to lab production code and no Observer files changed.
+- Kept `TutorialScenarioV1`, `TutorialTargetContractV1`, `TutorialRunResultV1`, and `TutorialManifestV1` schemas at version `1.0.0`.
+
 ## [0.4.8] - 2026-09-19
 
 Locator-anchored pointer gestures for declarative browser tutorials.

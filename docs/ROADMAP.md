@@ -671,7 +671,7 @@ Explicit exclusions:
 
 ### v0.4.9 — semantic native-select option selection for browser tutorials
 
-Status: **planned; not implemented**.
+Status: **implemented and cross-platform validated; unreleased; pre-release readiness pending**. The design, frozen semantics, exclusions, and acceptance criteria below are preserved as authored and were met by the implementation. Operational bookkeeping for the implementation branch, commit, and CI run is recorded in [CURRENT_STATE.md](CURRENT_STATE.md), not here.
 
 Purpose:
 
@@ -708,21 +708,24 @@ Schema-version decision:
 * Keep `TutorialTargetContractV1`, `TutorialRunResultV1`, and `TutorialManifestV1` at schema version `1.0.0`. The patch requires no target/process, run-result, artifact-layout, or manifest structural change.
 * Do not introduce schema `1.1.0` or `2.0.0` merely for the additive action discriminator.
 
-Planned implementation batches:
+Implementation summary (completed):
 
-1. **Action contract and runtime.**
-   * Extend `src/tutorial/types.ts` with the value-only `select-option` action and add it to the closed action-type list.
-   * Extend `src/tutorial/scenarioValidation.ts` with exact locator/value/timeout validation and unknown-field rejection.
-   * Extend the minimal structural Playwright locator surface in `src/browser/types.ts` with only the `selectOption` call shape required by the tutorial runtime.
-   * Execute the action in `src/tutorial/tutorialActions.ts` through the canonical locator resolver and verify the returned selected value.
-   * Extend `src/tutorial/tutorialSession.ts` so the synthetic cursor moves to the select element before the semantic action, without adding click-ripple or native-menu animation semantics.
-   * Add planner-authored unit/regression tests for valid selection, missing/empty value, unknown fields, invalid timeout, rejected label/index/multi-select shapes, timeout propagation, Playwright failure propagation, returned-value verification, no retry, cursor movement, and unchanged step-failure semantics.
+1. **Action contract and runtime — completed.**
+   * Added the value-only `select-option` action to `src/tutorial/types.ts` and to the closed action-type list.
+   * Added closed validation in `src/tutorial/scenarioValidation.ts` covering locator, required non-empty value, optional timeout, and unknown-field rejection.
+   * Added only the narrow `selectOption` call shape to the minimal structural Playwright locator surface in `src/browser/types.ts`.
+   * Executed the action in `src/tutorial/tutorialActions.ts` through the canonical locator resolver, with exact returned-selected-value verification.
+   * Routed the synthetic cursor to the select element before the semantic action in `src/tutorial/tutorialSession.ts`, with no click-ripple and no native-menu animation.
+   * Added unit, session, and security regression coverage for valid selection, missing/empty/whitespace value, unknown fields, invalid timeout, rejected label/index/multi-select shapes, timeout propagation, Playwright failure propagation, returned-value verification, absence of retry and fallback, cursor movement, and unchanged step-failure semantics.
 
-2. **Generic real-browser and exact-package portability proof.**
-   * Extend `examples/tutorial-browser/` with one real native `<select>`, stable option values, and deterministic visible state updated by an ordinary `change` event.
-   * Extend the canonical scenario with one `select-option` step that chooses a stable value such as `preserve` and verifies the resulting visible state through existing assertion types.
-   * Extend `tests/integration/tutorialRealBrowser.spec.ts` so real Chromium proves the selected value and generated artifacts.
-   * Extend `scripts/verify-packed-package.mjs` so the exact npm tarball, installed into a clean consumer, validates and executes `select-option`, records it in the tutorial manifest, preserves source/target/package immutability, and still proves every pre-existing tutorial action.
+2. **Generic real-browser and exact-package portability proof — completed.**
+   * Extended `examples/tutorial-browser/` with one real native `<select>` (accessible name `Operation`), stable option values, and deterministic visible state updated by an ordinary `change` event.
+   * Extended the canonical scenario to ten steps with one `select-option` step that chooses `preserve` and verifies the resulting visible state through existing assertion types.
+   * Extended `tests/integration/tutorialRealBrowser.spec.ts` so real Chromium proves the selected value, the live DOM state, and the generated artifacts.
+   * Extended `scripts/verify-packed-package.mjs` with the `TUTORIAL_SELECT_OPTION` gate, so the exact npm tarball installed into a clean consumer validates and executes `select-option`, records it in the tutorial manifest, preserves source/target/package immutability, and still proves every pre-existing tutorial action.
+   * Reconciled `tests/scripts/packageScriptContract.spec.ts`, the second owner of the canonical scenario's action inventory, to the ten-step scenario.
+   * Completed a bounded read-only downstream Observer compatibility check and confirmed the generic value-only contract expresses its representative native selects.
+   * Passed the existing cross-platform CI matrix on Ubuntu, macOS, and Windows across Node 24 and Node latest.
 
 Expected production owners:
 
@@ -740,7 +743,9 @@ Cross-platform and downstream validation:
 * After the generic lab feature is green, a bounded read-only Observer compatibility check may verify representative native selects such as runtime operation, move direction, intent category, and one reference-requirement select using actual DOM option values. Observer-specific values must never become lab production enums.
 * Observer's independent tutorial pacing mismatch and its `contractClass` readiness-verifier crash remain Observer-owned defects and must not be patched through lab runtime or result-shape changes.
 
-Acceptance:
+Acceptance (met):
+
+Every criterion below was met by the completed implementation and verified locally and through cross-platform CI.
 
 * Existing v0.4.8 scenarios using `goto`, `click`, `fill`, `press`, `hover`, `drag`, `wait-for`, `pointer-click`, and `pointer-drag` still validate and execute unchanged.
 * A valid value-only `select-option` scenario validates under schema `1.0.0`; label/index/multi-select and unknown escape-hatch fields fail validation.

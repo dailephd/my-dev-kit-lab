@@ -42,7 +42,7 @@ npx playwright install chromium
 
 **Steps:**
 
-1. Select or create a `TutorialScenarioV1` scenario (supporting actions such as `goto`, `click`, `fill`, `press`, `hover`, `drag`, `wait-for`, and locator-anchored `pointer-click`/`pointer-drag`) and a matching `TutorialTargetContractV1` target contract.
+1. Select or create a `TutorialScenarioV1` scenario (supporting actions such as `goto`, `click`, `fill`, `press`, `hover`, `drag`, `select-option`, `wait-for`, and locator-anchored `pointer-click`/`pointer-drag`) and a matching `TutorialTargetContractV1` target contract.
 2. Validate the scenario:
 
    ```bash

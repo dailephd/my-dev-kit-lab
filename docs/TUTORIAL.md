@@ -63,7 +63,7 @@ For default output, omit `--out` and the run is created under `<home>/.my-dev-ki
 
 ### Action vocabulary and pointer gestures
 
-Declarative tutorials support an exact nine-action vocabulary under `TutorialScenarioV1`:
+Declarative tutorials support an exact ten-action vocabulary under `TutorialScenarioV1`:
 
 - `goto`: navigate to a relative application path.
 - `click`: click an element directly through Playwright locator `click()`.
@@ -71,6 +71,7 @@ Declarative tutorials support an exact nine-action vocabulary under `TutorialSce
 - `press`: press a keyboard key on an element.
 - `hover`: hover the pointer over an element.
 - `drag`: drag-and-drop between two distinct DOM elements.
+- `select-option`: select one native HTML `<select>` option by its HTML value.
 - `wait-for`: wait for an element state or assertion.
 - `pointer-click`: positional click at a normalized point inside one located interaction surface.
 - `pointer-drag`: positional drag across two normalized points inside one located interaction surface.
@@ -129,6 +130,35 @@ The move step count is fixed to `8` (`POINTER_DRAG_MOVE_STEPS = 8`) to generate 
 
 - **`click`:** delegates directly to Playwright `locator.click()`.
 - **`pointer-click`:** targets an exact normalized fraction offset within one located element using `page.mouse`.
+
+#### Native select action: `select-option`
+
+Use `select-option` when the intent is choosing one option in a native HTML `<select>`. Identify the option by its stable HTML value, and target the element with any existing `TutorialLocatorV1`. A `role=combobox` locator plus the control's accessible name is the recommended form, because it keeps the scenario tied to the accessible contract rather than to markup details:
+
+```json
+{
+  "type": "select-option",
+  "locator": {
+    "kind": "role",
+    "role": "combobox",
+    "name": "Operation"
+  },
+  "value": "preserve"
+}
+```
+
+Behavior and boundaries:
+
+- The runtime resolves the locator through the canonical resolver and calls Playwright `Locator.selectOption({ value })` with the existing tutorial timeout.
+- The action passes only when the browser reports exactly the requested single selected value.
+- There is no `ArrowDown`/`Enter` emulation and no click or keyboard fallback. Expressing selection as a keystroke count is exactly the platform-sensitive pattern this action replaces.
+- Value identity only: label selection, index selection, and multi-select arrays are not supported in v0.4.9.
+- The synthetic cursor moves to the select element before execution. The native popup menu is drawn by the operating system, so traversal through option rows is deliberately not simulated and no click ripple is fabricated.
+
+#### Distinguishing `press` from `select-option`
+
+- **`press`:** keyboard intent. It sends a real keystroke to an element and remains unchanged.
+- **`select-option`:** semantic select-value intent. It states which option value should end up selected, and lets Playwright choose how.
 
 #### Security boundaries
 

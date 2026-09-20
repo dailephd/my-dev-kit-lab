@@ -61,6 +61,7 @@ Tutorial scenarios (`TutorialScenarioV1`) accept the following exact action voca
 - `press`
 - `hover`
 - `drag`
+- `select-option`
 - `wait-for`
 - `pointer-click`
 - `pointer-drag`
@@ -112,6 +113,39 @@ Serialized shape:
   "timeoutMs": 5000
 }
 ```
+
+##### Action distinction: `press` versus `select-option`
+
+- `press`: real keyboard input dispatched to an element through Playwright `locator.press(key)`. It remains the way to express a genuine keystroke and is unchanged.
+- `select-option`: semantic selection of one native HTML `<select>` option through Playwright `locator.selectOption({ value })`. It expresses the intent "choose the option whose HTML value is X" rather than a platform-sensitive navigation path, so it never emulates `ArrowDown`/`Enter`.
+
+Serialized shape:
+```json
+{
+  "type": "select-option",
+  "locator": {
+    "kind": "role",
+    "role": "combobox",
+    "name": "Operation"
+  },
+  "value": "preserve",
+  "timeoutMs": 5000
+}
+```
+
+Validation rules:
+
+- `locator`: required, and validated by the same canonical `TutorialLocatorV1` validator every other locator-based action uses.
+- `value`: required, must be a string, and must contain at least one non-whitespace character. An empty or whitespace-only value fails validation.
+- `timeoutMs`: optional, and uses the existing tutorial timeout contract (a finite positive integer; `0`, negatives, and non-integers fail).
+- Unknown fields are rejected rather than ignored. `label`, `index`, and `values` are unsupported in this contract and therefore fail as unknown fields, as does any other extra field.
+- Multi-select is not supported.
+
+Runtime semantics:
+
+- Resolves the element through the canonical locator resolver, then calls `Locator.selectOption({ value }, { timeout })`.
+- Succeeds only when the browser reports exactly one selected value and that value equals the requested value. An empty result, a different value, or more than one value fails the action.
+- No retry and no fallback: a failure never degrades into `click`, `press`, keyboard navigation, `page.evaluate`, or event dispatch.
 
 ##### Coordinate space and validation rules
 
