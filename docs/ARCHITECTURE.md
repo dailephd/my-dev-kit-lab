@@ -453,6 +453,7 @@ Explicit non-goals:
 
 The following layers remain planned and must not be treated as current behavior:
 
+- v0.4.9 semantic native-select tutorial action: extend the existing `TutorialActionV1` union, closed scenario validator, minimal structural Playwright locator surface, canonical action executor, and synthetic-cursor routing with one value-only `select-option` action backed by Playwright `Locator.selectOption({ value })`. Reuse the existing action/result/step/session/artifact contracts, keep schema `1.0.0`, add no keyboard fallback or new tutorial runner, and prove the behavior through the existing cross-platform real-browser and exact packed-package gates.
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
