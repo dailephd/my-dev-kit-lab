@@ -692,6 +692,11 @@ Purpose:
 
 Features:
 
+* Before registering the second plugin, remove the current `experiment run` command owner's context-strategy-specific assumption for future plugins. Keep all existing context-strategy flags backward compatible, but do not add one new experiment-ID branch per future plugin.
+* Add one generic plugin-config path, `--config <path>`, owned by `runExperimentRunCommandFromArgs`. It loads a versioned JSON object and passes it to the selected plugin's `validateConfig`; relative paths resolve against invocation CWD. Existing context-strategy CLI flags remain supported as that plugin's legacy convenience surface and cannot be mixed with `--config` in the same run.
+* Make plugin-specific input/resource loading owned by the plugin or a plugin-owned adapter invoked through the generic runner contract, not by new experiment-ID branches in the command owner. The current context-strategy compatibility adapter may remain as legacy behavior, but new plugins must not extend that special-case chain.
+* Extend experiment metadata/config-description support so `experiment describe` can render plugin-provided examples or a generic `--config` example; it must not emit `--agents`/`--complexities` examples for plugins that do not declare those fields.
+* Register the new `warm-index-reuse` plugin in the default registry so `experiment list`, `experiment describe --experiment warm-index-reuse`, and `experiment run --experiment warm-index-reuse` all expose it through both the installed CLI and source-checkout npm aliases in the same release.
 * Add warm-index-reuse experiment plugin.
 * Add setup step to index a project once.
 * Run multiple benchmark tasks using the same index.
@@ -702,6 +707,10 @@ Features:
 
 Acceptance:
 
+* `my-dev-kit-lab experiment list` and `npm run experiment:list` both list `warm-index-reuse` from the same default registry.
+* Installed/source `experiment describe` and `experiment run` reach the same command owners and plugin registry; explicit `--config` has identical semantics in both entry paths except the already-established implicit installed-workspace versus source-checkout output root.
+* Existing `context-strategy-comparison` invocations and legacy flags remain backward compatible.
+* The generic experiment command owner contains no new warm-index-specific parsing/input-loading branch.
 * Warm-index experiment runs with fake-agent.
 * Reports clearly separate one-time index cost from per-task retrieval cost.
 * Results do not overclaim token savings when token totals are unavailable.
@@ -1551,7 +1560,7 @@ npm run audit -- --types project
 npm run audit -- --types all
 ```
 
-`--types` continues to accept unique comma-separated implemented types in canonical audit-type order for compatibility with the existing `code-rot,security` behavior. `all` is the one exception: it must be supplied alone and expands internally to `code-rot,quality,security,project`. The security adapter executes exactly once after registered audit detectors, as it does today.
+`--types` continues to accept unique comma-separated implemented types in canonical audit-type order for compatibility with the existing `code-rot,security` behavior. `all` is the one exception: it must be supplied alone. Normalized configuration records both `requestedTypes: ["all"]` and `expandedTypes: ["code-rot","quality","security","project"]`. Detector selection uses the expanded non-security types, while the security adapter is enabled exactly once from expanded membership and still executes after the detector loop. The array order is selection/report metadata, not a second execution loop and not a claim that security executes between quality and project detectors.
 
 The no-flag default remains `code-rot` through v1.0.0.
 
@@ -1583,8 +1592,8 @@ Planned additions:
 
 Exact behavior:
 
-* `--my-dev-kit-index <path>`: optional, read-only prebuilt index/evidence root. Relative paths resolve against invocation CWD. The lab never indexes implicitly. Explicit missing paths, malformed/unsupported contracts, traversal failures, or target-identity mismatch are fatal command/configuration errors. Valid partial analyzer/graph coverage is non-fatal and reports `partial`/`unavailable`.
-* `--review-config <path>`: optional versioned JSON policy/scenario file. Relative paths resolve against invocation CWD. Unsupported schema major, malformed JSON, missing explicit path, or unknown fields in the supported closed schema are fatal configuration errors. The initial contract owns explicit layer rules, extension-point declarations/change scenarios, and behavior test commands; future additions must version the contract rather than silently ignore fields.
+* `--my-dev-kit-index <path>`: optional, read-only prebuilt index/evidence root. Relative paths resolve against invocation CWD. The lab never indexes implicitly. In v0.10.1-v0.10.2 it is valid only when `project` is selected. From v0.11.0 onward it is also valid when `quality` is selected because quality detectors may consume the same architecture evidence; `all` inherits validity through expansion. It remains invalid for code-rot-only or security-only runs unless a later release explicitly gives those types a graph consumer. Explicit missing paths, malformed/unsupported contracts, traversal failures, or target-identity mismatch are fatal command/configuration errors. Valid partial analyzer/graph coverage is non-fatal and reports `partial`/`unavailable`.
+* `--review-config <path>`: optional versioned JSON policy/scenario file. Relative paths resolve against invocation CWD. In v0.10.1-v0.10.2 it is valid only when `project` is selected. From v0.11.0 onward it is also valid for `quality` and therefore `all`. It remains invalid for code-rot-only/security-only runs. Unsupported schema major, malformed JSON, missing explicit path, duplicate IDs, invalid contained paths/selectors, or unknown fields in the supported closed schema are fatal configuration errors. The initial contract owns explicit layer rules, extension-point declarations/change scenarios, and behavior test commands; future additions must version the contract rather than silently ignore fields.
 * `--dimensions <ids>`: valid only when `--types project` is the **only** selected audit type. IDs are comma-separated and deduplicated in canonical order. Unknown or not-yet-implemented dimensions fail with usage/configuration exit code 2. If omitted, project runs every dimension implemented by that installed version. Users needing upgrade-stable scope should specify dimensions explicitly.
 * `--run-target-tests`: valid only for a project run that includes the behavior dimension, or for `--types all`. It requires at least one structured test command in `--review-config`. Commands execute with argv arrays and `shell:false` against a disposable copy under the writable lab workspace. The original target is never the test working copy. Absence of required test configuration is a fatal configuration error, not a silently skipped test.
 * `--history off|auto|required`: valid only when the selected audit includes project analysis. Default is `off`. `auto` reads bounded local Git history if usable and otherwise records unavailable history evidence. `required` makes missing/unusable history a fatal requested-evidence error.
@@ -1608,6 +1617,7 @@ A detector-level failure that the existing runner can isolate remains structured
 #### Output contract
 
 * Existing installed/source output-root behavior is preserved: omitted `--out` uses the installed workspace root for installed execution and the package/repository root for source-checkout execution; explicit `--out` behaves identically in both.
+* Default output-directory selection for new selectors uses the **requested selector**, not the first expanded type. Therefore `--types project` defaults under `reports/audits/project/`, `--types quality` under `reports/audits/quality/`, and `--types all` under `reports/audits/all/`. Existing code-rot/security/legacy explicit multi-type directory behavior is preserved unless a separately versioned migration changes it.
 * v0.10.1 introduces canonical generic audit report names `audit-report.txt` and `audit-report.json` for new `project` output and future audit types. Existing selections that already expose `code-rot-audit.txt/json` retain those legacy paths for backward compatibility.
 * v0.12.1 adds `audit-report.html` where HTML is requested. Existing security reports under `reports/security/` remain separately authoritative and are linked/referenced rather than copied into the audit report.
 * Report metadata records requested audit types, expanded audit types (for `all`), requested project dimensions, evidence-source availability, normalized config, and metric provenance.
@@ -1621,9 +1631,34 @@ The initial versioned review configuration is declarative evidence/policy input,
 {
   "schemaVersion": "1.0.0",
   "architecture": {
-    "layers": [],
-    "extensionPoints": [],
-    "changeScenarios": []
+    "layers": [
+      {
+        "id": "ui",
+        "pathPrefixes": ["src/ui/"],
+        "mayDependOn": ["service"]
+      }
+    ],
+    "extensionPoints": [
+      {
+        "id": "language-analyzer",
+        "contract": {
+          "relativePath": "src/audits/core/languageAnalyzerRegistry.ts",
+          "symbolName": "LanguageAnalyzer",
+          "symbolKind": "interface"
+        },
+        "registry": {
+          "relativePath": "src/audits/core/languageAnalyzerRegistry.ts",
+          "symbolName": "DEFAULT_LANGUAGE_ANALYZER_REGISTRY"
+        }
+      }
+    ],
+    "changeScenarios": [
+      {
+        "id": "add-language",
+        "description": "Add one new supported language analyzer",
+        "extensionPointId": "language-analyzer"
+      }
+    ]
   },
   "behavior": {
     "testCommands": [
@@ -1638,7 +1673,7 @@ The initial versioned review configuration is declarative evidence/policy input,
 }
 ```
 
-Test commands cannot supply shell snippets, callbacks, arbitrary JavaScript, or `shell:true`. Architecture rules/change scenarios are evidence declarations used by detectors and metrics; they do not authorize target modification.
+The schema is closed. IDs are unique within their collections. `pathPrefixes` are normalized repository-relative POSIX prefixes only: no absolute paths, `..`, glob syntax, or symlink traversal. v1 rejects overlapping layer prefixes that would assign a file to multiple layers instead of inventing hidden precedence. `mayDependOn` and `extensionPointId` references must resolve to declared IDs. Symbol selectors use repository-relative path + symbol name (+ optional kind) so name-only ambiguity cannot silently bind to the wrong symbol. Test commands cannot supply shell snippets, callbacks, arbitrary JavaScript, arbitrary environment mutation, or `shell:true`; `cwdRelative` must remain inside the disposable target copy and `timeoutMs` must be a positive bounded integer. Architecture rules/change scenarios are evidence declarations used by detectors and metrics; they do not authorize target modification.
 
 Manual-pentest commands remain intentionally absent because that workflow is deferred to post-v1/version TBD.
 
