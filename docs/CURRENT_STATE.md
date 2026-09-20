@@ -95,6 +95,7 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
+- v0.5.0 generic experiment-command/plugin exposure generalization (`--config`, registry/list/describe/run parity, and no new per-plugin command-owner branches) before `warm-index-reuse` becomes the second registered plugin
 - warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment work in the existing v0.5.x-v0.9.x roadmap
 - normalized telemetry, campaign scheduler, prompt hardening, tutorial-manifest gallery consumption, and generalized publication/evidence portal work
 
