@@ -578,9 +578,9 @@ Planned ownership rules:
 * `runAuditCommandFromArgs` remains the single command owner for audit help, argument/config normalization, target/evidence resolution, execution, report writing, and fatal error mapping.
 * The first new public review flags (v0.10.1) add one shared audit CLI contract under `src/audits/core` so parser-recognized flags and rendered usage/help cannot drift. Existing `AUDIT_USAGE` semantics are preserved through that owner.
 * `auditConfig.ts` remains the normalized configuration owner. New evidence flags become explicit typed fields; invalid flag combinations fail before `runAudit`.
-* `runAudit` remains the single execution owner. Shared inventory, source facts, architecture evidence, optional history/test evidence, and project metadata are collected once and passed through one detector context. For `all`, normalized configuration keeps requested versus expanded types separate; registered non-security detectors still execute once in registry order and security remains a single adapter invocation after that detector loop.
+* `runAudit` remains the single execution owner. Shared inventory, source facts, architecture evidence, optional history/test evidence, and project metadata are collected once and passed through one detector context. For `all`, normalized configuration keeps requested versus expanded types separate; `all` is never a detector audit type, registered non-security detectors still execute once in registry order, and security remains a single adapter invocation after that detector loop.
 * Installed/source parity is mandatory for every release that adds an audit option. Tests must exercise both entry paths with the same option matrix and compare normalized selection/configuration, report semantics, and exit behavior.
-* The existing implicit-output-root difference is intentional and remains documented: installed execution defaults under `workspaceRoot`; source-checkout execution defaults under the package/repository root. Explicit `--out` and all other explicit paths have identical semantics.
+* The existing implicit-output-root difference is intentional and remains documented: installed execution defaults under `workspaceRoot`; source-checkout execution defaults under the package/repository root. Explicit `--out` and all other explicit paths have identical semantics. New selector directory names are based on the requested selector (`project`, `quality`, `all`), not the first expanded type; new explicit multi-type combinations use a deterministic combined-type slug while the existing `code-rot,security` legacy path is preserved.
 
 The staged public exposure is:
 
@@ -649,6 +649,14 @@ The serialized contract is closed for the supported schema version: unknown fiel
 A future metric model should remain additive to audit evidence and should not become a second verdict engine. A code-shaped target is:
 
 ```ts
+type ReviewDimensionV1 =
+  | "behavior"
+  | "architecture"
+  | "security"
+  | "operations"
+  | "quality"
+  | "evolution";
+
 type ReviewMetricOriginV1 =
   | "standard"
   | "published-literature"
@@ -663,14 +671,7 @@ type ReviewMetricAvailabilityV1 =
 
 type ReviewMetricV1 = {
   id: string;
-  dimensions: readonly (
-    | "behavior"
-    | "architecture"
-    | "security"
-    | "operations"
-    | "quality"
-    | "evolution"
-  )[];
+  dimensions: readonly ReviewDimensionV1[];
   origin: ReviewMetricOriginV1;
   sourceUrls: readonly [string, ...string[]];
   definitionVersion: string;
@@ -695,6 +696,58 @@ type ReviewMetricV1 = {
 The exact implementation type may evolve during version planning, but the semantics are fixed: source URLs and formula provenance travel with the metric; unavailable/partial evidence is explicit; ratios retain their denominators; and calibrated interpretation is separate from the raw measurement.
 
 The canonical planned metric definitions and research URLs are maintained in [METRICS.md](METRICS.md). The architecture layer must not independently redefine those formulas.
+
+### Planned issue-dimension and aggregate contract
+
+The six-dimension combined report is an additive view over the existing issue model, not a replacement severity/verdict system.
+
+```ts
+type ReviewDimensionV1 =
+  | "behavior"
+  | "architecture"
+  | "security"
+  | "operations"
+  | "quality"
+  | "evolution";
+
+// Additive field on AuditIssue by v0.12.1.
+type AuditIssueReviewDimensionsV1 = {
+  reviewDimensions: readonly [ReviewDimensionV1, ...ReviewDimensionV1[]];
+};
+```
+
+Rules:
+
+* `all` is a command selector only and must never be assigned to `AuditDetector.auditType`.
+* `code-rot`, `quality`, and `project` detectors execute through the existing detector registry. The security type remains the existing adapter executed once after the detector loop.
+* Existing code-rot findings receive explicit reviewed mappings to one or more dimensions by v0.12.1; there is no blanket rule that every code-rot issue is a quality issue.
+* Security-adapter findings receive the `security` dimension while preserving their original security report/finding identity.
+* One issue may appear in several dimension views, but the underlying issue exists once. Total issue count comes from the deduplicated issue set, never the sum of dimension counts.
+* A finding in an `all` report without an explicit review dimension is a contract/test failure, not silently placed into an "other" bucket.
+
+### Planned production owners for software review
+
+These paths define ownership, not parallel frameworks:
+
+| Planned owner | Responsibility |
+|---|---|
+| `src/audits/core/auditCliContract.ts` | One source of truth for audit flags, values, help rendering metadata, and staged option availability |
+| `src/audits/core/auditConfig.ts` | Raw-to-normalized audit config, requested/expanded types, dimensions, type-aware include defaults, option-combination validation |
+| `src/audits/core/reviewConfig.ts` | `ReviewConfigV1` parsing, closed-schema/path/reference validation |
+| `src/audits/core/reviewMetric.ts` | `ReviewDimensionV1`, `ReviewMetricV1`, provenance/availability validation |
+| `src/audits/core/architectureEvidence.ts` | `ArchitectureEvidenceSnapshot` contract and shared availability/coverage model |
+| `src/audits/core/readMyDevKitArchitectureEvidence.ts` | Version/identity/path-safe adapter from supported my-dev-kit graph artifacts |
+| `src/audits/core/historyEvidence.ts` | v0.11.2 bounded read-only Git history/churn/co-committal evidence |
+| `src/audits/quality/detectors/` | v0.11.0 quality detector implementations registered into the existing audit registry |
+| `src/audits/project/detectors/` | Architecture/behavior/evolution/operations project detectors, added by their owning versions |
+| `src/audits/report/` | Existing report model/renderers extended additively for metrics, dimensions, availability, HTML |
+| `src/experiments/config.ts` | v0.5.0 generic `ExperimentConfigFileV1` loading/config-source metadata |
+| `src/experiments/types.ts` | additive plugin `resolveInputs`/config-source contract |
+| `src/experiments/plugins/softwareReviewCalibration/` | v0.12.2 calibration plugin; invokes audit/review programmatically |
+| `src/commands/runAuditCommand.ts` | unchanged single audit command owner |
+| `src/commands/runExperimentRunCommand.ts` | unchanged single experiment-run command owner after generic config generalization |
+
+No new top-level `src/review/` runner, second audit registry, second command parser, or review-specific report framework is planned.
 
 The following layers remain planned and must not be treated as current behavior:
 
