@@ -1172,7 +1172,7 @@ Features:
 * Identify observable registries, shared contracts, registered implementations, and dispatch paths from supported source/graph evidence.
 * Detect implementations that appear to bypass an established extension point when both expected registry/contract membership and the bypass path are observable.
 * Detect parallel-pipeline candidates across variant families, including duplicated orchestration, report plumbing, CLI plumbing, configuration paths, and test infrastructure.
-* Model extensibility through explicit bounded change scenarios informed by ALMA/EMSA-style modifiability analysis. Report direct observations such as existing files/modules/contracts modified, registry entries modified, new implementation artifacts, and static impact-set size rather than inventing an unvalidated universal extensibility score.
+* Model extensibility through explicit bounded change scenarios informed by ALMA/EMSA-style modifiability analysis. In v0.10.2, where no real before/after change set exists, report only static scenario evidence such as resolved extension point, registry/contract touchpoints, static impact-set node/module counts, and candidate bypass/parallel paths. Do **not** report "files modified" or "contracts modified" as observed facts for a hypothetical scenario. Actual modification counts are available only later when an explicit change set/history/experiment provides before/after evidence.
 * Add variant-specific-code-in-shared-core candidates where explicit family/ownership evidence supports the distinction.
 * Add `extension-point bypass`, `missing abstraction`, `plugin opportunity`, and `adapter opportunity` only as lab-defined heuristic candidate findings with explicit confidence and false-positive risk.
 * Reuse `AuditIssue` for findings and the shared architecture snapshot for evidence; do not create a separate architecture-review engine.
@@ -1201,6 +1201,7 @@ Features:
 * Strengthen duplication analysis with supported structural evidence while keeping semantic clone claims out of scope unless a validated evidence source is added.
 * Add dependency-discipline findings using explicit package/module/layer rules where available.
 * Reuse existing dead-code, test-rot, documentation-consistency, and dependency/environment evidence rather than copying those detectors into a second framework.
+* Extend the audit include-area vocabulary with `source` for production-source quality detectors. Preserve the existing no-flag code-rot default include set byte-for-byte; when `quality` is explicitly selected and `--include` is omitted, normalized quality scope adds `source` without changing legacy code-rot selection. Explicit `--include` remains authoritative.
 * Extend audit metadata, selection, help text, reports, and tests so `quality` is a real implemented audit type while preserving `code-rot` as the default no-flag audit behavior.
 * Report metric origin/source URL, availability, evidence coverage, and threshold source. No universal maintainability/quality score is introduced here.
 
@@ -1254,7 +1255,7 @@ Features:
 * Add architectural hotspot candidates combining change frequency/churn with supported structural evidence.
 * Add historical change-set/module-impact summaries for bounded change sets.
 * Add public-contract/interface instability evidence where supported symbols can be tracked safely across history.
-* Reuse the v0.10.2 change-scenario observations for extension/change-cost analysis rather than inventing a separate extension score.
+* Reuse the v0.10.2 static change-scenario evidence for architecture context. When v0.11.2 has an actual bounded history/change set, add separately named **observed** measures such as existing files/modules/contracts touched; never merge static estimates and observed modifications under one metric ID.
 * Add `evolution` to the implemented `project` dimension vocabulary. Omitting `--dimensions` now runs architecture, behavior, and evolution.
 * Add `--history off|auto|required`, defaulting to `off`. `auto` consumes bounded read-only Git history when available and otherwise reports unavailable evidence; `required` treats missing/unusable history as a fatal requested-evidence error. Add `--history-max-commits <n>`, a positive integer accepted only when history is `auto` or `required`, defaulting to 500.
 * Preserve privacy-safe, local-only history handling and explicit unavailable states when history is shallow, absent, or intentionally excluded.
@@ -1335,6 +1336,8 @@ Purpose:
 
 Features:
 
+* Add a `software-review-calibration` experiment plugin to the default experiment registry. It must appear through both installed/source `experiment list`, `experiment describe`, and `experiment run` in the same release and use the generic plugin `--config` path established in v0.5.0 rather than adding calibration-specific parser branches.
+* The calibration plugin invokes the audit/review engine programmatically against immutable fixture targets and compares observed findings/metrics with labeled expectations. It must not shell out through the public audit CLI as its internal execution mechanism.
 * Reuse the v0.7 synthetic-repository/fixture infrastructure for controlled good and intentionally problematic repository designs.
 * Add labeled fixtures for dependency cycles, layer violations, high fan-in/fan-out, extension-point bypass, parallel architecture, responsibility concentration, weak test mapping, change coupling, and selected operational-quality cases.
 * Measure finding precision, finding recall, F1 where defined, false-positive/false-negative counts, determinism, runtime cost, cross-language consistency, and partial-evidence behavior against explicit labeled fixtures.
@@ -1346,6 +1349,8 @@ Features:
 
 Acceptance:
 
+* `software-review-calibration` is listed/described/run through the same default registry and shared experiment command owners in both installed-package and source-checkout modes.
+* The generic experiment command owner contains no calibration-specific parsing/input-loading branch.
 * Deterministic finding families have reproducible positive and negative fixtures.
 * Heuristic families expose labeled-case agreement and limitations rather than an unsupported universal precision claim.
 * Benchmark reports preserve language/analyzer/graph coverage and partial/unavailable evidence.
@@ -1577,6 +1582,8 @@ Existing options remain backward compatible:
 --out <path>
 --android
 ```
+
+`--include` remains the registered-detector area filter. v0.11.0 adds `source` to the recognized area vocabulary for production-source quality detectors, but the legacy no-flag `code-rot` default remains exactly `docs,tests,package,architecture,cli`. Type-aware defaults may add `source` only when an explicitly selected implemented type requires it. Security-adapter execution remains independent of `--include`, matching current behavior.
 
 Planned additions:
 
