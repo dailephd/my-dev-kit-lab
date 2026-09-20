@@ -693,9 +693,11 @@ Purpose:
 Features:
 
 * Before registering the second plugin, remove the current `experiment run` command owner's context-strategy-specific assumption for future plugins. Keep all existing context-strategy flags backward compatible, but do not add one new experiment-ID branch per future plugin.
-* Add one generic plugin-config path, `--config <path>`, owned by `runExperimentRunCommandFromArgs`. It loads a versioned JSON object and passes it to the selected plugin's `validateConfig`; relative paths resolve against invocation CWD. Existing context-strategy CLI flags remain supported as that plugin's legacy convenience surface and cannot be mixed with `--config` in the same run.
-* Make plugin-specific input/resource loading owned by the plugin or a plugin-owned adapter invoked through the generic runner contract, not by new experiment-ID branches in the command owner. The current context-strategy compatibility adapter may remain as legacy behavior, but new plugins must not extend that special-case chain.
-* Extend experiment metadata/config-description support so `experiment describe` can render plugin-provided examples or a generic `--config` example; it must not emit `--agents`/`--complexities` examples for plugins that do not declare those fields.
+* Add one generic plugin-config path, `--config <path>`, owned by `runExperimentRunCommandFromArgs`. The file uses a versioned envelope: `{ "schemaVersion": "1.0.0", "experimentId": "<id>", "config": { ... } }`. The envelope's `experimentId` must exactly match `--experiment`; malformed JSON, unsupported schema major, unknown envelope fields, or mismatch fail before plugin execution. The config-file path resolves against invocation CWD, while relative paths **inside** `config` resolve against the config file's directory through generic config-source metadata supplied to the plugin.
+* `--config` may be combined with the generic `--experiment`, `--target`, `--out`, and global `--workspace` surfaces. For `context-strategy-comparison`, it is mutually exclusive with the legacy plugin-specific convenience flags (`--cases`, `--project-profiles`, `--case`, `--benchmark-project`, `--agents`, `--strategies`, `--complexities`, timeout/run-count/continuation/real-agent/template flags, and `--no-screenshot`). Those legacy flags keep their current path/default behavior when `--config` is absent.
+* Extend `ExperimentPlugin` additively with an optional plugin-owned `resolveInputs` hook. `runExperiment` calls it after target/config/output resolution only when the programmatic caller did not already supply `RunExperimentOptions.inputs`; explicit programmatic inputs take precedence and bypass automatic input resolution. The hook receives validated config, target/tool/output context, and config-source base metadata, and returns the `inputs` object used by `ExperimentExecutionContext`.
+* Migrate the current context-strategy CLI input-loading branch into the context-strategy plugin's `resolveInputs`/plugin-owned helper while preserving its legacy artifacts and defaults. After v0.5.0, the generic command owner must not contain experiment-ID-specific input-loading branches.
+* Extend experiment metadata with optional plugin-owned CLI examples. `experiment describe` renders those when present; otherwise it renders a generic `--config <path>` run example. It must not emit `--agents`/`--complexities` examples for plugins that do not declare them.
 * Register the new `warm-index-reuse` plugin in the default registry so `experiment list`, `experiment describe --experiment warm-index-reuse`, and `experiment run --experiment warm-index-reuse` all expose it through both the installed CLI and source-checkout npm aliases in the same release.
 * Add warm-index-reuse experiment plugin.
 * Add setup step to index a project once.
@@ -709,8 +711,9 @@ Acceptance:
 
 * `my-dev-kit-lab experiment list` and `npm run experiment:list` both list `warm-index-reuse` from the same default registry.
 * Installed/source `experiment describe` and `experiment run` reach the same command owners and plugin registry; explicit `--config` has identical semantics in both entry paths except the already-established implicit installed-workspace versus source-checkout output root.
-* Existing `context-strategy-comparison` invocations and legacy flags remain backward compatible.
-* The generic experiment command owner contains no new warm-index-specific parsing/input-loading branch.
+* Existing `context-strategy-comparison` invocations and legacy flags remain backward compatible, and a config-file invocation of that plugin produces equivalent normalized config/input semantics for the same declared values.
+* The generic experiment command owner contains no context-strategy or warm-index experiment-ID-specific input-loading branch after the migration; plugin-specific input resolution is owned by the plugin hook.
+* Unit/integration tests prove `RunExperimentOptions.inputs` bypasses `resolveInputs`, while CLI runs without explicit programmatic inputs invoke the selected plugin's resolver exactly once.
 * Warm-index experiment runs with fake-agent.
 * Reports clearly separate one-time index cost from per-task retrieval cost.
 * Results do not overclaim token savings when token totals are unavailable.
