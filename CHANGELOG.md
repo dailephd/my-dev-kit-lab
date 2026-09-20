@@ -4,7 +4,9 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-Semantic native-select option selection for declarative browser tutorials (v0.4.9 candidate). This work is implemented and cross-platform validated but not published; the package version remains `0.4.8`.
+## [0.4.9] - 2026-09-20
+
+Semantic native-select option selection for declarative browser tutorials.
 
 - Added the value-only `select-option` declarative tutorial action, anchored to one existing `TutorialLocatorV1` and identifying a native HTML `<select>` option by its stable HTML `value`.
 - Executed the action through Playwright `Locator.selectOption({ value })` using the existing tutorial timeout model, with no retry.

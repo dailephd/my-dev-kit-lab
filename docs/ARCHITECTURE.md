@@ -393,7 +393,7 @@ Cross-repository boundary:
 ```mermaid
 flowchart LR
   Observer[my-frontend-observer<br/>deterministic demo template + product scenarios] --> Contract[trusted demo/target contract]
-  Contract --> Lab[my-dev-kit-lab generic tutorial runtime<br/>published v0.4.8 + unreleased v0.4.9]
+  Contract --> Lab[my-dev-kit-lab v0.4.9<br/>generic tutorial runtime]
   Lab --> Evidence[WebM + screenshots + SRT/VTT + Markdown + tutorial manifest]
 ```
 
@@ -451,9 +451,9 @@ Explicit non-goals:
 * No Observer-only selectors, fake drag handles, hidden tutorial controls, or alternate product interaction paths.
 * No change to FFmpeg/MP4/audio/gallery scope and no warm-index work.
 
-### Implemented v0.4.9 native-select extension (unreleased)
+### Released v0.4.9 native-select extension
 
-The v0.4.8 vocabulary could express keyboard input and pointer gestures, but had no way to say "choose the option whose value is X" in a native HTML `<select>`. Downstream consumers had to emulate selection with `ArrowDown` counts followed by `Enter`, which encodes a platform-sensitive navigation path instead of the intent. v0.4.9 adds one additive, value-only action to close that gap. It is implemented and cross-platform validated, but is not yet published; v0.4.8 remains the latest release.
+The v0.4.8 vocabulary could express keyboard input and pointer gestures, but had no way to say "choose the option whose value is X" in a native HTML `<select>`. Downstream consumers had to emulate selection with `ArrowDown` counts followed by `Enter`, which encodes a platform-sensitive navigation path instead of the intent. v0.4.9 adds one additive, value-only action to close that gap and is the current release.
 
 Ownership:
 
@@ -539,8 +539,8 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.8 pointer action execution and move steps (released) | `src/tutorial/tutorialActions.ts` |
 | v0.4.8 structural browser mouse interface (released) | `src/browser/types.ts` |
 | v0.4.8 generic tutorial browser fixture (released) | `examples/tutorial-browser/` |
-| v0.4.9 `select-option` action type and vocabulary (implemented, unreleased) | `src/tutorial/types.ts` |
-| v0.4.9 closed `select-option` validation (implemented, unreleased) | `src/tutorial/scenarioValidation.ts` |
-| v0.4.9 `selectOption` execution and returned-value verification (implemented, unreleased) | `src/tutorial/tutorialActions.ts` |
-| v0.4.9 structural browser `selectOption` interface (implemented, unreleased) | `src/browser/types.ts` |
-| v0.4.9 native-select cursor routing (implemented, unreleased) | `src/tutorial/tutorialSession.ts` |
+| v0.4.9 `select-option` action type and vocabulary (released) | `src/tutorial/types.ts` |
+| v0.4.9 closed `select-option` validation (released) | `src/tutorial/scenarioValidation.ts` |
+| v0.4.9 `selectOption` execution and returned-value verification (released) | `src/tutorial/tutorialActions.ts` |
+| v0.4.9 structural browser `selectOption` interface (released) | `src/browser/types.ts` |
+| v0.4.9 native-select cursor routing (released) | `src/tutorial/tutorialSession.ts` |
