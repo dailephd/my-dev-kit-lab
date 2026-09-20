@@ -204,6 +204,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Codex may expose token totals but can produce timeouts or invalid-output runs
 - Small projects may make raw-full-file cheaper than my-dev-kit-guided; larger localized tasks are where my-dev-kit is expected to become more useful
 - The generic experiment-plugin framework currently ships one plugin, `context-strategy-comparison`; future plugins such as warm-index reuse, incremental-change, and context-window scaling are not implemented yet
+- Broad six-dimension software review is planned for v0.10.x-v0.12.x, not implemented in v0.4.8. Current architecture review is limited to conservative drift/duplicate candidates; future work adds shared graph evidence, topology/extensibility analysis, quality, behavior/test evidence, evolution/change-cost evidence, non-security operational quality, unified project review, and calibration. Existing security validation remains the authoritative security subsystem rather than being reimplemented by that future track.
 - The current release does not guarantee token savings; it produces auditable evidence for specific cases, targets, agents, and strategies
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
 - The six new stage-context strategies have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration

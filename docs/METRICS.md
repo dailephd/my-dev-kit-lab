@@ -1,6 +1,6 @@
 # Metrics
 
-This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports.
+This document is the canonical metric glossary for my-dev-kit-lab. It defines every implemented metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports. It also records separately labeled **planned** metric contracts for future releases; planned metrics are not current v0.4.8 output.
 
 Related documentation:
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how metrics flow through the pipeline
@@ -441,3 +441,347 @@ Implemented in `src/evaluation/stageContextMetrics` and composed once per run by
 - Determinism and fixture self-immutability
   Meaning: reuses `calculateStageContextDeterminism`/`canonicalizeStageContextRun` (`v0.4.3`) to confirm repeated evaluations of the same fixture produce identical canonicalized results, and re-runs fixture hash verification to confirm the frozen bytes were not mutated by evaluation.
   Caveat: this is fixture-level self-immutability, not the `v0.4.3` live-target-mutation check — no live target repository is exercised by this evaluation path.
+
+
+## Planned software-review metrics (v0.10.x-v0.12.x)
+
+**Status: planned; not implemented.** Nothing in this section is emitted by the current v0.4.8 audit command.
+
+The software-review track uses established standards and published/software-tooling metrics wherever a defensible measure already exists. Lab-specific measures are permitted only when the existing literature does not directly answer the product question, and they must be labeled `lab-defined` rather than presented as industry standards.
+
+### Measurement principles
+
+1. **No universal software-quality score is assumed.** ISO/IEC 25023 explicitly does not assign universal measure ranges to grades because acceptable values depend on the system, software category, integrity level, and users' needs. Source: [ISO/IEC 25023:2016](https://www.iso.org/standard/35747.html).
+2. **ISO quality models guide classification, not tool architecture.** ISO/IEC 25010 provides a product-quality reference model; ISO/IEC 5055 defines automated source-code structural measures around Security, Reliability, Performance Efficiency, and Maintainability. The lab's six review dimensions are a product/reporting organization and are not claimed to be a complete ISO/IEC 25010 implementation. Sources: [ISO/IEC 25010:2023](https://www.iso.org/standard/78176.html), [ISO/IEC 5055:2021](https://www.iso.org/standard/80623.html).
+3. **ISO/IEC 5055 conformance must not be claimed from approximate lookalike metrics.** CISQ describes ISO 5055 as weakness-based automated structural measurement for Security, Reliability, Performance Efficiency, and Maintainability. The lab may use that model as a reference, but can claim an ISO-5055 measure only when the implemented rule set and calculation actually satisfy the applicable standard contract. Sources: [CISQ ISO 5055 overview](https://www.it-cisq.org/standards/code-quality-standards/), [CISQ code-quality rules](https://www.it-cisq.org/coding-rules/).
+4. **Raw measures precede thresholds.** Counts, ratios, distributions, and percentiles are reportable before a threshold is justified. Reference bands, project baselines, or benchmark percentiles are introduced only after v0.12.2 calibration. Source: [ISO/IEC 25023:2016](https://www.iso.org/standard/35747.html).
+5. **Missing evidence is never a good score.** Every planned metric uses `available`, `partial`, `unavailable`, or `not-applicable` availability and reports evidence coverage where the denominator can be established.
+6. **No overall arithmetic software-quality score is planned for v1.0.0.** A blocker or high-severity security/reliability problem must not be averaged away by healthy values elsewhere. The default project summary presents raw/derived measures, evidence coverage, and finding severity. Any future dimension index must be separately calibrated, versioned, and labeled experimental.
+7. **Metric provenance is mandatory.** Every implemented software-review metric must record its origin as `standard`, `published-literature`, `established-tooling`, or `lab-defined`, plus one or more source URLs.
+
+### Planned common metric metadata
+
+Future software-review metrics should expose, where applicable:
+
+- `id` — stable metric ID.
+- `dimension` — one or more of `behavior`, `architecture`, `security`, `operations`, `quality`, `evolution`.
+- `origin` — `standard`, `published-literature`, `established-tooling`, or `lab-defined`.
+- `sourceUrls` — non-empty URL list documenting the standard, publication, or established-tooling definition. Lab-defined metrics cite the closest motivating literature plus the lab definition.
+- `definitionVersion` — version of the formula/definition used by the lab.
+- `scope` — function, class/type, module/package, repository, change set, history window, or external delivery system.
+- `availability` — `available`, `partial`, `unavailable`, or `not-applicable`.
+- `value` and `unit` — count, ratio, percent, time, score, or other explicit unit.
+- `numerator` / `denominator` — required for ratios when meaningful.
+- `evidenceCoverage` — analyzed evidence divided by the eligible evidence population when that denominator is observable.
+- `confidence` — especially important for heuristic candidate measures.
+- `thresholdSource` — `none`, `configured-policy`, `project-baseline`, `benchmark-band`, or a versioned external standard/tool policy.
+- `calibrationVersion` — null until a lab calibration has been performed.
+
+### Architecture metrics
+
+#### Dependency cycles and strongly connected components
+
+- `dependencyCycleCount`
+  Meaning: number of detected dependency cycles or canonical cyclic components under the lab's versioned cycle-counting definition.
+  Origin: `lab-defined` graph summary over established dependency-graph concepts.
+  Source: [NDepend code metrics and dependency-cycle Level semantics](https://www.ndepend.com/docs/code-metrics).
+  Caveat: exact cycle counting can explode combinatorially, so the implementation must freeze whether it counts elementary cycles, strongly connected components, or both. The value is meaningless when graph coverage is incomplete without the accompanying coverage state.
+- `cyclicNodeCount` / `cyclicNodePercent`
+  Meaning: count and percentage of analyzed dependency nodes participating in a cyclic strongly connected component.
+  Formula: `cyclicNodePercent = cyclicNodeCount / eligibleAnalyzedNodeCount * 100`.
+  Origin: `lab-defined`.
+  Source: [NDepend code metrics](https://www.ndepend.com/docs/code-metrics).
+  Caveat: this is a graph-structure measure, not proof that a cycle is harmful.
+
+#### Afferent/efferent coupling and instability
+
+- `afferentCoupling` (`Ca`)
+  Meaning: incoming dependency count at the selected module/package scope.
+  Origin: `established-tooling`.
+  Source: [NDepend Code Metrics Definitions](https://www.ndepend.com/docs/code-metrics).
+- `efferentCoupling` (`Ce`)
+  Meaning: outgoing dependency count at the selected module/package scope.
+  Origin: `established-tooling`.
+  Source: [NDepend Code Metrics Definitions](https://www.ndepend.com/docs/code-metrics).
+- `instability` (`I`)
+  Meaning: relative outgoing versus total coupling.
+  Formula: `I = Ce / (Ca + Ce)` when the denominator is non-zero.
+  Origin: `established-tooling`.
+  Source: [NDepend Code Metrics Definitions](https://www.ndepend.com/docs/code-metrics).
+  Caveat: high or low instability is not universally good or bad; interpretation depends on the intended architectural role.
+
+#### Object-oriented design metrics
+
+When the language analyzer can actually establish the required object-oriented relationships, the lab may report the Chidamber-Kemerer suite:
+
+- `weightedMethodsPerClass` (WMC)
+- `depthOfInheritanceTree` (DIT)
+- `numberOfChildren` (NOC)
+- `couplingBetweenObjectClasses` (CBO)
+- `responseForClass` (RFC)
+- `lackOfCohesionOfMethods` (LCOM)
+
+Origin: `published-literature`.
+Source: [Chidamber and Kemerer, "A Metrics Suite for Object Oriented Design", IEEE Transactions on Software Engineering, 1994](https://sites.pitt.edu/~ckemerer/CK%20research%20papers/MetricForOOD_ChidamberKemerer94.pdf).
+
+Caveats:
+
+- These metrics are not applicable to every language or architectural style.
+- The exact WMC/LCOM interpretation and any implementation variant must be versioned rather than mixing formulas under one metric ID.
+- No universal good/bad threshold is assumed.
+
+#### Modifiability and extensibility change scenarios
+
+The lab's central "how expensive is it to add another variant?" question is modeled as a bounded change scenario rather than an invented universal architecture score.
+
+Two evidence classes must remain separate.
+
+**Static scenario evidence (v0.10.2, no real change set required):**
+
+- `staticExtensionImpactNodeCount`
+  Meaning: number of existing architecture-evidence nodes in the bounded impact set derived from the declared extension point/scenario.
+- `staticExtensionImpactModuleCount`
+  Meaning: number of existing modules represented in that static impact set.
+- `extensionPointTouchpointCount`
+  Meaning: number of existing declared contract/registry/dispatch touchpoints directly involved in the scenario.
+- `extensionPointBypassCount`
+- `parallelPipelineCandidateCount`
+- `missingAbstractionCandidateCount`
+- `pluginOpportunityCandidateCount`
+- `adapterOpportunityCandidateCount`
+
+These are `lab-defined` structural/candidate measures. They do **not** mean that any file, contract, or registry entry was actually modified.
+
+**Observed change evidence (available only with an actual bounded before/after change set, history record, or implementation experiment):**
+
+- `observedExistingFilesModified`
+- `observedExistingModulesModified`
+- `observedPublicContractsModified`
+- `observedRegistryEntriesModified`
+- `observedNewImplementationArtifactsAdded`
+
+Observed metrics report `unavailable` when no real change evidence exists. Static estimates and observed modifications never share one metric ID and are never substituted for one another.
+
+Origin: `lab-defined`, informed by scenario-based architecture modifiability/extensibility research.
+Sources:
+
+- [ALMA: Architecture-level modifiability analysis](https://www.sciencedirect.com/science/article/pii/S0164121203000803)
+- [EMSA: Extensibility Metric for Software Architecture](https://pure.kaist.ac.kr/en/publications/emsa-extensibility-metric-for-software-architecture/)
+
+Interpretation: a smaller static or observed impact for the same declared scenario can support an extensibility comparison, but it is not a universal proof of better architecture. Cross-project comparisons require calibrated context, and heuristic candidate counts must carry confidence and false-positive risk.
+
+### Quality and maintainability metrics
+
+#### Cyclomatic complexity
+
+- `cyclomaticComplexity`
+  Meaning: control-flow complexity for a supported function/method.
+  Formula: graph form `v(G) = E - N + 2` for a connected control-flow graph; implementations may use a proven equivalent formula when the language analyzer's representation differs.
+  Origin: `published-literature` / `established-tooling`.
+  Sources: [NIST SP 500-235, Structured Testing](https://www.nist.gov/publications/structured-testing-testing-methodology-using-cyclomatic-complexity-metric), [JaCoCo coverage counters](https://www.jacoco.org/jacoco/trunk/doc/counters.html).
+  Planned summaries: count, median, p90/p95, maximum, and distribution by function/module. No universal "complexity > X = bad" threshold is frozen before calibration.
+
+#### Cognitive complexity
+
+- `cognitiveComplexity`
+  Meaning: optional understandability-oriented control-flow metric when supplied by a compatible implementation.
+  Origin: `established-tooling`.
+  Source: [SonarQube metric definitions](https://docs.sonarsource.com/sonarqube-server/user-guide/code-metrics/metrics-definition).
+  Caveat: this is not a generic mathematical synonym for cyclomatic complexity. The lab must not claim Sonar-compatible cognitive complexity unless it implements or imports that defined metric correctly.
+
+#### Size and duplication
+
+- `nonCommentLinesOfCode` / `ncloc`
+  Meaning: non-comment physical code lines under the selected analyzer/tool definition.
+  Origin: `established-tooling`.
+  Source: [SonarQube metric definitions](https://docs.sonarsource.com/sonarqube-server/2026.1/user-guide/code-metrics/metrics-definition).
+- `duplicatedLines`
+  Meaning: number of lines participating in detected duplication under the selected duplication engine.
+  Origin: `established-tooling`.
+  Source: [SonarQube metric definitions](https://docs.sonarsource.com/sonarqube-server/2026.1/user-guide/code-metrics/metrics-definition).
+- `duplicatedLinesDensity`
+  Formula: `duplicatedLines / lines * 100`.
+  Origin: `established-tooling`.
+  Source: [SonarQube metric definitions](https://docs.sonarsource.com/sonarqube-server/2026.1/user-guide/code-metrics/metrics-definition).
+  Caveat: duplication-engine token/statement rules differ by language/tool, so provenance must identify the engine.
+
+#### Structural weakness counts and density
+
+Where the lab implements a traceable rule mapping:
+
+- `structuralWeaknessCount`
+- `structuralWeaknessDensityPerKloc = structuralWeaknessCount / analyzedKloc`
+
+Origin: `standard` when the underlying weakness set is demonstrably mapped to the relevant ISO/IEC 5055/CISQ measure; otherwise `lab-defined`.
+Sources: [ISO/IEC 5055:2021](https://www.iso.org/standard/80623.html), [CISQ ISO 5055 code-quality standards](https://www.it-cisq.org/standards/code-quality-standards/), [CISQ benchmarking and density measures](https://www.it-cisq.org/benchmarking/).
+
+Caveat: the lab must not label arbitrary internal findings as an ISO/IEC 5055 score merely because they fall under maintainability, reliability, performance, or security.
+
+### Behavior and test metrics
+
+#### Coverage
+
+When actual coverage artifacts are supplied by a supported tool:
+
+- `lineCoveragePercent`
+  Meaning: percentage of executable/source lines covered according to the producing coverage tool.
+  Origin: `established-tooling`.
+  Source: [JaCoCo coverage counters](https://www.jacoco.org/jacoco/trunk/doc/counters.html).
+- `branchCoveragePercent`
+  Meaning: executed branch outcomes divided by total branch outcomes according to the producing coverage tool.
+  Origin: `established-tooling`.
+  Source: [JaCoCo coverage counters](https://www.jacoco.org/jacoco/trunk/doc/counters.html).
+- `coveredComplexity` / `missedComplexity`
+  Meaning: cyclomatic complexity associated with covered versus missed branches/paths when exposed by the producing tool.
+  Origin: `established-tooling`.
+  Source: [JaCoCo coverage counters](https://www.jacoco.org/jacoco/trunk/doc/counters.html).
+
+Caveat: static source-to-test mapping is not coverage and must never be reported as coverage.
+
+#### Mutation testing
+
+- `mutationScore`
+  Meaning: fraction of non-equivalent generated mutants killed by the test suite.
+  Formula: `killedMutants / (totalMutants - equivalentMutants)` when equivalent-mutant classification is available.
+  Origin: `published-literature`.
+  Sources: [Mutation testing in industry: traditional versus extreme mutation testing](https://onlinelibrary.wiley.com/doi/full/10.1002/smr.2450), [Equivalent mutant limitations](https://onlinelibrary.wiley.com/doi/10.1002/stvr.1473).
+  Caveat: equivalent mutants and computational cost can materially distort or limit this metric. Mutation testing is optional advanced evidence, not a default audit requirement.
+
+#### Direct and lab-specific behavior evidence
+
+- `testPassRate = passedConfiguredTests / executedConfiguredTests`
+  Origin: `lab-defined` direct observation.
+  Source basis: [JaCoCo coverage counters](https://www.jacoco.org/jacoco/trunk/doc/counters.html) for the distinction between execution/coverage measures; the pass-rate formula itself is a lab report measure over observed test outcomes.
+- `testSymbolMappingCoverage`
+  Meaning: proportion of eligible production symbols/modules for which the lab can establish a static test relationship.
+  Origin: `lab-defined`.
+  Source basis: [ISO/IEC 25023:2016](https://www.iso.org/standard/35747.html) for explicit quantitative quality measurement; this mapping is a lab evidence measure and is not a standard coverage metric.
+  Caveat: it must be labeled "mapping coverage", never "test coverage".
+
+### Security metrics
+
+Security remains owned by `security:validate`. The project audit consumes its evidence rather than calculating a parallel security score.
+
+Planned project-summary measures:
+
+- finding counts by severity and finding family;
+- `applicableSecurityCheckCoverage = completedApplicableChecks / applicableChecks`;
+- skipped/unavailable optional-check counts;
+- `securityWeaknessDensityPerKloc` only when the weakness rule set and analyzed KLOC denominator are traceable.
+
+Sources: [ISO/IEC 5055:2021](https://www.iso.org/standard/80623.html), [CISQ Security/ISO 5055 overview](https://www.it-cisq.org/standards/code-quality-standards/).
+
+When an upstream scanner supplies CVSS v4 evidence:
+
+- preserve the CVSS score **and vector**;
+- identify the nomenclature (`CVSS-B`, `CVSS-BT`, `CVSS-BE`, or `CVSS-BTE`);
+- do not reinterpret CVSS severity as complete business risk;
+- do not average CVSS values into a home-grown repository health score.
+
+Source: [FIRST CVSS v4.0 Specification](https://www.first.org/cvss/v4.0/specification-document).
+
+### Operations metrics
+
+Source-level operational review should distinguish structural reliability/performance evidence from observed production delivery performance.
+
+#### Structural reliability and performance-efficiency weakness measures
+
+Planned measures can include weakness count and weakness density per KLOC for supported reliability/performance rules.
+
+Origin: `standard` only when rule mappings satisfy the selected ISO/IEC 5055/CISQ contract; otherwise `lab-defined`.
+Sources: [ISO/IEC 5055:2021](https://www.iso.org/standard/80623.html), [CISQ Performance Efficiency](https://www.it-cisq.org/standards/code-quality-standards-performance-efficiency/), [CISQ ISO 5055 overview](https://www.it-cisq.org/standards/code-quality-standards/).
+
+Lab-specific candidate counts such as cleanup gaps, missing timeout evidence, unbounded retry candidates, error-propagation gaps, observability gaps, and static repeated-work candidates remain `lab-defined`; they require explicit evidence rules and calibration before any threshold is called healthy/unhealthy.
+
+#### Delivery-performance metrics
+
+DORA's delivery metrics are optional external operational evidence, not metrics inferable from source code:
+
+- change lead time;
+- deployment frequency;
+- failed deployment recovery time;
+- change fail rate;
+- deployment rework rate.
+
+Origin: `published/established industry research`.
+Source: [DORA software delivery performance metrics](https://dora.dev/guides/dora-metrics/).
+
+Caveat: these metrics are unavailable unless deployment/CI/CD evidence is explicitly supplied. The lab must never synthesize them from Git history alone.
+
+### Evolution metrics
+
+#### Code churn
+
+Planned history measures include lines added, deleted, and modified per component/change set and a versioned relative-churn normalization.
+
+Origin: `published-literature`.
+Source: [Nagappan and Ball, "Use of Relative Code Churn Measures to Predict System Defect Density"](https://www.microsoft.com/en-us/research/publication/use-of-relative-code-churn-measures-to-predict-system-defect-density/).
+
+Caveat: the paper evaluates a suite of relative churn measures; the lab must freeze the exact chosen normalization and definition version rather than use the vague label "relative churn" for multiple formulas.
+
+#### Evolutionary coupling by co-committal
+
+- `coCommittalFrequency` (CCF)
+  Meaning: absolute number of commits in which a pair of artifacts is modified together.
+  Origin: `published-literature`.
+- `coCommittalStrength` (CCS)
+  Meaning: directional percentage of an artifact's commits in which the paired artifact is also modified.
+  Example formula: `CCS(A -> B) = commitsTouchingBoth(A,B) / commitsTouching(A) * 100`.
+  Origin: `published-literature`.
+
+Source for both: [Price, Cutting, and Garousi, "Is Code Co-Committal an Indicator of Evolutionary Coupling in Software Repositories?", 2026](https://www.mdpi.com/2674-113X/5/1/11).
+
+Caveat: the study finds co-committal useful only under particular observable development conditions. CCF/CCS are indicators of possible evolutionary coupling, not proof of a bad module boundary.
+
+#### Historical impact and hotspot candidates
+
+- `historicalChangeSetSize`
+- `historicalModuleImpactCount`
+- `changeHotspotCandidateCount`
+
+Origin: `lab-defined`.
+Source basis: [Nagappan and Ball relative churn research](https://www.microsoft.com/en-us/research/publication/use-of-relative-code-churn-measures-to-predict-system-defect-density/) and [Price et al. co-committal research](https://www.mdpi.com/2674-113X/5/1/11).
+
+These measures must report the history window, commit count, exclusion rules, and evidence coverage.
+
+### Calibration metrics (v0.12.2)
+
+Where fixtures provide explicit ground truth:
+
+- `findingPrecision = truePositiveFindings / (truePositiveFindings + falsePositiveFindings)`
+- `findingRecall = truePositiveFindings / (truePositiveFindings + falseNegativeFindings)`
+- `findingF1` as the harmonic mean of precision and recall when both are defined;
+- explicit false-positive and false-negative counts;
+- determinism and runtime cost;
+- cross-language consistency and evidence-coverage breakdown.
+
+Origin: `established-tooling/statistical evaluation`.
+Source: [scikit-learn precision/recall definitions](https://scikit-learn.org/stable/auto_examples/model_selection/plot_precision_recall.html).
+
+For heuristic findings such as missing abstractions, labeled fixtures express curator judgment rather than universal truth. Their calibration reports agreement/precision/recall for that fixture corpus and must not be generalized beyond the benchmark population without evidence.
+
+### Planned reporting format
+
+The default software-review dashboard should show raw/derived metrics, evidence coverage, and serious finding counts rather than one opaque score. Example:
+
+```text
+ARCHITECTURE
+Graph evidence coverage              94.2%
+Cyclic nodes                         14 / 237 (5.9%)
+Median / p95 efferent coupling       3 / 14
+Median / p95 instability             0.42 / 0.81
+Extension-point bypass candidates    2
+
+QUALITY
+Median / p95 cyclomatic complexity   3 / 12
+Duplicated-lines density             4.6%
+Structural weakness density          unavailable
+
+BEHAVIOR
+Line coverage                        81.4%
+Branch coverage                      72.8%
+Mutation score                       unavailable
+Configured tests                     412 / 412 passed
+```
+
+Reference percentiles/bands may be added after v0.12.2 using an identified benchmark population or project baseline. No default `architectureHealthIndex`, `qualityHealthIndex`, six-dimension 0-100 score, or overall arithmetic software-quality score is planned for v1.0.0.

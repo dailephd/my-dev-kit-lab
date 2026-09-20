@@ -147,6 +147,69 @@ sequenceDiagram
   Report-->>User: plugin-aware and legacy outputs
 ```
 
+## Planned multi-plugin command generalization (v0.5.0)
+
+The current experiment runtime is generic, but the current `runExperimentRunCommandFromArgs` still contains context-strategy-specific CLI/config/input behavior. Before `warm-index-reuse` becomes the second registered plugin, v0.5.0 must remove that future scalability trap without breaking the existing context-strategy surface.
+
+```mermaid
+flowchart LR
+  Installed[my-dev-kit-lab experiment run] --> Owner[runExperimentRunCommandFromArgs]
+  Source[npm run experiment:run --] --> Owner
+  Owner --> Generic[generic flags: experiment / target / out / config]
+  Owner --> Legacy[legacy context-strategy flags<br/>compatibility only]
+  Generic --> Registry[default experiment registry]
+  Legacy --> Registry
+  Registry --> Plugin[registered plugin]
+  Plugin --> Validate[plugin.validateConfig]
+  Plugin --> Inputs[plugin-owned input/resource loading]
+  Plugin --> Runner[runExperiment]
+  Runner --> Reports[shared plugin report writers]
+```
+
+Planned rules:
+
+* Add `--config <path>` as the generic plugin configuration input. The file uses an `ExperimentConfigFileV1` envelope: `{ schemaVersion: "1.0.0", experimentId, config }`. The envelope ID must match `--experiment`; the command owner validates the envelope and passes only `config` to the selected plugin's existing `validateConfig`. File-mode `config` cannot contain command-owned routing/output keys (`outDir`, `outputRoot`, `targetPath`, `experimentId`); `--target`/`--out` own those values. Programmatic `RunExperimentOptions.config` retains its existing compatibility semantics.
+* The config file path resolves against invocation CWD. The command context carries generic `configSource.filePath` and `configSource.baseDir` metadata so plugin-owned relative paths resolve against the config file directory instead of packageRoot or an undocumented process CWD.
+* `--config` may coexist only with generic routing/output options (`--experiment`, `--target`, `--out`, and global `--workspace`). It is mutually exclusive with the context-strategy plugin's legacy convenience flags; those legacy flags retain current semantics when `--config` is absent.
+* Extend `ExperimentPlugin` additively with optional `resolveInputs(context)`. `runExperiment` invokes it after config/target/output resolution only when `RunExperimentOptions.inputs` was not explicitly supplied. Programmatic `inputs` take precedence and bypass automatic resolution, preserving existing test/integration injection seams.
+* Migrate the current context-strategy command-side `loadPluginInputs` behavior into the plugin's `resolveInputs` or a plugin-owned helper. After v0.5.0, new plugins do not add experiment-ID branches to the command owner for input/resource loading.
+* Extend plugin metadata with optional CLI examples. `experiment describe` renders plugin-owned examples when present, otherwise a generic `--config <path>` example. It must not generate context-strategy-specific flags for unrelated plugins. Plugins advertising file-config support use a closed validator/config definition for supported keys; the shared envelope is closed independently.
+* `experiment list`, `experiment describe`, and `experiment run` continue to use `createDefaultExperimentPluginRegistry`; a plugin is not public until all three surfaces see the same registration in both installed and source-checkout modes.
+* The existing installed/source implicit output-root difference remains intentional. Explicit `--config`, `--target`, and `--out` paths have identical semantics in both entry paths.
+* This generalization is a v0.5.0 prerequisite for every later plugin, including incremental-change, context-window, retrieval, agent-success, and `software-review-calibration`.
+
+### Planned generic experiment config and input-resolution contract
+
+```ts
+type ExperimentConfigFileV1 = {
+  schemaVersion: "1.0.0";
+  experimentId: string;
+  config: Record<string, unknown>;
+};
+
+type ExperimentConfigSourceV1 = {
+  filePath: string;
+  baseDir: string;
+};
+
+type ExperimentInputResolutionContext<TConfig> = {
+  toolRoot: string;
+  target: ExperimentTarget;
+  outputRoot: string;
+  config: TConfig;
+  configSource?: ExperimentConfigSourceV1;
+};
+
+interface ExperimentPlugin<TConfig = unknown, TResult extends ExperimentRun = ExperimentRun> {
+  // existing metadata/defaultConfig/configDefinition/validateConfig/prepare/run/summarize/cleanup
+  resolveInputs?(
+    context: ExperimentInputResolutionContext<TConfig>
+  ): Promise<Record<string, unknown> | undefined> | Record<string, unknown> | undefined;
+}
+```
+
+Runner rule: explicit `RunExperimentOptions.inputs` wins. Otherwise the selected plugin's `resolveInputs` is called at most once and its result becomes `ExperimentExecutionContext.inputs`. The generic command owner never interprets plugin-specific case/profile/resource fields.
+
 ## Stage-context evaluation architecture (v0.4.3)
 
 Implemented and published. It extends the `context-strategy-comparison` plugin and its report layer rather than creating a parallel runner, evaluation system, or report system.
@@ -451,11 +514,254 @@ Explicit non-goals:
 * No Observer-only selectors, fake drag handles, hidden tutorial controls, or alternate product interaction paths.
 * No change to FFmpeg/MP4/audio/gallery scope and no warm-index work.
 
+## Planned software-review architecture (v0.10.x-v0.12.x)
+
+This section describes planned architecture only. None of the contracts or flows below are implemented in the current v0.4.8 release.
+
+The literature/standards review does **not** require replacing the planned implementation architecture. ISO/IEC 25010 defines a product-quality reference model, ISO/IEC 25023 defines product-quality measurement guidance, and ISO/IEC 5055 defines automated structural source-code quality measures; these standards constrain taxonomy, measurement definitions, provenance, and interpretation rather than prescribing a runner/registry/report implementation. The lab therefore keeps the existing architectural direction: one audit runner, shared evidence collectors, registered detectors, the existing issue/report contracts, and the independently authoritative security subsystem.
+
+The planned review track extends the existing audit pipeline instead of creating a second architecture/quality runner. The central planned addition is one reusable architecture-evidence layer that can combine existing lab inventory/source facts with bounded, version-checked my-dev-kit graph evidence and then expose that evidence additively through `AuditDetectorContext`.
+
+```mermaid
+flowchart LR
+  Target[Target repository] --> Inventory[Existing project inventory]
+  Target --> SourceFacts[Existing SourceFactsSnapshot]
+  MDK[Supported my-dev-kit graph artifacts] --> Adapter[Planned bounded graph adapter]
+  Inventory --> ArchitectureEvidence[Planned ArchitectureEvidenceSnapshot]
+  SourceFacts --> ArchitectureEvidence
+  Adapter --> ArchitectureEvidence
+  ArchitectureEvidence --> Context[Existing AuditDetectorContext + additive architecture evidence]
+  Context --> Detectors[Existing AuditDetector registry]
+  Detectors --> Issues[Existing AuditIssue model]
+  Issues --> Reports[Existing AuditReportModel + JSON/text renderers]
+  Security[Existing securityValidation owner] --> SecurityAdapter[Existing security audit adapter]
+  SecurityAdapter --> Issues
+```
+
+Planned ownership rules:
+
+* **One architecture evidence collector:** graph artifacts should be validated and normalized once per audit run, analogous to inventory/source-facts collection. Cycle, topology, extensibility, quality, behavior, and evolution detectors must not each parse my-dev-kit artifacts independently.
+* **Exact evidence boundaries:** graph schema/version, target identity, path containment, analyzer coverage, unresolved edges, and partial/unavailable evidence must be preserved. Unsupported evidence is never silently treated as zero or complete.
+* **Existing detector/report contracts remain primary:** findings continue to use `AuditDetector`, `AuditIssue`, the existing audit runner, and additive audit-report fields. A new detector must not introduce its own command or report engine.
+* **Security remains independently authoritative:** security validation, Android validation, attack scenarios, optional scanners, and security verdict policy remain owned by `src/securityValidation`. Project-wide software review consumes confirmed security findings through `src/audits/security` rather than duplicating those checks.
+* **Six review dimensions are product/reporting classification, not an ISO conformance claim:** the complete `all` software-review view organizes evidence under behavior, architecture, security, operations, quality, and evolution. The `project` audit type itself owns only architecture, behavior, evolution, and operations; quality and security remain separate audit/security owners combined only by `all`. ISO/IEC 25010 and ISO/IEC 5055 inform metric terminology and mapping, but the six lab dimensions are not asserted to equal the complete ISO quality model. A finding may map to more than one lab dimension while the underlying detector/evidence owner remains single.
+* **Metric provenance is part of the evidence contract:** future review metrics record origin (`standard`, `published-literature`, `established-tooling`, or `lab-defined`), source URL(s), definition version, scope, availability, evidence coverage, threshold source, and calibration version where applicable.
+* **No universal score is an architectural requirement:** the default report model carries raw/derived measures, evidence coverage, and findings. ISO/IEC 25023-style context dependence is preserved by keeping thresholds/reference bands separate from raw measurements; v0.12.2 may calibrate benchmark/project reference bands without making an opaque overall score the primary contract.
+* **Heuristic architecture conclusions stay candidates:** missing-abstraction, plugin-opportunity, adapter-opportunity, cohesion, and similar intent-sensitive findings must expose confidence/false-positive risk and the deterministic evidence they are based on.
+* **Scenario-based extensibility remains additive evidence:** v0.10.2 models "add another variant" as an explicit change scenario and reports static extension-point/touchpoint/impact-set evidence informed by ALMA/EMSA-style architecture modifiability analysis. It does not label hypothetical files/contracts as "modified." Observed modification counts require an actual before/after change set from history or an experiment and use separate metric IDs.
+* **History and runtime evidence are separate inputs:** v0.11.2 may add bounded read-only Git history for churn/co-committal evidence. Runtime profiling and DORA delivery metrics are not implied by static architecture evidence and require separate explicitly supplied evidence sources.
+
+
+### Planned audit command ownership and exposure parity
+
+The future software-review command surface preserves the v0.4.6 command-owner correction instead of reintroducing source/installed divergence.
+
+```mermaid
+flowchart LR
+  Installed[my-dev-kit-lab audit] --> Router[src/cli/runLabCli.ts]
+  Router --> Owner[src/commands/runAuditCommand.ts<br/>runAuditCommandFromArgs]
+  Source[npm run audit --] --> Thin[scripts/audits/runAudit.ts<br/>thin adapter only]
+  Thin --> Owner
+  Contract[planned src/audits/core/auditCliContract.ts<br/>flag/value/help contract] --> Owner
+  Contract --> Config[src/audits/core/auditConfig.ts]
+  Owner --> Config
+  Owner --> Runner[src/audits/core/auditRunner.ts]
+  Runner --> Registry[AuditDetector registry]
+  Runner --> Security[src/audits/security adapter]
+  Runner --> Reports[src/audits/report]
+```
+
+Planned ownership rules:
+
+* `runLabCli` owns only top-level `audit` routing and the global `--workspace` option. It must never parse software-review-specific audit flags.
+* `scripts/audits/runAudit.ts` remains a thin source-checkout adapter and must never gain an independent parser, help text, default policy, or report logic.
+* `runAuditCommandFromArgs` remains the single command owner for audit help, argument/config normalization, target/evidence resolution, execution, report writing, and fatal error mapping.
+* The first new public review flags (v0.10.1) add one shared audit CLI contract under `src/audits/core` so parser-recognized flags and rendered usage/help cannot drift. Existing `AUDIT_USAGE` semantics are preserved through that owner.
+* `auditConfig.ts` remains the normalized configuration owner. New evidence flags become explicit typed fields; invalid flag combinations fail before `runAudit`.
+* `runAudit` remains the single execution owner. Shared inventory, source facts, architecture evidence, optional history/test evidence, and project metadata are collected once and passed through one detector context. For `all`, normalized configuration keeps requested versus expanded types separate; `all` is never a detector audit type, registered non-security detectors still execute once in registry order, and security remains a single adapter invocation after that detector loop.
+* Installed/source parity is mandatory for every release that adds an audit option. Tests must exercise both entry paths with the same option matrix and compare normalized selection/configuration, report semantics, and exit behavior.
+* The existing implicit-output-root difference is intentional and remains documented: installed execution defaults under `workspaceRoot`; source-checkout execution defaults under the package/repository root. Explicit `--out` and all other explicit paths have identical semantics. New selector directory names are based on the requested selector (`project`, `quality`, `all`), not the first expanded type; new explicit multi-type combinations use a deterministic combined-type slug while the existing `code-rot,security` legacy path is preserved.
+
+The staged public exposure is:
+
+```text
+v0.10.1  project audit + architecture dimension
+v0.10.2  project/architecture gains extensibility and reuse evidence
+v0.11.0  quality audit
+v0.11.1  project gains behavior
+v0.11.2  project gains evolution
+v0.12.0  project gains operations
+v0.12.1  all aggregate + HTML audit report
+```
+
+`project` therefore is **not** an internal-only capability waiting until v0.12.1. The first architecture-review release exposes it through both supported audit entry paths.
+
+The existing `--include` contract remains the detector-area filter. v0.11.0 adds a `source` area for production-source quality detectors using type-aware defaults, while the legacy no-flag code-rot default remains exactly `docs,tests,package,architecture,cli`. Evidence collectors may still gather shared facts once even when no selected detector consumes them; `--include` controls detector eligibility, not security-adapter execution.
+
+#### Planned review configuration contract
+
+The first public project audit also introduces a versioned, declarative `ReviewConfigV1` input for evidence that cannot be inferred safely:
+
+```ts
+type ReviewTestCommandV1 = {
+  id: string;
+  argv: readonly string[];
+  cwdRelative?: string;
+  timeoutMs: number;
+};
+
+type ReviewSymbolSelectorV1 = {
+  relativePath: string;
+  symbolName: string;
+  symbolKind?: "class" | "interface" | "type" | "function" | "enum" | "variable" | "constant";
+};
+
+type ReviewConfigV1 = {
+  schemaVersion: "1.0.0";
+  architecture?: {
+    layers?: readonly {
+      id: string;
+      pathPrefixes: readonly string[];
+      mayDependOn: readonly string[];
+    }[];
+    extensionPoints?: readonly {
+      id: string;
+      contract: ReviewSymbolSelectorV1;
+      registry?: ReviewSymbolSelectorV1;
+    }[];
+    changeScenarios?: readonly {
+      id: string;
+      description: string;
+      featureFamily?: string;
+      extensionPointId?: string;
+    }[];
+  };
+  behavior?: {
+    testCommands?: readonly ReviewTestCommandV1[];
+  };
+};
+```
+
+The serialized contract is closed for the supported schema version: unknown fields fail rather than being silently ignored. IDs are unique within their collections. `pathPrefixes` are normalized repository-relative POSIX prefixes only; absolute paths, `..`, glob syntax, and symlink traversal are invalid. v1 rejects overlapping layer prefixes rather than inventing hidden precedence. Layer self-dependency is implicitly allowed; `mayDependOn` lists additional declared layer IDs and every reference must resolve. Files outside all declared layer prefixes are unclassified, never automatic violations; layer-rule evidence reports classified/unclassified coverage. Symbol selectors use repository-relative path + symbol name (+ optional kind) to prevent name-only ambiguity. A configured selector that cannot be uniquely resolved is reported as an explicit requested-policy/evidence problem according to analyzer availability; it is never silently rebound. Test commands are structured argv only, run with `shell:false`, and are executable only after the explicit `--run-target-tests` opt-in. `cwdRelative` must remain within the disposable target copy, `timeoutMs` must be a positive bounded integer, and the v1 config has no arbitrary environment mutation. The config expresses review evidence/policy; it never authorizes source edits.
+
+### Planned review metric evidence contract
+
+A future metric model should remain additive to audit evidence and should not become a second verdict engine. A code-shaped target is:
+
+```ts
+type ReviewDimensionV1 =
+  | "behavior"
+  | "architecture"
+  | "security"
+  | "operations"
+  | "quality"
+  | "evolution";
+
+type ReviewMetricOriginV1 =
+  | "standard"
+  | "published-literature"
+  | "established-tooling"
+  | "lab-defined";
+
+type ReviewMetricAvailabilityV1 =
+  | "available"
+  | "partial"
+  | "unavailable"
+  | "not-applicable";
+
+type ReviewMetricV1 = {
+  id: string;
+  dimensions: readonly ReviewDimensionV1[];
+  origin: ReviewMetricOriginV1;
+  sourceUrls: readonly [string, ...string[]];
+  definitionVersion: string;
+  scope: string;
+  availability: ReviewMetricAvailabilityV1;
+  value: number | null;
+  unit: string;
+  numerator?: number;
+  denominator?: number;
+  evidenceCoverage?: number;
+  confidence?: "high" | "medium" | "low";
+  thresholdSource:
+    | "none"
+    | "configured-policy"
+    | "project-baseline"
+    | "benchmark-band"
+    | "external-policy";
+  calibrationVersion?: string | null;
+};
+```
+
+The exact implementation type may evolve during version planning, but the semantics are fixed: source URLs and formula provenance travel with the metric; unavailable/partial evidence is explicit; ratios retain their denominators; and calibrated interpretation is separate from the raw measurement.
+
+The canonical planned metric definitions and research URLs are maintained in [METRICS.md](METRICS.md). The architecture layer must not independently redefine those formulas.
+
+### Planned issue-dimension and aggregate contract
+
+The six-dimension combined report is an additive view over the existing issue model, not a replacement severity/verdict system.
+
+```ts
+type ReviewDimensionV1 =
+  | "behavior"
+  | "architecture"
+  | "security"
+  | "operations"
+  | "quality"
+  | "evolution";
+
+// Additive field on AuditIssue by v0.12.1.
+type AuditIssueReviewDimensionsV1 = {
+  reviewDimensions: readonly [ReviewDimensionV1, ...ReviewDimensionV1[]];
+};
+```
+
+Rules:
+
+* `all` is a command selector only and must never be assigned to `AuditDetector.auditType`.
+* `code-rot`, `quality`, and `project` detectors execute through the existing detector registry. The security type remains the existing adapter executed once after the detector loop.
+* Existing code-rot findings receive explicit reviewed mappings to one or more dimensions by v0.12.1; there is no blanket rule that every code-rot issue is a quality issue.
+* Security-adapter findings receive the `security` dimension while preserving their original security report/finding identity.
+* One issue may appear in several dimension views, but the underlying issue exists once. Total issue count comes from the deduplicated issue set, never the sum of dimension counts.
+* A finding in an `all` report without an explicit review dimension is a contract/test failure, not silently placed into an "other" bucket.
+
+### Planned production owners for software review
+
+These paths define ownership, not parallel frameworks:
+
+| Planned owner | Responsibility |
+|---|---|
+| `src/audits/core/auditCliContract.ts` | One source of truth for audit flags, values, help rendering metadata, and staged option availability |
+| `src/audits/core/auditConfig.ts` | Raw-to-normalized audit config, requested/expanded types, dimensions, type-aware include defaults, option-combination validation |
+| `src/audits/core/reviewConfig.ts` | `ReviewConfigV1` parsing, closed-schema/path/reference validation |
+| `src/audits/core/reviewMetric.ts` | `ReviewDimensionV1`, `ReviewMetricV1`, provenance/availability validation |
+| `src/audits/core/architectureEvidence.ts` | `ArchitectureEvidenceSnapshot` contract and shared availability/coverage model |
+| `src/audits/core/readMyDevKitArchitectureEvidence.ts` | Version/identity/path-safe adapter from supported my-dev-kit graph artifacts |
+| `src/audits/core/historyEvidence.ts` | v0.11.2 bounded read-only Git history/churn/co-committal evidence |
+| `src/audits/quality/detectors/` | v0.11.0 quality detector implementations registered into the existing audit registry |
+| `src/audits/project/detectors/` | Architecture/behavior/evolution/operations project detectors, added by their owning versions |
+| `src/audits/report/` | Existing report model/renderers extended additively for metrics, dimensions, availability, HTML |
+| `src/experiments/config.ts` | v0.5.0 generic `ExperimentConfigFileV1` loading/config-source metadata |
+| `src/experiments/types.ts` | additive plugin `resolveInputs`/config-source contract |
+| `src/experiments/plugins/softwareReviewCalibration/` | v0.12.2 calibration plugin; invokes audit/review programmatically |
+| `src/commands/runAuditCommand.ts` | unchanged single audit command owner |
+| `src/commands/runExperimentRunCommand.ts` | unchanged single experiment-run command owner after generic config generalization |
+
+No new top-level `src/review/` runner, second audit registry, second command parser, or review-specific report framework is planned.
+
 The following layers remain planned and must not be treated as current behavior:
 
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
-- the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
-- cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
+- the v0.10.0 shared architecture-evidence snapshot/adapter and repository graph consumption
+- v0.10.1 deterministic architecture topology analysis (cycles, fan-in/fan-out, static blast radius, and explicit-rule dependency direction)
+- v0.10.2 extensibility/reuse analysis (extension-point bypass, parallel architecture, static extension-impact evidence, and candidate missing abstractions/plugins/adapters)
+- the `quality` audit type and v0.11.0 maintainability/complexity analysis
+- v0.11.1 behavior/test evidence and optional explicitly configured sandboxed target-test evidence
+- v0.11.2 read-only history/change-coupling/change-cost evidence
+- v0.12.0 non-security operational-quality/resilience analysis
+- the `project` audit selection and architecture dimension planned for v0.10.1, with behavior/evolution/operations added incrementally through v0.12.0
+- the `all` aggregate selection, cross-type deduplication, and complete six-dimension combined view planned for v0.12.1
+- the v0.12.2 software-review benchmark/calibration suite
 - a human-led manual pentest workflow after `v1.0.0`
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success (`v0.5.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
@@ -463,7 +769,7 @@ The following layers remain planned and must not be treated as current behavior:
 
 `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published (see "Stage-context evaluation architecture (v0.4.3)" above). `v0.4.5` context-integrity evaluation is implemented and published (see "Context-integrity evaluation architecture (v0.4.5)" above).
 
-Future audit work should reuse `src/audits/core`, `src/audits/security`, target metadata, the normalized issue schema, and shared reports. It must not replace the experiment runtime, duplicate report/gallery systems, or absorb `security:validate` into the audit framework.
+Future audit/review work should reuse `src/audits/core`, `src/audits/security`, target metadata, source facts, the normalized issue schema, and shared reports. Shared graph/history evidence should be collected once and added to the existing detector context rather than parsed independently by each detector. Future review work must not replace the experiment runtime, duplicate report/gallery systems, create one command per review dimension, or absorb `security:validate` into the audit framework.
 
 ## Key contracts
 

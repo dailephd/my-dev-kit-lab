@@ -81,15 +81,25 @@ The audit framework, language-aware code-rot detectors, security adapter, Androi
 
 The following remain planned, not implemented:
 
-- the `quality` code-quality detector family and audit type
-- project-wide default audit behavior combining multiple audit types (`project`/`all` audit types)
-- cross-type issue deduplication or release-readiness aggregation across audit families
+- the `quality` code-quality detector family and audit type (planned for v0.11.0)
+- the `project` audit type and public architecture dimension (planned for v0.10.1), with behavior/evolution/operations dimensions added in v0.11.1/v0.11.2/v0.12.0
+- the `all` aggregate audit selection, six-dimension combined review summaries, HTML audit output, and cross-type deduplication (planned for v0.12.1)
+- a shared architecture-evidence adapter/snapshot over supported my-dev-kit graph artifacts (planned for v0.10.0)
+- deterministic dependency-cycle, fan-in/fan-out, static blast-radius, and policy-backed dependency-direction analysis (planned for v0.10.1)
+- extensibility/reuse analysis including extension-point bypass, parallel-pipeline candidates, static extension-impact evidence, and candidate missing abstractions/plugins/adapters (planned for v0.10.2)
+- behavior/test evidence mapping and optional sandboxed target-test evidence (planned for v0.11.1)
+- read-only Git history, change-coupling, hotspot, and change-cost evidence (planned for v0.11.2)
+- non-security operational-quality/resilience analysis for resource lifecycle, timeout/retry/error propagation, observability, portability, and conservative performance candidates (planned for v0.12.0)
+- software-review benchmark/calibration fixtures and measured precision/recall/false-positive/false-negative/partial-evidence behavior (planned for v0.12.2)
+- literature/standards-backed metric provenance with source URLs, exact definition versions, evidence coverage, and calibrated reference bands where justified; no default universal 0-100 software-quality score is planned
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- v0.5.0 warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.5.x` through `v0.8.x`)
-- warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.5.x` through `v0.8.x`)
-- normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
+- v0.5.0 generic experiment-command/plugin exposure generalization (`--config`, registry/list/describe/run parity, and no new per-plugin command-owner branches) before `warm-index-reuse` becomes the second registered plugin
+- warm-index, freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment work in the existing v0.5.x-v0.9.x roadmap
+- normalized telemetry, campaign scheduler, prompt hardening, tutorial-manifest gallery consumption, and generalized publication/evidence portal work
+
+Security validation is already implemented and remains a separate authoritative subsystem. The future project-wide review track will consume confirmed security findings through the existing security audit adapter rather than reimplementing security scanners, Android validation, attack scenarios, or security verdict policy. Planned audit flags must be exposed through both `my-dev-kit-lab audit` and `npm run audit --` in the same release through the existing shared command owner; a review capability is not considered implemented if only one entry path exposes it.
 
 ## Limitations
 
@@ -100,6 +110,9 @@ The following remain planned, not implemented:
 - Some security tools are optional and may be reported as skipped when unavailable.
 - Fake-agent token totals are estimates. Provider telemetry differs by adapter and can be unavailable.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
+- Current architecture review is limited to bounded documentation/layout drift and duplicate/parallel implementation candidates; repository-wide dependency cycles, fan-in/fan-out, extension-point bypass, missing-abstraction candidates, and change-coupling evidence are planned, not implemented.
+- The current audit framework has no implemented general complexity/maintainability quality type, no semantic clone proof, no test-coverage/assertion-strength proof, and no runtime performance profiler.
+- The current release does not emit the planned literature-backed architecture/quality/behavior/evolution measures described in METRICS.md, does not claim ISO/IEC 5055 conformance, and does not calculate a six-dimension or overall software-quality health score.
 - Only one experiment plugin is currently registered.
 - The published upstream `ContextCapsule`/`RetrievalAuditRecord` artifacts that the implemented `v0.4.3` readers consume do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` with an explicit reason rather than zero.
 - Estimated token counts in the `v0.4.3` context-size metric use `ceil(characterCount / 4)` per source and are heuristic, not provider telemetry.
