@@ -451,11 +451,50 @@ Explicit non-goals:
 * No Observer-only selectors, fake drag handles, hidden tutorial controls, or alternate product interaction paths.
 * No change to FFmpeg/MP4/audio/gallery scope and no warm-index work.
 
+## Planned software-review architecture (v0.10.x-v0.12.x)
+
+This section describes planned architecture only. None of the contracts or flows below are implemented in the current v0.4.8 release.
+
+The planned review track extends the existing audit pipeline instead of creating a second architecture/quality runner. The central planned addition is one reusable architecture-evidence layer that can combine existing lab inventory/source facts with bounded, version-checked my-dev-kit graph evidence and then expose that evidence additively through `AuditDetectorContext`.
+
+```mermaid
+flowchart LR
+  Target[Target repository] --> Inventory[Existing project inventory]
+  Target --> SourceFacts[Existing SourceFactsSnapshot]
+  MDK[Supported my-dev-kit graph artifacts] --> Adapter[Planned bounded graph adapter]
+  Inventory --> ArchitectureEvidence[Planned ArchitectureEvidenceSnapshot]
+  SourceFacts --> ArchitectureEvidence
+  Adapter --> ArchitectureEvidence
+  ArchitectureEvidence --> Context[Existing AuditDetectorContext + additive architecture evidence]
+  Context --> Detectors[Existing AuditDetector registry]
+  Detectors --> Issues[Existing AuditIssue model]
+  Issues --> Reports[Existing AuditReportModel + JSON/text renderers]
+  Security[Existing securityValidation owner] --> SecurityAdapter[Existing security audit adapter]
+  SecurityAdapter --> Issues
+```
+
+Planned ownership rules:
+
+* **One architecture evidence collector:** graph artifacts should be validated and normalized once per audit run, analogous to inventory/source-facts collection. Cycle, topology, extensibility, quality, behavior, and evolution detectors must not each parse my-dev-kit artifacts independently.
+* **Exact evidence boundaries:** graph schema/version, target identity, path containment, analyzer coverage, unresolved edges, and partial/unavailable evidence must be preserved. Unsupported evidence is never silently treated as zero or complete.
+* **Existing detector/report contracts remain primary:** findings continue to use `AuditDetector`, `AuditIssue`, the existing audit runner, and additive audit-report fields. A new detector must not introduce its own command or report engine.
+* **Security remains independently authoritative:** security validation, Android validation, attack scenarios, optional scanners, and security verdict policy remain owned by `src/securityValidation`. Project-wide software review consumes confirmed security findings through `src/audits/security` rather than duplicating those checks.
+* **Six review dimensions are classification, not architecture duplication:** future project review organizes evidence under behavior, architecture, security, operations, quality, and evolution. A finding may map to more than one dimension, but the underlying detector/evidence owner remains single.
+* **Heuristic architecture conclusions stay candidates:** missing-abstraction, plugin-opportunity, adapter-opportunity, cohesion, and similar intent-sensitive findings must expose confidence/false-positive risk and the deterministic evidence they are based on.
+* **History and runtime evidence are separate inputs:** v0.11.2 may add bounded read-only Git history for change coupling. Runtime profiling is not implied by static architecture evidence and is outside the v0.12.0 baseline unless a separately validated optional source is added.
+
 The following layers remain planned and must not be treated as current behavior:
 
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
-- the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
-- cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
+- the v0.10.0 shared architecture-evidence snapshot/adapter and repository graph consumption
+- v0.10.1 deterministic architecture topology analysis (cycles, fan-in/fan-out, static blast radius, and explicit-rule dependency direction)
+- v0.10.2 extensibility/reuse analysis (extension-point bypass, parallel architecture, extension surface, and candidate missing abstractions/plugins/adapters)
+- the `quality` audit type and v0.11.0 maintainability/complexity analysis
+- v0.11.1 behavior/test evidence and optional explicitly configured sandboxed target-test evidence
+- v0.11.2 read-only history/change-coupling/change-cost evidence
+- v0.12.0 non-security operational-quality/resilience analysis
+- the `project` and `all` audit selections, cross-type deduplication, and six-dimension project review planned for v0.12.1
+- the v0.12.2 software-review benchmark/calibration suite
 - a human-led manual pentest workflow after `v1.0.0`
 - additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success (`v0.5.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
@@ -463,7 +502,7 @@ The following layers remain planned and must not be treated as current behavior:
 
 `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published (see "Stage-context evaluation architecture (v0.4.3)" above). `v0.4.5` context-integrity evaluation is implemented and published (see "Context-integrity evaluation architecture (v0.4.5)" above).
 
-Future audit work should reuse `src/audits/core`, `src/audits/security`, target metadata, the normalized issue schema, and shared reports. It must not replace the experiment runtime, duplicate report/gallery systems, or absorb `security:validate` into the audit framework.
+Future audit/review work should reuse `src/audits/core`, `src/audits/security`, target metadata, source facts, the normalized issue schema, and shared reports. Shared graph/history evidence should be collected once and added to the existing detector context rather than parsed independently by each detector. Future review work must not replace the experiment runtime, duplicate report/gallery systems, create one command per review dimension, or absorb `security:validate` into the audit framework.
 
 ## Key contracts
 
