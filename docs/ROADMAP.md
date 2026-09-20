@@ -1313,8 +1313,9 @@ Features:
 * Implement `all` as the explicit aggregate of `code-rot`, `quality`, `security`, and `project` while preserving the default no-flag `code-rot` behavior. Expansion controls selection/report metadata only: registered non-security detectors execute once in registry order and the existing security adapter executes once afterward.
 * `all` is exclusive: `--types all,<other>` is invalid. `--dimensions` is valid only with exactly `--types project`; this prevents ambiguous partial execution of an `all` review.
 * Extend audit `--format` with `html` while preserving the existing default `text,json`.
-* Add review-dimension classification for `behavior`, `architecture`, `security`, `operations`, `quality`, and `evolution`; a finding may belong to more than one dimension when warranted.
-* Add cross-type finding deduplication/relationship handling without discarding the original detector/security provenance.
+* Add an additive `reviewDimensions` field to audit issues using the closed vocabulary `behavior`, `architecture`, `security`, `operations`, `quality`, and `evolution`; a finding may belong to more than one dimension when warranted. Existing code-rot detector families receive explicit reviewed/tested mappings rather than a generic "code-rot = quality" fallback, and security-adapter findings map to `security` while retaining original security provenance.
+* `all` is selector/aggregation syntax only. No detector may register with `auditType: "all"`; `all` expands to the implemented owners and then uses the existing detector registry plus one security-adapter invocation.
+* Add cross-type finding deduplication/relationship handling without discarding the original detector/security provenance. Dimension counts are **views** over the deduplicated underlying issue set: because one issue may belong to multiple dimensions, summing six dimension counts is not a valid total-issue calculation.
 * Add dimension summaries that present raw/derived measures, evidence coverage, and finding severity. Do not introduce a default 0-100 dimension score or overall arithmetic software-quality score.
 * Add metric provenance fields so planned software-review metrics record origin, source URLs, definition version, availability, evidence coverage, threshold source, and calibration version where applicable.
 * Consume confirmed security findings through the existing security audit adapter; standalone security reports and verdict logic remain authoritative for complete security evidence.
@@ -1325,7 +1326,8 @@ Acceptance:
 * `my-dev-kit-lab audit` and `npm run audit --` expose the same implemented audit types, flags, validation rules, help vocabulary, report semantics, and exit policy through the same command owner.
 * One `--types all` review can present all six dimensions without invoking parallel runners or duplicating security checks.
 * Standalone `code-rot`, `quality`, `security`, and `project` selections remain independently runnable.
-* Deduplication preserves original issue IDs, detector/source provenance, and report links.
+* Deduplication preserves original issue IDs, detector/source provenance, report links, and review-dimension membership.
+* Tests prove every issue shown in the six-dimension `all` report has at least one explicit review dimension and that multi-dimension views do not duplicate the underlying issue object/count.
 * Missing evidence in one dimension does not imply that the dimension passed.
 * Existing audit CLI syntax remains backward compatible.
 
@@ -1627,7 +1629,7 @@ A detector-level failure that the existing runner can isolate remains structured
 #### Output contract
 
 * Existing installed/source output-root behavior is preserved: omitted `--out` uses the installed workspace root for installed execution and the package/repository root for source-checkout execution; explicit `--out` behaves identically in both.
-* Default output-directory selection for new selectors uses the **requested selector**, not the first expanded type. Therefore `--types project` defaults under `reports/audits/project/`, `--types quality` under `reports/audits/quality/`, and `--types all` under `reports/audits/all/`. Existing code-rot/security/legacy explicit multi-type directory behavior is preserved unless a separately versioned migration changes it.
+* Default output-directory selection for new selectors uses the **requested selector**, not the first expanded type. Therefore `--types project` defaults under `reports/audits/project/`, `--types quality` under `reports/audits/quality/`, and `--types all` under `reports/audits/all/`. The existing `code-rot,security` combination retains its legacy directory behavior. Any new explicit multi-type combination containing `quality` and/or `project` (other than `all`) defaults under `reports/audits/combined/<canonical-type-slug>/`, where the slug is the canonical selected type IDs joined by `+`; this avoids silently filing a new combined review under whichever type happens to sort first.
 * v0.10.1 introduces canonical generic audit report names `audit-report.txt` and `audit-report.json` for new `project` output and future audit types. Existing selections that already expose `code-rot-audit.txt/json` retain those legacy paths for backward compatibility.
 * v0.12.1 adds `audit-report.html` where HTML is requested. Existing security reports under `reports/security/` remain separately authoritative and are linked/referenced rather than copied into the audit report.
 * Report metadata records requested audit types, expanded audit types (for `all`), requested project dimensions, evidence-source availability, normalized config, and metric provenance.
