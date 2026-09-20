@@ -1124,13 +1124,15 @@ Purpose:
 
 Features:
 
-* Add dependency-cycle and strongly-connected-component evidence.
-* Add file/module fan-in and fan-out metrics with bounded evidence.
-* Add static affected-neighborhood and blast-radius candidates using supported dependency/call edges.
+* Add dependency-cycle and strongly-connected-component evidence with a frozen cycle-counting definition, plus cyclic-node count/percentage and evidence coverage.
+* Add established coupling measures at supported module/package scopes: afferent coupling (Ca), efferent coupling (Ce), and Instability `I = Ce / (Ca + Ce)`.
+* Add Chidamber-Kemerer object-oriented metrics (WMC, DIT, NOC, CBO, RFC, LCOM) only for languages/analyzers that can establish the required relationships and with versioned metric definitions.
+* Add static affected-neighborhood and impact-set evidence using supported dependency/call edges.
 * Add highly central module or dependency-hub candidates without equating centrality with a defect.
 * Add dependency-direction violations only when the target provides explicit layer/module rules that make the expected direction observable.
 * Add disconnected/orphan architecture candidates where graph coverage is sufficient.
-* Add architecture-topology summaries to the existing audit report model using additive fields and the existing confidence/provenance conventions.
+* Add architecture-topology summaries to the existing audit report model using additive fields, metric provenance/source URLs, evidence coverage, and the existing confidence conventions.
+* Do not introduce universal architecture-health thresholds in this release; report raw distributions and percentiles.
 
 Acceptance:
 
@@ -1152,9 +1154,9 @@ Features:
 * Identify observable registries, shared contracts, registered implementations, and dispatch paths from supported source/graph evidence.
 * Detect implementations that appear to bypass an established extension point when both expected registry/contract membership and the bypass path are observable.
 * Detect parallel-pipeline candidates across variant families, including duplicated orchestration, report plumbing, CLI plumbing, configuration paths, and test infrastructure.
-* Add extension-surface evidence describing how many existing owners/components appear to require modification when another member of a known feature family is added.
+* Model extensibility through explicit bounded change scenarios informed by ALMA/EMSA-style modifiability analysis. Report direct observations such as existing files/modules/contracts modified, registry entries modified, new implementation artifacts, and static impact-set size rather than inventing an unvalidated universal extensibility score.
 * Add variant-specific-code-in-shared-core candidates where explicit family/ownership evidence supports the distinction.
-* Add `missing abstraction`, `plugin opportunity`, and `adapter opportunity` only as heuristic candidate findings with explicit confidence and false-positive risk.
+* Add `extension-point bypass`, `missing abstraction`, `plugin opportunity`, and `adapter opportunity` only as lab-defined heuristic candidate findings with explicit confidence and false-positive risk.
 * Reuse `AuditIssue` for findings and the shared architecture snapshot for evidence; do not create a separate architecture-review engine.
 
 Acceptance:
@@ -1174,12 +1176,15 @@ Purpose:
 
 Features:
 
-* Add deterministic complexity and size metrics where supported, including function/module size, nesting, and bounded structural complexity.
+* Add cyclomatic complexity with exact formula/version provenance and distribution summaries; optional cognitive complexity may be consumed only from a compatible, identified implementation.
+* Add code-size and duplication measures such as non-comment lines of code, duplicated lines, and duplicated-lines density with explicit producing-engine provenance.
+* Add supported structural-weakness count/density measures. Claim ISO/IEC 5055 alignment only when the implemented weakness mapping/calculation actually satisfies the selected standard contract; otherwise label the measure lab-defined.
 * Add responsibility-concentration and god-module candidates using source-facts and architecture topology without treating high centrality alone as proof.
 * Strengthen duplication analysis with supported structural evidence while keeping semantic clone claims out of scope unless a validated evidence source is added.
 * Add dependency-discipline findings using explicit package/module/layer rules where available.
 * Reuse existing dead-code, test-rot, documentation-consistency, and dependency/environment evidence rather than copying those detectors into a second framework.
 * Extend audit metadata, selection, help text, reports, and tests so `quality` is a real implemented audit type while preserving `code-rot` as the default no-flag audit behavior.
+* Report metric origin/source URL, availability, evidence coverage, and threshold source. No universal maintainability/quality score is introduced here.
 
 Acceptance:
 
@@ -1198,13 +1203,14 @@ Purpose:
 
 Features:
 
-* Add production-symbol/module to test-file/test-symbol mapping where deterministic evidence is available.
+* Add production-symbol/module to test-file/test-symbol mapping where deterministic evidence is available, but label it mapping coverage rather than test coverage.
+* Consume actual line/branch coverage artifacts from supported coverage tools, preserving producer identity and coverage semantics; where supported, preserve covered/missed cyclomatic complexity.
 * Add changed-code-to-test mapping for explicit change sets when the changed files/symbols are known.
-* Add public/exported behavior with weak or missing test-evidence candidates.
-* Add weakly protected architectural seam and regression-risk candidates using architecture neighborhoods plus test relationships.
+* Add public/exported behavior with weak or missing test-evidence candidates and weakly protected architectural seams using architecture neighborhoods plus test relationships.
 * Add test-concentration, orphan-test, and repeated-test-infrastructure candidates where evidence is deterministic enough.
-* Support optional, explicitly configured target-test execution only in a disposable/sandboxed target copy with separate mutation evidence; never execute arbitrary target tests by default.
-* Preserve unavailable semantics when coverage, assertion quality, runtime behavior, or target-test execution evidence is absent.
+* Support optional mutation-testing evidence and mutation score, with equivalent-mutant limitations explicit; mutation testing is not a default audit requirement.
+* Support optional, explicitly configured target-test execution only in a disposable/sandboxed target copy; never execute arbitrary target tests by default.
+* Preserve unavailable semantics when coverage, mutation, assertion quality, runtime behavior, or target-test execution evidence is absent.
 
 Acceptance:
 
@@ -1224,11 +1230,12 @@ Purpose:
 Features:
 
 * Add bounded read-only Git history collection for changed-file/change-set metadata without uploading repository contents.
-* Add file/module co-change frequency and cross-module change-coupling evidence.
-* Add architectural hotspot candidates combining change frequency with supported structural evidence.
-* Add historical blast-radius summaries for bounded change sets.
+* Add code-churn measures and freeze an exact versioned relative-churn normalization before implementation; do not use one vague "relative churn" ID for multiple formulas.
+* Add Co-Committal Frequency (CCF) and directional Co-Committal Strength (CCS) for file/module pairs, including the history-window and activity conditions needed to interpret them responsibly.
+* Add architectural hotspot candidates combining change frequency/churn with supported structural evidence.
+* Add historical change-set/module-impact summaries for bounded change sets.
 * Add public-contract/interface instability evidence where supported symbols can be tracked safely across history.
-* Add extension-cost evidence for known variant families by combining registry/contracts, architecture ownership, and observed modification surfaces.
+* Reuse the v0.10.2 change-scenario observations for extension/change-cost analysis rather than inventing a separate extension score.
 * Preserve privacy-safe, local-only history handling and explicit unavailable states when history is shallow, absent, or intentionally excluded.
 
 Acceptance:
@@ -1248,11 +1255,13 @@ Purpose:
 
 Features:
 
+* Add source-level reliability and performance-efficiency weakness counts/densities where the implemented rules are traceably mapped; use ISO/IEC 5055/CISQ terminology only when the actual mapping supports it.
 * Add resource-lifecycle candidates for managed processes, streams/files, timers, and cleanup paths where statically observable.
 * Add timeout, cancellation, retry, fallback, and error-propagation evidence for supported patterns.
 * Add observability candidates for major operations lacking structured failure/reporting paths where the expectation is explicit enough to avoid blanket logging rules.
 * Extend bounded portability/cross-platform evidence rather than creating a second platform-analysis framework.
 * Add conservative static performance candidates such as repeated expensive repository scans, repeated parsing, repeated subprocess startup, synchronous large-I/O paths, or redundant serialization only where the supporting evidence is explicit.
+* Accept DORA delivery-performance metrics only as optional external CI/CD/deployment evidence; never infer deployment frequency, change lead time, failed deployment recovery time, change fail rate, or deployment rework rate from source code alone.
 * Keep runtime CPU/memory/latency profiling outside the baseline unless a separately validated optional evidence source is introduced.
 * Do not duplicate dependency, package, path, subprocess-injection, secret, network, Android, fuzz, or attack-scenario security checks.
 
@@ -1277,7 +1286,8 @@ Features:
 * Implement `all` selection as the explicit aggregate of implemented audit types while preserving the default no-flag `code-rot` behavior.
 * Add review-dimension classification for `behavior`, `architecture`, `security`, `operations`, `quality`, and `evolution`; a finding may belong to more than one dimension when warranted.
 * Add cross-type finding deduplication/relationship handling without discarding the original detector/security provenance.
-* Add dimension summaries and evidence-availability summaries to the existing audit report model.
+* Add dimension summaries that present raw/derived measures, evidence coverage, and finding severity. Do not introduce a default 0-100 dimension score or overall arithmetic software-quality score.
+* Add metric provenance fields so planned software-review metrics record origin, source URLs, definition version, availability, evidence coverage, threshold source, and calibration version where applicable.
 * Consume confirmed security findings through the existing security audit adapter; standalone security reports and verdict logic remain authoritative for complete security evidence.
 * Keep one severity/confidence/false-positive-risk vocabulary and one non-destructive target model across project review.
 
@@ -1301,10 +1311,12 @@ Features:
 
 * Reuse the v0.7 synthetic-repository/fixture infrastructure for controlled good and intentionally problematic repository designs.
 * Add labeled fixtures for dependency cycles, layer violations, high fan-in/fan-out, extension-point bypass, parallel architecture, responsibility concentration, weak test mapping, change coupling, and selected operational-quality cases.
-* Measure expected-finding recall, unexpected-finding counts, false positives where ground truth is explicit, false negatives, determinism, runtime cost, cross-language consistency, and partial-evidence behavior.
+* Measure finding precision, finding recall, F1 where defined, false-positive/false-negative counts, determinism, runtime cost, cross-language consistency, and partial-evidence behavior against explicit labeled fixtures.
+* Derive reference bands or benchmark percentiles only from an identified benchmark population or project baseline; do not copy universal good/bad thresholds across unrelated project types.
 * Add confidence calibration evidence for candidate findings.
 * Treat heuristic findings such as missing abstraction/plugin opportunity as curated labeled cases with documented ambiguity rather than universal architectural truth.
 * Add report sections describing benchmark scope and unsupported evidence instead of producing a single opaque software-quality score.
+* Any future composite/dimension index must be separately justified, versioned, labeled experimental, and must never replace raw metrics, evidence coverage, or blocker/high finding visibility.
 
 Acceptance:
 
@@ -1337,7 +1349,9 @@ Required capabilities:
 * Stable extensibility/reuse analysis with extension-point bypass and candidate missing-abstraction/plugin/adapter evidence.
 * Stable behavior/test evidence, evolution/change-cost evidence, and operational-quality/resilience analysis.
 * Stable six-dimension project review covering behavior, architecture, security, operations, quality, and evolution without duplicating the underlying audit/security owners.
+* Stable software-review metric provenance with source URLs, explicit availability/evidence coverage, and calibrated reference bands where evidence supports them.
 * Stable software-review benchmark/calibration suite with deterministic fixtures and explicit heuristic limitations.
+* No unvalidated overall software-quality score; stable reports expose raw/derived measures, evidence coverage, and serious findings.
 * Stable automated security validation.
 * Android validation profile support.
 * Stable declarative browser-tutorial runtime with supported installed validation/execution commands.
@@ -1437,9 +1451,60 @@ Features:
 
 ## Command design principles
 
-Future work should extend the existing experiment, audit, and security-validation command families through validated flags when practical. It should not create one command per detector, platform, or report type. Candidate syntax remains version-specific planning until implementation confirms parser and registry conventions.
+Future work should extend the existing experiment, audit, and security-validation command families through validated flags when practical. It should not create one command per detector, platform, review dimension, or report type. Candidate syntax remains planned until the owning version implements and validates it. [COMMANDS.md](COMMANDS.md) remains the implemented command reference.
 
-Manual-pentest commands remain intentionally absent because that workflow is deferred to post-v1/version TBD. See [COMMANDS.md](COMMANDS.md) for the implemented command surface.
+### Planned software-review command surface
+
+The planned end-state keeps one audit command family:
+
+```text
+my-dev-kit-lab audit --types code-rot
+my-dev-kit-lab audit --types quality
+my-dev-kit-lab audit --types security
+my-dev-kit-lab audit --types project
+my-dev-kit-lab audit --types all
+```
+
+Planned meanings:
+
+* `code-rot` — existing conservative rot/drift detectors.
+* `quality` — v0.11.0 maintainability/complexity/duplication quality detectors.
+* `security` — existing adapter to the authoritative `security validate` subsystem.
+* `project` — v0.12.1 cross-cutting architecture, behavior, operations, and evolution review.
+* `all` — explicit aggregate of implemented `code-rot`, `quality`, `security`, and `project` review; the no-flag default remains `code-rot`.
+
+Planned additive options, introduced only by their owning versions:
+
+```text
+--my-dev-kit-index <path>                  # v0.10.0, explicit prebuilt graph evidence
+--review-config <path>                     # v0.10.x/v0.11.x, versioned project policy/scenario config
+--history off|auto|required                # v0.11.2
+--history-max-commits <n>                  # v0.11.2
+--run-target-tests                         # v0.11.1, explicit opt-in only
+--dimensions behavior,architecture,operations,evolution
+                                             # v0.12.1 project-review filter
+--format text,json,html                    # html only after audit report support exists
+```
+
+A prebuilt my-dev-kit index is evidence input, not an implicit ownership transfer: my-dev-kit-lab does not become the production repository indexer. If graph evidence is absent, graph-dependent measures report unavailable/partial rather than zero.
+
+`security validate` remains the authoritative detailed security command. Project/all review reuses its exported implementation through the existing adapter and does not duplicate security policy.
+
+Manual-pentest commands remain intentionally absent because that workflow is deferred to post-v1/version TBD.
+
+### Planned software-review workflow
+
+The intended complete review flow is:
+
+1. Inspect the target read-only and optionally build/reuse a my-dev-kit index with call/dependency graph artifacts.
+2. Supply an optional versioned review configuration when layer rules, extension points, change scenarios, or test commands must be explicit rather than inferred.
+3. Run `audit --types all` (or a narrower type/dimension selection).
+4. Collect shared inventory/source facts/architecture evidence once, then execute the existing detector registry and the existing security adapter.
+5. For v0.11.2 evolution analysis, read bounded Git history without checkout/reset/mutation. For v0.11.1 target-test execution, require explicit opt-in and use a disposable/sandboxed copy rather than the original target.
+6. Render text/JSON and, once implemented, HTML software-review output with raw/derived metrics, evidence coverage, findings, provenance, and unavailable/partial explanations.
+7. Use the v0.12.2 calibration experiment to evaluate detector precision/recall and establish benchmark/project reference bands. Calibration remains an experiment responsibility; the audit engine performs review.
+
+The metric glossary and metric-source URLs are maintained in [METRICS.md](METRICS.md).
 
 ## Mobile validation boundaries
 
