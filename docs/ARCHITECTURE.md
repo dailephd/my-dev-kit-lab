@@ -147,6 +147,35 @@ sequenceDiagram
   Report-->>User: plugin-aware and legacy outputs
 ```
 
+## Planned multi-plugin command generalization (v0.5.0)
+
+The current experiment runtime is generic, but the current `runExperimentRunCommandFromArgs` still contains context-strategy-specific CLI/config/input behavior. Before `warm-index-reuse` becomes the second registered plugin, v0.5.0 must remove that future scalability trap without breaking the existing context-strategy surface.
+
+```mermaid
+flowchart LR
+  Installed[my-dev-kit-lab experiment run] --> Owner[runExperimentRunCommandFromArgs]
+  Source[npm run experiment:run --] --> Owner
+  Owner --> Generic[generic flags: experiment / target / out / config]
+  Owner --> Legacy[legacy context-strategy flags<br/>compatibility only]
+  Generic --> Registry[default experiment registry]
+  Legacy --> Registry
+  Registry --> Plugin[registered plugin]
+  Plugin --> Validate[plugin.validateConfig]
+  Plugin --> Inputs[plugin-owned input/resource loading]
+  Plugin --> Runner[runExperiment]
+  Runner --> Reports[shared plugin report writers]
+```
+
+Planned rules:
+
+* Add `--config <path>` as the generic plugin configuration input. The file contains a JSON object validated by the selected plugin's existing `validateConfig`.
+* `--config` is mutually exclusive with the context-strategy plugin's existing convenience flags in one invocation. Those legacy flags remain supported for backward compatibility.
+* New plugins do not add experiment-ID branches to the command owner for argument parsing or input loading. Plugin-specific files/resources are loaded by the plugin or a plugin-owned helper from validated config.
+* `experiment list`, `experiment describe`, and `experiment run` continue to use `createDefaultExperimentPluginRegistry`; a plugin is not public until all three surfaces see the same registration in both installed and source-checkout modes.
+* `experiment describe` must not generate context-strategy-specific example flags for unrelated plugins. Non-legacy plugins receive a generic `--config <path>` run example unless they expose a versioned plugin-owned example contract.
+* The existing installed/source implicit output-root difference remains the only intentional invocation-mode difference. Explicit `--config`, `--target`, and `--out` paths resolve with the same semantics.
+* This generalization is a v0.5.0 prerequisite for every later plugin, including incremental-change, context-window, retrieval, agent-success, and `software-review-calibration`.
+
 ## Stage-context evaluation architecture (v0.4.3)
 
 Implemented and published. It extends the `context-strategy-comparison` plugin and its report layer rather than creating a parallel runner, evaluation system, or report system.
@@ -485,7 +514,7 @@ Planned ownership rules:
 * **Metric provenance is part of the evidence contract:** future review metrics record origin (`standard`, `published-literature`, `established-tooling`, or `lab-defined`), source URL(s), definition version, scope, availability, evidence coverage, threshold source, and calibration version where applicable.
 * **No universal score is an architectural requirement:** the default report model carries raw/derived measures, evidence coverage, and findings. ISO/IEC 25023-style context dependence is preserved by keeping thresholds/reference bands separate from raw measurements; v0.12.2 may calibrate benchmark/project reference bands without making an opaque overall score the primary contract.
 * **Heuristic architecture conclusions stay candidates:** missing-abstraction, plugin-opportunity, adapter-opportunity, cohesion, and similar intent-sensitive findings must expose confidence/false-positive risk and the deterministic evidence they are based on.
-* **Scenario-based extensibility remains additive evidence:** v0.10.2 models "add another variant" as an explicit change scenario and reports direct modification/impact observations, informed by ALMA/EMSA-style architecture modifiability analysis, instead of requiring a new runner or a universal extensibility score.
+* **Scenario-based extensibility remains additive evidence:** v0.10.2 models "add another variant" as an explicit change scenario and reports static extension-point/touchpoint/impact-set evidence informed by ALMA/EMSA-style architecture modifiability analysis. It does not label hypothetical files/contracts as "modified." Observed modification counts require an actual before/after change set from history or an experiment and use separate metric IDs.
 * **History and runtime evidence are separate inputs:** v0.11.2 may add bounded read-only Git history for churn/co-committal evidence. Runtime profiling and DORA delivery metrics are not implied by static architecture evidence and require separate explicitly supplied evidence sources.
 
 
@@ -515,7 +544,7 @@ Planned ownership rules:
 * `runAuditCommandFromArgs` remains the single command owner for audit help, argument/config normalization, target/evidence resolution, execution, report writing, and fatal error mapping.
 * The first new public review flags (v0.10.1) add one shared audit CLI contract under `src/audits/core` so parser-recognized flags and rendered usage/help cannot drift. Existing `AUDIT_USAGE` semantics are preserved through that owner.
 * `auditConfig.ts` remains the normalized configuration owner. New evidence flags become explicit typed fields; invalid flag combinations fail before `runAudit`.
-* `runAudit` remains the single execution owner. Shared inventory, source facts, architecture evidence, optional history/test evidence, and project metadata are collected once and passed through one detector context; security remains a single adapter invocation after registered detectors.
+* `runAudit` remains the single execution owner. Shared inventory, source facts, architecture evidence, optional history/test evidence, and project metadata are collected once and passed through one detector context. For `all`, normalized configuration keeps requested versus expanded types separate; registered non-security detectors still execute once in registry order and security remains a single adapter invocation after that detector loop.
 * Installed/source parity is mandatory for every release that adds an audit option. Tests must exercise both entry paths with the same option matrix and compare normalized selection/configuration, report semantics, and exit behavior.
 * The existing implicit-output-root difference is intentional and remains documented: installed execution defaults under `workspaceRoot`; source-checkout execution defaults under the package/repository root. Explicit `--out` and all other explicit paths have identical semantics.
 
@@ -533,6 +562,8 @@ v0.12.1  all aggregate + HTML audit report
 
 `project` therefore is **not** an internal-only capability waiting until v0.12.1. The first architecture-review release exposes it through both supported audit entry paths.
 
+The existing `--include` contract remains the detector-area filter. v0.11.0 adds a `source` area for production-source quality detectors using type-aware defaults, while the legacy no-flag code-rot default remains exactly `docs,tests,package,architecture,cli`. Evidence collectors may still gather shared facts once even when no selected detector consumes them; `--include` controls detector eligibility, not security-adapter execution.
+
 #### Planned review configuration contract
 
 The first public project audit also introduces a versioned, declarative `ReviewConfigV1` input for evidence that cannot be inferred safely:
@@ -545,23 +576,30 @@ type ReviewTestCommandV1 = {
   timeoutMs: number;
 };
 
+type ReviewSymbolSelectorV1 = {
+  relativePath: string;
+  symbolName: string;
+  symbolKind?: "class" | "interface" | "type" | "function" | "enum";
+};
+
 type ReviewConfigV1 = {
   schemaVersion: "1.0.0";
   architecture?: {
     layers?: readonly {
       id: string;
-      paths: readonly string[];
+      pathPrefixes: readonly string[];
       mayDependOn: readonly string[];
     }[];
     extensionPoints?: readonly {
       id: string;
-      contractSymbol: string;
-      registrySymbol?: string;
+      contract: ReviewSymbolSelectorV1;
+      registry?: ReviewSymbolSelectorV1;
     }[];
     changeScenarios?: readonly {
       id: string;
       description: string;
       featureFamily?: string;
+      extensionPointId?: string;
     }[];
   };
   behavior?: {
@@ -570,7 +608,7 @@ type ReviewConfigV1 = {
 };
 ```
 
-The serialized contract is closed for the supported schema version: unknown fields fail rather than being silently ignored. Test commands are structured argv only, run with `shell:false`, and are executable only after the explicit `--run-target-tests` opt-in. The config expresses review evidence/policy; it never authorizes source edits.
+The serialized contract is closed for the supported schema version: unknown fields fail rather than being silently ignored. IDs are unique within their collections. `pathPrefixes` are normalized repository-relative POSIX prefixes only; absolute paths, `..`, glob syntax, and symlink traversal are invalid. v1 rejects overlapping layer prefixes rather than inventing hidden precedence. Layer self-dependency is implicitly allowed; `mayDependOn` lists additional declared layer IDs and every reference must resolve. Symbol selectors use repository-relative path + symbol name (+ optional kind) to prevent name-only ambiguity. A configured selector that cannot be uniquely resolved is reported as an explicit requested-policy/evidence problem according to analyzer availability; it is never silently rebound. Test commands are structured argv only, run with `shell:false`, and are executable only after the explicit `--run-target-tests` opt-in. `cwdRelative` must remain within the disposable target copy, `timeoutMs` must be a positive bounded integer, and the v1 config has no arbitrary environment mutation. The config expresses review evidence/policy; it never authorizes source edits.
 
 ### Planned review metric evidence contract
 
