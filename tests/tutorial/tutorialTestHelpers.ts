@@ -24,6 +24,13 @@ export type FakeLocatorBehavior = {
   pressError?: Error;
   hoverError?: Error;
   dragError?: Error;
+  selectOptionError?: Error;
+  /**
+   * Values the fake reports as selected. Left undefined, it echoes the
+   * requested value back as a one-element array, which is what a real
+   * single-select does on success.
+   */
+  selectedOptions?: string[];
   waitForError?: Error;
   visible?: boolean;
   text?: string | null;
@@ -70,6 +77,11 @@ export function createFakeLocator(
     async dragTo(target, options) {
       record("dragTo", (target as FakeLocator).key, options);
       if (behavior.dragError) throw behavior.dragError;
+    },
+    async selectOption(values, options) {
+      record("selectOption", values, options);
+      if (behavior.selectOptionError) throw behavior.selectOptionError;
+      return behavior.selectedOptions ?? [values.value];
     },
     async waitFor(options) {
       record("waitFor", options);

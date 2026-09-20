@@ -365,6 +365,9 @@ export function cursorLocatorForAction(action: TutorialActionV1): TutorialLocato
     case "fill":
     case "press":
     case "hover":
+    // The cursor rests on the select itself; the native popup is OS-drawn and
+    // is deliberately not animated through.
+    case "select-option":
     case "pointer-click":
     case "pointer-drag":
       return action.locator;

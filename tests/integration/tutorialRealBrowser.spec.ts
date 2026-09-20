@@ -106,7 +106,15 @@ describe("tutorial run against real Chromium", () => {
                 liveVisualState.push({
                   screenshot: path.basename(screenshotOptions.path),
                   ...((await page.evaluate(
-                    (ids: { root: string; cursor: string; highlight: string; callout: string; pointer: string }) => {
+                    (ids: {
+                      root: string;
+                      cursor: string;
+                      highlight: string;
+                      callout: string;
+                      pointer: string;
+                      select: string;
+                      readout: string;
+                    }) => {
                       const read = (id: string) => {
                         const node = document.getElementById(id);
                         if (!node) return null;
@@ -132,6 +140,18 @@ describe("tutorial run against real Chromium", () => {
                             dragEndZone: surface.getAttribute("data-pointer-drag-end-zone"),
                             dragIntermediate: surface.getAttribute("data-pointer-drag-intermediate")
                           } : null;
+                        })(),
+                        // `value` is a live DOM property, not an HTML attribute,
+                        // so reading it here is the only way to prove real
+                        // Chromium actually changed the native select.
+                        operation: (() => {
+                          const select = document.getElementById(ids.select) as HTMLSelectElement | null;
+                          const readout = document.getElementById(ids.readout);
+                          return select && readout ? {
+                            value: select.value,
+                            readout: readout.textContent ?? "",
+                            selectedValue: readout.getAttribute("data-selected-value")
+                          } : null;
                         })()
                       };
                     },
@@ -140,7 +160,9 @@ describe("tutorial run against real Chromium", () => {
                       cursor: TUTORIAL_CURSOR_ID,
                       highlight: TUTORIAL_HIGHLIGHT_ID,
                       callout: TUTORIAL_CALLOUT_ID,
-                      pointer: "pointer-surface"
+                      pointer: "pointer-surface",
+                      select: "operation-select",
+                      readout: "selected-operation"
                     }
                   )) as Record<string, unknown>)
                 });
@@ -166,6 +188,7 @@ describe("tutorial run against real Chromium", () => {
         ["drag-card", "passed"],
         ["pointer-click-surface", "passed"],
         ["pointer-drag-surface", "passed"],
+        ["select-operation", "passed"],
         ["wait-banner", "passed"]
       ]);
 
@@ -181,6 +204,10 @@ describe("tutorial run against real Chromium", () => {
       expect(pointerDragStep?.action).toMatchObject({ type: "pointer-drag", status: "passed" });
       expect(pointerDragStep?.assertions).toHaveLength(4);
       expect(pointerDragStep?.assertions.every((assertion) => assertion.status === "passed")).toBe(true);
+      const selectStep = result.steps.find((step) => step.id === "select-operation");
+      expect(selectStep?.action).toMatchObject({ type: "select-option", status: "passed" });
+      expect(selectStep?.assertions).toHaveLength(2);
+      expect(selectStep?.assertions.every((assertion) => assertion.status === "passed")).toBe(true);
       expect(result.steps.map((step) => step.action?.type)).toEqual([
         "goto",
         "click",
@@ -190,6 +217,7 @@ describe("tutorial run against real Chromium", () => {
         "drag",
         "pointer-click",
         "pointer-drag",
+        "select-option",
         "wait-for"
       ]);
       expect(result.steps.flatMap((step) => step.assertions).length).toBeGreaterThan(5);
@@ -228,6 +256,17 @@ describe("tutorial run against real Chromium", () => {
         dragEndZone: "lower-right",
         dragIntermediate: "true"
       });
+      // Independent of the scenario's own assertions: the real native select
+      // changed, its change event reached ordinary fixture logic, and the
+      // visible application state followed.
+      const operationCapture = liveVisualState.find(
+        (capture) => capture.screenshot === "operation-selected.png"
+      ) as { operation: { value: string; readout: string; selectedValue: string } | null };
+      expect(operationCapture.operation).toEqual({
+        value: "preserve",
+        readout: "preserve",
+        selectedValue: "preserve"
+      });
 
       // ---- Canonical artifacts --------------------------------------------
       const paths = result.paths!;
@@ -255,6 +294,7 @@ describe("tutorial run against real Chromium", () => {
         "app-open.png",
         "banner-visible.png",
         "dropped.png",
+        "operation-selected.png",
         "pointer-clicked.png",
         "pointer-dragged.png",
         "submitted.png"
@@ -277,6 +317,7 @@ describe("tutorial run against real Chromium", () => {
       expect(srt).toContain("Open the fixture application in the browser.");
       expect(srt).toContain("Click a deliberate position inside the pointer gesture surface.");
       expect(srt).toContain("Drag across two distinct positions inside the same pointer gesture surface.");
+      expect(srt).toContain("Select the preserve operation from the native selector.");
       const vtt = readFileSync(path.join(paths.artifactsRoot, "tutorial.vtt"), "utf8");
       expect(vtt.startsWith("WEBVTT\n")).toBe(true);
 
@@ -289,13 +330,16 @@ describe("tutorial run against real Chromium", () => {
       expect(markdown).toContain("![pointer-click-surface](../screenshots/pointer-clicked.png)");
       expect(markdown).toContain("## Step 8: pointer-drag-surface");
       expect(markdown).toContain("![pointer-drag-surface](../screenshots/pointer-dragged.png)");
+      expect(markdown).toContain("## Step 9: select-operation");
+      expect(markdown).toContain("![select-operation](../screenshots/operation-selected.png)");
+      expect(markdown).toContain("## Step 10: wait-banner");
 
       const manifest = JSON.parse(
         readFileSync(path.join(paths.artifactsRoot, "tutorial-manifest.json"), "utf8")
       ) as TutorialManifestV1;
       expect(manifest.schemaVersion).toBe("1.0.0");
       expect(manifest.run.status).toBe("passed");
-      expect(manifest.steps).toHaveLength(9);
+      expect(manifest.steps).toHaveLength(10);
       expect(manifest.steps.find((step) => step.id === "pointer-click-surface")?.action).toMatchObject({
         type: "pointer-click",
         status: "passed"
@@ -304,6 +348,10 @@ describe("tutorial run against real Chromium", () => {
         type: "pointer-drag",
         status: "passed"
       });
+      const manifestSelectStep = manifest.steps.find((step) => step.id === "select-operation");
+      expect(manifestSelectStep?.action).toMatchObject({ type: "select-option", status: "passed" });
+      expect(manifestSelectStep?.assertions).toHaveLength(2);
+      expect(manifestSelectStep?.assertions.every((assertion) => assertion.status === "passed")).toBe(true);
       expect(manifest.steps[0].timelineStartMs).toBeGreaterThanOrEqual(0);
       for (const record of manifest.artifacts) {
         if (record.path !== undefined) {

@@ -13,7 +13,7 @@ import {
   removeTutorialVisualsInPage,
   showClickFeedbackInPage
 } from "../../src/tutorial/tutorialCursor.js";
-import { executeTutorialSteps } from "../../src/tutorial/tutorialSession.js";
+import { cursorLocatorForAction, executeTutorialSteps } from "../../src/tutorial/tutorialSession.js";
 import { createFakePage, createStubDocument, minimalScenario, withStubDocument } from "./tutorialTestHelpers.js";
 
 const INSTALL_ARG = {
@@ -180,6 +180,15 @@ describe("host-side cursor helpers", () => {
   });
 });
 
+describe("cursorLocatorForAction", () => {
+  it("targets the select element itself for select-option", () => {
+    const locator = { kind: "test-id", testId: "operation" } as const;
+    expect(
+      cursorLocatorForAction({ type: "select-option", locator, value: "preserve" })
+    ).toBe(locator);
+  });
+});
+
 describe("cursor behavior during step execution", () => {
   const baseOptions = (scenario: ReturnType<typeof minimalScenario>, page = createFakePage()) => ({
     page,
@@ -333,6 +342,66 @@ describe("cursor behavior during step execution", () => {
     expect(result.steps[0].action?.status).toBe("passed");
     expect(result.visualWarnings.join("\n")).toContain("visual renderer unavailable");
     expect(page.mouse.calls.map((call) => call.method)).toEqual(["mouse.move", "mouse.down", "mouse.up"]);
+  });
+
+  it("moves the cursor to the select center before selection and invents no click ripple", async () => {
+    const page = createFakePage({
+      locators: { "test-id:operation": { boundingBox: { x: 100, y: 100, width: 40, height: 20 } } }
+    });
+    const scenario = minimalScenario({
+      steps: [{
+        id: "select-step",
+        narration: "n",
+        action: { type: "select-option", locator: { kind: "test-id", testId: "operation" }, value: "preserve" }
+      }]
+    });
+
+    const result = await executeTutorialSteps(baseOptions(scenario, page));
+
+    expect(result.steps[0].status).toBe("passed");
+    const move = page.evaluateCalls.find((call) => call.fnName === "moveCursorInPage");
+    expect(move?.arg).toMatchObject({ x: 120, y: 110 });
+    // Selection is not a click, so no ripple is fabricated for it.
+    expect(page.evaluateCalls.some((call) => call.fnName === "showClickFeedbackInPage")).toBe(false);
+  });
+
+  it("moves the cursor before the real selection runs", async () => {
+    const page = createFakePage();
+    const scenario = minimalScenario({
+      steps: [{
+        id: "select-step",
+        narration: "n",
+        action: { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" }
+      }]
+    });
+
+    await executeTutorialSteps(baseOptions(scenario, page));
+
+    const cursorIndex = page.interactionCalls.findIndex((call) => call.method === "evaluate.moveCursorInPage");
+    const selectIndex = page.interactionCalls.findIndex((call) => call.method === "locator.selectOption");
+    expect(cursorIndex).toBeGreaterThanOrEqual(0);
+    expect(selectIndex).toBeGreaterThanOrEqual(0);
+    expect(cursorIndex).toBeLessThan(selectIndex);
+  });
+
+  it("applies highlight and callout for a select-option step through the ordinary overlay path", async () => {
+    const page = createFakePage();
+    const scenario = minimalScenario({
+      steps: [{
+        id: "select-step",
+        narration: "n",
+        action: { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" },
+        highlight: { kind: "css", selector: "#op" },
+        callout: { text: "Choose preserve." }
+      }]
+    });
+
+    const result = await executeTutorialSteps(baseOptions(scenario, page));
+
+    expect(result.steps[0].status).toBe("passed");
+    const overlayFns = page.evaluateCalls.map((call) => call.fnName);
+    expect(overlayFns).toContain("applyHighlightInPage");
+    expect(overlayFns).toContain("applyCalloutInPage");
   });
 
   it("does not move the cursor for goto or wait-for", async () => {

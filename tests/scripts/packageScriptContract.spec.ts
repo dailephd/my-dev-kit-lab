@@ -89,7 +89,7 @@ describe("installed tutorial package contract", () => {
 
   it("keeps the canonical packaged scenario on schema 1.0.0 with both drag families", () => {
     expect(tutorialScenario.schemaVersion).toBe("1.0.0");
-    expect(tutorialScenario.steps).toHaveLength(9);
+    expect(tutorialScenario.steps).toHaveLength(10);
     expect(tutorialScenario.steps.map((step) => step.id)).toEqual([
       "open-app",
       "activate",
@@ -99,6 +99,7 @@ describe("installed tutorial package contract", () => {
       "drag-card",
       "pointer-click-surface",
       "pointer-drag-surface",
+      "select-operation",
       "wait-banner"
     ]);
     expect(tutorialScenario.steps.map((step) => step.action?.type)).toEqual([
@@ -110,6 +111,7 @@ describe("installed tutorial package contract", () => {
       "drag",
       "pointer-click",
       "pointer-drag",
+      "select-option",
       "wait-for"
     ]);
     expect(tutorialScenario.steps.find((step) => step.id === "drag-card")?.action).toEqual({

@@ -26,6 +26,16 @@ export type PlaywrightLikeLocator = {
   fill(value: string, options?: { timeout?: number }): Promise<void>;
   press(key: string, options?: { timeout?: number }): Promise<void>;
   hover(options?: { timeout?: number }): Promise<void>;
+  /**
+   * Selects one native `<select>` option by its HTML value and resolves to the
+   * values actually selected.
+   *
+   * Narrowed on purpose: Playwright also accepts labels, indices, element
+   * handles and arrays, but exposing those here would let a later action reach
+   * selection modes the tutorial contract does not support. The return value is
+   * kept because the runtime verifies it rather than assuming success.
+   */
+  selectOption(values: { value: string }, options?: { timeout?: number }): Promise<string[]>;
   dragTo(target: PlaywrightLikeLocator, options?: { timeout?: number }): Promise<void>;
   waitFor(options?: {
     state?: "visible" | "hidden" | "attached" | "detached";

@@ -64,6 +64,13 @@ export type TutorialActionV1 =
   | { type: "press"; locator: TutorialLocatorV1; key: string; timeoutMs?: number }
   | { type: "hover"; locator: TutorialLocatorV1; timeoutMs?: number }
   | { type: "drag"; source: TutorialLocatorV1; target: TutorialLocatorV1; timeoutMs?: number }
+  /**
+   * Semantic selection of one native HTML `<select>` option, identified by its
+   * HTML `value`. Value-only by design: label and index selection, multi-select
+   * and keyboard emulation are deliberately absent so a scenario expresses the
+   * intent ("choose value X") rather than a platform-sensitive navigation path.
+   */
+  | { type: "select-option"; locator: TutorialLocatorV1; value: string; timeoutMs?: number }
   | {
       type: "pointer-click";
       locator: TutorialLocatorV1;
@@ -93,6 +100,7 @@ export const TUTORIAL_ACTION_TYPES = [
   "press",
   "hover",
   "drag",
+  "select-option",
   "wait-for",
   "pointer-click",
   "pointer-drag"

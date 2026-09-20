@@ -59,13 +59,14 @@ describe("validateTutorialScenario", () => {
         { id: "press-step", narration: "Press enter.", action: { type: "press", locator: { kind: "css", selector: ".a" }, key: "Enter" } },
         { id: "hover-step", narration: "Hover it.", action: { type: "hover", locator: { kind: "css", selector: ".a" } } },
         { id: "wait-step", narration: "Wait for it.", action: { type: "wait-for", locator: { kind: "css", selector: ".a" }, state: "hidden" } },
-        { id: "click-step", narration: "Click it.", action: { type: "click", locator: { kind: "css", selector: ".a" } } }
+        { id: "click-step", narration: "Click it.", action: { type: "click", locator: { kind: "css", selector: ".a" } } },
+        { id: "select-step", narration: "Choose an option.", action: { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" } }
       ]
     });
 
     const result = validateTutorialScenario(scenario);
     if (!result.ok) throw new Error(result.errors.join("\n"));
-    expect(result.value.steps).toHaveLength(7);
+    expect(result.value.steps).toHaveLength(8);
   });
 
   it("exposes the complete supported action set in stable order", () => {
@@ -76,6 +77,7 @@ describe("validateTutorialScenario", () => {
       "press",
       "hover",
       "drag",
+      "select-option",
       "wait-for",
       "pointer-click",
       "pointer-drag"
@@ -187,6 +189,91 @@ describe("validateTutorialScenario", () => {
 
     it("rejects an invalid timeout", () => {
       expectInvalid(scenarioWithAction({ ...valid, timeoutMs: 1.5 }), "finite positive integer");
+    });
+  });
+
+  describe("select-option", () => {
+    const valid = {
+      type: "select-option",
+      locator: { kind: "role", role: "combobox", name: "Operation" },
+      value: "preserve"
+    };
+
+    it("accepts a locator plus one non-empty option value", () => {
+      const result = validateTutorialScenario(scenarioWithAction(valid));
+      if (!result.ok) throw new Error(result.errors.join("\n"));
+      expect(result.value.steps[0].action).toEqual(valid);
+    });
+
+    it("accepts an explicit timeout", () => {
+      expect(validateTutorialScenario(scenarioWithAction({ ...valid, timeoutMs: 1234 })).ok).toBe(true);
+    });
+
+    it("rejects a missing locator", () => {
+      const action = { ...valid } as Record<string, unknown>;
+      delete action.locator;
+      expectInvalid(scenarioWithAction(action), "locator");
+    });
+
+    it("rejects a missing value", () => {
+      const action = { ...valid } as Record<string, unknown>;
+      delete action.value;
+      expectInvalid(scenarioWithAction(action), "non-empty option value");
+    });
+
+    it.each([
+      ["", "empty string"],
+      ["   ", "whitespace only"]
+    ])("rejects a value that is %s", (value) => {
+      expectInvalid(scenarioWithAction({ ...valid, value }), "non-empty option value");
+    });
+
+    it.each<[unknown, string]>([
+      [42, "number"],
+      [null, "null"],
+      [["preserve"], "array"]
+    ])("rejects a non-string value (%s)", (value) => {
+      expectInvalid(scenarioWithAction({ ...valid, value }), "non-empty option value");
+    });
+
+    // Label, index and multi-select are the selection modes v0.4.9 deliberately
+    // does not express; each must fail as an unknown field rather than be
+    // ignored, so a scenario cannot half-declare an unsupported mode.
+    it.each<[Record<string, unknown>, string]>([
+      [{ label: "Preserve" }, "label"],
+      [{ index: 3 }, "index"],
+      [{ values: ["preserve"] }, "values array"],
+      [{ script: "alert(1)" }, "script"],
+      [{ evaluate: "() => 1" }, "evaluate"],
+      [{ dispatchEvent: "change" }, "dispatchEvent"]
+    ])("rejects the unsupported field %s", (extra) => {
+      expectInvalid(scenarioWithAction({ ...valid, ...extra }), "unknown field");
+    });
+
+    it("rejects label even when a valid value is also present", () => {
+      const errors = expectInvalid(
+        scenarioWithAction({ ...valid, value: "preserve", label: "Preserve" }),
+        "unknown field"
+      );
+      expect(errors.join("\n")).toContain("label");
+    });
+
+    it("rejects a value-less selector-only action", () => {
+      expectInvalid(
+        scenarioWithAction({ type: "select-option", locator: valid.locator, index: 0 }),
+        "unknown field"
+      );
+    });
+
+    it.each<[unknown, string]>([
+      [0, "zero"],
+      [-1, "negative"],
+      [1.5, "non-integer"],
+      [Number.NaN, "NaN"],
+      [Number.POSITIVE_INFINITY, "Infinity"],
+      ["1000", "string"]
+    ])("rejects an invalid timeout (%s)", (timeoutMs) => {
+      expectInvalid(scenarioWithAction({ ...valid, timeoutMs }), "finite positive integer");
     });
   });
 
