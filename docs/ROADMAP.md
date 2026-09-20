@@ -11,7 +11,7 @@ flowchart LR
   V020[v0.2.0] --> V021[v0.2.1] --> V022[v0.2.2]
   V022 --> V030[v0.3.0] --> V031[v0.3.1] --> V032[v0.3.2] --> V033[v0.3.3] --> V034[v0.3.4]
   V034 --> V040[v0.4.0] --> V041[v0.4.1] --> V042[v0.4.2] --> V043[v0.4.3] --> V044[v0.4.4]
-  V044 --> V045[v0.4.5] --> V046[v0.4.6] --> V047[v0.4.7] --> V048[v0.4.8] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
+  V044 --> V045[v0.4.5] --> V046[v0.4.6] --> V047[v0.4.7] --> V048[v0.4.8] --> V049[v0.4.9] --> V050[v0.5.0] --> V051[v0.5.1] --> V052[v0.5.2]
   V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
@@ -668,6 +668,99 @@ Explicit exclusions:
 * No redesign of `TutorialTargetContractV1`, managed processes, loopback policy, source/target isolation, WebM/SRT/VTT/Markdown generation, tutorial manifests, or gallery behavior.
 * No FFmpeg, MP4, generated audio, or gallery tutorial consumption.
 * Warm-index reuse remains v0.5.0 and follows this bounded v0.4.8 patch.
+
+### v0.4.9 — semantic native-select option selection for browser tutorials
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Close the generic cross-platform tutorial portability gap discovered by the first real downstream tutorial consumer, `my-frontend-observer`: v0.4.8 can express real keyboard input, element-to-element drag, and locator-anchored pointer gestures, but it cannot semantically choose an option in a native HTML `<select>`.
+* Add the smallest bounded browser-native action needed to express the user's intent — select option value X — without encoding operating-system-dependent keyboard navigation such as repeated `ArrowDown` plus `Enter`.
+* Preserve every existing v0.4.7/v0.4.8 tutorial action, artifact, process, browser-session, and security contract. This is an additive tutorial-runtime portability patch, not an Observer-specific workaround and not part of v0.5.0 warm-index work.
+
+Planner-owned action contract:
+
+```ts
+type TutorialSelectOptionActionV1 = {
+  type: "select-option";
+  locator: TutorialLocatorV1;
+  value: string;
+  timeoutMs?: number;
+};
+```
+
+Frozen semantics:
+
+* `select-option` is anchored to exactly one existing `TutorialLocatorV1` and selects exactly one native HTML option by its stable HTML `value`.
+* The first version is value-only. Do not add label selection, index selection, selector arrays, or multi-select unless a later demonstrated generic use case requires them.
+* `value` is required and must be a non-empty string after trimming. Unknown fields remain rejected by the closed scenario validator.
+* Runtime execution resolves the locator through the existing canonical tutorial locator resolver and calls Playwright `Locator.selectOption({ value })` with the existing tutorial action timeout/default model.
+* The action succeeds only when Playwright reports exactly the requested selected value. Missing options, incompatible elements, ambiguous/unresolved locators, timeouts, or Playwright failures produce the existing structured failed action result.
+* There is no fallback to `press`, `ArrowDown`, `Enter`, DOM property mutation, `dispatchEvent`, or arbitrary page evaluation.
+* Existing `press` semantics remain real keyboard input. `select-option` is a separate semantic browser interaction contract.
+* Before selection, the tutorial synthetic cursor moves to the selected element through the existing locator-centered presentation path. The runtime does not try to animate through the browser/operating-system-native popup menu.
+* Existing highlight, callout, screenshot, assertion, subtitle, Markdown, video, manifest, and failure-propagation behavior remains unchanged. An action failure skips that step's assertions and leaves later steps `not-run`.
+
+Schema-version decision:
+
+* Keep `TutorialScenarioV1.schemaVersion = "1.0.0"`, following the additive-action compatibility policy established by v0.4.8. Existing serialized v1.0.0 scenarios remain valid and unchanged; package version `0.4.9` is the capability boundary for scenarios that use `select-option`.
+* Keep `TutorialTargetContractV1`, `TutorialRunResultV1`, and `TutorialManifestV1` at schema version `1.0.0`. The patch requires no target/process, run-result, artifact-layout, or manifest structural change.
+* Do not introduce schema `1.1.0` or `2.0.0` merely for the additive action discriminator.
+
+Planned implementation batches:
+
+1. **Action contract and runtime.**
+   * Extend `src/tutorial/types.ts` with the value-only `select-option` action and add it to the closed action-type list.
+   * Extend `src/tutorial/scenarioValidation.ts` with exact locator/value/timeout validation and unknown-field rejection.
+   * Extend the minimal structural Playwright locator surface in `src/browser/types.ts` with only the `selectOption` call shape required by the tutorial runtime.
+   * Execute the action in `src/tutorial/tutorialActions.ts` through the canonical locator resolver and verify the returned selected value.
+   * Extend `src/tutorial/tutorialSession.ts` so the synthetic cursor moves to the select element before the semantic action, without adding click-ripple or native-menu animation semantics.
+   * Add planner-authored unit/regression tests for valid selection, missing/empty value, unknown fields, invalid timeout, rejected label/index/multi-select shapes, timeout propagation, Playwright failure propagation, returned-value verification, no retry, cursor movement, and unchanged step-failure semantics.
+
+2. **Generic real-browser and exact-package portability proof.**
+   * Extend `examples/tutorial-browser/` with one real native `<select>`, stable option values, and deterministic visible state updated by an ordinary `change` event.
+   * Extend the canonical scenario with one `select-option` step that chooses a stable value such as `preserve` and verifies the resulting visible state through existing assertion types.
+   * Extend `tests/integration/tutorialRealBrowser.spec.ts` so real Chromium proves the selected value and generated artifacts.
+   * Extend `scripts/verify-packed-package.mjs` so the exact npm tarball, installed into a clean consumer, validates and executes `select-option`, records it in the tutorial manifest, preserves source/target/package immutability, and still proves every pre-existing tutorial action.
+
+Expected production owners:
+
+* `src/tutorial/types.ts` — additive action discriminator.
+* `src/tutorial/scenarioValidation.ts` — value-only closed validation.
+* `src/browser/types.ts` — minimal structural `selectOption` locator method.
+* `src/tutorial/tutorialActions.ts` — real Playwright semantic option selection and selected-value verification.
+* `src/tutorial/tutorialSession.ts` — pre-action synthetic cursor positioning through existing presentation ownership.
+* `examples/tutorial-browser/`, `tests/integration/tutorialRealBrowser.spec.ts`, and `scripts/verify-packed-package.mjs` — generic and installed-package portability evidence.
+
+Cross-platform and downstream validation:
+
+* Reuse the existing CI and pre-release readiness architecture. The generic real-browser tutorial test already runs with Chromium on Ubuntu, macOS, and Windows; no select-specific parallel CI workflow is required.
+* The exact packed-package gate must prove the action from the installed npm candidate, not only repository source.
+* After the generic lab feature is green, a bounded read-only Observer compatibility check may verify representative native selects such as runtime operation, move direction, intent category, and one reference-requirement select using actual DOM option values. Observer-specific values must never become lab production enums.
+* Observer's independent tutorial pacing mismatch and its `contractClass` readiness-verifier crash remain Observer-owned defects and must not be patched through lab runtime or result-shape changes.
+
+Acceptance:
+
+* Existing v0.4.8 scenarios using `goto`, `click`, `fill`, `press`, `hover`, `drag`, `wait-for`, `pointer-click`, and `pointer-drag` still validate and execute unchanged.
+* A valid value-only `select-option` scenario validates under schema `1.0.0`; label/index/multi-select and unknown escape-hatch fields fail validation.
+* Real Chromium selects the requested native `<select>` value through Playwright `selectOption`, and the resulting selected state is visible to ordinary DOM assertions, screenshots, video, and manifest output.
+* No keyboard fallback exists, and `press` remains unchanged.
+* Action failure uses the existing step semantics: assertions for the failed step do not run and later steps are `not-run`.
+* The synthetic cursor moves to the select element before selection; highlight/callout behavior remains generic and no native-popup animation is required.
+* Windows, Linux, and macOS real-browser CI/readiness passes the same generic native-select scenario.
+* The exact packed npm candidate validates and executes the native-select scenario from a clean installed consumer while preserving target, installed-package, and packaged-example immutability.
+* No arbitrary JavaScript/page-evaluation scenario surface, DOM mutation primitive, shell execution, external network behavior, or Observer-specific production logic is introduced.
+
+Explicit exclusions:
+
+* Label- or index-based option identity, multiple selector fields, multi-select arrays, or automatic fallback between selector forms.
+* Keyboard emulation as a substitute for semantic native-select selection.
+* Observer-specific selectors, option values, fake dropdowns, hidden tutorial controls, keyboard shortcuts, test-only endpoints, or operating-system-specific scenario branches.
+* Any change to Observer's pacing rules or readiness verifier.
+* Redesign of `TutorialTargetContractV1`, managed processes, loopback policy, browser-session ownership, tutorial result/manifest schemas, WebM/SRT/VTT/Markdown generation, screenshot ownership, or gallery behavior.
+* FFmpeg, MP4, generated audio/TTS, remote browsing, arbitrary script actions, or generic DOM event dispatch.
+* Warm-index reuse; v0.5.0 remains unchanged and follows this bounded v0.4.9 patch.
 
 ### Post-v1 / version TBD — manual pentest
 
