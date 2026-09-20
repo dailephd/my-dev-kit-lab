@@ -86,7 +86,7 @@ The following remain planned, not implemented:
 - the `all` aggregate audit selection, six-dimension combined review summaries, HTML audit output, and cross-type deduplication (planned for v0.12.1)
 - a shared architecture-evidence adapter/snapshot over supported my-dev-kit graph artifacts (planned for v0.10.0)
 - deterministic dependency-cycle, fan-in/fan-out, static blast-radius, and policy-backed dependency-direction analysis (planned for v0.10.1)
-- extensibility/reuse analysis including extension-point bypass, parallel-pipeline candidates, extension-surface evidence, and candidate missing abstractions/plugins/adapters (planned for v0.10.2)
+- extensibility/reuse analysis including extension-point bypass, parallel-pipeline candidates, static extension-impact evidence, and candidate missing abstractions/plugins/adapters (planned for v0.10.2)
 - behavior/test evidence mapping and optional sandboxed target-test evidence (planned for v0.11.1)
 - read-only Git history, change-coupling, hotspot, and change-cost evidence (planned for v0.11.2)
 - non-security operational-quality/resilience analysis for resource lifecycle, timeout/retry/error propagation, observability, portability, and conservative performance candidates (planned for v0.12.0)
