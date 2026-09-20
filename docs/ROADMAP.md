@@ -16,7 +16,10 @@ flowchart LR
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2]
-  V092 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
+  V092 --> V0100[v0.10.0] --> V0101[v0.10.1] --> V0102[v0.10.2]
+  V0102 --> V0110[v0.11.0] --> V0111[v0.11.1] --> V0112[v0.11.2]
+  V0112 --> V0120[v0.12.0] --> V0121[v0.12.1] --> V0122[v0.12.2]
+  V0122 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
 ```
 
@@ -32,6 +35,8 @@ The strongest product thesis remains:
 * my-dev-kit-lab should prove when my-dev-kit is useful, not claim that my-dev-kit always saves tokens.
 * The most important usefulness cases are large repositories, localized tasks, warm index reuse, context-window limits, retrieval precision, stale-index risk detection, and better coding-agent edit quality.
 * Security validation, audit reporting, code rot detection, code quality checks, mobile validation, and manual pentest support should strengthen release-readiness and implementation-readiness workflows around this evidence system.
+* The pre-v1 software-review track should organize evidence across six dimensions: behavior, architecture, security, operations, quality, and evolution. These dimensions are a reporting and analysis model over shared evidence, not six parallel engines or command families.
+* Security validation remains an independently authoritative subsystem. Project-wide review may consume its confirmed findings through the existing security audit adapter, but must not duplicate security policy, scanners, Android validation, attack-scenario logic, or security reports.
 * Browser tutorial automation should turn one declarative scenario into assertion-backed runtime evidence and synchronized human-facing artifacts without becoming a general video editor or absorbing product-specific demo ownership.
 
 ## Release continuity and planned sequence
@@ -1078,6 +1083,236 @@ Acceptance:
 * Gallery can browse multiple experiment and validation outputs.
 * Gallery can browse finalized tutorial artifacts through the canonical tutorial manifest without forcing tutorial execution to depend on gallery generation.
 
+
+### v0.10.0 — architecture evidence substrate
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Add one reusable, versioned architecture-evidence substrate for future architecture, quality, behavior, operations, and evolution review without creating a parallel audit runner or detector-specific graph readers.
+* Adapt deterministic repository graph evidence into my-dev-kit-lab while preserving target identity, evidence provenance, analyzer limitations, and partial/unavailable states.
+
+Features:
+
+* Add a bounded `ArchitectureEvidenceSnapshot`-style contract containing supported repository/file/symbol nodes, dependency/import edges, call edges, module/package grouping where deterministically available, graph identity, unresolved-edge counts, analyzer coverage, provenance, warnings, and explicit availability.
+* Add an exact adapter for supported my-dev-kit graph artifacts with schema/version checks, target-root/repository-identity checks, bounded path handling, and no silent reinterpretation of unsupported graph evidence.
+* Extend `AuditDetectorContext` additively so multiple detectors can reuse one precomputed architecture snapshot instead of reparsing graph artifacts independently.
+* Preserve the existing project inventory, source-of-truth, and `SourceFactsSnapshot` collectors as complementary evidence rather than replacing them.
+* Report graph evidence as `available`, `partial`, or `unavailable`; missing analyzers, unresolved edges, or unsupported language relationships must never be coerced to zero.
+* Keep the existing `AuditDetector`, `AuditIssue`, audit runner, report model, CLI owner, and non-destructive target boundary.
+
+Acceptance:
+
+* Architecture evidence is collected at most once per audit run and can be consumed by multiple detectors.
+* Unsupported or partial graph evidence is explicit and preserves provenance and analyzer coverage.
+* Existing `code-rot` and `security` audit behavior is unchanged when architecture evidence is unused or unavailable.
+* No new audit runner, report framework, or detector-specific command family is introduced.
+
+Explicit exclusions:
+
+* No semantic claim that two implementations share the same responsibility merely because names or topology are similar.
+* No compiler-grade whole-program analysis, runtime reachability proof, semantic clone proof, VCS history analysis, or runtime profiling in this release.
+
+### v0.10.1 — deterministic architecture topology analysis
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Use the shared architecture evidence to detect deterministic or explicitly policy-backed structural problems before introducing higher-risk semantic architecture judgments.
+
+Features:
+
+* Add dependency-cycle and strongly-connected-component evidence.
+* Add file/module fan-in and fan-out metrics with bounded evidence.
+* Add static affected-neighborhood and blast-radius candidates using supported dependency/call edges.
+* Add highly central module or dependency-hub candidates without equating centrality with a defect.
+* Add dependency-direction violations only when the target provides explicit layer/module rules that make the expected direction observable.
+* Add disconnected/orphan architecture candidates where graph coverage is sufficient.
+* Add architecture-topology summaries to the existing audit report model using additive fields and the existing confidence/provenance conventions.
+
+Acceptance:
+
+* Deterministic fixtures prove cycle, fan-in/fan-out, and static-neighborhood calculations.
+* Partial graph coverage produces partial/unavailable evidence rather than false clean results.
+* Findings identify exact supporting nodes/edges and do not infer design intent that is absent from the configured evidence.
+* Existing audit ordering, report determinism, CLI defaults, and non-destructive target handling remain compatible.
+
+### v0.10.2 — extensibility and reuse analysis
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Detect evidence that a software family is expensive to extend because implementations bypass existing extension points, duplicate surrounding infrastructure, or lack a reusable abstraction where repeated structure provides a defensible candidate signal.
+
+Features:
+
+* Identify observable registries, shared contracts, registered implementations, and dispatch paths from supported source/graph evidence.
+* Detect implementations that appear to bypass an established extension point when both expected registry/contract membership and the bypass path are observable.
+* Detect parallel-pipeline candidates across variant families, including duplicated orchestration, report plumbing, CLI plumbing, configuration paths, and test infrastructure.
+* Add extension-surface evidence describing how many existing owners/components appear to require modification when another member of a known feature family is added.
+* Add variant-specific-code-in-shared-core candidates where explicit family/ownership evidence supports the distinction.
+* Add `missing abstraction`, `plugin opportunity`, and `adapter opportunity` only as heuristic candidate findings with explicit confidence and false-positive risk.
+* Reuse `AuditIssue` for findings and the shared architecture snapshot for evidence; do not create a separate architecture-review engine.
+
+Acceptance:
+
+* Existing well-formed registry/plugin fixtures are not mislabeled simply for having multiple implementations.
+* Extension-point bypass fixtures identify the exact contract/registry and bypassing implementation path.
+* Candidate-only findings clearly distinguish deterministic evidence from inferred architectural opportunity.
+* Adding a new supported review rule does not require a new runner, CLI command, or report family.
+
+### v0.11.0 — quality audit type and maintainability analysis
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Implement the already-planned `quality` audit type on top of the existing audit framework and shared source/architecture evidence.
+
+Features:
+
+* Add deterministic complexity and size metrics where supported, including function/module size, nesting, and bounded structural complexity.
+* Add responsibility-concentration and god-module candidates using source-facts and architecture topology without treating high centrality alone as proof.
+* Strengthen duplication analysis with supported structural evidence while keeping semantic clone claims out of scope unless a validated evidence source is added.
+* Add dependency-discipline findings using explicit package/module/layer rules where available.
+* Reuse existing dead-code, test-rot, documentation-consistency, and dependency/environment evidence rather than copying those detectors into a second framework.
+* Extend audit metadata, selection, help text, reports, and tests so `quality` is a real implemented audit type while preserving `code-rot` as the default no-flag audit behavior.
+
+Acceptance:
+
+* `npm run audit -- --types quality` and the installed audit route execute the quality detector set through the existing runner.
+* Existing `code-rot` behavior and issue IDs remain compatible unless an explicit migration is documented.
+* Complexity and maintainability findings expose formulas/evidence and do not claim semantic correctness.
+* JSON/text report parity, deterministic ordering, and schema compatibility are preserved.
+
+### v0.11.1 — behavior and test evidence
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Add bounded evidence about how well important production behavior is protected by tests without claiming general semantic correctness of arbitrary target programs.
+
+Features:
+
+* Add production-symbol/module to test-file/test-symbol mapping where deterministic evidence is available.
+* Add changed-code-to-test mapping for explicit change sets when the changed files/symbols are known.
+* Add public/exported behavior with weak or missing test-evidence candidates.
+* Add weakly protected architectural seam and regression-risk candidates using architecture neighborhoods plus test relationships.
+* Add test-concentration, orphan-test, and repeated-test-infrastructure candidates where evidence is deterministic enough.
+* Support optional, explicitly configured target-test execution only in a disposable/sandboxed target copy with separate mutation evidence; never execute arbitrary target tests by default.
+* Preserve unavailable semantics when coverage, assertion quality, runtime behavior, or target-test execution evidence is absent.
+
+Acceptance:
+
+* Static behavior/test mappings are deterministic for supported fixtures and identify their evidence source.
+* Optional test execution cannot mutate the original target and is not required for a normal audit.
+* The report distinguishes test-presence evidence from coverage, assertion strength, and semantic correctness.
+* Existing `test-rot` behavior remains compatible and is reused rather than duplicated.
+
+### v0.11.2 — evolution and change-cost analysis
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Add read-only historical evidence for how expensive software is to change and whether supposedly separate modules repeatedly evolve together.
+
+Features:
+
+* Add bounded read-only Git history collection for changed-file/change-set metadata without uploading repository contents.
+* Add file/module co-change frequency and cross-module change-coupling evidence.
+* Add architectural hotspot candidates combining change frequency with supported structural evidence.
+* Add historical blast-radius summaries for bounded change sets.
+* Add public-contract/interface instability evidence where supported symbols can be tracked safely across history.
+* Add extension-cost evidence for known variant families by combining registry/contracts, architecture ownership, and observed modification surfaces.
+* Preserve privacy-safe, local-only history handling and explicit unavailable states when history is shallow, absent, or intentionally excluded.
+
+Acceptance:
+
+* History fixtures produce deterministic co-change and hotspot metrics.
+* Missing/shallow history never appears as zero coupling.
+* Findings separate historical correlation from causal architectural conclusions.
+* No Git mutation, checkout, reset, or target rewrite is required.
+
+### v0.12.0 — operational quality and resilience
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Review non-security operational qualities that affect reliability, diagnosability, portability, resource use, and safe long-running behavior while keeping security validation independently authoritative.
+
+Features:
+
+* Add resource-lifecycle candidates for managed processes, streams/files, timers, and cleanup paths where statically observable.
+* Add timeout, cancellation, retry, fallback, and error-propagation evidence for supported patterns.
+* Add observability candidates for major operations lacking structured failure/reporting paths where the expectation is explicit enough to avoid blanket logging rules.
+* Extend bounded portability/cross-platform evidence rather than creating a second platform-analysis framework.
+* Add conservative static performance candidates such as repeated expensive repository scans, repeated parsing, repeated subprocess startup, synchronous large-I/O paths, or redundant serialization only where the supporting evidence is explicit.
+* Keep runtime CPU/memory/latency profiling outside the baseline unless a separately validated optional evidence source is introduced.
+* Do not duplicate dependency, package, path, subprocess-injection, secret, network, Android, fuzz, or attack-scenario security checks.
+
+Acceptance:
+
+* Operational findings distinguish static candidates from measured runtime performance.
+* Existing security findings continue to come only from the security-validation owner and its audit adapter.
+* Resource/reliability evidence includes exact code paths or relationships and explicit confidence.
+* Existing cross-platform and target-safety behavior remains compatible.
+
+### v0.12.1 — unified project software review
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Turn the existing planned project-wide audit into one coherent software-review view across behavior, architecture, security, operations, quality, and evolution without creating six command families or six report engines.
+
+Features:
+
+* Implement the planned `project` audit type using the existing audit runner and additive evidence collectors.
+* Implement `all` selection as the explicit aggregate of implemented audit types while preserving the default no-flag `code-rot` behavior.
+* Add review-dimension classification for `behavior`, `architecture`, `security`, `operations`, `quality`, and `evolution`; a finding may belong to more than one dimension when warranted.
+* Add cross-type finding deduplication/relationship handling without discarding the original detector/security provenance.
+* Add dimension summaries and evidence-availability summaries to the existing audit report model.
+* Consume confirmed security findings through the existing security audit adapter; standalone security reports and verdict logic remain authoritative for complete security evidence.
+* Keep one severity/confidence/false-positive-risk vocabulary and one non-destructive target model across project review.
+
+Acceptance:
+
+* One project review can present all six dimensions without invoking parallel runners or duplicating security checks.
+* Standalone `code-rot`, `quality`, and `security` selections remain independently runnable.
+* Deduplication preserves original issue IDs, detector/source provenance, and report links.
+* Missing evidence in one dimension does not imply that the dimension passed.
+* Existing audit CLI syntax remains backward compatible.
+
+### v0.12.2 — software-review benchmark and calibration suite
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Establish measured evidence for how well deterministic and heuristic review findings work before the stable release, instead of relying only on unit tests or qualitative claims.
+
+Features:
+
+* Reuse the v0.7 synthetic-repository/fixture infrastructure for controlled good and intentionally problematic repository designs.
+* Add labeled fixtures for dependency cycles, layer violations, high fan-in/fan-out, extension-point bypass, parallel architecture, responsibility concentration, weak test mapping, change coupling, and selected operational-quality cases.
+* Measure expected-finding recall, unexpected-finding counts, false positives where ground truth is explicit, false negatives, determinism, runtime cost, cross-language consistency, and partial-evidence behavior.
+* Add confidence calibration evidence for candidate findings.
+* Treat heuristic findings such as missing abstraction/plugin opportunity as curated labeled cases with documented ambiguity rather than universal architectural truth.
+* Add report sections describing benchmark scope and unsupported evidence instead of producing a single opaque software-quality score.
+
+Acceptance:
+
+* Deterministic finding families have reproducible positive and negative fixtures.
+* Heuristic families expose labeled-case agreement and limitations rather than an unsupported universal precision claim.
+* Benchmark reports preserve language/analyzer/graph coverage and partial/unavailable evidence.
+* Stable-release claims about review capability are traceable to this calibration suite.
+
 ## Stable and post-stable releases
 
 ### v1.0.0 — stable framework release
@@ -1086,7 +1321,7 @@ Status: **planned; not implemented**.
 
 Purpose:
 
-* Release my-dev-kit-lab as a stable experiment, audit, automated security-validation, Android validation, reporting, and evidence framework after all prerequisite `v0.x` work; manual pentest remains post-v1.
+* Release my-dev-kit-lab as a stable experiment, software-review, audit, automated security-validation, Android validation, reporting, and evidence framework after all prerequisite `v0.x` work; manual pentest remains post-v1.
 
 Required capabilities:
 
@@ -1097,7 +1332,12 @@ Required capabilities:
 * Context-window scaling experiment support.
 * At least partial index freshness/staleness support.
 * Agent-success-rate experiment support.
-* Stable audit framework with code rot, quality, and security summary support.
+* Stable audit framework with code rot, quality, security-summary, project-wide review, and explicit aggregate selection support.
+* Stable architecture-evidence substrate with deterministic graph/topology analysis and explicit partial/unavailable semantics.
+* Stable extensibility/reuse analysis with extension-point bypass and candidate missing-abstraction/plugin/adapter evidence.
+* Stable behavior/test evidence, evolution/change-cost evidence, and operational-quality/resilience analysis.
+* Stable six-dimension project review covering behavior, architecture, security, operations, quality, and evolution without duplicating the underlying audit/security owners.
+* Stable software-review benchmark/calibration suite with deterministic fixtures and explicit heuristic limitations.
 * Stable automated security validation.
 * Android validation profile support.
 * Stable declarative browser-tutorial runtime with supported installed validation/execution commands.
@@ -1115,6 +1355,8 @@ Acceptance:
 
 * Users can add a new experiment type without copying the whole pipeline.
 * Users can audit a target project before implementation or release preparation.
+* Users can review behavior, architecture, security, operations, quality, and evolution evidence through one project-level audit while retaining standalone specialized audit/security reports.
+* Users can extend supported detector/analyzer/plugin families without copying the audit runner, report framework, or command surface.
 * Users can validate a local Android project for release preparation without signing, publishing, or modifying target source files.
 * Reports explain metrics, findings, confidence, and limitations clearly.
 * All core tests pass.
