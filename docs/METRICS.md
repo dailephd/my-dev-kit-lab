@@ -534,14 +534,33 @@ Caveats:
 
 The lab's central "how expensive is it to add another variant?" question is modeled as a bounded change scenario rather than an invented universal architecture score.
 
-Planned scenario observations:
+Two evidence classes must remain separate.
 
-- `existingFilesModified`
-- `existingModulesModified`
-- `publicContractsModified`
-- `registryEntriesModified`
-- `newImplementationArtifactsAdded`
-- `staticImpactSetSize`
+**Static scenario evidence (v0.10.2, no real change set required):**
+
+- `staticExtensionImpactNodeCount`
+  Meaning: number of existing architecture-evidence nodes in the bounded impact set derived from the declared extension point/scenario.
+- `staticExtensionImpactModuleCount`
+  Meaning: number of existing modules represented in that static impact set.
+- `extensionPointTouchpointCount`
+  Meaning: number of existing declared contract/registry/dispatch touchpoints directly involved in the scenario.
+- `extensionPointBypassCount`
+- `parallelPipelineCandidateCount`
+- `missingAbstractionCandidateCount`
+- `pluginOpportunityCandidateCount`
+- `adapterOpportunityCandidateCount`
+
+These are `lab-defined` structural/candidate measures. They do **not** mean that any file, contract, or registry entry was actually modified.
+
+**Observed change evidence (available only with an actual bounded before/after change set, history record, or implementation experiment):**
+
+- `observedExistingFilesModified`
+- `observedExistingModulesModified`
+- `observedPublicContractsModified`
+- `observedRegistryEntriesModified`
+- `observedNewImplementationArtifactsAdded`
+
+Observed metrics report `unavailable` when no real change evidence exists. Static estimates and observed modifications never share one metric ID and are never substituted for one another.
 
 Origin: `lab-defined`, informed by scenario-based architecture modifiability/extensibility research.
 Sources:
@@ -549,9 +568,7 @@ Sources:
 - [ALMA: Architecture-level modifiability analysis](https://www.sciencedirect.com/science/article/pii/S0164121203000803)
 - [EMSA: Extensibility Metric for Software Architecture](https://pure.kaist.ac.kr/en/publications/emsa-extensibility-metric-for-software-architecture/)
 
-Interpretation: fewer required modifications to unrelated existing owners can be evidence of a cleaner extension boundary for the same declared scenario, but cross-project comparisons require calibrated context.
-
-Candidate counts such as `extensionPointBypassCount`, `parallelPipelineCandidateCount`, `missingAbstractionCandidateCount`, `pluginOpportunityCandidateCount`, and `adapterOpportunityCandidateCount` are **lab-defined heuristic findings**, not established standard metrics. Their source basis is the same ALMA/EMSA change-scenario literature above plus the lab's explicit evidence rules. They must carry confidence and false-positive risk and must not be combined into an uncalibrated architecture score.
+Interpretation: a smaller static or observed impact for the same declared scenario can support an extensibility comparison, but it is not a universal proof of better architecture. Cross-project comparisons require calibrated context, and heuristic candidate counts must carry confidence and false-positive risk.
 
 ### Quality and maintainability metrics
 
