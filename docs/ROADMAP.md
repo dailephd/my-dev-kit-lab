@@ -671,7 +671,7 @@ Explicit exclusions:
 
 ### v0.4.9 — semantic native-select option selection for browser tutorials
 
-Status: **implemented and cross-platform validated; unreleased; pre-release readiness pending**. The design, frozen semantics, exclusions, and acceptance criteria below are preserved as authored and were met by the implementation. Operational bookkeeping for the implementation branch, commit, and CI run is recorded in [CURRENT_STATE.md](CURRENT_STATE.md), not here.
+Status: **implemented and validated; pre-release readiness complete; unreleased; release preparation next**. The design, frozen semantics, exclusions, and acceptance criteria below are preserved as authored and were met by the implementation. Operational bookkeeping for the implementation branch, commit, and CI run is recorded in [CURRENT_STATE.md](CURRENT_STATE.md), not here.
 
 Purpose:
 
