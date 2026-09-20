@@ -455,6 +455,8 @@ Explicit non-goals:
 
 This section describes planned architecture only. None of the contracts or flows below are implemented in the current v0.4.8 release.
 
+The literature/standards review does **not** require replacing the planned implementation architecture. ISO/IEC 25010 defines a product-quality reference model, ISO/IEC 25023 defines product-quality measurement guidance, and ISO/IEC 5055 defines automated structural source-code quality measures; these standards constrain taxonomy, measurement definitions, provenance, and interpretation rather than prescribing a runner/registry/report implementation. The lab therefore keeps the existing architectural direction: one audit runner, shared evidence collectors, registered detectors, the existing issue/report contracts, and the independently authoritative security subsystem.
+
 The planned review track extends the existing audit pipeline instead of creating a second architecture/quality runner. The central planned addition is one reusable architecture-evidence layer that can combine existing lab inventory/source facts with bounded, version-checked my-dev-kit graph evidence and then expose that evidence additively through `AuditDetectorContext`.
 
 ```mermaid
@@ -479,9 +481,65 @@ Planned ownership rules:
 * **Exact evidence boundaries:** graph schema/version, target identity, path containment, analyzer coverage, unresolved edges, and partial/unavailable evidence must be preserved. Unsupported evidence is never silently treated as zero or complete.
 * **Existing detector/report contracts remain primary:** findings continue to use `AuditDetector`, `AuditIssue`, the existing audit runner, and additive audit-report fields. A new detector must not introduce its own command or report engine.
 * **Security remains independently authoritative:** security validation, Android validation, attack scenarios, optional scanners, and security verdict policy remain owned by `src/securityValidation`. Project-wide software review consumes confirmed security findings through `src/audits/security` rather than duplicating those checks.
-* **Six review dimensions are classification, not architecture duplication:** future project review organizes evidence under behavior, architecture, security, operations, quality, and evolution. A finding may map to more than one dimension, but the underlying detector/evidence owner remains single.
+* **Six review dimensions are product/reporting classification, not an ISO conformance claim:** future project review organizes evidence under behavior, architecture, security, operations, quality, and evolution. ISO/IEC 25010 and ISO/IEC 5055 inform metric terminology and mapping, but the six lab dimensions are not asserted to equal the complete ISO quality model. A finding may map to more than one lab dimension while the underlying detector/evidence owner remains single.
+* **Metric provenance is part of the evidence contract:** future review metrics record origin (`standard`, `published-literature`, `established-tooling`, or `lab-defined`), source URL(s), definition version, scope, availability, evidence coverage, threshold source, and calibration version where applicable.
+* **No universal score is an architectural requirement:** the default report model carries raw/derived measures, evidence coverage, and findings. ISO/IEC 25023-style context dependence is preserved by keeping thresholds/reference bands separate from raw measurements; v0.12.2 may calibrate benchmark/project reference bands without making an opaque overall score the primary contract.
 * **Heuristic architecture conclusions stay candidates:** missing-abstraction, plugin-opportunity, adapter-opportunity, cohesion, and similar intent-sensitive findings must expose confidence/false-positive risk and the deterministic evidence they are based on.
-* **History and runtime evidence are separate inputs:** v0.11.2 may add bounded read-only Git history for change coupling. Runtime profiling is not implied by static architecture evidence and is outside the v0.12.0 baseline unless a separately validated optional source is added.
+* **Scenario-based extensibility remains additive evidence:** v0.10.2 models "add another variant" as an explicit change scenario and reports direct modification/impact observations, informed by ALMA/EMSA-style architecture modifiability analysis, instead of requiring a new runner or a universal extensibility score.
+* **History and runtime evidence are separate inputs:** v0.11.2 may add bounded read-only Git history for churn/co-committal evidence. Runtime profiling and DORA delivery metrics are not implied by static architecture evidence and require separate explicitly supplied evidence sources.
+
+
+### Planned review metric evidence contract
+
+A future metric model should remain additive to audit evidence and should not become a second verdict engine. A code-shaped target is:
+
+```ts
+type ReviewMetricOriginV1 =
+  | "standard"
+  | "published-literature"
+  | "established-tooling"
+  | "lab-defined";
+
+type ReviewMetricAvailabilityV1 =
+  | "available"
+  | "partial"
+  | "unavailable"
+  | "not-applicable";
+
+type ReviewMetricV1 = {
+  id: string;
+  dimensions: readonly (
+    | "behavior"
+    | "architecture"
+    | "security"
+    | "operations"
+    | "quality"
+    | "evolution"
+  )[];
+  origin: ReviewMetricOriginV1;
+  sourceUrls: readonly string[];
+  definitionVersion: string;
+  scope: string;
+  availability: ReviewMetricAvailabilityV1;
+  value: number | null;
+  unit: string;
+  numerator?: number;
+  denominator?: number;
+  evidenceCoverage?: number;
+  confidence?: "high" | "medium" | "low";
+  thresholdSource:
+    | "none"
+    | "configured-policy"
+    | "project-baseline"
+    | "benchmark-band"
+    | "external-policy";
+  calibrationVersion?: string | null;
+};
+```
+
+The exact implementation type may evolve during version planning, but the semantics are fixed: source URLs and formula provenance travel with the metric; unavailable/partial evidence is explicit; ratios retain their denominators; and calibrated interpretation is separate from the raw measurement.
+
+The canonical planned metric definitions and research URLs are maintained in [METRICS.md](METRICS.md). The architecture layer must not independently redefine those formulas.
 
 The following layers remain planned and must not be treated as current behavior:
 
