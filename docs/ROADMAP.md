@@ -1121,8 +1121,15 @@ Status: **planned; not implemented**.
 Purpose:
 
 * Use the shared architecture evidence to detect deterministic or explicitly policy-backed structural problems before introducing higher-risk semantic architecture judgments.
+* Make architecture review publicly reachable through the existing audit command in the same release that the first architecture detectors become usable; do not leave the capability internal-only.
 
 Features:
+
+* Implement the planned `project` audit type through the existing `runAuditCommandFromArgs -> normalizeAuditConfig -> runAudit` path. In v0.10.1 the only implemented project dimension is `architecture`.
+* Add `--dimensions <ids>` for `--types project`; v0.10.1 accepts only `architecture`. Omitting `--dimensions` runs every project dimension implemented by that installed version.
+* Add `--my-dev-kit-index <path>` as an optional read-only evidence input. Relative paths resolve from the invocation directory; an explicit missing/malformed/unsupported/target-mismatched index is a fatal configuration/evidence error, while a valid but partial index produces partial/unavailable metrics rather than a fatal error. The audit command never builds an index implicitly.
+* Add `--review-config <path>` as an optional versioned JSON contract for explicit layer rules, extension points, and architecture change scenarios. Relative paths resolve from the invocation directory; malformed files, unsupported schema versions, and unknown closed-contract fields fail clearly rather than being ignored.
+* Introduce one shared audit CLI-option contract used by parsing and help rendering so every newly exposed audit flag has one source of truth.
 
 * Add dependency-cycle and strongly-connected-component evidence with a frozen cycle-counting definition, plus cyclic-node count/percentage and evidence coverage.
 * Add established coupling measures at supported module/package scopes: afferent coupling (Ca), efferent coupling (Ce), and Instability `I = Ce / (Ca + Ce)`.
@@ -1136,10 +1143,12 @@ Features:
 
 Acceptance:
 
+* Both `my-dev-kit-lab audit --types project` and `npm run audit -- --types project` reach the same command owner, parser, normalized config, detector registry, report writer, and exit-code policy; only the already-established implicit output root may differ between installed-package workspace mode and source-checkout mode.
+* `my-dev-kit-lab audit --help` and `npm run audit -- --help` expose the same audit option vocabulary because help is owned by the shared audit command contract, not a second installed-CLI definition.
 * Deterministic fixtures prove cycle, fan-in/fan-out, and static-neighborhood calculations.
 * Partial graph coverage produces partial/unavailable evidence rather than false clean results.
 * Findings identify exact supporting nodes/edges and do not infer design intent that is absent from the configured evidence.
-* Existing audit ordering, report determinism, CLI defaults, and non-destructive target handling remain compatible.
+* Existing no-flag `code-rot` behavior, audit ordering, report determinism, CLI defaults, and non-destructive target handling remain compatible.
 
 ### v0.10.2 — extensibility and reuse analysis
 
@@ -1209,7 +1218,8 @@ Features:
 * Add public/exported behavior with weak or missing test-evidence candidates and weakly protected architectural seams using architecture neighborhoods plus test relationships.
 * Add test-concentration, orphan-test, and repeated-test-infrastructure candidates where evidence is deterministic enough.
 * Support optional mutation-testing evidence and mutation score, with equivalent-mutant limitations explicit; mutation testing is not a default audit requirement.
-* Support optional, explicitly configured target-test execution only in a disposable/sandboxed target copy; never execute arbitrary target tests by default.
+* Add `behavior` to the implemented `project` dimension vocabulary. `audit --types project --dimensions behavior` runs only behavior review; omitting `--dimensions` now runs architecture plus behavior.
+* Add `--run-target-tests` as an explicit opt-in accepted only when the selected audit includes project behavior. It requires configured test commands in `--review-config`, executes them with structured argv and `shell:false` against a disposable workspace copy, and never executes arbitrary target tests by default.
 * Preserve unavailable semantics when coverage, mutation, assertion quality, runtime behavior, or target-test execution evidence is absent.
 
 Acceptance:
@@ -1236,6 +1246,8 @@ Features:
 * Add historical change-set/module-impact summaries for bounded change sets.
 * Add public-contract/interface instability evidence where supported symbols can be tracked safely across history.
 * Reuse the v0.10.2 change-scenario observations for extension/change-cost analysis rather than inventing a separate extension score.
+* Add `evolution` to the implemented `project` dimension vocabulary. Omitting `--dimensions` now runs architecture, behavior, and evolution.
+* Add `--history off|auto|required`, defaulting to `off`. `auto` consumes bounded read-only Git history when available and otherwise reports unavailable evidence; `required` treats missing/unusable history as a fatal requested-evidence error. Add `--history-max-commits <n>`, a positive integer accepted only when history is `auto` or `required`, defaulting to 500.
 * Preserve privacy-safe, local-only history handling and explicit unavailable states when history is shallow, absent, or intentionally excluded.
 
 Acceptance:
@@ -1262,6 +1274,7 @@ Features:
 * Extend bounded portability/cross-platform evidence rather than creating a second platform-analysis framework.
 * Add conservative static performance candidates such as repeated expensive repository scans, repeated parsing, repeated subprocess startup, synchronous large-I/O paths, or redundant serialization only where the supporting evidence is explicit.
 * Accept DORA delivery-performance metrics only as optional external CI/CD/deployment evidence; never infer deployment frequency, change lead time, failed deployment recovery time, change fail rate, or deployment rework rate from source code alone.
+* Add `operations` to the implemented `project` dimension vocabulary. Omitting `--dimensions` now runs the complete project set: architecture, behavior, evolution, and operations.
 * Keep runtime CPU/memory/latency profiling outside the baseline unless a separately validated optional evidence source is introduced.
 * Do not duplicate dependency, package, path, subprocess-injection, secret, network, Android, fuzz, or attack-scenario security checks.
 
@@ -1278,12 +1291,15 @@ Status: **planned; not implemented**.
 
 Purpose:
 
-* Turn the existing planned project-wide audit into one coherent software-review view across behavior, architecture, security, operations, quality, and evolution without creating six command families or six report engines.
+* Complete one coherent software-review view across behavior, architecture, security, operations, quality, and evolution without creating six command families or six report engines.
+* Preserve the already-public `project` audit type introduced in v0.10.1 and add the explicit complete-review aggregation surface.
 
 Features:
 
-* Implement the planned `project` audit type using the existing audit runner and additive evidence collectors.
-* Implement `all` selection as the explicit aggregate of implemented audit types while preserving the default no-flag `code-rot` behavior.
+* Keep `project` as the cross-cutting architecture/behavior/evolution/operations audit type accumulated across v0.10.1-v0.12.0.
+* Implement `all` as the explicit aggregate of `code-rot`, `quality`, `security`, and `project` in fixed canonical execution order while preserving the default no-flag `code-rot` behavior.
+* `all` is exclusive: `--types all,<other>` is invalid. `--dimensions` is valid only with exactly `--types project`; this prevents ambiguous partial execution of an `all` review.
+* Extend audit `--format` with `html` while preserving the existing default `text,json`.
 * Add review-dimension classification for `behavior`, `architecture`, `security`, `operations`, `quality`, and `evolution`; a finding may belong to more than one dimension when warranted.
 * Add cross-type finding deduplication/relationship handling without discarding the original detector/security provenance.
 * Add dimension summaries that present raw/derived measures, evidence coverage, and finding severity. Do not introduce a default 0-100 dimension score or overall arithmetic software-quality score.
@@ -1293,8 +1309,9 @@ Features:
 
 Acceptance:
 
-* One project review can present all six dimensions without invoking parallel runners or duplicating security checks.
-* Standalone `code-rot`, `quality`, and `security` selections remain independently runnable.
+* `my-dev-kit-lab audit` and `npm run audit --` expose the same implemented audit types, flags, validation rules, help vocabulary, report semantics, and exit policy through the same command owner.
+* One `--types all` review can present all six dimensions without invoking parallel runners or duplicating security checks.
+* Standalone `code-rot`, `quality`, `security`, and `project` selections remain independently runnable.
 * Deduplication preserves original issue IDs, detector/source provenance, and report links.
 * Missing evidence in one dimension does not imply that the dimension passed.
 * Existing audit CLI syntax remains backward compatible.
@@ -1455,7 +1472,70 @@ Future work should extend the existing experiment, audit, and security-validatio
 
 ### Planned software-review command surface
 
-The planned end-state keeps one audit command family:
+The software-review track extends the **existing** audit command. It does not add `review`, `architecture`, `quality`, or detector-specific top-level command families.
+
+#### Command ownership and parity invariant
+
+Both public invocation forms must call the same implementation owner:
+
+```text
+installed package:
+my-dev-kit-lab [--workspace <path>] audit [options]
+        |
+        v
+src/cli/runLabCli.ts
+        |
+        v
+src/commands/runAuditCommand.ts :: runAuditCommandFromArgs
+
+source checkout:
+npm run audit -- [options]
+        |
+        v
+scripts/audits/runAudit.ts        (thin adapter only)
+        |
+        v
+src/commands/runAuditCommand.ts :: runAuditCommandFromArgs
+```
+
+The following are frozen requirements for every future audit option:
+
+* Parsing, validation, normalized configuration, usage/help text, target resolution, report writing, and exit-code mapping have one command owner. The installed CLI router must not duplicate audit option parsing.
+* A shared audit CLI-option contract must drive both the parser vocabulary and `AUDIT_USAGE`/help rendering when the first new review flags are implemented, eliminating independent flag lists that can drift.
+* Every supported option must be available through both invocation forms in the same release. A flag is not considered implemented if only the npm script or only the installed CLI accepts it.
+* Explicit paths and explicit `--out` values have identical semantics in both invocation forms. The only preserved environment-specific difference is the existing **implicit output root**: installed execution defaults under the selected lab workspace; source-checkout execution defaults under the package/repository root.
+* Parity tests must run representative option matrices through both entry paths and compare normalized configuration, selected audit types/dimensions, report contents, and exit behavior.
+
+#### Audit types and staged exposure
+
+```text
+v0.4.8 current:
+  code-rot
+  security
+  quality/project/all recognized but rejected as planned
+
+v0.10.1:
+  project becomes implemented
+  project dimensions: architecture
+
+v0.11.0:
+  quality becomes implemented
+
+v0.11.1:
+  project dimensions: architecture, behavior
+
+v0.11.2:
+  project dimensions: architecture, behavior, evolution
+
+v0.12.0:
+  project dimensions: architecture, behavior, evolution, operations
+
+v0.12.1:
+  all becomes implemented
+  all = code-rot + quality + security + project
+```
+
+The end-state syntax is:
 
 ```text
 my-dev-kit-lab audit --types code-rot
@@ -1463,32 +1543,102 @@ my-dev-kit-lab audit --types quality
 my-dev-kit-lab audit --types security
 my-dev-kit-lab audit --types project
 my-dev-kit-lab audit --types all
+
+npm run audit -- --types code-rot
+npm run audit -- --types quality
+npm run audit -- --types security
+npm run audit -- --types project
+npm run audit -- --types all
 ```
 
-Planned meanings:
+`--types` continues to accept unique comma-separated implemented types in canonical audit-type order for compatibility with the existing `code-rot,security` behavior. `all` is the one exception: it must be supplied alone and expands internally to `code-rot,quality,security,project`. The security adapter executes exactly once after registered audit detectors, as it does today.
 
-* `code-rot` — existing conservative rot/drift detectors.
-* `quality` — v0.11.0 maintainability/complexity/duplication quality detectors.
-* `security` — existing adapter to the authoritative `security validate` subsystem.
-* `project` — v0.12.1 cross-cutting architecture, behavior, operations, and evolution review.
-* `all` — explicit aggregate of implemented `code-rot`, `quality`, `security`, and `project` review; the no-flag default remains `code-rot`.
+The no-flag default remains `code-rot` through v1.0.0.
 
-Planned additive options, introduced only by their owning versions:
+#### Planned option contract
+
+Existing options remain backward compatible:
 
 ```text
---my-dev-kit-index <path>                  # v0.10.0, explicit prebuilt graph evidence
---review-config <path>                     # v0.10.x/v0.11.x, versioned project policy/scenario config
---history off|auto|required                # v0.11.2
---history-max-commits <n>                  # v0.11.2
---run-target-tests                         # v0.11.1, explicit opt-in only
---dimensions behavior,architecture,operations,evolution
-                                             # v0.12.1 project-review filter
---format text,json,html                    # html only after audit report support exists
+--target <path>
+--types <ids>
+--include <ids>
+--format <ids>
+--fail-on blocker|high|medium|low|none
+--out <path>
+--android
 ```
 
-A prebuilt my-dev-kit index is evidence input, not an implicit ownership transfer: my-dev-kit-lab does not become the production repository indexer. If graph evidence is absent, graph-dependent measures report unavailable/partial rather than zero.
+Planned additions:
 
-`security validate` remains the authoritative detailed security command. Project/all review reuses its exported implementation through the existing adapter and does not duplicate security policy.
+```text
+--my-dev-kit-index <path>          introduced v0.10.1
+--review-config <path>             introduced v0.10.1
+--dimensions <ids>                 introduced v0.10.1
+--run-target-tests                 introduced v0.11.1
+--history off|auto|required        introduced v0.11.2
+--history-max-commits <n>          introduced v0.11.2
+--format ...,html                  introduced v0.12.1
+```
+
+Exact behavior:
+
+* `--my-dev-kit-index <path>`: optional, read-only prebuilt index/evidence root. Relative paths resolve against invocation CWD. The lab never indexes implicitly. Explicit missing paths, malformed/unsupported contracts, traversal failures, or target-identity mismatch are fatal command/configuration errors. Valid partial analyzer/graph coverage is non-fatal and reports `partial`/`unavailable`.
+* `--review-config <path>`: optional versioned JSON policy/scenario file. Relative paths resolve against invocation CWD. Unsupported schema major, malformed JSON, missing explicit path, or unknown fields in the supported closed schema are fatal configuration errors. The initial contract owns explicit layer rules, extension-point declarations/change scenarios, and behavior test commands; future additions must version the contract rather than silently ignore fields.
+* `--dimensions <ids>`: valid only when `--types project` is the **only** selected audit type. IDs are comma-separated and deduplicated in canonical order. Unknown or not-yet-implemented dimensions fail with usage/configuration exit code 2. If omitted, project runs every dimension implemented by that installed version. Users needing upgrade-stable scope should specify dimensions explicitly.
+* `--run-target-tests`: valid only for a project run that includes the behavior dimension, or for `--types all`. It requires at least one structured test command in `--review-config`. Commands execute with argv arrays and `shell:false` against a disposable copy under the writable lab workspace. The original target is never the test working copy. Absence of required test configuration is a fatal configuration error, not a silently skipped test.
+* `--history off|auto|required`: valid only when the selected audit includes project analysis. Default is `off`. `auto` reads bounded local Git history if usable and otherwise records unavailable history evidence. `required` makes missing/unusable history a fatal requested-evidence error.
+* `--history-max-commits <n>`: positive integer, default 500, valid only with `--history auto|required`.
+* `--format html`: added only when v0.12.1 audit HTML rendering is implemented. Existing `text,json` default remains unchanged.
+* `--android`: current rule remains. It is valid when the resolved type selection includes `security`; therefore it also becomes valid with `--types all` once `all` exists. It remains invalid with project/quality/code-rot selections that do not include security.
+* `--fail-on`: continues to evaluate `AuditIssue` severity only. Raw metric values do **not** directly change process exit status. A metric threshold affects `--fail-on` only when a specific implemented detector/configured policy converts that condition into a normal `AuditIssue` with explicit provenance.
+
+#### Exit behavior
+
+Preserve the existing audit policy:
+
+```text
+0  audit completed and fail-on threshold was not breached
+1  audit completed and fail-on threshold was breached
+2  fatal usage/configuration/target/runtime error that prevented the requested audit contract
+```
+
+A detector-level failure that the existing runner can isolate remains structured detector-error evidence and does not silently become a clean result.
+
+#### Output contract
+
+* Existing installed/source output-root behavior is preserved: omitted `--out` uses the installed workspace root for installed execution and the package/repository root for source-checkout execution; explicit `--out` behaves identically in both.
+* v0.10.1 introduces canonical generic audit report names `audit-report.txt` and `audit-report.json` for new `project` output and future audit types. Existing selections that already expose `code-rot-audit.txt/json` retain those legacy paths for backward compatibility.
+* v0.12.1 adds `audit-report.html` where HTML is requested. Existing security reports under `reports/security/` remain separately authoritative and are linked/referenced rather than copied into the audit report.
+* Report metadata records requested audit types, expanded audit types (for `all`), requested project dimensions, evidence-source availability, normalized config, and metric provenance.
+* No future review option may redirect default writable output into the inspected target or installed package directory.
+
+#### Planned review-config architecture
+
+The initial versioned review configuration is declarative evidence/policy input, not executable code. At minimum it supports:
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "architecture": {
+    "layers": [],
+    "extensionPoints": [],
+    "changeScenarios": []
+  },
+  "behavior": {
+    "testCommands": [
+      {
+        "id": "unit",
+        "argv": ["npm", "test"],
+        "cwdRelative": ".",
+        "timeoutMs": 120000
+      }
+    ]
+  }
+}
+```
+
+Test commands cannot supply shell snippets, callbacks, arbitrary JavaScript, or `shell:true`. Architecture rules/change scenarios are evidence declarations used by detectors and metrics; they do not authorize target modification.
 
 Manual-pentest commands remain intentionally absent because that workflow is deferred to post-v1/version TBD.
 
