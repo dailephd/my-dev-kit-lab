@@ -393,7 +393,7 @@ Cross-repository boundary:
 ```mermaid
 flowchart LR
   Observer[my-frontend-observer<br/>deterministic demo template + product scenarios] --> Contract[trusted demo/target contract]
-  Contract --> Lab[my-dev-kit-lab v0.4.8<br/>generic tutorial runtime]
+  Contract --> Lab[my-dev-kit-lab v0.4.9<br/>generic tutorial runtime]
   Lab --> Evidence[WebM + screenshots + SRT/VTT + Markdown + tutorial manifest]
 ```
 
@@ -451,9 +451,34 @@ Explicit non-goals:
 * No Observer-only selectors, fake drag handles, hidden tutorial controls, or alternate product interaction paths.
 * No change to FFmpeg/MP4/audio/gallery scope and no warm-index work.
 
+### Released v0.4.9 native-select extension
+
+The v0.4.8 vocabulary could express keyboard input and pointer gestures, but had no way to say "choose the option whose value is X" in a native HTML `<select>`. Downstream consumers had to emulate selection with `ArrowDown` counts followed by `Enter`, which encodes a platform-sensitive navigation path instead of the intent. v0.4.9 adds one additive, value-only action to close that gap and is the current release.
+
+Ownership:
+
+| Owner | v0.4.9 responsibility |
+| --- | --- |
+| `src/tutorial/types.ts` | `select-option` discriminator in `TutorialActionV1` and `TUTORIAL_ACTION_TYPES` |
+| `src/tutorial/scenarioValidation.ts` | closed field set (`type`, `locator`, `value`, `timeoutMs`), required non-empty value, existing locator and timeout validators |
+| `src/browser/types.ts` | narrow structural `selectOption({ value }, { timeout })` method on the minimal locator surface |
+| `src/tutorial/tutorialActions.ts` | canonical locator resolution, `selectOption` execution, exact returned-value verification, bounded failure message |
+| `src/tutorial/tutorialSession.ts` | pre-action synthetic-cursor routing to the select; no click ripple |
+| `examples/tutorial-browser/` | ten-step generic fixture with a native `Operation` select and ordinary `change`-handler evidence |
+| `tests/integration/tutorialRealBrowser.spec.ts` | real Chromium proof, including test-owned live DOM inspection |
+| `scripts/verify-packed-package.mjs` | exact installed-tarball proof through the `TUTORIAL_SELECT_OPTION` gate |
+
+Preserved boundaries:
+
+* `TutorialScenarioV1`, `TutorialTargetContractV1`, `TutorialRunResultV1`, and `TutorialManifestV1` all remain schema `1.0.0`; the action is additive at every existing boundary.
+* All nine existing actions are unchanged. `press` remains real keyboard input and `drag` remains element-to-element.
+* No keyboard fallback, no retry, no arbitrary JavaScript, no scenario-reachable `page.evaluate` or event dispatch, and no new result type or tutorial runner.
+* No Observer production dependency: the action API is generic and value-only.
+
+The `page.evaluate` in the real-browser integration test is test instrumentation that wraps the page object; no scenario can reach it, so it is not a scenario capability.
+
 The following layers remain planned and must not be treated as current behavior:
 
-- v0.4.9 semantic native-select tutorial action: extend the existing `TutorialActionV1` union, closed scenario validator, minimal structural Playwright locator surface, canonical action executor, and synthetic-cursor routing with one value-only `select-option` action backed by Playwright `Locator.selectOption({ value })`. Reuse the existing action/result/step/session/artifact contracts, keep schema `1.0.0`, add no keyboard fallback or new tutorial runner, and prove the behavior through the existing cross-platform real-browser and exact packed-package gates.
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
@@ -514,3 +539,8 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.8 pointer action execution and move steps (released) | `src/tutorial/tutorialActions.ts` |
 | v0.4.8 structural browser mouse interface (released) | `src/browser/types.ts` |
 | v0.4.8 generic tutorial browser fixture (released) | `examples/tutorial-browser/` |
+| v0.4.9 `select-option` action type and vocabulary (released) | `src/tutorial/types.ts` |
+| v0.4.9 closed `select-option` validation (released) | `src/tutorial/scenarioValidation.ts` |
+| v0.4.9 `selectOption` execution and returned-value verification (released) | `src/tutorial/tutorialActions.ts` |
+| v0.4.9 structural browser `selectOption` interface (released) | `src/browser/types.ts` |
+| v0.4.9 native-select cursor routing (released) | `src/tutorial/tutorialSession.ts` |

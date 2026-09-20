@@ -69,7 +69,7 @@ describe("installed tutorial package contract", () => {
   it("keeps the lockfile root classification and package version stable", () => {
     expect(lock.packages[""].dependencies?.playwright).toBe("1.60.0");
     expect(lock.packages[""].devDependencies?.playwright).toBeUndefined();
-    expect(pkg.version).toBe("0.4.8");
+    expect(pkg.version).toBe("0.4.9");
   });
 
   it("ships only the canonical generic tutorial resources", () => {
@@ -89,7 +89,7 @@ describe("installed tutorial package contract", () => {
 
   it("keeps the canonical packaged scenario on schema 1.0.0 with both drag families", () => {
     expect(tutorialScenario.schemaVersion).toBe("1.0.0");
-    expect(tutorialScenario.steps).toHaveLength(9);
+    expect(tutorialScenario.steps).toHaveLength(10);
     expect(tutorialScenario.steps.map((step) => step.id)).toEqual([
       "open-app",
       "activate",
@@ -99,6 +99,7 @@ describe("installed tutorial package contract", () => {
       "drag-card",
       "pointer-click-surface",
       "pointer-drag-surface",
+      "select-operation",
       "wait-banner"
     ]);
     expect(tutorialScenario.steps.map((step) => step.action?.type)).toEqual([
@@ -110,6 +111,7 @@ describe("installed tutorial package contract", () => {
       "drag",
       "pointer-click",
       "pointer-drag",
+      "select-option",
       "wait-for"
     ]);
     expect(tutorialScenario.steps.find((step) => step.id === "drag-card")?.action).toEqual({

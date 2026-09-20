@@ -155,6 +155,7 @@ describe("scenarios cannot express JavaScript execution", () => {
       "press",
       "hover",
       "drag",
+      "select-option",
       "wait-for",
       "pointer-click",
       "pointer-drag"
@@ -202,6 +203,35 @@ describe("scenarios cannot express JavaScript execution", () => {
       "steps"
     ]) {
       const action = { ...base, [field]: field === "steps" ? 8 : "forbidden" };
+      expect(
+        validateTutorialScenario(
+          minimalScenario({ steps: [{ id: "s", narration: "n", action: action as never }] })
+        ).ok
+      ).toBe(false);
+    }
+  });
+
+  it("keeps select-option value-only and rejects script/event/DOM-mutation controls", () => {
+    const base = {
+      type: "select-option",
+      locator: { kind: "css", selector: "#op" },
+      value: "preserve"
+    };
+    for (const field of [
+      "script",
+      "evaluate",
+      "javascript",
+      "shell",
+      "command",
+      "dispatchEvent",
+      "event",
+      "eventType",
+      "eventInit",
+      "property",
+      "propertyValue",
+      "url"
+    ]) {
+      const action = { ...base, [field]: "forbidden" };
       expect(
         validateTutorialScenario(
           minimalScenario({ steps: [{ id: "s", narration: "n", action: action as never }] })

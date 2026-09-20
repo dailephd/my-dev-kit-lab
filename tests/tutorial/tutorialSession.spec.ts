@@ -162,6 +162,51 @@ describe("executeTutorialSteps", () => {
     expect(page.calls.filter((call) => call.method === "goto")).toHaveLength(0);
   });
 
+  it("skips assertions and stops later steps when a select-option action fails", async () => {
+    const page = createFakePage({
+      locators: { "css:#op": { selectOptionError: new Error("option not found") } }
+    });
+    const scenario = scenarioWithSteps([
+      {
+        id: "one",
+        narration: "n",
+        action: { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" },
+        assertions: [{ type: "url-path-equals", expected: "/never-checked" }]
+      },
+      { id: "two", narration: "n", action: { type: "goto", path: "/b" } }
+    ]);
+
+    const result = await executeTutorialSteps(baseOptions(scenario, page));
+
+    // The generic step-failure path, not a select-specific branch.
+    expect(result.steps[0].status).toBe("failed");
+    expect(result.steps[0].action?.status).toBe("failed");
+    expect(result.steps[0].assertions).toEqual([]);
+    expect(result.steps[0].error).toContain("because the select-option action failed");
+    expect(result.steps[1].status).toBe("not-run");
+    expect(result.failedStepId).toBe("one");
+    expect(page.calls.filter((call) => call.method === "goto")).toHaveLength(0);
+  });
+
+  it("fails a select-option step when the browser reports a different selected value", async () => {
+    const page = createFakePage({ locators: { "css:#op": { selectedOptions: ["move"] } } });
+    const scenario = scenarioWithSteps([
+      {
+        id: "one",
+        narration: "n",
+        action: { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" },
+        assertions: [{ type: "url-path-equals", expected: "/never-checked" }]
+      },
+      { id: "two", narration: "n", action: { type: "goto", path: "/b" } }
+    ]);
+
+    const result = await executeTutorialSteps(baseOptions(scenario, page));
+
+    expect(result.steps[0].status).toBe("failed");
+    expect(result.steps[0].assertions).toEqual([]);
+    expect(result.steps[1].status).toBe("not-run");
+  });
+
   it("runs every assertion in a step before finalizing it, even after one fails", async () => {
     const page = createFakePage({ url: "http://127.0.0.1:3000/actual" });
     const scenario = scenarioWithSteps([

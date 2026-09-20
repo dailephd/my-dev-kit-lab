@@ -372,6 +372,20 @@ export function validateAction(errors: ErrorCollector, location: string, value: 
       validateLocator(errors, `${location}.target`, value.target);
       validateOptionalTimeout(errors, `${location}.timeoutMs`, value.timeoutMs);
       break;
+    case "select-option":
+      // Closed to `value` alone: `label`, `index` and `values` are unknown
+      // fields here, so a scenario cannot reach a selection mode the runtime
+      // does not implement by guessing at Playwright's wider API.
+      rejectUnknownKeys(errors, location, value, ["type", "locator", "value", "timeoutMs"]);
+      validateLocator(errors, `${location}.locator`, value.locator);
+      if (!isNonEmptyString(value.value)) {
+        errors.add(
+          `${location}.value`,
+          `expected a non-empty option value string after trimming, received ${describeValue(value.value)}.`
+        );
+      }
+      validateOptionalTimeout(errors, `${location}.timeoutMs`, value.timeoutMs);
+      break;
     case "pointer-click":
       rejectUnknownKeys(errors, location, value, ["type", "locator", "position", "coordinateSpace", "timeoutMs"]);
       validateLocator(errors, `${location}.locator`, value.locator);

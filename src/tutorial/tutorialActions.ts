@@ -129,6 +129,23 @@ async function performAction(
       );
       return;
     }
+    case "select-option": {
+      const locator = resolveTutorialLocator(page, action.locator);
+      const selected = await locator.selectOption(
+        { value: action.value },
+        { timeout: timeoutFor(action.timeoutMs) }
+      );
+      // Playwright resolves to the values it actually selected. A mismatched or
+      // empty result means the intended option was not chosen, so it is a
+      // failure rather than a silently-accepted no-op; more than one value
+      // would mean a multi-select, which this contract does not express.
+      if (selected.length !== 1 || selected[0] !== action.value) {
+        throw new Error(
+          `expected exactly one selected value ${JSON.stringify(action.value)}, but the select reported ${JSON.stringify(selected)}`
+        );
+      }
+      return;
+    }
     case "wait-for":
       await resolveTutorialLocator(page, action.locator).waitFor({
         ...(action.state !== undefined ? { state: action.state } : {}),
@@ -198,6 +215,8 @@ function describeActionError(action: TutorialActionV1, error: unknown): string {
       return `pointer-click on ${describeTutorialLocator(action.locator)} at fraction ${describeFractionPoint(action.position)} failed: ${message}`;
     case "pointer-drag":
       return `pointer-drag on ${describeTutorialLocator(action.locator)} from fraction ${describeFractionPoint(action.from)} to ${describeFractionPoint(action.to)} failed: ${message}`;
+    case "select-option":
+      return `select-option on ${describeTutorialLocator(action.locator)} for value ${JSON.stringify(action.value)} failed: ${message}`;
     case "click":
     case "fill":
     case "press":

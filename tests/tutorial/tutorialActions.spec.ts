@@ -342,6 +342,124 @@ describe("executeTutorialAction", () => {
     expect(page.mouse.calls.filter((call) => call.method === "mouse.up")).toHaveLength(0);
   });
 
+  it("performs select-option by value with the default timeout when none is declared", async () => {
+    const page = createFakePage();
+    const result = await executeTutorialAction(
+      page,
+      { type: "select-option", locator: { kind: "test-id", testId: "operation" }, value: "preserve" },
+      CONTEXT
+    );
+
+    expect(result.status).toBe("passed");
+    expect(result.type).toBe("select-option");
+    expect(page.locators.get("test-id:operation")?.calls).toEqual([
+      {
+        method: "selectOption",
+        args: [{ value: "preserve" }, { timeout: DEFAULT_TUTORIAL_ACTION_TIMEOUT_MS }]
+      }
+    ]);
+  });
+
+  it("forwards an explicit select-option timeout unchanged", async () => {
+    const page = createFakePage();
+    await executeTutorialAction(
+      page,
+      {
+        type: "select-option",
+        locator: { kind: "test-id", testId: "operation" },
+        value: "preserve",
+        timeoutMs: 1234
+      },
+      CONTEXT
+    );
+
+    expect(page.locators.get("test-id:operation")?.calls).toEqual([
+      { method: "selectOption", args: [{ value: "preserve" }, { timeout: 1234 }] }
+    ]);
+  });
+
+  it("resolves the select through the canonical locator resolver", async () => {
+    const page = createFakePage();
+    await executeTutorialAction(
+      page,
+      { type: "select-option", locator: { kind: "role", role: "combobox", name: "Operation" }, value: "preserve" },
+      CONTEXT
+    );
+
+    // The same getByRole path every other locator-based action uses; there is
+    // no select-specific resolution mechanism.
+    expect(page.calls).toEqual([
+      { method: "getByRole", args: ["combobox", { name: "Operation" }] }
+    ]);
+    expect(page.locators.get("role:combobox|name=Operation|exact=undefined")?.calls).toHaveLength(1);
+  });
+
+  it("passes when the select reports exactly the requested value as selected", async () => {
+    const page = createFakePage({ locators: { "css:#op": { selectedOptions: ["preserve"] } } });
+    const result = await executeTutorialAction(
+      page,
+      { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" },
+      CONTEXT
+    );
+
+    expect(result.status).toBe("passed");
+  });
+
+  it.each([
+    [[], "nothing was selected"],
+    [["move"], "a different value was selected"],
+    [["preserve", "move"], "more than one value was selected"]
+  ])("fails when the returned selection is %j because %s", async (selectedOptions) => {
+    const page = createFakePage({ locators: { "css:#op": { selectedOptions } } });
+    const result = await executeTutorialAction(
+      page,
+      { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" },
+      CONTEXT
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.type).toBe("select-option");
+    expect(result.error).toContain("select-option on css=#op");
+    expect(result.error).toContain('for value "preserve"');
+    expect(result.error).toContain(JSON.stringify(selectedOptions));
+  });
+
+  it("turns a Playwright select failure into a structured failed result naming the cause", async () => {
+    const page = createFakePage({
+      locators: { "css:#op": { selectOptionError: new Error("option not found") } }
+    });
+    const result = await executeTutorialAction(
+      page,
+      { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" },
+      CONTEXT
+    );
+
+    expect(result.status).toBe("failed");
+    expect(result.error).toContain("select-option");
+    expect(result.error).toContain("css=#op");
+    expect(result.error).toContain('"preserve"');
+    expect(result.error).toContain("option not found");
+    expect(result.error).not.toContain("at Object.");
+  });
+
+  it("does not retry or fall back to keyboard or mouse input when selection fails", async () => {
+    const page = createFakePage({
+      locators: { "css:#op": { selectOptionError: new Error("option not found") } }
+    });
+    await executeTutorialAction(
+      page,
+      { type: "select-option", locator: { kind: "css", selector: "#op" }, value: "preserve" },
+      CONTEXT
+    );
+
+    const locatorCalls = page.locators.get("css:#op")?.calls ?? [];
+    expect(locatorCalls.filter((call) => call.method === "selectOption")).toHaveLength(1);
+    // No ArrowDown/Enter emulation and no synthetic click stands in for a
+    // failed semantic selection.
+    expect(locatorCalls.map((call) => call.method)).toEqual(["selectOption"]);
+    expect(page.mouse.calls).toHaveLength(0);
+  });
+
   it("performs wait-for with the declared state", async () => {
     const page = createFakePage();
     await executeTutorialAction(
