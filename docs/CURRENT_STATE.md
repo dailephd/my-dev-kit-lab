@@ -89,7 +89,8 @@ The following remain planned, not implemented:
 - behavior/test evidence mapping and optional sandboxed target-test evidence (planned for v0.11.1)
 - read-only Git history, change-coupling, hotspot, and change-cost evidence (planned for v0.11.2)
 - non-security operational-quality/resilience analysis for resource lifecycle, timeout/retry/error propagation, observability, portability, and conservative performance candidates (planned for v0.12.0)
-- software-review benchmark/calibration fixtures and measured false-positive/false-negative/partial-evidence behavior (planned for v0.12.2)
+- software-review benchmark/calibration fixtures and measured precision/recall/false-positive/false-negative/partial-evidence behavior (planned for v0.12.2)
+- literature/standards-backed metric provenance with source URLs, exact definition versions, evidence coverage, and calibrated reference bands where justified; no default universal 0-100 software-quality score is planned
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
@@ -109,6 +110,7 @@ Security validation is already implemented and remains a separate authoritative 
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
 - Current architecture review is limited to bounded documentation/layout drift and duplicate/parallel implementation candidates; repository-wide dependency cycles, fan-in/fan-out, extension-point bypass, missing-abstraction candidates, and change-coupling evidence are planned, not implemented.
 - The current audit framework has no implemented general complexity/maintainability quality type, no semantic clone proof, no test-coverage/assertion-strength proof, and no runtime performance profiler.
+- The current release does not emit the planned literature-backed architecture/quality/behavior/evolution measures described in METRICS.md, does not claim ISO/IEC 5055 conformance, and does not calculate a six-dimension or overall software-quality health score.
 - Only one experiment plugin is currently registered.
 - The published upstream `ContextCapsule`/`RetrievalAuditRecord` artifacts that the implemented `v0.4.3` readers consume do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` with an explicit reason rather than zero.
 - Estimated token counts in the `v0.4.3` context-size metric use `ceil(characterCount / 4)` per source and are heuristic, not provider telemetry.
