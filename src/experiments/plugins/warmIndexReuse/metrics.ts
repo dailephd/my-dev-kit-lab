@@ -1,5 +1,10 @@
 import type { ExperimentMetric } from "../../types.js";
 import type { WarmIndexProjectSummaryV1, WarmIndexTaskSummaryV1 } from "./executionArtifact.js";
+import type {
+  WarmIndexAgentSideEvidenceV1,
+  WarmIndexProjectAgentEvidenceV1,
+  WarmIndexTaskAgentEvidenceV1,
+} from "./fakeAgentEvaluation.js";
 
 // ---------------------------------------------------------------------------
 // Warm-index metric owner. Every warm-index formula (amortization, cumulative
@@ -36,6 +41,7 @@ export type WarmIndexRawTaskMetricsV1 = {
   cumulativeEstimatedContextTokens: WarmIndexNumberMetricV1;
   agentCorrectness: WarmIndexNumberMetricV1;
   agentTotalTokens: WarmIndexNumberMetricV1;
+  cumulativeAgentTotalTokens: WarmIndexNumberMetricV1;
 };
 
 export type WarmIndexWarmTaskMetricsV1 = {
@@ -47,6 +53,7 @@ export type WarmIndexWarmTaskMetricsV1 = {
   cumulativeEstimatedContextTokens: WarmIndexNumberMetricV1;
   agentCorrectness: WarmIndexNumberMetricV1;
   agentTotalTokens: WarmIndexNumberMetricV1;
+  cumulativeAgentTotalTokens: WarmIndexNumberMetricV1;
 };
 
 export type WarmIndexTaskMetricsV1 = {
@@ -70,10 +77,8 @@ export type WarmIndexMetricsV1 = {
   projects: WarmIndexProjectMetricsV1[];
 };
 
-const AGENT_CORRECTNESS_REASON =
-  "Agent execution is not part of the warm-index-reuse experiment through v0.5.0 Prompt 3.";
-const AGENT_TOKENS_REASON =
-  "Agent token usage is unavailable because the warm-index-reuse experiment performs context construction and retrieval only and does not run an agent.";
+const NO_AGENT_EVIDENCE_REASON = "No fake-agent evaluation evidence was supplied for this task.";
+const AGENT_NOT_RUN_REASON = "The fake agent was not run because this side produced no context evidence.";
 
 export function availableMetric(
   value: number,
@@ -157,14 +162,59 @@ function indexBuildMetric(project: WarmIndexProjectSummaryV1): WarmIndexNumberMe
   return availableMetric(project.buildDurationMs, "ms", "measured");
 }
 
-function agentMetrics(): Pick<WarmIndexRawTaskMetricsV1, "agentCorrectness" | "agentTotalTokens"> {
-  return {
-    agentCorrectness: unavailableMetric("score", "agent", AGENT_CORRECTNESS_REASON),
-    agentTotalTokens: unavailableMetric("tokens", "agent", AGENT_TOKENS_REASON),
-  };
+/**
+ * Fake-agent correctness and total tokens come only from bounded fake-agent evidence. Missing
+ * token telemetry stays unavailable; estimated context tokens are never substituted.
+ */
+function agentSideMetrics(
+  evidence: WarmIndexAgentSideEvidenceV1 | null | undefined
+): Pick<WarmIndexRawTaskMetricsV1, "agentCorrectness" | "agentTotalTokens"> {
+  if (evidence === undefined || evidence === null) {
+    const reason = evidence === undefined ? NO_AGENT_EVIDENCE_REASON : AGENT_NOT_RUN_REASON;
+    return {
+      agentCorrectness: unavailableMetric("score", "agent", reason),
+      agentTotalTokens: unavailableMetric("tokens", "agent", reason),
+    };
+  }
+  const correctnessScore = evidence.correctness.score;
+  const agentCorrectness =
+    evidence.correctness.available && correctnessScore !== null
+      ? availableMetric(correctnessScore, "score", "agent")
+      : unavailableMetric(
+          "score",
+          "agent",
+          `Fake-agent output was not scoreable (status ${evidence.status})${evidence.errors[0] ? `: ${evidence.errors[0]}` : "."}`
+        );
+  const agentTotalTokens =
+    evidence.tokenUsage.totalTokens !== null
+      ? availableMetric(evidence.tokenUsage.totalTokens, "tokens", "agent")
+      : unavailableMetric(
+          "tokens",
+          "agent",
+          `The fake agent did not report total tokens (token usage source ${evidence.tokenUsage.source}).`
+        );
+  return { agentCorrectness, agentTotalTokens };
 }
 
-export function calculateWarmIndexProjectMetrics(project: WarmIndexProjectSummaryV1): WarmIndexProjectMetricsV1 {
+function assertAgentEvidenceAligned(
+  project: WarmIndexProjectSummaryV1,
+  evidence: WarmIndexProjectAgentEvidenceV1 | undefined
+): void {
+  if (!evidence) return;
+  const aligned =
+    evidence.benchmarkProject === project.benchmarkProject &&
+    evidence.tasks.length === project.tasks.length &&
+    evidence.tasks.every((task, index) => task.caseId === project.tasks[index].caseId);
+  if (!aligned) {
+    throw new Error(`Fake-agent evidence is not aligned with the execution summary for ${project.benchmarkProject}.`);
+  }
+}
+
+export function calculateWarmIndexProjectMetrics(
+  project: WarmIndexProjectSummaryV1,
+  agentEvidence?: WarmIndexProjectAgentEvidenceV1
+): WarmIndexProjectMetricsV1 {
+  assertAgentEvidenceAligned(project, agentEvidence);
   const indexBuildDurationMs = indexBuildMetric(project);
   const buildUsable = project.sessionPrepared && indexBuildDurationMs.availability === "available";
   const noSessionReason = project.sessionPrepared
@@ -180,12 +230,18 @@ export function calculateWarmIndexProjectMetrics(project: WarmIndexProjectSummar
     buildUsable ? { value: indexBuildDurationMs.value as number } : { unavailableReason: noSessionReason }
   );
   const warmTokens = new PrefixSum("estimated-tokens", "estimated-chars-div-4", { value: 0 });
+  // Fake-agent token totals accumulate separately from estimated context tokens.
+  const rawAgentTokens = new PrefixSum("tokens", "agent", { value: 0 });
+  const warmAgentTokens = new PrefixSum("tokens", "agent", { value: 0 });
 
   const tasks = project.tasks.map((task, index): WarmIndexTaskMetricsV1 => {
     const taskOrdinal = index + 1;
     const label = (side: string) => `Task ${taskOrdinal} (${task.caseId}) ${side}`;
     const raw = rawDirect(task);
     const warm = warmDirect(task);
+    const taskAgentEvidence: WarmIndexTaskAgentEvidenceV1 | undefined = agentEvidence?.tasks[index];
+    const rawAgent = agentSideMetrics(agentEvidence ? taskAgentEvidence?.raw ?? null : undefined);
+    const warmAgent = agentSideMetrics(agentEvidence ? taskAgentEvidence?.warm ?? null : undefined);
     return {
       caseId: task.caseId,
       taskOrdinal,
@@ -193,7 +249,8 @@ export function calculateWarmIndexProjectMetrics(project: WarmIndexProjectSummar
         ...raw,
         cumulativeDurationMs: rawDuration.add(raw.operationDurationMs, label("raw duration")),
         cumulativeEstimatedContextTokens: rawTokens.add(raw.contextEstimatedTokens, label("raw estimated context tokens")),
-        ...agentMetrics(),
+        ...rawAgent,
+        cumulativeAgentTotalTokens: rawAgentTokens.add(rawAgent.agentTotalTokens, label("raw fake-agent total tokens")),
       },
       warm: {
         ...warm,
@@ -203,7 +260,8 @@ export function calculateWarmIndexProjectMetrics(project: WarmIndexProjectSummar
           : unavailableMetric("ms", "derived", noSessionReason),
         cumulativeComponentDurationMs: warmDuration.add(warm.retrievalDurationMs, label("warm retrieval duration")),
         cumulativeEstimatedContextTokens: warmTokens.add(warm.contextEstimatedTokens, label("warm estimated context tokens")),
-        ...agentMetrics(),
+        ...warmAgent,
+        cumulativeAgentTotalTokens: warmAgentTokens.add(warmAgent.agentTotalTokens, label("warm fake-agent total tokens")),
       },
     };
   });
@@ -253,10 +311,16 @@ function warmDirect(task: WarmIndexTaskSummaryV1) {
 }
 
 /** Pure, order-preserving calculation; ordinals and cumulative state restart for every project. */
-export function calculateWarmIndexMetrics(projects: readonly WarmIndexProjectSummaryV1[]): WarmIndexMetricsV1 {
+export function calculateWarmIndexMetrics(
+  projects: readonly WarmIndexProjectSummaryV1[],
+  agentEvidence?: readonly WarmIndexProjectAgentEvidenceV1[]
+): WarmIndexMetricsV1 {
+  if (agentEvidence && agentEvidence.length !== projects.length) {
+    throw new Error("Fake-agent evidence is not aligned with the execution summaries.");
+  }
   return {
     schemaVersion: WARM_INDEX_METRICS_SCHEMA_VERSION,
-    projects: projects.map(calculateWarmIndexProjectMetrics),
+    projects: projects.map((project, index) => calculateWarmIndexProjectMetrics(project, agentEvidence?.[index])),
   };
 }
 
@@ -275,6 +339,7 @@ export function toRawOutcomeMetrics(task: WarmIndexTaskMetricsV1, variantId: str
     { id: "operation-duration-ms", name: "Operation duration", description: "Measured raw full-file context construction duration.", metric: task.raw.operationDurationMs },
     { id: "cumulative-component-duration-ms", name: "Cumulative component duration", description: "Sum of raw context construction durations for tasks 1..N in this project.", metric: task.raw.cumulativeDurationMs },
     { id: "cumulative-context-estimated-token-count", name: "Cumulative estimated context tokens", description: "Sum of raw estimated context tokens for tasks 1..N in this project; not provider token usage.", metric: task.raw.cumulativeEstimatedContextTokens },
+    ...agentSpecs(task.raw),
   ]);
 }
 
@@ -286,7 +351,16 @@ export function toWarmOutcomeMetrics(task: WarmIndexTaskMetricsV1, variantId: st
     { id: "cumulative-component-duration-ms", name: "Cumulative component duration", description: "One index build plus retrieval durations for tasks 1..N in this project; a component sum, not wall-clock latency.", metric: task.warm.cumulativeComponentDurationMs },
     { id: "cumulative-context-estimated-token-count", name: "Cumulative estimated context tokens", description: "Sum of retrieved estimated context tokens for tasks 1..N in this project; not provider token usage.", metric: task.warm.cumulativeEstimatedContextTokens },
     { id: "amortized-index-build-duration-ms", name: "Amortized index build duration", description: "Index build duration divided by this task's ordinal within its project.", metric: task.warm.amortizedIndexBuildDurationMs },
+    ...agentSpecs(task.warm),
   ]);
+}
+
+function agentSpecs(side: Pick<WarmIndexRawTaskMetricsV1, "agentCorrectness" | "agentTotalTokens" | "cumulativeAgentTotalTokens">): GenericMetricSpec[] {
+  return [
+    { id: "agent-correctness-score", name: "Fake-agent correctness score", description: "Deterministic fake-agent correctness from the existing benchmark answer-key scorer; not real-model correctness.", metric: side.agentCorrectness },
+    { id: "agent-total-tokens", name: "Fake-agent total tokens", description: "Simulated fake-agent harness token total; not provider billing telemetry.", metric: side.agentTotalTokens },
+    { id: "cumulative-agent-total-tokens", name: "Cumulative fake-agent total tokens", description: "Sum of simulated fake-agent token totals for tasks 1..N in this project; not provider billing telemetry.", metric: side.cumulativeAgentTotalTokens },
+  ];
 }
 
 function toExperimentMetrics(caseId: string, variantId: string, specs: GenericMetricSpec[]): ExperimentMetric[] {

@@ -148,7 +148,7 @@ export function renderExperimentRunHelp(): string {
     "Required:",
     "  --experiment <id>   Registered experiment plugin id (see \"my-dev-kit-lab experiment list\")",
     "",
-    "Options:",
+    "Common options (all plugins):",
     "  --target <path>                                    Local target project path (default: self)",
     "  --out <dir>                                         Output directory for experiment artifacts",
     "                                                      (default: beneath the workspace when installed)",
@@ -158,6 +158,15 @@ export function renderExperimentRunHelp(): string {
     "                                                      (default: the bundled package resource)",
     "  --case <ids>                                       Comma-separated case ids to run",
     "  --benchmark-project <ids>                          Comma-separated benchmark project ids to run",
+    "",
+    "warm-index-reuse only:",
+    "  --kit-command <command>                            my-dev-kit command used to build one index per benchmark",
+    "                                                      project and retrieve per task",
+    "                                                      (default: npx @dailephd/my-dev-kit@latest)",
+    "                                                      Agent evidence uses the deterministic fake agent only;",
+    "                                                      agent options below are not accepted by this plugin.",
+    "",
+    "context-strategy-comparison only:",
     "  --agents <list>                                    Comma-separated agent ids (default: fake-agent)",
     "  --strategies <list>                                Comma-separated strategies: raw-full-file,my-dev-kit-guided",
     "  --complexities <list>                               Comma-separated complexity levels: short,medium,long,multi-step",
@@ -248,20 +257,26 @@ export function renderPlotsHelp(): string {
     "  my-dev-kit-lab plots --help",
     "",
     "Commands:",
-    "  generate   Generate experiment plot artifacts from controlled-experiment artifacts.",
+    "  generate   Generate experiment plot artifacts from controlled-experiment or supported",
+    "             plugin experiment artifacts (warm-index-reuse).",
     "             Run \"my-dev-kit-lab plots generate --help\" for details."
   ].join("\n");
 }
 
 export function renderPlotsGenerateHelp(): string {
   return [
-    "my-dev-kit-lab plots generate - generate chart/plot artifacts from controlled-experiment artifacts",
+    "my-dev-kit-lab plots generate - generate chart/plot artifacts from experiment artifacts",
     "",
     "Usage:",
     "  my-dev-kit-lab plots generate --experiment <dir> --out <dir>",
     "",
+    "Supported inputs:",
+    "  - legacy controlled-experiment output directories",
+    "  - warm-index-reuse plugin output directories (containing its report.json)",
+    "  Other plugin outputs are not plotted by this command.",
+    "",
     "Required:",
-    "  --experiment <dir>   Path to a controlled-experiment output directory",
+    "  --experiment <dir>   Path to a supported experiment output directory",
     "  --out <dir>          Output directory for plot artifacts"
   ].join("\n");
 }

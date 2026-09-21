@@ -7,6 +7,8 @@ import { runExperimentDescribeCommandFromArgs } from "../../src/commands/runExpe
 import { runExperimentListCommandFromArgs } from "../../src/commands/runExperimentListCommand.js";
 import { parseRunExperimentArgs, runExperimentRunCommandFromArgs } from "../../src/commands/runExperimentRunCommand.js";
 import type { WarmIndexExecutionArtifactV1 } from "../../src/experiments/plugins/warmIndexReuse/index.js";
+import { runLabCli } from "../../src/cli/index.js";
+import type { WarmIndexReuseReportV1 } from "../../src/report/index.js";
 import { fakeKitCommand, multiTaskCasesPath } from "../experiments/warmIndexReuse/warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
@@ -177,5 +179,105 @@ describe("experiment list/describe with warm-index-reuse", () => {
       "my-dev-kit-lab experiment run --experiment context-strategy-comparison --agents fake-agent --complexities short",
       'my-dev-kit-lab experiment run --experiment context-strategy-comparison --target "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1" --agents fake-agent --complexities short --no-screenshot',
     ]);
+  });
+});
+
+describe("installed CLI help for warm-index-reuse and plots", () => {
+  async function help(args: string[]) {
+    const stdout: string[] = [];
+    const code = await runLabCli(args, { writers: { stdout: (message) => stdout.push(message), stderr: () => undefined } });
+    return { code, text: stdout.join("\n") };
+  }
+
+  it("documents --kit-command as warm-index-reuse only and keeps context-strategy options separate", async () => {
+    const { code, text } = await help(["experiment", "run", "--help"]);
+    expect(code).toBe(0);
+    const common = text.indexOf("Common options (all plugins):");
+    const warm = text.indexOf("warm-index-reuse only:");
+    const context = text.indexOf("context-strategy-comparison only:");
+    expect(common).toBeGreaterThan(-1);
+    expect(warm).toBeGreaterThan(common);
+    expect(context).toBeGreaterThan(warm);
+    const warmSection = text.slice(warm, context);
+    expect(warmSection).toContain("--kit-command <command>");
+    expect(warmSection).toContain("deterministic fake agent only");
+    expect(warmSection).not.toMatch(/--agents|codex|claude/);
+    const contextSection = text.slice(context);
+    for (const flag of ["--agents", "--strategies", "--complexities", "--include-real-agents", "--command-template-codex", "--no-screenshot"]) {
+      expect(contextSection).toContain(flag);
+    }
+    for (const flag of ["--target", "--out", "--cases", "--project-profiles", "--case", "--benchmark-project"]) {
+      expect(text.slice(common, warm)).toContain(flag);
+    }
+  });
+
+  it("describes plots generate inputs accurately", async () => {
+    const family = await help(["plots", "--help"]);
+    expect(family.text).toContain("controlled-experiment or supported");
+    expect(family.text).toContain("warm-index-reuse");
+    const generate = await help(["plots", "generate", "--help"]);
+    expect(generate.text).toContain("legacy controlled-experiment output directories");
+    expect(generate.text).toContain("warm-index-reuse plugin output directories");
+    expect(generate.text).toContain("Other plugin outputs are not plotted by this command.");
+    expect(generate.text).not.toContain("Path to a controlled-experiment output directory");
+  });
+});
+
+describe("warm-index-reuse fake-agent end-to-end through the command owners", () => {
+  it("runs the multi-task experiment and plots it with fake-agent evidence and no context text", async () => {
+    const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-e2e-"));
+    const plotsOut = mkdtempSync(path.join(os.tmpdir(), "warm-e2e-plots-"));
+    tempDirs.push(outRoot, plotsOut);
+    captureConsole();
+    const exitCode = await runExperimentRunCommandFromArgs([
+      "--experiment",
+      "warm-index-reuse",
+      "--kit-command",
+      fakeKitCommand,
+      "--cases",
+      multiTaskCasesPath,
+      "--out",
+      outRoot,
+    ]);
+    expect(exitCode).toBe(0);
+
+    const reportText = readFileSync(path.join(outRoot, "report.json"), "utf8");
+    const { report } = JSON.parse(reportText) as {
+      report: {
+        warmIndexReuse: WarmIndexReuseReportV1;
+        interpretation: { summary: string; recommendedNextStep: string };
+      };
+    };
+    const section = report.warmIndexReuse;
+    expect(section.projects.map((project) => [project.benchmarkProject, project.taskCount])).toEqual([
+      ["todo-ts", 2],
+      ["todo-js", 1],
+    ]);
+    expect(section.summary).toEqual(
+      expect.objectContaining({ agentSideCount: 6, agentCorrectnessAvailableCount: 6, agentTotalTokensAvailableCount: 6 })
+    );
+    const [first, second] = section.projects[0].tasks;
+    expect(second.warm.cumulativeAgentTotalTokens.value).toBe(
+      (first.warm.agentTotalTokens.value as number) + (second.warm.agentTotalTokens.value as number)
+    );
+    const artifact = JSON.parse(readFileSync(path.join(outRoot, "warm-index-execution.json"), "utf8")) as WarmIndexExecutionArtifactV1;
+    expect(artifact.projects.map((project) => project.indexCommand?.commandId)).toEqual(["index", "index"]);
+
+    const sourceLine = readFileSync(path.resolve("benchmarks/projects/todo-ts/src/taskService.ts"), "utf8")
+      .split("\n")
+      .find((line) => line.trim().length > 30)!
+      .trim();
+    expect(reportText).not.toContain("contextText");
+    expect(reportText).not.toContain(sourceLine);
+    const interpretation = `${report.interpretation.summary} ${report.interpretation.recommendedNextStep}`;
+    expect(interpretation).not.toMatch(/is better|winner|best strategy|best-supported|faster overall|saves tokens|break-even|ranked first/i);
+
+    const stdout: string[] = [];
+    const plotCode = await runLabCli(["plots", "generate", "--experiment", outRoot, "--out", plotsOut], {
+      writers: { stdout: (message) => stdout.push(message), stderr: () => undefined },
+    });
+    expect(plotCode).toBe(0);
+    const summary = JSON.parse(readFileSync(path.join(plotsOut, "plots-summary.json"), "utf8")) as { chartCount: number };
+    expect(summary.chartCount).toBe(4);
   });
 });

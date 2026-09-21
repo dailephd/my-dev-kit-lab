@@ -1,5 +1,9 @@
 import type { WarmIndexNumberMetricV1 } from "../../experiments/plugins/warmIndexReuse/metrics.js";
-import type { WarmIndexReuseReportProjectV1, WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
+import type {
+  WarmIndexReuseReportAgentV1,
+  WarmIndexReuseReportProjectV1,
+  WarmIndexReuseReportV1,
+} from "./warmIndexReuseReportModel.js";
 
 const UNIT_LABELS: Record<WarmIndexNumberMetricV1["unit"], string> = {
   ms: "ms",
@@ -23,6 +27,8 @@ export function renderWarmIndexReuseHtml(section: WarmIndexReuseReportV1 | null)
       ["Tasks", String(section.summary.taskCount)],
       ["Projects with a prepared index session", String(section.summary.preparedSessionProjectCount)],
       ["Incomplete or failed projects", String(section.summary.incompleteProjectCount)],
+      ["Fake-agent correctness available (task sides)", `${section.summary.agentCorrectnessAvailableCount} of ${section.summary.agentSideCount}`],
+      ["Fake-agent token totals available (task sides)", `${section.summary.agentTotalTokensAvailableCount} of ${section.summary.agentSideCount}`],
     ])}
     <h3>Cold Start And Warm Reuse</h3>
     ${list(section.costModel)}
@@ -47,6 +53,12 @@ function renderProject(project: WarmIndexReuseReportProjectV1, index: number): s
         ["Cumulative warm component duration", task.warm.cumulativeComponentDurationMs],
         ["Cumulative raw estimated context tokens", task.raw.cumulativeEstimatedContextTokens],
         ["Cumulative warm estimated context tokens", task.warm.cumulativeEstimatedContextTokens],
+        ["Raw fake-agent correctness", task.raw.agentCorrectness],
+        ["Warm fake-agent correctness", task.warm.agentCorrectness],
+        ["Raw fake-agent total tokens", task.raw.agentTotalTokens],
+        ["Warm fake-agent total tokens", task.warm.agentTotalTokens],
+        ["Cumulative raw fake-agent total tokens", task.raw.cumulativeAgentTotalTokens],
+        ["Cumulative warm fake-agent total tokens", task.warm.cumulativeAgentTotalTokens],
       ] as const
     )
       .filter(([, metric]) => metric.availability !== "available")
@@ -96,17 +108,42 @@ function renderProject(project: WarmIndexReuseReportProjectV1, index: number): s
       ])
     )}
     <p class="muted">Estimated tokens are character-based context-size estimates, not provider token usage.</p>
+    <p class="muted">Agent columns are deterministic fake-agent evidence; token totals are simulated harness telemetry, not provider billing telemetry.</p>
     ${table(
-      ["Task", "Raw agent correctness", "Warm agent correctness", "Raw agent total tokens", "Warm agent total tokens"],
+      [
+        "Task",
+        "Raw fake-agent status",
+        "Warm fake-agent status",
+        "Raw correctness",
+        "Warm correctness",
+        "Raw agent tokens",
+        "Warm agent tokens",
+        "Cumulative raw agent tokens",
+        "Cumulative warm agent tokens",
+        "Token source / reliability",
+      ],
       project.tasks.map((task) => [
         `${task.taskOrdinal}. ${task.caseId}`,
-        withReason(task.raw.agentCorrectness),
-        withReason(task.warm.agentCorrectness),
-        withReason(task.raw.agentTotalTokens),
-        withReason(task.warm.agentTotalTokens),
+        formatAgent(task.rawAgent),
+        formatAgent(task.warmAgent),
+        formatMetric(task.raw.agentCorrectness),
+        formatMetric(task.warm.agentCorrectness),
+        formatMetric(task.raw.agentTotalTokens),
+        formatMetric(task.warm.agentTotalTokens),
+        formatMetric(task.raw.cumulativeAgentTotalTokens),
+        formatMetric(task.warm.cumulativeAgentTotalTokens),
+        [task.rawAgent, task.warmAgent]
+          .map((agent) => (agent ? `${agent.tokenUsageSource} / ${agent.tokenUsageReliability}` : "not run"))
+          .join("; "),
       ])
     )}
     ${unavailableRows.length === 0 ? "" : table(["Task", "Case", "Metric", "Availability", "Reason"], unavailableRows)}`;
+}
+
+function formatAgent(agent: WarmIndexReuseReportAgentV1 | null): string {
+  if (agent === null) return "not run";
+  const passed = agent.passed === null ? "" : agent.passed ? ", passed" : ", not passed";
+  return `${agent.status}${passed}${agent.errors[0] ? ` (${agent.errors[0]})` : ""}`;
 }
 
 function formatMetric(metric: WarmIndexNumberMetricV1): string {

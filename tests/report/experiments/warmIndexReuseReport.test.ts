@@ -11,6 +11,8 @@ import {
 } from "../../../src/experiments/index.js";
 import {
   calculateWarmIndexMetrics,
+  type WarmIndexAgentSideEvidenceV1,
+  type WarmIndexProjectAgentEvidenceV1,
   warmIndexReuseMetadata,
   type WarmIndexProjectSummaryV1,
   type WarmIndexReuseRun,
@@ -22,7 +24,7 @@ import {
   renderPluginExperimentReportText,
   writePluginExperimentReports,
 } from "../../../src/report/index.js";
-import { fakeKitCommand, makeCase } from "../../experiments/warmIndexReuse/warmIndexTestHelpers.js";
+import { fakeKitCommand, loadBundledProjectProfiles, makeCase } from "../../experiments/warmIndexReuse/warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -83,7 +85,41 @@ function projectSummary(overrides: Partial<WarmIndexProjectSummaryV1> = {}): War
   };
 }
 
-function makeWarmRun(projects: WarmIndexProjectSummaryV1[], status: ExperimentRun["status"] = "completed"): WarmIndexReuseRun {
+function agentSide(variantId: WarmIndexAgentSideEvidenceV1["variantId"], totalTokens: number | null = 250): WarmIndexAgentSideEvidenceV1 {
+  return {
+    variantId,
+    agentId: "fake-agent",
+    promptStrategy: variantId === "raw-full-file" ? "raw-full-file" : "my-dev-kit-guided",
+    status: "completed",
+    correctness: { available: true, score: 1, passed: true, failureReasons: [] },
+    tokenUsage: {
+      totalTokens,
+      source: totalTokens === null ? "unavailable" : "agent-reported",
+      reliability: totalTokens === null ? "unavailable" : "high",
+    },
+    durationMs: 1,
+    warnings: [],
+    errors: [],
+    artifactPaths: {},
+  };
+}
+
+function defaultAgentEvidence(projects: WarmIndexProjectSummaryV1[]): WarmIndexProjectAgentEvidenceV1[] {
+  return projects.map((project) => ({
+    benchmarkProject: project.benchmarkProject,
+    tasks: project.tasks.map((task) => ({
+      caseId: task.caseId,
+      raw: task.rawBaseline ? agentSide("raw-full-file") : null,
+      warm: task.warmRetrieval ? agentSide("warm-index-reuse") : null,
+    })),
+  }));
+}
+
+function makeWarmRun(
+  projects: WarmIndexProjectSummaryV1[],
+  status: ExperimentRun["status"] = "completed",
+  agentEvidence: WarmIndexProjectAgentEvidenceV1[] = defaultAgentEvidence(projects)
+): WarmIndexReuseRun {
   return {
     runId: "run-1",
     pluginId: "warm-index-reuse",
@@ -110,7 +146,8 @@ function makeWarmRun(projects: WarmIndexProjectSummaryV1[], status: ExperimentRu
     warnings: [],
     failures: [],
     projectExecutions: projects,
-    warmIndexMetrics: calculateWarmIndexMetrics(projects),
+    agentEvidence,
+    warmIndexMetrics: calculateWarmIndexMetrics(projects, agentEvidence),
   };
 }
 
@@ -122,7 +159,9 @@ describe("buildWarmIndexReuseReport", () => {
         projectSummary({ benchmarkProject: "todo-js", sessionKey: "todo-js", sessionPrepared: false, status: "partial" }),
       ])
     )!;
-    expect(section.summary).toEqual({ projectCount: 2, taskCount: 4, preparedSessionProjectCount: 1, incompleteProjectCount: 1 });
+    expect(section.summary).toEqual(
+      expect.objectContaining({ projectCount: 2, taskCount: 4, preparedSessionProjectCount: 1, incompleteProjectCount: 1 })
+    );
     expect(section.projects.map((project) => [project.benchmarkProject, project.taskCount])).toEqual([
       ["todo-ts", 2],
       ["todo-js", 2],
@@ -133,8 +172,21 @@ describe("buildWarmIndexReuseReport", () => {
     ]);
     expect(section.costModel.join(" ")).toContain("one-time index build plus the first retrieval");
     expect(section.costModel.join(" ")).toContain("divided by N");
-    expect(section.limitations).toHaveLength(6);
-    expect(section.limitations.join(" ")).toContain("not provider billing telemetry");
+    expect(section.limitations).toHaveLength(7);
+    expect(section.limitations.join(" ")).not.toContain("does not execute agents");
+    expect(section.limitations.join(" ")).toContain("deterministic fake agent only");
+    expect(section.limitations.join(" ")).toContain("simulated harness telemetry, not provider billing telemetry");
+    expect(section.summary).toEqual(
+      expect.objectContaining({ agentSideCount: 8, agentCorrectnessAvailableCount: 8, agentTotalTokensAvailableCount: 8 })
+    );
+    expect(section.projects[0].tasks[0].warmAgent).toEqual({
+      status: "completed",
+      passed: true,
+      tokenUsageSource: "agent-reported",
+      tokenUsageReliability: "high",
+      warnings: [],
+      errors: [],
+    });
   });
 
   it("returns null for other plugins", () => {
@@ -176,6 +228,7 @@ describe("plugin report integration", () => {
     const completed = buildPluginExperimentReport({ run: makeWarmRun([projectSummary()]), plugin: warmIndexReuseMetadata });
     expect(completed.interpretation.summary).toContain("prepared 1 of 1 project indexes and evaluated 2 tasks");
     expect(completed.interpretation.summary).toContain("not provider token usage");
+    expect(completed.interpretation.summary).toContain("Deterministic fake-agent correctness is available for 4 of 4 task sides");
     const partial = buildPluginExperimentReport({
       run: makeWarmRun([projectSummary({ sessionPrepared: false, status: "partial" })], "partial"),
       plugin: warmIndexReuseMetadata,
@@ -204,7 +257,11 @@ describe("plugin report integration", () => {
     expect(text).toContain("Amortized Index Build Duration: 50 ms (derived)");
     expect(text).toContain("Cumulative Warm Component Duration: 104 ms (derived)");
     expect(text).toContain("Raw Estimated Context Tokens (estimate): 100 estimated-tokens (estimated-chars-div-4, method estimated_chars_div_4)");
-    expect(text).toContain("Warm Agent Correctness: unavailable (Agent execution is not part");
+    expect(text).toContain("Warm Agent Correctness (fake agent): 1 score (agent)");
+    expect(text).toContain("Raw Agent Total Tokens (fake-agent simulated): 250 tokens (agent)");
+    expect(text).toContain("Cumulative Warm Agent Total Tokens (fake-agent simulated): 500 tokens (agent)");
+    expect(text).toContain("Warm Fake-Agent Evaluation: status completed, passed true, token source agent-reported, reliability high");
+    expect(text).not.toContain("does not execute agents");
     expect(text).toContain("Index Build Duration: unavailable (No index setup was attempted because the project group was structurally inconsistent.)");
     expect(text).toContain("Cold Start And Warm Reuse:");
     expect(text).toContain("No composite score, winner, ranking, or break-even task is calculated.");
@@ -238,7 +295,10 @@ describe("plugin report integration", () => {
     expect(section).toContain("100 est. tokens");
     expect(section).toContain("not provider token usage");
     expect(section).toContain("No valid warm index session was prepared");
-    expect(section).toContain("unavailable: Agent execution is not part");
+    expect(section).toContain("<th>Raw agent tokens</th>");
+    expect(section).toContain("<td>250 tokens</td>");
+    expect(section).toContain("simulated harness telemetry, not provider billing telemetry");
+    expect(section).toContain("The fake agent was not run because this side produced no context evidence.");
     expect(section).not.toContain("<script");
   });
 });
@@ -253,7 +313,7 @@ describe("warm report files from a real run", () => {
       registry,
       outputRoot,
       config: { kitCommand: fakeKitCommand },
-      inputs: { cases: [makeCase({ id: "task-a" }), makeCase({ id: "task-b" })] },
+      inputs: { cases: [makeCase({ id: "task-a" }), makeCase({ id: "task-b" })], projectProfiles: await loadBundledProjectProfiles() },
       toolRoot: process.cwd(),
       runId: "warm-report-run",
     });

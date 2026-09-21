@@ -1,7 +1,14 @@
 import { readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import type { EvaluationCase } from "../../../src/evaluation/types.js";
+import { readBenchmarkProjectProfiles } from "../../../src/evaluation/index.js";
+import type { BenchmarkProjectProfile, EvaluationCase } from "../../../src/evaluation/types.js";
+
+export const bundledProjectProfilesPath = path.resolve(process.cwd(), "benchmarks/contracts/benchmark-project-profiles.json");
+
+export function loadBundledProjectProfiles(): Promise<BenchmarkProjectProfile[]> {
+  return readBenchmarkProjectProfiles(bundledProjectProfilesPath, process.cwd());
+}
 
 export const fakeKitPath = path.resolve(process.cwd(), "tests/fixtures/fake-my-dev-kit-cli.js");
 export const fakeKitCommand = `node ${fakeKitPath}`;
@@ -17,8 +24,10 @@ export function makeCase(overrides: Partial<EvaluationCase> & Pick<EvaluationCas
     absoluteTargetRoot: path.resolve(process.cwd(), targetRoot),
     sourceRoots: ["src", "tests"],
     query: `query for ${overrides.id}`,
-    expectedFiles: [],
-    expectedSymbols: [],
+    // A non-empty answer key so the deterministic fake agent produces a fully scoreable answer.
+    expectedFiles: ["src/taskService.ts"],
+    expectedSymbols: ["createTask"],
+    expectedFacts: [{ id: "create-task", text: "createTask creates a task.", weight: 1, required: true }],
     rawIncludeGlobs: ["src/**/*", "tests/**/*"],
     ...overrides,
   };

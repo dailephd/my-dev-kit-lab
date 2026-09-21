@@ -18,7 +18,7 @@ import {
   type WarmIndexExecutionArtifactV1,
   type WarmIndexReuseRun,
 } from "../../../src/experiments/plugins/warmIndexReuse/index.js";
-import { fakeKitCommand, findFiles, makeCase, writeFakeKitVariant } from "./warmIndexTestHelpers.js";
+import { fakeKitCommand, findFiles, loadBundledProjectProfiles, makeCase, writeFakeKitVariant } from "./warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -31,14 +31,19 @@ function tempDir(prefix = "warm-plugin-"): string {
   return dir;
 }
 
-async function runWarm(cases: EvaluationCase[], kitCommand = fakeKitCommand, extraConfig: Record<string, unknown> = {}) {
+async function runWarm(
+  cases: EvaluationCase[],
+  kitCommand = fakeKitCommand,
+  extraConfig: Record<string, unknown> = {},
+  env: NodeJS.ProcessEnv = {}
+) {
   const outputRoot = tempDir();
   const run = (await runExperiment({
     pluginId: "warm-index-reuse",
     registry: createDefaultExperimentPluginRegistry(),
     outputRoot,
     config: { kitCommand, ...extraConfig },
-    inputs: { cases },
+    inputs: { cases, projectProfiles: await loadBundledProjectProfiles(), env },
     toolRoot: process.cwd(),
     runId: "warm-test-run",
   })) as WarmIndexReuseRun;
@@ -68,7 +73,7 @@ describe("warm-index-reuse registration and config", () => {
         name: "Warm Index Reuse",
         status: "experimental",
         supportedTargets: ["self", "external-local"],
-        supportedOutputs: ["json", "html", "text", "artifact"],
+        supportedOutputs: ["json", "html", "text", "plot", "artifact"],
       })
     );
     expect(warmIndexReusePlugin.supportedVariants).toEqual(["raw-full-file", "warm-index-reuse"]);
@@ -225,10 +230,20 @@ describe("warm-index-reuse execution", () => {
         "operation-duration-ms",
         "cumulative-component-duration-ms",
         "cumulative-context-estimated-token-count",
+        "agent-correctness-score",
+        "agent-total-tokens",
+        "cumulative-agent-total-tokens",
       ]);
       expect(warm.metrics.map((metric) => metric.id)).toEqual([
-        ...raw.metrics.map((metric) => metric.id),
+        "context-character-count",
+        "context-estimated-token-count",
+        "operation-duration-ms",
+        "cumulative-component-duration-ms",
+        "cumulative-context-estimated-token-count",
         "amortized-index-build-duration-ms",
+        "agent-correctness-score",
+        "agent-total-tokens",
+        "cumulative-agent-total-tokens",
       ]);
       for (const outcome of experimentCase.outcomes) {
         expect(outcome.metadata).toEqual({
@@ -236,6 +251,7 @@ describe("warm-index-reuse execution", () => {
           sessionKey: "todo-ts",
           warmSessionAvailable: true,
           taskStatus: "completed",
+          agentStatus: "completed",
         });
       }
     }

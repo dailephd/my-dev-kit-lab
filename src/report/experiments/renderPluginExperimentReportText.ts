@@ -7,7 +7,7 @@ import type {
   V043ReportRatioMetricV1,
 } from "./contextStrategyComparisonV043ReportModel.js";
 import type { WarmIndexNumberMetricV1 } from "../../experiments/plugins/warmIndexReuse/metrics.js";
-import type { WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
+import type { WarmIndexReuseReportAgentV1, WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
 
 function sanitizeScalar(value: unknown): string {
   const text = String(value);
@@ -311,6 +311,13 @@ function formatWarmMetric(metric: WarmIndexNumberMetricV1): string {
   return `${metric.availability} (${metric.reason ?? ""})`;
 }
 
+function formatWarmAgent(agent: WarmIndexReuseReportAgentV1 | null): string {
+  if (agent === null) return "not run (no context evidence for this side)";
+  const passed = agent.passed === null ? "unavailable" : String(agent.passed);
+  const issues = [...agent.errors, ...agent.warnings].slice(0, 3).join("; ");
+  return `status ${agent.status}, passed ${passed}, token source ${agent.tokenUsageSource}, reliability ${agent.tokenUsageReliability}${issues ? `, notes: ${issues}` : ""}`;
+}
+
 function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseReportV1 | null): void {
   if (section === null) {
     lines.push("Not applicable to this plugin.");
@@ -320,6 +327,8 @@ function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseRep
   lines.push(fieldLine("Task Count", section.summary.taskCount));
   lines.push(fieldLine("Prepared Session Project Count", section.summary.preparedSessionProjectCount));
   lines.push(fieldLine("Incomplete Or Failed Project Count", section.summary.incompleteProjectCount));
+  lines.push(fieldLine("Fake-Agent Correctness Available (task sides)", `${section.summary.agentCorrectnessAvailableCount} of ${section.summary.agentSideCount}`));
+  lines.push(fieldLine("Fake-Agent Token Totals Available (task sides)", `${section.summary.agentTotalTokensAvailableCount} of ${section.summary.agentSideCount}`));
   lines.push("Cold Start And Warm Reuse:");
   pushDashList(lines, section.costModel);
   lines.push("Limitations:");
@@ -351,10 +360,14 @@ function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseRep
         ["Cumulative Warm Component Duration", formatWarmMetric(task.warm.cumulativeComponentDurationMs)],
         ["Cumulative Raw Estimated Context Tokens (estimate)", formatWarmMetric(task.raw.cumulativeEstimatedContextTokens)],
         ["Cumulative Warm Estimated Context Tokens (estimate)", formatWarmMetric(task.warm.cumulativeEstimatedContextTokens)],
-        ["Raw Agent Correctness", formatWarmMetric(task.raw.agentCorrectness)],
-        ["Warm Agent Correctness", formatWarmMetric(task.warm.agentCorrectness)],
-        ["Raw Agent Total Tokens", formatWarmMetric(task.raw.agentTotalTokens)],
-        ["Warm Agent Total Tokens", formatWarmMetric(task.warm.agentTotalTokens)],
+        ["Raw Fake-Agent Evaluation", formatWarmAgent(task.rawAgent)],
+        ["Warm Fake-Agent Evaluation", formatWarmAgent(task.warmAgent)],
+        ["Raw Agent Correctness (fake agent)", formatWarmMetric(task.raw.agentCorrectness)],
+        ["Warm Agent Correctness (fake agent)", formatWarmMetric(task.warm.agentCorrectness)],
+        ["Raw Agent Total Tokens (fake-agent simulated)", formatWarmMetric(task.raw.agentTotalTokens)],
+        ["Warm Agent Total Tokens (fake-agent simulated)", formatWarmMetric(task.warm.agentTotalTokens)],
+        ["Cumulative Raw Agent Total Tokens (fake-agent simulated)", formatWarmMetric(task.raw.cumulativeAgentTotalTokens)],
+        ["Cumulative Warm Agent Total Tokens (fake-agent simulated)", formatWarmMetric(task.warm.cumulativeAgentTotalTokens)],
       ];
       for (const [label, value] of rows) {
         lines.push(fieldLine(label, value));

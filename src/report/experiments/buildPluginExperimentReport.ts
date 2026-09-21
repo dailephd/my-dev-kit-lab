@@ -135,13 +135,14 @@ function buildInterpretation(
   warmIndexReuse: WarmIndexReuseReportV1 | null
 ): PluginExperimentReport["interpretation"] {
   if (run.pluginId === "warm-index-reuse" && warmIndexReuse) {
-    const { projectCount, preparedSessionProjectCount, taskCount } = warmIndexReuse.summary;
+    const summary = warmIndexReuse.summary;
     return {
       summary:
-        `The warm-index run prepared ${preparedSessionProjectCount} of ${projectCount} project indexes and evaluated ${taskCount} tasks. ` +
+        `The warm-index run prepared ${summary.preparedSessionProjectCount} of ${summary.projectCount} project indexes and evaluated ${summary.taskCount} tasks. ` +
         "The report separates one-time index-build duration from per-task retrieval duration and shows how the fixed build cost is amortized across repeated tasks. " +
-        "Estimated context-token values are context-size estimates, not provider token usage. " +
-        "Agent correctness and agent token usage remain unavailable in this experiment.",
+        `Deterministic fake-agent correctness is available for ${summary.agentCorrectnessAvailableCount} of ${summary.agentSideCount} task sides and fake-agent token totals for ${summary.agentTotalTokensAvailableCount}; ` +
+        "these are simulated harness evidence, not real-model or provider measurements. " +
+        "Estimated context-token values are context-size estimates, not provider token usage.",
       recommendedNextStep:
         run.status === "completed"
           ? "Review per-task measurements and cumulative component costs for each project; the variants are reported side by side and are not ranked."

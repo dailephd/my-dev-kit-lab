@@ -8,6 +8,8 @@ import {
   toWarmOutcomeMetrics,
   unavailableMetric,
   type WarmIndexProjectSummaryV1,
+  type WarmIndexAgentSideEvidenceV1,
+  type WarmIndexProjectAgentEvidenceV1,
   type WarmIndexTaskSummaryV1,
 } from "../../../src/experiments/plugins/warmIndexReuse/index.js";
 
@@ -237,11 +239,11 @@ describe("calculateWarmIndexMetrics", () => {
     expect(values(second.tasks.map((t) => t.warm.cumulativeComponentDurationMs))).toEqual([42, 44]);
   });
 
-  it("reports agent correctness and agent token usage as unavailable on both variants", () => {
+  it("reports agent metrics as unavailable on both variants when no fake-agent evidence is supplied", () => {
     const [metrics] = calculateWarmIndexMetrics([project({ tasks: [task("t1")] })]).projects;
     for (const side of [metrics.tasks[0].raw, metrics.tasks[0].warm]) {
       expect(side.agentCorrectness).toEqual(expect.objectContaining({ availability: "unavailable", value: null, unit: "score", source: "agent" }));
-      expect(side.agentCorrectness.reason).toContain("Agent execution is not part");
+      expect(side.agentCorrectness.reason).toContain("No fake-agent evaluation evidence was supplied");
       expect(side.agentTotalTokens).toEqual(
         expect.objectContaining({ availability: "unavailable", value: null, unit: "tokens", source: "agent", tokenCountMethod: null })
       );
@@ -253,6 +255,135 @@ describe("calculateWarmIndexMetrics", () => {
     const before = JSON.stringify(input);
     expect(calculateWarmIndexMetrics(input)).toEqual(calculateWarmIndexMetrics(input));
     expect(JSON.stringify(input)).toBe(before);
+  });
+});
+
+function agentSide(
+  variantId: WarmIndexAgentSideEvidenceV1["variantId"],
+  overrides: { score?: number | null; totalTokens?: number | null; status?: string; errors?: string[] } = {}
+): WarmIndexAgentSideEvidenceV1 {
+  const score = overrides.score === undefined ? 1 : overrides.score;
+  const totalTokens = overrides.totalTokens === undefined ? 200 : overrides.totalTokens;
+  return {
+    variantId,
+    agentId: "fake-agent",
+    promptStrategy: variantId === "raw-full-file" ? "raw-full-file" : "my-dev-kit-guided",
+    status: overrides.status ?? "completed",
+    correctness: { available: score !== null, score, passed: score === null ? null : score >= 0.8, failureReasons: [] },
+    tokenUsage: {
+      totalTokens,
+      source: totalTokens === null ? "unavailable" : "agent-reported",
+      reliability: totalTokens === null ? "unavailable" : "high",
+    },
+    durationMs: 1,
+    warnings: [],
+    errors: overrides.errors ?? [],
+    artifactPaths: {},
+  };
+}
+
+function agentEvidenceFor(
+  project: WarmIndexProjectSummaryV1,
+  sides: Array<{ raw?: WarmIndexAgentSideEvidenceV1 | null; warm?: WarmIndexAgentSideEvidenceV1 | null }>
+): WarmIndexProjectAgentEvidenceV1 {
+  return {
+    benchmarkProject: project.benchmarkProject,
+    tasks: project.tasks.map((task, index) => ({
+      caseId: task.caseId,
+      raw: sides[index]?.raw === undefined ? agentSide("raw-full-file") : sides[index].raw!,
+      warm: sides[index]?.warm === undefined ? agentSide("warm-index-reuse") : sides[index].warm!,
+    })),
+  };
+}
+
+describe("fake-agent metrics", () => {
+  it("makes correctness and total tokens available from scoreable fake-agent evidence", () => {
+    const input = project({ tasks: [task("t1")] });
+    const [metrics] = calculateWarmIndexMetrics([input], [
+      agentEvidenceFor(input, [{ raw: agentSide("raw-full-file", { score: 0.75, totalTokens: 300 }), warm: agentSide("warm-index-reuse", { score: 1, totalTokens: 180 }) }]),
+    ]).projects;
+    const [t1] = metrics.tasks;
+    expect(values([t1.raw.agentCorrectness, t1.raw.agentTotalTokens, t1.raw.cumulativeAgentTotalTokens])).toEqual([0.75, 300, 300]);
+    expect(values([t1.warm.agentCorrectness, t1.warm.agentTotalTokens, t1.warm.cumulativeAgentTotalTokens])).toEqual([1, 180, 180]);
+    expect(t1.warm.agentTotalTokens).toEqual(expect.objectContaining({ unit: "tokens", source: "agent", tokenCountMethod: null }));
+    expect(t1.raw.agentCorrectness).toEqual(expect.objectContaining({ unit: "score", source: "agent" }));
+  });
+
+  it("keeps missing token usage unavailable and never substitutes estimated context tokens", () => {
+    const input = project({ tasks: [task("t1")] });
+    const [metrics] = calculateWarmIndexMetrics([input], [
+      agentEvidenceFor(input, [{ raw: agentSide("raw-full-file", { totalTokens: null }), warm: agentSide("warm-index-reuse", { totalTokens: null }) }]),
+    ]).projects;
+    const [t1] = metrics.tasks;
+    for (const side of [t1.raw, t1.warm]) {
+      expect(side.agentTotalTokens.availability).toBe("unavailable");
+      expect(side.agentTotalTokens.reason).toContain("did not report total tokens");
+      expect(side.cumulativeAgentTotalTokens.availability).toBe("unavailable");
+      expect(side.agentCorrectness.availability).toBe("available");
+    }
+    expect(values([t1.raw.contextEstimatedTokens, t1.warm.contextEstimatedTokens])).toEqual([100, 10]);
+  });
+
+  it("reports unscoreable fake-agent output as unavailable correctness with its status and error", () => {
+    const input = project({ tasks: [task("t1")] });
+    const [metrics] = calculateWarmIndexMetrics([input], [
+      agentEvidenceFor(input, [{ warm: agentSide("warm-index-reuse", { score: null, status: "failed", errors: ["Simulated fake-agent failure."] }) }]),
+    ]).projects;
+    const warm = metrics.tasks[0].warm;
+    expect(warm.agentCorrectness.availability).toBe("unavailable");
+    expect(warm.agentCorrectness.reason).toContain("status failed");
+    expect(warm.agentCorrectness.reason).toContain("Simulated fake-agent failure.");
+    expect(values([warm.contextEstimatedTokens, warm.retrievalDurationMs, warm.agentTotalTokens])).toEqual([10, 2, 200]);
+  });
+
+  it("explains a side the fake agent did not run on", () => {
+    const input = project({ tasks: [task("t1", { warmRetrieval: null, warmStatus: "failed" })] });
+    const [metrics] = calculateWarmIndexMetrics([input], [agentEvidenceFor(input, [{ warm: null }])]).projects;
+    expect(metrics.tasks[0].warm.agentCorrectness.reason).toContain("not run because this side produced no context evidence");
+  });
+
+  it("sums fake-agent tokens with strict-prefix availability and resets per project", () => {
+    const first = project({ tasks: [task("a1"), task("a2"), task("a3")] });
+    const second = project({ benchmarkProject: "todo-js", sessionKey: "todo-js", tasks: [task("b1"), task("b2")] });
+    const metrics = calculateWarmIndexMetrics(
+      [first, second],
+      [
+        agentEvidenceFor(first, [
+          { raw: agentSide("raw-full-file", { totalTokens: 100 }) },
+          { raw: agentSide("raw-full-file", { totalTokens: null }) },
+          { raw: agentSide("raw-full-file", { totalTokens: 50 }) },
+        ]),
+        agentEvidenceFor(second, [{ raw: agentSide("raw-full-file", { totalTokens: 10 }) }, { raw: agentSide("raw-full-file", { totalTokens: 20 }) }]),
+      ]
+    );
+    expect(values(metrics.projects[0].tasks.map((t) => t.raw.cumulativeAgentTotalTokens))).toEqual([100, "unavailable", "unavailable"]);
+    expect(values([metrics.projects[0].tasks[2].raw.agentTotalTokens])).toEqual([50]);
+    expect(values(metrics.projects[0].tasks.map((t) => t.warm.cumulativeAgentTotalTokens))).toEqual([200, 400, 600]);
+    expect(values(metrics.projects[1].tasks.map((t) => t.raw.cumulativeAgentTotalTokens))).toEqual([10, 30]);
+  });
+
+  it("rejects agent evidence that is not aligned with the execution summaries", () => {
+    const input = project({ tasks: [task("t1")] });
+    expect(() => calculateWarmIndexMetrics([input], [])).toThrow("not aligned");
+    expect(() =>
+      calculateWarmIndexMetrics([input], [{ benchmarkProject: "todo-ts", tasks: [{ caseId: "other", raw: null, warm: null }] }])
+    ).toThrow("not aligned");
+  });
+
+  it("maps available fake-agent metrics to generic outcome metrics only", () => {
+    const input = project({ tasks: [task("t1")] });
+    const [metrics] = calculateWarmIndexMetrics([input], [
+      agentEvidenceFor(input, [{ warm: agentSide("warm-index-reuse", { totalTokens: null }) }]),
+    ]).projects;
+    const warmIds = toWarmOutcomeMetrics(metrics.tasks[0], "warm-index-reuse").map((metric) => metric.id);
+    expect(warmIds).toContain("agent-correctness-score");
+    expect(warmIds).not.toContain("agent-total-tokens");
+    expect(warmIds).not.toContain("cumulative-agent-total-tokens");
+    const raw = toRawOutcomeMetrics(metrics.tasks[0], "raw-full-file");
+    expect(raw.find((metric) => metric.id === "agent-total-tokens")).toEqual(
+      expect.objectContaining({ value: 200, unit: "tokens", variantId: "raw-full-file", caseId: "t1" })
+    );
+    expect(raw.find((metric) => metric.id === "agent-total-tokens")?.description).toContain("not provider billing telemetry");
   });
 });
 
