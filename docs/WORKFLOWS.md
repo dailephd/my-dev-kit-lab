@@ -123,7 +123,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 ## Warm-index reuse experiment
 
-Implemented in v0.5.0, which is unreleased; see [CURRENT_STATE.md](CURRENT_STATE.md) for its lifecycle state.
+Implemented in the current release v0.5.0; see [CURRENT_STATE.md](CURRENT_STATE.md) for its lifecycle state.
 
 **Goal:** measure how a one-time my-dev-kit index cost is amortized when the same prepared index is reused across several tasks, with a matched `raw-full-file` baseline for every task and deterministic fake-agent correctness and token evidence.
 

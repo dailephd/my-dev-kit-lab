@@ -66,10 +66,10 @@ describe("installed tutorial package contract", () => {
     expect(pkg).not.toHaveProperty("postinstall");
   });
 
-  it("keeps the lockfile root classification and package version stable", () => {
+  it("keeps the lockfile root classification and package version aligned with package metadata", () => {
     expect(lock.packages[""].dependencies?.playwright).toBe("1.60.0");
     expect(lock.packages[""].devDependencies?.playwright).toBeUndefined();
-    expect(pkg.version).toBe("0.4.9");
+    expect(pkg.version).toBe(JSON.parse(fs.readFileSync(path.join(repoRoot, "package-lock.json"), "utf8")).packages[""].version);
   });
 
   it("ships only the canonical generic tutorial resources", () => {

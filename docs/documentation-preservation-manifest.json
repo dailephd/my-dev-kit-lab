@@ -39,7 +39,7 @@
     "docs/CURRENT_STATE.md": {
       "role": "operational state",
       "requiredHeadings": ["Version and publication state", "Operational state", "Implemented", "Current commands", "Current architecture", "Experimental versus planned", "Limitations", "Validation state", "Blockers", "Next step"],
-      "requiredTopics": ["Package version", "Latest release", "Current implemented unreleased version", "Current branch", "Active planned version", "Workflow stage", "Release blockers", "Exact next action", "v0.4.2", "v0.4.3", "v0.5.0", "not implemented", "tutorial", "pre-release readiness", "warm-index-reuse"]
+      "requiredTopics": ["Package version", "Latest release", "Current branch", "Active planned version", "Workflow stage", "Release blockers", "Exact next action", "v0.4.2", "v0.4.3", "v0.5.0", "not implemented", "tutorial", "published/current", "warm-index-reuse"]
     },
     "docs/ARCHITECTURE.md": {
       "role": "current architecture",
@@ -87,11 +87,11 @@
     "forbiddenVersionRangeHeadings": ["v0.5.x-v0.9.x", "v0.5.x–v0.9.x", "v0.3.0-v0.3.4"]
   },
   "changelog": {
-    "requiredPublishedReleases": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.1", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4", "0.4.5", "0.4.6", "0.4.7", "0.4.8", "0.4.9"]
+    "requiredPublishedReleases": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.1", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4", "0.4.5", "0.4.6", "0.4.7", "0.4.8", "0.4.9", "0.5.0"]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.4.9",
-    "currentImplementedUnreleasedVersion": "0.5.0",
+    "latestPublishedVersion": "0.5.0",
+    "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.5.1",
     "implementedExperimentPlugins": ["context-strategy-comparison", "warm-index-reuse"],
     "experimentPluginDocuments": ["README.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/ARCHITECTURE.md"],

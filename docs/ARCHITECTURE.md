@@ -26,7 +26,7 @@ src/
     target.ts                                self/external-local target resolution
     types.ts                                 plugin contracts and normalized results
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
-    plugins/warmIndexReuse/                  v0.5.0 (unreleased) warm-index-reuse plugin: config, case selection/grouping, warm index session, execution, bounded execution artifact, fake-agent evaluation, metrics
+    plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session, execution, bounded execution artifact, fake-agent evaluation, metrics
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3); plus exact supplemental implementation/test-context packet/retrieval-report readers and a bounded plain-object readiness adapter (v0.4.4); plus exact condition-aware producer evidence mirrors (roleConditionCoverage, allocation/spillover GroupTruncationEntry fields, truncation.requiredEvidenceLost) and exact orchestrator run-integrity mirrors (RunIntegrityGateResult, JudgeIntegrityResult, FinalReportEligibilityResult, artifact-state.json lifecycle records) (v0.4.5)
     stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3); plus orchestrator run-integrity selectors (v0.4.5)

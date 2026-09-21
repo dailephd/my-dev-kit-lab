@@ -444,7 +444,7 @@ Implemented in `src/evaluation/stageContextMetrics` and composed once per run by
 
 ## Warm-index reuse metrics
 
-Implemented in v0.5.0, which is unreleased. The `warm-index-reuse` plugin calculates these metrics once, in `src/experiments/plugins/warmIndexReuse/metrics.ts`, from bounded execution summaries and bounded fake-agent evidence. The report section (`report.warmIndexReuse` in `report.json`, and the text and HTML "Warm Index Reuse Evidence" sections) and the four warm-index plots render these precomputed values; they never recalculate a formula.
+Implemented in the current release v0.5.0. The `warm-index-reuse` plugin calculates these metrics once, in `src/experiments/plugins/warmIndexReuse/metrics.ts`, from bounded execution summaries and bounded fake-agent evidence. The report section (`report.warmIndexReuse` in `report.json`, and the text and HTML "Warm Index Reuse Evidence" sections) and the four warm-index plots render these precomputed values; they never recalculate a formula.
 
 **Availability contract.** Every warm-index metric carries `availability`, `value`, `unit`, `source`, `reason`, and `tokenCountMethod`:
 

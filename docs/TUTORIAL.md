@@ -349,7 +349,7 @@ The small Todo projects are used in the fake-agent demo. The medium and large pr
 - Discover the registered plugins with `npm run experiment:list`
 - Inspect one with `npm run experiment:describe -- --experiment context-strategy-comparison`
 - Run it against a local project with `npm run experiment:run -- --experiment context-strategy-comparison --target <path>`
-- Try the warm-index reuse plugin (v0.5.0, unreleased), which reuses one my-dev-kit index across several tasks per benchmark project; see [WORKFLOWS.md](WORKFLOWS.md#warm-index-reuse-experiment) for the procedure
+- Try the warm-index reuse plugin (v0.5.0), which reuses one my-dev-kit index across several tasks per benchmark project; see [WORKFLOWS.md](WORKFLOWS.md#warm-index-reuse-experiment) for the procedure
 - Run automated self-validation with `npm run security:validate`, or add `-- --target <path>` for another local project
 - Read [METRICS.md](METRICS.md) for full metric definitions
 - Read [WORKFLOWS.md](WORKFLOWS.md) for detailed workflow diagrams

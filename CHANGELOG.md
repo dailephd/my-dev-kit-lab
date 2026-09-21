@@ -4,7 +4,9 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-Warm-index reuse experiment support, targeted for v0.5.0 (implemented; not yet released or published).
+## [0.5.0] - 2026-09-21
+
+Warm-index reuse experiment support.
 
 - Added the experimental `warm-index-reuse` experiment plugin, registered alongside `context-strategy-comparison` and reachable through `experiment list`, `experiment describe`, and `experiment run`.
 - Built exactly one my-dev-kit index per benchmark-project group and reused it across every task in that group, with a matched `raw-full-file` baseline for each task; cases that disagree on target or source roots fail structurally instead of being indexed.
