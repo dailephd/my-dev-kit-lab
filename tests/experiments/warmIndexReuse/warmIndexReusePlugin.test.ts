@@ -211,15 +211,26 @@ describe("warm-index-reuse execution", () => {
     expect(run.cases.find((c) => c.id === "js-1")?.metadata).toEqual({ benchmarkProject: "todo-js", sessionKey: "todo-js" });
   });
 
-  it("maps every task to a raw-full-file then warm-index-reuse outcome with no Prompt-3 metrics", async () => {
+  it("maps every task to a raw-full-file then warm-index-reuse outcome with measured metrics and no comparison claims", async () => {
     const { run, artifactText } = await runWarm([makeCase({ id: "task-a" }), makeCase({ id: "task-b" })]);
 
     expect(run.variants.map((variant) => variant.id)).toEqual(["raw-full-file", "warm-index-reuse"]);
     for (const experimentCase of run.cases) {
       expect(experimentCase.outcomes.map((outcome) => outcome.variantId)).toEqual(["raw-full-file", "warm-index-reuse"]);
       expect(experimentCase.outcomes.map((outcome) => outcome.status)).toEqual(["completed", "completed"]);
+      const [raw, warm] = experimentCase.outcomes;
+      expect(raw.metrics.map((metric) => metric.id)).toEqual([
+        "context-character-count",
+        "context-estimated-token-count",
+        "operation-duration-ms",
+        "cumulative-component-duration-ms",
+        "cumulative-context-estimated-token-count",
+      ]);
+      expect(warm.metrics.map((metric) => metric.id)).toEqual([
+        ...raw.metrics.map((metric) => metric.id),
+        "amortized-index-build-duration-ms",
+      ]);
       for (const outcome of experimentCase.outcomes) {
-        expect(outcome.metrics).toEqual([]);
         expect(outcome.metadata).toEqual({
           benchmarkProject: "todo-ts",
           sessionKey: "todo-ts",
@@ -228,10 +239,15 @@ describe("warm-index-reuse execution", () => {
         });
       }
     }
-    expect(run.metrics).toEqual([]);
+    expect(run.metrics.map((metric) => [metric.id, metric.value])).toEqual([
+      ["warm-index-project-count", 1],
+      ["warm-index-task-count", 2],
+      ["warm-index-session-prepared-project-count", 1],
+    ]);
     expect(run.summary).toEqual(expect.objectContaining({ status: "completed", totalCases: 2, completedCases: 2 }));
-    const persisted = `${artifactText}${JSON.stringify(run)}`;
-    expect(persisted).not.toMatch(/amortiz|cumulative|breakEven|break-even|savings/i);
+    expect(`${artifactText}${JSON.stringify(run)}`).not.toMatch(/breakEven|break-even|savings|speedup|winner/i);
+    // Metrics stay on the run and report, not in the execution artifact (schema v1 unchanged).
+    expect(artifactText).not.toMatch(/amortiz|cumulative/i);
   });
 
   it("keeps raw evidence and records failed warm outcomes when one project's index fails, without affecting other projects", async () => {

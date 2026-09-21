@@ -31,6 +31,14 @@ import {
   WARM_INDEX_EXECUTION_ARTIFACT_FILE,
   type WarmIndexProjectSummaryV1,
 } from "./executionArtifact.js";
+import {
+  calculateWarmIndexMetrics,
+  toRawOutcomeMetrics,
+  toRunLevelMetrics,
+  toWarmOutcomeMetrics,
+  type WarmIndexMetricsV1,
+  type WarmIndexTaskMetricsV1,
+} from "./metrics.js";
 import { selectWarmIndexCases } from "./selection.js";
 
 export const RAW_FULL_FILE_VARIANT_ID = "raw-full-file";
@@ -66,6 +74,8 @@ const WARM_INDEX_VARIANTS: ExperimentVariant[] = [
  */
 export type WarmIndexReuseRun = ExperimentRun & {
   projectExecutions: WarmIndexProjectSummaryV1[];
+  /** Calculated once from projectExecutions; reports render it and never recalculate. */
+  warmIndexMetrics: WarmIndexMetricsV1;
 };
 
 export const warmIndexReusePlugin: ExperimentPlugin<WarmIndexReuseConfig, WarmIndexReuseRun> = {
@@ -122,13 +132,18 @@ export function mapWarmIndexExecutionToRun(args: {
   artifactPath: string;
 }): WarmIndexReuseRun {
   const titles = new Map(args.cases.map((evaluationCase) => [evaluationCase.id, evaluationCase.title]));
-  const experimentCases: ExperimentCase[] = args.projects.flatMap((project) =>
-    project.tasks.map((task) => ({
-      id: task.caseId,
-      name: titles.get(task.caseId) ?? task.caseId,
-      outcomes: [buildRawOutcome(project, task), buildWarmOutcome(project, task)],
-      metadata: { benchmarkProject: task.benchmarkProject, sessionKey: project.projectSegment },
-    }))
+  const warmIndexMetrics = calculateWarmIndexMetrics(args.projectSummaries);
+  // projectSummaries (and therefore metrics) preserve project and task order of args.projects.
+  const experimentCases: ExperimentCase[] = args.projects.flatMap((project, projectIndex) =>
+    project.tasks.map((task, taskIndex) => {
+      const taskMetrics = warmIndexMetrics.projects[projectIndex].tasks[taskIndex];
+      return {
+        id: task.caseId,
+        name: titles.get(task.caseId) ?? task.caseId,
+        outcomes: [buildRawOutcome(project, task, taskMetrics), buildWarmOutcome(project, task, taskMetrics)],
+        metadata: { benchmarkProject: task.benchmarkProject, sessionKey: project.projectSegment },
+      };
+    })
   );
   const warnings: ExperimentWarning[] = args.projects.flatMap((project) =>
     project.warnings.map((message) => ({
@@ -146,7 +161,7 @@ export function mapWarmIndexExecutionToRun(args: {
     target: args.target,
     variants: WARM_INDEX_VARIANTS.map((variant) => ({ ...variant })),
     cases: experimentCases,
-    metrics: [],
+    metrics: toRunLevelMetrics(warmIndexMetrics),
     artifacts: [
       {
         id: "warm-index-execution",
@@ -161,6 +176,7 @@ export function mapWarmIndexExecutionToRun(args: {
     failures: [],
     metadata: { executionArtifactPath: args.artifactPath },
     projectExecutions: args.projectSummaries,
+    warmIndexMetrics,
   };
   run.summary = summarizeExperimentRun(run);
   return run;
@@ -175,13 +191,17 @@ function outcomeMetadata(project: WarmIndexProjectExecutionV1, task: WarmIndexTa
   };
 }
 
-function buildRawOutcome(project: WarmIndexProjectExecutionV1, task: WarmIndexTaskExecutionV1): ExperimentOutcome {
+function buildRawOutcome(
+  project: WarmIndexProjectExecutionV1,
+  task: WarmIndexTaskExecutionV1,
+  taskMetrics: WarmIndexTaskMetricsV1
+): ExperimentOutcome {
   return {
     id: `${task.caseId}:${RAW_FULL_FILE_VARIANT_ID}`,
     caseId: task.caseId,
     variantId: RAW_FULL_FILE_VARIANT_ID,
     status: task.rawStatus,
-    metrics: [],
+    metrics: toRawOutcomeMetrics(taskMetrics, RAW_FULL_FILE_VARIANT_ID),
     artifacts: [],
     warnings: [],
     failures: toFailures(task, "raw", RAW_FULL_FILE_VARIANT_ID),
@@ -189,13 +209,17 @@ function buildRawOutcome(project: WarmIndexProjectExecutionV1, task: WarmIndexTa
   };
 }
 
-function buildWarmOutcome(project: WarmIndexProjectExecutionV1, task: WarmIndexTaskExecutionV1): ExperimentOutcome {
+function buildWarmOutcome(
+  project: WarmIndexProjectExecutionV1,
+  task: WarmIndexTaskExecutionV1,
+  taskMetrics: WarmIndexTaskMetricsV1
+): ExperimentOutcome {
   return {
     id: `${task.caseId}:${WARM_INDEX_REUSE_VARIANT_ID}`,
     caseId: task.caseId,
     variantId: WARM_INDEX_REUSE_VARIANT_ID,
     status: task.warmStatus,
-    metrics: [],
+    metrics: toWarmOutcomeMetrics(taskMetrics, WARM_INDEX_REUSE_VARIANT_ID),
     artifacts: [],
     warnings: task.warnings.map((message) => ({
       code: "warm-retrieval-warning",
