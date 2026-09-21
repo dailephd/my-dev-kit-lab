@@ -254,6 +254,7 @@ function baseReport(overrides: Partial<PluginExperimentReport> = {}): PluginExpe
     failures: [],
     skippedOutcomes: [],
     findings: [],
+    warmIndexReuse: null,
     contextStrategyComparisonV043: null,
     interpretation: { summary: "summary", recommendedNextStep: "next step" },
     rawRun: {} as PluginExperimentReport["rawRun"],

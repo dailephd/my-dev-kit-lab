@@ -91,6 +91,9 @@ const sections = roadmapSections();
 const negatedPublication = /\b(?:(?:has|is)\s+not\s+(?:yet\s+)?published|not\s+(?:yet\s+)?published|unpublished|unreleased(?!\s+v\d)|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
 const positivePublication = (text) => /\bpublished\b/i.test(text || "") && !negatedPublication.test(text || "");
 const plannedLifecycle = /\b(?:planned|future|deferred|not implemented|not started|pre-release readiness pending)\b/i;
+// Implemented-but-unreleased: code exists in the checkout, publication has not happened.
+const implementedUnreleasedLifecycle = (text) =>
+  /\bimplemented\b/i.test(text || "") && !/\bnot\s+(?:yet\s+)?implemented\b/i.test(text || "") && /\bunreleased\b/i.test(text || "");
 for (const version of requiredVersions) {
   const count = [...(sections.get(version.slice(1))?.body || "").matchAll(/^Status:/gmi)].length;
   if (count !== 1) fail("docs/ROADMAP.md", `${version} lifecycle status`, "exactly one explicit Status: line", `${count} lines`, `retain one concise Status line in ${version}`);
@@ -112,7 +115,21 @@ const nextPlanned = String(manifest.currentFacts?.nextPlannedVersion || "");
 if (nextPlanned) {
   const status = sections.get(nextPlanned)?.status || "";
   if (!sections.has(nextPlanned)) fail("docs/ROADMAP.md", `next planned v${nextPlanned}`, "individual section", "missing", "restore the approved next version");
-  else if (positivePublication(status) || !plannedLifecycle.test(status)) fail("docs/ROADMAP.md", `next planned v${nextPlanned} lifecycle`, "planned/unreleased and not positively published", status || "missing", "mark it planned and not implemented");
+  else if (positivePublication(status) || !plannedLifecycle.test(status) || implementedUnreleasedLifecycle(status)) fail("docs/ROADMAP.md", `next planned v${nextPlanned} lifecycle`, "planned/unreleased and not positively published", status || "missing", "mark it planned and not implemented");
+}
+const implementedUnreleased = String(manifest.currentFacts?.currentImplementedUnreleasedVersion || "");
+if (implementedUnreleased) {
+  const status = sections.get(implementedUnreleased)?.status || "";
+  if (implementedUnreleased === latestPublished || implementedUnreleased === nextPlanned) {
+    fail(manifestFile, "current implemented unreleased version", "distinct from the latest published and next planned versions", implementedUnreleased, "record published, implemented/unreleased, and planned versions separately");
+  }
+  if (!sections.has(implementedUnreleased)) fail("docs/ROADMAP.md", `implemented unreleased v${implementedUnreleased}`, "individual section", "missing", "restore the implemented version section");
+  else if (positivePublication(status) || !implementedUnreleasedLifecycle(status)) fail("docs/ROADMAP.md", `implemented unreleased v${implementedUnreleased} lifecycle`, "implemented and unreleased, not positively published", status || "missing", "mark it implemented; unreleased; pre-release readiness pending");
+}
+for (const pluginId of manifest.currentFacts?.implementedExperimentPlugins || []) {
+  for (const file of manifest.currentFacts?.experimentPluginDocuments || []) {
+    if (!read(file).includes(pluginId)) fail(file, `implemented experiment plugin ${pluginId}`, "documented", "missing", `restore documentation of the implemented ${pluginId} plugin`);
+  }
 }
 
 const changelog = read("CHANGELOG.md");
@@ -154,7 +171,7 @@ if (/If docs need to be updated to reflect the now-published state/i.test(workfl
 
 for (const { file, body } of currentDocs) {
   for (const line of body.split(/\r?\n/)) {
-    for (const [version, kind] of [[latestPublished, "published"], [nextPlanned, "planned"]]) {
+    for (const [version, kind] of [[latestPublished, "published"], [implementedUnreleased, "implemented-unreleased"], [nextPlanned, "planned"]]) {
       if (!version) continue;
       const marker = `v${version}`;
       let from = 0;
@@ -164,6 +181,8 @@ for (const { file, body } of currentDocs) {
         const window = line.slice(from, nextVersion >= 0 ? after + nextVersion : line.length);
         if (kind === "published" && negatedPublication.test(window)) fail(file, `v${version} publication claim`, "published or release-neutral", window.trim(), "remove stale negated publication wording");
         if (kind === "planned" && positivePublication(window)) fail(file, `v${version} publication claim`, "planned/unreleased or release-neutral", window.trim(), "do not describe the planned version as published");
+        if (kind === "implemented-unreleased" && positivePublication(window)) fail(file, `v${version} publication claim`, "implemented/unreleased or release-neutral", window.trim(), "do not describe the unreleased version as published");
+        if (kind === "implemented-unreleased" && /\bnot\s+(?:yet\s+)?implemented\b|\bnext planned\b/i.test(window)) fail(file, `v${version} implementation claim`, "implemented", window.trim(), "describe the implemented version as implemented and unreleased");
         from = after;
       }
     }

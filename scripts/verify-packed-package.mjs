@@ -64,13 +64,54 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/tutorial/tutorialManifest.js",
   "dist/src/commands/runTutorialValidateCommand.js",
   "dist/src/commands/runTutorialRunCommand.js",
+  "dist/src/experiments/plugins/warmIndexReuse/plugin.js",
+  "dist/src/experiments/plugins/warmIndexReuse/execution.js",
+  "dist/src/experiments/plugins/warmIndexReuse/metrics.js",
+  "dist/src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.js",
+  "dist/src/report/experiments/buildWarmIndexReuseReport.js",
+  "dist/src/plots/buildWarmIndexPlotData.js",
+  "dist/src/commands/generateExperimentPlotsCommand.js",
   "benchmarks/contracts/benchmark-project-profiles.json",
+  "benchmarks/projects/todo-ts/src/taskService.ts",
   "examples/token-savings-cases.json",
   "examples/tutorial-browser/index.html",
   "examples/tutorial-browser/prepare.mjs",
   "examples/tutorial-browser/server.mjs",
   "examples/tutorial-browser/scenario.json"
 ];
+
+const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse"];
+
+const WARM_INDEX_CHARTS = [
+  "warm-index-amortized-index-cost.svg",
+  "warm-index-context-size.svg",
+  "warm-index-correctness.svg",
+  "warm-index-cumulative-token-usage.svg"
+];
+
+// Acceptance-test fixture only (written to a temporary directory, never packaged): the minimal
+// my-dev-kit subcommands the warm-index run needs, writing only under the --out index path.
+const FAKE_KIT_SOURCE_TEXT = "export class PackedGateFakeSource {}";
+const FAKE_MY_DEV_KIT_SOURCE = `import fs from "node:fs";
+import path from "node:path";
+const [command, ...rest] = process.argv.slice(2);
+const arg = (flag) => { const index = rest.indexOf(flag); return index >= 0 ? rest[index + 1] : undefined; };
+if (command === "index") {
+  const out = arg("--out");
+  fs.mkdirSync(out, { recursive: true });
+  fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify({ fake: true }));
+  console.log(JSON.stringify({ ok: true, command }));
+} else if (command === "search") {
+  console.log(JSON.stringify({ results: [{ nodeId: "todo-ts:createTask", file: "src/taskService.ts", symbol: "createTask" }] }));
+} else if (command === "lookup" || command === "slice") {
+  console.log(JSON.stringify({ nodeId: arg("--node"), command }));
+} else if (command === "source") {
+  process.stdout.write("1 ${FAKE_KIT_SOURCE_TEXT}\\n");
+} else {
+  process.stderr.write("Unsupported fake my-dev-kit command: " + command);
+  process.exit(1);
+}
+`;
 
 const PUBLIC_ROUTE_HELP_SMOKES = [
   ["audit", "--help"],
@@ -260,7 +301,8 @@ async function main() {
     target: path.join(tempRoot, "target"),
     tutorialContracts: path.join(tempRoot, "tutorial-contracts"),
     tutorialRuns: path.join(tempRoot, "tutorial-runs"),
-    browserCache: path.join(tempRoot, "empty-browser-cache")
+    browserCache: path.join(tempRoot, "empty-browser-cache"),
+    fakeKit: path.join(tempRoot, "fake-my-dev-kit")
   };
 
   try {
@@ -402,6 +444,12 @@ async function main() {
       fail("EXPERIMENT_LIST", "Installed `experiment list` returned an empty registry.");
     }
     const knownExperimentId = knownExperiments[0].id;
+    const knownExperimentIds = knownExperiments.map((experiment) => experiment.id);
+    for (const requiredId of REQUIRED_EXPERIMENT_IDS) {
+      if (!knownExperimentIds.includes(requiredId)) {
+        fail("EXPERIMENT_LIST", `Installed registry is missing ${requiredId}; found: ${knownExperimentIds.join(", ")}`);
+      }
+    }
 
     const experimentDescribeResult = runInstalledCli(
       cliCommand,
@@ -415,6 +463,45 @@ async function main() {
         `Installed \`experiment describe --experiment ${knownExperimentId}\` did not exit 0.`,
         describeChildResult(experimentDescribeResult)
       );
+    }
+
+    const warmDescribeResult = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["experiment", "describe", "--experiment", "warm-index-reuse", "--json"],
+      envWithBin
+    );
+    if (warmDescribeResult.status !== 0) {
+      fail("EXPERIMENT_DESCRIBE_WARM", "Installed `experiment describe --experiment warm-index-reuse` did not exit 0.", describeChildResult(warmDescribeResult));
+    }
+    let warmDescription;
+    try {
+      warmDescription = JSON.parse(warmDescribeResult.stdout);
+    } catch (error) {
+      fail("EXPERIMENT_DESCRIBE_WARM", `Installed warm-index-reuse describe produced unparseable output: ${error.message}`);
+    }
+    const warmVariants = JSON.stringify(warmDescription.supportedVariants ?? []);
+    if (
+      warmDescription.metadata?.status !== "experimental" ||
+      warmVariants !== JSON.stringify(["raw-full-file", "warm-index-reuse"]) ||
+      !(warmDescription.optionalConfigFields ?? []).some((field) => field.name === "kitCommand") ||
+      /codex|claude/i.test(warmDescribeResult.stdout)
+    ) {
+      fail("EXPERIMENT_DESCRIBE_WARM", "Installed warm-index-reuse description is missing expected metadata or claims real agents.", warmDescribeResult.stdout);
+    }
+
+    const runHelpResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--help"], envWithBin);
+    const runHelp = runHelpResult.stdout ?? "";
+    const warmHelpStart = runHelp.indexOf("warm-index-reuse only:");
+    const contextHelpStart = runHelp.indexOf("context-strategy-comparison only:");
+    if (
+      runHelpResult.status !== 0 ||
+      warmHelpStart < 0 ||
+      contextHelpStart <= warmHelpStart ||
+      !runHelp.slice(warmHelpStart, contextHelpStart).includes("--kit-command <command>") ||
+      !runHelp.slice(contextHelpStart).includes("--agents")
+    ) {
+      fail("EXPERIMENT_RUN_HELP", "Installed `experiment run --help` does not document --kit-command as warm-index-reuse-specific.", describeChildResult(runHelpResult));
     }
 
     // -----------------------------------------------------------------
@@ -598,6 +685,72 @@ async function main() {
     if (existsSync(path.join(dirs.target, "reports"))) {
       fail("EXPLICIT_WORKSPACE", "Security report was written beneath the target root.");
     }
+
+    // -----------------------------------------------------------------
+    // 9b. Installed warm-index-reuse execution and plots. A temporary,
+    // test-owned fake my-dev-kit script stands in for the real kit so the
+    // gate needs no network; it is never packaged.
+    // -----------------------------------------------------------------
+    const fakeKitScript = path.join(dirs.fakeKit, "fake-my-dev-kit.mjs");
+    writeFileSync(fakeKitScript, FAKE_MY_DEV_KIT_SOURCE, "utf8");
+    const fakeKitCommand = `"${process.execPath}" "${fakeKitScript}"`;
+    const warmOut = path.join(dirs.workspace, "warm-index-run");
+    const warmPlotsOut = path.join(dirs.workspace, "warm-index-plots");
+    const warmRun = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["experiment", "run", "--experiment", "warm-index-reuse", "--case", "todo-ts-create-task", "--kit-command", fakeKitCommand, "--out", warmOut],
+      envWithBin
+    );
+    if (warmRun.status !== 0) {
+      fail("WARM_INDEX_INSTALLED_EXECUTION", "Installed warm-index-reuse run did not exit 0.", describeChildResult(warmRun));
+    }
+    for (const name of ["warm-index-execution.json", "report.json", "report.txt", "report.html"]) {
+      requireNonEmptyFile(path.join(warmOut, name), "WARM_INDEX_REPORTS");
+    }
+    const warmReportText = readFileSync(path.join(warmOut, "report.json"), "utf8");
+    const warmReport = JSON.parse(warmReportText).report;
+    const warmTask = warmReport?.warmIndexReuse?.projects?.[0]?.tasks?.[0];
+    if (warmReport?.plugin?.id !== "warm-index-reuse" || !warmTask) {
+      fail("WARM_INDEX_REPORTS", "Installed warm-index report is missing its plugin id or warmIndexReuse section.");
+    }
+    for (const side of ["raw", "warm"]) {
+      if (warmTask[side].agentCorrectness?.availability !== "available" || warmTask[side].agentTotalTokens?.availability !== "available") {
+        fail("WARM_INDEX_AGENT_EVIDENCE", `Installed warm-index run lacks fake-agent correctness/token evidence for the ${side} side.`);
+      }
+    }
+    if (warmReportText.includes("contextText") || warmReportText.includes(FAKE_KIT_SOURCE_TEXT)) {
+      fail("WARM_INDEX_REPORTS", "Installed warm-index report contains context text.");
+    }
+
+    const warmPlots = runInstalledCli(cliCommand, dirs.consumer, ["plots", "generate", "--experiment", warmOut, "--out", warmPlotsOut], envWithBin);
+    if (warmPlots.status !== 0) {
+      fail("WARM_INDEX_PLOTS", "Installed `plots generate` for warm-index output did not exit 0.", describeChildResult(warmPlots));
+    }
+    const warmPlotSummary = JSON.parse(readFileSync(path.join(warmPlotsOut, "plots-summary.json"), "utf8"));
+    if (warmPlotSummary.chartCount !== WARM_INDEX_CHARTS.length) {
+      fail("WARM_INDEX_PLOTS", `Expected ${WARM_INDEX_CHARTS.length} warm-index charts, got ${warmPlotSummary.chartCount}.`);
+    }
+    for (const chart of WARM_INDEX_CHARTS) {
+      const chartPath = path.join(warmPlotsOut, "charts", chart);
+      requireNonEmptyFile(chartPath, "WARM_INDEX_PLOTS");
+      if (!readFileSync(chartPath, "utf8").includes("<svg")) {
+        fail("WARM_INDEX_PLOTS", `Warm-index chart is not SVG markup: ${chart}`);
+      }
+    }
+    const warmPlotData = readFileSync(path.join(warmPlotsOut, "plot-data.json"), "utf8");
+    if (warmPlotData.includes("contextText") || warmPlotData.includes(FAKE_KIT_SOURCE_TEXT)) {
+      fail("WARM_INDEX_PLOTS", "Warm-index plot data contains context text.");
+    }
+    if (existsSync(path.join(installedPackageRoot, "indexes")) || existsSync(path.join(installedPackageRoot, "agents"))) {
+      fail("WARM_INDEX_OUTPUT_LOCATION", "Warm-index output was written beneath the installed package root.");
+    }
+    console.log("EXPERIMENT_LIST_REQUIRED_PLUGINS: PASS");
+    console.log("EXPERIMENT_DESCRIBE_WARM: PASS");
+    console.log("EXPERIMENT_RUN_HELP: PASS");
+    console.log("WARM_INDEX_INSTALLED_EXECUTION: PASS");
+    console.log("WARM_INDEX_REPORTS: PASS");
+    console.log(`WARM_INDEX_PLOTS: PASS (${warmPlotSummary.chartCount} charts)`);
 
     // -----------------------------------------------------------------
     // 10. Target and installed-package immutability.

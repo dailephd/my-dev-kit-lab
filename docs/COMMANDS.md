@@ -176,7 +176,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins (currently `context-strategy-comparison`). Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison` and `warm-index-reuse` (the latter implemented in the unreleased v0.5.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -188,6 +188,37 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
+
+`experiment run --help` groups options as common options (all plugins), `warm-index-reuse` only, and `context-strategy-comparison` only. Plugin-specific options are rejected for the other plugin rather than ignored.
+
+#### `warm-index-reuse`
+
+```text
+my-dev-kit-lab experiment describe --experiment warm-index-reuse
+my-dev-kit-lab experiment run --experiment warm-index-reuse [--target <path>] [--out <dir>] [--cases <path>] [--project-profiles <path>] [--case <ids>] [--benchmark-project <ids>] [--kit-command <command>]
+```
+
+| Option | Allowed value or default |
+|---|---|
+| `--target <path>` | Optional; defaults to self mode |
+| `--out <dir>` | Optional; installed default `<workspace>/lab-output/experiments/warm-index-reuse/<target>/<run>/`, source-checkout default `lab-output/experiments/warm-index-reuse/<target>/<run>/` |
+| `--cases <path>` | Defaults to the bundled `examples/token-savings-cases.json` |
+| `--project-profiles <path>` | Defaults to the bundled `benchmarks/contracts/benchmark-project-profiles.json` |
+| `--case <ids>` | Optional comma-separated case filter; unknown IDs fail the run |
+| `--benchmark-project <ids>` | Optional comma-separated project filter; unknown IDs fail the run |
+| `--kit-command <command>` | `warm-index-reuse` only; the my-dev-kit command used to build one index per benchmark project and retrieve per task. Defaults to `npx @dailephd/my-dev-kit@latest` |
+
+Behavior:
+
+- selected cases keep their source order and are grouped by benchmark project in first-seen order; each project group gets exactly one index setup attempt, and every task in the group reuses that index
+- every task gets one `raw-full-file` baseline and, when the project's index is ready, one warm retrieval (search, lookup, slice, source); each task side with context evidence is then evaluated once by the deterministic fake agent
+- the plugin variants are `raw-full-file` and `warm-index-reuse`; there is no agent selection: `--agents`, `--strategies`, `--complexities`, and the other agent-matrix options are rejected for this plugin, and Codex/Claude warm-index campaigns are planned for a later version
+- `--kit-command` is rejected for `context-strategy-comparison`
+- outputs beneath the output root: `warm-index-execution.json` (bounded execution evidence), `indexes/<project>/`, `commands/<project>/`, `agents/<project>/<case>/<variant>/`, and the plugin reports `report.json`, `report.txt`, and `report.html` with a warm-index reuse section
+- the run status is `completed`, `partial`, `failed`, or `skipped` from actual outcomes; a failed project index keeps raw evidence and records failed warm outcomes; the command exits `1` when the run status is `failed` or the arguments/configuration are invalid, and `0` otherwise
+- the bundled cases currently provide one task per benchmark project; supply a cases file with several tasks per project to exercise multi-task reuse
+
+See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#warm-index-reuse-experiment) for the procedure.
 
 ### `my-dev-kit-lab experiment controlled [options]`
 
@@ -224,8 +255,19 @@ Runs the `context-strategy-comparison` plugin's legacy controlled-experiment pat
 
 | Option | Allowed value or default |
 |---|---|
-| `--experiment <dir>` | Required |
+| `--experiment <dir>` | Required; a legacy controlled-experiment output directory or a `warm-index-reuse` plugin output directory |
 | `--out <dir>` | Required |
+
+Input detection: when the experiment directory contains a `report.json` from the `warm-index-reuse` plugin, the command builds the four warm-index charts (a malformed warm-index report fails instead of falling back); every other directory uses the unchanged legacy controlled-experiment plot path. Other plugin outputs are not plotted by this command.
+
+Warm-index charts, written to `<out>/charts/` with `plot-data.json` and `plots-summary.json`:
+
+- `warm-index-amortized-index-cost.svg` — amortized index build duration by task ordinal
+- `warm-index-context-size.svg` — raw versus retrieved estimated context tokens
+- `warm-index-correctness.svg` — fake-agent correctness by variant
+- `warm-index-cumulative-token-usage.svg` — cumulative fake-agent total tokens (never estimated context tokens)
+
+Unavailable metrics become skipped points with their reason; a chart with no available points renders "No comparable data available".
 
 ### `my-dev-kit-lab gallery build [options]`
 
@@ -254,7 +296,7 @@ Useful current combinations:
 
 - `audit` and `security validate` findings can seed my-dev-kit search/lookup/slice/source investigation against the same target. They are candidate findings, not source-owner or deletion decisions.
 - The `context-strategy-comparison` plugin owns raw-full-file versus my-dev-kit-guided experiments. The released stage-context strategies can consume my-dev-kit capsule/audit evidence and Orchestrator `WorkflowInstructionPacket` evidence through programmatic `v043StrategyInputs` / `v043RunAssurance` configuration. There are no installed CLI flags for arbitrary live stage-context artifact paths.
-- `demo final --kit-command <command>` is the installed surface that explicitly accepts a my-dev-kit-compatible command. Do not assume generic `experiment run` also accepts `--kit-command`.
+- `demo final --kit-command <command>` and `experiment run --experiment warm-index-reuse --kit-command <command>` are the installed surfaces that explicitly accept a my-dev-kit-compatible command. `experiment run` accepts `--kit-command` only for `warm-index-reuse`; it is rejected for `context-strategy-comparison`.
 - Tutorial PNG screenshots are ordinary image files and may be deliberately selected as Observer external-reference inputs. The tutorial manifest, assertions, authentication state, and behavior do not transfer with the image.
 - `report render --visualizations` and `gallery build --visualizations` expect Lab visualization-demo artifacts. Arbitrary my-dev-kit graph-view directories or Observer evidence roots are not documented drop-in replacements.
 - Lab does not generically ingest Observer observations/comparisons/evaluations or Orchestrator export handoffs. Use a registered experiment/adapter or cite those results separately.
@@ -300,6 +342,7 @@ Current implemented commands:
 - `npm run experiment:list`
 - `npm run experiment:describe -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment context-strategy-comparison`
+- `npm run experiment:run -- --experiment warm-index-reuse`
 - `npm run run-controlled-experiment`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`
@@ -317,11 +360,18 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --agents fake-agent --complexities short --no-screenshot
 ```
 
+```bash
+npm run experiment:describe -- --experiment warm-index-reuse
+npm run experiment:run -- --experiment warm-index-reuse --cases tests/fixtures/warm-index-reuse/multi-task-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/warm-index-reuse
+```
+
+`experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above.
+
 `experiment:run` options for `context-strategy-comparison`:
 
 | Option | Allowed value or default |
 |---|---|
-| `--experiment <id>` | Required; currently `context-strategy-comparison` |
+| `--experiment <id>` | Required; `context-strategy-comparison` for this table (`warm-index-reuse` options are documented above) |
 | `--target <path>` | Optional; defaults to self mode |
 | `--out <dir>` | Defaults to `lab-output/context-strategy-comparison` |
 | `--cases <path>` | Defaults to `examples/token-savings-cases.json` |
@@ -339,7 +389,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\
 
 Current behavior:
 
-- `context-strategy-comparison` is the only registered plugin
+- `context-strategy-comparison` and `warm-index-reuse` are the registered plugins
 - omitting `--target` uses self mode
 - target projects are not modified by experiment execution
 
@@ -368,7 +418,7 @@ This takes no arguments. It loads both frozen fixtures, evaluates each through t
 | Command | Purpose |
 |---|---|
 | `npm run render-experiment-report` | Render JSON and HTML from experiment artifacts |
-| `npm run generate-experiment-plots` | Produce plot data and deterministic SVG charts |
+| `npm run generate-experiment-plots` | Produce plot data and deterministic SVG charts from a legacy controlled-experiment or `warm-index-reuse` output directory |
 | `npm run run-visualization-demos` | Run my-dev-kit visualization examples |
 | `npm run build-gallery` | Build a gallery manifest and static HTML index |
 | `npm run capture-demo-report` | Capture an optional report screenshot |

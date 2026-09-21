@@ -48,6 +48,7 @@ Thumbs.db
 # Project-generated artifacts
 lab-output/*
 !lab-output/.gitkeep
+.my-dev-kit-context/
 screenshots/
 tmp/
 temp/

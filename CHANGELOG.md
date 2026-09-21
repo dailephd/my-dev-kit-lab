@@ -4,6 +4,21 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-21
+
+Warm-index reuse experiment support.
+
+- Added the experimental `warm-index-reuse` experiment plugin, registered alongside `context-strategy-comparison` and reachable through `experiment list`, `experiment describe`, and `experiment run`.
+- Built exactly one my-dev-kit index per benchmark-project group and reused it across every task in that group, with a matched `raw-full-file` baseline for each task; cases that disagree on target or source roots fail structurally instead of being indexed.
+- Separated index construction from retrieval: one measured `index` command per project, and search/lookup/slice/source against the prepared index for each task, without re-indexing.
+- Added deterministic fake-agent evaluation of each task side with context evidence, reusing the existing prompt generator, answer parser, run classifier, and correctness scorer.
+- Reported index build duration, raw context-construction and warm retrieval durations, raw and retrieved context size, estimated context tokens, amortized index build duration (build duration / task ordinal), cumulative component durations, cumulative estimated context tokens, fake-agent correctness, fake-agent total tokens, and cumulative fake-agent total tokens, each with explicit `available`/`unavailable`/`not-applicable` availability and strict-prefix cumulative rules.
+- Added a bounded warm-index section to the plugin `report.json`, `report.txt`, and `report.html`, explaining cold-start versus warm-reuse cost, with a neutral interpretation and explicit limitations. The bounded `warm-index-execution.json` records execution evidence without context text.
+- Added four warm-index plots through the existing `plots generate` command: amortized index cost, raw versus retrieved context size, fake-agent correctness, and cumulative fake-agent token usage.
+- Added the warm-index-only `experiment run --kit-command <command>` option (default `npx @dailephd/my-dev-kit@latest`), grouped `experiment run --help` options by plugin, and corrected `plots generate` help to describe supported inputs.
+- Extended the exact packed-package acceptance gate with installed warm-index execution, reports, and plots while preserving installed-package and target immutability.
+- Limitations: agent evidence comes from the deterministic fake agent only; fake-agent correctness and token totals are simulated harness evidence, not real-model results or provider billing telemetry; estimated context tokens remain a separate context-size estimate; cumulative durations are component sums, not wall-clock latency; no token-savings percentage, break-even task, winner, or ranking is calculated; the bundled cases provide one task per benchmark project; real-agent warm-index campaigns, warm-index screenshots, and gallery integration are not included.
+
 ## [0.4.9] - 2026-09-20
 
 Semantic native-select option selection for declarative browser tutorials.

@@ -55,6 +55,18 @@ export type MyDevKitRetrievalResult = {
   durationMs: number;
 };
 
+/** Target identity a my-dev-kit index is built from: one root plus its ordered source roots. */
+export type MyDevKitIndexTarget = Pick<EvaluationCase, "absoluteTargetRoot" | "sourceRoots">;
+
+/** Outcome of one my-dev-kit `index` invocation, measured separately from any retrieval. */
+export type MyDevKitIndexBuildResult = {
+  ok: boolean;
+  indexDir: string;
+  durationMs: number;
+  warnings: string[];
+  command: MeasuredCommandResult;
+};
+
 export type TokenSavingsCaseResult = {
   caseId: string;
   title: string;

@@ -121,6 +121,60 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 **Completion:** both strategies have recorded outcomes and the target remains unchanged.
 
+## Warm-index reuse experiment
+
+Implemented in the current release v0.5.0; see [CURRENT_STATE.md](CURRENT_STATE.md) for its lifecycle state.
+
+**Goal:** measure how a one-time my-dev-kit index cost is amortized when the same prepared index is reused across several tasks, with a matched `raw-full-file` baseline for every task and deterministic fake-agent correctness and token evidence.
+
+**Prerequisites:** install dependencies and run `npm run build`. Choose a my-dev-kit command: the default `npx @dailephd/my-dev-kit@latest`, a locally installed my-dev-kit, or the deterministic fixture `node tests/fixtures/fake-my-dev-kit-cli.js` in a source checkout. Choose a cases file with several tasks per benchmark project; the bundled `examples/token-savings-cases.json` currently has one task per project, so it exercises index setup and one task per project rather than multi-task reuse. The test fixture `tests/fixtures/warm-index-reuse/multi-task-cases.json` provides two `todo-ts` tasks and one `todo-js` task.
+
+**Starting state:** the output directory is new or empty, and any `--target` project is an existing local directory that must stay unchanged.
+
+**Lifecycle:**
+
+```
+select cases (source order, optional --case / --benchmark-project filters)
+  -> group by benchmark project (first-seen order)
+  -> per project: build exactly one index (no per-task re-indexing, no retry)
+  -> per task: one raw-full-file baseline + one warm retrieval against that project's index
+  -> per task side with context evidence: one deterministic fake-agent evaluation
+  -> metrics calculated once (amortized, cumulative, fake-agent correctness/tokens)
+  -> bounded warm-index-execution.json + plugin report.json / report.txt / report.html
+  -> optional: plots generate -> four warm-index SVG charts
+```
+
+**Steps:**
+
+1. Run the experiment. PowerShell (source checkout, deterministic fixture):
+
+   ```powershell
+   npm run experiment:run -- `
+     --experiment warm-index-reuse `
+     --cases tests/fixtures/warm-index-reuse/multi-task-cases.json `
+     --benchmark-project todo-ts `
+     --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
+     --out lab-output/warm-index-reuse
+   ```
+
+   The installed equivalent is `my-dev-kit-lab experiment run --experiment warm-index-reuse --cases <path> --benchmark-project <id> --kit-command "<command>" --out <dir>`.
+
+2. Generate the plots:
+
+   ```bash
+   npm run generate-experiment-plots -- --experiment lab-output/warm-index-reuse --out lab-output/warm-index-plots
+   ```
+
+   The installed equivalent is `my-dev-kit-lab plots generate --experiment <run dir> --out <plots dir>`.
+
+3. Read the "Warm Index Reuse Evidence" section of `report.html` or `report.txt`, and use `report.json` (`report.warmIndexReuse`) for machine-readable review.
+
+**Expected outputs:** `warm-index-execution.json`, `indexes/<project>/`, `commands/<project>/`, `agents/<project>/<case>/<variant>/`, `report.json`, `report.txt`, and `report.html` beneath the run output; `plot-data.json`, `plots-summary.json`, and `charts/warm-index-amortized-index-cost.svg`, `warm-index-context-size.svg`, `warm-index-correctness.svg`, and `warm-index-cumulative-token-usage.svg` beneath the plots output. Reports and plot data contain bounded measurements only, never context text, source contents, prompts, answers, or command output bodies.
+
+**Failure handling:** unknown case or benchmark-project IDs, or a filter that matches nothing, fail the run with the reason in the report's failures. A project whose cases disagree on target or source roots is not indexed; its warm outcomes fail while raw baselines still run. A failed index keeps its measured command evidence and raw baselines, fails that project's warm outcomes, and does not stop other projects. A fake-agent failure leaves context and duration evidence unchanged and makes that side's correctness unavailable. Unavailable measurements stay unavailable in cumulative metrics and plots; they are never counted as zero.
+
+**Completion:** the run reports `completed` (or an explicit `partial` state that has been reviewed), each benchmark project shows exactly one index setup, the report's warm-index section and limitations are present, the optional plots output contains four charts, and any `--target` project is unchanged. Interpret the results as scoped fake-agent evidence: the report calculates no token-savings percentage, break-even task, winner, or ranking.
+
 ## Stage-context strategy evaluation (v0.4.3)
 
 **Goal:** deterministically evaluate one of the six new stage-context strategies against explicit artifact inputs and an explicit expectation fixture, through the same `context-strategy-comparison` plugin.
@@ -229,6 +283,8 @@ npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-
 ```
 
 **Expected outputs:** JSON/HTML reports, plot data and SVG charts, a gallery manifest, and `gallery-index.html`.
+
+`generate-experiment-plots` (installed: `plots generate`) also accepts a `warm-index-reuse` output directory and then writes the four warm-index charts; see [Warm-index reuse experiment](#warm-index-reuse-experiment). Warm-index outputs have no dedicated gallery integration.
 
 **Failure handling:** correct the missing or mismatched input directory reported by the failing renderer. Do not fabricate absent artifacts.
 

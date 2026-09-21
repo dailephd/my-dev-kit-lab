@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveWithinRoot } from "../core/pathSafety.js";
 import { buildExperimentPlotData } from "./buildExperimentPlotData.js";
+import { buildWarmIndexPlotData, readWarmIndexPlotSource } from "./buildWarmIndexPlotData.js";
 import { renderSvgChart } from "./renderSvgChart.js";
 import type { ExperimentPlotData, PlotArtifacts } from "./types.js";
 
@@ -15,7 +16,13 @@ const chartFiles: Record<string, string> = {
 };
 
 export async function writePlotArtifacts(options: { experimentDir: string; outDir: string; repoRoot?: string }): Promise<PlotArtifacts> {
-  const data = await buildExperimentPlotData({ experimentDir: options.experimentDir, repoRoot: options.repoRoot });
+  // A warm-index-reuse plugin output directory is detected by its plugin report; every other
+  // directory keeps the legacy controlled-experiment plot path unchanged.
+  const experimentDir = path.resolve(options.repoRoot ?? process.cwd(), options.experimentDir);
+  const warmSection = await readWarmIndexPlotSource(experimentDir);
+  const data = warmSection
+    ? buildWarmIndexPlotData({ section: warmSection, experimentDir })
+    : await buildExperimentPlotData({ experimentDir: options.experimentDir, repoRoot: options.repoRoot });
   return writePlotArtifactsFromData({ data, outDir: options.outDir });
 }
 

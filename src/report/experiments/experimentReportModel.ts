@@ -10,6 +10,7 @@ import type {
   ExperimentWarning,
 } from "../../experiments/index.js";
 import type { ContextStrategyComparisonV043ReportV1 } from "./contextStrategyComparisonV043ReportModel.js";
+import type { WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
 
 export type PluginExperimentReportMetadata = {
   generatedAt: string;
@@ -68,6 +69,8 @@ export type PluginExperimentReport = {
   failures: ExperimentFailure[];
   skippedOutcomes: ExperimentCase["outcomes"];
   findings: PluginExperimentReportFinding[];
+  /** Populated for warm-index-reuse runs; null for every other plugin. */
+  warmIndexReuse: WarmIndexReuseReportV1 | null;
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null;
   interpretation: {
     summary: string;
