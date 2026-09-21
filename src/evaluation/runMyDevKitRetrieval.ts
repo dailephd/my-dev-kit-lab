@@ -1,7 +1,7 @@
 import path from "node:path";
 import { countEstimatedTokens, countTextChars, tokenCountMethod } from "../core/countTokens.js";
-import { runMeasuredCommand } from "../core/runMeasuredCommand.js";
-import type { EvaluationCase, MyDevKitRetrievalResult } from "./types.js";
+import { runMeasuredCommand, type MeasuredCommandResult } from "../core/runMeasuredCommand.js";
+import type { EvaluationCase, MyDevKitIndexBuildResult, MyDevKitIndexTarget, MyDevKitRetrievalResult } from "./types.js";
 
 function parseJsonIfPossible(text: string): unknown | undefined {
   try {
@@ -43,60 +43,93 @@ function pickCandidateFields(candidate: Record<string, unknown>): { nodeId?: str
   };
 }
 
-export async function runMyDevKitRetrieval(options: {
+function skippedRetrieval(
+  caseId: string,
+  warnings: string[],
+  commands: MeasuredCommandResult[],
+  durationMs: number
+): MyDevKitRetrievalResult {
+  return {
+    caseId,
+    skipped: true,
+    warnings,
+    totalChars: 0,
+    totalEstimatedTokens: 0,
+    tokenCountMethod,
+    contextText: "",
+    filesRead: [],
+    commands,
+    durationMs
+  };
+}
+
+/**
+ * Runs exactly one my-dev-kit `index` command for the target and writes the index only to
+ * `indexDir`. Performs no search/lookup/slice/source work. With `requireKit` a failed index
+ * throws; otherwise the failure is returned as `ok: false` with a warning.
+ */
+export async function buildMyDevKitIndex(options: {
+  target: MyDevKitIndexTarget;
+  kitCommand: string;
+  indexDir: string;
+  commandsDir: string;
+  requireKit: boolean;
+}): Promise<MyDevKitIndexBuildResult> {
+  const warnings: string[] = [];
+  const command = await runMeasuredCommand({
+    commandId: "index",
+    commandString: options.kitCommand,
+    cwd: process.cwd(),
+    outDir: options.commandsDir,
+    extraArgs: [
+      "index",
+      "--root",
+      options.target.absoluteTargetRoot,
+      ...options.target.sourceRoots.flatMap((sourceRoot) => ["--src", sourceRoot]),
+      "--out",
+      options.indexDir,
+      "--json"
+    ]
+  });
+
+  if (!command.ok) {
+    if (options.requireKit) {
+      throw new Error(command.error || `my-dev-kit index failed with exit code ${command.exitCode}`);
+    }
+    warnings.push("my-dev-kit index command was unavailable or failed.");
+  }
+
+  return {
+    ok: command.ok,
+    indexDir: options.indexDir,
+    durationMs: command.durationMs,
+    warnings,
+    command
+  };
+}
+
+/**
+ * Runs search -> lookup -> slice -> source against an already prepared index. Never invokes
+ * `index`; `durationMs` covers retrieval only.
+ */
+export async function runMyDevKitRetrievalFromIndex(options: {
   evaluationCase: EvaluationCase;
   kitCommand: string;
-  outputDir: string;
+  indexDir: string;
+  commandsDir: string;
   requireKit: boolean;
 }): Promise<MyDevKitRetrievalResult> {
   const started = Date.now();
   const warnings: string[] = [];
-  const commandsDir = path.join(options.outputDir, "commands", options.evaluationCase.id);
-  const indexesDir = path.join(options.outputDir, "indexes", options.evaluationCase.id);
-  const commands = [];
-
-  const indexCommand = await runMeasuredCommand({
-    commandId: "index",
-    commandString: options.kitCommand,
-    cwd: process.cwd(),
-    outDir: commandsDir,
-    extraArgs: [
-      "index",
-      "--root",
-      options.evaluationCase.absoluteTargetRoot,
-      ...options.evaluationCase.sourceRoots.flatMap((sourceRoot) => ["--src", sourceRoot]),
-      "--out",
-      indexesDir,
-      "--json"
-    ]
-  });
-  commands.push(indexCommand);
-
-  if (!indexCommand.ok) {
-    if (options.requireKit) {
-      throw new Error(indexCommand.error || `my-dev-kit index failed with exit code ${indexCommand.exitCode}`);
-    }
-    warnings.push("my-dev-kit index command was unavailable or failed.");
-    return {
-      caseId: options.evaluationCase.id,
-      skipped: true,
-      warnings,
-      totalChars: 0,
-      totalEstimatedTokens: 0,
-      tokenCountMethod,
-      contextText: "",
-      filesRead: [],
-      commands,
-      durationMs: Date.now() - started
-    };
-  }
+  const commands: MeasuredCommandResult[] = [];
+  const { commandsDir, indexDir } = options;
 
   const searchCommand = await runMeasuredCommand({
     commandId: "search",
     commandString: options.kitCommand,
     cwd: process.cwd(),
     outDir: commandsDir,
-    extraArgs: ["search", "--index", indexesDir, "--query", options.evaluationCase.query, "--json"]
+    extraArgs: ["search", "--index", indexDir, "--query", options.evaluationCase.query, "--json"]
   });
   commands.push(searchCommand);
   if (!searchCommand.ok) {
@@ -104,18 +137,7 @@ export async function runMyDevKitRetrieval(options: {
       throw new Error(searchCommand.error || `my-dev-kit search failed with exit code ${searchCommand.exitCode}`);
     }
     warnings.push("my-dev-kit search command failed.");
-    return {
-      caseId: options.evaluationCase.id,
-      skipped: true,
-      warnings,
-      totalChars: 0,
-      totalEstimatedTokens: 0,
-      tokenCountMethod,
-      contextText: "",
-      filesRead: [],
-      commands,
-      durationMs: Date.now() - started
-    };
+    return skippedRetrieval(options.evaluationCase.id, warnings, commands, Date.now() - started);
   }
 
   const searchPayload = parseJsonIfPossible(searchCommand.stdout);
@@ -123,18 +145,7 @@ export async function runMyDevKitRetrieval(options: {
   const selected = candidates[0];
   if (!selected) {
     warnings.push("No my-dev-kit search candidate was found.");
-    return {
-      caseId: options.evaluationCase.id,
-      skipped: true,
-      warnings,
-      totalChars: 0,
-      totalEstimatedTokens: 0,
-      tokenCountMethod,
-      contextText: "",
-      filesRead: [],
-      commands,
-      durationMs: Date.now() - started
-    };
+    return skippedRetrieval(options.evaluationCase.id, warnings, commands, Date.now() - started);
   }
 
   const candidate = pickCandidateFields(selected);
@@ -151,7 +162,7 @@ export async function runMyDevKitRetrieval(options: {
       commandString: options.kitCommand,
       cwd: process.cwd(),
       outDir: commandsDir,
-      extraArgs: ["lookup", "--index", indexesDir, "--node", selectedNodeId, "--json"]
+      extraArgs: ["lookup", "--index", indexDir, "--node", selectedNodeId, "--json"]
     });
     commands.push(lookupCommand);
     if (lookupCommand.ok) {
@@ -165,7 +176,7 @@ export async function runMyDevKitRetrieval(options: {
       commandString: options.kitCommand,
       cwd: process.cwd(),
       outDir: commandsDir,
-      extraArgs: ["slice", "--index", indexesDir, "--node", selectedNodeId, "--json"]
+      extraArgs: ["slice", "--index", indexDir, "--node", selectedNodeId, "--json"]
     });
     commands.push(sliceCommand);
     if (sliceCommand.ok) {
@@ -179,7 +190,7 @@ export async function runMyDevKitRetrieval(options: {
       commandString: options.kitCommand,
       cwd: process.cwd(),
       outDir: commandsDir,
-      extraArgs: ["source", "--index", indexesDir, "--node", selectedNodeId, "--max-lines", "160", "--format", "numbered"]
+      extraArgs: ["source", "--index", indexDir, "--node", selectedNodeId, "--max-lines", "160", "--format", "numbered"]
     });
     commands.push(sourceCommand);
     if (sourceCommand.ok) {
@@ -207,6 +218,47 @@ export async function runMyDevKitRetrieval(options: {
     selectedNodeId,
     selectedFile,
     selectedSymbol,
+    durationMs: Date.now() - started
+  };
+}
+
+/**
+ * Legacy per-case lifecycle: builds a case-specific index and retrieves from it. `commands`
+ * starts with the index command and `durationMs` covers the whole lifecycle including indexing.
+ */
+export async function runMyDevKitRetrieval(options: {
+  evaluationCase: EvaluationCase;
+  kitCommand: string;
+  outputDir: string;
+  requireKit: boolean;
+}): Promise<MyDevKitRetrievalResult> {
+  const started = Date.now();
+  const commandsDir = path.join(options.outputDir, "commands", options.evaluationCase.id);
+  const indexDir = path.join(options.outputDir, "indexes", options.evaluationCase.id);
+
+  const index = await buildMyDevKitIndex({
+    target: options.evaluationCase,
+    kitCommand: options.kitCommand,
+    indexDir,
+    commandsDir,
+    requireKit: options.requireKit
+  });
+  if (!index.ok) {
+    return skippedRetrieval(options.evaluationCase.id, [...index.warnings], [index.command], Date.now() - started);
+  }
+
+  const retrieval = await runMyDevKitRetrievalFromIndex({
+    evaluationCase: options.evaluationCase,
+    kitCommand: options.kitCommand,
+    indexDir,
+    commandsDir,
+    requireKit: options.requireKit
+  });
+
+  return {
+    ...retrieval,
+    warnings: [...index.warnings, ...retrieval.warnings],
+    commands: [index.command, ...retrieval.commands],
     durationMs: Date.now() - started
   };
 }
