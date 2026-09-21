@@ -441,3 +441,67 @@ Implemented in `src/evaluation/stageContextMetrics` and composed once per run by
 - Determinism and fixture self-immutability
   Meaning: reuses `calculateStageContextDeterminism`/`canonicalizeStageContextRun` (`v0.4.3`) to confirm repeated evaluations of the same fixture produce identical canonicalized results, and re-runs fixture hash verification to confirm the frozen bytes were not mutated by evaluation.
   Caveat: this is fixture-level self-immutability, not the `v0.4.3` live-target-mutation check — no live target repository is exercised by this evaluation path.
+
+## Warm-index reuse metrics
+
+Implemented in v0.5.0, which is unreleased. The `warm-index-reuse` plugin calculates these metrics once, in `src/experiments/plugins/warmIndexReuse/metrics.ts`, from bounded execution summaries and bounded fake-agent evidence. The report section (`report.warmIndexReuse` in `report.json`, and the text and HTML "Warm Index Reuse Evidence" sections) and the four warm-index plots render these precomputed values; they never recalculate a formula.
+
+**Availability contract.** Every warm-index metric carries `availability`, `value`, `unit`, `source`, `reason`, and `tokenCountMethod`:
+
+- `available`: `value` is a finite number and `reason` is `null`. Zero is a valid available value.
+- `unavailable`: `value` is `null` and `reason` explains the missing or invalid evidence. Missing evidence is never reported as zero, and a non-finite upstream number becomes `unavailable` with an invalid-input reason.
+- `not-applicable`: `value` is `null` and `reason` explains why the metric does not apply. The contract supports it; the current warm-index metrics do not emit it.
+
+Units are `ms`, `characters`, `estimated-tokens`, `tokens`, and `score`. Sources are `measured`, `derived`, `estimated-chars-div-4`, and `agent`. `tokenCountMethod` is set only for estimated-token metrics (currently `estimated_chars_div_4`).
+
+**Task ordinal.** Tasks keep their filtered source order inside each benchmark project and are numbered `1, 2, 3, …` per project. Ordinals, amortization, and every cumulative sum restart for each benchmark project.
+
+**Direct measurements (per task):**
+
+- Raw context characters / warm retrieved context characters (`characters`, `measured`)
+  Meaning: characters in the raw full-file context and in the retrieved my-dev-kit context.
+  Caveat: unavailable when that side produced no evidence (for example, a raw baseline failure, or no warm retrieval because the project index was not prepared).
+- Raw estimated context tokens / warm estimated context tokens (`estimated-tokens`, `estimated-chars-div-4`)
+  Meaning: the character-based context-size estimate, `ceil(characters / 4)`.
+  Caveat: a context-size estimate, not provider token usage and not fake-agent token usage.
+- Raw context-construction duration (`ms`, `measured`)
+  Meaning: time to build the raw full-file context for the task. It is not agent duration.
+- Warm retrieval duration (`ms`, `measured`)
+  Meaning: search, lookup, slice, and source against the already prepared index. It never includes the index build.
+  Caveat: a skipped retrieval (no usable context) still reports its measured duration and sizes; its outcome remains `skipped`.
+- Index build duration (per project, `ms`, `measured`)
+  Meaning: the measured duration of the project's single my-dev-kit `index` command.
+  Caveat: available whenever a build was attempted and measured, even if the build failed. Unavailable, never zero, when the project group was structurally inconsistent and no index setup was attempted.
+
+**Derived measurements (per task):**
+
+- Amortized index build duration (`ms`, `derived`)
+  Formula: `amortizedIndexBuildDurationMs(N) = indexBuildDurationMs / N` for task ordinal `N`, without rounding.
+  Caveat: available only when the project prepared a valid index session. A failed or never-attempted index is not amortized.
+- Cumulative raw component duration (`ms`, `measured`)
+  Formula: sum of raw context-construction durations for tasks `1..N`.
+- Cumulative warm component duration (`ms`, `derived`)
+  Formula: `indexBuildDurationMs` (counted once) plus the warm retrieval durations for tasks `1..N`. At `N = 1` this is the cold-start warm cost: index build plus the first retrieval.
+  Caveat: requires a prepared index session. It is a sum of measured components, not wall-clock or end-to-end latency, and it is not a speedup claim.
+- Cumulative raw / warm estimated context tokens (`estimated-tokens`, `estimated-chars-div-4`)
+  Formula: sum of that side's estimated context tokens for tasks `1..N`. No index-token cost is added; indexing is a local repository operation, not model context.
+  Caveat: if different token-count methods appear within one prefix, the cumulative value is unavailable rather than summed.
+
+**Strict-prefix rule.** A cumulative metric at ordinal `N` is available only when every task `1..N` has the required input. After the first missing or invalid input, that cumulative metric stays unavailable for every later task in the project, with a reason naming the first incomplete task. The later tasks' direct metrics remain available.
+
+**Fake-agent evidence (per task side):**
+
+The plugin evaluates each task side that has context evidence once with the deterministic fake agent, through the existing prompt generator, answer parser, run classifier, and correctness scorer. A side with no context evidence is not evaluated, and its agent metrics are unavailable with that reason.
+
+- Fake-agent correctness score (`score`, `agent`)
+  Meaning: `correctnessScore` from the existing benchmark answer-key scorer (see "Experiment and run metrics" above).
+  Caveat: available only when the fake-agent answer was scoreable (classified `completed` or `invalid-output`); a failed agent run reports `unavailable` with its status and error. It is deterministic benchmark-harness evidence, not real-model correctness, and retrieval success is never used as correctness.
+- Fake-agent total tokens (`tokens`, `agent`)
+  Meaning: `tokenUsage.totalTokens` exactly as reported by the fake agent (its prompt estimate plus a fixed simulated output count), with the reported token-usage source and reliability kept in the agent evidence.
+  Caveat: simulated harness telemetry, not provider billing telemetry. When the fake agent reports no total (for example `FAKE_AGENT_MODE=missing-token-usage`), the value is unavailable; estimated context tokens are never substituted.
+- Cumulative fake-agent total tokens (`tokens`, `agent`)
+  Formula: sum of fake-agent total tokens for tasks `1..N` on that side, under the strict-prefix rule.
+
+**Generic outcome metrics.** Available values also appear as `ExperimentMetric` entries on each outcome, with `variantId`, `caseId`, `unit`, and `description`. Both the `raw-full-file` and `warm-index-reuse` outcomes can carry `context-character-count`, `context-estimated-token-count`, `operation-duration-ms` (raw context construction or warm retrieval), `cumulative-component-duration-ms`, `cumulative-context-estimated-token-count`, `agent-correctness-score`, `agent-total-tokens`, and `cumulative-agent-total-tokens`. The warm outcome also carries `amortized-index-build-duration-ms`. Unavailable metrics are omitted rather than emitted as zero. Run-level metrics are limited to `warm-index-project-count`, `warm-index-task-count`, and `warm-index-session-prepared-project-count`.
+
+**Interpretation.** The report separates the one-time index cost from per-task retrieval cost and shows the fixed cost falling per task as more tasks reuse the index. It calculates no token-savings percentage, duration-reduction percentage, break-even task, composite score, winner, or ranking. Warm-index plots map the same precomputed values: amortized index build duration, raw versus retrieved estimated context tokens, fake-agent correctness, and cumulative fake-agent total tokens. Unavailable values become skipped plot points with their reason.

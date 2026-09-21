@@ -26,6 +26,7 @@ src/
     target.ts                                self/external-local target resolution
     types.ts                                 plugin contracts and normalized results
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
+    plugins/warmIndexReuse/                  v0.5.0 (unreleased) warm-index-reuse plugin: config, case selection/grouping, warm index session, execution, bounded execution artifact, fake-agent evaluation, metrics
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3); plus exact supplemental implementation/test-context packet/retrieval-report readers and a bounded plain-object readiness adapter (v0.4.4); plus exact condition-aware producer evidence mirrors (roleConditionCoverage, allocation/spillover GroupTruncationEntry fields, truncation.requiredEvidenceLost) and exact orchestrator run-integrity mirrors (RunIntegrityGateResult, JudgeIntegrityResult, FinalReportEligibilityResult, artifact-state.json lifecycle records) (v0.4.5)
     stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3); plus orchestrator run-integrity selectors (v0.4.5)
@@ -56,7 +57,7 @@ src/
     fuzz/                                    bounded deterministic fuzz smoke
     validate/                                targets, orchestration, and verdicts
     report/                                  text and JSON security reports; buildSecurityReport.ts assembles the report object shared by scripts/security/validate.ts and the audits/security adapter
-  plots/ screenshot/ gallery/                evidence presentation
+  plots/ screenshot/ gallery/                evidence presentation (plots/ also maps warm-index-reuse report metrics to four charts in v0.5.0)
   visualizationDemos/                        my-dev-kit visualization runs
 
 scripts/
@@ -77,6 +78,9 @@ flowchart TD
   Registry --> Runner[src/experiments runner]
   Runner --> Target[self or external-local target]
   Runner --> Plugin[context-strategy-comparison plugin]
+  Runner --> WarmPlugin[warm-index-reuse plugin]
+  WarmPlugin --> Evaluation
+  WarmPlugin --> Results
   Plugin --> Evaluation[src/evaluation]
   Evaluation --> Agents[fake-agent / Codex / Claude]
   Plugin --> Results[normalized plugin result + legacy artifacts]
@@ -116,9 +120,9 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers `context-strategy-comparison`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers `context-strategy-comparison` and `warm-index-reuse` (implemented in the unreleased v0.5.0; see "Warm-index reuse architecture" below). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
-The current plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
+The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
 - `raw-full-file` and `my-dev-kit-guided` variants
 - benchmark cases and answer-key correctness
@@ -146,6 +150,50 @@ sequenceDiagram
   Runtime->>Report: write JSON and HTML reports
   Report-->>User: plugin-aware and legacy outputs
 ```
+
+## Warm-index reuse architecture (v0.5.0)
+
+Implemented and unreleased. `warm-index-reuse` is a second plugin on the same generic runner; it adds no runner, report writer, plot writer, retrieval runner, or agent adapter of its own.
+
+```mermaid
+flowchart TD
+  Runner[generic experiment runner] --> Plugin[warm-index-reuse plugin]
+  Plugin --> Select[selection: filter cases, group by benchmark project]
+  Select --> Session[prepareWarmIndexSession: exactly one index per project]
+  Session --> Build[buildMyDevKitIndex]
+  Select --> Raw[runRawFullFileBaseline per task]
+  Session --> Warm[runMyDevKitRetrievalFromIndex per task, after assertWarmIndexSessionMatchesTarget]
+  Raw --> Exec[in-memory execution + bounded warm-index-execution.json]
+  Warm --> Exec
+  Exec --> Agent[fakeAgentEvaluation: existing prompts, runAgentPrompt, parser, classifier, scorer]
+  Exec --> Metrics[metrics.ts: calculateWarmIndexMetrics once]
+  Agent --> Metrics
+  Metrics --> Run[WarmIndexReuseRun: projectExecutions, agentEvidence, warmIndexMetrics, outcome metrics]
+  Run --> Report[generic plugin report + buildWarmIndexReuseReport section]
+  Report --> Plots[plots generate: buildWarmIndexPlotData]
+```
+
+Owners in `src/experiments/plugins/warmIndexReuse/`:
+
+- `config.ts` — closed `WarmIndexReuseConfig` (`casesPath`, `projectProfilesPath`, `outDir`, `kitCommand`, `caseIds`, `benchmarkProjects`); agent-matrix fields are rejected. The default `kitCommand` is `npx @dailephd/my-dev-kit@latest`.
+- `selection.ts` — source-order filtering, first-seen benchmark-project grouping, structural checks (one target root and one ordered source-root list per project), and path-safe output segments.
+- `warmIndexSession.ts` — `prepareWarmIndexSession` and `assertWarmIndexSessionMatchesTarget`; a frozen `WarmIndexSession` carries only the index directory, build duration/command, target root, and ordered source roots.
+- `execution.ts` — `executeWarmIndexReuse`: one index setup attempt per valid project (no per-task re-indexing, no retry), then one raw baseline and one asserted warm retrieval per task, with explicit failed/skipped/partial status.
+- `executionArtifact.ts` — the bounded `warm-index-execution.json` (schema `my-dev-kit-lab-warm-index-execution-v1`) and the bounded project summaries carried on the run.
+- `fakeAgentEvaluation.ts` — one deterministic fake-agent evaluation per task side with context evidence, through the existing prompt generator, `runAgentPrompt`, `parseAgentAnswer`, `classifyAgentRunOutcome`, and `scoreCorrectness`. Only `fake-agent` is used.
+- `metrics.ts` — the single metric owner: availability primitives, direct metrics, amortization, strict-prefix cumulative sums, fake-agent correctness and token metrics, and the generic `ExperimentMetric` mapping.
+- `plugin.ts` — plugin metadata (`experimental`; targets `self`/`external-local`; outputs `json`, `html`, `text`, `plot`, `artifact`; variants `raw-full-file` and `warm-index-reuse`) and assembly of the `WarmIndexReuseRun`.
+
+The lower-level lifecycle lives in `src/evaluation/runMyDevKitRetrieval.ts`: `buildMyDevKitIndex` runs one measured `index` command, `runMyDevKitRetrievalFromIndex` runs search/lookup/slice/source against an existing index without indexing, and the legacy per-case `runMyDevKitRetrieval` composes the two.
+
+Invariants and boundaries:
+
+- One reusable index per benchmark-project group per run; cases that disagree on target or source roots fail structurally instead of choosing one configuration.
+- Metrics are calculated once in the warm-index domain layer. `src/report/experiments/buildWarmIndexReuseReport.ts` and `src/plots/buildWarmIndexPlotData.ts` only present precomputed values.
+- Estimated context tokens (character-based context size) and fake-agent total tokens (simulated harness telemetry) are separate evidence families; neither is provider billing telemetry.
+- The run, `warm-index-execution.json`, reports, and plot data are bounded: no context text, source contents, prompts, answers, or stdout/stderr bodies. Per-command and per-agent files hold the raw evidence beneath the output root.
+- Agent evaluation never changes the execution status; its status is reported separately.
+- `plots generate` detects a `warm-index-reuse` `report.json` and uses the existing `renderSvgChart`/`writePlotArtifactsFromData`; every other directory keeps the legacy controlled-experiment plot path.
 
 ## Stage-context evaluation architecture (v0.4.3)
 
@@ -231,7 +279,7 @@ The contributor `scripts/*.ts` npm-script entrypoints are thin adapters over the
 
 ### Packed-package acceptance boundary
 
-`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
+`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, both experiment plugins are registered, `experiment describe --experiment warm-index-reuse` and `experiment run --help` document the warm-index surface, an installed `warm-index-reuse` run (using a temporary test-owned fake my-dev-kit script, never packaged) produces its execution artifact and reports, `plots generate` produces the four warm-index charts, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
 
 ## Automated security-validation architecture
 
@@ -342,7 +390,7 @@ These analyzers provide candidate evidence. They do not provide type checking, f
 
 ## Shared report and evidence infrastructure
 
-`src/report` remains the shared report layer. `src/report/experiments` extends it for plugin metadata rather than creating a parallel reporting product. Plots, screenshots, visualization demos, and gallery output consume experiment artifacts and remain reusable across future plugins.
+`src/report` remains the shared report layer. `src/report/experiments` extends it for plugin metadata rather than creating a parallel reporting product. The v0.5.0 `warmIndexReuse` report section (`warmIndexReuseReportModel.ts`, `buildWarmIndexReuseReport.ts`, `renderWarmIndexReuseHtml.ts`, and the text renderer) is populated for `warm-index-reuse` runs and `null` for other plugins. Plots, screenshots, visualization demos, and gallery output consume experiment artifacts and remain reusable across future plugins.
 
 ## Current browser/tutorial architecture
 
@@ -483,7 +531,8 @@ The following layers remain planned and must not be treated as current behavior:
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
-- additional experiment plugins for warm indexes, freshness, scale, retrieval quality, and agent success (`v0.5.0` and later)
+- the expanded warm-index benchmark suite (`v0.5.1`) and real-agent warm-index campaigns with screenshots/gallery output (`v0.5.2`)
+- additional experiment plugins for freshness, scale, retrieval quality, and agent success (`v0.6.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
 
@@ -498,7 +547,7 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | Plugin and result types | `src/experiments/types.ts` |
 | Plugin registry | `src/experiments/registry.ts` |
 | Generic runner | `src/experiments/runner.ts` |
-| Current plugin | `src/experiments/plugins/contextStrategyComparison/plugin.ts` |
+| Current plugins | `src/experiments/plugins/contextStrategyComparison/plugin.ts`, `src/experiments/plugins/warmIndexReuse/plugin.ts` |
 | Plugin report model | `src/report/experiments/experimentReportModel.ts` |
 | Controlled experiment types | `src/evaluation/controlledExperimentTypes.ts` |
 | Shared local target metadata | `src/core/localProjectTarget.ts` |
@@ -544,3 +593,10 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.9 `selectOption` execution and returned-value verification (released) | `src/tutorial/tutorialActions.ts` |
 | v0.4.9 structural browser `selectOption` interface (released) | `src/browser/types.ts` |
 | v0.4.9 native-select cursor routing (released) | `src/tutorial/tutorialSession.ts` |
+| v0.5.0 index build / retrieval-from-index lifecycle (unreleased) | `src/evaluation/runMyDevKitRetrieval.ts` (`buildMyDevKitIndex`, `runMyDevKitRetrievalFromIndex`) |
+| v0.5.0 warm index session (unreleased) | `src/experiments/plugins/warmIndexReuse/warmIndexSession.ts` |
+| v0.5.0 warm-index execution and execution artifact (unreleased) | `src/experiments/plugins/warmIndexReuse/execution.ts` / `executionArtifact.ts` |
+| v0.5.0 warm-index fake-agent evaluation (unreleased) | `src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.ts` |
+| v0.5.0 warm-index metrics (unreleased) | `src/experiments/plugins/warmIndexReuse/metrics.ts` |
+| v0.5.0 warm-index report section (unreleased) | `src/report/experiments/warmIndexReuseReportModel.ts`, `buildWarmIndexReuseReport.ts`, `renderWarmIndexReuseHtml.ts` |
+| v0.5.0 warm-index plot data (unreleased) | `src/plots/buildWarmIndexPlotData.ts` |

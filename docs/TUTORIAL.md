@@ -301,7 +301,7 @@ Real-agent runs can produce four outcome types:
 
 The report shows warnings for runs with missing token totals or non-completed outcomes. Partial results are still useful for understanding which runs completed and what correctness scores were achieved on completed runs.
 
-**Do not interpret partial real-agent results as proof of token savings.** The current implementation establishes the experiment infrastructure. Stronger evidence requires future experiment types such as warm-index reuse, incremental-change, and context-window scaling. See [ROADMAP.md](ROADMAP.md).
+**Do not interpret partial real-agent results as proof of token savings.** The current implementation establishes the experiment infrastructure. The unreleased v0.5.0 `warm-index-reuse` plugin adds fake-agent evidence about amortizing one index across repeated tasks; stronger evidence still requires the planned expanded benchmark suite, real-agent warm-index campaigns, and future experiment types such as incremental-change and context-window scaling. See [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -346,9 +346,10 @@ The small Todo projects are used in the fake-agent demo. The medium and large pr
 
 ## Next steps
 
-- Discover the current plugin with `npm run experiment:list`
-- Inspect it with `npm run experiment:describe -- --experiment context-strategy-comparison`
+- Discover the registered plugins with `npm run experiment:list`
+- Inspect one with `npm run experiment:describe -- --experiment context-strategy-comparison`
 - Run it against a local project with `npm run experiment:run -- --experiment context-strategy-comparison --target <path>`
+- Try the warm-index reuse plugin (v0.5.0, unreleased), which reuses one my-dev-kit index across several tasks per benchmark project; see [WORKFLOWS.md](WORKFLOWS.md#warm-index-reuse-experiment) for the procedure
 - Run automated self-validation with `npm run security:validate`, or add `-- --target <path>` for another local project
 - Read [METRICS.md](METRICS.md) for full metric definitions
 - Read [WORKFLOWS.md](WORKFLOWS.md) for detailed workflow diagrams

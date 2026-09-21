@@ -22,6 +22,9 @@ type DocumentationManifest = {
   currentFacts: {
     latestPublishedVersion: string;
     nextPlannedVersion: string;
+    currentImplementedUnreleasedVersion?: string;
+    implementedExperimentPlugins?: string[];
+    experimentPluginDocuments?: string[];
   };
 };
 
@@ -340,6 +343,121 @@ describe("replaceRoadmapVersionStatus helper", () => {
   });
 });
 
+describe("implemented-unreleased lifecycle and plugin preservation", () => {
+  const facts = manifest.currentFacts;
+  const implementedUnreleasedVersion = facts.currentImplementedUnreleasedVersion ?? "";
+  const implementedUnreleasedRoadmapVersion = `v${implementedUnreleasedVersion}`;
+  const pluginIds = facts.implementedExperimentPlugins ?? [];
+  const pluginDocuments = facts.experimentPluginDocuments ?? [];
+  const newestPluginId = pluginIds[pluginIds.length - 1] ?? "";
+  const requiredVersions = manifest.roadmap.requiredVersions;
+  const versionAfterNextPlanned = requiredVersions[requiredVersions.indexOf(`v${facts.nextPlannedVersion}`) + 1];
+
+  function removeRoadmapSection(body: string, version: string): string {
+    const escaped = version.replace(/\./g, "\\.");
+    return body.replace(new RegExp(`^### ${escaped}[^\\n]*[\\s\\S]*?(?=^### |^## |\\z)`, "m"), "");
+  }
+
+  it("DOC-V050-000 the manifest records distinct, ordered published, implemented-unreleased, and planned versions", () => {
+    expect(implementedUnreleasedVersion).toMatch(/^\d+\.\d+\.\d+$/);
+    const publishedIndex = requiredVersions.indexOf(`v${facts.latestPublishedVersion}`);
+    const implementedIndex = requiredVersions.indexOf(implementedUnreleasedRoadmapVersion);
+    const plannedIndex = requiredVersions.indexOf(`v${facts.nextPlannedVersion}`);
+    expect(publishedIndex).toBeGreaterThanOrEqual(0);
+    expect(implementedIndex).toBeGreaterThan(publishedIndex);
+    expect(plannedIndex).toBeGreaterThan(implementedIndex);
+    expect(pluginIds.length).toBeGreaterThanOrEqual(2);
+    expect(pluginDocuments.length).toBeGreaterThan(0);
+    expect(versionAfterNextPlanned).toBeDefined();
+  });
+
+  it("DOC-V050-001 the current documentation passes", () => {
+    expect(execFileSync(process.execPath, ["scripts/check-docs.mjs"], { encoding: "utf8" })).toContain("passed");
+  });
+
+  it.each(pluginDocuments)("DOC-V050-002 rejects removing the newest implemented plugin from %s", (file) => expectFailure(
+    (root) => edit(root, file, (body) => {
+      const mutated = body.split(newestPluginId).join("removed-plugin");
+      expect(mutated).not.toBe(body);
+      return mutated;
+    }),
+    `implemented experiment plugin ${newestPluginId}`,
+  ));
+
+  it.each([
+    ["published", "Status: **published**."],
+    ["not implemented", "Status: **not implemented**."],
+    ["implemented without unreleased", "Status: **implemented**."],
+  ])("DOC-V050-003/004 rejects marking the implemented-unreleased version %s", (_name, statusLine) => expectFailure(
+    (root) => edit(root, "docs/ROADMAP.md", (body) => {
+      const mutated = replaceRoadmapVersionStatus(body, implementedUnreleasedRoadmapVersion, statusLine);
+      expect(mutated).not.toBe(body);
+      return mutated;
+    }),
+    `implemented unreleased ${implementedUnreleasedRoadmapVersion} lifecycle`,
+  ));
+
+  it.each([
+    ["published", "Status: **published**."],
+    ["implemented and unreleased", "Status: **implemented; unreleased; pre-release readiness pending**."],
+  ])("DOC-V050-005 rejects marking the next planned version %s", (_name, statusLine) => expectFailure(
+    (root) => edit(root, "docs/ROADMAP.md", (body) => replaceRoadmapVersionStatus(body, `v${facts.nextPlannedVersion}`, statusLine)),
+    `next planned v${facts.nextPlannedVersion} lifecycle`,
+  ));
+
+  it("DOC-V050-006 rejects removing the implemented-unreleased roadmap section", () => expectFailure(
+    (root) => edit(root, "docs/ROADMAP.md", (body) => removeRoadmapSection(body, implementedUnreleasedRoadmapVersion)),
+    `roadmap version ${implementedUnreleasedRoadmapVersion}`,
+  ));
+
+  it("DOC-V050-007 rejects removing the next planned roadmap section", () => expectFailure(
+    (root) => edit(root, "docs/ROADMAP.md", (body) => removeRoadmapSection(body, `v${facts.nextPlannedVersion}`)),
+    `roadmap version v${facts.nextPlannedVersion}`,
+  ));
+
+  it("DOC-V050-008 rejects removing the current implemented-unreleased fact from CURRENT_STATE", () => expectFailure(
+    (root) => edit(root, "docs/CURRENT_STATE.md", (body) => body.replace(/Current implemented unreleased version/gi, "Other version")),
+    "Current implemented unreleased version",
+  ));
+
+  it("DOC-V050-009 keeps the latest published changelog release protected", () => expectFailure(
+    (root) => edit(root, "CHANGELOG.md", (body) => {
+      const escaped = facts.latestPublishedVersion.replace(/\./g, "\\.");
+      return body.replace(new RegExp(`^## \\[${escaped}\\][\\s\\S]*?(?=^## )`, "m"), "");
+    }),
+    `published release ${facts.latestPublishedVersion}`,
+  ));
+
+  it("DOC-V050-010 keeps future roadmap sections after the next planned version preserved", () => expectFailure(
+    (root) => edit(root, "docs/ROADMAP.md", (body) => removeRoadmapSection(body, versionAfterNextPlanned)),
+    `roadmap version ${versionAfterNextPlanned}`,
+  ));
+
+  it("DOC-V050-011 rejects a positive publication claim for the implemented-unreleased version", () => expectFailure(
+    (root) => edit(root, "README.md", (body) => `${body}\n${implementedUnreleasedRoadmapVersion} is published.\n`),
+    `${implementedUnreleasedRoadmapVersion} publication claim`,
+  ));
+
+  it("DOC-V050-012 rejects describing the implemented-unreleased version as not implemented", () => expectFailure(
+    (root) => edit(root, "README.md", (body) => `${body}\n${implementedUnreleasedRoadmapVersion} is not implemented.\n`),
+    `${implementedUnreleasedRoadmapVersion} implementation claim`,
+  ));
+
+  it("DOC-V050-013 accepts unreleased wording for the implemented version", () => withDocs(
+    (root) => edit(root, "README.md", (body) => `${body}\n${implementedUnreleasedRoadmapVersion} is implemented and unreleased.\n`),
+    (run) => expect(run()).toContain("passed"),
+  ));
+
+  it("DOC-V050-014 rejects a manifest that conflates the implemented-unreleased and next planned versions", () => expectFailure(
+    (root) => edit(root, "docs/documentation-preservation-manifest.json", (body) => {
+      const parsed = JSON.parse(body);
+      parsed.currentFacts.currentImplementedUnreleasedVersion = parsed.currentFacts.nextPlannedVersion;
+      return JSON.stringify(parsed, null, 2);
+    }),
+    "current implemented unreleased version",
+  ));
+});
+
 describe("documentation lifecycle transition derivation", () => {
   it("TRANSITION-001 current repository lifecycle facts derive successfully", () => {
     expect(lifecycle.packageVersion).toBe(manifest.currentFacts.latestPublishedVersion);
@@ -432,6 +550,7 @@ describe("documentation lifecycle transition derivation", () => {
       extractDescribeBlock(selfSource, "release and current/planned state"),
       extractDescribeBlock(selfSource, "replaceRoadmapVersionStatus helper"),
       extractDescribeBlock(selfSource, "documentation lifecycle transition derivation"),
+      extractDescribeBlock(selfSource, "implemented-unreleased lifecycle and plugin preservation"),
     ].join("\n");
 
     const activeLifecycleLiterals = [
@@ -439,6 +558,9 @@ describe("documentation lifecycle transition derivation", () => {
       lifecycle.nextPlannedVersion,
       lifecycle.latestPublishedRoadmapVersion,
       lifecycle.nextPlannedRoadmapVersion,
+      ...(manifest.currentFacts.currentImplementedUnreleasedVersion
+        ? [manifest.currentFacts.currentImplementedUnreleasedVersion, `v${manifest.currentFacts.currentImplementedUnreleasedVersion}`]
+        : []),
     ];
 
     for (const literal of activeLifecycleLiterals) {

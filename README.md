@@ -8,11 +8,14 @@ Whole-ecosystem workflows are centralized in [my-dev-kit/docs/ECOSYSTEM_DEVELOPM
 
 The latest release is v0.4.9 (semantic native-select option selection for declarative browser tutorials, adding the value-only `select-option` action backed by Playwright `Locator.selectOption({ value })`). The previous release, v0.4.8, added locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines, not a statement that they are the ecosystem's current releases. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
+The current source checkout also contains v0.5.0 warm-index reuse, which is implemented but unreleased: the latest release remains v0.4.9 and the package version remains 0.4.9 until v0.5.0 completes pre-release readiness and release preparation. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for its exact lifecycle state.
+
 v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--version`, `security validate`, `audit`, the `experiment` family, `report render`, `plots generate`, `gallery build`, `demo final`, and the historical direct final-demo invocation form), a writable lab workspace model kept separate from the installed package and the inspected target, and a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`). See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for status detail and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime path model. The "Installed CLI" section below documents the shipped command surface; the source-checkout `npm run` workflow in Quickstart remains available for contributors.
 
 ## Current capabilities
 
 - **Run context-strategy experiments:** compare `raw-full-file` with `my-dev-kit-guided` using deterministic fixtures or locally configured Codex and Claude CLIs.
+- **Measure warm-index reuse (v0.5.0, unreleased):** the `warm-index-reuse` experiment plugin builds one my-dev-kit index per benchmark project, reuses it across that project's tasks, and compares every task with a matched `raw-full-file` baseline. Reports separate one-time index-build cost from per-task retrieval cost, show amortized index cost and cumulative measurements, and include deterministic fake-agent correctness and token evidence; `plots generate` renders four warm-index SVG charts. Estimated context tokens (a character-based context-size estimate) and fake-agent total tokens (simulated harness telemetry) are reported separately, and neither is provider billing telemetry. See [docs/WORKFLOWS.md](docs/WORKFLOWS.md#warm-index-reuse-experiment) and [docs/METRICS.md](docs/METRICS.md#warm-index-reuse-metrics).
 - **Audit repository health:** run conservative code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, or adapt security findings into the common audit report.
 - **Validate CLI/package security:** inspect dependencies, package contents, path and subprocess boundaries, malformed inputs, optional static scanners, and bounded fuzz targets.
 - **Validate Android projects:** run nineteen static checks by default, with Gradle operations, external tools, and network access available only through explicit opt-in flags.
@@ -153,6 +156,19 @@ npm run experiment:run -- `
   --no-screenshot
 ```
 
+Run the warm-index reuse plugin deterministically with the fake my-dev-kit fixture (omit `--kit-command` to use the default `npx @dailephd/my-dev-kit@latest`):
+
+```bash
+npm run experiment:run -- \
+  --experiment warm-index-reuse \
+  --cases tests/fixtures/warm-index-reuse/multi-task-cases.json \
+  --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
+  --out lab-output/warm-index-reuse
+npm run generate-experiment-plots -- --experiment lab-output/warm-index-reuse --out lab-output/warm-index-plots
+```
+
+The bundled `examples/token-savings-cases.json` currently has one task per benchmark project, so multi-task reuse needs a cases file with several tasks per project, such as the test fixture above; an expanded bundled warm-index benchmark suite is planned.
+
 When `--target` is omitted, the experiment runs in self mode against my-dev-kit-lab. When `--target <path>` is provided, the lab remains the tool root and the target project is inspected separately. Generated experiment outputs stay under lab-controlled output directories by default, not inside the target project.
 
 ---
@@ -170,6 +186,7 @@ When `--target` is omitted, the experiment runs in self mode against my-dev-kit-
 | Plugin experiment report JSON | `lab-output/experiments/<plugin>/<target>/<run>/report.json` |
 | Plugin experiment report HTML | `lab-output/experiments/<plugin>/<target>/<run>/report.html` |
 | Plugin experiment report text | `lab-output/experiments/<plugin>/<target>/<run>/report.txt` |
+| Warm-index execution evidence | `<experiment out>/warm-index-execution.json` (plus `indexes/`, `commands/`, and `agents/` beneath the same output root) |
 | Plot data | `lab-output/<plots>/plot-data.json` |
 | SVG charts | `lab-output/<plots>/charts/*.svg` |
 | Gallery manifest | `lab-output/<gallery>/gallery-manifest.json` |
@@ -203,7 +220,8 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Claude does not expose token totals; token savings comparisons are unavailable for Claude runs
 - Codex may expose token totals but can produce timeouts or invalid-output runs
 - Small projects may make raw-full-file cheaper than my-dev-kit-guided; larger localized tasks are where my-dev-kit is expected to become more useful
-- The generic experiment-plugin framework currently ships one plugin, `context-strategy-comparison`; future plugins such as warm-index reuse, incremental-change, and context-window scaling are not implemented yet
+- The generic experiment-plugin framework has two plugins: `context-strategy-comparison` and the unreleased v0.5.0 `warm-index-reuse`. Later plugins such as incremental-change and context-window scaling are future roadmap work
+- `warm-index-reuse` uses the deterministic fake agent only; selectable Codex/Claude warm-index campaigns, warm-index screenshots, and gallery integration are planned for a later version. Its component-duration sums are not wall-clock latency, and it calculates no token-savings percentage, break-even task, winner, or ranking
 - The current release does not guarantee token savings; it produces auditable evidence for specific cases, targets, agents, and strategies
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
 - The six new stage-context strategies have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration

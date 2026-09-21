@@ -41,6 +41,7 @@ One source category may correct another category's facts, but must not erase tha
 ## Lifecycle vocabulary
 
 - **Current/implemented:** code and safe runtime evidence prove the capability exists.
+- **Implemented/unreleased:** the capability is implemented in the checkout but its version has not been released or published; the package version and the latest published release stay unchanged until release preparation and publication. Record it separately from both published and planned versions (`currentImplementedUnreleasedVersion` in the preservation manifest), and never describe it as published or as not implemented.
 - **Planned:** approved future scope that is not implemented.
 - **Historical/published:** release evidence proves the version or capability shipped; historical limitations remain valid inside their release context.
 - **Deferred:** preserved intent without a committed release version. Deferred is not canceled.

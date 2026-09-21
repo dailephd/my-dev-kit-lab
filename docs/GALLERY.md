@@ -114,5 +114,6 @@ The `npm run run-final-demo` command builds the gallery automatically as the las
 - The gallery index is a static HTML file with no interactive filtering or search
 - Gallery entries are linked by relative path; moving the output directory breaks links
 - Filtering, tagging, search, and comparison views are not implemented
+- Warm-index reuse (v0.5.0, unreleased) produces plugin reports and four warm-index SVG charts, but has no warm-index gallery integration: `gallery build --plots` lists any `charts/*.svg` generically under the experiment-plots entry, and the plugin's `report.json`/`report.html` are not gallery entries. Warm-index screenshots and gallery output are future scope
 
 See [ROADMAP.md](ROADMAP.md) for the gallery UI roadmap item.
