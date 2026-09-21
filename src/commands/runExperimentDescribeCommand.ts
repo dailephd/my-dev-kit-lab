@@ -121,6 +121,9 @@ function readConfigFields(plugin: ExperimentPlugin, required: boolean): Experime
 }
 
 function readSupportedVariants(plugin: ExperimentPlugin): string[] {
+  if (plugin.supportedVariants) {
+    return [...plugin.supportedVariants];
+  }
   const strategies = readArrayField(plugin.defaultConfig, "strategies");
   return strategies.filter((value): value is string => typeof value === "string");
 }
@@ -160,9 +163,16 @@ function describeExpectedReports(plugin: ExperimentPlugin): string {
 }
 
 function describeExamples(plugin: ExperimentPlugin): string[] {
+  // Only advertise agent-matrix options for plugins that declare them.
+  const agentOptions = hasConfigField(plugin, "agents") ? " --agents fake-agent --complexities short" : "";
+  const screenshotOption = hasConfigField(plugin, "agents") ? " --no-screenshot" : "";
   return [
     `my-dev-kit-lab experiment describe --experiment ${plugin.metadata.id}`,
-    `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --agents fake-agent --complexities short`,
-    `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1" --agents fake-agent --complexities short --no-screenshot`
+    `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id}${agentOptions}`,
+    `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1"${agentOptions}${screenshotOption}`
   ];
+}
+
+function hasConfigField(plugin: ExperimentPlugin, name: string): boolean {
+  return (plugin.configDefinition?.fields ?? []).some((field) => field.name === name);
 }

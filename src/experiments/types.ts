@@ -190,6 +190,8 @@ export interface ExperimentPlugin<
   metadata: ExperimentPluginMetadata;
   defaultConfig?: TConfig;
   configDefinition?: ExperimentConfigDefinition;
+  /** Variant IDs the plugin produces; list/describe fall back to defaultConfig.strategies. */
+  supportedVariants?: readonly string[];
   validateConfig(config: unknown): ExperimentConfigValidationResult<TConfig>;
   prepare?(context: ExperimentExecutionContext<TConfig>): Promise<void> | void;
   run(context: ExperimentExecutionContext<TConfig>): Promise<TResult>;

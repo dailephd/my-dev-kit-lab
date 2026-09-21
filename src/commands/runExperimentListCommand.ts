@@ -47,6 +47,9 @@ function toListedExperiment(metadata: ExperimentPluginMetadata, plugin: Experime
 }
 
 function readSupportedVariants(plugin: ExperimentPlugin): string[] {
+  if (plugin.supportedVariants) {
+    return [...plugin.supportedVariants];
+  }
   const strategies = readArrayField(plugin.defaultConfig, "strategies");
   return strategies.filter((value): value is string => typeof value === "string");
 }

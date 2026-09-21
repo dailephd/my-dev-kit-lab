@@ -6,7 +6,8 @@ import {
   contextStrategyComparisonPlugin,
   createDefaultExperimentPluginRegistry,
   resolveExperimentTarget,
-  runExperiment
+  runExperiment,
+  warmIndexReusePlugin
 } from "../experiments/index.js";
 import { buildDefaultExperimentOutputRoot } from "../experiments/outputPaths.js";
 import { parsePromptComplexityLevel, parsePromptStrategy } from "../prompts/index.js";
@@ -47,11 +48,17 @@ import type { LabExecutionContext } from "../runtime/index.js";
 const DEFAULT_CASES_RESOURCE = "examples/token-savings-cases.json";
 const DEFAULT_PROJECT_PROFILES_RESOURCE = "benchmarks/contracts/benchmark-project-profiles.json";
 
+// Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
+// warm-index-reuse, rejects) the fields it does not support.
+type ParsedExperimentRunConfig = Partial<ExperimentMatrixConfig> & {
+  kitCommand?: string;
+};
+
 type ParsedRunExperimentArgs = {
   experimentId: string;
   targetPath?: string;
   outDir?: string;
-  config: Partial<ExperimentMatrixConfig>;
+  config: ParsedExperimentRunConfig;
 };
 
 export type RunExperimentRunCommandOptions = {
@@ -138,6 +145,7 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   let continueOnFailure: boolean | undefined;
   let requireAgents: boolean | undefined;
   let includeRealAgents: boolean | undefined;
+  let kitCommand: string | undefined;
   const commandTemplates: Partial<Record<"codex" | "claude", AgentCommandTemplate>> = {};
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -178,6 +186,8 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       commandTemplates.codex = parseAgentCommandTemplate(readRequiredValue(argv, ++index, "--command-template-codex"));
     } else if (arg === "--command-template-claude") {
       commandTemplates.claude = parseAgentCommandTemplate(readRequiredValue(argv, ++index, "--command-template-claude"));
+    } else if (arg === "--kit-command") {
+      kitCommand = readRequiredValue(argv, ++index, "--kit-command");
     } else if (arg === "--no-screenshot") {
       // The plugin-aware report path does not capture screenshots yet; accept this
       // flag so smoke commands can share the legacy demo option set.
@@ -188,6 +198,9 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
 
   if (!experimentId) {
     throw new Error("Usage: --experiment <id> [--target <path>] [--out <directory>]");
+  }
+  if (kitCommand !== undefined && experimentId !== warmIndexReusePlugin.metadata.id) {
+    throw new Error(`--kit-command is only supported for --experiment ${warmIndexReusePlugin.metadata.id}.`);
   }
 
   return {
@@ -207,7 +220,8 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       continueOnFailure,
       requireAgents,
       includeRealAgents,
-      commandTemplates: Object.keys(commandTemplates).length > 0 ? commandTemplates : undefined
+      commandTemplates: Object.keys(commandTemplates).length > 0 ? commandTemplates : undefined,
+      kitCommand
     })
   };
 }
@@ -250,13 +264,30 @@ async function loadPluginInputs(
   toolRoot: string,
   context: LabExecutionContext
 ): Promise<Record<string, unknown> | undefined> {
-  if (args.experimentId !== contextStrategyComparisonPlugin.metadata.id) {
-    return undefined;
+  if (args.experimentId === contextStrategyComparisonPlugin.metadata.id) {
+    const validation = contextStrategyComparisonPlugin.validateConfig(args.config);
+    if (!validation.valid || !validation.config) {
+      throw new Error(`Invalid context strategy comparison config: ${validation.errors.join("; ")}`);
+    }
+    return loadCasesAndProjectProfiles(args, toolRoot, context);
   }
-  const validation = contextStrategyComparisonPlugin.validateConfig(args.config);
-  if (!validation.valid || !validation.config) {
-    throw new Error(`Invalid context strategy comparison config: ${validation.errors.join("; ")}`);
+  if (args.experimentId === warmIndexReusePlugin.metadata.id) {
+    const validation = warmIndexReusePlugin.validateConfig(args.config);
+    if (!validation.valid || !validation.config) {
+      throw new Error(`Invalid warm index reuse config: ${validation.errors.join("; ")}`);
+    }
+    return loadCasesAndProjectProfiles(args, toolRoot, context);
   }
+  return undefined;
+}
+
+// Shared by both registered plugins: explicit paths resolve against toolRoot, defaults come from
+// bundled package resources so they do not depend on the invocation cwd.
+async function loadCasesAndProjectProfiles(
+  args: ParsedRunExperimentArgs,
+  toolRoot: string,
+  context: LabExecutionContext
+): Promise<Record<string, unknown>> {
   const projectProfilesPath = args.config.projectProfilesPath
     ? path.resolve(toolRoot, args.config.projectProfilesPath)
     : resolvePackageResource(context, DEFAULT_PROJECT_PROFILES_RESOURCE);
