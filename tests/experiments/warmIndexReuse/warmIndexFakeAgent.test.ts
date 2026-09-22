@@ -11,7 +11,7 @@ import type { EvaluationCase } from "../../../src/evaluation/types.js";
 import { createDefaultExperimentPluginRegistry, runExperiment } from "../../../src/experiments/index.js";
 import type { WarmIndexReuseRun } from "../../../src/experiments/plugins/warmIndexReuse/index.js";
 import { generatePromptVariants } from "../../../src/prompts/index.js";
-import { fakeKitCommand, loadBundledProjectProfiles, makeCase, writeFakeKitVariant } from "./warmIndexTestHelpers.js";
+import { fakeKitCommand, findFiles, loadBundledProjectProfiles, makeCase, makeCases, writeFakeKitVariant } from "./warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -151,5 +151,72 @@ describe("warm-index-reuse deterministic fake-agent evaluation", () => {
     expect(existsSync(path.join(outputRoot, "agents", "todo-ts", "task-a", "warm-index-reuse"))).toBe(false);
     expect(run.warmIndexMetrics.projects[0].tasks[0].warm.agentCorrectness.reason).toContain("not run");
     expect(run.cases[0].outcomes[1].metadata?.agentStatus).toBe("not-run");
+  });
+});
+
+describe("warm-index-reuse fake-agent evaluation at the expanded six-task scale", () => {
+  it("evaluates each side of six tasks exactly once against one index without re-indexing or re-retrieving", async () => {
+    const { run, outputRoot } = await runWarm(makeCases(6));
+    expect(run.status).toBe("completed");
+    const [project] = run.agentEvidence;
+    expect(project.tasks.map((task) => task.caseId)).toEqual(["task-1", "task-2", "task-3", "task-4", "task-5", "task-6"]);
+
+    const artifactPaths: string[] = [];
+    for (const task of project.tasks) {
+      for (const [side, variantId] of [
+        [task.raw, "raw-full-file"],
+        [task.warm, "warm-index-reuse"],
+      ] as const) {
+        expect(side).toEqual(expect.objectContaining({ variantId, status: "completed" }));
+        expect(side!.correctness.available).toBe(true);
+        expect(side!.tokenUsage.totalTokens).toEqual(expect.any(Number));
+        expect(side!.artifactPaths.agentRunResultPath).toBe(
+          path.join(outputRoot, "agents", "todo-ts", task.caseId, variantId, "agent-run-result.json")
+        );
+        artifactPaths.push(side!.artifactPaths.agentRunResultPath!);
+      }
+    }
+    expect(new Set(artifactPaths).size).toBe(12);
+    expect(findFiles(outputRoot, "agent-run-result.json")).toHaveLength(12);
+    expect(findFiles(outputRoot, "index.telemetry.json")).toEqual(["commands/todo-ts/index/index.telemetry.json"]);
+    expect(findFiles(outputRoot, "search.telemetry.json")).toHaveLength(6);
+  });
+
+  it("accumulates fake-agent total tokens as the prefix sum of the six direct totals on each side", async () => {
+    const { run } = await runWarm(makeCases(6));
+    const tasks = run.warmIndexMetrics.projects[0].tasks;
+    for (const side of ["raw", "warm"] as const) {
+      const direct = tasks.map((task) => task[side].agentTotalTokens.value as number);
+      expect(direct.every((value) => Number.isFinite(value))).toBe(true);
+      const prefix = direct.map((_, index) => direct.slice(0, index + 1).reduce((sum, value) => sum + value, 0));
+      expect(tasks.map((task) => task[side].cumulativeAgentTotalTokens.value)).toEqual(prefix);
+    }
+  });
+
+  it("isolates a fake-agent failure on task 3 of 6 from execution evidence and later agent evaluation", async () => {
+    // A missing prompt profile makes fake-agent evaluation fail for task 3 only; execution does not use it.
+    const cases = makeCases(6);
+    cases[2] = { ...cases[2], projectProfileRef: "missing-profile" };
+    const { run } = await runWarm(cases);
+    const [project] = run.agentEvidence;
+
+    for (const side of [project.tasks[2].raw!, project.tasks[2].warm!]) {
+      expect(side.status).toBe("failed");
+      expect(side.correctness.available).toBe(false);
+      expect(side.errors[0]).toContain("missing-profile");
+    }
+    for (const task of [...project.tasks.slice(0, 2), ...project.tasks.slice(3)]) {
+      expect([task.raw?.status, task.warm?.status]).toEqual(["completed", "completed"]);
+    }
+    const metrics = run.warmIndexMetrics.projects[0].tasks;
+    expect(metrics[2].raw.contextEstimatedTokens.availability).toBe("available");
+    expect(metrics[2].warm.contextEstimatedTokens.availability).toBe("available");
+    expect(metrics[2].warm.agentCorrectness.availability).toBe("unavailable");
+    expect(metrics[5].warm.agentCorrectness.availability).toBe("available");
+    for (const experimentCase of run.cases) {
+      expect(experimentCase.outcomes.map((outcome) => outcome.status)).toEqual(["completed", "completed"]);
+    }
+    expect(run.cases[2].outcomes.map((outcome) => outcome.metadata?.agentStatus)).toEqual(["failed", "failed"]);
+    expect(run.cases[3].outcomes.map((outcome) => outcome.metadata?.agentStatus)).toEqual(["completed", "completed"]);
   });
 });
