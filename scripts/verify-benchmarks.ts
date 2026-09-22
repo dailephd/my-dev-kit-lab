@@ -5,9 +5,10 @@ import {
   REQUIRED_BENCHMARK_PROJECT_IDS,
   parseBenchmarkProjectProfiles,
   validateAnswerKey,
-  validateBenchmarkProjectProfiles
+  validateBenchmarkProjectProfiles,
+  validateWarmIndexBenchmarkCases
 } from "../src/evaluation/benchmarkMetadata.js";
-import type { BenchmarkTaskAnswerKey } from "../src/evaluation/types.js";
+import type { BenchmarkProjectProfile, BenchmarkTaskAnswerKey, EvaluationCaseInput } from "../src/evaluation/types.js";
 
 type BenchmarkCase = {
   id: string;
@@ -107,6 +108,7 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
   const behaviorPath = path.join(contractsDir, "todo-behavior.md");
   const casesPath = path.join(contractsDir, "todo-benchmark-case.json");
   const profilesPath = path.join(contractsDir, "benchmark-project-profiles.json");
+  const warmIndexCasesPath = path.join(contractsDir, "warm-index-benchmark-cases.json");
 
   if (!existsSync(behaviorPath)) {
     errors.push("Missing contract file: benchmarks/contracts/todo-behavior.md");
@@ -126,11 +128,12 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
     }
   }
 
+  let profiles: BenchmarkProjectProfile[] | undefined;
   if (!existsSync(profilesPath)) {
     errors.push("Missing contract file: benchmarks/contracts/benchmark-project-profiles.json");
   } else {
     try {
-      const profiles = parseBenchmarkProjectProfiles(JSON.parse(readFileSync(profilesPath, "utf8")));
+      profiles = parseBenchmarkProjectProfiles(JSON.parse(readFileSync(profilesPath, "utf8")));
       const profileErrors = validateBenchmarkProjectProfiles(profiles, rootDir);
       errors.push(...profileErrors);
       if (profileErrors.length === 0) {
@@ -138,6 +141,28 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
       }
     } catch (error) {
       errors.push(`Invalid benchmark-project-profiles.json: ${(error as Error).message}`);
+    }
+  }
+
+  if (!existsSync(warmIndexCasesPath)) {
+    errors.push("Missing contract file: benchmarks/contracts/warm-index-benchmark-cases.json");
+  } else {
+    let warmIndexCases: unknown;
+    try {
+      warmIndexCases = JSON.parse(readFileSync(warmIndexCasesPath, "utf8"));
+    } catch (error) {
+      errors.push(`Invalid JSON in warm-index-benchmark-cases.json: ${(error as Error).message}`);
+    }
+    if (warmIndexCases !== undefined && !Array.isArray(warmIndexCases)) {
+      errors.push("warm-index-benchmark-cases.json must contain an array.");
+    } else if (Array.isArray(warmIndexCases) && profiles === undefined) {
+      errors.push("Cannot validate warm-index-benchmark-cases.json without valid benchmark project profiles.");
+    } else if (Array.isArray(warmIndexCases) && profiles !== undefined) {
+      const warmIndexErrors = validateWarmIndexBenchmarkCases(warmIndexCases as EvaluationCaseInput[], profiles, rootDir);
+      errors.push(...warmIndexErrors);
+      if (warmIndexErrors.length === 0) {
+        checks.push(`validated warm-index-benchmark-cases.json (${warmIndexCases.length} cases)`);
+      }
     }
   }
 

@@ -1,13 +1,19 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REQUIRED_BENCHMARK_PROJECT_IDS, validateAnswerKey, validateBenchmarkProjectProfiles } from "../../src/evaluation/benchmarkMetadata.js";
+import {
+  REQUIRED_BENCHMARK_PROJECT_IDS,
+  validateAnswerKey,
+  validateBenchmarkProjectProfiles,
+  validateWarmIndexBenchmarkCases
+} from "../../src/evaluation/benchmarkMetadata.js";
 import { PROJECT_COMPLEXITY_FORMULA, calculateProjectComplexityScore } from "../../src/evaluation/projectComplexity.js";
-import type { BenchmarkProjectProfilesContract } from "../../src/evaluation/types.js";
+import type { BenchmarkProjectProfilesContract, EvaluationCaseInput } from "../../src/evaluation/types.js";
 
 const rootDir = process.cwd();
 const casesPath = path.join(rootDir, "benchmarks", "contracts", "todo-benchmark-case.json");
 const profilesPath = path.join(rootDir, "benchmarks", "contracts", "benchmark-project-profiles.json");
+const warmIndexCasesPath = path.join(rootDir, "benchmarks", "contracts", "warm-index-benchmark-cases.json");
 
 describe("benchmark contracts", () => {
   it("parses todo-benchmark-case.json", () => {
@@ -85,5 +91,15 @@ describe("benchmark contracts", () => {
     const mixed = contract.profiles.find((profile) => profile.projectId === "todo-mixed-ts-py");
     expect(mixed?.complexityLevel).toBe("mixed-language");
     expect(mixed?.complexityMetrics.languageCount).toBeGreaterThan(1);
+  });
+
+  it("keeps the warm-index benchmark corpus valid under strict validation", () => {
+    const contract = JSON.parse(readFileSync(profilesPath, "utf8")) as BenchmarkProjectProfilesContract;
+    const warmIndexCases = JSON.parse(readFileSync(warmIndexCasesPath, "utf8")) as EvaluationCaseInput[];
+    expect(warmIndexCases.map((benchmarkCase) => [benchmarkCase.id, benchmarkCase.benchmarkProject, benchmarkCase.taskLocality])).toEqual([
+      ["warm-medium-import-dedupe", "task-workflow-medium-ts", "cross-module"],
+      ["warm-large-health-label", "task-analytics-large-mixed", "cross-module"]
+    ]);
+    expect(validateWarmIndexBenchmarkCases(warmIndexCases, contract.profiles, rootDir)).toEqual([]);
   });
 });

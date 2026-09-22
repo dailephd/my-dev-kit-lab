@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { readEvaluationCases } from "../../src/evaluation/readEvaluationCases.js";
+import { TASK_LOCALITIES } from "../../src/evaluation/types.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -222,4 +223,59 @@ describe("readEvaluationCases", () => {
       })
     ).rejects.toThrow("unknown projectProfileRef missing-profile");
   });
+
+  function writeLocalityCase(taskLocality?: unknown): string {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "cases-"));
+    tempDirs.push(dir);
+    writeFileSync(
+      path.join(dir, "cases.json"),
+      JSON.stringify([
+        {
+          id: "locality-case",
+          title: "Case",
+          benchmarkProject: "todo-ts",
+          targetRoot: ".",
+          sourceRoots: ["src"],
+          query: "q",
+          expectedFiles: ["src/x.ts"],
+          expectedSymbols: ["x"],
+          rawIncludeGlobs: ["src/**/*"],
+          ...(taskLocality === undefined ? {} : { taskLocality })
+        }
+      ])
+    );
+    return dir;
+  }
+
+  it("defines exactly the supported task locality vocabulary", () => {
+    expect([...TASK_LOCALITIES]).toEqual(["localized", "cross-module", "broad-change"]);
+  });
+
+  it("accepts cases without taskLocality for legacy compatibility", async () => {
+    const dir = writeLocalityCase();
+    const cases = await readEvaluationCases(path.join(dir, "cases.json"), dir);
+    expect(cases[0].taskLocality).toBeUndefined();
+  });
+
+  it.each(["localized", "cross-module", "broad-change"])("accepts supported taskLocality %s", async (taskLocality) => {
+    const dir = writeLocalityCase(taskLocality);
+    const cases = await readEvaluationCases(path.join(dir, "cases.json"), dir);
+    expect(cases[0].taskLocality).toBe(taskLocality);
+  });
+
+  it("rejects an unsupported taskLocality with an allowed-value diagnostic", async () => {
+    const dir = writeLocalityCase("cross-language");
+    await expect(readEvaluationCases(path.join(dir, "cases.json"), dir)).rejects.toThrow(
+      'evaluation case locality-case: taskLocality must be one of localized, cross-module, broad-change (received "cross-language").'
+    );
+  });
+
+  it.each(["examples/token-savings-cases.json", "examples/real-agent-campaign-cases.json"])(
+    "keeps existing example corpus %s readable without taskLocality",
+    async (casesPath) => {
+      const cases = await readEvaluationCases(path.join(process.cwd(), casesPath), process.cwd());
+      expect(cases.length).toBeGreaterThan(0);
+      expect(cases.every((evaluationCase) => evaluationCase.taskLocality === undefined)).toBe(true);
+    }
+  );
 });

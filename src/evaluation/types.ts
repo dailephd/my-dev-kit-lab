@@ -3,6 +3,10 @@ import type { MeasuredCommandResult } from "../core/runMeasuredCommand.js";
 import type { tokenCountMethod } from "../core/countTokens.js";
 import type { ScreenshotCaptureResult } from "../screenshot/types.js";
 
+export const TASK_LOCALITIES = ["localized", "cross-module", "broad-change"] as const;
+
+export type TaskLocality = (typeof TASK_LOCALITIES)[number];
+
 export type EvaluationCaseInput = {
   id: string;
   title: string;
@@ -18,6 +22,7 @@ export type EvaluationCaseInput = {
   expectedFilesByProject?: Record<string, string[]>;
   expectedOperation?: string;
   projectProfileRef?: string;
+  taskLocality?: TaskLocality;
   promptComplexityHint?: string;
   projectComplexityRelevance?: string;
   notes?: string;

@@ -1,14 +1,22 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { PROJECT_COMPLEXITY_FORMULA, calculateProjectComplexityScore } from "./projectComplexity.js";
+import { PROJECT_COMPLEXITY_FORMULA, calculateProjectComplexityScore, roundToTwo } from "./projectComplexity.js";
+import { TASK_LOCALITIES } from "./types.js";
 import type {
   BenchmarkProjectProfile,
   BenchmarkProjectProfilesContract,
   BenchmarkTaskAnswerKey,
+  EvaluationCaseInput,
   ProjectComplexityMetrics,
   ProjectFileTreeEntry
 } from "./types.js";
+
+export type WarmIndexTaskStats = {
+  taskCount: number;
+  expectedRelevantFilesAverage: number;
+  expectedRelevantSymbolsAverage: number;
+};
 
 export const REQUIRED_BENCHMARK_PROJECT_IDS = [
   "todo-ts",
@@ -105,6 +113,195 @@ export function validateAnswerKey(answerKey: unknown, label: string): string[] {
     errors.push(`${label}: answerKey.expectedSymbols must not be empty.`);
   }
   return errors;
+}
+
+export function validateTaskLocality(value: unknown, label: string): string[] {
+  if (typeof value === "string" && (TASK_LOCALITIES as readonly string[]).includes(value)) {
+    return [];
+  }
+  return [`${label}: taskLocality must be one of ${TASK_LOCALITIES.join(", ")} (received ${JSON.stringify(value)}).`];
+}
+
+export function deriveWarmIndexTaskStats(cases: EvaluationCaseInput[], projectId: string): WarmIndexTaskStats {
+  const projectCases = cases.filter((benchmarkCase) => benchmarkCase?.benchmarkProject === projectId);
+  if (projectCases.length === 0) {
+    return { taskCount: 0, expectedRelevantFilesAverage: 0, expectedRelevantSymbolsAverage: 0 };
+  }
+  const fileCounts = projectCases.map((benchmarkCase) => (Array.isArray(benchmarkCase.expectedFiles) ? benchmarkCase.expectedFiles.length : 0));
+  const symbolCounts = projectCases.map((benchmarkCase) =>
+    Array.isArray(benchmarkCase.expectedSymbols) ? benchmarkCase.expectedSymbols.length : 0
+  );
+  return {
+    taskCount: projectCases.length,
+    expectedRelevantFilesAverage: roundToTwo(fileCounts.reduce((total, count) => total + count, 0) / projectCases.length),
+    expectedRelevantSymbolsAverage: roundToTwo(symbolCounts.reduce((total, count) => total + count, 0) / projectCases.length)
+  };
+}
+
+export function validateWarmIndexBenchmarkCases(
+  cases: EvaluationCaseInput[],
+  profiles: BenchmarkProjectProfile[],
+  repoRoot = process.cwd()
+): string[] {
+  const errors: string[] = [];
+  const profilesById = new Map(profiles.map((profile) => [profile.projectId, profile]));
+  const ids = new Set<string>();
+  const sourceRootsByProject = new Map<string, { caseLabel: string; sourceRoots: string[] }>();
+
+  cases.forEach((benchmarkCase, index) => {
+    if (!benchmarkCase || typeof benchmarkCase !== "object") {
+      errors.push(`warm-index case at index ${index}: must be an object.`);
+      return;
+    }
+    const id = typeof benchmarkCase.id === "string" && benchmarkCase.id.length > 0 ? benchmarkCase.id : undefined;
+    const label = id === undefined ? `warm-index case at index ${index}` : `warm-index case ${id}`;
+    if (id === undefined) {
+      errors.push(`${label}: id must be a nonempty string.`);
+    } else if (ids.has(id)) {
+      errors.push(`${label}: duplicate case id.`);
+    } else {
+      ids.add(id);
+    }
+
+    const projectId =
+      typeof benchmarkCase.benchmarkProject === "string" && benchmarkCase.benchmarkProject.length > 0
+        ? benchmarkCase.benchmarkProject
+        : undefined;
+    if (projectId === undefined) {
+      errors.push(`${label}: benchmarkProject must be a nonempty string.`);
+    }
+    if (typeof benchmarkCase.projectProfileRef !== "string" || benchmarkCase.projectProfileRef.length === 0) {
+      errors.push(`${label}: missing projectProfileRef.`);
+    } else if (benchmarkCase.projectProfileRef !== projectId) {
+      errors.push(`${label}: projectProfileRef ${benchmarkCase.projectProfileRef} must equal benchmarkProject ${projectId ?? "<missing>"}.`);
+    }
+    const profile = projectId === undefined ? undefined : profilesById.get(projectId);
+    if (projectId !== undefined && profile === undefined) {
+      errors.push(`${label}: unknown benchmark project profile ${projectId}.`);
+    }
+
+    if (benchmarkCase.taskLocality === undefined) {
+      errors.push(`${label}: missing taskLocality; expected one of ${TASK_LOCALITIES.join(", ")}.`);
+    } else {
+      errors.push(...validateTaskLocality(benchmarkCase.taskLocality, label));
+    }
+
+    const targetRoot = typeof benchmarkCase.targetRoot === "string" && benchmarkCase.targetRoot.length > 0 ? benchmarkCase.targetRoot : undefined;
+    if (targetRoot === undefined) {
+      errors.push(`${label}: targetRoot must be a nonempty string.`);
+    } else if (profile !== undefined && normalizeRelativeRoot(targetRoot) !== normalizeRelativeRoot(profile.rootPath ?? "")) {
+      errors.push(`${label}: targetRoot ${targetRoot} does not match profile ${profile.projectId} rootPath ${profile.rootPath}.`);
+    }
+
+    if (!Array.isArray(benchmarkCase.sourceRoots) || benchmarkCase.sourceRoots.length === 0) {
+      errors.push(`${label}: sourceRoots must be a nonempty array.`);
+    } else {
+      if (profile !== undefined) {
+        errors.push(...validateWarmIndexSourceRoots(benchmarkCase.sourceRoots, profile, label));
+      }
+      if (projectId !== undefined) {
+        const reference = sourceRootsByProject.get(projectId);
+        if (reference === undefined) {
+          sourceRootsByProject.set(projectId, { caseLabel: label, sourceRoots: benchmarkCase.sourceRoots });
+        } else if (!sameOrderedValues(reference.sourceRoots, benchmarkCase.sourceRoots)) {
+          errors.push(
+            `${label}: sourceRoots ${JSON.stringify(benchmarkCase.sourceRoots)} must match the ordered sourceRoots ${JSON.stringify(reference.sourceRoots)} of ${reference.caseLabel} for project ${projectId}.`
+          );
+        }
+      }
+    }
+
+    const expectedFiles = Array.isArray(benchmarkCase.expectedFiles) ? benchmarkCase.expectedFiles : undefined;
+    const expectedSymbols = Array.isArray(benchmarkCase.expectedSymbols) ? benchmarkCase.expectedSymbols : undefined;
+    if (expectedFiles === undefined || expectedFiles.length === 0) {
+      errors.push(`${label}: expectedFiles must be a nonempty array.`);
+    }
+    if (expectedSymbols === undefined || expectedSymbols.length === 0) {
+      errors.push(`${label}: expectedSymbols must be a nonempty array.`);
+    }
+
+    if (benchmarkCase.answerKey === undefined) {
+      errors.push(`${label}: missing answerKey.`);
+    } else {
+      errors.push(...validateAnswerKey(benchmarkCase.answerKey, label));
+      const answerKey = benchmarkCase.answerKey as Partial<BenchmarkTaskAnswerKey> | null;
+      if (answerKey && typeof answerKey === "object") {
+        if (expectedFiles !== undefined && Array.isArray(answerKey.expectedFiles) && !sameOrderedValues(expectedFiles, answerKey.expectedFiles)) {
+          errors.push(`${label}: expectedFiles must exactly match answerKey.expectedFiles (same values in the same order).`);
+        }
+        if (
+          expectedSymbols !== undefined &&
+          Array.isArray(answerKey.expectedSymbols) &&
+          !sameOrderedValues(expectedSymbols, answerKey.expectedSymbols)
+        ) {
+          errors.push(`${label}: expectedSymbols must exactly match answerKey.expectedSymbols (same values in the same order).`);
+        }
+      }
+    }
+
+    if (expectedFiles !== undefined && targetRoot !== undefined) {
+      for (const expectedFile of expectedFiles) {
+        if (typeof expectedFile !== "string" || expectedFile.length === 0 || path.isAbsolute(expectedFile) || expectedFile.includes("..")) {
+          errors.push(`${label}: expected file must be a safe relative path: ${String(expectedFile)}.`);
+        } else if (!existsSync(path.resolve(repoRoot, targetRoot, expectedFile))) {
+          errors.push(`${label}: expected file does not exist in ${projectId ?? targetRoot}: ${expectedFile}.`);
+        }
+      }
+    }
+  });
+
+  const representedProjectIds = [
+    ...new Set(
+      cases
+        .map((benchmarkCase) => benchmarkCase?.benchmarkProject)
+        .filter((projectId): projectId is string => typeof projectId === "string" && projectId.length > 0)
+    )
+  ].sort();
+  for (const projectId of representedProjectIds) {
+    const profile = profilesById.get(projectId);
+    if (profile === undefined || !profile.complexityMetrics || typeof profile.complexityMetrics !== "object") {
+      continue;
+    }
+    const derived = deriveWarmIndexTaskStats(cases, projectId);
+    for (const field of ["taskCount", "expectedRelevantFilesAverage", "expectedRelevantSymbolsAverage"] as const) {
+      if (profile.complexityMetrics[field] !== derived[field]) {
+        errors.push(
+          `profile ${projectId}: complexityMetrics.${field} ${profile.complexityMetrics[field]} does not match warm-index corpus value ${derived[field]}.`
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+function validateWarmIndexSourceRoots(sourceRoots: unknown[], profile: BenchmarkProjectProfile, label: string): string[] {
+  const errors: string[] = [];
+  const allowedRoots = [...(profile.sourceRoots ?? []), ...(profile.testRoots ?? [])];
+  const seen = new Set<unknown>();
+  for (const sourceRoot of sourceRoots) {
+    if (seen.has(sourceRoot)) {
+      errors.push(`${label}: duplicate source root ${JSON.stringify(sourceRoot)}.`);
+      continue;
+    }
+    seen.add(sourceRoot);
+    if (typeof sourceRoot !== "string" || !allowedRoots.includes(sourceRoot)) {
+      errors.push(`${label}: unknown source root ${JSON.stringify(sourceRoot)} for profile ${profile.projectId}; allowed roots: ${allowedRoots.join(", ")}.`);
+    }
+  }
+  for (const allowedRoot of allowedRoots) {
+    if (!seen.has(allowedRoot)) {
+      errors.push(`${label}: missing profile source/test root ${allowedRoot} for profile ${profile.projectId}.`);
+    }
+  }
+  return errors;
+}
+
+function normalizeRelativeRoot(value: string): string {
+  return path.posix.normalize(value.replace(/\\/g, "/")).replace(/\/+$/, "");
+}
+
+function sameOrderedValues(left: readonly unknown[], right: readonly unknown[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 export function validateBenchmarkProjectProfiles(profiles: BenchmarkProjectProfile[], repoRoot = process.cwd()): string[] {
