@@ -120,7 +120,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers `context-strategy-comparison` and `warm-index-reuse` (implemented in the unreleased v0.5.0; see "Warm-index reuse architecture" below). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers `context-strategy-comparison` and `warm-index-reuse` (released in v0.5.0; see "Warm-index reuse architecture" below). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -153,7 +153,7 @@ sequenceDiagram
 
 ## Warm-index reuse architecture (v0.5.0)
 
-Implemented and unreleased. `warm-index-reuse` is a second plugin on the same generic runner; it adds no runner, report writer, plot writer, retrieval runner, or agent adapter of its own.
+Released/current. `warm-index-reuse` is a second plugin on the same generic runner; it adds no runner, report writer, plot writer, retrieval runner, or agent adapter of its own.
 
 ```mermaid
 flowchart TD
@@ -501,7 +501,7 @@ Explicit non-goals:
 
 ### Released v0.4.9 native-select extension
 
-The v0.4.8 vocabulary could express keyboard input and pointer gestures, but had no way to say "choose the option whose value is X" in a native HTML `<select>`. Downstream consumers had to emulate selection with `ArrowDown` counts followed by `Enter`, which encodes a platform-sensitive navigation path instead of the intent. v0.4.9 adds one additive, value-only action to close that gap and is the current release.
+The v0.4.8 vocabulary could express keyboard input and pointer gestures, but had no way to say "choose the option whose value is X" in a native HTML `<select>`. Downstream consumers had to emulate selection with `ArrowDown` counts followed by `Enter`, which encodes a platform-sensitive navigation path instead of the intent. v0.4.9 adds one additive, value-only action to close that gap and is the previous release; v0.5.0 is the current release.
 
 Ownership:
 
@@ -593,10 +593,10 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.4.9 `selectOption` execution and returned-value verification (released) | `src/tutorial/tutorialActions.ts` |
 | v0.4.9 structural browser `selectOption` interface (released) | `src/browser/types.ts` |
 | v0.4.9 native-select cursor routing (released) | `src/tutorial/tutorialSession.ts` |
-| v0.5.0 index build / retrieval-from-index lifecycle (unreleased) | `src/evaluation/runMyDevKitRetrieval.ts` (`buildMyDevKitIndex`, `runMyDevKitRetrievalFromIndex`) |
-| v0.5.0 warm index session (unreleased) | `src/experiments/plugins/warmIndexReuse/warmIndexSession.ts` |
-| v0.5.0 warm-index execution and execution artifact (unreleased) | `src/experiments/plugins/warmIndexReuse/execution.ts` / `executionArtifact.ts` |
-| v0.5.0 warm-index fake-agent evaluation (unreleased) | `src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.ts` |
-| v0.5.0 warm-index metrics (unreleased) | `src/experiments/plugins/warmIndexReuse/metrics.ts` |
-| v0.5.0 warm-index report section (unreleased) | `src/report/experiments/warmIndexReuseReportModel.ts`, `buildWarmIndexReuseReport.ts`, `renderWarmIndexReuseHtml.ts` |
-| v0.5.0 warm-index plot data (unreleased) | `src/plots/buildWarmIndexPlotData.ts` |
+| v0.5.0 index build / retrieval-from-index lifecycle (released) | `src/evaluation/runMyDevKitRetrieval.ts` (`buildMyDevKitIndex`, `runMyDevKitRetrievalFromIndex`) |
+| v0.5.0 warm index session (released) | `src/experiments/plugins/warmIndexReuse/warmIndexSession.ts` |
+| v0.5.0 warm-index execution and execution artifact (released) | `src/experiments/plugins/warmIndexReuse/execution.ts` / `executionArtifact.ts` |
+| v0.5.0 warm-index fake-agent evaluation (released) | `src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.ts` |
+| v0.5.0 warm-index metrics (released) | `src/experiments/plugins/warmIndexReuse/metrics.ts` |
+| v0.5.0 warm-index report section (released) | `src/report/experiments/warmIndexReuseReportModel.ts`, `buildWarmIndexReuseReport.ts`, `renderWarmIndexReuseHtml.ts` |
+| v0.5.0 warm-index plot data (released) | `src/plots/buildWarmIndexPlotData.ts` |
