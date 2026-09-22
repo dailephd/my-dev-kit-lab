@@ -125,9 +125,13 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 Implemented in the current release v0.5.0; see [CURRENT_STATE.md](CURRENT_STATE.md) for its lifecycle state.
 
+The expanded benchmark corpus used below is part of v0.5.1, which is implemented but unreleased; it reuses the v0.5.0 runtime unchanged. Selectable real-agent warm-index campaigns remain planned for v0.5.2.
+
 **Goal:** measure how a one-time my-dev-kit index cost is amortized when the same prepared index is reused across several tasks, with a matched `raw-full-file` baseline for every task and deterministic fake-agent correctness and token evidence.
 
-**Prerequisites:** install dependencies and run `npm run build`. Choose a my-dev-kit command: the default `npx @dailephd/my-dev-kit@latest`, a locally installed my-dev-kit, or the deterministic fixture `node tests/fixtures/fake-my-dev-kit-cli.js` in a source checkout. Choose a cases file with several tasks per benchmark project; the bundled `examples/token-savings-cases.json` currently has one task per project, so it exercises index setup and one task per project rather than multi-task reuse. The test fixture `tests/fixtures/warm-index-reuse/multi-task-cases.json` provides two `todo-ts` tasks and one `todo-js` task.
+**Prerequisites:** install dependencies and run `npm run build`. Choose a my-dev-kit command: the default `npx @dailephd/my-dev-kit@latest`, a locally installed my-dev-kit, or the deterministic fixture `node tests/fixtures/fake-my-dev-kit-cli.js` in a source checkout. Choose a cases file with several tasks per benchmark project. The canonical multi-task corpus is the dedicated expanded benchmark suite `benchmarks/contracts/warm-index-benchmark-cases.json` (implemented, unreleased v0.5.1 checkout): two benchmark projects, `task-workflow-medium-ts` and `task-analytics-large-mixed`, with six ordered tasks each, every task carrying an answer key, expected files and symbols, and task-locality metadata. It must be selected explicitly with `--cases`. The default `examples/token-savings-cases.json` remains a small compatibility corpus with one task per project, so it exercises index setup and one task per project rather than multi-task reuse. (`tests/fixtures/warm-index-reuse/multi-task-cases.json` is a compact developer test fixture, not the product corpus.)
+
+**Task locality:** each corpus task is tagged `localized` (a narrow task surface in one owner), `cross-module` (the answer needs several owners or modules), or `broad-change` (a deliberately wide negative control that is not expected to fit a small localized context). Locality is benchmark metadata only; it does not change grouping, indexing, retrieval, metrics, reports, or plots, and there is no locality CLI filter.
 
 **Starting state:** the output directory is new or empty, and any `--target` project is an existing local directory that must stay unchanged.
 
@@ -146,18 +150,17 @@ select cases (source order, optional --case / --benchmark-project filters)
 
 **Steps:**
 
-1. Run the experiment. PowerShell (source checkout, deterministic fixture):
+1. Run the experiment over the dedicated corpus. PowerShell (source checkout, deterministic fixture):
 
    ```powershell
    npm run experiment:run -- `
      --experiment warm-index-reuse `
-     --cases tests/fixtures/warm-index-reuse/multi-task-cases.json `
-     --benchmark-project todo-ts `
+     --cases benchmarks/contracts/warm-index-benchmark-cases.json `
      --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
      --out lab-output/warm-index-reuse
    ```
 
-   The installed equivalent is `my-dev-kit-lab experiment run --experiment warm-index-reuse --cases <path> --benchmark-project <id> --kit-command "<command>" --out <dir>`.
+   This runs 12 tasks as two project groups: one index per project, task ordinals 1–6 in each project, one `raw-full-file` baseline and one warm retrieval per task, and deterministic fake-agent evidence for each side. Add `--benchmark-project task-workflow-medium-ts` (or `task-analytics-large-mixed`) to run one six-task project, or `--case <id>` for single tasks. The installed equivalent is `my-dev-kit-lab experiment run --experiment warm-index-reuse --cases benchmarks/contracts/warm-index-benchmark-cases.json [--benchmark-project <id>] --kit-command "<command>" --out <dir>`; the relative corpus path resolves against the installed package.
 
 2. Generate the plots:
 

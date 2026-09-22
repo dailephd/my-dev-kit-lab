@@ -4,6 +4,17 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+Expanded warm-index benchmark suite (implemented; not yet released).
+
+- Added the dedicated warm-index benchmark corpus `benchmarks/contracts/warm-index-benchmark-cases.json` with 12 tasks: six for `task-workflow-medium-ts` and six for `task-analytics-large-mixed`. Each project has one localized task, four cross-module tasks, and one broad-change negative control.
+- Added optional task-locality metadata (`localized`, `cross-module`, `broad-change`) to evaluation cases. Existing case files without it stay valid, invalid values are rejected, and the dedicated corpus requires it.
+- Every corpus task has an answer key with expected facts, plus expected files and symbols that must exactly match the answer key and must exist in the benchmark project.
+- `npm run verify:benchmarks` now validates the dedicated corpus, requires at least five tasks and every locality category for each warm-index benchmark project, and checks project-profile task statistics against the corpus. The medium and large/mixed profiles now record six tasks each (complexity scores 31 and 47 under the unchanged formula).
+- Regression tests prove the existing one-index-per-project warm-index runtime at six tasks per project: two index builds for the 12 tasks, task ordinals 1–6, amortized and cumulative metrics, per-project reset, strict-prefix availability, and isolation of single-task and single-project failures.
+- The existing warm-index report (schema `my-dev-kit-lab-warm-index-report-v1`) and the existing four plots cover the expanded suite: 2 projects, 12 tasks, and ordinals 1–6 per project.
+- The packed-package acceptance gate now checks that the corpus is in the tarball, readable from a clean install, and selectable through the installed CLI's existing `--cases` option.
+- No CLI command or flag, warm-index metric formula, report schema, or plot was added. The default cases file (`examples/token-savings-cases.json`) and the default my-dev-kit command are unchanged. Real-agent warm-index campaigns remain planned for v0.5.2.
+
 ## [0.5.0] - 2026-09-21
 
 Warm-index reuse experiment support.

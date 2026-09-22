@@ -356,12 +356,18 @@ describe("release lifecycle and plugin preservation", () => {
     return body.replace(new RegExp(`^### ${escaped}[^\\n]*[\\s\\S]*?(?=^### |^## |\\z)`, "m"), "");
   }
 
-  it("DOC-V050-000 the manifest records ordered published and planned versions with no active unreleased version", () => {
-    expect(facts.currentImplementedUnreleasedVersion).toBeNull();
+  it("DOC-V050-000 the manifest records ordered published, implemented-unreleased (when present), and planned versions", () => {
     const publishedIndex = requiredVersions.indexOf(`v${facts.latestPublishedVersion}`);
     const plannedIndex = requiredVersions.indexOf(`v${facts.nextPlannedVersion}`);
     expect(publishedIndex).toBeGreaterThanOrEqual(0);
     expect(plannedIndex).toBeGreaterThan(publishedIndex);
+    if (facts.currentImplementedUnreleasedVersion) {
+      const unreleasedIndex = requiredVersions.indexOf(`v${facts.currentImplementedUnreleasedVersion}`);
+      expect(unreleasedIndex).toBeGreaterThan(publishedIndex);
+      expect(unreleasedIndex).toBeLessThan(plannedIndex);
+    } else {
+      expect(facts.currentImplementedUnreleasedVersion ?? null).toBeNull();
+    }
     expect(pluginIds.length).toBeGreaterThanOrEqual(2);
     expect(pluginDocuments.length).toBeGreaterThan(0);
     expect(versionAfterNextPlanned).toBeDefined();

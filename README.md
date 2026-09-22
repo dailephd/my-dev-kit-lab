@@ -10,12 +10,14 @@ The latest release is v0.5.0 (warm-index reuse experiment support). The previous
 
 The current release includes v0.5.0 warm-index reuse. The package and installed CLI are version 0.5.0; v0.4.9 remains the previous release. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for the validated release state.
 
+The development branch also contains v0.5.1 (expanded warm-index benchmark suite), which is implemented but unreleased; the package and CLI stay at version 0.5.0 until that release.
+
 v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--version`, `security validate`, `audit`, the `experiment` family, `report render`, `plots generate`, `gallery build`, `demo final`, and the historical direct final-demo invocation form), a writable lab workspace model kept separate from the installed package and the inspected target, and a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`). See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for status detail and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime path model. The "Installed CLI" section below documents the shipped command surface; the source-checkout `npm run` workflow in Quickstart remains available for contributors.
 
 ## Current capabilities
 
 - **Run context-strategy experiments:** compare `raw-full-file` with `my-dev-kit-guided` using deterministic fixtures or locally configured Codex and Claude CLIs.
-- **Measure warm-index reuse (v0.5.0):** the `warm-index-reuse` experiment plugin builds one my-dev-kit index per benchmark project, reuses it across that project's tasks, and compares every task with a matched `raw-full-file` baseline. Reports separate one-time index-build cost from per-task retrieval cost, show amortized index cost and cumulative measurements, and include deterministic fake-agent correctness and token evidence; `plots generate` renders four warm-index SVG charts. Estimated context tokens (a character-based context-size estimate) and fake-agent total tokens (simulated harness telemetry) are reported separately, and neither is provider billing telemetry. See [docs/WORKFLOWS.md](docs/WORKFLOWS.md#warm-index-reuse-experiment) and [docs/METRICS.md](docs/METRICS.md#warm-index-reuse-metrics).
+- **Measure warm-index reuse (v0.5.0):** the `warm-index-reuse` experiment plugin builds one my-dev-kit index per benchmark project, reuses it across that project's tasks, and compares every task with a matched `raw-full-file` baseline. Reports separate one-time index-build cost from per-task retrieval cost, show amortized index cost and cumulative measurements, and include deterministic fake-agent correctness and token evidence; `plots generate` renders four warm-index SVG charts. The v0.5.1 checkout (implemented, unreleased) adds a dedicated 12-task benchmark corpus (`benchmarks/contracts/warm-index-benchmark-cases.json`: six medium and six large/mixed tasks tagged `localized`, `cross-module`, or `broad-change`) for comparing warm-index behavior as task count grows. Estimated context tokens (a character-based context-size estimate) and fake-agent total tokens (simulated harness telemetry) are reported separately, and neither is provider billing telemetry. See [docs/WORKFLOWS.md](docs/WORKFLOWS.md#warm-index-reuse-experiment) and [docs/METRICS.md](docs/METRICS.md#warm-index-reuse-metrics).
 - **Audit repository health:** run conservative code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, or adapt security findings into the common audit report.
 - **Validate CLI/package security:** inspect dependencies, package contents, path and subprocess boundaries, malformed inputs, optional static scanners, and bounded fuzz targets.
 - **Validate Android projects:** run nineteen static checks by default, with Gradle operations, external tools, and network access available only through explicit opt-in flags.
@@ -156,18 +158,18 @@ npm run experiment:run -- `
   --no-screenshot
 ```
 
-Run the warm-index reuse plugin deterministically with the fake my-dev-kit fixture (omit `--kit-command` to use the default `npx @dailephd/my-dev-kit@latest`):
+Run the warm-index reuse plugin over the dedicated expanded benchmark corpus (implemented, unreleased v0.5.1 checkout), deterministically with the fake my-dev-kit fixture (omit `--kit-command` to use the default `npx @dailephd/my-dev-kit@latest`):
 
 ```bash
 npm run experiment:run -- \
   --experiment warm-index-reuse \
-  --cases tests/fixtures/warm-index-reuse/multi-task-cases.json \
+  --cases benchmarks/contracts/warm-index-benchmark-cases.json \
   --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" \
   --out lab-output/warm-index-reuse
 npm run generate-experiment-plots -- --experiment lab-output/warm-index-reuse --out lab-output/warm-index-plots
 ```
 
-The bundled `examples/token-savings-cases.json` currently has one task per benchmark project, so multi-task reuse needs a cases file with several tasks per project, such as the test fixture above; an expanded bundled warm-index benchmark suite is planned.
+The default cases file, `examples/token-savings-cases.json`, is a small compatibility corpus with one task per benchmark project and remains the default when `--cases` is omitted. For multi-task reuse, select the dedicated corpus explicitly as above: it runs six tasks for each of the two benchmark projects against one index per project. Add `--benchmark-project task-workflow-medium-ts` or `--case <id>` to narrow the selection.
 
 When `--target` is omitted, the experiment runs in self mode against my-dev-kit-lab. When `--target <path>` is provided, the lab remains the tool root and the target project is inspected separately. Generated experiment outputs stay under lab-controlled output directories by default, not inside the target project.
 
@@ -221,7 +223,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - Codex may expose token totals but can produce timeouts or invalid-output runs
 - Small projects may make raw-full-file cheaper than my-dev-kit-guided; larger localized tasks are where my-dev-kit is expected to become more useful
 - The generic experiment-plugin framework has two plugins: `context-strategy-comparison` and the current-release v0.5.0 `warm-index-reuse`. Later plugins such as incremental-change and context-window scaling are future roadmap work
-- `warm-index-reuse` uses the deterministic fake agent only; selectable Codex/Claude warm-index campaigns remain planned for v0.5.2, the expanded benchmark suite remains planned for v0.5.1, and warm-index screenshots/gallery integration are not implemented. Its component-duration sums are not wall-clock latency, and it calculates no token-savings percentage, break-even task, winner, or ranking
+- `warm-index-reuse` uses the deterministic fake agent only; selectable Codex/Claude warm-index campaigns remain planned for v0.5.2, and warm-index screenshots/gallery integration are not implemented. The v0.5.1 expanded corpus is deterministic fake-agent benchmark evidence, not real-agent evidence. Its component-duration sums are not wall-clock latency, and it calculates no token-savings percentage, break-even task, winner, or ranking
 - The current release does not guarantee token savings; it produces auditable evidence for specific cases, targets, agents, and strategies
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
 - The six new stage-context strategies have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration
