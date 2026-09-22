@@ -35,7 +35,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Readiness evidence (v0.4.9, historical): pre-release readiness completed with no release blockers before publication. Validated candidate SHA `460bd7f16789f3e5b01d09bfd8a75782276fd2a7`; ordinary CI run `35536424389` (six jobs, Ubuntu/macOS/Windows × Node 24/latest); dedicated readiness run `35537940989` (Ubuntu, macOS, and Windows on Node latest, all succeeded on that exact SHA); local readiness PASS; release blockers 0. Evidence is recorded in [reports/v0.4.9-pre-release-readiness.md](reports/v0.4.9-pre-release-readiness.md).
 - Release blockers for published `v0.5.0`: none. Implementation, documentation reconciliation, pre-release readiness, release preparation, GitHub release, tag, and npm publication are complete.
 - Validation result (v0.5.0, published): local validation passed; full tests passed; security and audit validation found no release blocker; packed-package acceptance passed; standard cross-platform CI passed; latest-Node readiness passed across Ubuntu, macOS, and Windows; the release PR was merged to `main` and tag/GitHub Release/npm publication completed.
-- Exact next action: plan and implement `v0.5.1` (expanded warm-index benchmark suite) from the published `v0.5.0` baseline.
+- Exact next action: plan and implement `v0.5.1` (expanded warm-index benchmark suite), using `v0.5.0` as the current released baseline.
 
 ## Implemented
 
