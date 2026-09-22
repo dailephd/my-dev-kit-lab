@@ -313,8 +313,21 @@ describe("experiment run warm-index-reuse with the v0.5.1 production corpus", ()
       ["task-analytics-large-mixed", 6],
     ]);
     expect(artifact.projects.map((project) => project.indexCommand?.commandId)).toEqual(["index", "index"]);
-    const report = JSON.parse(readFileSync(path.join(outRoot, "report.json"), "utf8")) as { report: { cases: unknown[] } };
+    const report = JSON.parse(readFileSync(path.join(outRoot, "report.json"), "utf8")) as {
+      report: { cases: unknown[]; warmIndexReuse: WarmIndexReuseReportV1 };
+    };
     expect(report.report.cases).toHaveLength(12);
+    expect(report.report.warmIndexReuse.summary.taskCount).toBe(12);
+
+    // experiment run -> report -> the existing `plots generate` command, with no warm-specific plot command.
+    const plotsOut = mkdtempSync(path.join(os.tmpdir(), "warm-command-prod-plots-"));
+    tempDirs.push(plotsOut);
+    const plotCode = await runLabCli(["plots", "generate", "--experiment", outRoot, "--out", plotsOut], {
+      writers: { stdout: () => undefined, stderr: () => undefined },
+    });
+    expect(plotCode).toBe(0);
+    const summary = JSON.parse(readFileSync(path.join(plotsOut, "plots-summary.json"), "utf8")) as { chartCount: number };
+    expect(summary.chartCount).toBe(4);
   }, 120_000);
 
   it("applies --benchmark-project and --case selectors to the expanded corpus", async () => {

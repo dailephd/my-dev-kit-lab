@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -16,7 +16,9 @@ import type { WarmIndexReuseReportV1 } from "../../src/report/index.js";
 import {
   fakeKitCommand,
   loadBundledProjectProfiles,
+  loadProductionWarmIndexCases,
   makeCase,
+  makeCases,
   writeFakeKitVariant,
 } from "../experiments/warmIndexReuse/warmIndexTestHelpers.js";
 
@@ -172,4 +174,139 @@ describe("plots generate for warm-index-reuse output", () => {
     expect(artifacts.summary.chartCount).toBe(4);
     expect(artifacts.data.skippedPoints.some((point) => point.plotId === "warm-index-amortized-index-cost")).toBe(true);
   });
+});
+
+describe("buildWarmIndexPlotData for the expanded v0.5.1 suite", () => {
+  const MEDIUM = "task-workflow-medium-ts";
+  const LARGE = "task-analytics-large-mixed";
+  const ORDINALS = [1, 2, 3, 4, 5, 6];
+
+  async function productionOutput() {
+    const outputRoot = tempDir("warm-plot-prod-");
+    const registry = createDefaultExperimentPluginRegistry();
+    const cases = await loadProductionWarmIndexCases();
+    const run = await runExperiment({
+      pluginId: "warm-index-reuse",
+      registry,
+      outputRoot,
+      config: { kitCommand: fakeKitCommand },
+      inputs: { cases, projectProfiles: await loadBundledProjectProfiles(), env: {} },
+      toolRoot: process.cwd(),
+      runId: "warm-plot-production-run",
+    });
+    await writePluginExperimentReports({ run, plugin: registry.describe("warm-index-reuse") });
+    return { outputRoot, cases, section: buildWarmIndexReuseReport(run)! };
+  }
+
+  const groupPoints = (series: ReturnType<typeof plot>) => {
+    const groups = new Map<string, Array<{ x: number; caseId: unknown }>>();
+    for (const point of series.points) {
+      groups.set(point.group ?? "", [...(groups.get(point.group ?? "") ?? []), { x: point.x, caseId: point.metadata?.caseId }]);
+    }
+    return groups;
+  };
+
+  it("plots the 12-case production corpus with per-project ordinals 1..6, expected groups, and case IDs", async () => {
+    const { section, outputRoot, cases } = await productionOutput();
+    const data = buildWarmIndexPlotData({ section, experimentDir: outputRoot, generatedAt: "2026-09-22T00:00:00.000Z" });
+    const idsByProject = new Map([MEDIUM, LARGE].map((project) => [project, cases.filter((c) => c.benchmarkProject === project).map((c) => c.id)]));
+
+    expect(data.plots.map((series) => series.id)).toEqual([...WARM_INDEX_PLOT_IDS]);
+    expect(data.plots.every((series) => series.xLabel === "Task ordinal")).toBe(true);
+    expect(data.skippedPoints).toEqual([]);
+    expect(data.plots.map((series) => [series.id, series.points.length])).toEqual([
+      ["warm-index-amortized-index-cost", 12],
+      ["warm-index-context-size", 24],
+      ["warm-index-correctness", 24],
+      ["warm-index-cumulative-token-usage", 24],
+    ]);
+
+    const amortized = groupPoints(plot(data, "warm-index-amortized-index-cost"));
+    expect([...amortized.keys()]).toEqual([MEDIUM, LARGE]);
+    for (const [project, points] of amortized) {
+      expect(points.map((point) => point.x)).toEqual(ORDINALS);
+      expect(points.map((point) => point.caseId)).toEqual(idsByProject.get(project));
+    }
+    for (const id of ["warm-index-context-size", "warm-index-correctness", "warm-index-cumulative-token-usage"]) {
+      const groups = groupPoints(plot(data, id));
+      expect([...groups.keys()].sort()).toEqual(
+        [`${MEDIUM} / raw-full-file`, `${MEDIUM} / warm-index-reuse`, `${LARGE} / raw-full-file`, `${LARGE} / warm-index-reuse`].sort()
+      );
+      for (const [group, points] of groups) {
+        expect(points.map((point) => point.x)).toEqual(ORDINALS);
+        expect(points.map((point) => point.caseId)).toEqual(idsByProject.get(group.split(" / ")[0]));
+      }
+    }
+
+    // Cumulative fake-agent token points are agent token totals only, never estimated context tokens.
+    const cumulative = plot(data, "warm-index-cumulative-token-usage");
+    const expected = section.projects.flatMap((project) =>
+      project.tasks.flatMap((task) => [task.raw.cumulativeAgentTotalTokens.value, task.warm.cumulativeAgentTotalTokens.value])
+    );
+    expect(cumulative.points.map((point) => point.y)).toEqual(expected);
+    const estimated = section.projects.flatMap((project) =>
+      project.tasks.flatMap((task) => [task.raw.cumulativeEstimatedContextTokens.value, task.warm.cumulativeEstimatedContextTokens.value])
+    );
+    expect(cumulative.points.map((point) => point.y)).not.toEqual(estimated);
+    expect(JSON.stringify(data)).not.toMatch(/locality/i);
+  }, 120_000);
+
+  it("writes exactly four SVG charts and bounded plot data for the production corpus", async () => {
+    const { outputRoot } = await productionOutput();
+    const plotsOut = tempDir("warm-plots-prod-");
+    const artifacts = await writePlotArtifacts({ experimentDir: outputRoot, outDir: plotsOut });
+    expect(artifacts.summary.chartCount).toBe(4);
+    expect(Object.keys(artifacts.artifactPaths.charts)).toEqual([...WARM_INDEX_PLOT_IDS]);
+    expect(readdirSync(path.join(plotsOut, "charts")).sort()).toEqual(WARM_INDEX_PLOT_IDS.map((id) => `${id}.svg`).sort());
+    for (const id of WARM_INDEX_PLOT_IDS) {
+      const svg = readFileSync(path.join(plotsOut, "charts", `${id}.svg`), "utf8");
+      expect(svg.length).toBeGreaterThan(0);
+      expect(svg).toContain("<svg");
+    }
+    const dataText = readFileSync(path.join(plotsOut, "plot-data.json"), "utf8");
+    const plotData = JSON.parse(dataText) as { plots: Array<{ id: string; points: unknown[] }> };
+    expect(plotData.plots.map((series) => [series.id, series.points.length])).toEqual([
+      ["warm-index-amortized-index-cost", 12],
+      ["warm-index-context-size", 24],
+      ["warm-index-correctness", 24],
+      ["warm-index-cumulative-token-usage", 24],
+    ]);
+    expect(dataText).not.toContain("contextText");
+    expect(dataText).not.toContain("source for unknown");
+  }, 120_000);
+
+  it("skips unavailable six-task evidence with its reason and never plots fabricated zeros", async () => {
+    // A missing prompt profile makes the fake agent fail for task 3 only (execution evidence stays available).
+    const cases = makeCases(6);
+    cases[2] = { ...cases[2], projectProfileRef: "missing-profile" };
+    const outputRoot = tempDir("warm-plot-gap-");
+    const registry = createDefaultExperimentPluginRegistry();
+    const run = await runExperiment({
+      pluginId: "warm-index-reuse",
+      registry,
+      outputRoot,
+      config: { kitCommand: fakeKitCommand },
+      inputs: { cases, projectProfiles: await loadBundledProjectProfiles(), env: {} },
+      toolRoot: process.cwd(),
+      runId: "warm-plot-gap-run",
+    });
+    const data = buildWarmIndexPlotData({ section: buildWarmIndexReuseReport(run)!, experimentDir: outputRoot });
+
+    expect(plot(data, "warm-index-context-size").points).toHaveLength(12);
+    const correctness = plot(data, "warm-index-correctness");
+    expect(correctness.points.map((point) => point.x)).toEqual([1, 1, 2, 2, 4, 4, 5, 5, 6, 6]);
+    const correctnessSkipped = data.skippedPoints.filter((point) => point.plotId === "warm-index-correctness");
+    expect(correctnessSkipped.map((point) => point.label)).toEqual([
+      "todo-ts task 3 (task-3) raw-full-file",
+      "todo-ts task 3 (task-3) warm-index-reuse",
+    ]);
+    expect(correctnessSkipped.every((point) => point.reason.includes("not scoreable"))).toBe(true);
+
+    const cumulative = plot(data, "warm-index-cumulative-token-usage");
+    expect(cumulative.points.map((point) => point.x)).toEqual([1, 1, 2, 2]);
+    expect(cumulative.points.every((point) => point.y > 0)).toBe(true);
+    const cumulativeSkipped = data.skippedPoints.filter((point) => point.plotId === "warm-index-cumulative-token-usage");
+    expect(cumulativeSkipped).toHaveLength(8);
+    expect(cumulativeSkipped.every((point) => point.reason.includes("Task 3 (task-3)"))).toBe(true);
+  }, 120_000);
 });

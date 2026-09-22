@@ -72,6 +72,7 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/plots/buildWarmIndexPlotData.js",
   "dist/src/commands/generateExperimentPlotsCommand.js",
   "benchmarks/contracts/benchmark-project-profiles.json",
+  "benchmarks/contracts/warm-index-benchmark-cases.json",
   "benchmarks/projects/todo-ts/src/taskService.ts",
   "examples/token-savings-cases.json",
   "examples/tutorial-browser/index.html",
@@ -88,6 +89,13 @@ const WARM_INDEX_CHARTS = [
   "warm-index-correctness.svg",
   "warm-index-cumulative-token-usage.svg"
 ];
+
+// v0.5.1 dedicated warm-index benchmark corpus: this gate checks resource presence, readability,
+// and basic shape only; full corpus policy is owned by scripts/verify-benchmarks.ts.
+const WARM_INDEX_BENCHMARK_CORPUS = "benchmarks/contracts/warm-index-benchmark-cases.json";
+const WARM_INDEX_BENCHMARK_CORPUS_PROJECT_COUNTS = { "task-workflow-medium-ts": 6, "task-analytics-large-mixed": 6 };
+const WARM_INDEX_BENCHMARK_CORPUS_LOCALITIES = ["localized", "cross-module", "broad-change"];
+const WARM_INDEX_BENCHMARK_CORPUS_SELECTED_CASE = "warm-medium-complete-idempotent";
 
 // Acceptance-test fixture only (written to a temporary directory, never packaged): the minimal
 // my-dev-kit subcommands the warm-index run needs, writing only under the --out index path.
@@ -353,6 +361,9 @@ async function main() {
     const missingRequired = missingRequiredTarballPaths(tarballFiles, REQUIRED_TARBALL_PATHS);
     if (missingRequired.length > 0) {
       fail("PACK_CONTENTS", `Required runtime file(s) missing from the packed tarball: ${missingRequired.join(", ")}`);
+    }
+    if (!tarballFiles.has(WARM_INDEX_BENCHMARK_CORPUS)) {
+      fail("WARM_INDEX_BENCHMARK_CORPUS_RESOURCE", `The packed tarball does not contain ${WARM_INDEX_BENCHMARK_CORPUS}.`);
     }
 
     // -----------------------------------------------------------------
@@ -742,6 +753,73 @@ async function main() {
     if (warmPlotData.includes("contextText") || warmPlotData.includes(FAKE_KIT_SOURCE_TEXT)) {
       fail("WARM_INDEX_PLOTS", "Warm-index plot data contains context text.");
     }
+
+    // 9c. Installed v0.5.1 warm-index benchmark corpus: readable resource with the expected basic
+    // shape, consumed through the existing --cases surface with one bounded selected case.
+    const installedCorpusPath = path.join(installedPackageRoot, WARM_INDEX_BENCHMARK_CORPUS);
+    if (!existsSync(installedCorpusPath)) {
+      fail("WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_READ", `Installed package is missing ${WARM_INDEX_BENCHMARK_CORPUS}.`);
+    }
+    let installedCorpus;
+    try {
+      installedCorpus = JSON.parse(readFileSync(installedCorpusPath, "utf8"));
+    } catch (error) {
+      fail("WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_READ", `Installed warm-index benchmark corpus is not valid JSON: ${error.message}`);
+    }
+    if (!Array.isArray(installedCorpus)) {
+      fail("WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_READ", "Installed warm-index benchmark corpus is not a JSON array.");
+    }
+    const installedCorpusIds = installedCorpus.map((entry) => entry?.id);
+    const expectedCorpusTotal = Object.values(WARM_INDEX_BENCHMARK_CORPUS_PROJECT_COUNTS).reduce((sum, count) => sum + count, 0);
+    if (installedCorpus.length !== expectedCorpusTotal || new Set(installedCorpusIds).size !== installedCorpusIds.length) {
+      fail(
+        "WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_READ",
+        `Installed warm-index benchmark corpus must hold ${expectedCorpusTotal} uniquely identified cases; found ${installedCorpus.length}.`
+      );
+    }
+    for (const [project, expectedCount] of Object.entries(WARM_INDEX_BENCHMARK_CORPUS_PROJECT_COUNTS)) {
+      const projectCases = installedCorpus.filter((entry) => entry?.benchmarkProject === project);
+      if (projectCases.length !== expectedCount) {
+        fail("WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_READ", `Installed corpus has ${projectCases.length} ${project} cases; expected ${expectedCount}.`);
+      }
+      for (const locality of WARM_INDEX_BENCHMARK_CORPUS_LOCALITIES) {
+        if (!projectCases.some((entry) => entry.taskLocality === locality)) {
+          fail("WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_READ", `Installed corpus has no ${locality} case for ${project}.`);
+        }
+      }
+    }
+
+    // A relative --cases path resolves against the installed package root (existing behavior).
+    const corpusOut = path.join(dirs.workspace, "warm-index-corpus-run");
+    const corpusRun = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      [
+        "experiment", "run", "--experiment", "warm-index-reuse",
+        "--cases", WARM_INDEX_BENCHMARK_CORPUS,
+        "--case", WARM_INDEX_BENCHMARK_CORPUS_SELECTED_CASE,
+        "--kit-command", fakeKitCommand,
+        "--out", corpusOut
+      ],
+      envWithBin
+    );
+    if (corpusRun.status !== 0) {
+      fail("WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_SELECTION", "Installed warm-index run over the packaged corpus did not exit 0.", describeChildResult(corpusRun));
+    }
+    const corpusArtifact = JSON.parse(readFileSync(path.join(corpusOut, "warm-index-execution.json"), "utf8"));
+    const corpusSelection = (corpusArtifact.projects ?? []).map((project) => [project.benchmarkProject, (project.tasks ?? []).map((task) => task.caseId)]);
+    if (JSON.stringify(corpusSelection) !== JSON.stringify([["task-workflow-medium-ts", [WARM_INDEX_BENCHMARK_CORPUS_SELECTED_CASE]]])) {
+      fail("WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_SELECTION", `Unexpected selection from the packaged corpus: ${JSON.stringify(corpusSelection)}`);
+    }
+    const corpusReport = JSON.parse(readFileSync(path.join(corpusOut, "report.json"), "utf8")).report;
+    if (corpusReport?.warmIndexReuse?.summary?.taskCount !== 1) {
+      fail("WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_SELECTION", "Installed corpus selection did not produce a one-task warm-index report.");
+    }
+    const corpusOutRelative = path.relative(installedPackageRoot, corpusOut);
+    if (!corpusOutRelative.startsWith("..") && !path.isAbsolute(corpusOutRelative)) {
+      fail("WARM_INDEX_OUTPUT_LOCATION", "Installed corpus selection output was written beneath the installed package root.");
+    }
+
     if (existsSync(path.join(installedPackageRoot, "indexes")) || existsSync(path.join(installedPackageRoot, "agents"))) {
       fail("WARM_INDEX_OUTPUT_LOCATION", "Warm-index output was written beneath the installed package root.");
     }
@@ -751,6 +829,9 @@ async function main() {
     console.log("WARM_INDEX_INSTALLED_EXECUTION: PASS");
     console.log("WARM_INDEX_REPORTS: PASS");
     console.log(`WARM_INDEX_PLOTS: PASS (${warmPlotSummary.chartCount} charts)`);
+    console.log("WARM_INDEX_BENCHMARK_CORPUS_RESOURCE: PASS");
+    console.log(`WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_READ: PASS (${installedCorpus.length} cases)`);
+    console.log(`WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_SELECTION: PASS (${WARM_INDEX_BENCHMARK_CORPUS_SELECTED_CASE})`);
 
     // -----------------------------------------------------------------
     // 10. Target and installed-package immutability.
