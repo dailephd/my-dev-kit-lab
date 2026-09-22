@@ -27,6 +27,8 @@ export const REQUIRED_BENCHMARK_PROJECT_IDS = [
   "task-analytics-large-mixed"
 ] as const;
 export const VALID_COMPLEXITY_LEVELS = new Set(["small", "medium", "large", "mixed-language"]);
+export const REQUIRED_WARM_INDEX_BENCHMARK_PROJECT_IDS = ["task-workflow-medium-ts", "task-analytics-large-mixed"] as const;
+export const MIN_WARM_INDEX_TASKS_PER_PROJECT = 5;
 
 export async function readBenchmarkProjectProfiles(
   profilesPath: string,
@@ -268,6 +270,28 @@ export function validateWarmIndexBenchmarkCases(
         errors.push(
           `profile ${projectId}: complexityMetrics.${field} ${profile.complexityMetrics[field]} does not match warm-index corpus value ${derived[field]}.`
         );
+      }
+    }
+  }
+  return errors;
+}
+
+export function validateWarmIndexBenchmarkSuiteCoverage(cases: EvaluationCaseInput[]): string[] {
+  const errors: string[] = [];
+  for (const projectId of REQUIRED_WARM_INDEX_BENCHMARK_PROJECT_IDS) {
+    const projectCases = cases.filter((benchmarkCase) => benchmarkCase?.benchmarkProject === projectId);
+    if (projectCases.length === 0) {
+      errors.push(`warm-index suite: missing required benchmark project ${projectId}.`);
+      continue;
+    }
+    if (projectCases.length < MIN_WARM_INDEX_TASKS_PER_PROJECT) {
+      errors.push(
+        `warm-index suite: project ${projectId} has ${projectCases.length} cases; at least ${MIN_WARM_INDEX_TASKS_PER_PROJECT} are required.`
+      );
+    }
+    for (const locality of TASK_LOCALITIES) {
+      if (!projectCases.some((benchmarkCase) => benchmarkCase.taskLocality === locality)) {
+        errors.push(`warm-index suite: project ${projectId} has no ${locality} case.`);
       }
     }
   }

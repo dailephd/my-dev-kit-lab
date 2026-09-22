@@ -6,7 +6,8 @@ import {
   parseBenchmarkProjectProfiles,
   validateAnswerKey,
   validateBenchmarkProjectProfiles,
-  validateWarmIndexBenchmarkCases
+  validateWarmIndexBenchmarkCases,
+  validateWarmIndexBenchmarkSuiteCoverage
 } from "../src/evaluation/benchmarkMetadata.js";
 import type { BenchmarkProjectProfile, BenchmarkTaskAnswerKey, EvaluationCaseInput } from "../src/evaluation/types.js";
 
@@ -162,6 +163,11 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
       errors.push(...warmIndexErrors);
       if (warmIndexErrors.length === 0) {
         checks.push(`validated warm-index-benchmark-cases.json (${warmIndexCases.length} cases)`);
+      }
+      const coverageErrors = validateWarmIndexBenchmarkSuiteCoverage(warmIndexCases as EvaluationCaseInput[]);
+      errors.push(...coverageErrors);
+      if (coverageErrors.length === 0) {
+        checks.push("validated warm-index benchmark suite coverage");
       }
     }
   }

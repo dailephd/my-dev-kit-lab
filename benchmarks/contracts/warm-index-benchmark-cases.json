@@ -48,6 +48,321 @@
     "notes": "v0.5.1 warm-index seed case grounded in the existing task-workflow-import-dedup behavior."
   },
   {
+    "id": "warm-medium-create-project-task",
+    "title": "Warm-index create task with project metadata",
+    "benchmarkProject": "task-workflow-medium-ts",
+    "projectProfileRef": "task-workflow-medium-ts",
+    "taskLocality": "cross-module",
+    "targetRoot": "benchmarks/projects/task-workflow-medium-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "create task validate project title priority tags normalize tags deterministic id",
+    "expectedFiles": [
+      "src/services/createTask.ts",
+      "src/validation/taskValidation.ts",
+      "src/store/taskStore.ts",
+      "src/utils/deterministicId.ts"
+    ],
+    "expectedSymbols": [
+      "createTask",
+      "validateTaskTitle",
+      "validateProjectId",
+      "normalizeTags",
+      "TaskWorkflowStore",
+      "createDeterministicId"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "src/services/createTask.ts",
+        "src/validation/taskValidation.ts",
+        "src/store/taskStore.ts",
+        "src/utils/deterministicId.ts"
+      ],
+      "expectedSymbols": [
+        "createTask",
+        "validateTaskTitle",
+        "validateProjectId",
+        "normalizeTags",
+        "TaskWorkflowStore",
+        "createDeterministicId"
+      ],
+      "expectedFacts": [
+        {
+          "id": "warm-medium-create-validates-title",
+          "text": "createTask validates the title with validateTaskTitle, which collapses whitespace and rejects an empty title with \"Task title must not be empty.\"",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-create-validates-project-before-storing",
+          "text": "createTask validates the projectId with validateProjectId and throws \"Unknown project id: <id>\" when the store has no such project, before the task is stored.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-create-normalizes-tags",
+          "text": "Tags are normalized with normalizeTags (trimmed, lowercased, empty values dropped, de-duplicated, and sorted) before the task is stored.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-create-uses-deterministic-sequence",
+          "text": "TaskWorkflowStore.createTask assigns the id with createDeterministicId(\"task\", sequence) from the store's shared incrementing sequence, producing ids such as task-1 and task-2.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-create-starts-incomplete",
+          "text": "A newly created task is stored with completed set to false.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 4,
+      "notes": "Cross-module: the create service composes validation, the store, and the deterministic id utility."
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "v0.5.1 warm-index medium case for task creation."
+  },
+  {
+    "id": "warm-medium-complete-idempotent",
+    "title": "Warm-index idempotent task completion",
+    "benchmarkProject": "task-workflow-medium-ts",
+    "projectProfileRef": "task-workflow-medium-ts",
+    "taskLocality": "localized",
+    "targetRoot": "benchmarks/projects/task-workflow-medium-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "complete task by id idempotent completedAt unknown task",
+    "expectedFiles": ["src/services/completeTask.ts", "src/store/taskStore.ts"],
+    "expectedSymbols": ["completeTask", "TaskWorkflowStore"],
+    "answerKey": {
+      "expectedFiles": ["src/services/completeTask.ts", "src/store/taskStore.ts"],
+      "expectedSymbols": ["completeTask", "TaskWorkflowStore"],
+      "expectedFacts": [
+        {
+          "id": "warm-medium-complete-targets-task-by-id",
+          "text": "completeTask(store, taskId) changes one task by id through TaskWorkflowStore.updateTask.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-complete-sets-completed-at",
+          "text": "The first completion sets completed to true and completedAt to \"2026-02-01T00:00:00.000Z\".",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-complete-is-idempotent",
+          "text": "When the task is already completed the updater returns it unchanged, so completing it again does not rewrite completedAt.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-complete-unknown-task-throws",
+          "text": "An unknown task id throws \"Unknown task id: <id>\" from TaskWorkflowStore.updateTask.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 3,
+      "notes": "Localized: the behavior lives in one service plus the store update primitive."
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "v0.5.1 warm-index medium localized case."
+  },
+  {
+    "id": "warm-medium-composite-filter",
+    "title": "Warm-index composite task filtering",
+    "benchmarkProject": "task-workflow-medium-ts",
+    "projectProfileRef": "task-workflow-medium-ts",
+    "taskLocality": "cross-module",
+    "targetRoot": "benchmarks/projects/task-workflow-medium-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "filter tasks project completed priority tag text query ordering",
+    "expectedFiles": ["src/services/filterTasks.ts", "src/models/task.ts", "src/store/taskStore.ts"],
+    "expectedSymbols": ["filterTasks", "TaskFilter", "TaskWorkflowStore"],
+    "answerKey": {
+      "expectedFiles": ["src/services/filterTasks.ts", "src/models/task.ts", "src/store/taskStore.ts"],
+      "expectedSymbols": ["filterTasks", "TaskFilter", "TaskWorkflowStore"],
+      "expectedFacts": [
+        {
+          "id": "warm-medium-filter-combines-active-predicates",
+          "text": "filterTasks keeps a task only when it satisfies every supplied TaskFilter field; fields that are not supplied do not filter.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-filter-project",
+          "text": "The projectId filter requires task.projectId to equal the requested project id.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-filter-completed-priority-tag",
+          "text": "The completed filter compares the boolean when defined, priority must match exactly, and the tag is trimmed and lowercased before checking task.tags.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-filter-text-query",
+          "text": "The query is trimmed and lowercased and matched as a substring of the lowercased title, notes, and tags joined with spaces.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-filter-read-only-ordering",
+          "text": "filterTasks only reads store.listTasks(), which returns task copies sorted by task id, and returns the matches in that order without mutating the store.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 4,
+      "notes": "Cross-module: filter semantics depend on the TaskFilter model and store listing order."
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "v0.5.1 warm-index medium case for composite filtering."
+  },
+  {
+    "id": "warm-medium-project-summary",
+    "title": "Warm-index workflow project summary",
+    "benchmarkProject": "task-workflow-medium-ts",
+    "projectProfileRef": "task-workflow-medium-ts",
+    "taskLocality": "cross-module",
+    "targetRoot": "benchmarks/projects/task-workflow-medium-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "summarize tasks total open completed per project high priority open",
+    "expectedFiles": [
+      "src/services/summarizeTasks.ts",
+      "src/store/taskStore.ts",
+      "src/models/task.ts",
+      "src/models/project.ts"
+    ],
+    "expectedSymbols": ["summarizeTasks", "TaskSummary", "TaskWorkflowStore", "WorkflowProject"],
+    "answerKey": {
+      "expectedFiles": [
+        "src/services/summarizeTasks.ts",
+        "src/store/taskStore.ts",
+        "src/models/task.ts",
+        "src/models/project.ts"
+      ],
+      "expectedSymbols": ["summarizeTasks", "TaskSummary", "TaskWorkflowStore", "WorkflowProject"],
+      "expectedFacts": [
+        {
+          "id": "warm-medium-summary-total-open-completed",
+          "text": "summarizeTasks reports total, completed, and open counts across all tasks, where open equals total minus completed.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-summary-by-project",
+          "text": "byProject holds total, completed, and open counts for every project returned by store.listProjects(), including zero counts for projects without tasks, plus any task projectId not registered as a project.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-summary-high-priority-open",
+          "text": "highPriorityOpenTitles lists the titles of tasks that are not completed and have priority \"high\".",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-summary-read-only",
+          "text": "summarizeTasks reads copies from store.listTasks() and store.listProjects() and does not mutate stored tasks.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 3,
+      "notes": "Cross-module: the summary combines the store with task and project models."
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "v0.5.1 warm-index medium case for project summaries."
+  },
+  {
+    "id": "warm-medium-broad-workflow-map",
+    "title": "Warm-index broad task workflow architecture map",
+    "benchmarkProject": "task-workflow-medium-ts",
+    "projectProfileRef": "task-workflow-medium-ts",
+    "taskLocality": "broad-change",
+    "targetRoot": "benchmarks/projects/task-workflow-medium-ts",
+    "sourceRoots": ["src", "tests"],
+    "query": "explain task creation import duplicate filtering completion summary validation store workflow",
+    "expectedFiles": [
+      "src/services/createTask.ts",
+      "src/services/importTasks.ts",
+      "src/services/filterTasks.ts",
+      "src/services/completeTask.ts",
+      "src/services/summarizeTasks.ts",
+      "src/store/taskStore.ts",
+      "src/validation/taskValidation.ts"
+    ],
+    "expectedSymbols": [
+      "createTask",
+      "importTasks",
+      "filterTasks",
+      "completeTask",
+      "summarizeTasks",
+      "TaskWorkflowStore",
+      "validateImportInput"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "src/services/createTask.ts",
+        "src/services/importTasks.ts",
+        "src/services/filterTasks.ts",
+        "src/services/completeTask.ts",
+        "src/services/summarizeTasks.ts",
+        "src/store/taskStore.ts",
+        "src/validation/taskValidation.ts"
+      ],
+      "expectedSymbols": [
+        "createTask",
+        "importTasks",
+        "filterTasks",
+        "completeTask",
+        "summarizeTasks",
+        "TaskWorkflowStore",
+        "validateImportInput"
+      ],
+      "expectedFacts": [
+        {
+          "id": "warm-medium-broad-shared-storage",
+          "text": "Both the createTask service and importTasks store new tasks through TaskWorkflowStore.createTask, sharing its deterministic task id sequence.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-broad-import-adds-dedupe",
+          "text": "importTasks validates each item with validateImportInput and skips duplicates found by TaskWorkflowStore.findDuplicate (same project and normalized title), recording their ids in skippedDuplicates; plain task creation does not deduplicate.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-broad-filter-read-only",
+          "text": "filterTasks reads store.listTasks() and returns matching tasks without changing workflow state.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-broad-complete-targeted",
+          "text": "completeTask changes a single task by id through TaskWorkflowStore.updateTask.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-medium-broad-summary-aggregates",
+          "text": "summarizeTasks aggregates counts from the current tasks and projects held by the store.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "forbiddenWrongClaims": ["importTasks calls the createTask service to insert imported tasks."],
+      "minimumCorrectFacts": 4,
+      "notes": "Deliberately wide-scope negative control spanning every workflow service; it is not expected to fit a small localized context."
+    },
+    "rawIncludeGlobs": ["src/**/*", "tests/**/*"],
+    "notes": "v0.5.1 warm-index medium broad-change negative control."
+  },
+  {
     "id": "warm-large-health-label",
     "title": "Warm-index task analytics health label retrieval",
     "benchmarkProject": "task-analytics-large-mixed",
@@ -116,5 +431,334 @@
     },
     "rawIncludeGlobs": ["ts/src/**/*", "ts/tests/**/*", "py/task_analytics/**/*", "py/tests/**/*"],
     "notes": "v0.5.1 warm-index seed case grounded in the existing task-analytics-health-label behavior."
+  },
+  {
+    "id": "warm-large-ts-analytics-snapshot",
+    "title": "Warm-index TypeScript analytics snapshot",
+    "benchmarkProject": "task-analytics-large-mixed",
+    "projectProfileRef": "task-analytics-large-mixed",
+    "taskLocality": "cross-module",
+    "targetRoot": "benchmarks/projects/task-analytics-large-mixed",
+    "sourceRoots": ["ts/src", "ts/tests", "py/task_analytics", "py/tests"],
+    "query": "analytics snapshot project completion rate stale tasks average story points task store",
+    "expectedFiles": [
+      "ts/src/services/buildAnalyticsSnapshot.ts",
+      "ts/src/services/listTasksByProject.ts",
+      "ts/src/models/analyticsSnapshot.ts",
+      "ts/src/store/taskStore.ts"
+    ],
+    "expectedSymbols": ["buildAnalyticsSnapshot", "listTasksByProject", "ProjectSnapshot", "AnalyticsTaskStore"],
+    "answerKey": {
+      "expectedFiles": [
+        "ts/src/services/buildAnalyticsSnapshot.ts",
+        "ts/src/services/listTasksByProject.ts",
+        "ts/src/models/analyticsSnapshot.ts",
+        "ts/src/store/taskStore.ts"
+      ],
+      "expectedSymbols": ["buildAnalyticsSnapshot", "listTasksByProject", "ProjectSnapshot", "AnalyticsTaskStore"],
+      "expectedFacts": [
+        {
+          "id": "warm-large-snapshot-per-project-counts",
+          "text": "For each project from ProjectStore.list(), buildAnalyticsSnapshot loads the project's tasks with listTasksByProject (AnalyticsTaskStore.list() filtered by projectId) and records totalTasks, completedTasks, and openTasks as totalTasks minus completedTasks.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-snapshot-completion-rate-formula",
+          "text": "completionRate is completedTasks divided by totalTasks times 100, rounded to two decimals with Math.round(value * 100) / 100.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-snapshot-stale-condition",
+          "text": "staleTasks counts only incomplete tasks whose currentDay minus updatedDay is at least STALE_DAY_THRESHOLD (10).",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-snapshot-empty-project",
+          "text": "A project with no tasks gets zero counts, completionRate 0, and averageStoryPoints 0; otherwise averageStoryPoints is the mean story points rounded to two decimals.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-snapshot-totals-aggregate",
+          "text": "The snapshot totals sum totalTasks, completedTasks, openTasks, and staleTasks across the per-project snapshots.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 4,
+      "notes": "Cross-module: the snapshot service composes the task-listing service, the task store, and the snapshot model."
+    },
+    "rawIncludeGlobs": ["ts/src/**/*", "ts/tests/**/*", "py/task_analytics/**/*", "py/tests/**/*"],
+    "notes": "v0.5.1 warm-index large case for the TypeScript analytics snapshot."
+  },
+  {
+    "id": "warm-large-ts-leaderboard",
+    "title": "Warm-index deterministic project leaderboard",
+    "benchmarkProject": "task-analytics-large-mixed",
+    "projectProfileRef": "task-analytics-large-mixed",
+    "taskLocality": "localized",
+    "targetRoot": "benchmarks/projects/task-analytics-large-mixed",
+    "sourceRoots": ["ts/src", "ts/tests", "py/task_analytics", "py/tests"],
+    "query": "project leaderboard completion rate stale tasks tie break project id ranking",
+    "expectedFiles": ["ts/src/reporting/buildProjectLeaderboard.ts", "ts/src/models/analyticsSnapshot.ts"],
+    "expectedSymbols": ["buildProjectLeaderboard", "ProjectSnapshot"],
+    "answerKey": {
+      "expectedFiles": ["ts/src/reporting/buildProjectLeaderboard.ts", "ts/src/models/analyticsSnapshot.ts"],
+      "expectedSymbols": ["buildProjectLeaderboard", "ProjectSnapshot"],
+      "expectedFacts": [
+        {
+          "id": "warm-large-leaderboard-completion-rate-descending",
+          "text": "buildProjectLeaderboard sorts a copy of snapshot.projects by completionRate in descending order.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-leaderboard-stale-ascending",
+          "text": "Ties on completionRate are broken by staleTasks in ascending order.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-leaderboard-project-id-final",
+          "text": "Remaining ties are broken by projectId in ascending localeCompare order.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-leaderboard-one-based-ranks",
+          "text": "Each line is formatted as \"<rank>. <projectId> (<completionRate>% complete, <staleTasks> stale)\" with ranks starting at 1.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 3,
+      "notes": "Localized: the ranking rule lives in one reporting function over the ProjectSnapshot model."
+    },
+    "rawIncludeGlobs": ["ts/src/**/*", "ts/tests/**/*", "py/task_analytics/**/*", "py/tests/**/*"],
+    "notes": "v0.5.1 warm-index large localized case."
+  },
+  {
+    "id": "warm-large-python-parser-metrics",
+    "title": "Warm-index Python parser and project metrics",
+    "benchmarkProject": "task-analytics-large-mixed",
+    "projectProfileRef": "task-analytics-large-mixed",
+    "taskLocality": "cross-module",
+    "targetRoot": "benchmarks/projects/task-analytics-large-mixed",
+    "sourceRoots": ["ts/src", "ts/tests", "py/task_analytics", "py/tests"],
+    "query": "parse task rows calculate project metrics completion open stale story points",
+    "expectedFiles": ["py/task_analytics/parser.py", "py/task_analytics/models.py", "py/task_analytics/metrics.py"],
+    "expectedSymbols": ["parse_task_rows", "TaskRecord", "calculate_project_metrics", "ProjectMetrics"],
+    "answerKey": {
+      "expectedFiles": ["py/task_analytics/parser.py", "py/task_analytics/models.py", "py/task_analytics/metrics.py"],
+      "expectedSymbols": ["parse_task_rows", "TaskRecord", "calculate_project_metrics", "ProjectMetrics"],
+      "expectedFacts": [
+        {
+          "id": "warm-large-python-parser-task-record",
+          "text": "parse_task_rows converts each row into a TaskRecord with task_id and project_id as str, completed as bool, and story_points and updated_day as int.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-python-metrics-grouped-by-project",
+          "text": "calculate_project_metrics groups tasks by project_id and returns one ProjectMetrics per project in sorted project_id order.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-python-metrics-counts",
+          "text": "open_tasks is total_tasks minus completed_tasks, and stale_tasks counts incomplete tasks whose current_day minus updated_day is at least STALE_DAY_THRESHOLD (10).",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-python-metrics-completion-rate",
+          "text": "completion_rate is round((completed / total) * 100, 2), or 0.0 when a project has no tasks.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-python-metrics-average-story-points",
+          "text": "average_story_points is the mean story_points rounded with round(..., 2), or 0.0 when a project has no tasks.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 4,
+      "notes": "Cross-module: parsing, the record models, and metric calculation live in separate Python modules."
+    },
+    "rawIncludeGlobs": ["ts/src/**/*", "ts/tests/**/*", "py/task_analytics/**/*", "py/tests/**/*"],
+    "notes": "v0.5.1 warm-index large case for Python parsing and metrics."
+  },
+  {
+    "id": "warm-large-python-pipeline",
+    "title": "Warm-index Python analytics report pipeline",
+    "benchmarkProject": "task-analytics-large-mixed",
+    "projectProfileRef": "task-analytics-large-mixed",
+    "taskLocality": "cross-module",
+    "targetRoot": "benchmarks/projects/task-analytics-large-mixed",
+    "sourceRoots": ["ts/src", "ts/tests", "py/task_analytics", "py/tests"],
+    "query": "pipeline parse rows project metrics quality label health report",
+    "expectedFiles": [
+      "py/task_analytics/pipeline.py",
+      "py/task_analytics/parser.py",
+      "py/task_analytics/metrics.py",
+      "py/task_analytics/quality.py",
+      "py/task_analytics/reporting.py"
+    ],
+    "expectedSymbols": [
+      "build_report_from_rows",
+      "parse_task_rows",
+      "calculate_project_metrics",
+      "determine_quality_label",
+      "build_health_report"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "py/task_analytics/pipeline.py",
+        "py/task_analytics/parser.py",
+        "py/task_analytics/metrics.py",
+        "py/task_analytics/quality.py",
+        "py/task_analytics/reporting.py"
+      ],
+      "expectedSymbols": [
+        "build_report_from_rows",
+        "parse_task_rows",
+        "calculate_project_metrics",
+        "determine_quality_label",
+        "build_health_report"
+      ],
+      "expectedFacts": [
+        {
+          "id": "warm-large-pipeline-parses-first",
+          "text": "build_report_from_rows(rows, current_day) first parses the rows with parse_task_rows.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-pipeline-metrics-before-report",
+          "text": "The parsed tasks go to calculate_project_metrics(tasks, current_day), and the resulting metrics go to build_health_report.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-pipeline-quality-label-in-report",
+          "text": "build_health_report calls determine_quality_label for each metric, which returns empty, healthy, watch, or risk from total_tasks, completion_rate, and stale_tasks thresholds.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-pipeline-deterministic-output",
+          "text": "The report is one line per project, \"<project_id>: <label> | completion=<rate>% | open=<n> | stale=<n>\", joined by newlines in sorted project_id order, so fixed rows and current_day produce the same output.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-pipeline-composes-owners",
+          "text": "pipeline.py only composes parse_task_rows, calculate_project_metrics, and build_health_report; quality rules stay in quality.py and are reached through reporting.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 4,
+      "notes": "Cross-module: the pipeline composes parser, metrics, reporting, and (through reporting) quality modules."
+    },
+    "rawIncludeGlobs": ["ts/src/**/*", "ts/tests/**/*", "py/task_analytics/**/*", "py/tests/**/*"],
+    "notes": "v0.5.1 warm-index large case for the Python report pipeline."
+  },
+  {
+    "id": "warm-large-broad-analytics-comparison",
+    "title": "Warm-index broad TypeScript and Python analytics comparison",
+    "benchmarkProject": "task-analytics-large-mixed",
+    "projectProfileRef": "task-analytics-large-mixed",
+    "taskLocality": "broad-change",
+    "targetRoot": "benchmarks/projects/task-analytics-large-mixed",
+    "sourceRoots": ["ts/src", "ts/tests", "py/task_analytics", "py/tests"],
+    "query": "compare TypeScript and Python project analytics snapshot metrics quality reporting pipeline leaderboard",
+    "expectedFiles": [
+      "ts/src/services/buildAnalyticsSnapshot.ts",
+      "ts/src/reporting/formatTaskHealthReport.ts",
+      "ts/src/reporting/buildProjectLeaderboard.ts",
+      "py/task_analytics/parser.py",
+      "py/task_analytics/metrics.py",
+      "py/task_analytics/quality.py",
+      "py/task_analytics/reporting.py",
+      "py/task_analytics/pipeline.py"
+    ],
+    "expectedSymbols": [
+      "buildAnalyticsSnapshot",
+      "formatTaskHealthReport",
+      "buildProjectLeaderboard",
+      "parse_task_rows",
+      "calculate_project_metrics",
+      "determine_quality_label",
+      "build_health_report",
+      "build_report_from_rows"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "ts/src/services/buildAnalyticsSnapshot.ts",
+        "ts/src/reporting/formatTaskHealthReport.ts",
+        "ts/src/reporting/buildProjectLeaderboard.ts",
+        "py/task_analytics/parser.py",
+        "py/task_analytics/metrics.py",
+        "py/task_analytics/quality.py",
+        "py/task_analytics/reporting.py",
+        "py/task_analytics/pipeline.py"
+      ],
+      "expectedSymbols": [
+        "buildAnalyticsSnapshot",
+        "formatTaskHealthReport",
+        "buildProjectLeaderboard",
+        "parse_task_rows",
+        "calculate_project_metrics",
+        "determine_quality_label",
+        "build_health_report",
+        "build_report_from_rows"
+      ],
+      "expectedFacts": [
+        {
+          "id": "warm-large-broad-typescript-side",
+          "text": "The TypeScript side builds analytics snapshots with buildAnalyticsSnapshot and presents them through formatTaskHealthReport, which uses buildProjectLeaderboard for ranking.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-broad-python-side",
+          "text": "The Python side parses rows (parse_task_rows), derives project metrics (calculate_project_metrics), assigns quality labels (determine_quality_label), and builds reports (build_health_report), composed by build_report_from_rows.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-broad-comparable-evidence",
+          "text": "Both sides expose comparable per-project health evidence: total, completed, open, and stale task counts plus a completion rate rounded to two decimals, using a stale threshold of 10 days.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-broad-independent-implementations",
+          "text": "The TypeScript and Python code are independent parallel benchmark implementations, not a runtime TypeScript-to-Python call chain.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "warm-large-broad-no-cross-invocation",
+          "text": "Neither implementation imports, spawns, or calls the other; TypeScript imports stay within ts/src and Python imports stay within the task_analytics package.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "forbiddenWrongClaims": [
+        "The TypeScript implementation invokes the Python analytics pipeline.",
+        "Python is a runtime backend for the TypeScript analytics implementation.",
+        "The TypeScript or Python implementation directly imports or calls the other."
+      ],
+      "minimumCorrectFacts": 4,
+      "notes": "Deliberately wide-scope negative control spanning both language implementations; it is not expected to fit a small localized context."
+    },
+    "rawIncludeGlobs": ["ts/src/**/*", "ts/tests/**/*", "py/task_analytics/**/*", "py/tests/**/*"],
+    "notes": "v0.5.1 warm-index large broad-change negative control."
   }
 ]

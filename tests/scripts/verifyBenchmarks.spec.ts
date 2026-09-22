@@ -22,10 +22,13 @@ describe("verify-benchmarks", () => {
     const result = validateBenchmarks(process.cwd());
     expect(result.errors).toEqual([]);
     expect(result.checks).toContain("parsed todo-benchmark-case.json");
-    expect(result.checks).toContain("validated warm-index-benchmark-cases.json (2 cases)");
+    expect(result.checks).toContain("validated warm-index-benchmark-cases.json (12 cases)");
+    expect(result.checks).toContain("validated warm-index benchmark suite coverage");
   });
 
-  it("fails when the warm-index benchmark corpus is invalid", () => {
+  function copyBenchmarksWithWarmIndexCases(
+    mutate: (cases: Array<Record<string, unknown>>) => Array<Record<string, unknown>>
+  ): string {
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "my-dev-kit-lab-"));
     tempDirs.push(tempRoot);
     const contractsDir = path.join(tempRoot, "benchmarks", "contracts");
@@ -37,14 +40,42 @@ describe("verify-benchmarks", () => {
     const warmIndexCases = JSON.parse(
       readFileSync(path.join(process.cwd(), "benchmarks", "contracts", "warm-index-benchmark-cases.json"), "utf8")
     ) as Array<Record<string, unknown>>;
-    delete warmIndexCases[0].taskLocality;
-    writeFileSync(path.join(contractsDir, "warm-index-benchmark-cases.json"), JSON.stringify(warmIndexCases));
+    writeFileSync(path.join(contractsDir, "warm-index-benchmark-cases.json"), JSON.stringify(mutate(warmIndexCases)));
+    return tempRoot;
+  }
+
+  it("fails when the warm-index benchmark corpus is invalid", () => {
+    const tempRoot = copyBenchmarksWithWarmIndexCases((cases) => {
+      delete cases[0].taskLocality;
+      return cases;
+    });
 
     const result = validateBenchmarks(tempRoot);
     expect(result.ok).toBe(false);
     expect(result.errors).toEqual([
       "warm-index case warm-medium-import-dedupe: missing taskLocality; expected one of localized, cross-module, broad-change."
     ]);
+  });
+
+  it("fails when a required warm-index project falls below the minimum suite size", () => {
+    const tempRoot = copyBenchmarksWithWarmIndexCases((cases) =>
+      cases.filter((benchmarkCase) => !["warm-medium-composite-filter", "warm-medium-project-summary"].includes(benchmarkCase.id as string))
+    );
+
+    const result = validateBenchmarks(tempRoot);
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("warm-index suite: project task-workflow-medium-ts has 4 cases; at least 5 are required.");
+    expect(result.checks).not.toContain("validated warm-index benchmark suite coverage");
+  });
+
+  it("fails when a required warm-index project loses its broad-change control", () => {
+    const tempRoot = copyBenchmarksWithWarmIndexCases((cases) =>
+      cases.filter((benchmarkCase) => benchmarkCase.id !== "warm-large-broad-analytics-comparison")
+    );
+
+    const result = validateBenchmarks(tempRoot);
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("warm-index suite: project task-analytics-large-mixed has no broad-change case.");
   });
 
   it("fails when the warm-index benchmark corpus is missing", () => {

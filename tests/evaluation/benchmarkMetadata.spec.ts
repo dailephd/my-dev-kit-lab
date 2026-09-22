@@ -2,13 +2,17 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  MIN_WARM_INDEX_TASKS_PER_PROJECT,
+  REQUIRED_WARM_INDEX_BENCHMARK_PROJECT_IDS,
   deriveWarmIndexTaskStats,
   readBenchmarkProjectProfiles,
   validateBenchmarkProjectProfiles,
-  validateWarmIndexBenchmarkCases
+  validateWarmIndexBenchmarkCases,
+  validateWarmIndexBenchmarkSuiteCoverage
 } from "../../src/evaluation/benchmarkMetadata.js";
 import { calculateProjectComplexityScore } from "../../src/evaluation/projectComplexity.js";
-import type { BenchmarkProjectProfile, EvaluationCaseInput } from "../../src/evaluation/types.js";
+import { TASK_LOCALITIES } from "../../src/evaluation/types.js";
+import type { BenchmarkProjectProfile, EvaluationCaseInput, TaskLocality } from "../../src/evaluation/types.js";
 
 describe("benchmark metadata helpers", () => {
   it("reads benchmark project profiles", async () => {
@@ -171,7 +175,9 @@ describe("warm-index benchmark corpus validation", () => {
 
   it("accepts a reordered source-root layout that still covers every profile root", async () => {
     const errors = await validateMutated((cases) => {
-      large(cases).sourceRoots = ["py/tests", "py/task_analytics", "ts/tests", "ts/src"];
+      for (const benchmarkCase of cases.filter((candidate) => candidate.benchmarkProject === "task-analytics-large-mixed")) {
+        benchmarkCase.sourceRoots = ["py/tests", "py/task_analytics", "ts/tests", "ts/src"];
+      }
     });
     expect(errors).toEqual([]);
   });
@@ -269,42 +275,105 @@ describe("warm-index benchmark corpus validation", () => {
     });
   });
 
-  it("derives the current seed statistics that match the project profiles", async () => {
-    const cases = readWarmIndexCases();
-    const profiles = await readProfiles();
-    const mediumStats = deriveWarmIndexTaskStats(cases, "task-workflow-medium-ts");
-    const largeStats = deriveWarmIndexTaskStats(cases, "task-analytics-large-mixed");
-    expect(mediumStats).toEqual({ taskCount: 1, expectedRelevantFilesAverage: 3, expectedRelevantSymbolsAverage: 4 });
-    expect(largeStats).toEqual({ taskCount: 1, expectedRelevantFilesAverage: 5, expectedRelevantSymbolsAverage: 5 });
-    for (const [projectId, stats] of [
-      ["task-workflow-medium-ts", mediumStats],
-      ["task-analytics-large-mixed", largeStats]
-    ] as const) {
-      const metrics = profiles.find((profile) => profile.projectId === projectId)!.complexityMetrics;
-      expect({
-        taskCount: metrics.taskCount,
-        expectedRelevantFilesAverage: metrics.expectedRelevantFilesAverage,
-        expectedRelevantSymbolsAverage: metrics.expectedRelevantSymbolsAverage
-      }).toEqual(stats);
-    }
+  it.each([
+    ["task-workflow-medium-ts", { taskCount: 6, expectedRelevantFilesAverage: 3.83, expectedRelevantSymbolsAverage: 4.33 }, 31],
+    ["task-analytics-large-mixed", { taskCount: 6, expectedRelevantFilesAverage: 4.5, expectedRelevantSymbolsAverage: 4.67 }, 47]
+  ] as const)("derives %s corpus statistics that match its profile and formula score", async (projectId, expectedStats, expectedScore) => {
+    const stats = deriveWarmIndexTaskStats(readWarmIndexCases(), projectId);
+    expect(stats).toEqual(expectedStats);
+    const profile = (await readProfiles()).find((candidate) => candidate.projectId === projectId)!;
+    expect({
+      taskCount: profile.complexityMetrics.taskCount,
+      expectedRelevantFilesAverage: profile.complexityMetrics.expectedRelevantFilesAverage,
+      expectedRelevantSymbolsAverage: profile.complexityMetrics.expectedRelevantSymbolsAverage
+    }).toEqual(stats);
+    expect(profile.complexityScore).toBe(expectedScore);
+    expect(calculateProjectComplexityScore(profile.complexityMetrics)).toBe(expectedScore);
   });
 
   it.each([
-    ["taskCount", 2, "profile task-workflow-medium-ts: complexityMetrics.taskCount 2 does not match warm-index corpus value 1."],
+    ["taskCount", 5, "profile task-workflow-medium-ts: complexityMetrics.taskCount 5 does not match warm-index corpus value 6."],
     [
       "expectedRelevantFilesAverage",
       3.5,
-      "profile task-workflow-medium-ts: complexityMetrics.expectedRelevantFilesAverage 3.5 does not match warm-index corpus value 3."
+      "profile task-workflow-medium-ts: complexityMetrics.expectedRelevantFilesAverage 3.5 does not match warm-index corpus value 3.83."
     ],
     [
       "expectedRelevantSymbolsAverage",
       4.5,
-      "profile task-workflow-medium-ts: complexityMetrics.expectedRelevantSymbolsAverage 4.5 does not match warm-index corpus value 4."
+      "profile task-workflow-medium-ts: complexityMetrics.expectedRelevantSymbolsAverage 4.5 does not match warm-index corpus value 4.33."
     ]
   ] as const)("rejects profile %s drift from the corpus", async (field, value, message) => {
     const errors = await validateMutated((_cases, profiles) => {
       profiles.find((profile) => profile.projectId === "task-workflow-medium-ts")!.complexityMetrics[field] = value;
     });
     expect(errors).toEqual([message]);
+  });
+});
+
+describe("warm-index benchmark suite coverage", () => {
+  const coverageCase = (projectId: string, index: number, taskLocality: TaskLocality): EvaluationCaseInput => ({
+    ...syntheticCase(projectId, 1, 1),
+    id: `${projectId}-${index}`,
+    taskLocality
+  });
+  const coveredProject = (projectId: string, count = 5): EvaluationCaseInput[] =>
+    Array.from({ length: count }, (_, index) =>
+      coverageCase(projectId, index, index === 0 ? "localized" : index === count - 1 ? "broad-change" : "cross-module")
+    );
+
+  it("requires the medium and large warm-index projects with a minimum of five tasks", () => {
+    expect([...REQUIRED_WARM_INDEX_BENCHMARK_PROJECT_IDS]).toEqual(["task-workflow-medium-ts", "task-analytics-large-mixed"]);
+    expect(MIN_WARM_INDEX_TASKS_PER_PROJECT).toBe(5);
+  });
+
+  it("accepts the production corpus", () => {
+    expect(validateWarmIndexBenchmarkSuiteCoverage(readWarmIndexCases())).toEqual([]);
+  });
+
+  it("accepts the minimum and larger project suites", () => {
+    expect(
+      validateWarmIndexBenchmarkSuiteCoverage([
+        ...coveredProject("task-workflow-medium-ts", 5),
+        ...coveredProject("task-analytics-large-mixed", 9)
+      ])
+    ).toEqual([]);
+  });
+
+  it.each(["task-workflow-medium-ts", "task-analytics-large-mixed"])("rejects %s with only four cases", (projectId) => {
+    const cases = [
+      ...coveredProject("task-workflow-medium-ts"),
+      ...coveredProject("task-analytics-large-mixed")
+    ].filter((benchmarkCase) => benchmarkCase.benchmarkProject !== projectId);
+    cases.push(...coveredProject(projectId, 4));
+    expect(validateWarmIndexBenchmarkSuiteCoverage(cases)).toEqual([
+      `warm-index suite: project ${projectId} has 4 cases; at least 5 are required.`
+    ]);
+  });
+
+  it.each(TASK_LOCALITIES.map((locality) => [locality]))("rejects a required project without any %s case", (locality) => {
+    const replacement: TaskLocality = locality === "cross-module" ? "localized" : "cross-module";
+    const medium = coveredProject("task-workflow-medium-ts").map((benchmarkCase) =>
+      benchmarkCase.taskLocality === locality ? { ...benchmarkCase, taskLocality: replacement } : benchmarkCase
+    );
+    expect(validateWarmIndexBenchmarkSuiteCoverage([...medium, ...coveredProject("task-analytics-large-mixed")])).toEqual([
+      `warm-index suite: project task-workflow-medium-ts has no ${locality} case.`
+    ]);
+  });
+
+  it.each(["task-workflow-medium-ts", "task-analytics-large-mixed"])("rejects a corpus missing %s", (projectId) => {
+    const cases = [...coveredProject("task-workflow-medium-ts"), ...coveredProject("task-analytics-large-mixed")].filter(
+      (benchmarkCase) => benchmarkCase.benchmarkProject !== projectId
+    );
+    expect(validateWarmIndexBenchmarkSuiteCoverage(cases)).toEqual([`warm-index suite: missing required benchmark project ${projectId}.`]);
+  });
+
+  it("does not apply suite coverage to other benchmark projects", () => {
+    const cases = [
+      ...coveredProject("task-workflow-medium-ts"),
+      ...coveredProject("task-analytics-large-mixed"),
+      coverageCase("todo-ts", 0, "localized")
+    ];
+    expect(validateWarmIndexBenchmarkSuiteCoverage(cases)).toEqual([]);
   });
 });
