@@ -4,7 +4,9 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-Expanded warm-index benchmark suite (implemented; not yet released).
+## [0.5.1] - 2026-09-22
+
+Expanded warm-index benchmark suite.
 
 - Added the dedicated warm-index benchmark corpus `benchmarks/contracts/warm-index-benchmark-cases.json` with 12 tasks: six for `task-workflow-medium-ts` and six for `task-analytics-large-mixed`. Each project has one localized task, four cross-module tasks, and one broad-change negative control.
 - Added optional task-locality metadata (`localized`, `cross-module`, `broad-change`) to evaluation cases. Existing case files without it stay valid, invalid values are rejected, and the dedicated corpus requires it.

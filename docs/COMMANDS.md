@@ -218,7 +218,7 @@ Behavior:
 - `--kit-command` is rejected for `context-strategy-comparison`
 - outputs beneath the output root: `warm-index-execution.json` (bounded execution evidence), `indexes/<project>/`, `commands/<project>/`, `agents/<project>/<case>/<variant>/`, and the plugin reports `report.json`, `report.txt`, and `report.html` with a warm-index reuse section
 - the run status is `completed`, `partial`, `failed`, or `skipped` from actual outcomes; a failed project index keeps raw evidence and records failed warm outcomes; the command exits `1` when the run status is `failed` or the arguments/configuration are invalid, and `0` otherwise
-- the default cases file has one task per benchmark project; to exercise multi-task reuse, select the dedicated expanded benchmark corpus (implemented, unreleased v0.5.1 checkout) with `--cases benchmarks/contracts/warm-index-benchmark-cases.json`, which holds six tasks each for `task-workflow-medium-ts` and `task-analytics-large-mixed`
+- the default cases file has one task per benchmark project; to exercise multi-task reuse, select the dedicated expanded benchmark corpus released in v0.5.1 with `--cases benchmarks/contracts/warm-index-benchmark-cases.json`, which holds six tasks each for `task-workflow-medium-ts` and `task-analytics-large-mixed`
 - corpus cases carry `taskLocality` benchmark metadata (`localized`, `cross-module`, `broad-change`); it does not change execution, and there is no locality selection option — use `--case` or `--benchmark-project` to narrow a run
 
 ```text

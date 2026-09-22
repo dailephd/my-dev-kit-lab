@@ -120,7 +120,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers `context-strategy-comparison` and `warm-index-reuse` (released in v0.5.0; see "Warm-index reuse architecture" below). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers `context-strategy-comparison` and `warm-index-reuse` (introduced in v0.5.0; see "Warm-index reuse architecture" below). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -197,7 +197,7 @@ Invariants and boundaries:
 
 ## Expanded warm-index benchmark suite (v0.5.1)
 
-Implemented and unreleased. v0.5.1 extends the benchmark/evaluation contract layer; it does not change the warm-index runtime described above, which stays authoritative and handles any ordered set of tasks grouped by project.
+Released in v0.5.1. v0.5.1 extends the benchmark/evaluation contract layer; it does not change the warm-index runtime described above, which stays authoritative and handles any ordered set of tasks grouped by project.
 
 ```mermaid
 flowchart LR
@@ -551,7 +551,7 @@ The following layers remain planned and must not be treated as current behavior:
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
-- real-agent warm-index campaigns with screenshots/gallery output (`v0.5.2`); the expanded warm-index benchmark suite (`v0.5.1`) is implemented and unreleased, see "Expanded warm-index benchmark suite (v0.5.1)" above
+- real-agent warm-index campaigns with screenshots/gallery output (`v0.5.2`); the expanded warm-index benchmark suite (`v0.5.1`) is released, see "Expanded warm-index benchmark suite (v0.5.1)" above
 - additional experiment plugins for freshness, scale, retrieval quality, and agent success (`v0.6.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
@@ -620,7 +620,7 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.5.0 warm-index metrics (released) | `src/experiments/plugins/warmIndexReuse/metrics.ts` |
 | v0.5.0 warm-index report section (released) | `src/report/experiments/warmIndexReuseReportModel.ts`, `buildWarmIndexReuseReport.ts`, `renderWarmIndexReuseHtml.ts` |
 | v0.5.0 warm-index plot data (released) | `src/plots/buildWarmIndexPlotData.ts` |
-| v0.5.1 task-locality vocabulary and optional case field (implemented, unreleased) | `src/evaluation/types.ts` (`TASK_LOCALITIES`, `TaskLocality`, `EvaluationCaseInput.taskLocality`) |
-| v0.5.1 warm-index corpus, suite-coverage, and task-stat validation (implemented, unreleased) | `src/evaluation/benchmarkMetadata.ts` (`validateWarmIndexBenchmarkCases`, `validateWarmIndexBenchmarkSuiteCoverage`, `deriveWarmIndexTaskStats`) |
-| v0.5.1 dedicated warm-index benchmark corpus and project profiles (implemented, unreleased) | `benchmarks/contracts/warm-index-benchmark-cases.json`, `benchmarks/contracts/benchmark-project-profiles.json` |
-| v0.5.1 benchmark and packed-package acceptance (implemented, unreleased) | `scripts/verify-benchmarks.ts`, `scripts/verify-packed-package.mjs` |
+| v0.5.1 task-locality vocabulary and optional case field (released) | `src/evaluation/types.ts` (`TASK_LOCALITIES`, `TaskLocality`, `EvaluationCaseInput.taskLocality`) |
+| v0.5.1 warm-index corpus, suite-coverage, and task-stat validation (released) | `src/evaluation/benchmarkMetadata.ts` (`validateWarmIndexBenchmarkCases`, `validateWarmIndexBenchmarkSuiteCoverage`, `deriveWarmIndexTaskStats`) |
+| v0.5.1 dedicated warm-index benchmark corpus and project profiles (released) | `benchmarks/contracts/warm-index-benchmark-cases.json`, `benchmarks/contracts/benchmark-project-profiles.json` |
+| v0.5.1 benchmark and packed-package acceptance (released) | `scripts/verify-benchmarks.ts`, `scripts/verify-packed-package.mjs` |
