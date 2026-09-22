@@ -8,7 +8,7 @@ This document records the repository's operational state. It is the source of tr
 - Package version: `0.5.0`
 - Latest release: `v0.5.0` (warm-index reuse experiment support; previous release: `v0.4.9`)
 - Previous release: `v0.4.9` (semantic native-select option selection for browser tutorials)
-- `v0.5.0` status: published/current (release prepared; publication remains a separately authorized workflow)
+- `v0.5.0` status: published/current; the release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Active planned version (next product version after current `v0.5.0`): `v0.5.1` (expanded warm-index benchmark suite)
@@ -19,13 +19,13 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 ## Operational state
 
-- Current branch: `release/v0.5.0` (prepared release branch; `main` remains at the prior merged state until publication merge)
+- Current branch: `main` (`v0.5.0` is merged and published; `v0.5.1` planning is next).
 - `v0.4.8` release branch: `release/v0.4.8` (merged to `main`)
 - `v0.4.7` release branch: `release/v0.4.7` (merged to main)
 - Historical implementation branch: `feature/v0.4.8-pointer-gestures`
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
-- Workflow stage: `v0.5.0` release preparation is complete; release-branch validation passed, and publication remains separately authorized.
+- Workflow stage: `v0.5.0` publication is complete. The repository is back on `main`; the next product-development stage is `v0.5.1` planning and implementation.
 - Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
 - Validation result (v0.4.6, published): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run security:validate`, `npm run audit`, `npm run verify:packed-package`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the pre-release latest-Node readiness workflow passed on Ubuntu/macOS/Windows; see "Validation state" below for the exact gates run.
 - Validation result (v0.4.7, published): local validation (`docs:check`, `typecheck`, `build`, `test:tutorial-browser`, `test`, `verify`, `verify:packed-package`, `audit`, `security:validate`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; dedicated latest-Node readiness workflow passed; package dry-run and packed-package inspection verified.
@@ -33,9 +33,9 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Validation result (v0.4.9, released): implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`. Local validation (`npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run test:tutorial-browser`, `npm test` [379 files, 4716 passed, 1 skipped, 0 failed], `npm run verify`, `npm run verify:packed-package`, and the focused tutorial regressions at 176/176) passed on that commit. The real-browser proof ran unskipped against real Chromium, and exact packed-package acceptance passed including the new `TUTORIAL_SELECT_OPTION` gate alongside `TUTORIAL_VALIDATE`, `TUTORIAL_BROWSER_UNAVAILABLE`, `TUTORIAL_REAL_EXECUTION`, `TUTORIAL_POINTER_CLICK`, `TUTORIAL_POINTER_DRAG`, `PACKAGED_EXAMPLE_IMMUTABILITY`, `INSTALLED_PACKAGE_IMMUTABILITY`, and `TARGET_IMMUTABILITY`. Ordinary CI run `35534283937` passed all six jobs on that exact commit: Ubuntu, macOS, and Windows on Node 24 and Node latest. A bounded read-only downstream check returned `PASS_OBSERVER_NATIVE_SELECT_COMPATIBILITY`.
 - Release blockers for the published `v0.4.9`: none. The downstream portability defect discovered during `my-frontend-observer` v0.9 release readiness — native HTML `<select>` controls needing semantic value selection instead of keyboard navigation — is resolved by the released `v0.4.9` `select-option` action. Observer's separate tutorial-pacing mismatch and `contractClass` readiness-verifier crash remain Observer-owned and were not changed.
 - Readiness evidence (v0.4.9, historical): pre-release readiness completed with no release blockers before publication. Validated candidate SHA `460bd7f16789f3e5b01d09bfd8a75782276fd2a7`; ordinary CI run `35536424389` (six jobs, Ubuntu/macOS/Windows × Node 24/latest); dedicated readiness run `35537940989` (Ubuntu, macOS, and Windows on Node latest, all succeeded on that exact SHA); local readiness PASS; release blockers 0. Evidence is recorded in [reports/v0.4.9-pre-release-readiness.md](reports/v0.4.9-pre-release-readiness.md).
-- Implementation blockers for `v0.5.0`: none known. Documentation-reconciliation blockers: none. Release-preparation blockers: none.
-- Validation result (v0.5.0, release preparation): local validation passed; full tests passed; security and audit validation found no release blocker; packed-package acceptance passed; standard cross-platform CI passed; latest-Node readiness passed across Ubuntu, macOS, and Windows.
-- Exact next action: wait for explicit authorization before the separate GitHub release and final npm publication workflow.
+- Release blockers for published `v0.5.0`: none. Implementation, documentation reconciliation, pre-release readiness, release preparation, GitHub release, tag, and npm publication are complete.
+- Validation result (v0.5.0, published): local validation passed; full tests passed; security and audit validation found no release blocker; packed-package acceptance passed; standard cross-platform CI passed; latest-Node readiness passed across Ubuntu, macOS, and Windows; the release PR was merged to `main` and tag/GitHub Release/npm publication completed.
+- Exact next action: plan and implement `v0.5.1` (expanded warm-index benchmark suite) from the published `v0.5.0` baseline.
 
 ## Implemented
 
