@@ -137,6 +137,15 @@ Each entry below uses the same fields: **Meaning**, **Appears in** (the artifact
   Interpretation: human-readable size category.
   Caveat: coarse label; use the score and metrics for detail.
 
+In the released v0.5.1 benchmark suite, the task statistics (`taskCount`, `expectedRelevantFilesAverage`, `expectedRelevantSymbolsAverage`) of the two warm-index benchmark projects are derived from the dedicated corpus `benchmarks/contracts/warm-index-benchmark-cases.json`: the averages are the mean `expectedFiles` and `expectedSymbols` counts of that project's cases, rounded to two decimals. `npm run verify:benchmarks` fails if a profile disagrees with the corpus. The `benchmark-project-complexity-v1` formula, its weights, and its caps are unchanged; the current values are:
+
+| Project | `taskCount` | `expectedRelevantFilesAverage` | `expectedRelevantSymbolsAverage` | `complexityScore` |
+|---|---|---|---|---|
+| `task-workflow-medium-ts` | 6 | 3.83 | 4.33 | 31 |
+| `task-analytics-large-mixed` | 6 | 4.5 | 4.67 | 47 |
+
+Task locality (`localized`, `cross-module`, `broad-change`) is benchmark metadata on each corpus case. It is not a metric, score, or ranking, and it does not enter the complexity formula.
+
 ## Prompt complexity metrics
 
 - `promptChars`
@@ -444,7 +453,9 @@ Implemented in `src/evaluation/stageContextMetrics` and composed once per run by
 
 ## Warm-index reuse metrics
 
-Implemented in the current release v0.5.0. The `warm-index-reuse` plugin calculates these metrics once, in `src/experiments/plugins/warmIndexReuse/metrics.ts`, from bounded execution summaries and bounded fake-agent evidence. The report section (`report.warmIndexReuse` in `report.json`, and the text and HTML "Warm Index Reuse Evidence" sections) and the four warm-index plots render these precomputed values; they never recalculate a formula.
+Introduced in v0.5.0. The `warm-index-reuse` plugin calculates these metrics once, in `src/experiments/plugins/warmIndexReuse/metrics.ts`, from bounded execution summaries and bounded fake-agent evidence. The report section (`report.warmIndexReuse` in `report.json`, and the text and HTML "Warm Index Reuse Evidence" sections) and the four warm-index plots render these precomputed values; they never recalculate a formula.
+
+The released v0.5.1 expanded benchmark suite adds no warm-index metric and changes no formula: over the dedicated 12-case corpus the same metrics run through task ordinal 6 in each project, and amortization and cumulative sums restart for each project. No token-savings percentage, break-even task, winner, speedup, ranking, or provider billing metric is calculated.
 
 **Availability contract.** Every warm-index metric carries `availability`, `value`, `unit`, `source`, `reason`, and `tokenCountMethod`:
 

@@ -774,7 +774,7 @@ Acceptance:
 
 ### v0.5.1 — expanded warm-index benchmark suite
 
-Status: **planned; not implemented**.
+Status: **published**.
 
 Purpose:
 
@@ -795,6 +795,8 @@ Acceptance:
 * At least five tasks exist for the medium benchmark project.
 * At least five tasks exist for the large/mixed benchmark project.
 * Reports can compare warm-index behavior as task count increases.
+
+Implementation status: the features and acceptance criteria above are satisfied in the v0.5.1 release. The dedicated corpus `benchmarks/contracts/warm-index-benchmark-cases.json` holds six medium (`task-workflow-medium-ts`) and six large/mixed (`task-analytics-large-mixed`) tasks, each project with one localized, four cross-module, and one broad-change negative-control task. Every task has an answer key and expected files and symbols, and carries `taskLocality` metadata. Corpus, suite-coverage, and project-profile validation run through `npm run verify:benchmarks`. The existing warm-index runtime is proven at six tasks per project, the existing report and four plots show ordinals 1–6 per project, and the packed-package gate proves the corpus ships and can be selected through `--cases`. No runtime, metric-formula, report-schema, plot, or CLI change was needed; the default cases file is unchanged.
 
 ### v0.5.2 — warm-index real-agent campaigns
 

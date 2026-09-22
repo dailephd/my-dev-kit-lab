@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   contextStrategyComparisonMetadata,
   createDefaultExperimentPluginRegistry,
@@ -24,7 +24,12 @@ import {
   renderPluginExperimentReportText,
   writePluginExperimentReports,
 } from "../../../src/report/index.js";
-import { fakeKitCommand, loadBundledProjectProfiles, makeCase } from "../../experiments/warmIndexReuse/warmIndexTestHelpers.js";
+import {
+  fakeKitCommand,
+  loadBundledProjectProfiles,
+  loadProductionWarmIndexCases,
+  makeCase,
+} from "../../experiments/warmIndexReuse/warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -334,4 +339,132 @@ describe("warm report files from a real run", () => {
     }
     expect(readFileSync(outputPaths.textPath, "utf8")).toContain("Warm Index Reuse Evidence");
   });
+});
+
+describe("warm report for the real v0.5.1 production corpus", () => {
+  const MEDIUM_ORDER = [
+    "warm-medium-import-dedupe",
+    "warm-medium-create-project-task",
+    "warm-medium-complete-idempotent",
+    "warm-medium-composite-filter",
+    "warm-medium-project-summary",
+    "warm-medium-broad-workflow-map",
+  ];
+  const LARGE_ORDER = [
+    "warm-large-health-label",
+    "warm-large-ts-analytics-snapshot",
+    "warm-large-ts-leaderboard",
+    "warm-large-python-parser-metrics",
+    "warm-large-python-pipeline",
+    "warm-large-broad-analytics-comparison",
+  ];
+
+  let production: Promise<{ run: WarmIndexReuseRun; outputPaths: { jsonPath: string; textPath: string; htmlPath: string } }>;
+  beforeAll(() => {
+    production = (async () => {
+      const outputRoot = mkdtempSync(path.join(os.tmpdir(), "warm-report-prod-"));
+      tempDirsAll.push(outputRoot);
+      const registry = createDefaultExperimentPluginRegistry();
+      const run = (await runExperiment({
+        pluginId: "warm-index-reuse",
+        registry,
+        outputRoot,
+        config: { kitCommand: fakeKitCommand },
+        inputs: { cases: await loadProductionWarmIndexCases(), projectProfiles: await loadBundledProjectProfiles() },
+        toolRoot: process.cwd(),
+        runId: "warm-report-production-run",
+      })) as WarmIndexReuseRun;
+      const { outputPaths } = await writePluginExperimentReports({ run, plugin: registry.describe("warm-index-reuse") });
+      return { run, outputPaths };
+    })();
+  });
+  const tempDirsAll: string[] = [];
+  afterAll(async () => {
+    await production.catch(() => undefined);
+    await Promise.all(tempDirsAll.map((dir) => rm(dir, { recursive: true, force: true })));
+  });
+
+  it("summarizes two six-task projects in production corpus order with ordinals 1..6 each", async () => {
+    const { run } = await production;
+    const section = buildWarmIndexReuseReport(run)!;
+    expect(section.schemaVersion).toBe("my-dev-kit-lab-warm-index-report-v1");
+    expect(section.summary).toEqual({
+      projectCount: 2,
+      taskCount: 12,
+      preparedSessionProjectCount: 2,
+      incompleteProjectCount: 0,
+      agentSideCount: 24,
+      agentCorrectnessAvailableCount: 24,
+      agentTotalTokensAvailableCount: 24,
+    });
+    expect(section.projects.map((project) => [project.benchmarkProject, project.taskCount])).toEqual([
+      ["task-workflow-medium-ts", 6],
+      ["task-analytics-large-mixed", 6],
+    ]);
+    expect(section.projects.map((project) => project.tasks.map((task) => task.caseId))).toEqual([MEDIUM_ORDER, LARGE_ORDER]);
+    for (const project of section.projects) {
+      expect(project.tasks.map((task) => task.taskOrdinal)).toEqual([1, 2, 3, 4, 5, 6]);
+      for (const task of project.tasks) {
+        expect([task.rawAgent?.status, task.warmAgent?.status]).toEqual(["completed", "completed"]);
+      }
+    }
+    // The report carries the metric owner's precomputed series unchanged.
+    expect(section.projects.map((project) => project.tasks.map((task) => task.warm))).toEqual(
+      run.warmIndexMetrics.projects.map((project) => project.tasks.map((task) => task.warm))
+    );
+    expect(JSON.stringify(section)).not.toMatch(/locality/i);
+  }, 120_000);
+
+  it("writes bounded report.json/txt/html exposing both projects, all ordinals, and case IDs", async () => {
+    const { outputPaths } = await production;
+    const jsonText = readFileSync(outputPaths.jsonPath, "utf8");
+    const text = readFileSync(outputPaths.textPath, "utf8");
+    const html = readFileSync(outputPaths.htmlPath, "utf8");
+    const parsed = JSON.parse(jsonText) as { report: { warmIndexReuse: { summary: { taskCount: number }; projects: Array<{ taskCount: number }> } } };
+    expect(parsed.report.warmIndexReuse.summary.taskCount).toBe(12);
+    expect(parsed.report.warmIndexReuse.projects.map((project) => project.taskCount)).toEqual([6, 6]);
+
+    expect(text).toContain("Warm Index Project 1: task-workflow-medium-ts");
+    expect(text).toContain("Warm Index Project 2: task-analytics-large-mixed");
+    expect(text).toContain("Task Count: 12");
+    expect(text).toContain("Task Count: 6");
+    expect(text).toContain("Amortized Index Build Duration:");
+    expect(text).toContain("Cumulative Warm Component Duration:");
+    expect(text).toContain("(fake agent)");
+    for (const [ordinal, caseId] of [...MEDIUM_ORDER.entries(), ...LARGE_ORDER.entries()]) {
+      expect(text).toContain(`Task ${ordinal + 1}: ${caseId}`);
+      expect(html).toContain(`${ordinal + 1}. ${caseId}`);
+      expect(jsonText).toContain(`"caseId": "${caseId}"`);
+    }
+    expect(html).toContain("task-workflow-medium-ts");
+    expect(html).toContain("task-analytics-large-mixed");
+    expect(html).toContain("simulated harness telemetry, not provider billing telemetry");
+
+    const fixtureLine = readFileSync(path.resolve("benchmarks/projects/task-workflow-medium-ts/src/services/importTasks.ts"), "utf8")
+      .split("\n")[9]
+      .trim();
+    for (const content of [jsonText, text, html]) {
+      expect(content).not.toContain("contextText");
+      expect(content).not.toContain("source for unknown");
+      expect(content).not.toContain(fixtureLine);
+      expect(content).not.toContain('"stdout"');
+      expect(content).not.toContain('"stderr"');
+      expect(content).not.toContain("promptText");
+      expect(content).not.toContain("finalAnswerText");
+    }
+  }, 120_000);
+
+  it("keeps the expanded-corpus interpretation neutral", async () => {
+    const { outputPaths } = await production;
+    const { report } = JSON.parse(readFileSync(outputPaths.jsonPath, "utf8")) as {
+      report: { interpretation: { summary: string; recommendedNextStep: string } };
+    };
+    const interpretation = `${report.interpretation.summary} ${report.interpretation.recommendedNextStep}`;
+    expect(interpretation).toContain("prepared 2 of 2 project indexes and evaluated 12 tasks");
+    expect(interpretation).not.toMatch(
+      /winner|best strategy|best-supported|is better|cheaper overall|faster overall|saves tokens|break-even|ranked first|ranks first|top-ranked|recommended winning/i
+    );
+    // The only ranking wording is the explicit neutral disclaimer.
+    expect(interpretation).toContain("are not ranked");
+  }, 120_000);
 });

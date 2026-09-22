@@ -430,3 +430,83 @@ describe("generic metric mapping", () => {
     ]);
   });
 });
+
+describe("warm-index metrics at the expanded six-task scale", () => {
+  const rawDurations = [10, 20, 30, 40, 50, 60];
+  const retrievalDurations = [2, 3, 4, 5, 6, 7];
+  const rawTokens = [100, 150, 200, 250, 300, 350];
+  const warmTokens = [7, 9, 11, 13, 15, 17];
+  const sixTasks = (prefix = "t") =>
+    rawDurations.map((durationMs, index) =>
+      task(`${prefix}${index + 1}`, {
+        rawBaseline: rawSummary({ chars: rawTokens[index] * 4, tokens: rawTokens[index], durationMs }),
+        warmRetrieval: warmSummary({ chars: warmTokens[index] * 4, tokens: warmTokens[index], durationMs: retrievalDurations[index] }),
+      })
+    );
+
+  it("numbers six tasks 1..6 and amortizes one build through task 6", () => {
+    const [metrics] = calculateWarmIndexMetrics([project({ buildDurationMs: 120, tasks: sixTasks() })]).projects;
+    expect(metrics.tasks.map((t) => t.taskOrdinal)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(values(metrics.tasks.map((t) => t.warm.amortizedIndexBuildDurationMs))).toEqual([120, 60, 40, 30, 24, 20]);
+    expect(values([metrics.indexBuildDurationMs])).toEqual([120]);
+  });
+
+  it("accumulates raw duration and charges the build exactly once in the warm component prefix through task 6", () => {
+    const [metrics] = calculateWarmIndexMetrics([project({ buildDurationMs: 120, tasks: sixTasks() })]).projects;
+    expect(values(metrics.tasks.map((t) => t.raw.cumulativeDurationMs))).toEqual([10, 30, 60, 100, 150, 210]);
+    expect(values(metrics.tasks.map((t) => t.warm.cumulativeComponentDurationMs))).toEqual([122, 125, 129, 134, 140, 147]);
+  });
+
+  it("accumulates estimated context tokens on both sides through task 6 without an index token cost", () => {
+    const [metrics] = calculateWarmIndexMetrics([project({ buildDurationMs: 120, tasks: sixTasks() })]).projects;
+    expect(values(metrics.tasks.map((t) => t.raw.cumulativeEstimatedContextTokens))).toEqual([100, 250, 450, 700, 1000, 1350]);
+    expect(values(metrics.tasks.map((t) => t.warm.cumulativeEstimatedContextTokens))).toEqual([7, 16, 27, 40, 55, 72]);
+    for (const taskMetrics of metrics.tasks) {
+      expect(taskMetrics.warm.cumulativeEstimatedContextTokens).toEqual(
+        expect.objectContaining({ unit: "estimated-tokens", source: "estimated-chars-div-4", tokenCountMethod: METHOD })
+      );
+    }
+  });
+
+  it("resets ordinals, amortization, and every cumulative series after a six-task project", () => {
+    const metrics = calculateWarmIndexMetrics([
+      project({ buildDurationMs: 120, tasks: sixTasks("a") }),
+      project({ benchmarkProject: "todo-js", sessionKey: "todo-js", buildDurationMs: 40, tasks: [task("b1"), task("b2")] }),
+    ]);
+    const second = metrics.projects[1];
+    expect(metrics.projects[0].tasks.map((t) => t.taskOrdinal)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(second.tasks.map((t) => t.taskOrdinal)).toEqual([1, 2]);
+    expect(values(second.tasks.map((t) => t.warm.amortizedIndexBuildDurationMs))).toEqual([40, 20]);
+    expect(values(second.tasks.map((t) => t.raw.cumulativeDurationMs))).toEqual([10, 20]);
+    expect(values(second.tasks.map((t) => t.warm.cumulativeComponentDurationMs))).toEqual([42, 44]);
+    expect(values(second.tasks.map((t) => t.raw.cumulativeEstimatedContextTokens))).toEqual([100, 200]);
+    expect(values(second.tasks.map((t) => t.warm.cumulativeEstimatedContextTokens))).toEqual([10, 20]);
+  });
+
+  it("breaks cumulative prefixes at task 3 of 6 while later direct and amortized metrics stay available", () => {
+    const tasks = sixTasks();
+    tasks[2] = { ...tasks[2], rawBaseline: null, rawStatus: "failed", warmRetrieval: null, warmStatus: "failed" };
+    const [metrics] = calculateWarmIndexMetrics([project({ buildDurationMs: 120, tasks })]).projects;
+
+    expect(values(metrics.tasks.map((t) => t.raw.cumulativeDurationMs))).toEqual([
+      10, 30, "unavailable", "unavailable", "unavailable", "unavailable",
+    ]);
+    expect(values(metrics.tasks.map((t) => t.warm.cumulativeComponentDurationMs))).toEqual([
+      122, 125, "unavailable", "unavailable", "unavailable", "unavailable",
+    ]);
+    expect(values(metrics.tasks.map((t) => t.raw.cumulativeEstimatedContextTokens))).toEqual([
+      100, 250, "unavailable", "unavailable", "unavailable", "unavailable",
+    ]);
+    expect(values(metrics.tasks.map((t) => t.warm.cumulativeEstimatedContextTokens))).toEqual([
+      7, 16, "unavailable", "unavailable", "unavailable", "unavailable",
+    ]);
+    for (const later of metrics.tasks.slice(3)) {
+      expect(later.raw.cumulativeDurationMs.reason).toContain("Task 3 (t3)");
+      expect(later.warm.cumulativeComponentDurationMs.reason).toContain("Task 3 (t3)");
+    }
+    expect(values(metrics.tasks.slice(3).map((t) => t.raw.operationDurationMs))).toEqual([40, 50, 60]);
+    expect(values(metrics.tasks.slice(3).map((t) => t.warm.retrievalDurationMs))).toEqual([5, 6, 7]);
+    expect(values(metrics.tasks.slice(3).map((t) => t.raw.contextEstimatedTokens))).toEqual([250, 300, 350]);
+    expect(values(metrics.tasks.map((t) => t.warm.amortizedIndexBuildDurationMs))).toEqual([120, 60, 40, 30, 24, 20]);
+  });
+});

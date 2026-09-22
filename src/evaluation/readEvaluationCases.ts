@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveWithinRoot } from "../core/pathSafety.js";
-import { validateAnswerKey } from "./benchmarkMetadata.js";
+import { validateAnswerKey, validateTaskLocality } from "./benchmarkMetadata.js";
 import type { BenchmarkProjectProfile, EvaluationCase, EvaluationCaseInput } from "./types.js";
 
 export type ReadEvaluationCasesOptions = {
@@ -49,6 +49,13 @@ export async function readEvaluationCases(
       throw new Error(`Duplicate evaluation case id: ${input.id}`);
     }
     ids.add(input.id);
+
+    if (candidate.taskLocality !== undefined) {
+      const localityErrors = validateTaskLocality(candidate.taskLocality, `evaluation case ${input.id}`);
+      if (localityErrors.length > 0) {
+        throw new Error(localityErrors.join("\n"));
+      }
+    }
 
     if (candidate.answerKey !== undefined) {
       const answerKeyErrors = validateAnswerKey(candidate.answerKey, `evaluation case ${input.id}`);

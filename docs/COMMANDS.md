@@ -202,11 +202,13 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse [--target <path>] [-
 |---|---|
 | `--target <path>` | Optional; defaults to self mode |
 | `--out <dir>` | Optional; installed default `<workspace>/lab-output/experiments/warm-index-reuse/<target>/<run>/`, source-checkout default `lab-output/experiments/warm-index-reuse/<target>/<run>/` |
-| `--cases <path>` | Defaults to the bundled `examples/token-savings-cases.json` |
+| `--cases <path>` | Defaults to the bundled `examples/token-savings-cases.json`; the dedicated expanded corpus `benchmarks/contracts/warm-index-benchmark-cases.json` must be selected explicitly |
 | `--project-profiles <path>` | Defaults to the bundled `benchmarks/contracts/benchmark-project-profiles.json` |
 | `--case <ids>` | Optional comma-separated case filter; unknown IDs fail the run |
 | `--benchmark-project <ids>` | Optional comma-separated project filter; unknown IDs fail the run |
 | `--kit-command <command>` | `warm-index-reuse` only; the my-dev-kit command used to build one index per benchmark project and retrieve per task. Defaults to `npx @dailephd/my-dev-kit@latest` |
+
+Explicit `--cases` and `--project-profiles` paths resolve against the tool root (the installed package root for the installed CLI), so the packaged corpus can be named by its relative path.
 
 Behavior:
 
@@ -216,7 +218,12 @@ Behavior:
 - `--kit-command` is rejected for `context-strategy-comparison`
 - outputs beneath the output root: `warm-index-execution.json` (bounded execution evidence), `indexes/<project>/`, `commands/<project>/`, `agents/<project>/<case>/<variant>/`, and the plugin reports `report.json`, `report.txt`, and `report.html` with a warm-index reuse section
 - the run status is `completed`, `partial`, `failed`, or `skipped` from actual outcomes; a failed project index keeps raw evidence and records failed warm outcomes; the command exits `1` when the run status is `failed` or the arguments/configuration are invalid, and `0` otherwise
-- the bundled cases currently provide one task per benchmark project; supply a cases file with several tasks per project to exercise multi-task reuse
+- the default cases file has one task per benchmark project; to exercise multi-task reuse, select the dedicated expanded benchmark corpus released in v0.5.1 with `--cases benchmarks/contracts/warm-index-benchmark-cases.json`, which holds six tasks each for `task-workflow-medium-ts` and `task-analytics-large-mixed`
+- corpus cases carry `taskLocality` benchmark metadata (`localized`, `cross-module`, `broad-change`); it does not change execution, and there is no locality selection option — use `--case` or `--benchmark-project` to narrow a run
+
+```text
+my-dev-kit-lab experiment run --experiment warm-index-reuse --cases benchmarks/contracts/warm-index-benchmark-cases.json --benchmark-project task-workflow-medium-ts --out <dir>
+```
 
 See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#warm-index-reuse-experiment) for the procedure.
 
@@ -333,7 +340,7 @@ Focused validation scripts from `package.json` are developer conveniences that e
 - `npm run test:experiments`
 - `npm run test:plots`
 - `npm run test:visualization-demos`
-- `npm run verify:benchmarks` (distinct, non-test benchmark-fixture validation — this one runs as part of `npm run verify`)
+- `npm run verify:benchmarks` (distinct, non-test benchmark-fixture validation — this one runs as part of `npm run verify`; it also validates the dedicated `benchmarks/contracts/warm-index-benchmark-cases.json` corpus, its minimum suite coverage, and the project-profile task statistics derived from it)
 
 ## Experiment commands
 
@@ -362,7 +369,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\
 
 ```bash
 npm run experiment:describe -- --experiment warm-index-reuse
-npm run experiment:run -- --experiment warm-index-reuse --cases tests/fixtures/warm-index-reuse/multi-task-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/warm-index-reuse
+npm run experiment:run -- --experiment warm-index-reuse --cases benchmarks/contracts/warm-index-benchmark-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/warm-index-reuse
 ```
 
 `experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above.

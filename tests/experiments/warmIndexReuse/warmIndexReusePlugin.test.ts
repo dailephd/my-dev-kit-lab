@@ -18,7 +18,15 @@ import {
   type WarmIndexExecutionArtifactV1,
   type WarmIndexReuseRun,
 } from "../../../src/experiments/plugins/warmIndexReuse/index.js";
-import { fakeKitCommand, findFiles, loadBundledProjectProfiles, makeCase, writeFakeKitVariant } from "./warmIndexTestHelpers.js";
+import {
+  fakeKitCommand,
+  findFiles,
+  loadBundledProjectProfiles,
+  loadProductionWarmIndexCases,
+  makeCase,
+  makeCases,
+  writeFakeKitVariant,
+} from "./warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -356,5 +364,196 @@ describe("warm-index-reuse execution", () => {
     expect(artifact!.projects[0].buildDurationMs).toEqual(expect.any(Number));
     expect(JSON.stringify(run)).not.toContain("contextText");
     expect(run.artifacts[0]).toEqual(expect.objectContaining({ id: "warm-index-execution", kind: "artifact" }));
+  });
+});
+
+const MEDIUM_PROJECT = "task-workflow-medium-ts";
+const LARGE_PROJECT = "task-analytics-large-mixed";
+const MEDIUM_ORDER = [
+  "warm-medium-import-dedupe",
+  "warm-medium-create-project-task",
+  "warm-medium-complete-idempotent",
+  "warm-medium-composite-filter",
+  "warm-medium-project-summary",
+  "warm-medium-broad-workflow-map",
+];
+const LARGE_ORDER = [
+  "warm-large-health-label",
+  "warm-large-ts-analytics-snapshot",
+  "warm-large-ts-leaderboard",
+  "warm-large-python-parser-metrics",
+  "warm-large-python-pipeline",
+  "warm-large-broad-analytics-comparison",
+];
+
+function recordedArgs(telemetryPath: string): string[] {
+  return (JSON.parse(readFileSync(telemetryPath, "utf8")) as { args: string[] }).args;
+}
+
+describe("warm-index-reuse expanded v0.5.1 suite runtime", () => {
+  it("reuses exactly one index for six tasks in one project", async () => {
+    const { run, outputRoot, artifact } = await runWarm(makeCases(6));
+
+    expect(run.status).toBe("completed");
+    expect(findFiles(outputRoot, "index.telemetry.json")).toEqual(["commands/todo-ts/index/index.telemetry.json"]);
+    const [project] = artifact!.projects;
+    expect(project.tasks.map((task) => task.caseId)).toEqual(["task-1", "task-2", "task-3", "task-4", "task-5", "task-6"]);
+    expect(findFiles(outputRoot, "search.telemetry.json")).toEqual(
+      project.tasks.map((task) => `commands/todo-ts/${task.caseId}/search.telemetry.json`)
+    );
+    for (const task of project.tasks) {
+      expect(task.rawStatus).toBe("completed");
+      expect(task.rawBaseline?.totalFiles).toBeGreaterThan(0);
+      expect(task.warmRetrieval!.commands.map((command) => command.commandId)).toEqual(["search", "lookup", "slice", "source"]);
+      for (const command of task.warmRetrieval!.commands) {
+        const args = recordedArgs(command.telemetryPath);
+        expect(args).not.toContain("index");
+        expect(argAfter(args, "--index")).toBe(project.indexDir);
+      }
+    }
+    expect(run.warmIndexMetrics.projects[0].tasks.map((task) => task.taskOrdinal)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it("executes the real 12-case production corpus as two six-task projects with one index each", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    expect(cases).toHaveLength(12);
+    const { run, outputRoot, artifact, artifactText } = await runWarm(cases);
+
+    expect(run.status).toBe("completed");
+    expect(artifact!.projects.map((project) => [project.benchmarkProject, project.tasks.map((task) => task.caseId)])).toEqual([
+      [MEDIUM_PROJECT, MEDIUM_ORDER],
+      [LARGE_PROJECT, LARGE_ORDER],
+    ]);
+    expect(run.cases.map((experimentCase) => experimentCase.id)).toEqual([...MEDIUM_ORDER, ...LARGE_ORDER]);
+    expect(findFiles(outputRoot, "index.telemetry.json")).toEqual([
+      `commands/${LARGE_PROJECT}/index/index.telemetry.json`,
+      `commands/${MEDIUM_PROJECT}/index/index.telemetry.json`,
+    ]);
+    expect(findFiles(outputRoot, "search.telemetry.json")).toHaveLength(12);
+
+    for (const project of artifact!.projects) {
+      expect(project.status).toBe("completed");
+      expect(project.sessionPrepared).toBe(true);
+      expect(project.indexCommand?.commandId).toBe("index");
+      expect(argAfter(recordedArgs(project.indexCommand!.telemetryPath), "--out")).toBe(project.indexDir);
+      for (const task of project.tasks) {
+        // Exactly one raw baseline and one warm retrieval per task, against the project's shared index.
+        expect(task.rawStatus).toBe("completed");
+        expect(task.rawBaseline?.totalFiles).toBeGreaterThan(0);
+        expect(task.warmStatus).toBe("completed");
+        expect(task.warmRetrieval!.commands.map((command) => command.commandId)).toEqual(["search", "lookup", "slice", "source"]);
+        for (const command of task.warmRetrieval!.commands) {
+          const args = recordedArgs(command.telemetryPath);
+          expect(args).not.toContain("index");
+          expect(argAfter(args, "--index")).toBe(project.indexDir);
+        }
+      }
+    }
+    for (const experimentCase of run.cases) {
+      expect(experimentCase.outcomes.map((outcome) => [outcome.variantId, outcome.status])).toEqual([
+        ["raw-full-file", "completed"],
+        ["warm-index-reuse", "completed"],
+      ]);
+    }
+    expect(run.metrics.map((metric) => [metric.id, metric.value])).toEqual([
+      ["warm-index-project-count", 2],
+      ["warm-index-task-count", 12],
+      ["warm-index-session-prepared-project-count", 2],
+    ]);
+
+    // All 24 fake-agent sides are evaluated once and scoreable under normal fake-agent operation.
+    const sides = run.agentEvidence.flatMap((project) => project.tasks.flatMap((task) => [task.raw, task.warm]));
+    expect(sides).toHaveLength(24);
+    for (const side of sides) {
+      expect(side?.status).toBe("completed");
+      expect(side?.correctness.available).toBe(true);
+      expect(side?.tokenUsage.totalTokens).toEqual(expect.any(Number));
+    }
+
+    // Every task maps to its own output segment; no collisions across 12 tasks.
+    const taskSegments = findFiles(outputRoot, "search.telemetry.json").map((file) => file.split("/").slice(1, 3).join("/"));
+    expect(new Set(taskSegments).size).toBe(12);
+    expect(findFiles(outputRoot, "agent-run-result.json")).toHaveLength(24);
+
+    // Bounded artifact: schema unchanged, no context text, command bodies, prompts, or answers.
+    expect(artifact!.schemaVersion).toBe("my-dev-kit-lab-warm-index-execution-v1");
+    for (const forbidden of ["contextText", '"stdout":', '"stderr":', "promptText", "finalAnswerText", "source for unknown"]) {
+      expect(artifactText).not.toContain(forbidden);
+    }
+    expect(artifactText).not.toContain(
+      readFileSync(path.resolve(`benchmarks/projects/${MEDIUM_PROJECT}/src/services/importTasks.ts`), "utf8").split("\n")[9].trim()
+    );
+    expect(JSON.stringify(run)).not.toContain("contextText");
+
+    // No comparison claims or fields in the expanded run.
+    expect(`${artifactText}${JSON.stringify(run)}`).not.toMatch(/breakEven|break-even|savings|speedup|winner|best strategy|ranked first/i);
+  }, 120_000);
+
+  it("keeps later tasks running when exactly one task's warm retrieval fails", async () => {
+    const kitCommand = writeFakeKitVariant(tempDir("warm-kit-"), { failSearchWhenQueryContains: "task-3" });
+    const { run, outputRoot, artifact } = await runWarm(makeCases(6), kitCommand);
+
+    expect(findFiles(outputRoot, "index.telemetry.json")).toHaveLength(1);
+    const [project] = artifact!.projects;
+    expect(project.tasks.map((task) => [task.caseId, task.rawStatus, task.warmStatus])).toEqual([
+      ["task-1", "completed", "completed"],
+      ["task-2", "completed", "completed"],
+      ["task-3", "completed", "failed"],
+      ["task-4", "completed", "completed"],
+      ["task-5", "completed", "completed"],
+      ["task-6", "completed", "completed"],
+    ]);
+    expect(project.tasks[2].warmRetrieval?.commands.map((command) => [command.commandId, command.ok])).toEqual([["search", false]]);
+    for (const task of [project.tasks[3], project.tasks[4], project.tasks[5]]) {
+      expect(task.warmRetrieval?.commands.map((command) => command.commandId)).toEqual(["search", "lookup", "slice", "source"]);
+    }
+    expect(run.cases[2].outcomes[1].failures.map((failure) => failure.code)).toEqual(["warm-retrieval-failed"]);
+    expect(project.status).toBe("partial");
+    expect(run.status).toBe("partial");
+  });
+
+  it("isolates a failed project index from a six-task project that succeeds", async () => {
+    const kitCommand = writeFakeKitVariant(tempDir("warm-kit-"), { failIndexWhenOutContains: "indexes/todo-js" });
+    const { run, outputRoot, artifact } = await runWarm(
+      [...makeCases(6, "ts"), ...makeCases(3, "js", { benchmarkProject: "todo-js" })],
+      kitCommand
+    );
+
+    expect(findFiles(outputRoot, "index.telemetry.json")).toEqual([
+      "commands/todo-js/index/index.telemetry.json",
+      "commands/todo-ts/index/index.telemetry.json",
+    ]);
+    expect(findFiles(outputRoot, "search.telemetry.json")).toEqual(
+      ["ts-1", "ts-2", "ts-3", "ts-4", "ts-5", "ts-6"].map((caseId) => `commands/todo-ts/${caseId}/search.telemetry.json`)
+    );
+    const [tsProject, jsProject] = artifact!.projects;
+    expect(tsProject.status).toBe("completed");
+    expect(tsProject.tasks.every((task) => task.warmStatus === "completed")).toBe(true);
+    expect(jsProject.sessionPrepared).toBe(false);
+    for (const task of jsProject.tasks) {
+      expect(task.rawStatus).toBe("completed");
+      expect(task.rawBaseline?.totalFiles).toBeGreaterThan(0);
+      expect(task.warmRetrieval).toBeNull();
+    }
+    for (const caseId of ["js-1", "js-2", "js-3"]) {
+      expect(run.cases.find((c) => c.id === caseId)!.outcomes[1].failures.map((failure) => failure.code)).toEqual([
+        "warm-index-setup-failed",
+      ]);
+    }
+    expect(run.warmIndexMetrics.projects[1].tasks.map((task) => task.taskOrdinal)).toEqual([1, 2, 3]);
+    expect(run.status).toBe("partial");
+  });
+
+  it("selects the expanded corpus by benchmark project and by case ID without a new selector", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    expect(selectWarmIndexCases(cases, { benchmarkProjects: [MEDIUM_PROJECT] }).map((c) => c.id)).toEqual(MEDIUM_ORDER);
+    expect(selectWarmIndexCases(cases, { benchmarkProjects: [LARGE_PROJECT] }).map((c) => c.id)).toEqual(LARGE_ORDER);
+    expect(selectWarmIndexCases(cases, { caseIds: ["warm-large-ts-leaderboard"] }).map((c) => c.id)).toEqual([
+      "warm-large-ts-leaderboard",
+    ]);
+    expect(groupWarmIndexCases(cases).map((group) => [group.benchmarkProject, group.cases.length, group.structuralErrors])).toEqual([
+      [MEDIUM_PROJECT, 6, []],
+      [LARGE_PROJECT, 6, []],
+    ]);
   });
 });

@@ -5,13 +5,14 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.5.0`
-- Latest release: `v0.5.0` (warm-index reuse experiment support; previous release: `v0.4.9`)
-- Previous release: `v0.4.9` (semantic native-select option selection for browser tutorials)
+- Package version: `0.5.1`
+- Latest release: `v0.5.1` (expanded warm-index benchmark suite; previous release: `v0.5.0`)
+- Previous release: `v0.5.0` (warm-index reuse experiment support)
 - `v0.5.0` status: published/current; the release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
-- Active planned version (next product version after current `v0.5.0`): `v0.5.1` (expanded warm-index benchmark suite)
+- Current implemented/unreleased version: none.
+- Active planned version (next planned product version): `v0.5.2` (warm-index real-agent campaigns)
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
 - Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
 
@@ -19,13 +20,14 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 ## Operational state
 
-- Current branch: `main` (`v0.5.0` is merged and published; `v0.5.1` planning is next).
+- Current branch: `main`; main holds the published `v0.5.1` state.
+- `v0.5.1` status: published/current; the expanded warm-index benchmark suite is included in the package and release channels.
 - `v0.4.8` release branch: `release/v0.4.8` (merged to `main`)
 - `v0.4.7` release branch: `release/v0.4.7` (merged to main)
 - Historical implementation branch: `feature/v0.4.8-pointer-gestures`
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
-- Workflow stage: `v0.5.0` publication is complete. The repository is back on `main`; the next product-development stage is `v0.5.1` planning and implementation.
+- Workflow stage: `v0.5.1` publication is complete; `v0.5.2` planning is next.
 - Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
 - Validation result (v0.4.6, published): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run security:validate`, `npm run audit`, `npm run verify:packed-package`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the pre-release latest-Node readiness workflow passed on Ubuntu/macOS/Windows; see "Validation state" below for the exact gates run.
 - Validation result (v0.4.7, published): local validation (`docs:check`, `typecheck`, `build`, `test:tutorial-browser`, `test`, `verify`, `verify:packed-package`, `audit`, `security:validate`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; dedicated latest-Node readiness workflow passed; package dry-run and packed-package inspection verified.
@@ -35,7 +37,9 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Readiness evidence (v0.4.9, historical): pre-release readiness completed with no release blockers before publication. Validated candidate SHA `460bd7f16789f3e5b01d09bfd8a75782276fd2a7`; ordinary CI run `35536424389` (six jobs, Ubuntu/macOS/Windows × Node 24/latest); dedicated readiness run `35537940989` (Ubuntu, macOS, and Windows on Node latest, all succeeded on that exact SHA); local readiness PASS; release blockers 0. Evidence is recorded in [reports/v0.4.9-pre-release-readiness.md](reports/v0.4.9-pre-release-readiness.md).
 - Release blockers for published `v0.5.0`: none. Implementation, documentation reconciliation, pre-release readiness, release preparation, GitHub release, tag, and npm publication are complete.
 - Validation result (v0.5.0, published): local validation passed; full tests passed; security and audit validation found no release blocker; packed-package acceptance passed; standard cross-platform CI passed; latest-Node readiness passed across Ubuntu, macOS, and Windows; the release PR was merged to `main` and tag/GitHub Release/npm publication completed.
-- Exact next action: plan and implement `v0.5.1` (expanded warm-index benchmark suite), using `v0.5.0` as the current released baseline.
+- Release blockers for published `v0.5.1`: none.
+- Validation result (v0.5.1, published): release-preparation validation, full tests, security and audit validation, packed-package acceptance, package inspection, and exact release-branch cross-platform CI and latest-Node readiness passed before publication.
+- Exact next action: plan the v0.5.2 real-agent warm-index campaigns; do not implement them until their separate workflow begins.
 
 ## Implemented
 
@@ -67,6 +71,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.4.7` browser/tutorial automation is released: shared Playwright loading in `src/browser/`, managed local processes in `src/runtime/managedProcess.ts`, strict `TutorialScenarioV1` and `TutorialTargetContractV1` contracts, bounded actions/assertions, persistent browser execution, tutorial-only cursor/overlays, WebM/screenshots/SRT/VTT/Markdown, `tutorial-manifest.json`, installed tutorial CLI routes, a packaged generic example, and exact-tarball clean-consumer acceptance. Chromium remains a separate local browser prerequisite and is not downloaded during package installation or tutorial execution.
 - `v0.4.8` locator-anchored pointer gestures are released: `pointer-click` and `pointer-drag` actions in `src/tutorial/tutorialActions.ts`, fraction coordinate geometry in `src/tutorial/tutorialPointerGeometry.ts`, closed validation in `src/tutorial/scenarioValidation.ts`, structural mouse types in `src/browser/types.ts`, synthetic cursor/click feedback in `src/tutorial/tutorialSession.ts`, generic SVG surface in `examples/tutorial-browser/`, and real-browser/packed-package acceptance tests. Existing element-to-element `drag` remains unchanged.
 - `v0.5.0` warm-index reuse is released/current: the `warm-index-reuse` experiment plugin in `src/experiments/plugins/warmIndexReuse/` groups selected cases by benchmark project, prepares exactly one my-dev-kit index per project group, reuses that index for every task in the group, and runs one matched `raw-full-file` baseline per task. Each task side with context evidence is evaluated once by the deterministic fake agent through the existing prompt, parser, classifier, and correctness scorer. Metrics (index build duration, raw/retrieval durations, raw and retrieved context size, amortized index cost, cumulative component duration, cumulative estimated context tokens, fake-agent correctness, fake-agent total tokens, and cumulative fake-agent tokens) are calculated once with explicit availability, rendered as a bounded warm-index section in `report.json`/`report.txt`/`report.html`, and plotted as four SVG charts by `plots generate`. `experiment run` accepts `--kit-command` for this plugin only, and the exact packed package proves installed execution, reports, and plots. See [METRICS.md](METRICS.md), [COMMANDS.md](COMMANDS.md), and [ARCHITECTURE.md](ARCHITECTURE.md).
+- `v0.5.1` expanded warm-index benchmark suite is published/current. It extends the benchmark/evaluation contract layer, not the warm-index runtime: `benchmarks/contracts/warm-index-benchmark-cases.json` is a dedicated 12-case production corpus with six `task-workflow-medium-ts` tasks and six `task-analytics-large-mixed` tasks, each project having one `localized`, four `cross-module`, and one `broad-change` negative-control task. Every case carries an answer key with expected facts plus expected files and symbols that exactly mirror the case. `EvaluationCaseInput` gains an optional `taskLocality` (`localized`, `cross-module`, `broad-change`) that generic case files may omit and that the dedicated corpus requires; `src/evaluation/benchmarkMetadata.ts` validates the corpus strictly (profile references, target/source roots, answer-key parity, file existence), requires at least five tasks and all three locality categories per required project, and checks project-profile task statistics against the corpus, all through `npm run verify:benchmarks`. The medium and large profiles now record 6 tasks (3.83/4.33 and 4.5/4.67 average expected files/symbols; complexity scores 31 and 47) using the unchanged complexity formula. The unchanged `v0.5.0` runtime executes the full corpus as two project groups with exactly one index each and task ordinals 1–6; the report schema stays `my-dev-kit-lab-warm-index-report-v1`, the four plot families are unchanged, and the packed-package gate proves the corpus ships in the tarball and that the installed CLI can select a case from it through the existing `--cases` option. The default cases file is still `examples/token-savings-cases.json`, and no CLI flag, metric formula, or plot was added.
 - `v0.4.9` semantic native-select selection is released: the value-only `select-option` action in `src/tutorial/types.ts`, closed validation in `src/tutorial/scenarioValidation.ts`, a narrow structural `selectOption` method in `src/browser/types.ts`, canonical locator resolution plus Playwright `Locator.selectOption({ value })` execution with exact returned-value verification in `src/tutorial/tutorialActions.ts`, pre-action cursor routing without a fabricated click ripple in `src/tutorial/tutorialSession.ts`, a ten-step generic fixture with a native `Operation` select in `examples/tutorial-browser/`, real Chromium coverage in `tests/integration/tutorialRealBrowser.spec.ts`, and the `TUTORIAL_SELECT_OPTION` gate in `scripts/verify-packed-package.mjs`. Tutorial schema, result, target-contract, and manifest versions all remain `1.0.0`; `press` remains real keyboard input and no keyboard fallback exists.
 
 ## Current commands
@@ -81,9 +86,11 @@ The repository has one experiment runtime, one audit framework, one standalone s
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-`warm-index-reuse` is implemented in current release `v0.5.0` with registry status `experimental`. Its agent evidence comes from the deterministic fake agent only.
+`warm-index-reuse` was introduced in `v0.5.0` and is included in current release `v0.5.1` with registry status `experimental`. Its agent evidence comes from the deterministic fake agent only.
 
-Selectable Codex/Claude warm-index campaigns are **not implemented** (planned for `v0.5.2`), and warm-index screenshots and gallery integration are **not implemented**. The expanded five-plus-task warm-index benchmark suite is **not implemented** (planned for `v0.5.1`).
+Selectable Codex/Claude warm-index campaigns are **not implemented** (planned for `v0.5.2`), and warm-index screenshots and gallery integration are **not implemented**.
+
+The expanded warm-index benchmark suite was released in `v0.5.1`: the dedicated corpus must be selected explicitly with `--cases benchmarks/contracts/warm-index-benchmark-cases.json`. Task locality is benchmark metadata only; it does not change runtime behavior, and there is no locality CLI filter.
 
 The audit framework, language-aware code-rot detectors, security adapter, Android validation, and Android audit extension are implemented through v0.4.2. The Android extension maps confirmed findings, keeps `CandidateEvidence` separate, and includes bounded status, completeness, and report-reference summaries.
 
@@ -101,7 +108,7 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- the expanded warm-index benchmark suite (`v0.5.1`) and real-agent warm-index campaigns with screenshots/gallery output (`v0.5.2`)
+- real-agent warm-index campaigns with screenshots/gallery output (`v0.5.2`)
 - freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.6.x` through `v0.9.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
@@ -115,7 +122,8 @@ The following remain planned, not implemented:
 - Fake-agent token totals are estimates. Provider telemetry differs by adapter and can be unavailable.
 - `warm-index-reuse` fake-agent correctness and token totals are deterministic simulated harness evidence, not real-model correctness or provider billing telemetry; its estimated context tokens are a separate character-based context-size estimate. Cumulative durations are component sums, not wall-clock latency. No token-savings percentage, break-even task, winner, or ranking is calculated.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
-- Two experiment plugins are registered: `context-strategy-comparison` and the unreleased `v0.5.0` `warm-index-reuse`. Later planned experiment plugins remain future roadmap work.
+- Two experiment plugins are registered: `context-strategy-comparison` and `warm-index-reuse` (released in `v0.5.0`). Later planned experiment plugins remain future roadmap work.
+- The `v0.5.1` production corpus is deterministic benchmark evidence run with the fake agent; it does not establish real-agent or provider behavior. The default `examples/token-savings-cases.json` still has one task per benchmark project. Benchmark project profiles carry a `taskStats` block that mirrors the validated `complexityMetrics` task statistics; only `complexityMetrics` is validated.
 - The published upstream `ContextCapsule`/`RetrievalAuditRecord` artifacts that the implemented `v0.4.3` readers consume do not expose considered-but-unselected reads or unnecessary-read evidence; those metrics report `unavailable` with an explicit reason rather than zero.
 - Estimated token counts in the `v0.4.3` context-size metric use `ceil(characterCount / 4)` per source and are heuristic, not provider telemetry.
 - The `v0.4.5` corrected-replay fixture is a hand-distilled representation of the validated local `my-dev-kit` `v1.10.4` and `my-dev-kit-orchestrator` `v1.2.3` contracts for the same request, target, and active-index identity as the paired failed-run fixture. It is not a live capture of a complete ten-stage AI-authored implementation workflow, and it is not proof that every future run against these contracts will behave identically.
@@ -144,8 +152,10 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 
 Release blockers for the published `v0.4.9`: none.
 
-For `v0.5.0`: implementation blockers — none known; documentation-reconciliation blockers — none. Pre-release readiness has not been executed, so no `v0.5.0` release-readiness verdict exists yet.
+Release blockers for the published `v0.5.0`: none.
+
+For `v0.5.1`: release blockers — none; release-preparation validation and exact cross-platform readiness passed.
 
 ## Next step
 
-Run the separate `v0.5.0` pre-release readiness workflow. Do not bump the package version, create a release branch or tag, create a GitHub Release, or publish until pre-release readiness and release preparation have completed.
+Plan the separate `v0.5.2` real-agent warm-index campaign workflow. The v0.5.1 release is complete and its release channels are authoritative.

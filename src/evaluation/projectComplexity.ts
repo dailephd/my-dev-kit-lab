@@ -91,7 +91,7 @@ function normalize(value: number, cap: number): number {
   return Math.min(value / cap, 1);
 }
 
-function roundToTwo(value: number): number {
+export function roundToTwo(value: number): number {
   return Math.round(value * 100) / 100;
 }
 

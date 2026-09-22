@@ -281,3 +281,81 @@ describe("warm-index-reuse fake-agent end-to-end through the command owners", ()
     expect(summary.chartCount).toBe(4);
   });
 });
+
+describe("experiment run warm-index-reuse with the v0.5.1 production corpus", () => {
+  const productionArgs = (outRoot: string, ...extra: string[]) => [
+    "--experiment",
+    "warm-index-reuse",
+    "--kit-command",
+    fakeKitCommand,
+    "--cases",
+    "benchmarks/contracts/warm-index-benchmark-cases.json",
+    "--project-profiles",
+    "benchmarks/contracts/benchmark-project-profiles.json",
+    ...extra,
+    "--out",
+    outRoot,
+  ];
+
+  it("runs all 12 cases as two six-task project groups through the existing command surface", async () => {
+    const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-command-prod-"));
+    tempDirs.push(outRoot);
+    const output = captureConsole();
+
+    const exitCode = await runExperimentRunCommandFromArgs(productionArgs(outRoot));
+
+    expect(output.stderr()).toBe("");
+    expect(exitCode).toBe(0);
+    expect(output.stdout()).toContain("Status: completed");
+    const artifact = JSON.parse(readFileSync(path.join(outRoot, "warm-index-execution.json"), "utf8")) as WarmIndexExecutionArtifactV1;
+    expect(artifact.projects.map((project) => [project.benchmarkProject, project.tasks.length])).toEqual([
+      ["task-workflow-medium-ts", 6],
+      ["task-analytics-large-mixed", 6],
+    ]);
+    expect(artifact.projects.map((project) => project.indexCommand?.commandId)).toEqual(["index", "index"]);
+    const report = JSON.parse(readFileSync(path.join(outRoot, "report.json"), "utf8")) as {
+      report: { cases: unknown[]; warmIndexReuse: WarmIndexReuseReportV1 };
+    };
+    expect(report.report.cases).toHaveLength(12);
+    expect(report.report.warmIndexReuse.summary.taskCount).toBe(12);
+
+    // experiment run -> report -> the existing `plots generate` command, with no warm-specific plot command.
+    const plotsOut = mkdtempSync(path.join(os.tmpdir(), "warm-command-prod-plots-"));
+    tempDirs.push(plotsOut);
+    const plotCode = await runLabCli(["plots", "generate", "--experiment", outRoot, "--out", plotsOut], {
+      writers: { stdout: () => undefined, stderr: () => undefined },
+    });
+    expect(plotCode).toBe(0);
+    const summary = JSON.parse(readFileSync(path.join(plotsOut, "plots-summary.json"), "utf8")) as { chartCount: number };
+    expect(summary.chartCount).toBe(4);
+  }, 120_000);
+
+  it("applies --benchmark-project and --case selectors to the expanded corpus", async () => {
+    const mediumRoot = mkdtempSync(path.join(os.tmpdir(), "warm-command-medium-"));
+    const caseRoot = mkdtempSync(path.join(os.tmpdir(), "warm-command-case-"));
+    tempDirs.push(mediumRoot, caseRoot);
+    captureConsole();
+
+    expect(await runExperimentRunCommandFromArgs(productionArgs(mediumRoot, "--benchmark-project", "task-workflow-medium-ts"))).toBe(0);
+    const medium = JSON.parse(readFileSync(path.join(mediumRoot, "warm-index-execution.json"), "utf8")) as WarmIndexExecutionArtifactV1;
+    expect(medium.projects.map((project) => [project.benchmarkProject, project.tasks.map((task) => task.caseId)])).toEqual([
+      [
+        "task-workflow-medium-ts",
+        [
+          "warm-medium-import-dedupe",
+          "warm-medium-create-project-task",
+          "warm-medium-complete-idempotent",
+          "warm-medium-composite-filter",
+          "warm-medium-project-summary",
+          "warm-medium-broad-workflow-map",
+        ],
+      ],
+    ]);
+
+    expect(await runExperimentRunCommandFromArgs(productionArgs(caseRoot, "--case", "warm-large-ts-leaderboard"))).toBe(0);
+    const single = JSON.parse(readFileSync(path.join(caseRoot, "warm-index-execution.json"), "utf8")) as WarmIndexExecutionArtifactV1;
+    expect(single.projects.map((project) => [project.benchmarkProject, project.tasks.map((task) => task.caseId)])).toEqual([
+      ["task-analytics-large-mixed", ["warm-large-ts-leaderboard"]],
+    ]);
+  }, 120_000);
+});

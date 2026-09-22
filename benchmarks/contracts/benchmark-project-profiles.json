@@ -581,11 +581,11 @@
         "answer-key correctness scoring"
       ],
       "taskStats": {
-        "taskCount": 1,
-        "expectedRelevantFilesAverage": 3,
-        "expectedRelevantSymbolsAverage": 4
+        "taskCount": 6,
+        "expectedRelevantFilesAverage": 3.83,
+        "expectedRelevantSymbolsAverage": 4.33
       },
-      "complexityScore": 30,
+      "complexityScore": 31,
       "complexityMetrics": {
         "fileCount": 20,
         "sourceFileCount": 11,
@@ -597,9 +597,9 @@
         "dependencyFileCount": 1,
         "internalImportCount": 17,
         "exportedSymbolEstimate": 21,
-        "taskCount": 1,
-        "expectedRelevantFilesAverage": 3,
-        "expectedRelevantSymbolsAverage": 4,
+        "taskCount": 6,
+        "expectedRelevantFilesAverage": 3.83,
+        "expectedRelevantSymbolsAverage": 4.33,
         "maxFileLines": 77,
         "averageFileLines": 26.31,
         "packageDependencyCount": 2,
@@ -839,11 +839,11 @@
         "answer-key correctness scoring"
       ],
       "taskStats": {
-        "taskCount": 1,
-        "expectedRelevantFilesAverage": 5,
-        "expectedRelevantSymbolsAverage": 5
+        "taskCount": 6,
+        "expectedRelevantFilesAverage": 4.5,
+        "expectedRelevantSymbolsAverage": 4.67
       },
-      "complexityScore": 48,
+      "complexityScore": 47,
       "complexityMetrics": {
         "fileCount": 35,
         "sourceFileCount": 22,
@@ -855,9 +855,9 @@
         "dependencyFileCount": 1,
         "internalImportCount": 28,
         "exportedSymbolEstimate": 24,
-        "taskCount": 1,
-        "expectedRelevantFilesAverage": 5,
-        "expectedRelevantSymbolsAverage": 5,
+        "taskCount": 6,
+        "expectedRelevantFilesAverage": 4.5,
+        "expectedRelevantSymbolsAverage": 4.67,
         "maxFileLines": 49,
         "averageFileLines": 18.55,
         "packageDependencyCount": 2,
