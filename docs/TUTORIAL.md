@@ -301,7 +301,7 @@ Real-agent runs can produce four outcome types:
 
 The report shows warnings for runs with missing token totals or non-completed outcomes. Partial results are still useful for understanding which runs completed and what correctness scores were achieved on completed runs.
 
-**Do not interpret partial real-agent results as proof of token savings.** The current implementation establishes the experiment infrastructure. The unreleased v0.5.0 `warm-index-reuse` plugin adds fake-agent evidence about amortizing one index across repeated tasks; stronger evidence still requires the planned expanded benchmark suite, real-agent warm-index campaigns, and future experiment types such as incremental-change and context-window scaling. See [ROADMAP.md](ROADMAP.md).
+**Do not interpret partial real-agent results as proof of token savings.** The current implementation establishes the experiment infrastructure. The released v0.5.0 `warm-index-reuse` plugin adds fake-agent evidence about amortizing one index across repeated tasks; stronger evidence still requires the planned expanded benchmark suite, real-agent warm-index campaigns, and future experiment types such as incremental-change and context-window scaling. See [ROADMAP.md](ROADMAP.md).
 
 ---
 
