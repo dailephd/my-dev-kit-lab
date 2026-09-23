@@ -800,7 +800,7 @@ Implementation status: the features and acceptance criteria above are satisfied 
 
 ### v0.5.2 — warm-index real-agent campaigns
 
-Status: **implemented/unreleased**.
+Status: **implemented/unreleased; pre-release readiness passed**.
 
 Purpose:
 
