@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { EvaluationCase } from "../../../evaluation/types.js";
 import { sanitizePathSegment } from "../../outputPaths.js";
+import type { WarmIndexCampaignPreset } from "./campaignPresets.js";
 
 export type WarmIndexProjectGroup = {
   benchmarkProject: string;
@@ -90,6 +91,60 @@ export function groupWarmIndexCases(cases: readonly EvaluationCase[]): WarmIndex
     );
   }
   return result;
+}
+
+/**
+ * Campaign-aware case selection: narrows the loaded production corpus down to a preset's exact
+ * owned case IDs first (preserving corpus order), then applies the existing --case /
+ * --benchmark-project filters as narrowing filters only. Requesting a case or benchmark project
+ * outside the selected preset fails explicitly instead of expanding the campaign.
+ */
+export function selectWarmIndexCampaignCases(
+  cases: readonly EvaluationCase[],
+  preset: WarmIndexCampaignPreset,
+  filters: { caseIds?: readonly string[]; benchmarkProjects?: readonly string[] }
+): EvaluationCase[] {
+  const casesById = new Map(cases.map((evaluationCase) => [evaluationCase.id, evaluationCase]));
+  const missingPresetCases = preset.caseIds.filter((caseId) => !casesById.has(caseId));
+  if (missingPresetCases.length > 0) {
+    throw new Error(
+      `Campaign preset "${preset.id}" references evaluation case(s) not found in the loaded corpus: ${missingPresetCases.join(", ")}.`
+    );
+  }
+
+  // Preserve corpus/source order, not preset declaration order.
+  const presetCaseIds = new Set(preset.caseIds);
+  const presetCases = cases.filter((evaluationCase) => presetCaseIds.has(evaluationCase.id));
+  const presetProjects = new Set(presetCases.map((evaluationCase) => evaluationCase.benchmarkProject));
+
+  const requestedCaseIds = filters.caseIds ?? [];
+  const outsideCaseIds = requestedCaseIds.filter((caseId) => !presetCaseIds.has(caseId));
+  if (outsideCaseIds.length > 0) {
+    throw new Error(
+      `Requested case(s) not part of campaign preset "${preset.id}": ${outsideCaseIds.join(", ")}.`
+    );
+  }
+
+  const requestedProjects = filters.benchmarkProjects ?? [];
+  const outsideProjects = requestedProjects.filter((project) => !presetProjects.has(project));
+  if (outsideProjects.length > 0) {
+    throw new Error(
+      `Requested benchmark project(s) not part of campaign preset "${preset.id}": ${outsideProjects.join(", ")}.`
+    );
+  }
+
+  const selected = presetCases
+    .filter((evaluationCase) => requestedCaseIds.length === 0 || requestedCaseIds.includes(evaluationCase.id))
+    .filter(
+      (evaluationCase) => requestedProjects.length === 0 || requestedProjects.includes(evaluationCase.benchmarkProject)
+    );
+  if (selected.length === 0) {
+    throw new Error(
+      `No evaluation cases matched the requested filters within campaign preset "${preset.id}" ` +
+        `(cases: ${requestedCaseIds.join(", ") || "any"}; benchmark projects: ${requestedProjects.join(", ") || "any"}).`
+    );
+  }
+  return selected;
 }
 
 export function taskOutputSegment(caseId: string): string {

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -71,6 +71,140 @@ describe("experiment run --kit-command", () => {
     ]);
     expect(exitCode).toBe(1);
     expect(output.stderr()).toContain("Unsupported warm-index-reuse config field(s): agents");
+  });
+});
+
+describe("experiment run --campaign (v0.5.2 Batch 1)", () => {
+  it("parses --campaign for warm-index-reuse", () => {
+    const parsed = parseRunExperimentArgs([
+      "--experiment",
+      "warm-index-reuse",
+      "--campaign",
+      "codex-full",
+      "--include-real-agents",
+    ]);
+    expect(parsed.config).toEqual({ campaignPreset: "codex-full", includeRealAgents: true });
+  });
+
+  it("rejects --campaign for context-strategy-comparison", () => {
+    expect(() =>
+      parseRunExperimentArgs(["--experiment", "context-strategy-comparison", "--campaign", "codex-full"])
+    ).toThrow("--campaign is only supported for --experiment warm-index-reuse.");
+  });
+
+  it("rejects an unknown campaign preset value", () => {
+    expect(() => parseRunExperimentArgs(["--experiment", "warm-index-reuse", "--campaign", "nope"])).toThrow(
+      "Unknown warm-index campaign preset: nope"
+    );
+  });
+
+  it("rejects --campaign combined with --target", () => {
+    expect(() =>
+      parseRunExperimentArgs(["--experiment", "warm-index-reuse", "--campaign", "codex-full", "--target", "/tmp/x"])
+    ).toThrow("--campaign cannot be combined with --target");
+  });
+
+  it("rejects --campaign combined with explicit --cases", () => {
+    expect(() =>
+      parseRunExperimentArgs([
+        "--experiment",
+        "warm-index-reuse",
+        "--campaign",
+        "codex-full",
+        "--cases",
+        "examples/token-savings-cases.json",
+      ])
+    ).toThrow("--campaign cannot be combined with --cases");
+  });
+
+  it("rejects --campaign combined with explicit --project-profiles", () => {
+    expect(() =>
+      parseRunExperimentArgs([
+        "--experiment",
+        "warm-index-reuse",
+        "--campaign",
+        "codex-full",
+        "--project-profiles",
+        "benchmarks/contracts/benchmark-project-profiles.json",
+      ])
+    ).toThrow("--campaign cannot be combined with --project-profiles");
+  });
+
+  it("accepts --campaign together with --kit-command and --timeout-ms", () => {
+    const parsed = parseRunExperimentArgs([
+      "--experiment",
+      "warm-index-reuse",
+      "--campaign",
+      "codex-full",
+      "--include-real-agents",
+      "--kit-command",
+      "npx @dailephd/my-dev-kit@latest",
+      "--timeout-ms",
+      "120000",
+    ]);
+    expect(parsed.config).toEqual({
+      campaignPreset: "codex-full",
+      includeRealAgents: true,
+      kitCommand: "npx @dailephd/my-dev-kit@latest",
+      timeoutMs: 120000,
+    });
+  });
+
+  it("leaves legacy warm-index-reuse parsing unchanged when --campaign is absent", () => {
+    const parsed = parseRunExperimentArgs([
+      "--experiment",
+      "warm-index-reuse",
+      "--kit-command",
+      "npx @dailephd/my-dev-kit@latest",
+      "--case",
+      "a,b",
+    ]);
+    expect(parsed.config).toEqual({ kitCommand: "npx @dailephd/my-dev-kit@latest", caseIds: ["a", "b"] });
+  });
+
+  it("fails cleanly without --include-real-agents", async () => {
+    const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-campaign-"));
+    tempDirs.push(outRoot);
+    const output = captureConsole();
+    const exitCode = await runExperimentRunCommandFromArgs([
+      "--experiment",
+      "warm-index-reuse",
+      "--campaign",
+      "codex-full",
+      "--kit-command",
+      fakeKitCommand,
+      "--out",
+      outRoot,
+    ]);
+    expect(exitCode).toBe(1);
+    expect(output.stderr()).toContain("includeRealAgents to be exactly true");
+  });
+
+  it("invokes the guarded campaign through the command owner and produces no accidental fake-agent evidence", async () => {
+    const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-campaign-guard-"));
+    tempDirs.push(outRoot);
+    const output = captureConsole();
+    const exitCode = await runExperimentRunCommandFromArgs([
+      "--experiment",
+      "warm-index-reuse",
+      "--campaign",
+      "codex-full",
+      "--include-real-agents",
+      "--kit-command",
+      fakeKitCommand,
+      "--out",
+      outRoot,
+    ]);
+    expect(exitCode).toBe(1);
+    expect(output.stdout()).toContain("Status: failed");
+    const report = JSON.parse(readFileSync(path.join(outRoot, "report.json"), "utf8")) as {
+      report: { failures: Array<{ message: string }> };
+    };
+    expect(report.report.failures.map((failure) => failure.message).join(" ")).toContain(
+      "real-agent campaign execution is not implemented"
+    );
+    expect(existsSync(path.join(outRoot, "warm-index-execution.json"))).toBe(false);
+    expect(existsSync(path.join(outRoot, "agents"))).toBe(false);
   });
 });
 
@@ -170,6 +304,20 @@ describe("experiment list/describe with warm-index-reuse", () => {
     expect(described.examples.join("\n")).not.toContain("--agents");
   });
 
+  it("exposes campaignPreset as an optional config field with campaign examples (v0.5.2 Batch 1)", async () => {
+    const output = captureConsole();
+    expect(await runExperimentDescribeCommandFromArgs(["--experiment", "warm-index-reuse", "--json"])).toBe(0);
+    const described = JSON.parse(output.stdout()) as {
+      optionalConfigFields: Array<{ name: string }>;
+      examples: string[];
+    };
+    expect(described.optionalConfigFields.map((field) => field.name)).toEqual(
+      expect.arrayContaining(["campaignPreset", "includeRealAgents", "timeoutMs"])
+    );
+    expect(described.examples.some((example) => example.includes("--campaign codex-full"))).toBe(true);
+    expect(described.examples.some((example) => example.includes("--campaign claude-full"))).toBe(true);
+  });
+
   it("keeps the context-strategy-comparison describe examples unchanged", async () => {
     const output = captureConsole();
     expect(await runExperimentDescribeCommandFromArgs(["--experiment", "context-strategy-comparison", "--json"])).toBe(0);
@@ -201,7 +349,12 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     const warmSection = text.slice(warm, context);
     expect(warmSection).toContain("--kit-command <command>");
     expect(warmSection).toContain("deterministic fake agent only");
-    expect(warmSection).not.toMatch(/--agents|codex|claude/);
+    expect(warmSection).toContain("--campaign <preset>");
+    expect(warmSection).toContain("codex-full");
+    expect(warmSection).toContain("claude-full");
+    expect(warmSection).toContain("codex-timeout-isolation");
+    expect(warmSection).toContain("does not run in the current implementation stage");
+    expect(warmSection).not.toMatch(/--agents|--strategies|--complexities|--command-template/);
     const contextSection = text.slice(context);
     for (const flag of ["--agents", "--strategies", "--complexities", "--include-real-agents", "--command-template-codex", "--no-screenshot"]) {
       expect(contextSection).toContain(flag);

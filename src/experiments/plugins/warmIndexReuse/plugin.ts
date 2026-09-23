@@ -93,6 +93,16 @@ export const warmIndexReusePlugin: ExperimentPlugin<WarmIndexReuseConfig, WarmIn
   supportedVariants: WARM_INDEX_VARIANTS.map((variant) => variant.id),
   validateConfig: validateWarmIndexReuseConfig,
   async run(context) {
+    // v0.5.2 Batch 1 temporary guard: real-agent campaign execution is not implemented yet. A
+    // campaign configuration must never fall through to the fake-agent path, produce an agent
+    // directory, or run a real provider command. Remove this guard only when the later real-agent
+    // execution batch makes campaign execution valid.
+    if (context.config.campaignPreset) {
+      throw new Error(
+        `Warm-index real-agent campaign "${context.config.campaignPreset}" is configured, but real-agent campaign execution is not implemented in the current implementation stage.`
+      );
+    }
+
     const startedAt = context.startedAt.toISOString();
     const cases = selectWarmIndexCases(readCasesInput(context.inputs), context.config);
     const projectProfiles = readProjectProfilesInput(context.inputs);
