@@ -16,6 +16,7 @@ import { buildDefaultExperimentOutputRoot } from "../experiments/outputPaths.js"
 import { parsePromptComplexityLevel, parsePromptStrategy } from "../prompts/index.js";
 import { writePluginExperimentReports } from "../report/index.js";
 import { createLabExecutionContext, resolvePackageResource } from "../runtime/index.js";
+import { runWarmIndexCampaignPresentation } from "./runWarmIndexCampaignPresentation.js";
 import type { AgentCommandTemplate } from "../agents/types.js";
 import type {
   ExperimentAgentId,
@@ -74,6 +75,11 @@ export type RunExperimentRunCommandOptions = {
   // toolRoot-relative default unchanged. The installed CLI router passes
   // context.workspaceRoot here.
   installedDefaultOutputRoot?: string;
+  // v0.5.2 Batch 5 -- deterministic test seam for warm-index campaign presentation only. The
+  // installed CLI always uses the real captureReportScreenshot implementation.
+  presentation?: {
+    captureScreenshot?: Parameters<typeof runWarmIndexCampaignPresentation>[0]["captureScreenshot"];
+  };
 };
 
 export async function runExperimentRunCommandFromArgs(
@@ -109,20 +115,60 @@ export async function runExperimentRunCommandFromArgs(
       plugin: registry.describe(result.pluginId),
       outputRoot: String(result.metadata?.outputRoot ?? "")
     });
-    console.log(
-      [
-        `Experiment: ${result.pluginId}`,
-        `Run ID: ${result.runId}`,
-        `Status: ${result.status}`,
-        `Mode: ${result.target.isSelf ? "self" : "external target"}`,
-        `Tool root: ${result.target.toolRoot}`,
-        `Target root: ${result.target.targetRoot}`,
-        `Output: ${String(result.metadata?.outputRoot ?? "")}`,
-        `Report JSON: ${reports.outputPaths.jsonPath}`,
-        `Report HTML: ${reports.outputPaths.htmlPath}`
-      ].join("\n")
-    );
-    return result.status === "failed" ? 1 : 0;
+    const outputLines = [
+      `Experiment: ${result.pluginId}`,
+      `Run ID: ${result.runId}`,
+      `Status: ${result.status}`,
+      `Mode: ${result.target.isSelf ? "self" : "external target"}`,
+      `Tool root: ${result.target.toolRoot}`,
+      `Target root: ${result.target.targetRoot}`,
+      `Output: ${String(result.metadata?.outputRoot ?? "")}`,
+      `Report JSON: ${reports.outputPaths.jsonPath}`,
+      `Report HTML: ${reports.outputPaths.htmlPath}`
+    ];
+
+    // Automatic presentation (report already produced above) applies only to warm-index-reuse
+    // campaign runs; legacy fake-agent warm-index runs and context-strategy-comparison stay
+    // report-only, unchanged.
+    let screenshotFailed = false;
+    if (args.experimentId === warmIndexReusePlugin.metadata.id && args.config.campaignPreset) {
+      const executionArtifactPath = readMetadataString(result.metadata?.executionArtifactPath);
+      const campaignAgentId = readMetadataString(result.metadata?.campaignAgentId);
+      if (!executionArtifactPath) {
+        throw new Error("Warm-index campaign presentation requires an execution artifact path on the completed run.");
+      }
+      if (campaignAgentId !== "codex" && campaignAgentId !== "claude") {
+        throw new Error(
+          `Warm-index campaign presentation requires a codex or claude campaign agent id on the completed run; received ${String(campaignAgentId)}.`
+        );
+      }
+      const presentation = await runWarmIndexCampaignPresentation({
+        outputRoot: String(result.metadata?.outputRoot ?? ""),
+        reportPaths: reports.outputPaths,
+        executionArtifactPath,
+        campaignPreset: args.config.campaignPreset,
+        agentId: campaignAgentId,
+        captureScreenshot: options.presentation?.captureScreenshot
+      });
+      outputLines.push(`Plots: ${presentation.plots.artifactPaths.summaryPath}`);
+      if (presentation.screenshot.status === "captured") {
+        outputLines.push(`Screenshot: ${presentation.screenshot.pngPath}`);
+      } else if (presentation.screenshot.status === "skipped") {
+        outputLines.push("Screenshot: skipped");
+        if (presentation.screenshot.warning) outputLines.push(presentation.screenshot.warning);
+      } else {
+        outputLines.push("Screenshot: failed");
+        outputLines.push(presentation.screenshot.error ?? "Screenshot capture failed.");
+        screenshotFailed = true;
+      }
+      outputLines.push(`Gallery manifest: ${presentation.gallery.manifestPath}`);
+      outputLines.push(`Gallery index: ${presentation.gallery.indexPath}`);
+    }
+
+    console.log(outputLines.join("\n"));
+    if (result.status === "failed") return 1;
+    if (screenshotFailed) return 1;
+    return 0;
   } catch (error) {
     if (process.env.DEBUG) {
       console.error(error);
@@ -366,6 +412,10 @@ function parsePositiveInteger(label: string, value: string): number {
     throw new Error(`${label} must be a positive integer.`);
   }
   return parsed;
+}
+
+function readMetadataString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function withoutUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {

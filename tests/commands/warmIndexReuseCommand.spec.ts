@@ -9,6 +9,7 @@ import { parseRunExperimentArgs, runExperimentRunCommandFromArgs } from "../../s
 import type { WarmIndexExecutionArtifactV1 } from "../../src/experiments/plugins/warmIndexReuse/index.js";
 import { runLabCli } from "../../src/cli/index.js";
 import type { WarmIndexReuseReportV1 } from "../../src/report/index.js";
+import { SCREENSHOT_SKIP_WARNING } from "../../src/screenshot/index.js";
 import { fakeKitCommand, multiTaskCasesPath } from "../experiments/warmIndexReuse/warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
@@ -490,7 +491,7 @@ describe("warm-index-reuse fake-agent end-to-end through the command owners", ()
   });
 });
 
-describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
+describe("v0.5.2 Batch 4/5 -- public real-agent campaign commands and presentation", () => {
   function campaignArgs(preset: "codex-full" | "claude-full", caseId: string, outRoot: string, extra: string[] = []) {
     return [
       "--experiment",
@@ -508,7 +509,66 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
     ];
   }
 
-  it("executes a deterministic Codex campaign end to end with complete agent/token evidence (section 29)", async () => {
+  type RunOptions = Parameters<typeof runExperimentRunCommandFromArgs>[1];
+
+  function capturedScreenshotOptions(): RunOptions {
+    return {
+      presentation: {
+        captureScreenshot: async (htmlPath: string, pngPath: string) => {
+          writeFileSync(pngPath, "png-data");
+          return { status: "captured" as const, htmlPath, pngPath };
+        },
+      },
+    };
+  }
+
+  function skippedScreenshotOptions(): RunOptions {
+    return {
+      presentation: {
+        captureScreenshot: async (htmlPath: string, pngPath: string) => ({
+          status: "skipped" as const,
+          htmlPath,
+          pngPath,
+          warning: SCREENSHOT_SKIP_WARNING,
+        }),
+      },
+    };
+  }
+
+  function failedScreenshotOptions(): RunOptions {
+    return {
+      presentation: {
+        captureScreenshot: async (htmlPath: string, pngPath: string) => ({
+          status: "failed" as const,
+          htmlPath,
+          pngPath,
+          error: "forced screenshot failure",
+        }),
+      },
+    };
+  }
+
+  function expectFullCampaignTopology(outRoot: string, expectPng: boolean) {
+    expect(existsSync(path.join(outRoot, "warm-index-execution.json"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "report.json"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "report.txt"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "report.html"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "report.png"))).toBe(expectPng);
+    expect(existsSync(path.join(outRoot, "plots", "plot-data.json"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "plots", "plots-summary.json"))).toBe(true);
+    for (const id of [
+      "warm-index-amortized-index-cost",
+      "warm-index-context-size",
+      "warm-index-correctness",
+      "warm-index-cumulative-token-usage",
+    ]) {
+      expect(existsSync(path.join(outRoot, "plots", "charts", `${id}.svg`))).toBe(true);
+    }
+    expect(existsSync(path.join(outRoot, "gallery", "gallery-manifest.json"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "gallery", "gallery-index.html"))).toBe(true);
+  }
+
+  it("executes a deterministic Codex campaign end to end with complete agent/token evidence and full presentation (sections 29, 32)", async () => {
     const binDir = makeCampaignBin("codex-public-bin-");
     writeFakeCodexExecutable(path.join(binDir, shimName("codex")));
     const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-public-codex-"));
@@ -516,15 +576,12 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
     const output = captureConsole();
 
     const exitCode = await withPatchedPath(binDir, () =>
-      runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot))
+      runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot), capturedScreenshotOptions())
     );
 
     expect(exitCode).toBe(0);
     expect(output.stdout()).toContain("Experiment: warm-index-reuse");
-    expect(existsSync(path.join(outRoot, "report.json"))).toBe(true);
-    expect(existsSync(path.join(outRoot, "report.txt"))).toBe(true);
-    expect(existsSync(path.join(outRoot, "report.html"))).toBe(true);
-    expect(existsSync(path.join(outRoot, "warm-index-execution.json"))).toBe(true);
+    expectFullCampaignTopology(outRoot, true);
 
     const artifact = JSON.parse(readFileSync(path.join(outRoot, "warm-index-execution.json"), "utf8")) as WarmIndexExecutionArtifactV1;
     expect(artifact.projects).toHaveLength(1);
@@ -545,19 +602,37 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
         outcomeCounts: { completed: 2, failed: 0, timeout: 0, invalidOutput: 0, agentUnavailable: 0, agentLimitReached: 0, skipped: 0 },
       })
     );
+
+    const stdout = output.stdout();
+    for (const label of ["Report JSON:", "Report HTML:", "Plots:", "Screenshot:", "Gallery manifest:", "Gallery index:"]) {
+      expect(stdout).toContain(label);
+    }
+
+    const manifest = JSON.parse(readFileSync(path.join(outRoot, "gallery", "gallery-manifest.json"), "utf8")) as {
+      items: Array<{ id: string; tags?: string[] }>;
+    };
+    expect(manifest.items.map((item) => item.id)).toEqual(["warm-index-campaign-report", "warm-index-campaign-plots", "warm-index-execution"]);
+    expect(manifest.items[0].tags).toContain("codex");
+    expect(manifest.items[1].tags).toContain("codex");
+    const manifestText = JSON.stringify(manifest);
+    for (const forbidden of ["agents/", "contextText", "promptText", "finalAnswerText", "stdout", "stderr"]) {
+      expect(manifestText).not.toContain(forbidden);
+    }
   });
 
-  it("executes a deterministic Claude campaign end to end with complete agent/token evidence (section 30)", async () => {
+  it("executes a deterministic Claude campaign end to end with complete agent/token evidence and full presentation (sections 30, 33)", async () => {
     const binDir = makeCampaignBin("claude-public-bin-");
     writeFakeClaudeExecutable(path.join(binDir, shimName("claude")));
     const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-public-claude-"));
     tempDirs.push(outRoot);
+    const output = captureConsole();
 
     const exitCode = await withPatchedPath(binDir, () =>
-      runExperimentRunCommandFromArgs(campaignArgs("claude-full", "warm-medium-complete-idempotent", outRoot))
+      runExperimentRunCommandFromArgs(campaignArgs("claude-full", "warm-medium-complete-idempotent", outRoot), capturedScreenshotOptions())
     );
 
     expect(exitCode).toBe(0);
+    expectFullCampaignTopology(outRoot, true);
     const { report } = JSON.parse(readFileSync(path.join(outRoot, "report.json"), "utf8")) as { report: { warmIndexReuse: WarmIndexReuseReportV1 } };
     const section = report.warmIndexReuse;
     expect(section.agent).toEqual({ id: "claude", mode: "real-provider" });
@@ -573,6 +648,13 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
         tokenEvidenceStatus: "complete",
       })
     );
+
+    const manifest = JSON.parse(readFileSync(path.join(outRoot, "gallery", "gallery-manifest.json"), "utf8")) as {
+      items: Array<{ id: string; tags?: string[] }>;
+    };
+    expect(manifest.items).toHaveLength(3);
+    expect(manifest.items[0].tags).toContain("claude");
+    expect(manifest.items[1].tags).toContain("claude");
   });
 
   it("reports Claude token evidence as unavailable, never zero, when the CLI emits no usage (section 31)", async () => {
@@ -582,7 +664,7 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
     tempDirs.push(outRoot);
 
     const exitCode = await withPatchedPath(binDir, () =>
-      runExperimentRunCommandFromArgs(campaignArgs("claude-full", "warm-medium-complete-idempotent", outRoot))
+      runExperimentRunCommandFromArgs(campaignArgs("claude-full", "warm-medium-complete-idempotent", outRoot), capturedScreenshotOptions())
     );
 
     expect(exitCode).toBe(0);
@@ -603,7 +685,53 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
     expect(text).toContain("Token Evidence Status: unavailable");
   });
 
-  it("reports a partial campaign when one provider side fails while later sides succeed (section 32)", async () => {
+  it("keeps report/plots/gallery when screenshot capture is skipped (section 34)", async () => {
+    const binDir = makeCampaignBin("codex-skip-bin-");
+    writeFakeCodexExecutable(path.join(binDir, shimName("codex")));
+    const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-public-codex-skip-"));
+    tempDirs.push(outRoot);
+    const output = captureConsole();
+
+    const exitCode = await withPatchedPath(binDir, () =>
+      runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot), skippedScreenshotOptions())
+    );
+
+    expect(exitCode).toBe(0);
+    expectFullCampaignTopology(outRoot, false);
+    const manifest = JSON.parse(readFileSync(path.join(outRoot, "gallery", "gallery-manifest.json"), "utf8")) as {
+      items: Array<{ id: string; status: string; screenshotPath?: string }>;
+    };
+    expect(manifest.items[0].status).toBe("warning");
+    expect(manifest.items[0].screenshotPath).toBeUndefined();
+    const stdout = output.stdout();
+    expect(stdout).toContain("Screenshot: skipped");
+    expect(stdout).toContain(SCREENSHOT_SKIP_WARNING);
+  });
+
+  it("returns exit 1 but preserves report/plots/gallery when screenshot capture fails (section 35)", async () => {
+    const binDir = makeCampaignBin("codex-fail-bin-");
+    writeFakeCodexExecutable(path.join(binDir, shimName("codex")));
+    const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-public-codex-shotfail-"));
+    tempDirs.push(outRoot);
+    const output = captureConsole();
+
+    const exitCode = await withPatchedPath(binDir, () =>
+      runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot), failedScreenshotOptions())
+    );
+
+    expect(exitCode).toBe(1);
+    expectFullCampaignTopology(outRoot, false);
+    const manifest = JSON.parse(readFileSync(path.join(outRoot, "gallery", "gallery-manifest.json"), "utf8")) as {
+      items: Array<{ id: string; status: string; warnings: string[] }>;
+    };
+    expect(manifest.items[0].status).toBe("warning");
+    expect(manifest.items[0].warnings.some((warning) => warning.includes("forced screenshot failure"))).toBe(true);
+    const stdout = output.stdout();
+    expect(stdout).toContain("Screenshot: failed");
+    expect(stdout).toContain("forced screenshot failure");
+  });
+
+  it("reports a partial campaign when one provider side fails while later sides succeed, and still generates full presentation (sections 32, 36)", async () => {
     const binDir = makeCampaignBin("codex-partial-bin-");
     writeFakeCodexExecutable(path.join(binDir, shimName("codex")), { failWhenStdinContains: "Case ID: warm-medium-import-dedupe" });
     const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-public-codex-partial-"));
@@ -611,13 +739,15 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
 
     const exitCode = await withPatchedPath(binDir, () =>
       runExperimentRunCommandFromArgs(
-        campaignArgs("codex-full", "warm-medium-import-dedupe,warm-medium-create-project-task", outRoot)
+        campaignArgs("codex-full", "warm-medium-import-dedupe,warm-medium-create-project-task", outRoot),
+        capturedScreenshotOptions()
       )
     );
 
     // Infrastructure (index/raw/warm) succeeded, so the command's exit code follows the
     // infrastructure ExperimentRun.status rule and is unaffected by the provider failure.
     expect(exitCode).toBe(0);
+    expectFullCampaignTopology(outRoot, true);
     const { report } = JSON.parse(readFileSync(path.join(outRoot, "report.json"), "utf8")) as {
       report: { warmIndexReuse: WarmIndexReuseReportV1; interpretation: { summary: string; recommendedNextStep: string } };
     };
@@ -627,20 +757,29 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
     expect(report.warmIndexReuse.projects[0].status).toBe("completed");
     expect(report.interpretation.summary).not.toMatch(/infrastructure.*failed|the (warm-index )?run failed/i);
     expect(report.interpretation.recommendedNextStep).toContain("provider/agent limitations");
+
+    // Presentation artifacts stay clean of provider errors; those already belong to the report.
+    const manifestText = readFileSync(path.join(outRoot, "gallery", "gallery-manifest.json"), "utf8");
+    expect(manifestText).not.toContain("forced provider failure");
   });
 
-  it("reports agent-unavailable evidence when the provider executable is missing (section 33)", async () => {
+  it("reports agent-unavailable evidence when the provider executable is missing, and still generates full presentation (sections 33, 37)", async () => {
     const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-public-codex-unavailable-"));
     tempDirs.push(outRoot);
     const emptyBinDir = makeCampaignBin("codex-empty-bin-");
 
     const exitCode = await withPatchedPath(
       emptyBinDir,
-      () => runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot)),
+      () =>
+        runExperimentRunCommandFromArgs(
+          campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot),
+          capturedScreenshotOptions()
+        ),
       false
     );
 
     expect(exitCode).toBe(0);
+    expectFullCampaignTopology(outRoot, true);
     const { report } = JSON.parse(readFileSync(path.join(outRoot, "report.json"), "utf8")) as { report: { warmIndexReuse: WarmIndexReuseReportV1 } };
     const section = report.warmIndexReuse;
     expect(section.agentCampaign?.outcomeCounts.agentUnavailable).toBeGreaterThan(0);
@@ -648,6 +787,60 @@ describe("v0.5.2 Batch 4 -- public real-agent campaign commands", () => {
     expect(section.agentCampaign?.tokenEvidenceStatus).toBe("unavailable");
     const text = readFileSync(path.join(outRoot, "report.txt"), "utf8");
     expect(text).toContain("Agent-Unavailable Sides:");
+  });
+});
+
+describe("v0.5.2 Batch 5 -- legacy and context-strategy presentation regression", () => {
+  it("keeps legacy non-campaign warm-index runs report-only, with no plots/screenshot/gallery (section 38)", async () => {
+    const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-legacy-no-presentation-"));
+    tempDirs.push(outRoot);
+    captureConsole();
+
+    const exitCode = await runExperimentRunCommandFromArgs([
+      "--experiment",
+      "warm-index-reuse",
+      "--kit-command",
+      fakeKitCommand,
+      "--cases",
+      multiTaskCasesPath,
+      "--out",
+      outRoot,
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(existsSync(path.join(outRoot, "report.json"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "report.txt"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "report.html"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "warm-index-execution.json"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "report.png"))).toBe(false);
+    expect(existsSync(path.join(outRoot, "plots"))).toBe(false);
+    expect(existsSync(path.join(outRoot, "gallery"))).toBe(false);
+  });
+
+  it("keeps context-strategy-comparison free of automatic plots/screenshot/gallery (section 39)", async () => {
+    const outRoot = mkdtempSync(path.join(os.tmpdir(), "context-strategy-no-presentation-"));
+    tempDirs.push(outRoot);
+    captureConsole();
+
+    const exitCode = await runExperimentRunCommandFromArgs([
+      "--experiment",
+      "context-strategy-comparison",
+      "--case",
+      "todo-ts-create-task",
+      "--agents",
+      "fake-agent",
+      "--complexities",
+      "short",
+      "--no-screenshot",
+      "--out",
+      outRoot,
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(existsSync(path.join(outRoot, "report.json"))).toBe(true);
+    expect(existsSync(path.join(outRoot, "report.png"))).toBe(false);
+    expect(existsSync(path.join(outRoot, "plots"))).toBe(false);
+    expect(existsSync(path.join(outRoot, "gallery"))).toBe(false);
   });
 });
 
