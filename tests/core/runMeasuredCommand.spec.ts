@@ -111,6 +111,39 @@ describe("runMeasuredCommand", () => {
     expect(result.error).toContain("timed out");
   });
 
+  // Regression (v0.5.2 Batch 6): a packed-package acceptance run discovered that a detached
+  // descendant which outlives the directly-killed target keeps the "close" event from ever firing
+  // (Node only emits "close" once every inherited stdio stream has actually drained), which made
+  // this promise -- and every caller awaiting it -- hang forever even though the timeout fired and
+  // forceTerminateProcess was called. This reproduces that shape deterministically (independent of
+  // any platform-specific kill/signal behavior) and proves the bounded kill-grace fallback resolves
+  // the call instead of hanging.
+  it("resolves via a bounded kill-grace fallback when an orphaned descendant keeps stdio open after timeout", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
+    tempDirs.push(outDir);
+    const script = [
+      "const { spawn } = require('node:child_process');",
+      "const grandchild = spawn(process.execPath, ['-e', 'setInterval(() => {}, 60000)'], { stdio: 'inherit', detached: true });",
+      "grandchild.unref();",
+      "setInterval(() => {}, 60000);"
+    ].join(" ");
+    const started = Date.now();
+    const result = await runMeasuredCommand({
+      commandId: "orphaned-descendant",
+      commandString: `"${process.execPath}"`,
+      extraArgs: ["-e", script],
+      cwd: process.cwd(),
+      outDir,
+      timeoutMs: 150
+    });
+    const elapsedMs = Date.now() - started;
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("timed out");
+    // Bounded by timeoutMs plus the internal kill-grace fallback, never by the orphaned
+    // descendant's own 60s lifetime.
+    expect(elapsedMs).toBeLessThan(6000);
+  }, 10000);
+
   it("does not leave child stdin open for non-interactive commands", async () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "measured-"));
     tempDirs.push(outDir);

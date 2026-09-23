@@ -105,6 +105,8 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     let spawnError: string | undefined;
     let timedOut = false;
     let timeout: NodeJS.Timeout | undefined;
+    let killGraceTimeout: NodeJS.Timeout | undefined;
+    let settled = false;
 
     let child;
     try {
@@ -163,17 +165,29 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       child.stdin?.write(options.stdinText, "utf8");
       child.stdin?.end();
     }
-    if (options.timeoutMs !== undefined) {
-      timeout = setTimeout(() => {
-        timedOut = true;
-        spawnError = `Command timed out after ${options.timeoutMs}ms.`;
-        forceTerminateProcess(child.pid);
-      }, options.timeoutMs);
-    }
-    child.on("close", async (exitCode) => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
+    // forceTerminateProcess is fire-and-forget (it never confirms the target process tree actually
+    // exited: on Windows it spawns a detached `taskkill /T /F` and does not await or check its
+    // result). That is normally sufficient, but a grandchild process spawned through an
+    // intermediate shim (for example a Windows .cmd launcher) can occasionally outlive an
+    // already-killed intermediate process. Without a bounded fallback, a caller whose kill silently
+    // failed would await this promise forever instead of receiving the already-known timeout error.
+    const KILL_GRACE_MS = 3000;
+    const settle = async (exitCode: number | null) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      if (killGraceTimeout) clearTimeout(killGraceTimeout);
+      // The caller's `scripts/cli.ts` entry point sets `process.exitCode` rather than calling
+      // `process.exit()`, so the process only exits once Node's event loop actually drains. A
+      // still-open child stdio pipe -- the same situation the kill-grace fallback above exists for
+      // -- would otherwise keep this process alive forever even though this promise has already
+      // resolved. Detaching is safe to do unconditionally: once "close" has fired the streams are
+      // already ended, so this is a harmless no-op on the normal (non-fallback) path.
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      child.stdin?.destroy();
+      child.removeAllListeners();
+      child.unref();
       const endedAt = new Date().toISOString();
       const durationMs = Date.now() - started;
       await writeArtifact(stdoutPath, stdout);
@@ -199,6 +213,20 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       };
       await writeArtifact(telemetryPath, JSON.stringify(measured, null, 2));
       resolve(measured);
+    };
+
+    if (options.timeoutMs !== undefined) {
+      timeout = setTimeout(() => {
+        timedOut = true;
+        spawnError = `Command timed out after ${options.timeoutMs}ms.`;
+        forceTerminateProcess(child.pid);
+        killGraceTimeout = setTimeout(() => {
+          void settle(null);
+        }, KILL_GRACE_MS);
+      }, options.timeoutMs);
+    }
+    child.on("close", (exitCode) => {
+      void settle(exitCode);
     });
   });
 

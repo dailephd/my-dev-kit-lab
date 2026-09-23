@@ -104,6 +104,66 @@ export function validateManifestRelativePaths(
   return problems;
 }
 
+// v0.5.2 Batch 6 -- warm-index real-agent campaign gallery acceptance.
+const EXPECTED_WARM_CAMPAIGN_GALLERY_ITEM_IDS = [
+  "warm-index-campaign-report",
+  "warm-index-campaign-plots",
+  "warm-index-execution"
+];
+
+type WarmIndexCampaignGalleryManifestItem = {
+  id?: string;
+  htmlPath?: string;
+  summaryPath?: string;
+  runsPath?: string;
+  screenshotPath?: string;
+  artifactPaths?: string[];
+};
+
+function isBoundedRelativePath(value: string): boolean {
+  return !path.win32.isAbsolute(value) && !path.posix.isAbsolute(value) && !/^[A-Za-z]:/.test(value) && !value.includes("\\");
+}
+
+/**
+ * Proves the narrow warm-index campaign gallery contract from Batch 5/6: exactly the three
+ * expected item ids, in order, and every path field/artifactPaths entry a bounded relative POSIX
+ * path that never links detailed per-agent evidence (agents/) or provider stdout/stderr/telemetry.
+ */
+export function validateWarmIndexCampaignGalleryManifest(manifest: { items?: WarmIndexCampaignGalleryManifestItem[] }): string[] {
+  const problems: string[] = [];
+  const items = manifest.items ?? [];
+  const ids = items.map((item) => item.id);
+  if (JSON.stringify(ids) !== JSON.stringify(EXPECTED_WARM_CAMPAIGN_GALLERY_ITEM_IDS)) {
+    problems.push(`expected gallery item ids ${JSON.stringify(EXPECTED_WARM_CAMPAIGN_GALLERY_ITEM_IDS)}, got ${JSON.stringify(ids)}`);
+  }
+  for (const item of items) {
+    const pathFields: Array<[string, string | undefined]> = [
+      ["htmlPath", item.htmlPath],
+      ["summaryPath", item.summaryPath],
+      ["runsPath", item.runsPath],
+      ["screenshotPath", item.screenshotPath]
+    ];
+    for (const [field, value] of pathFields) {
+      if (!value) continue;
+      if (!isBoundedRelativePath(value)) {
+        problems.push(`item ${item.id} field ${field} is not a bounded relative POSIX path: ${value}`);
+      }
+      if (/agents\//.test(value) || /\bstdout\b|\bstderr\b|telemetry/i.test(value)) {
+        problems.push(`item ${item.id} field ${field} links detailed/forensic agent evidence: ${value}`);
+      }
+    }
+    for (const artifactPath of item.artifactPaths ?? []) {
+      if (!isBoundedRelativePath(artifactPath)) {
+        problems.push(`item ${item.id} artifactPaths entry is not a bounded relative POSIX path: ${artifactPath}`);
+      }
+      if (/agents\//.test(artifactPath) || /\bstdout\b|\bstderr\b|telemetry/i.test(artifactPath)) {
+        problems.push(`item ${item.id} artifactPaths entry links detailed/forensic agent evidence: ${artifactPath}`);
+      }
+    }
+  }
+  return problems;
+}
+
 export type DirectorySnapshotEntry = [relativePath: string, sha256: string];
 
 // Deterministic recursive snapshot: sorted relative POSIX-style paths ->

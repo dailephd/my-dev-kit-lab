@@ -274,7 +274,14 @@ async function evaluateRealSide(args: {
     return buildFailedSideEvidence(base, error);
   } finally {
     if (neutralCwd) {
-      await rm(neutralCwd, { recursive: true, force: true });
+      try {
+        await rm(neutralCwd, { recursive: true, force: true });
+      } catch {
+        // Best-effort cleanup only: { force: true } suppresses a missing path, but not an
+        // EPERM/EBUSY from an OS still holding this directory open -- for example a timed-out
+        // provider process whose kill did not (yet) fully release it as its own cwd. A cleanup
+        // failure here must never replace or hide the side's already-classified evidence.
+      }
     }
   }
 }
