@@ -20,7 +20,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 ## Operational state
 
-- Current branch: `feature/v0.5.2-warm-index-real-agent-campaigns` (implementation complete, this documentation reconciliation in progress on it).
+- Current branch: `feature/v0.5.2-warm-index-real-agent-campaigns` (implementation, documentation reconciliation, and pre-release readiness complete; release preparation is next).
 - `main` holds the released `v0.5.1` state and remains the latest published/current release channel.
 - `v0.5.1` status: published/current; the expanded warm-index benchmark suite is included in the package and release channels.
 - `v0.5.2` status: implemented/unreleased. Final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. See "v0.5.2 validation summary" below.
