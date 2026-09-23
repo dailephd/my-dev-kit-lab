@@ -40,6 +40,12 @@ type MeasuredCommandBaseOptions = {
   resolveCommand?: boolean;
   allowPowerShellShim?: boolean;
   timeoutMs?: number;
+  /**
+   * Optional prompt/text payload delivered over the child process's stdin instead of argv. Never
+   * recorded in the returned result, telemetry, commandString, or args -- the caller owns any
+   * separate prompt artifact.
+   */
+  stdinText?: string;
 };
 
 /**
@@ -106,7 +112,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         cwd: options.cwd,
         env: { ...process.env, ...options.env },
         shell: false,
-        stdio: ["ignore", "pipe", "pipe"]
+        stdio: options.stdinText !== undefined ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"]
       });
     } catch (error) {
       const endedAt = new Date().toISOString();
@@ -139,15 +145,24 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       return;
     }
 
-    child.stdout.on("data", (chunk) => {
+    // stdout/stderr are always piped in both stdio branches above.
+    child.stdout!.on("data", (chunk) => {
       stdout += String(chunk);
     });
-    child.stderr.on("data", (chunk) => {
+    child.stderr!.on("data", (chunk) => {
       stderr += String(chunk);
     });
     child.on("error", (error) => {
       spawnError = error.message;
     });
+    if (options.stdinText !== undefined) {
+      // A child that exits or closes stdin before we write must not crash the process (EPIPE).
+      child.stdin?.on("error", (error) => {
+        spawnError = spawnError ?? `Failed to write to command stdin: ${error.message}`;
+      });
+      child.stdin?.write(options.stdinText, "utf8");
+      child.stdin?.end();
+    }
     if (options.timeoutMs !== undefined) {
       timeout = setTimeout(() => {
         timedOut = true;

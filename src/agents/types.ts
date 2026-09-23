@@ -42,9 +42,14 @@ export type AgentCommandTemplate = {
   cwd?: string;
 };
 
+/** How the prompt reaches the provider process. Omitted/"argv" preserves existing behavior. */
+export type AgentPromptTransport = "argv" | "stdin";
+
 export type AgentBuiltCommand = {
   command: string;
   args: string[];
+  /** Present only for stdin-transport commands; never duplicated into args. */
+  stdinText?: string;
 };
 
 export type AgentRunRequest = {
@@ -58,6 +63,8 @@ export type AgentRunRequest = {
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
   requireAvailable?: boolean;
+  /** Defaults to "argv" when omitted; every existing caller is unaffected. */
+  promptTransport?: AgentPromptTransport;
 };
 
 export type AgentRunResult = {
