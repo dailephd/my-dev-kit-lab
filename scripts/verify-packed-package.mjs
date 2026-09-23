@@ -408,7 +408,13 @@ function runInstalledCli(resolved, consumerDir, args, extraEnv) {
 }
 
 function describeChildResult(result) {
-  return [`exit=${result.status}`, `stdout:\n${result.stdout ?? ""}`, `stderr:\n${result.stderr ?? ""}`].join("\n");
+  return [
+    `exit=${result.status}`,
+    `signal=${result.signal ?? "none"}`,
+    `spawnError=${result.error ? (result.error.stack ?? result.error.message ?? String(result.error)) : "none"}`,
+    `stdout:\n${result.stdout ?? ""}`,
+    `stderr:\n${result.stderr ?? ""}`
+  ].join("\n");
 }
 
 async function reserveLoopbackPort() {
@@ -451,6 +457,7 @@ function assertWebm(filePath, gate) {
 // ---------------------------------------------------------------------------
 
 async function main() {
+  const gateStartedAt = Date.now();
   const compiledBinPath = path.join(REPO_ROOT, "dist", "scripts", "cli.js");
   if (!existsSync(compiledBinPath)) {
     fail(
@@ -1027,6 +1034,7 @@ async function main() {
     // proven at step 10, so a campaign leaking output into the installed
     // package would already be caught there.
     // -----------------------------------------------------------------
+    process.stderr.write(`[diagnostic] entering campaign acceptance at ${new Date().toISOString()} (${Date.now() - gateStartedAt}ms since gate start)\n`);
     await writeFakeAgentBinaries(dirs.fakeAgents, dirs.fakeAgentsBin);
     const providerLogPath = path.join(dirs.fakeAgents, "invocations.jsonl");
     const readProviderLog = () =>
@@ -1176,6 +1184,9 @@ async function main() {
           mode: "success",
           playwrightBrowsersPath: codexSuccessCaptureCapable ? undefined : dirs.browserCache
         })
+      );
+      process.stderr.write(
+        `[diagnostic] codex-success attempt ${attempt} finished at ${new Date().toISOString()} (${Date.now() - gateStartedAt}ms since gate start): status=${attemptResult.status} signal=${attemptResult.signal ?? "none"} error=${attemptResult.error ? (attemptResult.error.message ?? String(attemptResult.error)) : "none"}\n`
       );
       if (attemptResult.status === 0) {
         codexSuccessOut = attemptOut;
