@@ -14,6 +14,14 @@ import type {
   ExperimentWarning,
 } from "../../types.js";
 import {
+  evaluateWarmIndexFakeAgents,
+  evaluateWarmIndexRealAgentCampaign,
+  type WarmIndexAgentSideEvidenceV1,
+  type WarmIndexProjectAgentEvidenceV1,
+  type WarmIndexTaskAgentEvidenceV1,
+} from "./agentEvaluation.js";
+import { getWarmIndexCampaignPreset, resolveWarmIndexCampaignTimeoutMs } from "./campaignPresets.js";
+import {
   defaultWarmIndexReuseConfig,
   validateWarmIndexReuseConfig,
   warmIndexReuseConfigDefinition,
@@ -39,13 +47,7 @@ import {
   type WarmIndexMetricsV1,
   type WarmIndexTaskMetricsV1,
 } from "./metrics.js";
-import { selectWarmIndexCases } from "./selection.js";
-import {
-  evaluateWarmIndexFakeAgents,
-  type WarmIndexAgentSideEvidenceV1,
-  type WarmIndexProjectAgentEvidenceV1,
-  type WarmIndexTaskAgentEvidenceV1,
-} from "./fakeAgentEvaluation.js";
+import { selectWarmIndexCampaignCases, selectWarmIndexCases } from "./selection.js";
 
 export const RAW_FULL_FILE_VARIANT_ID = "raw-full-file";
 export const WARM_INDEX_REUSE_VARIANT_ID = "warm-index-reuse";
@@ -93,18 +95,16 @@ export const warmIndexReusePlugin: ExperimentPlugin<WarmIndexReuseConfig, WarmIn
   supportedVariants: WARM_INDEX_VARIANTS.map((variant) => variant.id),
   validateConfig: validateWarmIndexReuseConfig,
   async run(context) {
-    // v0.5.2 Batch 1 temporary guard: real-agent campaign execution is not implemented yet. A
-    // campaign configuration must never fall through to the fake-agent path, produce an agent
-    // directory, or run a real provider command. Remove this guard only when the later real-agent
-    // execution batch makes campaign execution valid.
-    if (context.config.campaignPreset) {
-      throw new Error(
-        `Warm-index real-agent campaign "${context.config.campaignPreset}" is configured, but real-agent campaign execution is not implemented in the current implementation stage.`
-      );
-    }
-
     const startedAt = context.startedAt.toISOString();
-    const cases = selectWarmIndexCases(readCasesInput(context.inputs), context.config);
+    // A campaign preset selects campaign-aware case selection and real-agent evaluation for
+    // exactly one provider; its absence preserves the legacy fake-agent path unchanged. Real-agent
+    // campaign execution is still guarded at the public experiment-run command (v0.5.2 Batch 3):
+    // this plugin-level path is exercised by programmatic/test callers only until Batch 4
+    // implements campaign-accurate reporting.
+    const preset = context.config.campaignPreset ? getWarmIndexCampaignPreset(context.config.campaignPreset) : undefined;
+    const cases = preset
+      ? selectWarmIndexCampaignCases(readCasesInput(context.inputs), preset, context.config)
+      : selectWarmIndexCases(readCasesInput(context.inputs), context.config);
     const projectProfiles = readProjectProfilesInput(context.inputs);
     const outDir = context.outputRoot ?? path.resolve(context.toolRoot, context.config.outDir);
     await mkdir(outDir, { recursive: true });
@@ -115,15 +115,27 @@ export const warmIndexReusePlugin: ExperimentPlugin<WarmIndexReuseConfig, WarmIn
       outputRoot: outDir,
     });
 
-    // Fake-agent evaluation runs after execution evidence exists and never repeats it.
-    const agentEvidence = await evaluateWarmIndexFakeAgents({
-      projects,
-      cases,
-      projectProfiles,
-      outputRoot: outDir,
-      cwd: context.target.targetRoot,
-      env: readEnvInput(context.inputs),
-    });
+    // Agent evaluation runs after execution evidence exists and never repeats index/search/
+    // lookup/slice/source; the real-agent path consumes the exact contexts execution produced.
+    const campaignTimeoutMs = preset ? resolveWarmIndexCampaignTimeoutMs(preset, context.config.timeoutMs) : undefined;
+    const agentEvidence = preset
+      ? await evaluateWarmIndexRealAgentCampaign({
+          projects,
+          cases,
+          projectProfiles,
+          outputRoot: outDir,
+          agentId: preset.agentId,
+          timeoutMs: campaignTimeoutMs!,
+          env: readEnvInput(context.inputs),
+        })
+      : await evaluateWarmIndexFakeAgents({
+          projects,
+          cases,
+          projectProfiles,
+          outputRoot: outDir,
+          cwd: context.target.targetRoot,
+          env: readEnvInput(context.inputs),
+        });
 
     const artifact = buildWarmIndexExecutionArtifact({
       runId: context.runId,
@@ -143,6 +155,7 @@ export const warmIndexReusePlugin: ExperimentPlugin<WarmIndexReuseConfig, WarmIn
       projectSummaries: artifact.projects,
       agentEvidence,
       artifactPath,
+      campaign: preset ? { campaignPreset: preset.id, campaignAgentId: preset.agentId, campaignTimeoutMs: campaignTimeoutMs! } : undefined,
     });
     return run;
   },
@@ -161,6 +174,8 @@ export function mapWarmIndexExecutionToRun(args: {
   projectSummaries: WarmIndexProjectSummaryV1[];
   agentEvidence: WarmIndexProjectAgentEvidenceV1[];
   artifactPath: string;
+  /** Present only for campaign runs; absent for legacy fake-agent runs. */
+  campaign?: { campaignPreset: string; campaignAgentId: string; campaignTimeoutMs: number };
 }): WarmIndexReuseRun {
   const titles = new Map(args.cases.map((evaluationCase) => [evaluationCase.id, evaluationCase.title]));
   const warmIndexMetrics = calculateWarmIndexMetrics(args.projectSummaries, args.agentEvidence);
@@ -209,7 +224,16 @@ export function mapWarmIndexExecutionToRun(args: {
     ],
     warnings,
     failures: [],
-    metadata: { executionArtifactPath: args.artifactPath },
+    metadata: {
+      executionArtifactPath: args.artifactPath,
+      ...(args.campaign
+        ? {
+            campaignPreset: args.campaign.campaignPreset,
+            campaignAgentId: args.campaign.campaignAgentId,
+            campaignTimeoutMs: args.campaign.campaignTimeoutMs,
+          }
+        : {}),
+    },
     projectExecutions: args.projectSummaries,
     agentEvidence: args.agentEvidence,
     warmIndexMetrics,
@@ -230,13 +254,18 @@ function outcomeMetadata(
     taskStatus: task.status,
     // Agent evaluation status is reported separately; it does not change the execution status.
     agentStatus: agent ? agent.status : "not-run",
+    // null (never omitted) for a side that was not run, so consumers can rely on the key existing.
+    agentId: agent ? agent.agentId : null,
   };
 }
 
 function agentWarnings(agent: WarmIndexAgentSideEvidenceV1 | null, variantId: string, caseId: string): ExperimentWarning[] {
   if (!agent) return [];
+  // Preserve the historical fake-agent warning code; real-agent evidence uses a distinct code
+  // rather than silently relabeling it.
+  const code = agent.agentId === "fake-agent" ? "fake-agent-evaluation-error" : "real-agent-evaluation-error";
   return agent.errors.map((message) => ({
-    code: "fake-agent-evaluation-error",
+    code,
     message,
     variantId,
     caseId,

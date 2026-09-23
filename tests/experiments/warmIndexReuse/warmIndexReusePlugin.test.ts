@@ -340,6 +340,7 @@ describe("warm-index-reuse execution", () => {
           sessionKey: "todo-ts",
           warmSessionAvailable: true,
           taskStatus: "completed",
+          agentId: "fake-agent",
           agentStatus: "completed",
         });
       }
@@ -770,29 +771,8 @@ describe("v0.5.2 Batch 1 -- campaign-aware case selection", () => {
   });
 });
 
-describe("v0.5.2 Batch 1 -- temporary campaign execution guard", () => {
-  it("fails the run before any fake-agent evaluation or execution artifact is produced", async () => {
-    const outputRoot = tempDir("warm-campaign-guard-");
-    const run = (await runExperiment({
-      pluginId: "warm-index-reuse",
-      registry: createDefaultExperimentPluginRegistry(),
-      outputRoot,
-      config: { kitCommand: fakeKitCommand, campaignPreset: "codex-full", includeRealAgents: true },
-      inputs: { cases: makeCases(1), projectProfiles: await loadBundledProjectProfiles(), env: {} },
-      toolRoot: process.cwd(),
-      runId: "warm-campaign-guard-run",
-    })) as WarmIndexReuseRun;
-
-    expect(run.status).toBe("failed");
-    expect(run.failures.map((failure) => failure.message).join(" ")).toContain(
-      'Warm-index real-agent campaign "codex-full" is configured'
-    );
-    expect(run.failures.map((failure) => failure.message).join(" ")).toContain(
-      "real-agent campaign execution is not implemented"
-    );
-    expect(existsSync(path.join(outputRoot, "warm-index-execution.json"))).toBe(false);
-    expect(existsSync(path.join(outputRoot, "agents"))).toBe(false);
-    expect(existsSync(path.join(outputRoot, "commands"))).toBe(false);
-    expect(existsSync(path.join(outputRoot, "indexes"))).toBe(false);
-  });
-});
+// The v0.5.2 Batch 1 temporary plugin-level campaign execution guard was removed in Batch 3: the
+// plugin now supports real-agent campaign execution programmatically (see
+// tests/experiments/warmIndexReuse/warmIndexRealAgent.test.ts). Public CLI campaign execution
+// remains guarded at the command surface -- see the v0.5.2 Batch 3 guard tests in
+// tests/commands/warmIndexReuseCommand.spec.ts.

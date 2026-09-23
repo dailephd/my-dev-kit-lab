@@ -82,6 +82,17 @@ export async function runExperimentRunCommandFromArgs(
 ): Promise<number> {
   try {
     const args = parseRunExperimentArgs(argv);
+    // v0.5.2 Batch 3 temporary command-surface guard: the plugin itself now supports real-agent
+    // campaign execution, but Batch 4 has not yet corrected the report/metric presentation layer
+    // (still fake-agent-specific wording), so the public experiment-run command must not produce a
+    // currently misleading campaign report. Programmatic runExperiment() callers (used by
+    // deterministic tests) are unaffected; only this command surface is guarded. Batch 4 removes
+    // this guard when campaign report integration is complete.
+    if (args.config.campaignPreset) {
+      throw new Error(
+        `Warm-index real-agent campaign "${args.config.campaignPreset}" has internal execution support, but public campaign execution remains guarded until real-agent report integration is implemented.`
+      );
+    }
     const context = options.context ?? createLabExecutionContext();
     const toolRoot = context.packageRoot;
     const registry = createDefaultExperimentPluginRegistry();

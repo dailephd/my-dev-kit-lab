@@ -162,7 +162,7 @@ describe("experiment run --campaign (v0.5.2 Batch 1)", () => {
     expect(parsed.config).toEqual({ kitCommand: "npx @dailephd/my-dev-kit@latest", caseIds: ["a", "b"] });
   });
 
-  it("fails cleanly without --include-real-agents", async () => {
+  it("rejects a campaign at the command surface even before other campaign config would be validated", async () => {
     const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-campaign-"));
     tempDirs.push(outRoot);
     const output = captureConsole();
@@ -177,34 +177,40 @@ describe("experiment run --campaign (v0.5.2 Batch 1)", () => {
       outRoot,
     ]);
     expect(exitCode).toBe(1);
-    expect(output.stderr()).toContain("includeRealAgents to be exactly true");
+    expect(output.stderr()).toContain(
+      'Warm-index real-agent campaign "codex-full" has internal execution support, but public campaign execution remains guarded'
+    );
+    // The guard fires before runExperiment() is called; the pre-existing empty temp dir stays empty.
+    expect(existsSync(path.join(outRoot, "warm-index-execution.json"))).toBe(false);
+    expect(existsSync(path.join(outRoot, "report.json"))).toBe(false);
   });
 
-  it("invokes the guarded campaign through the command owner and produces no accidental fake-agent evidence", async () => {
-    const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-campaign-guard-"));
-    tempDirs.push(outRoot);
-    const output = captureConsole();
-    const exitCode = await runExperimentRunCommandFromArgs([
-      "--experiment",
-      "warm-index-reuse",
-      "--campaign",
-      "codex-full",
-      "--include-real-agents",
-      "--kit-command",
-      fakeKitCommand,
-      "--out",
-      outRoot,
-    ]);
-    expect(exitCode).toBe(1);
-    expect(output.stdout()).toContain("Status: failed");
-    const report = JSON.parse(readFileSync(path.join(outRoot, "report.json"), "utf8")) as {
-      report: { failures: Array<{ message: string }> };
-    };
-    expect(report.report.failures.map((failure) => failure.message).join(" ")).toContain(
-      "real-agent campaign execution is not implemented"
-    );
-    expect(existsSync(path.join(outRoot, "warm-index-execution.json"))).toBe(false);
-    expect(existsSync(path.join(outRoot, "agents"))).toBe(false);
+  describe.each(["codex-full", "claude-full"] as const)("v0.5.2 Batch 3 command-surface guard (%s)", (preset) => {
+    it("rejects public campaign execution before any index/command/agent directory is produced", async () => {
+      const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-campaign-guard-"));
+      tempDirs.push(outRoot);
+      const output = captureConsole();
+      const exitCode = await runExperimentRunCommandFromArgs([
+        "--experiment",
+        "warm-index-reuse",
+        "--campaign",
+        preset,
+        "--include-real-agents",
+        "--kit-command",
+        fakeKitCommand,
+        "--out",
+        outRoot,
+      ]);
+      expect(exitCode).toBe(1);
+      expect(output.stderr()).toContain(
+        `Warm-index real-agent campaign "${preset}" has internal execution support, but public campaign execution remains guarded until real-agent report integration is implemented.`
+      );
+      // The guard fires before runExperiment() is called, so nothing is written beneath outRoot.
+      expect(existsSync(path.join(outRoot, "warm-index-execution.json"))).toBe(false);
+      expect(existsSync(path.join(outRoot, "indexes"))).toBe(false);
+      expect(existsSync(path.join(outRoot, "commands"))).toBe(false);
+      expect(existsSync(path.join(outRoot, "agents"))).toBe(false);
+    });
   });
 });
 
@@ -353,7 +359,8 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     expect(warmSection).toContain("codex-full");
     expect(warmSection).toContain("claude-full");
     expect(warmSection).toContain("codex-timeout-isolation");
-    expect(warmSection).toContain("does not run in the current implementation stage");
+    expect(warmSection).toContain("guarded from");
+    expect(warmSection).toContain("the public experiment command");
     expect(warmSection).not.toMatch(/--agents|--strategies|--complexities|--command-template/);
     const contextSection = text.slice(context);
     for (const flag of ["--agents", "--strategies", "--complexities", "--include-real-agents", "--command-template-codex", "--no-screenshot"]) {
