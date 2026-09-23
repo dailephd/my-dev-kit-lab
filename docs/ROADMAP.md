@@ -750,7 +750,7 @@ Status: **deferred**.
 
 ### v0.5.0 — warm-index reuse experiment support
 
-Status: **published/current release**.
+Status: **published**.
 
 Purpose:
 

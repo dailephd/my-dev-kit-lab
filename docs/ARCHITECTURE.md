@@ -153,7 +153,7 @@ sequenceDiagram
 
 ## Warm-index reuse architecture (v0.5.0)
 
-Released/current. `warm-index-reuse` is a second plugin on the same generic runner; it adds no runner, report writer, plot writer, retrieval runner, or agent adapter of its own.
+Released in v0.5.0 and retained in the current v0.5.1 release. `warm-index-reuse` is a second plugin on the same generic runner; it adds no runner, report writer, plot writer, retrieval runner, or agent adapter of its own.
 
 ```mermaid
 flowchart TD
@@ -521,7 +521,7 @@ Explicit non-goals:
 
 ### Released v0.4.9 native-select extension
 
-The v0.4.8 vocabulary could express keyboard input and pointer gestures, but had no way to say "choose the option whose value is X" in a native HTML `<select>`. Downstream consumers had to emulate selection with `ArrowDown` counts followed by `Enter`, which encodes a platform-sensitive navigation path instead of the intent. v0.4.9 adds one additive, value-only action to close that gap and is the previous release; v0.5.0 is the current release.
+The v0.4.8 vocabulary could express keyboard input and pointer gestures, but had no way to say "choose the option whose value is X" in a native HTML `<select>`. Downstream consumers had to emulate selection with `ArrowDown` counts followed by `Enter`, which encodes a platform-sensitive navigation path instead of the intent. v0.4.9 added one additive, value-only action to close that gap; the extension remains part of the current v0.5.1 architecture.
 
 Ownership:
 
