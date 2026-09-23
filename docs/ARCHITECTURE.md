@@ -215,6 +215,34 @@ flowchart LR
 - Runtime, report, and plot owners are reused unchanged: the 12-case corpus runs as two project groups with one index each and ordinals 1–6 per project; the report schema stays `my-dev-kit-lab-warm-index-report-v1`; and the four plot families are unchanged.
 - `scripts/verify-packed-package.mjs` adds an additive resource check: the corpus is present in the tarball (it ships under the existing `benchmarks/` package entry), it can be read from a clean install, and the installed CLI can select a case from it through the existing `--cases` option.
 
+## Real-agent warm-index campaign architecture (v0.5.2, implemented/unreleased)
+
+Implemented on `feature/v0.5.2-warm-index-real-agent-campaigns` (commit `ca66ab3888bc9bf166c75436bacd2970234465c6`); not yet released. It extends the `warm-index-reuse` plugin and the existing presentation/gallery pipeline; it does not add a second experiment runner, a second report writer, or a second gallery writer.
+
+```mermaid
+flowchart LR
+  CLI[experiment run --campaign preset --include-real-agents] --> Presets[campaignPresets.ts]
+  Presets --> Plugin[warmIndexReuse/plugin.ts campaign branch]
+  Plugin --> RealEval[agentEvaluation.ts evaluateWarmIndexRealAgentCampaign]
+  RealEval --> Prompt[realAgentPrompt.ts buildWarmIndexRealAgentPrompt]
+  RealEval --> Agents[src/agents adapters: Codex JSONL / Claude JSON stdin transport]
+  Plugin --> Orchestrate[runExperimentRunCommand.ts]
+  Orchestrate --> Presentation[runWarmIndexCampaignPresentation.ts]
+  Presentation --> Report[report] --> Plots[plots] --> Screenshot[screenshot]
+  Presentation --> Gallery[writeWarmIndexCampaignGallery.ts]
+```
+
+- `campaignPresets.ts` owns campaign policy: `WARM_INDEX_CAMPAIGN_PRESET_IDS` (`codex-full`, `claude-full`, `codex-timeout-isolation`), preset-to-agent mapping, and `resolveWarmIndexCampaignTimeoutMs`. A campaign preset selects the bundled production corpus and a single provider; it cannot be combined with `--target`, `--cases`, or `--project-profiles`, and `--include-real-agents` is required to run real providers rather than the deterministic fake agent.
+- `plugin.ts` gains a campaign branch: when `config.campaignPreset` is set, it runs `evaluateWarmIndexRealAgentCampaign` instead of the existing `evaluateWarmIndexFakeAgents` fake-agent path; the unchanged index/execution layer (`warmIndexSession.ts`, `execution.ts`, `executionArtifact.ts`) and metrics owner (`metrics.ts`) are reused unmodified.
+- `agentEvaluation.ts` — `evaluateWarmIndexRealAgentCampaign` is the campaign agent-evidence owner: one real-provider run per task side with context evidence, using a neutral temporary working directory (cleaned up best-effort in a `finally` block) so the provider process cannot see the target's own working tree.
+- `realAgentPrompt.ts` — `buildWarmIndexRealAgentPrompt` builds the single real-agent prompt from already-computed warm-index context evidence; it does not itself call a provider or parse output.
+- `src/agents` owns the frozen Codex/Claude stdin transport (Codex JSONL `exec --json --ephemeral ...`; Claude JSON `--restricted -p --output-format json ...`) and `classifyAgentRunOutcome`'s outcome mapping (`completed`, `token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`); the campaign path reuses these adapters rather than duplicating provider transport.
+- `runExperimentRunCommand.ts` is the orchestration boundary: it parses `--campaign`/`--include-real-agents`, rejects incompatible flags, runs the plugin, and — only for a completed campaign run — invokes `runWarmIndexCampaignPresentation.ts` with the run's execution-artifact path and campaign agent id. The warm-index plugin itself does not call report, plot, screenshot, or gallery code; cross-presentation orchestration stays a command-layer responsibility, not a plugin responsibility.
+- `runWarmIndexCampaignPresentation.ts` sequences the existing, unmodified report → plots → screenshot pipeline for a completed campaign run, then calls `writeWarmIndexCampaignGallery.ts`.
+- `writeWarmIndexCampaignGallery.ts` (`src/gallery/`) builds a bounded, 3-item campaign gallery (report, plots, screenshot) with relative POSIX paths and no links to raw agent stdout/stderr/telemetry, reusing `writeGalleryManifest.ts` rather than a parallel gallery contract.
+- Infrastructure status and provider status remain distinct: a run can complete its index/execution infrastructure while its per-task agent evidence is `partial` or `unavailable` (e.g. `agent-limit-reached`, `timeout`); the campaign path reports this explicitly rather than treating infrastructure completion as provider success.
+- No real Codex or Claude process is ever invoked from automated tests or the packed-package acceptance gate; deterministic local fixture binaries stand in for both providers there.
+
 ## Stage-context evaluation architecture (v0.4.3)
 
 Implemented and published. It extends the `context-strategy-comparison` plugin and its report layer rather than creating a parallel runner, evaluation system, or report system.
@@ -551,7 +579,7 @@ The following layers remain planned and must not be treated as current behavior:
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
-- real-agent warm-index campaigns with screenshots/gallery output (`v0.5.2`); the expanded warm-index benchmark suite (`v0.5.1`) is released, see "Expanded warm-index benchmark suite (v0.5.1)" above
+- the expanded warm-index benchmark suite (`v0.5.1`) is released, see "Expanded warm-index benchmark suite (v0.5.1)" above; real-agent warm-index campaigns with screenshots/gallery output are implemented on the unreleased `v0.5.2` implementation, see "Real-agent warm-index campaign architecture (v0.5.2, implemented/unreleased)" above — they are not yet part of any published release
 - additional experiment plugins for freshness, scale, retrieval quality, and agent success (`v0.6.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
@@ -624,3 +652,9 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.5.1 warm-index corpus, suite-coverage, and task-stat validation (released) | `src/evaluation/benchmarkMetadata.ts` (`validateWarmIndexBenchmarkCases`, `validateWarmIndexBenchmarkSuiteCoverage`, `deriveWarmIndexTaskStats`) |
 | v0.5.1 dedicated warm-index benchmark corpus and project profiles (released) | `benchmarks/contracts/warm-index-benchmark-cases.json`, `benchmarks/contracts/benchmark-project-profiles.json` |
 | v0.5.1 benchmark and packed-package acceptance (released) | `scripts/verify-benchmarks.ts`, `scripts/verify-packed-package.mjs` |
+| v0.5.2 campaign preset policy (implemented, unreleased) | `src/experiments/plugins/warmIndexReuse/campaignPresets.ts` |
+| v0.5.2 real-agent campaign evaluation (implemented, unreleased) | `src/experiments/plugins/warmIndexReuse/agentEvaluation.ts` (`evaluateWarmIndexRealAgentCampaign`) |
+| v0.5.2 real-agent prompt construction (implemented, unreleased) | `src/experiments/plugins/warmIndexReuse/realAgentPrompt.ts` |
+| v0.5.2 campaign command orchestration (implemented, unreleased) | `src/commands/runExperimentRunCommand.ts` |
+| v0.5.2 campaign presentation sequencing (implemented, unreleased) | `src/commands/runWarmIndexCampaignPresentation.ts` |
+| v0.5.2 campaign gallery (implemented, unreleased) | `src/gallery/writeWarmIndexCampaignGallery.ts` |

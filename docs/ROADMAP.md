@@ -800,7 +800,7 @@ Implementation status: the features and acceptance criteria above are satisfied 
 
 ### v0.5.2 — warm-index real-agent campaigns
 
-Status: **planned; not implemented**.
+Status: **implemented/unreleased**.
 
 Purpose:
 
@@ -819,6 +819,8 @@ Acceptance:
 * Campaigns can run with Codex and Claude.
 * Partial outcomes are structured.
 * Reports distinguish infrastructure success from agent/provider limitations.
+
+Implementation status: the frozen plan above is satisfied. Three campaign presets are implemented — `codex-full` and `claude-full` (the full 12-case production corpus, one provider each) and `codex-timeout-isolation` (three large/mixed cases for provider timeout/partial-outcome exercises) — selected with `experiment run --experiment warm-index-reuse --campaign <preset> --include-real-agents`; each preset owns exactly one provider, so there is no multi-provider matrix, retry, provider switching, or scheduler. Real-agent evaluation consumes the exact raw/warm context text the experiment already measured (no independent provider retrieval), delivers it over stdin from a neutral temporary working directory, and shares the existing prompt/parser/classifier/answer-key scorer pipeline with the deterministic fake agent, extended with Codex JSONL and Claude JSON response parsing. Provider outcomes (`completed`, `failed`, `timeout`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `skipped`) are classified and reported separately from warm-index infrastructure status, so a campaign's infrastructure can report `completed` while its `agentEvidenceStatus`/`tokenEvidenceStatus` are `partial` or `unavailable` — missing provider token evidence is never zero and never substituted with an estimated context-token count. The warm-index report schema (`my-dev-kit-lab-warm-index-report-v1`), its generic agent metric IDs and formulas, and the four warm-index plots are unchanged; the report gained additive agent identity and campaign-summary fields, and the plots gained provider-aware titles/labels. A campaign run automatically produces the report, the four plots, a best-effort report screenshot (non-fatal skip without a browser runtime), and a narrow three-item campaign gallery (report, plots, bounded execution evidence); legacy non-campaign runs remain report-only. No token-savings percentage, break-even task, composite score, winner, or ranking is calculated. The exact installed package was proven end to end — including every provider outcome above, the timeout-isolation preset's continuation past a failed case, captured/skipped screenshots, the campaign gallery, and provider-argv privacy — with deterministic local Codex/Claude fixtures (no real provider invoked) across Ubuntu, macOS, and Windows on Node 24 and Node latest.
 
 ### v0.6.0 — index freshness and changed-file detection
 

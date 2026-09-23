@@ -8,14 +8,15 @@ Whole-ecosystem workflows are centralized in [my-dev-kit/docs/ECOSYSTEM_DEVELOPM
 
 The latest release is v0.5.1 (expanded warm-index benchmark suite). The previous release, v0.5.0, added warm-index reuse experiment support. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines, not a statement that they are the ecosystem's current releases. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
-The current release includes v0.5.1 expanded warm-index benchmarks. The package and installed CLI are version 0.5.1; v0.5.0 remains the previous release. v0.5.2 real-agent warm-index campaigns are planned next. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for the validated release state.
+The current release includes v0.5.1 expanded warm-index benchmarks. The package and installed CLI are version 0.5.1; v0.5.0 remains the previous release. v0.5.2 (selectable real-agent warm-index campaigns) is implemented and merged on its feature branch but not yet released; v0.6.0 is the next planned version after it. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for the validated release state.
 
 v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--version`, `security validate`, `audit`, the `experiment` family, `report render`, `plots generate`, `gallery build`, `demo final`, and the historical direct final-demo invocation form), a writable lab workspace model kept separate from the installed package and the inspected target, and a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`). See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for status detail and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime path model. The "Installed CLI" section below documents the shipped command surface; the source-checkout `npm run` workflow in Quickstart remains available for contributors.
 
 ## Current capabilities
 
 - **Run context-strategy experiments:** compare `raw-full-file` with `my-dev-kit-guided` using deterministic fixtures or locally configured Codex and Claude CLIs.
-- **Measure warm-index reuse (v0.5.1):** the `warm-index-reuse` experiment plugin builds one my-dev-kit index per benchmark project, reuses it across that project's tasks, and compares every task with a matched `raw-full-file` baseline. Reports separate one-time index-build cost from per-task retrieval cost, show amortized index cost and cumulative measurements, and include deterministic fake-agent correctness and token evidence; `plots generate` renders four warm-index SVG charts. The v0.5.1 release adds a dedicated 12-task benchmark corpus (`benchmarks/contracts/warm-index-benchmark-cases.json`: six medium and six large/mixed tasks tagged `localized`, `cross-module`, or `broad-change`) for comparing warm-index behavior as task count grows. Estimated context tokens (a character-based context-size estimate) and fake-agent total tokens (simulated harness telemetry) are reported separately, and neither is provider billing telemetry. See [docs/WORKFLOWS.md](docs/WORKFLOWS.md#warm-index-reuse-experiment) and [docs/METRICS.md](docs/METRICS.md#warm-index-reuse-metrics).
+- **Measure warm-index reuse (v0.5.0–v0.5.1, released):** the `warm-index-reuse` experiment plugin builds one my-dev-kit index per benchmark project, reuses it across that project's tasks, and compares every task with a matched `raw-full-file` baseline. Reports separate one-time index-build cost from per-task retrieval cost, show amortized index cost and cumulative measurements, and include deterministic fake-agent correctness and token evidence; `plots generate` renders four warm-index SVG charts. The v0.5.1 release adds a dedicated 12-task benchmark corpus (`benchmarks/contracts/warm-index-benchmark-cases.json`: six medium and six large/mixed tasks tagged `localized`, `cross-module`, or `broad-change`) for comparing warm-index behavior as task count grows. Estimated context tokens (a character-based context-size estimate) and fake-agent total tokens (simulated harness telemetry) are reported separately, and neither is provider billing telemetry.
+- **Run selectable real-agent warm-index campaigns (v0.5.2, implemented/unreleased):** `--campaign codex-full`, `claude-full`, or `codex-timeout-isolation` (with `--include-real-agents`) runs exactly one provider — Codex or Claude — against the exact raw and warm contexts the experiment already measured, over the frozen production corpus each preset owns. Provider outcomes (`completed`, `failed`, `timeout`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `skipped`) are classified and reported separately from warm-index infrastructure status, so a campaign can complete its indexing/retrieval work even when provider evidence is partial or unavailable. A campaign run automatically produces the report, the same four warm-index SVG charts, a best-effort report screenshot (skipped without a browser runtime, never fatal), and a three-item gallery (report, plots, bounded execution evidence). Legacy runs without `--campaign` keep the existing deterministic fake-agent, report-only behavior unchanged. See [docs/WORKFLOWS.md](docs/WORKFLOWS.md#warm-index-reuse-experiment) and [docs/METRICS.md](docs/METRICS.md#warm-index-reuse-metrics).
 - **Audit repository health:** run conservative code-rot detectors for TypeScript/JavaScript, Python, Java, and Kotlin, or adapt security findings into the common audit report.
 - **Validate CLI/package security:** inspect dependencies, package contents, path and subprocess boundaries, malformed inputs, optional static scanners, and bounded fuzz targets.
 - **Validate Android projects:** run nineteen static checks by default, with Gradle operations, external tools, and network access available only through explicit opt-in flags.
@@ -169,6 +170,19 @@ npm run generate-experiment-plots -- --experiment lab-output/warm-index-reuse --
 
 The default cases file, `examples/token-savings-cases.json`, is a small compatibility corpus with one task per benchmark project and remains the default when `--cases` is omitted. For multi-task reuse, select the dedicated corpus explicitly as above: it runs six tasks for each of the two benchmark projects against one index per project. Add `--benchmark-project task-workflow-medium-ts` or `--case <id>` to narrow the selection.
 
+Run a selectable real-agent warm-index campaign (v0.5.2, implemented/unreleased; requires a locally available `codex` or `claude` CLI and `--include-real-agents`). A campaign preset owns its provider and corpus, so `--target`, explicit `--cases`/`--project-profiles`, and the agent-matrix flags below are rejected in campaign mode:
+
+```bash
+npm run experiment:run -- \
+  --experiment warm-index-reuse \
+  --campaign codex-full \
+  --include-real-agents \
+  --case warm-medium-complete-idempotent \
+  --out lab-output/warm-index-campaign
+```
+
+This automatically writes `report.json`/`.txt`/`.html`, the four warm-index charts under `plots/`, a best-effort `report.png`, and a three-item `gallery/` (report, plots, bounded execution evidence) beneath `--out`. `--timeout-ms` overrides the preset's default per-agent timeout (240000 ms). `codex-timeout-isolation` narrows the corpus to three larger cases for exercising provider timeout/partial-outcome handling without running the full 12-case corpus.
+
 When `--target` is omitted, the experiment runs in self mode against my-dev-kit-lab. When `--target <path>` is provided, the lab remains the tool root and the target project is inspected separately. Generated experiment outputs stay under lab-controlled output directories by default, not inside the target project.
 
 ---
@@ -187,6 +201,7 @@ When `--target` is omitted, the experiment runs in self mode against my-dev-kit-
 | Plugin experiment report HTML | `lab-output/experiments/<plugin>/<target>/<run>/report.html` |
 | Plugin experiment report text | `lab-output/experiments/<plugin>/<target>/<run>/report.txt` |
 | Warm-index execution evidence | `<experiment out>/warm-index-execution.json` (plus `indexes/`, `commands/`, and `agents/` beneath the same output root) |
+| Warm-index campaign presentation (v0.5.2) | `<experiment out>/plots/` (four charts), `<experiment out>/report.png` (best-effort), `<experiment out>/gallery/gallery-manifest.json` and `gallery-index.html` — automatic for `--campaign` runs only |
 | Plot data | `lab-output/<plots>/plot-data.json` |
 | SVG charts | `lab-output/<plots>/charts/*.svg` |
 | Gallery manifest | `lab-output/<gallery>/gallery-manifest.json` |
@@ -217,11 +232,11 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 ## Current limitations
 
 - Token savings shown in fake-agent runs are based on estimated character counts, not provider billing telemetry
-- Claude does not expose token totals; token savings comparisons are unavailable for Claude runs
-- Codex may expose token totals but can produce timeouts or invalid-output runs
+- Claude and Codex token totals are used only when the CLI/run exposes them; missing provider token evidence stays explicitly unavailable (never zero, and never substituted with an estimated context-token count)
+- Codex and Claude campaign runs can produce timeouts, invalid-output, agent-unavailable, or agent-limit-reached outcomes; these are structured provider states, not warm-index infrastructure failures
 - Small projects may make raw-full-file cheaper than my-dev-kit-guided; larger localized tasks are where my-dev-kit is expected to become more useful
 - The generic experiment-plugin framework has two plugins: `context-strategy-comparison` and the v0.5.0-introduced `warm-index-reuse`. Later plugins such as incremental-change and context-window scaling are future roadmap work
-- `warm-index-reuse` uses the deterministic fake agent only; selectable Codex/Claude warm-index campaigns remain planned for v0.5.2, and warm-index screenshots/gallery integration are not implemented. The v0.5.1 expanded corpus is deterministic fake-agent benchmark evidence, not real-agent evidence. Its component-duration sums are not wall-clock latency, and it calculates no token-savings percentage, break-even task, winner, or ranking
+- `warm-index-reuse` without `--campaign` still uses the deterministic fake agent only. With `--campaign`, exactly one real provider (Codex or Claude) runs per campaign preset — there is no multi-agent matrix, retry, provider switching, or scheduler. The v0.5.1 expanded corpus is deterministic fake-agent benchmark evidence when run without `--campaign`. No warm-index mode calculates a token-savings percentage, break-even task, winner, or ranking, and component-duration sums are not wall-clock latency
 - The current release does not guarantee token savings; it produces auditable evidence for specific cases, targets, agents, and strategies
 - Provider telemetry dashboards, semantic LLM judging, and cloud API billing integration are not yet implemented
 - The six new stage-context strategies have no CLI flags yet, are configured programmatically, and do not yet include plots, screenshots, or gallery integration
@@ -231,6 +246,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 - v0.4.7 added declarative browser tutorial validation and execution with bounded actions/assertions, persistent Chromium sessions, WebM, screenshots, SRT/VTT, Markdown, and `tutorial-manifest.json`. Chromium is a separate local runtime prerequisite; the package does not download browser binaries automatically. Gallery consumption remains future scope.
 - v0.4.8 added `pointer-click` and `pointer-drag` for normalized fraction positions inside a single located element. Existing `drag` remains element-to-element between source and target locators.
 - v0.4.9 `select-option` identifies an option by HTML value only: label selection, index selection, multi-select arrays, and automatic selector fallback are not supported, and there is no keyboard (`ArrowDown`/`Enter`) fallback. Native popup/menu traversal is not animated. Chromium remains a separately installed local runtime prerequisite; neither package installation nor tutorial execution downloads it automatically.
+- v0.5.2 (implemented, not yet released) selectable real-agent warm-index campaigns run exactly one provider per preset (`codex-full`, `claude-full`, `codex-timeout-isolation`); there is no retry, provider switching, or scheduler. Correctness remains deterministic answer-key scoring, not semantic LLM judging. No composite score, winner, ranking, or break-even task is calculated for campaign or legacy warm-index runs.
 
 ---
 
