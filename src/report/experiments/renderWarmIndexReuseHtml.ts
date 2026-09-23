@@ -1,6 +1,7 @@
-import type { WarmIndexNumberMetricV1 } from "../../experiments/plugins/warmIndexReuse/metrics.js";
+import { agentLabel, type WarmIndexNumberMetricV1 } from "../../experiments/plugins/warmIndexReuse/metrics.js";
 import type {
   WarmIndexReuseReportAgentV1,
+  WarmIndexReuseReportCampaignV1,
   WarmIndexReuseReportProjectV1,
   WarmIndexReuseReportV1,
 } from "./warmIndexReuseReportModel.js";
@@ -27,18 +28,42 @@ export function renderWarmIndexReuseHtml(section: WarmIndexReuseReportV1 | null)
       ["Tasks", String(section.summary.taskCount)],
       ["Projects with a prepared index session", String(section.summary.preparedSessionProjectCount)],
       ["Incomplete or failed projects", String(section.summary.incompleteProjectCount)],
-      ["Fake-agent correctness available (task sides)", `${section.summary.agentCorrectnessAvailableCount} of ${section.summary.agentSideCount}`],
-      ["Fake-agent token totals available (task sides)", `${section.summary.agentTotalTokensAvailableCount} of ${section.summary.agentSideCount}`],
+      ["Agent ID", section.agent.id],
+      ["Agent mode", section.agent.mode],
+      ["Agent correctness available", `${section.summary.agentCorrectnessAvailableCount} of ${section.summary.agentSideCount}`],
+      ["Agent token totals available", `${section.summary.agentTotalTokensAvailableCount} of ${section.summary.agentSideCount}`],
     ])}
+    ${section.agentCampaign ? renderCampaignSection(section.agentCampaign) : ""}
     <h3>Cold Start And Warm Reuse</h3>
     ${list(section.costModel)}
     <h3>Limitations</h3>
     ${list(section.limitations)}
-    ${section.projects.length === 0 ? "<p>No warm-index project evidence was recorded.</p>" : section.projects.map(renderProject).join("\n")}
+    ${section.projects.length === 0 ? "<p>No warm-index project evidence was recorded.</p>" : section.projects.map((project, index) => renderProject(project, index, section.agent.id)).join("\n")}
   </section>`;
 }
 
-function renderProject(project: WarmIndexReuseReportProjectV1, index: number): string {
+function renderCampaignSection(campaign: WarmIndexReuseReportCampaignV1): string {
+  return `<h3>Real-Agent Campaign</h3>
+    ${table(["Field", "Value"], [
+      ["Preset", campaign.presetId],
+      ["Agent", campaign.agentId],
+      ["Timeout (ms)", String(campaign.timeoutMs)],
+      ["Scheduled agent sides", String(campaign.scheduledSideCount)],
+      ["Executed agent sides", String(campaign.executedSideCount)],
+      ["Not run for missing context", String(campaign.notRunForMissingContextCount)],
+      ["Agent evidence status", campaign.agentEvidenceStatus],
+      ["Token evidence status", campaign.tokenEvidenceStatus],
+      ["Completed agent sides", String(campaign.outcomeCounts.completed)],
+      ["Failed agent sides", String(campaign.outcomeCounts.failed)],
+      ["Timeout agent sides", String(campaign.outcomeCounts.timeout)],
+      ["Invalid-output agent sides", String(campaign.outcomeCounts.invalidOutput)],
+      ["Agent-unavailable sides", String(campaign.outcomeCounts.agentUnavailable)],
+      ["Agent-limit-reached sides", String(campaign.outcomeCounts.agentLimitReached)],
+      ["Skipped agent sides", String(campaign.outcomeCounts.skipped)],
+    ])}`;
+}
+
+function renderProject(project: WarmIndexReuseReportProjectV1, index: number, agentId: string): string {
   const unavailableRows = project.tasks.flatMap((task) =>
     (
       [
@@ -53,12 +78,12 @@ function renderProject(project: WarmIndexReuseReportProjectV1, index: number): s
         ["Cumulative warm component duration", task.warm.cumulativeComponentDurationMs],
         ["Cumulative raw estimated context tokens", task.raw.cumulativeEstimatedContextTokens],
         ["Cumulative warm estimated context tokens", task.warm.cumulativeEstimatedContextTokens],
-        ["Raw fake-agent correctness", task.raw.agentCorrectness],
-        ["Warm fake-agent correctness", task.warm.agentCorrectness],
-        ["Raw fake-agent total tokens", task.raw.agentTotalTokens],
-        ["Warm fake-agent total tokens", task.warm.agentTotalTokens],
-        ["Cumulative raw fake-agent total tokens", task.raw.cumulativeAgentTotalTokens],
-        ["Cumulative warm fake-agent total tokens", task.warm.cumulativeAgentTotalTokens],
+        ["Raw agent correctness", task.raw.agentCorrectness],
+        ["Warm agent correctness", task.warm.agentCorrectness],
+        ["Raw agent total tokens", task.raw.agentTotalTokens],
+        ["Warm agent total tokens", task.warm.agentTotalTokens],
+        ["Cumulative raw agent total tokens", task.raw.cumulativeAgentTotalTokens],
+        ["Cumulative warm agent total tokens", task.warm.cumulativeAgentTotalTokens],
       ] as const
     )
       .filter(([, metric]) => metric.availability !== "available")
@@ -108,12 +133,12 @@ function renderProject(project: WarmIndexReuseReportProjectV1, index: number): s
       ])
     )}
     <p class="muted">Estimated tokens are character-based context-size estimates, not provider token usage.</p>
-    <p class="muted">Agent columns are deterministic fake-agent evidence; token totals are simulated harness telemetry, not provider billing telemetry.</p>
+    <p class="muted">${agentColumnsNote(agentId)}</p>
     ${table(
       [
         "Task",
-        "Raw fake-agent status",
-        "Warm fake-agent status",
+        "Raw agent status",
+        "Warm agent status",
         "Raw correctness",
         "Warm correctness",
         "Raw agent tokens",
@@ -140,10 +165,18 @@ function renderProject(project: WarmIndexReuseReportProjectV1, index: number): s
     ${unavailableRows.length === 0 ? "" : table(["Task", "Case", "Metric", "Availability", "Reason"], unavailableRows)}`;
 }
 
+function agentColumnsNote(agentId: string): string {
+  if (agentId === "fake-agent") {
+    return "Agent columns are deterministic fake-agent evidence; token totals are simulated harness telemetry, not provider billing telemetry.";
+  }
+  const label = agentLabel(agentId as "codex" | "claude");
+  return `Agent columns are ${label} campaign evidence; token totals are provider-reported adapter telemetry when available and are never replaced by a context-size estimate.`;
+}
+
 function formatAgent(agent: WarmIndexReuseReportAgentV1 | null): string {
   if (agent === null) return "not run";
   const passed = agent.passed === null ? "" : agent.passed ? ", passed" : ", not passed";
-  return `${agent.status}${passed}${agent.errors[0] ? ` (${agent.errors[0]})` : ""}`;
+  return `${agentLabel(agent.agentId)}: ${agent.status}${passed}${agent.errors[0] ? ` (${agent.errors[0]})` : ""}`;
 }
 
 function formatMetric(metric: WarmIndexNumberMetricV1): string {

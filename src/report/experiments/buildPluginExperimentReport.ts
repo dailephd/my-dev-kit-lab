@@ -136,17 +136,49 @@ function buildInterpretation(
 ): PluginExperimentReport["interpretation"] {
   if (run.pluginId === "warm-index-reuse" && warmIndexReuse) {
     const summary = warmIndexReuse.summary;
+    const campaign = warmIndexReuse.agentCampaign;
+    if (!campaign) {
+      return {
+        summary:
+          `The warm-index run prepared ${summary.preparedSessionProjectCount} of ${summary.projectCount} project indexes and evaluated ${summary.taskCount} tasks. ` +
+          "The report separates one-time index-build duration from per-task retrieval duration and shows how the fixed build cost is amortized across repeated tasks. " +
+          `Deterministic fake-agent correctness/token evidence is available for ${summary.agentCorrectnessAvailableCount} of ${summary.agentSideCount} task sides (correctness) and ${summary.agentTotalTokensAvailableCount} (total tokens); ` +
+          "fake-agent totals are simulated harness evidence, not real-model or provider measurements. " +
+          "Estimated context-token values are context-size estimates, not provider token usage.",
+        recommendedNextStep:
+          run.status === "completed"
+            ? "Review per-task measurements and cumulative component costs for each project; the variants are reported side by side and are not ranked."
+            : "Inspect unavailable metrics, warnings, and failures before drawing conclusions from this run.",
+      };
+    }
+
+    const nonCompletedCounts = (
+      [
+        ["failed", campaign.outcomeCounts.failed],
+        ["timeout", campaign.outcomeCounts.timeout],
+        ["invalid-output", campaign.outcomeCounts.invalidOutput],
+        ["agent-unavailable", campaign.outcomeCounts.agentUnavailable],
+        ["agent-limit-reached", campaign.outcomeCounts.agentLimitReached],
+        ["skipped", campaign.outcomeCounts.skipped],
+      ] as const
+    )
+      .filter(([, count]) => count > 0)
+      .map(([label, count]) => `${label}=${count}`)
+      .join(", ");
+
+    const isInfrastructureComplete = run.status === "completed";
+    const isAgentEvidenceComplete = campaign.agentEvidenceStatus === "complete";
     return {
       summary:
-        `The warm-index run prepared ${summary.preparedSessionProjectCount} of ${summary.projectCount} project indexes and evaluated ${summary.taskCount} tasks. ` +
-        "The report separates one-time index-build duration from per-task retrieval duration and shows how the fixed build cost is amortized across repeated tasks. " +
-        `Deterministic fake-agent correctness is available for ${summary.agentCorrectnessAvailableCount} of ${summary.agentSideCount} task sides and fake-agent token totals for ${summary.agentTotalTokensAvailableCount}; ` +
-        "these are simulated harness evidence, not real-model or provider measurements. " +
-        "Estimated context-token values are context-size estimates, not provider token usage.",
-      recommendedNextStep:
-        run.status === "completed"
-          ? "Review per-task measurements and cumulative component costs for each project; the variants are reported side by side and are not ranked."
-          : "Inspect unavailable metrics, warnings, and failures before drawing conclusions from this run.",
+        `Campaign preset ${campaign.presetId} selected agent ${campaign.agentId} over ${summary.projectCount} prepared project ` +
+        `index${summary.projectCount === 1 ? "" : "es"} and ${campaign.selectedCaseCount} selected task${campaign.selectedCaseCount === 1 ? "" : "s"}. ` +
+        `Agent evidence status: ${campaign.agentEvidenceStatus} (${campaign.executedSideCount} of ${campaign.scheduledSideCount} scheduled sides executed` +
+        `${nonCompletedCounts ? `; outcome counts: ${nonCompletedCounts}` : ""}). ` +
+        `Token evidence status: ${campaign.tokenEvidenceStatus} (${summary.agentTotalTokensAvailableCount} of ${summary.agentSideCount} task sides have a total-token value). ` +
+        "Context estimated tokens remain a separate character-based context-size estimate and are never substituted for provider telemetry.",
+      recommendedNextStep: isInfrastructureComplete && isAgentEvidenceComplete
+        ? "Review per-task correctness, token provenance, and cumulative component measurements."
+        : "Review infrastructure gaps (index build, raw/warm retrieval) separately from provider/agent limitations before drawing conclusions from this run.",
     };
   }
 

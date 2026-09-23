@@ -243,7 +243,7 @@ describe("calculateWarmIndexMetrics", () => {
     const [metrics] = calculateWarmIndexMetrics([project({ tasks: [task("t1")] })]).projects;
     for (const side of [metrics.tasks[0].raw, metrics.tasks[0].warm]) {
       expect(side.agentCorrectness).toEqual(expect.objectContaining({ availability: "unavailable", value: null, unit: "score", source: "agent" }));
-      expect(side.agentCorrectness.reason).toContain("No fake-agent evaluation evidence was supplied");
+      expect(side.agentCorrectness.reason).toContain("No agent evaluation evidence was supplied");
       expect(side.agentTotalTokens).toEqual(
         expect.objectContaining({ availability: "unavailable", value: null, unit: "tokens", source: "agent", tokenCountMethod: null })
       );
@@ -339,7 +339,7 @@ describe("fake-agent metrics", () => {
   it("explains a side the fake agent did not run on", () => {
     const input = project({ tasks: [task("t1", { warmRetrieval: null, warmStatus: "failed" })] });
     const [metrics] = calculateWarmIndexMetrics([input], [agentEvidenceFor(input, [{ warm: null }])]).projects;
-    expect(metrics.tasks[0].warm.agentCorrectness.reason).toContain("not run because this side produced no context evidence");
+    expect(metrics.tasks[0].warm.agentCorrectness.reason).toContain("not run because this side produced no usable context evidence");
   });
 
   it("sums fake-agent tokens with strict-prefix availability and resets per project", () => {
@@ -383,7 +383,7 @@ describe("fake-agent metrics", () => {
     expect(raw.find((metric) => metric.id === "agent-total-tokens")).toEqual(
       expect.objectContaining({ value: 200, unit: "tokens", variantId: "raw-full-file", caseId: "t1" })
     );
-    expect(raw.find((metric) => metric.id === "agent-total-tokens")?.description).toContain("not provider billing telemetry");
+    expect(raw.find((metric) => metric.id === "agent-total-tokens")?.description).toContain("no context-size estimate is substituted");
   });
 });
 
