@@ -1043,9 +1043,15 @@ async function main() {
         : [];
     const clearProviderLog = () => writeFileSync(providerLogPath, "", "utf8");
 
+    // On POSIX, resolveCommand() resolves the installed CLI to its bare name (not an absolute
+    // path) for a "direct" resolution kind, so spawning it still depends on PATH containing the
+    // consumer's own node_modules/.bin at spawn time -- unlike Windows, where every resolution kind
+    // yields an absolute command. Provider-PATH isolation must narrow which *providers* (codex/
+    // claude) can be discovered without breaking discovery of the CLI binary itself.
+    const consumerBinDir = path.join(dirs.consumer, "node_modules", ".bin");
     function campaignEnv({ mode = "success", failMatch, playwrightBrowsersPath, extraBinDirs = [dirs.fakeAgentsBin] } = {}) {
       const env = {
-        ...isolatedProviderEnv(envWithBin, extraBinDirs),
+        ...isolatedProviderEnv(envWithBin, [consumerBinDir, ...extraBinDirs]),
         [FAKE_AGENT_MODE_ENV]: mode,
         [FAKE_AGENT_LOG_ENV]: providerLogPath
       };
