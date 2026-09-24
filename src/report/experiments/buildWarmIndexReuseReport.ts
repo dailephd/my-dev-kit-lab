@@ -1,14 +1,20 @@
 import type { AgentId } from "../../agents/types.js";
 import type { ExperimentRun } from "../../experiments/index.js";
+import type { IndexFreshnessAssessmentV1 } from "../../evaluation/indexFreshness.js";
 import type { WarmIndexAgentSideEvidenceV1 } from "../../experiments/plugins/warmIndexReuse/agentEvaluation.js";
 import type { WarmIndexReuseRun } from "../../experiments/plugins/warmIndexReuse/plugin.js";
 import {
+  MAX_REPORT_FRESHNESS_CHANGES,
+  MAX_REPORT_FRESHNESS_UNRESOLVED,
   WARM_INDEX_REUSE_REPORT_SCHEMA_VERSION,
   type WarmIndexAgentEvidenceStatus,
   type WarmIndexCampaignOutcomeCountsV1,
   type WarmIndexReuseReportAgentIdentityV1,
   type WarmIndexReuseReportAgentV1,
+  type WarmIndexReuseReportBoundedListV1,
   type WarmIndexReuseReportCampaignV1,
+  type WarmIndexReuseReportFreshnessSummaryV1,
+  type WarmIndexReuseReportFreshnessV1,
   type WarmIndexReuseReportProjectV1,
   type WarmIndexReuseReportV1,
   type WarmIndexTokenEvidenceStatus,
@@ -41,6 +47,14 @@ const CLAUDE_CAMPAIGN_LIMITATIONS = [
   "Token totals are used when exposed by the CLI output.",
   "Token totals may be unavailable for some CLI/version/run outcomes.",
   "Unavailable token totals remain unavailable and are never replaced by zero or a context estimate.",
+];
+
+const FRESHNESS_LIMITATIONS = [
+  "Freshness compares only files proven by the index snapshot to have been indexed. It does not establish that the entire repository is unchanged.",
+  "A new file that was not represented in the snapshot is outside the current freshness comparison and is not automatically evidence that the index is stale.",
+  "File content SHA-256 is the comparison identity. Modified timestamps are diagnostic metadata only.",
+  "Freshness is observational evidence. It does not trigger reindexing, suppress warm retrieval, alter execution status, or alter provider/agent outcome status.",
+  "Freshness statuses: fresh means all represented indexed files were completely compared and their content identities still match; stale means a complete comparison confirmed at least one represented indexed file is modified or missing; partially-stale means at least one represented indexed file is confirmed changed but comparison evidence is incomplete; unknown means no confirmed change established staleness but evidence is insufficient to prove freshness. A task without an assessment is reported as not assessed, which is not the same as unknown.",
 ];
 
 const COST_MODEL = [
@@ -117,6 +131,7 @@ export function buildWarmIndexReuseReport(run: ExperimentRun): WarmIndexReuseRep
           warm: task.warm,
           rawAgent: toReportAgent(rawEvidence),
           warmAgent: toReportAgent(warmEvidence),
+          indexFreshness: toReportFreshness(execution.tasks[taskIndex].indexFreshness),
         };
       }),
     };
@@ -150,6 +165,51 @@ export function buildWarmIndexReuseReport(run: ExperimentRun): WarmIndexReuseRep
     projects,
     agent: agentIdentity,
     agentCampaign,
+    indexFreshnessSummary: summarizeFreshness(projects.flatMap((project) => project.tasks)),
+  };
+}
+
+function boundedList<T, U>(source: readonly T[], limit: number, map: (item: T) => U): WarmIndexReuseReportBoundedListV1<U> {
+  const items = source.slice(0, limit).map(map);
+  return { totalCount: source.length, displayedCount: items.length, omittedCount: source.length - items.length, items };
+}
+
+/**
+ * Presents persisted freshness evidence only: it never recomputes a status, count, or hash and
+ * never touches the filesystem. Absent evidence stays null rather than becoming `unknown`.
+ */
+function toReportFreshness(freshness: IndexFreshnessAssessmentV1 | null | undefined): WarmIndexReuseReportFreshnessV1 | null {
+  if (!freshness) return null;
+  return {
+    status: freshness.status,
+    assessedAt: freshness.assessedAt,
+    baselineSnapshotStatus: freshness.baselineSnapshotStatus,
+    indexedFileCount: freshness.indexedFileCount,
+    comparableFileCount: freshness.comparableFileCount,
+    unchangedFileCount: freshness.unchangedFileCount,
+    changedFileCount: freshness.changedFileCount,
+    missingFileCount: freshness.missingFileCount,
+    unresolvedFileCount: freshness.unresolvedFileCount,
+    changes: boundedList(freshness.changes, MAX_REPORT_FRESHNESS_CHANGES, (change) => ({ path: change.path, changeType: change.changeType })),
+    unresolved: boundedList(freshness.unresolved, MAX_REPORT_FRESHNESS_UNRESOLVED, (entry) => ({
+      path: entry.path,
+      reasonCode: entry.reasonCode,
+      message: entry.message,
+    })),
+    warnings: [...freshness.warnings],
+  };
+}
+
+function summarizeFreshness(tasks: ReadonlyArray<{ indexFreshness: WarmIndexReuseReportFreshnessV1 | null }>): WarmIndexReuseReportFreshnessSummaryV1 {
+  const assessed = tasks.flatMap((task) => (task.indexFreshness ? [task.indexFreshness] : []));
+  const count = (status: WarmIndexReuseReportFreshnessV1["status"]) => assessed.filter((freshness) => freshness.status === status).length;
+  return {
+    assessedTaskCount: assessed.length,
+    unassessedTaskCount: tasks.length - assessed.length,
+    freshTaskCount: count("fresh"),
+    staleTaskCount: count("stale"),
+    partiallyStaleTaskCount: count("partially-stale"),
+    unknownTaskCount: count("unknown"),
   };
 }
 
@@ -248,10 +308,10 @@ function buildCampaignSummary(args: {
 
 function buildLimitations(agent: WarmIndexReuseReportAgentIdentityV1): string[] {
   if (agent.mode === "deterministic-fake") {
-    return [...COMMON_LIMITATIONS, ...FAKE_AGENT_LIMITATIONS];
+    return [...COMMON_LIMITATIONS, ...FAKE_AGENT_LIMITATIONS, ...FRESHNESS_LIMITATIONS];
   }
   const providerLimitations = agent.id === "codex" ? CODEX_CAMPAIGN_LIMITATIONS : CLAUDE_CAMPAIGN_LIMITATIONS;
-  return [...COMMON_LIMITATIONS, ...providerLimitations];
+  return [...COMMON_LIMITATIONS, ...providerLimitations, ...FRESHNESS_LIMITATIONS];
 }
 
 function toReportAgent(agent: WarmIndexAgentSideEvidenceV1 | null): WarmIndexReuseReportAgentV1 | null {

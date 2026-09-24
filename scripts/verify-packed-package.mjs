@@ -993,6 +993,33 @@ async function main() {
       fail("WARM_INDEX_INDEX_FRESHNESS", "Installed warm-index execution artifact contains v0.6.1+ fields.");
     }
 
+    // v0.6.0 Batch 3: the installed report files present the persisted freshness evidence.
+    const warmFreshnessSummary = warmReport.warmIndexReuse?.indexFreshnessSummary;
+    const warmReportTasks = warmReport.warmIndexReuse?.projects?.flatMap((project) => project.tasks) ?? [];
+    if (
+      !warmFreshnessSummary ||
+      warmFreshnessSummary.assessedTaskCount !== warmFreshnessTasks.length ||
+      warmFreshnessSummary.freshTaskCount !== warmFreshnessTasks.length ||
+      warmFreshnessSummary.staleTaskCount !== 0 ||
+      warmFreshnessSummary.partiallyStaleTaskCount !== 0 ||
+      warmFreshnessSummary.unknownTaskCount !== 0 ||
+      warmFreshnessSummary.unassessedTaskCount !== 0 ||
+      !warmReportTasks.some((task) => task.indexFreshness?.status === "fresh")
+    ) {
+      fail("WARM_INDEX_REPORT_FRESHNESS", `Installed report.json lacks fresh index-freshness presentation: ${JSON.stringify(warmFreshnessSummary)}`);
+    }
+    const warmReportTextFile = readFileSync(path.join(warmOut, "report.txt"), "utf8");
+    const warmReportHtmlFile = readFileSync(path.join(warmOut, "report.html"), "utf8");
+    if (!warmReportTextFile.includes("Index Freshness Summary") || !warmReportTextFile.includes("Index Freshness Status: fresh")) {
+      fail("WARM_INDEX_REPORT_FRESHNESS", "Installed report.txt lacks the index freshness summary or a fresh task status.");
+    }
+    if (!warmReportHtmlFile.includes("Index Freshness") || !warmReportHtmlFile.includes("fresh")) {
+      fail("WARM_INDEX_REPORT_FRESHNESS", "Installed report.html lacks the index freshness presentation.");
+    }
+    if (JSON.stringify(warmReport.warmIndexReuse).match(/\b[0-9a-f]{64}\b/) || /\b[0-9a-f]{64}\b/.test(warmReportTextFile) || /\b[0-9a-f]{64}\b/.test(warmReportHtmlFile)) {
+      fail("WARM_INDEX_REPORT_FRESHNESS", "Installed warm-index report presentation contains a content hash.");
+    }
+
     const warmPlots = runInstalledCli(cliCommand, dirs.consumer, ["plots", "generate", "--experiment", warmOut, "--out", warmPlotsOut], envWithBin);
     if (warmPlots.status !== 0) {
       fail("WARM_INDEX_PLOTS", "Installed `plots generate` for warm-index output did not exit 0.", describeChildResult(warmPlots));

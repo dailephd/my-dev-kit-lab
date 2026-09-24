@@ -535,3 +535,21 @@ Available in the installed v0.5.2 CLI. A `--campaign` run replaces the determini
   Caveat: Claude and Codex token exposure depends on that provider's actual CLI output for the run; token evidence is reported as `unavailable`/`partial` explicitly rather than assumed. No fixed claim that either provider always or never exposes a token total is made — `tokenEvidenceStatus` is the authoritative, per-run signal.
 
 No token-savings percentage, break-even task, winner, ranking, or provider billing metric is calculated for a campaign run, matching the fake-agent path above.
+
+### Index freshness evidence (v0.6.0)
+
+Status: implemented on the v0.6.0 feature branch and unreleased; the published version is still v0.5.2. The freshness values below are report evidence, not metric formulas: no `ExperimentMetric` ID, plot, or gallery item is added for them.
+
+Before each task's warm retrieval, the warm-index run compares the files the index snapshot proves were indexed against their current state and persists one assessment per task (`indexFreshness` in `warm-index-execution.json`). The report only presents that persisted assessment; it never re-reads the filesystem, re-hashes files, or invokes my-dev-kit.
+
+- **Snapshot-scoped comparison.** Only files listed by the index snapshot are compared. Freshness does not establish that the whole repository is unchanged.
+- **SHA-256 is the authority.** A file is modified when its current SHA-256 differs from the snapshot's, or missing when it no longer exists. A changed modified time with identical content is not a change; timestamps are diagnostic metadata only.
+- **New and non-indexed files.** A file that was not represented in the snapshot is outside the comparison and is not, by itself, evidence that the index is stale. Lab does not guess which files my-dev-kit would index.
+- **Four statuses.**
+  - `fresh`: the snapshot was complete, every represented file was compared, and every content identity still matches.
+  - `stale`: a complete comparison confirmed at least one represented file is modified or missing.
+  - `partially-stale`: at least one represented file is confirmed changed, but comparison evidence is incomplete (a partial snapshot or unresolved comparisons).
+  - `unknown`: no confirmed change established staleness, but evidence is insufficient to prove freshness (an unavailable or partial snapshot, or an unresolved comparison). It is never treated as `fresh`.
+- **`unknown` versus not assessed.** `unknown` means an assessment ran and could not prove freshness. A task with no assessment (for example a report from before v0.6.0) is shown as `not assessed` and counted as unassessed, never as `unknown`.
+- **Report-level counts.** `report.warmIndexReuse.indexFreshnessSummary` holds direct presentation counts of assessed, unassessed, `fresh`, `stale`, `partially-stale`, and `unknown` tasks (assessed equals the sum of the four statuses). They are counts, not `ExperimentMetric` formulas: no percentage, score, or ranking is calculated. Each task's `indexFreshness` lists at most 20 changed files and 10 unresolved comparisons, with the persisted totals and the omitted count; hashes stay in `warm-index-execution.json`.
+- **Observational only.** Freshness does not trigger reindexing, suppress or alter warm retrieval, or change execution status, correctness, provider or agent outcome status, or token evidence. v0.6.0 makes no reindex recommendation.
