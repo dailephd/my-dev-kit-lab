@@ -215,7 +215,7 @@ describe("assessIndexFreshness", () => {
     ]);
   });
 
-  it("does not follow a symlink that leaves the target", async () => {
+  it("does not follow a symlink that leaves the target", async (context) => {
     const { fixture, snapshot } = await baseline();
     const outside = path.join(path.dirname(fixture.targetRoot), "outside.ts");
     writeFileSync(outside, "outside\n");
@@ -223,10 +223,9 @@ describe("assessIndexFreshness", () => {
     try {
       symlinkSync(outside, file(fixture, "src/a.ts"), "file");
     } catch {
-      // Environment-unavailable (symlinks need elevated rights on some Windows hosts): the
-      // boundary is NOT proven by this host, and this case exercises nothing here.
-      console.warn("indexFreshness symlink boundary case not exercised: symlink creation unavailable");
-      return;
+      // Environment-unavailable (symlinks need elevated rights on some Windows hosts): reported as
+      // skipped so this host is never counted as having proven the boundary.
+      context.skip("symlink creation unavailable on this host; the symlink boundary was not exercised");
     }
 
     const result = await assess(fixture, snapshot);

@@ -122,14 +122,16 @@ describe("captureIndexSnapshot", () => {
     expect(JSON.stringify(snapshot)).not.toContain(fixture.targetRoot.replace(/\\/g, "\\\\"));
   });
 
-  it("does not read through a symlink that leaves the target", async () => {
+  it("does not read through a symlink that leaves the target", async (context) => {
     const fixture = makeFixture();
     const outside = path.join(path.dirname(fixture.targetRoot), "outside-secret.ts");
     writeFileSync(outside, "outside\n");
     try {
       symlinkSync(outside, path.join(fixture.targetRoot, "src/link.ts"), "file");
     } catch {
-      return; // creating symlinks needs elevated rights on some Windows setups
+      // Creating symlinks needs elevated rights on some Windows setups. Report the case as skipped
+      // so a host that cannot exercise the boundary is never counted as having proven it.
+      context.skip("symlink creation unavailable on this host; the symlink boundary was not exercised");
     }
     writeIndex(fixture, ["src/a.ts", "src/link.ts"]);
 
