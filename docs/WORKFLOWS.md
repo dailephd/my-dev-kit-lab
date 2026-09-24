@@ -180,7 +180,7 @@ select cases (source order, optional --case / --benchmark-project filters)
 
 ### Index freshness extension (v0.6.0)
 
-Implemented and unreleased in v0.6.0; the installed v0.5.2 CLI does not include it. It extends the warm-index workflow above and the real-agent campaign below without any new command or flag: a normal warm-index run records the evidence automatically.
+Released in v0.6.0 and available in the installed CLI. It extends the warm-index workflow above and the real-agent campaign below without any new command or flag: a normal warm-index run records the evidence automatically.
 
 **Lifecycle (per benchmark project):**
 

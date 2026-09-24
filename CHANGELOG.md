@@ -4,9 +4,9 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-### v0.6.0 — index freshness and changed-file detection (implemented; unreleased)
+## [0.6.0] - 2026-09-24
 
-Unreleased work on the v0.6.0 feature branch. The latest published release remains 0.5.2 and the package version is unchanged; nothing below is in the published package.
+Index freshness and changed-file detection.
 
 - Added `IndexSnapshotV1` (schema `my-dev-kit-lab-index-snapshot-v1`): after a warm-index run's one index build, Lab interprets the my-dev-kit manifest and symbol index and records baseline index evidence — manifest metadata, the exact indexed-file set the upstream index contract lists (never a directory walk), per-file SHA-256, size, and modified-time metadata, the index command, and an inventory of generated index artifacts. Snapshots are `complete`, `partial`, or `unavailable` with explicit reasons; source contents are never persisted.
 - Added a configured my-dev-kit `--version` probe, run once per prepared index session outside the measured index build. An unsupported or failing probe is non-fatal and recorded as explicitly unavailable.

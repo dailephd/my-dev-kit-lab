@@ -538,7 +538,7 @@ No token-savings percentage, break-even task, winner, ranking, or provider billi
 
 ### Index freshness evidence (v0.6.0)
 
-Status: implemented on the v0.6.0 feature branch and unreleased; the published version is still v0.5.2. The freshness values below are report evidence, not metric formulas: no `ExperimentMetric` ID, plot, or gallery item is added for them.
+Status: released in v0.6.0 and present in the current package. The freshness values below are report evidence, not metric formulas: no `ExperimentMetric` ID, plot, or gallery item is added for them.
 
 Before each task's warm retrieval, the warm-index run compares the files the index snapshot proves were indexed against their current state and persists one assessment per task (`indexFreshness` in `warm-index-execution.json`). The report only presents that persisted assessment; it never re-reads the filesystem, re-hashes files, or invokes my-dev-kit.
 
