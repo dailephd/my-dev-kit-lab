@@ -839,7 +839,7 @@ Features:
 
   * fresh
   * stale
-  * partially stale
+  * partially-stale
   * unknown
 
 Acceptance:
