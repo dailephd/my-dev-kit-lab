@@ -824,7 +824,7 @@ Features shipped: three single-provider campaign presets (`codex-full`, `claude-
 
 ### v0.6.0 — index freshness and changed-file detection
 
-Status: **planned; not implemented**.
+Status: **implemented; unreleased; pre-release readiness pending**.
 
 Purpose:
 
@@ -846,6 +846,8 @@ Acceptance:
 
 * Lab can detect changed files after an index was built.
 * Freshness status appears in experiment artifacts and reports.
+
+Implementation status: the planned scope above is satisfied in the current source branch and has not been released. Warm-index runs record an `IndexSnapshotV1` baseline (manifest metadata, the exact indexed-file set from the my-dev-kit index contract, per-file SHA-256 with size and modified-time metadata, the my-dev-kit version probe, the index command, and generated-artifact inventory). Each task's changed-file comparison runs immediately before its warm retrieval and reports exactly one of `fresh`, `stale`, `partially-stale`, or `unknown`; SHA-256 is the comparison identity and files absent from the snapshot are not guessed to be newly indexable. The evidence is persisted in the warm-index execution artifact (project `indexSnapshot`, task `indexFreshness`) and presented in the `report.json`, `report.txt`, and `report.html` warm-index reports, bounded to 20 changed files and 10 unresolved entries per task. The exact packed package was validated, and ordinary CI passed on Ubuntu, macOS, and Windows with Node 24 and latest for candidate `b82592b091616be3f00109dc69142e4e1c9f9688`. No new CLI surface, `ExperimentMetric`, plot, gallery item, or reindex recommendation was added. Affected-neighborhood analysis, incremental-change experiments, and partial refresh remain future work in v0.6.1 through v0.6.3.
 
 ### v0.6.1 — affected-neighborhood experiments
 

@@ -91,8 +91,8 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.5.2",
-    "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.6.0",
+    "currentImplementedUnreleasedVersion": "0.6.0",
+    "nextPlannedVersion": "0.6.1",
     "implementedExperimentPlugins": ["context-strategy-comparison", "warm-index-reuse"],
     "experimentPluginDocuments": ["README.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/ARCHITECTURE.md"],
     "implementedAuditTypes": ["code-rot", "security"],
