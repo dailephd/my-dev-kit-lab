@@ -26,8 +26,11 @@ src/
     target.ts                                self/external-local target resolution
     types.ts                                 plugin contracts and normalized results
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
-    plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session, execution, bounded execution artifact, fake-agent evaluation, metrics
+    plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session (carrying the v0.6.0 index snapshot), execution (with the v0.6.0 per-task freshness assessment), bounded execution artifact, fake-agent evaluation, metrics
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
+    indexSnapshot.ts                         v0.6.0 (released/current): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
+    indexFreshness.ts                        v0.6.0 (released/current): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
+    runMyDevKitRetrieval.ts                  index invocation (buildMyDevKitIndex), retrieval against an existing index, and the configured-kit --version probe (probeMyDevKitVersion)
     upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3); plus exact supplemental implementation/test-context packet/retrieval-report readers and a bounded plain-object readiness adapter (v0.4.4); plus exact condition-aware producer evidence mirrors (roleConditionCoverage, allocation/spillover GroupTruncationEntry fields, truncation.requiredEvidenceLost) and exact orchestrator run-integrity mirrors (RunIntegrityGateResult, JudgeIntegrityResult, FinalReportEligibilityResult, artifact-state.json lifecycle records) (v0.4.5)
     stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3); plus orchestrator run-integrity selectors (v0.4.5)
     stageContextExpectations/                StageContextExpectationFixtureV1 contract and validation (v0.4.3); additive, optional producer-readiness expectations (v0.4.4)
@@ -177,7 +180,7 @@ Owners in `src/experiments/plugins/warmIndexReuse/`:
 
 - `config.ts` — closed `WarmIndexReuseConfig` (`casesPath`, `projectProfilesPath`, `outDir`, `kitCommand`, `caseIds`, `benchmarkProjects`); agent-matrix fields are rejected. The default `kitCommand` is `npx @dailephd/my-dev-kit@latest`.
 - `selection.ts` — source-order filtering, first-seen benchmark-project grouping, structural checks (one target root and one ordered source-root list per project), and path-safe output segments.
-- `warmIndexSession.ts` — `prepareWarmIndexSession` and `assertWarmIndexSessionMatchesTarget`; a frozen `WarmIndexSession` carries only the index directory, build duration/command, target root, and ordered source roots.
+- `warmIndexSession.ts` — `prepareWarmIndexSession` and `assertWarmIndexSessionMatchesTarget`; a frozen `WarmIndexSession` carries only the index directory, build duration/command, target root, and ordered source roots (plus, in the v0.6.0 implementation, the index snapshot described below).
 - `execution.ts` — `executeWarmIndexReuse`: one index setup attempt per valid project (no per-task re-indexing, no retry), then one raw baseline and one asserted warm retrieval per task, with explicit failed/skipped/partial status.
 - `executionArtifact.ts` — the bounded `warm-index-execution.json` (schema `my-dev-kit-lab-warm-index-execution-v1`) and the bounded project summaries carried on the run.
 - `fakeAgentEvaluation.ts` — one deterministic fake-agent evaluation per task side with context evidence, through the existing prompt generator, `runAgentPrompt`, `parseAgentAnswer`, `classifyAgentRunOutcome`, and `scoreCorrectness`. Only `fake-agent` is used.
@@ -194,6 +197,39 @@ Invariants and boundaries:
 - The run, `warm-index-execution.json`, reports, and plot data are bounded: no context text, source contents, prompts, answers, or stdout/stderr bodies. Per-command and per-agent files hold the raw evidence beneath the output root.
 - Agent evaluation never changes the execution status; its status is reported separately.
 - `plots generate` detects a `warm-index-reuse` `report.json` and uses the existing `renderSvgChart`/`writePlotArtifactsFromData`; every other directory keeps the legacy controlled-experiment plot path.
+
+## Index snapshot and freshness architecture (v0.6.0, released/current)
+
+Released in v0.6.0 and current. The extension reuses the `warm-index-reuse` runner, session, execution artifact, and report pipeline; it adds no experiment runner, plugin, CLI surface, metric, plot, or gallery item. Freshness is observational evidence: it does not gate retrieval, does not reindex, and does not participate in status aggregation.
+
+```mermaid
+flowchart TD
+  Build[build one index per project: buildMyDevKitIndex] --> Version[probeMyDevKitVersion once, outside the measured build]
+  Version --> Snapshot[captureIndexSnapshot: IndexSnapshotV1 carried by WarmIndexSession]
+  Snapshot --> Task[for each task]
+  Task --> Raw[raw baseline]
+  Raw --> Fresh[assessIndexFreshness: IndexFreshnessAssessmentV1]
+  Fresh --> Warm[warm retrieval, always executed]
+  Warm --> Persist[persist execution evidence: projects[].indexSnapshot, projects[].tasks[].indexFreshness]
+  Persist --> Metrics[metrics and agent evaluation, unchanged]
+  Metrics --> Report[buildWarmIndexReuseReport consumes persisted freshness]
+```
+
+Owners:
+
+- `src/evaluation/indexSnapshot.ts` — `IndexSnapshotV1` (schema `my-dev-kit-lab-index-snapshot-v1`; status `complete`, `partial`, or `unavailable`). It interprets the my-dev-kit manifest and the symbol index it names, records only the files the index lists (never a directory walk) with SHA-256, size, and modified-time metadata, validates every path against the target and source roots (including symlink targets), inventories the generated index artifacts, and records index-command and tool-version evidence. Uninterpretable input produces explicit unavailable or partial evidence rather than guessed values, and no source contents are persisted.
+- `src/evaluation/runMyDevKitRetrieval.ts` — index invocation and `probeMyDevKitVersion`, which runs the configured kit command with `--version` once per prepared session through the shared measured-command runner; an unsupported or failing probe is non-fatal and recorded as unavailable.
+- `src/evaluation/indexFreshness.ts` — `IndexFreshnessAssessmentV1` (schema `my-dev-kit-lab-index-freshness-v1`). It compares the files in the snapshot with their current SHA-256 (modified time is diagnostic only), confirms modified and missing files, keeps unreadable or unresolvable files as unresolved evidence, ignores files absent from the snapshot, is read-only, and classifies exactly `fresh`, `stale`, `partially-stale`, or `unknown`. It bounds its change and unresolved lists and never invokes my-dev-kit.
+- `warmIndexSession.ts` — `prepareWarmIndexSession` attaches the snapshot and the version evidence to the one frozen session; existing target/session validation is unchanged.
+- `execution.ts` — `executeTask` assesses freshness after the raw baseline and immediately before that task's warm retrieval, then runs the retrieval regardless of the result. Without a prepared session the assessment is `unknown`; a session refused for a target mismatch records no assessment.
+- `executionArtifact.ts` — persists `projects[].indexSnapshot` and `projects[].tasks[].indexFreshness` additively; the execution schema `my-dev-kit-lab-warm-index-execution-v1` is unchanged.
+- `src/report/experiments/buildWarmIndexReuseReport.ts` (with `warmIndexReuseReportModel.ts`, `renderPluginExperimentReportText.ts`, `renderWarmIndexReuseHtml.ts`, and `buildPluginExperimentReport.ts`) — consumes the persisted freshness evidence into `indexFreshnessSummary` (direct assessed, unassessed, fresh, stale, partially-stale, and unknown task counts) and per-task `indexFreshness`, bounded to 20 changes and 10 unresolved entries without hashes. The report schema `my-dev-kit-lab-warm-index-report-v1` is unchanged. Report code never inspects the target filesystem, re-hashes files, invokes my-dev-kit, or recalculates freshness; a task with no persisted assessment is reported as not assessed, distinct from `unknown`.
+
+Invariants:
+
+- Freshness never changes `ExperimentRunStatus`, provider or agent outcome status, correctness, or token evidence, and no reindex recommendation exists.
+- The metric owner (`metrics.ts`), the four warm-index plots, the three-item campaign gallery, and the provider architecture are unchanged; freshness counts are report presentation, not `ExperimentMetric` entries.
+- The exact packed package is validated to ship the snapshot and freshness runtime and to produce the evidence and report presentation in an installed run.
 
 ## Expanded warm-index benchmark suite (v0.5.1)
 
@@ -580,7 +616,7 @@ The following layers remain planned and must not be treated as current behavior:
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
 - the v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above
-- additional experiment plugins for freshness, scale, retrieval quality, and agent success (`v0.6.0` and later)
+- additional experiment plugins: the incremental-change and staleness plugin (`v0.6.2`) and later scale, retrieval-quality, and agent-success plugins; the implemented v0.6.0 freshness evidence is described in "Index snapshot and freshness architecture (v0.6.0, released/current)" above
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
 
@@ -655,6 +691,10 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.5.2 campaign preset policy (released) | `src/experiments/plugins/warmIndexReuse/campaignPresets.ts` |
 | v0.5.2 real-agent campaign evaluation (released) | `src/experiments/plugins/warmIndexReuse/agentEvaluation.ts` (`evaluateWarmIndexRealAgentCampaign`) |
 | v0.5.2 real-agent prompt construction (released) | `src/experiments/plugins/warmIndexReuse/realAgentPrompt.ts` |
+| v0.6.0 index snapshot (released/current) | `src/evaluation/indexSnapshot.ts` (`IndexSnapshotV1`, `captureIndexSnapshot`) |
+| v0.6.0 index freshness assessment (released/current) | `src/evaluation/indexFreshness.ts` (`IndexFreshnessAssessmentV1`, `assessIndexFreshness`, `classifyIndexFreshness`) |
+| v0.6.0 my-dev-kit version probe (released/current) | `src/evaluation/runMyDevKitRetrieval.ts` (`probeMyDevKitVersion`) |
+| v0.6.0 freshness report presentation (released/current) | `src/report/experiments/buildWarmIndexReuseReport.ts`, `warmIndexReuseReportModel.ts`, `renderPluginExperimentReportText.ts`, `renderWarmIndexReuseHtml.ts` |
 | v0.5.2 campaign command orchestration (released) | `src/commands/runExperimentRunCommand.ts` |
 | v0.5.2 campaign presentation sequencing (released) | `src/commands/runWarmIndexCampaignPresentation.ts` |
 | v0.5.2 campaign gallery (released) | `src/gallery/writeWarmIndexCampaignGallery.ts` |

@@ -129,6 +129,19 @@ function buildFindings(run: ExperimentRun): PluginExperimentReportFinding[] {
   ];
 }
 
+/** Neutral, count-only sentence derived from the report's persisted freshness summary. */
+function freshnessSentence(report: WarmIndexReuseReportV1): string {
+  const summary = report.indexFreshnessSummary;
+  if (!summary || summary.assessedTaskCount === 0) {
+    return "No per-task index freshness assessment was available in this report.";
+  }
+  return (
+    `Index freshness was assessed for ${summary.assessedTaskCount} task boundar${summary.assessedTaskCount === 1 ? "y" : "ies"}: ` +
+    `fresh=${summary.freshTaskCount}, stale=${summary.staleTaskCount}, partially-stale=${summary.partiallyStaleTaskCount}, unknown=${summary.unknownTaskCount}. ` +
+    "Freshness is observational evidence over files represented by the index snapshot and does not change retrieval or provider status."
+  );
+}
+
 function buildInterpretation(
   run: ExperimentRun,
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null,
@@ -144,7 +157,8 @@ function buildInterpretation(
           "The report separates one-time index-build duration from per-task retrieval duration and shows how the fixed build cost is amortized across repeated tasks. " +
           `Deterministic fake-agent correctness/token evidence is available for ${summary.agentCorrectnessAvailableCount} of ${summary.agentSideCount} task sides (correctness) and ${summary.agentTotalTokensAvailableCount} (total tokens); ` +
           "fake-agent totals are simulated harness evidence, not real-model or provider measurements. " +
-          "Estimated context-token values are context-size estimates, not provider token usage.",
+          "Estimated context-token values are context-size estimates, not provider token usage. " +
+          freshnessSentence(warmIndexReuse),
         recommendedNextStep:
           run.status === "completed"
             ? "Review per-task measurements and cumulative component costs for each project; the variants are reported side by side and are not ranked."
@@ -175,7 +189,8 @@ function buildInterpretation(
         `Agent evidence status: ${campaign.agentEvidenceStatus} (${campaign.executedSideCount} of ${campaign.scheduledSideCount} scheduled sides executed` +
         `${nonCompletedCounts ? `; outcome counts: ${nonCompletedCounts}` : ""}). ` +
         `Token evidence status: ${campaign.tokenEvidenceStatus} (${summary.agentTotalTokensAvailableCount} of ${summary.agentSideCount} task sides have a total-token value). ` +
-        "Context estimated tokens remain a separate character-based context-size estimate and are never substituted for provider telemetry.",
+        "Context estimated tokens remain a separate character-based context-size estimate and are never substituted for provider telemetry. " +
+        freshnessSentence(warmIndexReuse),
       recommendedNextStep: isInfrastructureComplete && isAgentEvidenceComplete
         ? "Review per-task correctness, token provenance, and cumulative component measurements."
         : "Review infrastructure gaps (index build, raw/warm retrieval) separately from provider/agent limitations before drawing conclusions from this run.",

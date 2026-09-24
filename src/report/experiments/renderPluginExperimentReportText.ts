@@ -9,7 +9,9 @@ import type {
 import type { WarmIndexNumberMetricV1 } from "../../experiments/plugins/warmIndexReuse/metrics.js";
 import type {
   WarmIndexReuseReportAgentV1,
+  WarmIndexReuseReportBoundedListV1,
   WarmIndexReuseReportCampaignV1,
+  WarmIndexReuseReportFreshnessV1,
   WarmIndexReuseReportV1,
 } from "./warmIndexReuseReportModel.js";
 
@@ -354,6 +356,7 @@ function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseRep
   lines.push(fieldLine("Agent Mode", section.agent.mode));
   lines.push(fieldLine("Agent Correctness Available (task sides)", `${section.summary.agentCorrectnessAvailableCount} of ${section.summary.agentSideCount}`));
   lines.push(fieldLine("Agent Token Totals Available (task sides)", `${section.summary.agentTotalTokensAvailableCount} of ${section.summary.agentSideCount}`));
+  renderFreshnessSummary(lines, section);
   if (section.agentCampaign) {
     renderCampaignSection(lines, section.agentCampaign);
   }
@@ -377,6 +380,7 @@ function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseRep
       const rows: Array<[string, unknown]> = [
         ["Raw Status", task.rawStatus],
         ["Warm Status", task.warmStatus],
+        ["Index Freshness Status", task.indexFreshness ? task.indexFreshness.status : "not assessed"],
         ["Raw Context Characters", formatWarmMetric(task.raw.contextCharacters)],
         ["Warm Context Characters", formatWarmMetric(task.warm.contextCharacters)],
         ["Raw Estimated Context Tokens (estimate)", formatWarmMetric(task.raw.contextEstimatedTokens)],
@@ -400,8 +404,65 @@ function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseRep
       for (const [label, value] of rows) {
         lines.push(fieldLine(label, value));
       }
+      renderTaskFreshnessDetail(lines, task.indexFreshness);
     }
   });
+}
+
+function renderFreshnessSummary(lines: string[], section: WarmIndexReuseReportV1): void {
+  // Reports serialized before v0.6.0 Batch 3 lack the summary; render them as having no assessment.
+  const summary = section.indexFreshnessSummary ?? {
+    assessedTaskCount: 0,
+    unassessedTaskCount: section.summary.taskCount,
+    freshTaskCount: 0,
+    staleTaskCount: 0,
+    partiallyStaleTaskCount: 0,
+    unknownTaskCount: 0,
+  };
+  pushSection(lines, "Index Freshness Summary");
+  lines.push(fieldLine("Assessed Tasks", summary.assessedTaskCount));
+  lines.push(fieldLine("Unassessed Tasks", summary.unassessedTaskCount));
+  lines.push(fieldLine("Fresh Tasks", summary.freshTaskCount));
+  lines.push(fieldLine("Stale Tasks", summary.staleTaskCount));
+  lines.push(fieldLine("Partially-Stale Tasks", summary.partiallyStaleTaskCount));
+  lines.push(fieldLine("Unknown Tasks", summary.unknownTaskCount));
+}
+
+function pushFreshnessBoundedNote(lines: string[], list: WarmIndexReuseReportBoundedListV1<unknown>): void {
+  if (list.omittedCount > 0) {
+    lines.push(`Displayed: ${list.displayedCount} of ${list.totalCount}`);
+    lines.push(`Omitted: ${list.omittedCount}`);
+  }
+}
+
+/** Renders the persisted freshness counts and bounded evidence; hashes are never printed. */
+function renderTaskFreshnessDetail(lines: string[], freshness: WarmIndexReuseReportFreshnessV1 | null | undefined): void {
+  if (!freshness) return;
+  lines.push(fieldLine("Baseline Snapshot Status", freshness.baselineSnapshotStatus));
+  lines.push(fieldLine("Indexed Files", freshness.indexedFileCount));
+  lines.push(fieldLine("Comparable Files", freshness.comparableFileCount));
+  lines.push(fieldLine("Unchanged Files", freshness.unchangedFileCount));
+  lines.push(fieldLine("Modified Files", freshness.changedFileCount));
+  lines.push(fieldLine("Missing Files", freshness.missingFileCount));
+  lines.push(fieldLine("Unresolved Comparisons", freshness.unresolvedFileCount));
+  lines.push("Freshness Changes:");
+  pushFreshnessBoundedNote(lines, freshness.changes);
+  if (freshness.changes.items.length === 0) {
+    lines.push("- none");
+  }
+  for (const change of freshness.changes.items) {
+    lines.push(`- ${sanitizeScalar(change.changeType)} ${sanitizeScalar(change.path)}`);
+  }
+  lines.push("Freshness Unresolved Evidence:");
+  pushFreshnessBoundedNote(lines, freshness.unresolved);
+  if (freshness.unresolved.items.length === 0) {
+    lines.push("- none");
+  }
+  for (const entry of freshness.unresolved.items) {
+    lines.push(
+      `- ${entry.path === null ? "run-level" : sanitizeScalar(entry.path)} [${sanitizeScalar(entry.reasonCode)}] ${sanitizeScalar(entry.message)}`
+    );
+  }
 }
 
 export function renderPluginExperimentReportText(report: PluginExperimentReport): string {

@@ -2,7 +2,9 @@ import { agentLabel, type WarmIndexNumberMetricV1 } from "../../experiments/plug
 import type {
   WarmIndexReuseReportAgentV1,
   WarmIndexReuseReportCampaignV1,
+  WarmIndexReuseReportFreshnessSummaryV1,
   WarmIndexReuseReportProjectV1,
+  WarmIndexReuseReportTaskV1,
   WarmIndexReuseReportV1,
 } from "./warmIndexReuseReportModel.js";
 
@@ -33,6 +35,7 @@ export function renderWarmIndexReuseHtml(section: WarmIndexReuseReportV1 | null)
       ["Agent correctness available", `${section.summary.agentCorrectnessAvailableCount} of ${section.summary.agentSideCount}`],
       ["Agent token totals available", `${section.summary.agentTotalTokensAvailableCount} of ${section.summary.agentSideCount}`],
     ])}
+    ${renderFreshnessSummary(section.indexFreshnessSummary ?? legacyFreshnessSummary(section.summary.taskCount))}
     ${section.agentCampaign ? renderCampaignSection(section.agentCampaign) : ""}
     <h3>Cold Start And Warm Reuse</h3>
     ${list(section.costModel)}
@@ -40,6 +43,77 @@ export function renderWarmIndexReuseHtml(section: WarmIndexReuseReportV1 | null)
     ${list(section.limitations)}
     ${section.projects.length === 0 ? "<p>No warm-index project evidence was recorded.</p>" : section.projects.map((project, index) => renderProject(project, index, section.agent.id)).join("\n")}
   </section>`;
+}
+
+// Reports serialized before v0.6.0 Batch 3 lack the summary; they are rendered as having no assessment.
+function legacyFreshnessSummary(taskCount: number): WarmIndexReuseReportFreshnessSummaryV1 {
+  return {
+    assessedTaskCount: 0,
+    unassessedTaskCount: taskCount,
+    freshTaskCount: 0,
+    staleTaskCount: 0,
+    partiallyStaleTaskCount: 0,
+    unknownTaskCount: 0,
+  };
+}
+
+function renderFreshnessSummary(summary: WarmIndexReuseReportFreshnessSummaryV1): string {
+  return `<h3>Index Freshness</h3>
+    ${table(["Field", "Value"], [
+      ["Assessed tasks", String(summary.assessedTaskCount)],
+      ["Unassessed tasks", String(summary.unassessedTaskCount)],
+      ["Fresh tasks", String(summary.freshTaskCount)],
+      ["Stale tasks", String(summary.staleTaskCount)],
+      ["Partially-stale tasks", String(summary.partiallyStaleTaskCount)],
+      ["Unknown tasks", String(summary.unknownTaskCount)],
+    ])}`;
+}
+
+/** Persisted freshness evidence per task; hashes are deliberately absent from this presentation. */
+function renderProjectFreshness(tasks: readonly WarmIndexReuseReportTaskV1[]): string {
+  const overview = table(
+    ["Task", "Freshness", "Baseline", "Indexed", "Comparable", "Unchanged", "Modified", "Missing", "Unresolved"],
+    tasks.map((task) => {
+      const freshness = task.indexFreshness;
+      const label = `${task.taskOrdinal}. ${task.caseId}`;
+      return freshness
+        ? [
+            label,
+            freshness.status,
+            freshness.baselineSnapshotStatus,
+            String(freshness.indexedFileCount),
+            String(freshness.comparableFileCount),
+            String(freshness.unchangedFileCount),
+            String(freshness.changedFileCount),
+            String(freshness.missingFileCount),
+            String(freshness.unresolvedFileCount),
+          ]
+        : [label, "not assessed", "unavailable", "", "", "", "", "", ""];
+    })
+  );
+  const detailRows = tasks.flatMap((task) => {
+    const freshness = task.indexFreshness;
+    if (!freshness) return [];
+    const label = `${task.taskOrdinal}. ${task.caseId}`;
+    return [
+      ...freshness.changes.items.map((change) => [label, change.changeType, change.path, ""]),
+      ...freshness.unresolved.items.map((entry) => [label, "unresolved", entry.path ?? "run-level", `${entry.reasonCode}: ${entry.message}`]),
+    ];
+  });
+  const omitted = tasks.flatMap((task) => {
+    const freshness = task.indexFreshness;
+    if (!freshness) return [];
+    return [
+      ...(freshness.changes.omittedCount > 0 ? [`Task ${task.taskOrdinal}: ${freshness.changes.omittedCount} of ${freshness.changes.totalCount} changes omitted.`] : []),
+      ...(freshness.unresolved.omittedCount > 0
+        ? [`Task ${task.taskOrdinal}: ${freshness.unresolved.omittedCount} of ${freshness.unresolved.totalCount} unresolved entries omitted.`]
+        : []),
+    ];
+  });
+  return `<h4>Index Freshness</h4>
+    ${overview}
+    ${detailRows.length === 0 ? "" : table(["Task", "Evidence type", "Path", "Detail"], detailRows)}
+    ${omitted.length === 0 ? "" : list(omitted)}`;
 }
 
 function renderCampaignSection(campaign: WarmIndexReuseReportCampaignV1): string {
@@ -132,6 +206,7 @@ function renderProject(project: WarmIndexReuseReportProjectV1, index: number, ag
         formatMetric(task.warm.cumulativeEstimatedContextTokens),
       ])
     )}
+    ${renderProjectFreshness(project.tasks)}
     <p class="muted">Estimated tokens are character-based context-size estimates, not provider token usage.</p>
     <p class="muted">${agentColumnsNote(agentId)}</p>
     ${table(

@@ -4,6 +4,20 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-24
+
+Index freshness and changed-file detection.
+
+- Added `IndexSnapshotV1` (schema `my-dev-kit-lab-index-snapshot-v1`): after a warm-index run's one index build, Lab interprets the my-dev-kit manifest and symbol index and records baseline index evidence — manifest metadata, the exact indexed-file set the upstream index contract lists (never a directory walk), per-file SHA-256, size, and modified-time metadata, the index command, and an inventory of generated index artifacts. Snapshots are `complete`, `partial`, or `unavailable` with explicit reasons; source contents are never persisted.
+- Added a configured my-dev-kit `--version` probe, run once per prepared index session outside the measured index build. An unsupported or failing probe is non-fatal and recorded as explicitly unavailable.
+- Added `IndexFreshnessAssessmentV1` (schema `my-dev-kit-lab-index-freshness-v1`): a read-only comparison of the files the snapshot lists against their current state. SHA-256 is the comparison identity; modified time is diagnostic only. Modified and missing indexed files are confirmed changes; unreadable or unresolvable files stay explicit unresolved evidence; files absent from the snapshot are not inferred to be newly indexable. Exactly four statuses: `fresh`, `stale`, `partially-stale`, `unknown`.
+- Freshness is assessed for every task immediately before its warm retrieval and is observational only: it never triggers or recommends reindexing, suppresses retrieval, or changes execution, provider, agent, correctness, or token-evidence status. One index is still built per benchmark project.
+- Extended `warm-index-execution.json` additively (schema `my-dev-kit-lab-warm-index-execution-v1` unchanged) with project-level `indexSnapshot` and task-level `indexFreshness`.
+- Extended the warm-index report additively (schema `my-dev-kit-lab-warm-index-report-v1` unchanged) with an index freshness summary (assessed, unassessed, fresh, stale, partially-stale, and unknown task counts) and per-task freshness evidence in `report.json`, `report.txt`, and `report.html`. Report evidence is bounded to 20 changed files and 10 unresolved entries per task, omits content hashes, and escapes dynamic strings; a task with no assessment is shown as not assessed, distinct from `unknown`. Report limitations and the run interpretation state what freshness does and does not establish.
+- No new CLI command or flag, `ExperimentMetric`, plot, gallery item, or experiment plugin was added: the warm-index metrics, exactly four plots, and the three-item campaign gallery are unchanged, and no reindex recommendation exists.
+- Extended the packed-package acceptance gate (`npm run verify:packed-package`) to prove the exact tarball ships the snapshot and freshness runtime and that an installed warm-index run produces snapshot, tool-version, freshness, and report freshness evidence while the target, installed package, and packaged examples stay unchanged.
+- Validation of the implementation candidate: exact-SHA ordinary CI passed on Ubuntu, macOS, and Windows with Node 24 and latest, and the full local suite passed with the packed-package gate.
+
 ## [0.5.2] - 2026-09-23
 
 Warm-index real-agent campaigns.

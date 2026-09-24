@@ -1,13 +1,15 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { MeasuredCommandResult } from "../../../core/runMeasuredCommand.js";
-import { buildMyDevKitIndex } from "../../../evaluation/runMyDevKitRetrieval.js";
+import { buildMyDevKitIndex, probeMyDevKitVersion } from "../../../evaluation/runMyDevKitRetrieval.js";
+import { captureIndexSnapshot, type IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
 import type { MyDevKitIndexBuildResult, MyDevKitIndexTarget } from "../../../evaluation/types.js";
 
 /**
  * One successfully prepared my-dev-kit index that later tasks receive explicitly and retrieve
  * against. It carries only target identity and one-time build evidence; it holds no task state
- * and makes no freshness claim beyond the run that prepared it.
+ * and makes no freshness claim beyond the run that prepared it. `indexSnapshot` is the baseline
+ * evidence captured at build time; it is not compared against anything here.
  */
 export type WarmIndexSession = {
   readonly indexDir: string;
@@ -15,6 +17,7 @@ export type WarmIndexSession = {
   readonly targetRoot: string;
   readonly sourceRoots: readonly string[];
   readonly buildCommand: MeasuredCommandResult;
+  readonly indexSnapshot: IndexSnapshotV1;
 };
 
 export type PrepareWarmIndexSessionResult =
@@ -43,12 +46,26 @@ export async function prepareWarmIndexSession(options: {
     }
     return { ok: false, warnings: [...build.warnings, message], build };
   }
+  const sourceRoots = Object.freeze([...options.target.sourceRoots]);
+  // One `--version` probe per prepared session, outside the measured index build; it never fails
+  // the session (an unsupported probe becomes explicit `unavailable` tool evidence).
+  const tool = await probeMyDevKitVersion({ kitCommand: options.kitCommand, commandsDir: options.commandsDir });
+  // Reads the just-built index and the files it lists; never invokes my-dev-kit again and never
+  // fails the session (an uninterpretable index becomes an explicit `unavailable` snapshot).
+  const indexSnapshot = await captureIndexSnapshot({
+    indexDir: build.indexDir,
+    targetRoot: options.target.absoluteTargetRoot,
+    sourceRoots,
+    command: build.command,
+    tool
+  });
   const session: WarmIndexSession = Object.freeze({
     indexDir: build.indexDir,
     buildDurationMs: build.durationMs,
     targetRoot: options.target.absoluteTargetRoot,
-    sourceRoots: Object.freeze([...options.target.sourceRoots]),
-    buildCommand: build.command
+    sourceRoots,
+    buildCommand: build.command,
+    indexSnapshot
   });
   return { ok: true, session, build };
 }

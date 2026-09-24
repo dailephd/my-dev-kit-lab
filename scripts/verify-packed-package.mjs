@@ -68,6 +68,9 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/experiments/plugins/warmIndexReuse/execution.js",
   "dist/src/experiments/plugins/warmIndexReuse/metrics.js",
   "dist/src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.js",
+  // v0.6.0 -- index-build snapshot evidence.
+  "dist/src/evaluation/indexSnapshot.js",
+  "dist/src/evaluation/indexFreshness.js",
   // v0.5.2 -- real-agent campaign runtime.
   "dist/src/experiments/plugins/warmIndexReuse/campaignPresets.js",
   "dist/src/experiments/plugins/warmIndexReuse/agentEvaluation.js",
@@ -117,15 +120,31 @@ const WARM_INDEX_TIMEOUT_ISOLATION_CASES = ["warm-large-health-label", "warm-lar
 // Acceptance-test fixture only (written to a temporary directory, never packaged): the minimal
 // my-dev-kit subcommands the warm-index run needs, writing only under the --out index path.
 const FAKE_KIT_SOURCE_TEXT = "export class PackedGateFakeSource {}";
+const FAKE_KIT_VERSION = "packed-gate-fake-kit 9.9.9";
 const FAKE_MY_DEV_KIT_SOURCE = `import fs from "node:fs";
 import path from "node:path";
 const [command, ...rest] = process.argv.slice(2);
 const arg = (flag) => { const index = rest.indexOf(flag); return index >= 0 ? rest[index + 1] : undefined; };
 if (command === "index") {
+  const root = arg("--root");
   const out = arg("--out");
+  const roots = rest.flatMap((value, index) => (value === "--src" ? [rest[index + 1]] : []));
+  const files = [];
+  const walk = (rel) => {
+    for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
+      const child = rel + "/" + entry.name;
+      if (entry.isDirectory()) walk(child);
+      else if (/\\.(ts|js|py)$/.test(entry.name)) files.push(child);
+    }
+  };
+  roots.forEach(walk);
+  files.sort();
   fs.mkdirSync(out, { recursive: true });
-  fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify({ fake: true }));
+  fs.writeFileSync(path.join(out, "symbol-index.json"), JSON.stringify({ schemaVersion: "2", fileCount: files.length, files: files.map((p) => ({ path: p, language: "typescript" })) }));
+  fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify({ artifactKind: "my-dev-kit-v1-manifest", version: "1.0.0", projectRoot: root.replace(/\\\\/g, "/"), sourceRoots: roots, artifacts: { symbolIndex: "symbol-index.json" }, summary: { fileCount: files.length } }));
   console.log(JSON.stringify({ ok: true, command }));
+} else if (command === "--version") {
+  console.log("${FAKE_KIT_VERSION}");
 } else if (command === "search") {
   console.log(JSON.stringify({ results: [{ nodeId: "todo-ts:createTask", file: "src/taskService.ts", symbol: "createTask" }] }));
 } else if (command === "lookup" || command === "slice") {
@@ -926,6 +945,79 @@ async function main() {
     }
     if (warmReportText.includes("contextText") || warmReportText.includes(FAKE_KIT_SOURCE_TEXT)) {
       fail("WARM_INDEX_REPORTS", "Installed warm-index report contains context text.");
+    }
+
+    // v0.6.0 Batch 1: the installed run records baseline index-build evidence (no comparison, no
+    // freshness). Target/installed-package immutability is proven by the end-of-run checks below.
+    const warmArtifactText = readFileSync(path.join(warmOut, "warm-index-execution.json"), "utf8");
+    const warmSnapshot = JSON.parse(warmArtifactText).projects?.[0]?.indexSnapshot;
+    const warmTaskServiceSource = readFileSync(path.join(installedPackageRoot, "benchmarks", "projects", "todo-ts", "src", "taskService.ts"), "utf8");
+    const warmTaskServiceEntry = warmSnapshot?.files?.find((file) => file.path === "src/taskService.ts");
+    if (
+      warmSnapshot?.schemaVersion !== "my-dev-kit-lab-index-snapshot-v1" ||
+      warmSnapshot.status !== "complete" ||
+      !warmTaskServiceEntry ||
+      warmTaskServiceEntry.sha256 !== createHash("sha256").update(warmTaskServiceSource).digest("hex") ||
+      !warmSnapshot.artifacts?.some((artifact) => artifact.path === "manifest.json") ||
+      warmSnapshot.tool?.availability !== "available" ||
+      warmSnapshot.tool?.version !== FAKE_KIT_VERSION
+    ) {
+      fail("WARM_INDEX_INDEX_SNAPSHOT", `Installed warm-index execution artifact lacks a complete index snapshot: ${JSON.stringify(warmSnapshot)?.slice(0, 400)}`);
+    }
+    if (warmArtifactText.includes(warmTaskServiceSource.split("\n").find((line) => line.includes("constructor(")) ?? "\u0000") || warmArtifactText.includes(FAKE_KIT_SOURCE_TEXT)) {
+      fail("WARM_INDEX_INDEX_SNAPSHOT", "Installed warm-index execution artifact contains source or context text.");
+    }
+    // v0.6.0 Batch 2: per-task, observational freshness of the unchanged installed target. It is
+    // evidence only and never changes the task/warm statuses asserted elsewhere in this gate.
+    const warmFreshnessTasks = JSON.parse(warmArtifactText).projects?.[0]?.tasks ?? [];
+    if (warmFreshnessTasks.length === 0) {
+      fail("WARM_INDEX_INDEX_FRESHNESS", "Installed warm-index execution artifact has no tasks to carry freshness evidence.");
+    }
+    for (const task of warmFreshnessTasks) {
+      const freshness = task.indexFreshness;
+      if (
+        freshness?.schemaVersion !== "my-dev-kit-lab-index-freshness-v1" ||
+        freshness.status !== "fresh" ||
+        freshness.baselineSnapshotStatus !== "complete" ||
+        freshness.indexedFileCount !== warmSnapshot.indexedFileCount ||
+        freshness.unchangedFileCount !== warmSnapshot.indexedFileCount ||
+        freshness.changedFileCount !== 0 ||
+        freshness.missingFileCount !== 0 ||
+        freshness.unresolvedFileCount !== 0 ||
+        task.warmStatus !== "completed"
+      ) {
+        fail("WARM_INDEX_INDEX_FRESHNESS", `Installed warm-index task lacks fresh index-freshness evidence: ${JSON.stringify(freshness)?.slice(0, 400)}`);
+      }
+    }
+    if (/"(?:reindexRecommendation|changedSymbolCount|affectedNodeCount|taskOverlapPercent)"/.test(warmArtifactText)) {
+      fail("WARM_INDEX_INDEX_FRESHNESS", "Installed warm-index execution artifact contains v0.6.1+ fields.");
+    }
+
+    // v0.6.0 Batch 3: the installed report files present the persisted freshness evidence.
+    const warmFreshnessSummary = warmReport.warmIndexReuse?.indexFreshnessSummary;
+    const warmReportTasks = warmReport.warmIndexReuse?.projects?.flatMap((project) => project.tasks) ?? [];
+    if (
+      !warmFreshnessSummary ||
+      warmFreshnessSummary.assessedTaskCount !== warmFreshnessTasks.length ||
+      warmFreshnessSummary.freshTaskCount !== warmFreshnessTasks.length ||
+      warmFreshnessSummary.staleTaskCount !== 0 ||
+      warmFreshnessSummary.partiallyStaleTaskCount !== 0 ||
+      warmFreshnessSummary.unknownTaskCount !== 0 ||
+      warmFreshnessSummary.unassessedTaskCount !== 0 ||
+      !warmReportTasks.some((task) => task.indexFreshness?.status === "fresh")
+    ) {
+      fail("WARM_INDEX_REPORT_FRESHNESS", `Installed report.json lacks fresh index-freshness presentation: ${JSON.stringify(warmFreshnessSummary)}`);
+    }
+    const warmReportTextFile = readFileSync(path.join(warmOut, "report.txt"), "utf8");
+    const warmReportHtmlFile = readFileSync(path.join(warmOut, "report.html"), "utf8");
+    if (!warmReportTextFile.includes("Index Freshness Summary") || !warmReportTextFile.includes("Index Freshness Status: fresh")) {
+      fail("WARM_INDEX_REPORT_FRESHNESS", "Installed report.txt lacks the index freshness summary or a fresh task status.");
+    }
+    if (!warmReportHtmlFile.includes("Index Freshness") || !warmReportHtmlFile.includes("fresh")) {
+      fail("WARM_INDEX_REPORT_FRESHNESS", "Installed report.html lacks the index freshness presentation.");
+    }
+    if (JSON.stringify(warmReport.warmIndexReuse).match(/\b[0-9a-f]{64}\b/) || /\b[0-9a-f]{64}\b/.test(warmReportTextFile) || /\b[0-9a-f]{64}\b/.test(warmReportHtmlFile)) {
+      fail("WARM_INDEX_REPORT_FRESHNESS", "Installed warm-index report presentation contains a content hash.");
     }
 
     const warmPlots = runInstalledCli(cliCommand, dirs.consumer, ["plots", "generate", "--experiment", warmOut, "--out", warmPlotsOut], envWithBin);

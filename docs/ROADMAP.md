@@ -824,7 +824,7 @@ Features shipped: three single-provider campaign presets (`codex-full`, `claude-
 
 ### v0.6.0 — index freshness and changed-file detection
 
-Status: **planned; not implemented**.
+Status: **published**.
 
 Purpose:
 
@@ -846,6 +846,8 @@ Acceptance:
 
 * Lab can detect changed files after an index was built.
 * Freshness status appears in experiment artifacts and reports.
+
+Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation. Affected-neighborhood analysis, incremental-change experiments, and partial refresh remain planned for v0.6.1 through v0.6.3.
 
 ### v0.6.1 — affected-neighborhood experiments
 

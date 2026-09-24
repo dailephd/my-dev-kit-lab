@@ -1,5 +1,6 @@
 import path from "node:path";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
+import { assessIndexFreshness, type IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import { runMyDevKitRetrievalFromIndex } from "../../../evaluation/runMyDevKitRetrieval.js";
 import { runRawFullFileBaseline } from "../../../evaluation/runRawFullFileBaseline.js";
 import type {
@@ -36,6 +37,12 @@ export type WarmIndexTaskExecutionV1 = {
   warmStatus: ExperimentRunStatus;
   rawBaseline?: RawFullFileBaselineResult;
   warmRetrieval?: MyDevKitRetrievalResult;
+  /**
+   * Observational freshness of the session's indexed files, assessed immediately before this
+   * task's warm retrieval attempt. It never gates retrieval or changes any status. Absent when no
+   * warm retrieval was attempted for a reason other than a missing session.
+   */
+  indexFreshness?: IndexFreshnessAssessmentV1;
   /** Warnings reported by the warm retrieval, preserved verbatim. */
   warnings: string[];
   errors: WarmIndexExecutionError[];
@@ -156,8 +163,15 @@ async function executeTask(args: {
 
   let warmRetrieval: MyDevKitRetrievalResult | undefined;
   let warmStatus: ExperimentRunStatus = "failed";
+  let indexFreshness: IndexFreshnessAssessmentV1 | undefined;
   if (!args.session) {
     errors.push(args.setupFailure ?? { side: "warm", code: "warm-index-setup-failed", message: "No warm index session." });
+    // No snapshot exists, so freshness is conservatively unknown rather than assumed.
+    indexFreshness = await assessIndexFreshness({
+      snapshot: null,
+      targetRoot: evaluationCase.absoluteTargetRoot,
+      sourceRoots: evaluationCase.sourceRoots,
+    });
   } else {
     try {
       assertWarmIndexSessionMatchesTarget(args.session, evaluationCase);
@@ -165,6 +179,12 @@ async function executeTask(args: {
       errors.push({ side: "warm", code: "warm-session-target-mismatch", message: errorMessage(error) });
     }
     if (!errors.some((error) => error.side === "warm")) {
+      // Observational only: measured immediately before reuse, and retrieval below runs regardless.
+      indexFreshness = await assessIndexFreshness({
+        snapshot: args.session.indexSnapshot,
+        targetRoot: args.session.targetRoot,
+        sourceRoots: args.session.sourceRoots,
+      });
       try {
         // requireKit: false retains subordinate command evidence; a skipped result caused by a
         // failed command is classified as failed below rather than as an honest skip.
@@ -198,6 +218,7 @@ async function executeTask(args: {
     warmStatus,
     rawBaseline,
     warmRetrieval,
+    indexFreshness,
     warnings,
     errors,
   };

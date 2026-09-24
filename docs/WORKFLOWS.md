@@ -178,6 +178,34 @@ select cases (source order, optional --case / --benchmark-project filters)
 
 **Completion:** the run reports `completed` (or an explicit `partial` state that has been reviewed), each benchmark project shows exactly one index setup, the report's warm-index section and limitations are present, the optional plots output contains four charts, and any `--target` project is unchanged. Interpret the results as scoped fake-agent evidence: the report calculates no token-savings percentage, break-even task, winner, or ranking.
 
+### Index freshness extension (v0.6.0)
+
+Released in v0.6.0 and available in the installed CLI. It extends the warm-index workflow above and the real-agent campaign below without any new command or flag: a normal warm-index run records the evidence automatically.
+
+**Lifecycle (per benchmark project):**
+
+1. Build exactly one my-dev-kit index.
+2. Capture the index snapshot: the exact files the my-dev-kit index lists, each with SHA-256 identity, size, and modified-time metadata, plus the index-command and generated-artifact evidence.
+3. Record the my-dev-kit tool version from one `--version` probe of the configured kit command (unsupported versions are recorded as unavailable, never fatal).
+4. For each selected task:
+   1. construct the matched raw baseline;
+   2. validate session and target identity;
+   3. assess index freshness immediately before warm retrieval;
+   4. run the existing warm retrieval regardless of the freshness result;
+   5. preserve the freshness assessment in that task's execution evidence.
+5. Calculate the existing metrics unchanged.
+6. Run the existing fake-agent or campaign provider path unchanged.
+7. Build the existing reports.
+8. Render the persisted freshness evidence in `report.json`, `report.txt`, and `report.html`.
+
+**Statuses** (same meanings as [METRICS.md](METRICS.md#index-freshness-evidence-v060)): `fresh` — the snapshot was complete, every represented file was compared, and every content identity still matches; `stale` — a complete comparison confirmed at least one represented file is modified or missing; `partially-stale` — at least one represented file is confirmed changed, but comparison evidence is incomplete; `unknown` — no confirmed change established staleness, but evidence is insufficient to prove freshness. A task with no assessment is shown as not assessed, which is different from `unknown`.
+
+**Boundaries:** freshness is observational. There is no automatic reindex, no reindex recommendation, no retrieval suppression, and no status conversion (execution, provider, correctness, and token-evidence status are unchanged). It compares only files the snapshot lists, so it does not establish whole-repository freshness, and a new file is not by itself evidence of staleness. It adds no metric, plot, or gallery item.
+
+**Where to read it:** `warm-index-execution.json` holds project `indexSnapshot` and task `indexFreshness` (with hashes); the report's "Index Freshness" summary and per-task entries show counts and at most 20 changed files and 10 unresolved entries per task, without hashes.
+
+**Completion (additional):** when freshness evidence is present, the report contains the index freshness summary and per-task freshness entries, each benchmark project still shows exactly one index setup, and freshness has not changed any run, task, or provider status.
+
 ## Real-agent warm-index campaign (v0.5.2)
 
 Available in the installed v0.5.2 CLI. This is a distinct campaign path through the `warm-index-reuse` plugin, separate from the generic `context-strategy-comparison` campaign described in "Real-agent campaign" above; it reuses the warm-index runtime described in "Warm-index reuse experiment" above rather than the agent-matrix path.

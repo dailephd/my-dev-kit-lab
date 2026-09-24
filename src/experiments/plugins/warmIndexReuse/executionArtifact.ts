@@ -1,4 +1,6 @@
 import type { MeasuredCommandResult } from "../../../core/runMeasuredCommand.js";
+import type { IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
+import type { IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
 import type { ExperimentRunStatus } from "../../types.js";
 import type { WarmIndexExecutionError, WarmIndexProjectExecutionV1, WarmIndexTaskExecutionV1 } from "./execution.js";
 
@@ -48,6 +50,12 @@ export type WarmIndexTaskSummaryV1 = {
   warmStatus: ExperimentRunStatus;
   rawBaseline: WarmIndexRawBaselineSummaryV1 | null;
   warmRetrieval: WarmIndexRetrievalSummaryV1 | null;
+  /**
+   * Additive to schema v1: freshness of the session's indexed files immediately before this task's
+   * warm retrieval. Evidence only — it never affects the statuses above. `null` when no assessment
+   * was made; absent in artifacts written before it existed.
+   */
+  indexFreshness?: IndexFreshnessAssessmentV1 | null;
   warnings: string[];
   errors: WarmIndexExecutionError[];
 };
@@ -62,6 +70,11 @@ export type WarmIndexProjectSummaryV1 = {
   sessionPrepared: boolean;
   buildDurationMs: number | null;
   indexCommand: WarmIndexCommandTelemetryV1 | null;
+  /**
+   * Additive to schema v1: baseline index-build evidence (indexed-file hashes, generated artifact
+   * inventory). `null` when no session was prepared; absent in artifacts written before it existed.
+   */
+  indexSnapshot?: IndexSnapshotV1 | null;
   tasks: WarmIndexTaskSummaryV1[];
   warnings: string[];
   errors: string[];
@@ -121,6 +134,7 @@ function summarizeTask(task: WarmIndexTaskExecutionV1): WarmIndexTaskSummaryV1 {
           commands: warm.commands.map(summarizeCommand),
         }
       : null,
+    indexFreshness: task.indexFreshness ? structuredClone(task.indexFreshness) : null,
     warnings: [...task.warnings],
     errors: task.errors.map((error) => ({ ...error })),
   };
@@ -138,6 +152,7 @@ export function summarizeProjectExecution(project: WarmIndexProjectExecutionV1):
     sessionPrepared: project.session !== undefined,
     buildDurationMs: project.build ? project.build.durationMs : null,
     indexCommand: project.build ? summarizeCommand(project.build.command) : null,
+    indexSnapshot: project.session ? structuredClone(project.session.indexSnapshot) : null,
     tasks: project.tasks.map(summarizeTask),
     warnings: [...project.warnings],
     errors: [...project.errors],
