@@ -1,5 +1,6 @@
 import { invalidExperimentConfig, isPlainObject, mergeConfig, validExperimentConfig } from "../../config.js";
 import type { ExperimentConfigDefinition, ExperimentConfigValidationResult } from "../../types.js";
+import { WARM_INDEX_CAMPAIGN_PRESET_IDS, type WarmIndexCampaignPresetId } from "./campaignPresets.js";
 
 export type WarmIndexReuseConfig = {
   casesPath: string;
@@ -8,6 +9,12 @@ export type WarmIndexReuseConfig = {
   kitCommand: string;
   caseIds?: string[];
   benchmarkProjects?: string[];
+  /** Selects a frozen real-agent campaign preset. Absent = legacy fake-agent behavior. */
+  campaignPreset?: WarmIndexCampaignPresetId;
+  /** Required (must be exactly true) whenever campaignPreset is set; rejected otherwise. */
+  includeRealAgents?: boolean;
+  /** Optional per-agent timeout override for a campaign; rejected without campaignPreset. */
+  timeoutMs?: number;
 };
 
 export const defaultWarmIndexReuseConfig: WarmIndexReuseConfig = {
@@ -24,6 +31,9 @@ const SUPPORTED_FIELDS = [
   "kitCommand",
   "caseIds",
   "benchmarkProjects",
+  "campaignPreset",
+  "includeRealAgents",
+  "timeoutMs",
 ] as const;
 
 export const warmIndexReuseConfigDefinition: ExperimentConfigDefinition = {
@@ -34,6 +44,21 @@ export const warmIndexReuseConfigDefinition: ExperimentConfigDefinition = {
     { name: "kitCommand", type: "string", description: "my-dev-kit command used for index and retrieval." },
     { name: "caseIds", type: "array", description: "Evaluation case IDs to include." },
     { name: "benchmarkProjects", type: "array", description: "Benchmark project IDs to include." },
+    {
+      name: "campaignPreset",
+      type: "string",
+      description: `Real-agent campaign preset id: ${WARM_INDEX_CAMPAIGN_PRESET_IDS.join(", ")}. Absent selects the legacy deterministic fake-agent path.`,
+    },
+    {
+      name: "includeRealAgents",
+      type: "boolean",
+      description: "Required (must be true) together with campaignPreset; rejected without it.",
+    },
+    {
+      name: "timeoutMs",
+      type: "number",
+      description: "Optional per-agent timeout override (ms) for a campaign; defaults to the preset's 240000 ms. Rejected without campaignPreset.",
+    },
   ],
 };
 
@@ -66,6 +91,42 @@ export function validateWarmIndexReuseConfig(config: unknown): ExperimentConfigV
     if (value === undefined) continue;
     if (!Array.isArray(value) || value.length === 0 || !value.every((item) => typeof item === "string" && item.trim())) {
       errors.push(`${field} must be a non-empty array of non-empty strings when provided.`);
+    }
+  }
+
+  // Campaign fields are validated against the RAW supplied object, not the merged/normalized one,
+  // so legacy defaults (casesPath/projectProfilesPath) never look like an explicit override.
+  const raw = isPlainObject(config) ? config : {};
+  const rawCampaignPreset = raw.campaignPreset;
+  if (rawCampaignPreset !== undefined) {
+    if (typeof rawCampaignPreset !== "string" || !(WARM_INDEX_CAMPAIGN_PRESET_IDS as readonly string[]).includes(rawCampaignPreset)) {
+      errors.push(
+        `campaignPreset must be one of: ${WARM_INDEX_CAMPAIGN_PRESET_IDS.join(", ")}.`
+      );
+    }
+    if (raw.casesPath !== undefined) {
+      errors.push("campaignPreset cannot be combined with an explicit casesPath; the preset owns the production corpus.");
+    }
+    if (raw.projectProfilesPath !== undefined) {
+      errors.push(
+        "campaignPreset cannot be combined with an explicit projectProfilesPath; the preset owns the project profiles."
+      );
+    }
+    if (raw.includeRealAgents !== true) {
+      errors.push("campaignPreset requires includeRealAgents to be exactly true.");
+    }
+    if (raw.timeoutMs !== undefined) {
+      const timeoutMs = raw.timeoutMs;
+      if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || !Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+        errors.push("timeoutMs must be a finite positive integer when campaignPreset is set.");
+      }
+    }
+  } else {
+    if (raw.includeRealAgents !== undefined) {
+      errors.push("includeRealAgents is only supported together with campaignPreset.");
+    }
+    if (raw.timeoutMs !== undefined) {
+      errors.push("timeoutMs is only supported together with campaignPreset.");
     }
   }
 

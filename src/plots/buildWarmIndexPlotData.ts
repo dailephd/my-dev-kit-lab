@@ -63,6 +63,20 @@ export async function readWarmIndexPlotSource(experimentDir: string): Promise<Wa
   return section as WarmIndexReuseReportV1;
 }
 
+type PlotAgentId = "fake-agent" | "codex" | "claude";
+
+function correctnessTitles(agentId: PlotAgentId): { title: string; yLabel: string } {
+  if (agentId === "codex") return { title: "Codex correctness by strategy", yLabel: "Codex correctness score" };
+  if (agentId === "claude") return { title: "Claude correctness by strategy", yLabel: "Claude correctness score" };
+  return { title: "Fake-agent correctness by strategy", yLabel: "Fake-agent correctness score" };
+}
+
+function cumulativeTokenTitles(agentId: PlotAgentId): { title: string; yLabel: string } {
+  if (agentId === "codex") return { title: "Cumulative Codex token usage", yLabel: "Cumulative Codex total tokens" };
+  if (agentId === "claude") return { title: "Cumulative Claude token usage", yLabel: "Cumulative Claude total tokens" };
+  return { title: "Cumulative fake-agent token usage", yLabel: "Cumulative fake-agent total tokens (simulated)" };
+}
+
 export function buildWarmIndexPlotData(args: {
   section: WarmIndexReuseReportV1;
   experimentDir: string;
@@ -78,13 +92,19 @@ export function buildWarmIndexPlotData(args: {
     points: [],
     warnings: [],
   });
+  // Backward compatibility (v0.5.2 Batch 4, section 25): an older serialized v1 report predates the
+  // additive `agent` field; its absence is treated as legacy fake-agent evidence, never rejected.
+  const agentId: PlotAgentId = (args.section.agent?.id as PlotAgentId | undefined) ?? "fake-agent";
+  const correctnessLabels = correctnessTitles(agentId);
+  const cumulativeTokenLabels = cumulativeTokenTitles(agentId);
+
   const amortized = series("warm-index-amortized-index-cost", "Amortized index build cost", "Amortized index build duration (ms)");
   const contextSize = series("warm-index-context-size", "Raw vs retrieved context size", "Estimated context tokens");
-  const correctness = series("warm-index-correctness", "Fake-agent correctness by strategy", "Fake-agent correctness score");
+  const correctness = series("warm-index-correctness", correctnessLabels.title, correctnessLabels.yLabel);
   const cumulativeTokens = series(
     "warm-index-cumulative-token-usage",
-    "Cumulative fake-agent token usage",
-    "Cumulative fake-agent total tokens (simulated)"
+    cumulativeTokenLabels.title,
+    cumulativeTokenLabels.yLabel
   );
 
   const add = (

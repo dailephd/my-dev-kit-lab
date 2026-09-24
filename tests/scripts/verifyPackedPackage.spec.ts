@@ -8,6 +8,7 @@ import {
   missingRequiredTarballPaths,
   validateManifestRelativePaths,
   validatePlaywrightRuntimeDependency,
+  validateWarmIndexCampaignGalleryManifest,
   snapshotDirectory,
   validateInstalledPackageIdentity
 } from "../../scripts/verifyPackedPackageHelpers.js";
@@ -91,6 +92,63 @@ describe("packed tutorial package helpers", () => {
   it("rejects absolute, escaped, and Windows manifest paths", () => {
     expect(validateManifestRelativePaths({ artifacts: [{ path: "artifacts/tutorial.webm" }] })).toEqual([]);
     expect(validateManifestRelativePaths({ artifacts: [{ path: "C:/bad.webm" }, { path: "../bad.webm" }, { path: "artifacts\\bad.webm" }] })).toHaveLength(3);
+  });
+});
+
+describe("validateWarmIndexCampaignGalleryManifest", () => {
+  function galleryItem(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "warm-index-campaign-report",
+      htmlPath: "../report.html",
+      summaryPath: "../report.json",
+      artifactPaths: ["../report.txt"],
+      ...overrides
+    };
+  }
+
+  it("accepts exactly the three expected ids with bounded relative paths", () => {
+    expect(
+      validateWarmIndexCampaignGalleryManifest({
+        items: [
+          galleryItem({ screenshotPath: "../report.png" }),
+          galleryItem({
+            id: "warm-index-campaign-plots",
+            htmlPath: "",
+            summaryPath: "../plots/plots-summary.json",
+            runsPath: "../plots/plot-data.json",
+            artifactPaths: ["../plots/charts/warm-index-correctness.svg"]
+          }),
+          galleryItem({ id: "warm-index-execution", htmlPath: "", summaryPath: "../warm-index-execution.json", artifactPaths: undefined })
+        ]
+      })
+    ).toEqual([]);
+  });
+
+  it("rejects a wrong or reordered set of item ids", () => {
+    expect(validateWarmIndexCampaignGalleryManifest({ items: [galleryItem({ id: "unexpected-item" })] })).toHaveLength(1);
+    expect(
+      validateWarmIndexCampaignGalleryManifest({
+        items: [galleryItem({ id: "warm-index-campaign-plots" }), galleryItem({ id: "warm-index-campaign-report" })]
+      })
+    ).toHaveLength(1);
+  });
+
+  it("rejects absolute, Windows-style, and escaping paths", () => {
+    const problems = validateWarmIndexCampaignGalleryManifest({
+      items: [galleryItem({ summaryPath: "C:/abs/report.json" }), galleryItem({ id: "warm-index-campaign-plots" }), galleryItem({ id: "warm-index-execution" })]
+    });
+    expect(problems.some((p) => p.includes("not a bounded relative POSIX path"))).toBe(true);
+  });
+
+  it("rejects a path that links detailed agent evidence or provider stdout/stderr/telemetry", () => {
+    const problems = validateWarmIndexCampaignGalleryManifest({
+      items: [
+        galleryItem({ artifactPaths: ["../agents/codex/raw-full-file/stdout.txt"] }),
+        galleryItem({ id: "warm-index-campaign-plots" }),
+        galleryItem({ id: "warm-index-execution" })
+      ]
+    });
+    expect(problems.some((p) => p.includes("detailed/forensic agent evidence"))).toBe(true);
   });
 });
 

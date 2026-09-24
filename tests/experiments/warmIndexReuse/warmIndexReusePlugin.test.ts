@@ -11,9 +11,14 @@ import {
 } from "../../../src/experiments/index.js";
 import {
   defaultWarmIndexReuseConfig,
+  getWarmIndexCampaignPreset,
   groupWarmIndexCases,
+  parseWarmIndexCampaignPresetId,
+  resolveWarmIndexCampaignTimeoutMs,
+  selectWarmIndexCampaignCases,
   selectWarmIndexCases,
   validateWarmIndexReuseConfig,
+  WARM_INDEX_CAMPAIGN_PRESET_IDS,
   warmIndexReusePlugin,
   type WarmIndexExecutionArtifactV1,
   type WarmIndexReuseRun,
@@ -98,6 +103,9 @@ describe("warm-index-reuse registration and config", () => {
       "kitCommand",
       "caseIds",
       "benchmarkProjects",
+      "campaignPreset",
+      "includeRealAgents",
+      "timeoutMs",
     ]);
   });
 
@@ -106,7 +114,7 @@ describe("warm-index-reuse registration and config", () => {
     expect(valid.valid).toBe(true);
     expect(valid.config?.kitCommand).toBe("kit");
 
-    for (const field of ["agents", "strategies", "complexityLevels", "timeoutMs", "maxRuns", "commandTemplates", "includeRealAgents", "requireAgents"]) {
+    for (const field of ["agents", "strategies", "complexityLevels", "maxRuns", "commandTemplates", "requireAgents"]) {
       const result = validateWarmIndexReuseConfig({ [field]: ["x"] });
       expect(result.valid).toBe(false);
       expect(result.errors.join(" ")).toContain(`Unsupported warm-index-reuse config field(s): ${field}`);
@@ -115,6 +123,79 @@ describe("warm-index-reuse registration and config", () => {
     expect(validateWarmIndexReuseConfig({ kitCommand: "  " }).valid).toBe(false);
     expect(validateWarmIndexReuseConfig({ caseIds: [] }).valid).toBe(false);
     expect(validateWarmIndexReuseConfig({ benchmarkProjects: [1] }).valid).toBe(false);
+  });
+
+  describe("v0.5.2 campaign config fields", () => {
+    it("keeps legacy no-campaign defaults and validation unchanged", () => {
+      const valid = validateWarmIndexReuseConfig({});
+      expect(valid.valid).toBe(true);
+      expect(valid.config).toEqual(defaultWarmIndexReuseConfig);
+    });
+
+    it("rejects includeRealAgents or timeoutMs without campaignPreset", () => {
+      expect(validateWarmIndexReuseConfig({ includeRealAgents: true }).valid).toBe(false);
+      expect(validateWarmIndexReuseConfig({ includeRealAgents: true }).errors.join(" ")).toContain(
+        "includeRealAgents is only supported together with campaignPreset"
+      );
+      expect(validateWarmIndexReuseConfig({ timeoutMs: 5000 }).valid).toBe(false);
+      expect(validateWarmIndexReuseConfig({ timeoutMs: 5000 }).errors.join(" ")).toContain(
+        "timeoutMs is only supported together with campaignPreset"
+      );
+    });
+
+    it("accepts a campaign with includeRealAgents true and a positive integer timeoutMs", () => {
+      const valid = validateWarmIndexReuseConfig({ campaignPreset: "codex-full", includeRealAgents: true, timeoutMs: 120000 });
+      expect(valid.valid).toBe(true);
+      expect(valid.config).toEqual(
+        expect.objectContaining({ campaignPreset: "codex-full", includeRealAgents: true, timeoutMs: 120000 })
+      );
+    });
+
+    it("accepts a campaign without an explicit timeoutMs (resolved later from the preset default)", () => {
+      const valid = validateWarmIndexReuseConfig({ campaignPreset: "claude-full", includeRealAgents: true });
+      expect(valid.valid).toBe(true);
+      expect(valid.config?.timeoutMs).toBeUndefined();
+    });
+
+    it("rejects an unknown campaignPreset value", () => {
+      const result = validateWarmIndexReuseConfig({ campaignPreset: "unknown-preset", includeRealAgents: true });
+      expect(result.valid).toBe(false);
+      expect(result.errors.join(" ")).toContain("campaignPreset must be one of");
+    });
+
+    it("requires includeRealAgents to be exactly true when campaignPreset is set", () => {
+      expect(validateWarmIndexReuseConfig({ campaignPreset: "codex-full" }).valid).toBe(false);
+      expect(validateWarmIndexReuseConfig({ campaignPreset: "codex-full", includeRealAgents: false }).valid).toBe(false);
+      expect(
+        validateWarmIndexReuseConfig({ campaignPreset: "codex-full", includeRealAgents: false }).errors.join(" ")
+      ).toContain("includeRealAgents to be exactly true");
+    });
+
+    it("rejects zero, negative, and non-integer timeoutMs with a campaign", () => {
+      for (const timeoutMs of [0, -5, 1.5]) {
+        const result = validateWarmIndexReuseConfig({ campaignPreset: "codex-full", includeRealAgents: true, timeoutMs });
+        expect(result.valid).toBe(false);
+        expect(result.errors.join(" ")).toContain("timeoutMs must be a finite positive integer");
+      }
+    });
+
+    it("rejects a campaign combined with an explicit casesPath or projectProfilesPath", () => {
+      const withCases = validateWarmIndexReuseConfig({
+        campaignPreset: "codex-full",
+        includeRealAgents: true,
+        casesPath: "benchmarks/contracts/warm-index-benchmark-cases.json",
+      });
+      expect(withCases.valid).toBe(false);
+      expect(withCases.errors.join(" ")).toContain("cannot be combined with an explicit casesPath");
+
+      const withProfiles = validateWarmIndexReuseConfig({
+        campaignPreset: "codex-full",
+        includeRealAgents: true,
+        projectProfilesPath: "benchmarks/contracts/benchmark-project-profiles.json",
+      });
+      expect(withProfiles.valid).toBe(false);
+      expect(withProfiles.errors.join(" ")).toContain("cannot be combined with an explicit projectProfilesPath");
+    });
   });
 });
 
@@ -259,6 +340,7 @@ describe("warm-index-reuse execution", () => {
           sessionKey: "todo-ts",
           warmSessionAvailable: true,
           taskStatus: "completed",
+          agentId: "fake-agent",
           agentStatus: "completed",
         });
       }
@@ -557,3 +639,140 @@ describe("warm-index-reuse expanded v0.5.1 suite runtime", () => {
     ]);
   });
 });
+
+const FULL_CAMPAIGN_ORDER = [...MEDIUM_ORDER, ...LARGE_ORDER];
+const TIMEOUT_ISOLATION_ORDER = ["warm-large-health-label", "warm-large-ts-leaderboard", "warm-large-broad-analytics-comparison"];
+
+describe("v0.5.2 Batch 1 -- warm-index campaign preset registry", () => {
+  it("declares exactly three preset IDs", () => {
+    expect(WARM_INDEX_CAMPAIGN_PRESET_IDS).toEqual(["codex-full", "claude-full", "codex-timeout-isolation"]);
+  });
+
+  it("maps codex-full and codex-timeout-isolation to codex and claude-full to claude", () => {
+    expect(getWarmIndexCampaignPreset("codex-full").agentId).toBe("codex");
+    expect(getWarmIndexCampaignPreset("claude-full").agentId).toBe("claude");
+    expect(getWarmIndexCampaignPreset("codex-timeout-isolation").agentId).toBe("codex");
+  });
+
+  it("gives the full presets exactly the frozen 12 IDs in corpus order", () => {
+    expect(getWarmIndexCampaignPreset("codex-full").caseIds).toEqual(FULL_CAMPAIGN_ORDER);
+    expect(getWarmIndexCampaignPreset("claude-full").caseIds).toEqual(FULL_CAMPAIGN_ORDER);
+  });
+
+  it("gives the timeout-isolation preset exactly the frozen three IDs in order", () => {
+    expect(getWarmIndexCampaignPreset("codex-timeout-isolation").caseIds).toEqual(TIMEOUT_ISOLATION_ORDER);
+  });
+
+  it("uses the exact bundled corpus and project-profile resource paths for every preset", () => {
+    for (const id of WARM_INDEX_CAMPAIGN_PRESET_IDS) {
+      const preset = getWarmIndexCampaignPreset(id);
+      expect(preset.casesResourcePath).toBe("benchmarks/contracts/warm-index-benchmark-cases.json");
+      expect(preset.projectProfilesResourcePath).toBe("benchmarks/contracts/benchmark-project-profiles.json");
+    }
+  });
+
+  it("defaults every preset to a 240000 ms timeout", () => {
+    for (const id of WARM_INDEX_CAMPAIGN_PRESET_IDS) {
+      expect(getWarmIndexCampaignPreset(id).defaultTimeoutMs).toBe(240_000);
+    }
+  });
+
+  it("fails explicitly for an unknown preset ID", () => {
+    expect(() => parseWarmIndexCampaignPresetId("nope")).toThrow("Unknown warm-index campaign preset: nope");
+    expect(() => getWarmIndexCampaignPreset("nope" as never)).toThrow("Unknown warm-index campaign preset: nope");
+  });
+
+  it("returns immutable preset data", () => {
+    const preset = getWarmIndexCampaignPreset("codex-full");
+    expect(Object.isFrozen(preset)).toBe(true);
+    expect(() => {
+      (preset.caseIds as string[]).push("x");
+    }).toThrow();
+  });
+
+  it("resolves the preset default timeout when no override is requested, and validates an explicit override", () => {
+    const preset = getWarmIndexCampaignPreset("codex-full");
+    expect(resolveWarmIndexCampaignTimeoutMs(preset)).toBe(240_000);
+    expect(resolveWarmIndexCampaignTimeoutMs(preset, 90_000)).toBe(90_000);
+    expect(() => resolveWarmIndexCampaignTimeoutMs(preset, 0)).toThrow("finite positive integer");
+    expect(() => resolveWarmIndexCampaignTimeoutMs(preset, -1)).toThrow("finite positive integer");
+    expect(() => resolveWarmIndexCampaignTimeoutMs(preset, 1.5)).toThrow("finite positive integer");
+  });
+});
+
+describe("v0.5.2 Batch 1 -- campaign-aware case selection", () => {
+  it("selects all 12 cases for codex-full and claude-full", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    expect(selectWarmIndexCampaignCases(cases, getWarmIndexCampaignPreset("codex-full"), {}).map((c) => c.id)).toEqual(
+      FULL_CAMPAIGN_ORDER
+    );
+    expect(selectWarmIndexCampaignCases(cases, getWarmIndexCampaignPreset("claude-full"), {}).map((c) => c.id)).toEqual(
+      FULL_CAMPAIGN_ORDER
+    );
+  });
+
+  it("selects exactly the three timeout-isolation cases in corpus order", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    expect(
+      selectWarmIndexCampaignCases(cases, getWarmIndexCampaignPreset("codex-timeout-isolation"), {}).map((c) => c.id)
+    ).toEqual(TIMEOUT_ISOLATION_ORDER);
+  });
+
+  it("narrows a preset with --case", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    const preset = getWarmIndexCampaignPreset("codex-full");
+    expect(
+      selectWarmIndexCampaignCases(cases, preset, { caseIds: ["warm-large-ts-leaderboard"] }).map((c) => c.id)
+    ).toEqual(["warm-large-ts-leaderboard"]);
+  });
+
+  it("fails when --case requests a case outside the preset instead of expanding the campaign", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    const preset = getWarmIndexCampaignPreset("codex-timeout-isolation");
+    expect(() => selectWarmIndexCampaignCases(cases, preset, { caseIds: ["warm-medium-import-dedupe"] })).toThrow(
+      'not part of campaign preset "codex-timeout-isolation": warm-medium-import-dedupe'
+    );
+  });
+
+  it("narrows a preset with --benchmark-project", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    const preset = getWarmIndexCampaignPreset("codex-full");
+    expect(
+      selectWarmIndexCampaignCases(cases, preset, { benchmarkProjects: [MEDIUM_PROJECT] }).map((c) => c.id)
+    ).toEqual(MEDIUM_ORDER);
+  });
+
+  it("fails when --benchmark-project requests a project outside the preset", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    const preset = getWarmIndexCampaignPreset("codex-timeout-isolation");
+    expect(() => selectWarmIndexCampaignCases(cases, preset, { benchmarkProjects: [MEDIUM_PROJECT] })).toThrow(
+      `not part of campaign preset "codex-timeout-isolation": ${MEDIUM_PROJECT}`
+    );
+  });
+
+  it("preserves corpus/source order regardless of preset declaration order", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    const preset = getWarmIndexCampaignPreset("codex-timeout-isolation");
+    // Preset declares warm-large-health-label, warm-large-ts-leaderboard, warm-large-broad-analytics-comparison;
+    // corpus order interleaves warm-large-ts-analytics-snapshot/python cases between them.
+    expect(preset.caseIds).toEqual(TIMEOUT_ISOLATION_ORDER);
+    expect(selectWarmIndexCampaignCases(cases, preset, {}).map((c) => c.id)).toEqual(TIMEOUT_ISOLATION_ORDER);
+  });
+
+  it("fails clearly on an empty result set", async () => {
+    const cases = await loadProductionWarmIndexCases();
+    const preset = getWarmIndexCampaignPreset("codex-timeout-isolation");
+    expect(() =>
+      selectWarmIndexCampaignCases(cases, preset, {
+        caseIds: ["warm-large-health-label"],
+        benchmarkProjects: [MEDIUM_PROJECT],
+      })
+    ).toThrow(/not part of campaign preset/);
+  });
+});
+
+// The v0.5.2 Batch 1 temporary plugin-level campaign execution guard was removed in Batch 3: the
+// plugin now supports real-agent campaign execution programmatically (see
+// tests/experiments/warmIndexReuse/warmIndexRealAgent.test.ts). Public CLI campaign execution
+// remains guarded at the command surface -- see the v0.5.2 Batch 3 guard tests in
+// tests/commands/warmIndexReuseCommand.spec.ts.

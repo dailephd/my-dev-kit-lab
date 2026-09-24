@@ -26,7 +26,7 @@ Each entry below uses the same fields: **Meaning**, **Appears in** (the artifact
 **Token savings notes:**
 - A positive token savings value means the my-dev-kit-guided strategy used fewer tokens than raw-full-file for that run pair.
 - A negative token savings value means my-dev-kit-guided used more tokens. This can happen on small projects where raw-full-file is cheaper.
-- Token savings are only computed when both paired runs expose token totals. Claude does not expose token totals. Codex may expose token totals but can produce timeouts or invalid-output runs.
+- Token savings are only computed when both paired runs expose token totals. Claude's token totals depend on that run's actual CLI output and may be unavailable; Codex may expose token totals but can produce timeouts or invalid-output runs. See "Warm-index real-agent campaign metrics" below for the explicit per-run `tokenEvidenceStatus` signal used by the `warm-index-reuse` campaign path.
 - Token counts in fake-agent runs are estimated using `Math.ceil(characterCount / 4)`. These are context-size estimates, not provider billing totals.
 
 **Correctness scoring notes:**
@@ -515,4 +515,23 @@ The plugin evaluates each task side that has context evidence once with the dete
 
 **Generic outcome metrics.** Available values also appear as `ExperimentMetric` entries on each outcome, with `variantId`, `caseId`, `unit`, and `description`. Both the `raw-full-file` and `warm-index-reuse` outcomes can carry `context-character-count`, `context-estimated-token-count`, `operation-duration-ms` (raw context construction or warm retrieval), `cumulative-component-duration-ms`, `cumulative-context-estimated-token-count`, `agent-correctness-score`, `agent-total-tokens`, and `cumulative-agent-total-tokens`. The warm outcome also carries `amortized-index-build-duration-ms`. Unavailable metrics are omitted rather than emitted as zero. Run-level metrics are limited to `warm-index-project-count`, `warm-index-task-count`, and `warm-index-session-prepared-project-count`.
 
-**Interpretation.** The report separates the one-time index cost from per-task retrieval cost and shows the fixed cost falling per task as more tasks reuse the index. It calculates no token-savings percentage, duration-reduction percentage, break-even task, composite score, winner, or ranking. Warm-index plots map the same precomputed values: amortized index build duration, raw versus retrieved estimated context tokens, fake-agent correctness, and cumulative fake-agent total tokens. Unavailable values become skipped plot points with their reason.
+**Interpretation.** The report separates the one-time index cost from per-task retrieval cost and shows the fixed cost falling per task as more tasks reuse the index. It calculates no token-savings percentage, duration-reduction percentage, break-even task, composite score, winner, or ranking. Warm-index plots map the same precomputed values: amortized index build duration, raw versus retrieved estimated context tokens, fake-agent correctness (or campaign agent correctness for a `--campaign` run), and cumulative fake-agent total tokens. Unavailable values become skipped plot points with their reason.
+
+### Warm-index real-agent campaign metrics (v0.5.2, released)
+
+Available in the installed v0.5.2 CLI. A `--campaign` run replaces the deterministic fake-agent evaluation described above with one real Codex or Claude provider evaluation per task side with context evidence; every direct measurement, derived measurement, and the strict-prefix rule above are unchanged and reused as-is. Only the per-side agent evidence and its rollup are additive.
+
+- `presetId`, `agentId`, `timeoutMs`, `selectedCaseCount`
+  Meaning: which campaign preset ran, which single provider (`codex` or `claude`) it used, its resolved timeout, and how many cases were selected.
+- `scheduledSideCount`, `executedSideCount`, `notRunForMissingContextCount`
+  Meaning: how many task sides were scheduled for real-agent evaluation, how many actually ran, and how many were not run because that side had no context evidence (for example, a warm side with no prepared index).
+- `outcomeCounts` (`completed`, `failed`, `timeout`, `invalidOutput`, `agentUnavailable`, `agentLimitReached`, `skipped`)
+  Meaning: exact counts of each real-agent outcome across executed sides, from `classifyAgentRunOutcome`'s status mapping. None of these are folded into a single pass/fail count.
+- `agentEvidenceStatus` (`complete`, `partial`, `unavailable`)
+  Meaning: `complete` when every scheduled side executed and every executed side reported `completed`; `unavailable` when no side executed; `partial` otherwise.
+  Interpretation: this is infrastructure/provider evidence completeness, not correctness. A campaign can report `agentEvidenceStatus: "partial"` while the underlying index/execution infrastructure completed normally — infrastructure status and provider status are reported separately, never conflated.
+- `tokenEvidenceStatus` (`complete`, `partial`, `unavailable`)
+  Meaning: `complete` when every executed side reports a finite total-token count; `unavailable` when no executed side does; `partial` otherwise.
+  Caveat: Claude and Codex token exposure depends on that provider's actual CLI output for the run; token evidence is reported as `unavailable`/`partial` explicitly rather than assumed. No fixed claim that either provider always or never exposes a token total is made — `tokenEvidenceStatus` is the authoritative, per-run signal.
+
+No token-savings percentage, break-even task, winner, ranking, or provider billing metric is calculated for a campaign run, matching the fake-agent path above.

@@ -196,6 +196,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 ```text
 my-dev-kit-lab experiment describe --experiment warm-index-reuse
 my-dev-kit-lab experiment run --experiment warm-index-reuse [--target <path>] [--out <dir>] [--cases <path>] [--project-profiles <path>] [--case <ids>] [--benchmark-project <ids>] [--kit-command <command>]
+my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign <preset> --include-real-agents [--case <ids>] [--out <dir>]
 ```
 
 | Option | Allowed value or default |
@@ -207,14 +208,16 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse [--target <path>] [-
 | `--case <ids>` | Optional comma-separated case filter; unknown IDs fail the run |
 | `--benchmark-project <ids>` | Optional comma-separated project filter; unknown IDs fail the run |
 | `--kit-command <command>` | `warm-index-reuse` only; the my-dev-kit command used to build one index per benchmark project and retrieve per task. Defaults to `npx @dailephd/my-dev-kit@latest` |
+| `--campaign <preset>` | `warm-index-reuse` only, available in the installed v0.5.2 CLI; one of `codex-full`, `claude-full`, `codex-timeout-isolation`. Selects the bundled production corpus and a single real-agent provider for the run; cannot be combined with `--target`, `--cases`, or `--project-profiles` |
+| `--include-real-agents` | `warm-index-reuse` only, available in the installed v0.5.2 CLI. Required alongside `--campaign` to run real Codex/Claude providers instead of the deterministic fake agent; rejected without `--campaign` |
 
 Explicit `--cases` and `--project-profiles` paths resolve against the tool root (the installed package root for the installed CLI), so the packaged corpus can be named by its relative path.
 
 Behavior:
 
 - selected cases keep their source order and are grouped by benchmark project in first-seen order; each project group gets exactly one index setup attempt, and every task in the group reuses that index
-- every task gets one `raw-full-file` baseline and, when the project's index is ready, one warm retrieval (search, lookup, slice, source); each task side with context evidence is then evaluated once by the deterministic fake agent
-- the plugin variants are `raw-full-file` and `warm-index-reuse`; there is no agent selection: `--agents`, `--strategies`, `--complexities`, and the other agent-matrix options are rejected for this plugin, and Codex/Claude warm-index campaigns are planned for a later version
+- every task gets one `raw-full-file` baseline and, when the project's index is ready, one warm retrieval (search, lookup, slice, source); each task side with context evidence is then evaluated once by the deterministic fake agent, or, for a `--campaign` run, once by the selected real-agent provider
+- the plugin variants are `raw-full-file` and `warm-index-reuse`; there is no agent-matrix selection: `--agents`, `--strategies`, `--complexities`, and the other agent-matrix options are rejected for this plugin
 - `--kit-command` is rejected for `context-strategy-comparison`
 - outputs beneath the output root: `warm-index-execution.json` (bounded execution evidence), `indexes/<project>/`, `commands/<project>/`, `agents/<project>/<case>/<variant>/`, and the plugin reports `report.json`, `report.txt`, and `report.html` with a warm-index reuse section
 - the run status is `completed`, `partial`, `failed`, or `skipped` from actual outcomes; a failed project index keeps raw evidence and records failed warm outcomes; the command exits `1` when the run status is `failed` or the arguments/configuration are invalid, and `0` otherwise
@@ -224,6 +227,15 @@ Behavior:
 ```text
 my-dev-kit-lab experiment run --experiment warm-index-reuse --cases benchmarks/contracts/warm-index-benchmark-cases.json --benchmark-project task-workflow-medium-ts --out <dir>
 ```
+
+Real-agent campaigns (available in the installed v0.5.2 CLI):
+
+```text
+my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign codex-full --include-real-agents --out <dir>
+my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign claude-full --include-real-agents --case warm-medium-complete-idempotent --out <dir>
+```
+
+A `--campaign` run requires a locally configured Codex or Claude provider CLI matching the selected preset's agent; it reports partial outcomes (`token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) explicitly rather than treating them as success, and — on a completed run — additionally produces the campaign report/plots/screenshot/gallery presentation described in [ARCHITECTURE.md](ARCHITECTURE.md#real-agent-warm-index-campaign-architecture-v052-implementedunreleased) and [GALLERY.md](GALLERY.md).
 
 See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#warm-index-reuse-experiment) for the procedure.
 

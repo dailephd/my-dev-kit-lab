@@ -238,7 +238,11 @@ async function listFiles(dir: string): Promise<string[]> {
   }
 }
 
-function renderGalleryIndex(manifest: GalleryManifest): string {
+/**
+ * Shared gallery index renderer (v0.5.2 Batch 5): reused unchanged by
+ * writeWarmIndexCampaignGallery.ts so both gallery contracts render identical HTML.
+ */
+export function renderGalleryIndex(manifest: GalleryManifest): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8" /><title>${escapeHtml(manifest.title)}</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:32px;color:#17212b}section{border:1px solid #d9e1ea;border-radius:8px;padding:16px;margin:12px 0}code{background:#f2f4f7;padding:2px 4px}</style></head>

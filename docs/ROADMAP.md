@@ -800,7 +800,7 @@ Implementation status: the features and acceptance criteria above are satisfied 
 
 ### v0.5.2 — warm-index real-agent campaigns
 
-Status: **planned; not implemented**.
+Status: **published**.
 
 Purpose:
 
@@ -819,6 +819,8 @@ Acceptance:
 * Campaigns can run with Codex and Claude.
 * Partial outcomes are structured.
 * Reports distinguish infrastructure success from agent/provider limitations.
+
+Features shipped: three single-provider campaign presets (`codex-full`, `claude-full`, and `codex-timeout-isolation`); exact measured-context delivery over stdin; structured partial provider outcomes; provider-aware reporting and four plots; best-effort screenshots; a three-item campaign gallery; process-timeout and cleanup hardening; and exact packed-package validation across supported platforms. The legacy fake-agent path remains unchanged.
 
 ### v0.6.0 — index freshness and changed-file detection
 

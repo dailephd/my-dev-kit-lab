@@ -55,6 +55,107 @@ function plot(data: ReturnType<typeof buildWarmIndexPlotData>, id: string) {
   return series;
 }
 
+function availableMetric(value: number): { availability: "available"; value: number; unit: "score" | "tokens"; source: "agent"; reason: null; tokenCountMethod: null } {
+  return { availability: "available", value, unit: "score", source: "agent", reason: null, tokenCountMethod: null };
+}
+
+function unavailableMetric(reason: string) {
+  return { availability: "unavailable" as const, value: null, unit: "tokens" as const, source: "agent" as const, reason, tokenCountMethod: null };
+}
+
+/** Minimal single-project, single-task warm section for agent-label plot unit tests (no real run needed). */
+function minimalCampaignSection(agentId: "codex" | "claude", tokensAvailable: boolean): WarmIndexReuseReportV1 {
+  const zeroDuration = { availability: "available" as const, value: 0, unit: "ms" as const, source: "measured" as const, reason: null, tokenCountMethod: null };
+  const zeroChars = { availability: "available" as const, value: 0, unit: "characters" as const, source: "measured" as const, reason: null, tokenCountMethod: null };
+  const zeroTokens = { availability: "available" as const, value: 0, unit: "estimated-tokens" as const, source: "estimated-chars-div-4" as const, reason: null, tokenCountMethod: "estimated_chars_div_4" };
+  const agentTotalTokens = tokensAvailable ? { ...availableMetric(10), unit: "tokens" as const } : unavailableMetric("no token evidence");
+  const cumulativeAgentTotalTokens = tokensAvailable ? { ...availableMetric(10), unit: "tokens" as const } : unavailableMetric("no token evidence");
+  const side = {
+    contextCharacters: zeroChars,
+    contextEstimatedTokens: zeroTokens,
+    operationDurationMs: zeroDuration,
+    cumulativeDurationMs: zeroDuration,
+    cumulativeEstimatedContextTokens: zeroTokens,
+    agentCorrectness: availableMetric(1),
+    agentTotalTokens,
+    cumulativeAgentTotalTokens,
+  };
+  return {
+    schemaVersion: "my-dev-kit-lab-warm-index-report-v1",
+    summary: {
+      projectCount: 1,
+      taskCount: 1,
+      preparedSessionProjectCount: 1,
+      incompleteProjectCount: 0,
+      agentSideCount: 2,
+      agentCorrectnessAvailableCount: 2,
+      agentTotalTokensAvailableCount: tokensAvailable ? 2 : 0,
+    },
+    costModel: [],
+    limitations: [],
+    agent: { id: agentId, mode: "real-provider" },
+    agentCampaign: null,
+    projects: [
+      {
+        benchmarkProject: "proj",
+        sessionKey: "proj",
+        status: "completed",
+        sessionPrepared: true,
+        indexBuildDurationMs: zeroDuration,
+        taskCount: 1,
+        tasks: [
+          {
+            taskOrdinal: 1,
+            caseId: "case-1",
+            rawStatus: "completed",
+            warmStatus: "completed",
+            raw: { ...side, retrievalDurationMs: undefined, amortizedIndexBuildDurationMs: undefined, cumulativeComponentDurationMs: undefined } as never,
+            warm: { ...side, retrievalDurationMs: zeroDuration, amortizedIndexBuildDurationMs: zeroDuration, cumulativeComponentDurationMs: zeroDuration },
+            rawAgent: { agentId, status: "completed", passed: true, tokenUsageSource: tokensAvailable ? "cli-json" : "unavailable", tokenUsageReliability: tokensAvailable ? "high" : "unavailable", warnings: [], errors: [] },
+            warmAgent: { agentId, status: "completed", passed: true, tokenUsageSource: tokensAvailable ? "cli-json" : "unavailable", tokenUsageReliability: tokensAvailable ? "high" : "unavailable", warnings: [], errors: [] },
+          },
+        ],
+      },
+    ],
+  } as unknown as WarmIndexReuseReportV1;
+}
+
+describe("v0.5.2 Batch 4 -- agent-aware plot titles (sections 38-39)", () => {
+  it("uses Codex-specific titles and never labels Codex data as fake-agent or simulated", () => {
+    const data = buildWarmIndexPlotData({ section: minimalCampaignSection("codex", true), experimentDir: "/x" });
+    expect(data.plots).toHaveLength(4);
+    const correctness = data.plots.find((p) => p.id === "warm-index-correctness")!;
+    expect(correctness.title).toBe("Codex correctness by strategy");
+    expect(correctness.yLabel).toBe("Codex correctness score");
+    const cumulative = data.plots.find((p) => p.id === "warm-index-cumulative-token-usage")!;
+    expect(cumulative.title).toBe("Cumulative Codex token usage");
+    expect(cumulative.yLabel).toBe("Cumulative Codex total tokens");
+    expect(JSON.stringify(data.plots)).not.toMatch(/fake-agent|simulated/i);
+  });
+
+  it("uses Claude-specific titles and skips (never fabricates) unavailable token points", () => {
+    const data = buildWarmIndexPlotData({ section: minimalCampaignSection("claude", false), experimentDir: "/x" });
+    const correctness = data.plots.find((p) => p.id === "warm-index-correctness")!;
+    expect(correctness.title).toBe("Claude correctness by strategy");
+    expect(correctness.yLabel).toBe("Claude correctness score");
+    const cumulative = data.plots.find((p) => p.id === "warm-index-cumulative-token-usage")!;
+    expect(cumulative.title).toBe("Cumulative Claude token usage");
+    expect(cumulative.yLabel).toBe("Cumulative Claude total tokens");
+    expect(cumulative.points).toEqual([]);
+    expect(cumulative.warnings).toContain("No comparable data available.");
+    expect(renderSvgChart(cumulative)).toContain("No comparable data available");
+    expect(JSON.stringify(data.plots)).not.toMatch(/fake-agent|simulated/i);
+  });
+
+  it("treats a legacy v1 report missing the additive agent field as fake-agent (section 25)", () => {
+    const legacy = minimalCampaignSection("codex", true);
+    delete (legacy as { agent?: unknown }).agent;
+    const data = buildWarmIndexPlotData({ section: legacy, experimentDir: "/x" });
+    const correctness = data.plots.find((p) => p.id === "warm-index-correctness")!;
+    expect(correctness.title).toBe("Fake-agent correctness by strategy");
+  });
+});
+
 describe("buildWarmIndexPlotData", () => {
   it("builds exactly the four roadmap plots in order", async () => {
     const { section, outputRoot } = await warmOutput();
@@ -127,7 +228,7 @@ describe("buildWarmIndexPlotData", () => {
     expect(missingTokens.points).toEqual([]);
     const skipped = data.skippedPoints.filter((point) => point.plotId === "warm-index-cumulative-token-usage");
     expect(skipped).toHaveLength(4);
-    expect(skipped[0].reason).toContain("fake-agent total tokens evidence is missing");
+    expect(skipped[0].reason).toContain("agent total tokens evidence is missing");
     expect(renderSvgChart(missingTokens)).toContain("No comparable data available");
   });
 });

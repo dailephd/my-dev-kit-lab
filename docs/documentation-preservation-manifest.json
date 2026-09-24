@@ -39,7 +39,7 @@
     "docs/CURRENT_STATE.md": {
       "role": "operational state",
       "requiredHeadings": ["Version and publication state", "Operational state", "Implemented", "Current commands", "Current architecture", "Experimental versus planned", "Limitations", "Validation state", "Blockers", "Next step"],
-      "requiredTopics": ["Package version", "Latest release", "Current branch", "Active planned version", "Workflow stage", "Release blockers", "Exact next action", "v0.4.2", "v0.4.3", "v0.5.0", "not implemented", "tutorial", "published/current", "warm-index-reuse"]
+      "requiredTopics": ["Package version", "Latest release", "Current branch", "Active planned version", "Workflow stage", "Release blockers", "Exact next action", "v0.4.2", "v0.4.3", "v0.5.0", "not implemented", "tutorial", "published/current", "warm-index-reuse", "Current release", "--campaign", "real-agent warm-index campaign"]
     },
     "docs/ARCHITECTURE.md": {
       "role": "current architecture",
@@ -49,16 +49,16 @@
     "docs/COMMANDS.md": {
       "role": "implemented command reference",
       "requiredHeadings": ["Current command families", "Installation and validation", "Experiment commands", "Security-validation commands", "Audit commands"],
-      "requiredTopics": ["experiment:list", "experiment:describe", "experiment:run", "audit", "--android", "security:validate", "--profile android", "docs:check", "verify", "tutorial validate", "tutorial run", "tutorial.webm", "tutorial-manifest.json", "pointer-click", "pointer-drag", "select-option", "warm-index-reuse", "--kit-command"]
+      "requiredTopics": ["experiment:list", "experiment:describe", "experiment:run", "audit", "--android", "security:validate", "--profile android", "docs:check", "verify", "tutorial validate", "tutorial run", "tutorial.webm", "tutorial-manifest.json", "pointer-click", "pointer-drag", "select-option", "warm-index-reuse", "--kit-command", "--campaign", "--include-real-agents"]
     },
     "docs/WORKFLOWS.md": {
       "role": "procedures",
-      "requiredHeadings": ["Current workflow families", "Fake-agent final demo", "Context-strategy experiment run", "Real-agent campaign", "Report, plots, and gallery", "Automated security validation", "Code-rot audit", "Documentation reconciliation", "Pre-release readiness", "Release preparation and publication", "Android validation", "Android extension of the security audit adapter", "Manual pentest", "Warm-index reuse experiment"],
-      "requiredTopics": ["experiment", "audit", "security", "Android", "Gradle", "external tool", "release", "documentation", "tutorial", "Chromium"]
+      "requiredHeadings": ["Current workflow families", "Fake-agent final demo", "Context-strategy experiment run", "Real-agent campaign", "Report, plots, and gallery", "Automated security validation", "Code-rot audit", "Documentation reconciliation", "Pre-release readiness", "Release preparation and publication", "Android validation", "Android extension of the security audit adapter", "Manual pentest", "Warm-index reuse experiment", "Real-agent warm-index campaign"],
+      "requiredTopics": ["experiment", "audit", "security", "Android", "Gradle", "external tool", "release", "documentation", "tutorial", "Chromium", "--campaign"]
     },
     "docs/TUTORIAL.md": { "role": "first successful run", "requiredHeadings": ["Install dependencies", "Build", "Declarative browser tutorial", "Verify the installation", "Run the fake-agent final demo", "Open the report", "Where outputs are written", "Next steps"] },
     "docs/METRICS.md": { "role": "metric glossary", "requiredHeadings": ["Metric interpretation quick reference", "Project complexity metrics", "Prompt complexity metrics", "Experiment and run metrics", "Planned v0.4.3 metrics", "Warm-index reuse metrics"] },
-    "docs/GALLERY.md": { "role": "gallery reference", "requiredHeadings": ["What the gallery contains", "How the gallery relates to other outputs", "How to build a gallery", "Gallery in the final demo", "Current limitations"], "requiredTopics": ["tutorial-manifest", "future scope"] },
+    "docs/GALLERY.md": { "role": "gallery reference", "requiredHeadings": ["What the gallery contains", "How the gallery relates to other outputs", "How to build a gallery", "Gallery in the final demo", "Current limitations", "Warm-index campaign gallery"], "requiredTopics": ["tutorial-manifest", "future scope", "warm-index-campaign-report"] },
     "docs/security-validation-framework.md": {
       "role": "security model and limitations",
       "requiredHeadings": ["Scope", "Implemented validation layers", "Target-aware validation", "Commands", "Reports and verdicts", "Current limitations", "Fortification status and audit relationship"],
@@ -87,12 +87,12 @@
     "forbiddenVersionRangeHeadings": ["v0.5.x-v0.9.x", "v0.5.x–v0.9.x", "v0.3.0-v0.3.4"]
   },
   "changelog": {
-    "requiredPublishedReleases": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.1", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4", "0.4.5", "0.4.6", "0.4.7", "0.4.8", "0.4.9", "0.5.0", "0.5.1"]
+    "requiredPublishedReleases": ["0.1.0", "0.1.1", "0.1.2", "0.1.4", "0.2.0", "0.2.1", "0.2.2", "0.3.0", "0.3.1", "0.3.2", "0.3.3", "0.3.4", "0.4.0", "0.4.1", "0.4.2", "0.4.3", "0.4.4", "0.4.5", "0.4.6", "0.4.7", "0.4.8", "0.4.9", "0.5.0", "0.5.1", "0.5.2"]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.5.1",
+    "latestPublishedVersion": "0.5.2",
     "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.5.2",
+    "nextPlannedVersion": "0.6.0",
     "implementedExperimentPlugins": ["context-strategy-comparison", "warm-index-reuse"],
     "experimentPluginDocuments": ["README.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/ARCHITECTURE.md"],
     "implementedAuditTypes": ["code-rot", "security"],

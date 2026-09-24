@@ -5,14 +5,14 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.5.1`
-- Latest release: `v0.5.1` (expanded warm-index benchmark suite; previous release: `v0.5.0`)
-- Previous release: `v0.5.0` (warm-index reuse experiment support)
+- Package version: `0.5.2`
+- Latest release: `v0.5.2` (warm-index real-agent campaigns)
+- Previous release: `v0.5.1` (expanded warm-index benchmark suite)
 - `v0.5.0` status: published; it is the previous release. The release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Current implemented/unreleased version: none.
-- Active planned version (next planned product version): `v0.5.2` (warm-index real-agent campaigns)
+- Active planned version: `v0.6.0` (index freshness and changed-file detection)
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
 - Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
 
@@ -20,14 +20,17 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 
 ## Operational state
 
-- Current branch: `main`; main holds the published `v0.5.1` state.
-- `v0.5.1` status: published/current; the expanded warm-index benchmark suite is included in the package and release channels.
+- Current branch: `main` (the v0.5.2 release is current).
+- `main` holds the released `v0.5.2` state and is the current release channel.
+- `v0.5.1` status: published; the expanded warm-index benchmark suite is included in the package and release channels.
+- `v0.5.2` status: published/current; real-agent warm-index campaigns are available in the installed package.
 - `v0.4.8` release branch: `release/v0.4.8` (merged to `main`)
 - `v0.4.7` release branch: `release/v0.4.7` (merged to main)
 - Historical implementation branch: `feature/v0.4.8-pointer-gestures`
+- `v0.5.2` release branch: `release/v0.5.2` (release preparation for this published release).
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
-- Workflow stage: `v0.5.1` publication is complete; `v0.5.2` planning is next.
+- Workflow stage: `v0.5.2` is the current published release; `v0.6.0` is next planned.
 - Validation result (v0.4.5, published): the live producer-to-orchestrator-to-lab path reached full agreement with zero contradictions; the coordinated negative matrix, shared security and package parity, determinism, target immutability, and candidate immutability checks passed. Published registry packages `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` were revalidated before release.
 - Validation result (v0.4.6, published): local Node 24 validation (`typecheck`, `verify`, full test suite, `npm run security:validate`, `npm run audit`, `npm run verify:packed-package`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; the pre-release latest-Node readiness workflow passed on Ubuntu/macOS/Windows; see "Validation state" below for the exact gates run.
 - Validation result (v0.4.7, published): local validation (`docs:check`, `typecheck`, `build`, `test:tutorial-browser`, `test`, `verify`, `verify:packed-package`, `audit`, `security:validate`) passed on the release commit; GitHub Actions CI passed on Ubuntu/macOS/Windows × Node 24/latest for the release PR and merged main; dedicated latest-Node readiness workflow passed; package dry-run and packed-package inspection verified.
@@ -39,7 +42,10 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - Validation result (v0.5.0, published): local validation passed; full tests passed; security and audit validation found no release blocker; packed-package acceptance passed; standard cross-platform CI passed; latest-Node readiness passed across Ubuntu, macOS, and Windows; the release PR was merged to `main` and tag/GitHub Release/npm publication completed.
 - Release blockers for published `v0.5.1`: none.
 - Validation result (v0.5.1, published): release-preparation validation, full tests, security and audit validation, packed-package acceptance, package inspection, and exact release-branch cross-platform CI and latest-Node readiness passed before publication.
-- Exact next action: plan the v0.5.2 real-agent warm-index campaigns; do not implement them until their separate workflow begins.
+- **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
+- **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
+- Release blockers for the published `v0.5.2`: none.
+- Exact next action: begin planning v0.6.0 index freshness and changed-file detection work.
 
 ## Implemented
 
@@ -86,9 +92,11 @@ The repository has one experiment runtime, one audit framework, one standalone s
 
 `context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
 
-`warm-index-reuse` was introduced in `v0.5.0` and is included in current release `v0.5.1` with registry status `experimental`. Its agent evidence comes from the deterministic fake agent only.
+`warm-index-reuse` was introduced in `v0.5.0` and is included in published release `v0.5.1` with registry status `experimental`. In the published `v0.5.1` release, its agent evidence comes from the deterministic fake agent only.
 
-Selectable Codex/Claude warm-index campaigns are **not implemented** (planned for `v0.5.2`), and warm-index screenshots and gallery integration are **not implemented**.
+Selectable Codex/Claude real-agent warm-index campaigns (`--campaign`, `--include-real-agents`), plus their screenshot and gallery presentation, are current v0.5.2 capabilities.
+
+The installed `v0.5.2` CLI exposes `--campaign`. See [ROADMAP.md](ROADMAP.md), [COMMANDS.md](COMMANDS.md), and [GALLERY.md](GALLERY.md) for details.
 
 The expanded warm-index benchmark suite was released in `v0.5.1`: the dedicated corpus must be selected explicitly with `--cases benchmarks/contracts/warm-index-benchmark-cases.json`. Task locality is benchmark metadata only; it does not change runtime behavior, and there is no locality CLI filter.
 
@@ -108,7 +116,6 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- real-agent warm-index campaigns with screenshots/gallery output (`v0.5.2`)
 - freshness/staleness, context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.6.x` through `v0.9.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
@@ -121,6 +128,7 @@ The following remain planned, not implemented:
 - Some security tools are optional and may be reported as skipped when unavailable.
 - Fake-agent token totals are estimates. Provider telemetry differs by adapter and can be unavailable.
 - `warm-index-reuse` fake-agent correctness and token totals are deterministic simulated harness evidence, not real-model correctness or provider billing telemetry; its estimated context tokens are a separate character-based context-size estimate. Cumulative durations are component sums, not wall-clock latency. No token-savings percentage, break-even task, winner, or ranking is calculated.
+- The `v0.5.2` real-agent warm-index campaign depends on locally configured Codex/Claude provider CLIs and may produce partial per-run outcomes (`token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) reported through explicit `agentEvidenceStatus`/`tokenEvidenceStatus` values rather than being silently treated as success; Claude's token evidence may be `unavailable` or `partial` depending on provider output, and this is reported explicitly rather than defaulted to zero.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
 - Two experiment plugins are registered: `context-strategy-comparison` and `warm-index-reuse` (released in `v0.5.0`). Later planned experiment plugins remain future roadmap work.
 - The `v0.5.1` production corpus is deterministic benchmark evidence run with the fake agent; it does not establish real-agent or provider behavior. The default `examples/token-savings-cases.json` still has one task per benchmark project. Benchmark project profiles carry a `taskStats` block that mirrors the validated `complexityMetrics` task statistics; only `complexityMetrics` is validated.
@@ -148,6 +156,8 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 
 `v0.5.0` implementation validation (historical evidence from the completed implementation stage, not re-run by documentation reconciliation): `npm test`, `npm run verify`, the focused agent/experiment/plot/report/evaluation suites, and the exact `npm run verify:packed-package` gate (including installed `warm-index-reuse` execution, reports, four warm-index plots, and installed-package/target immutability) passed on the implementation commit. Documentation reconciliation ran `npm run docs:check`, the documentation-check tests, focused experiment/plot/report suites, command/help smokes, a bounded warm-index smoke, and `npm run verify`.
 
+`v0.5.2` implementation validation (historical evidence from the completed implementation stage on `feature/v0.5.2-warm-index-real-agent-campaigns`): see "v0.5.2 validation summary" above for the full gate list, test counts, and CI run. This documentation reconciliation stage separately ran `npm run docs:check`, `npm run typecheck`, `npm run build`, focused vitest suites covering the touched documentation-adjacent contracts, and `npm run verify:benchmarks`; it did not re-run the full cross-platform CI matrix and did not invoke any real provider.
+
 ## Blockers
 
 Release blockers for the published `v0.4.9`: none.
@@ -156,6 +166,8 @@ Release blockers for the published `v0.5.0`: none.
 
 For `v0.5.1`: release blockers — none; release-preparation validation and exact cross-platform readiness passed.
 
+For the published `v0.5.2`: release blockers — none. Pre-release readiness passed on candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9`; this evidence is historical.
+
 ## Next step
 
-Plan the separate `v0.5.2` real-agent warm-index campaign workflow. The v0.5.1 release is complete and its release channels are authoritative.
+Begin planning `v0.6.0` index freshness and changed-file detection work.

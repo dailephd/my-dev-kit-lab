@@ -125,7 +125,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 Introduced in v0.5.0 and expanded in v0.5.1; see [CURRENT_STATE.md](CURRENT_STATE.md) for its lifecycle state.
 
-The expanded benchmark corpus used below was released in v0.5.1; it reuses the v0.5.0 runtime unchanged. Selectable real-agent warm-index campaigns remain planned for v0.5.2.
+The expanded benchmark corpus used below was released in v0.5.1; it reuses the v0.5.0 runtime unchanged. Selectable real-agent warm-index campaigns are available in the installed v0.5.2 CLI (see "Real-agent warm-index campaign" below).
 
 **Goal:** measure how a one-time my-dev-kit index cost is amortized when the same prepared index is reused across several tasks, with a matched `raw-full-file` baseline for every task and deterministic fake-agent correctness and token evidence.
 
@@ -177,6 +177,42 @@ select cases (source order, optional --case / --benchmark-project filters)
 **Failure handling:** unknown case or benchmark-project IDs, or a filter that matches nothing, fail the run with the reason in the report's failures. A project whose cases disagree on target or source roots is not indexed; its warm outcomes fail while raw baselines still run. A failed index keeps its measured command evidence and raw baselines, fails that project's warm outcomes, and does not stop other projects. A fake-agent failure leaves context and duration evidence unchanged and makes that side's correctness unavailable. Unavailable measurements stay unavailable in cumulative metrics and plots; they are never counted as zero.
 
 **Completion:** the run reports `completed` (or an explicit `partial` state that has been reviewed), each benchmark project shows exactly one index setup, the report's warm-index section and limitations are present, the optional plots output contains four charts, and any `--target` project is unchanged. Interpret the results as scoped fake-agent evidence: the report calculates no token-savings percentage, break-even task, winner, or ranking.
+
+## Real-agent warm-index campaign (v0.5.2)
+
+Available in the installed v0.5.2 CLI. This is a distinct campaign path through the `warm-index-reuse` plugin, separate from the generic `context-strategy-comparison` campaign described in "Real-agent campaign" above; it reuses the warm-index runtime described in "Warm-index reuse experiment" above rather than the agent-matrix path.
+
+**Goal:** run the bundled production warm-index corpus against a single real Codex or Claude provider, reusing one prepared index per benchmark project, and produce the resulting report, plots, screenshot, and gallery presentation from a single command.
+
+**Prerequisites:** install dependencies, run `npm run build`, and configure the local Codex or Claude CLI required by the selected preset. Confirm provider usage capacity before running a full campaign.
+
+**Starting state:** the output directory is new or empty; no `--target` is supplied (campaigns run only against the bundled synthetic benchmark projects, not an explicit local project).
+
+**Lifecycle:**
+
+```
+select preset (codex-full | claude-full | codex-timeout-isolation)
+  -> preset resolves corpus, single agent, and timeout policy
+  -> per project: build exactly one index (unchanged v0.5.0 execution layer)
+  -> per task side with context evidence: one real-agent evaluation (Codex JSONL / Claude JSON stdin transport)
+  -> outcome classification (completed / token-unavailable / failed / invalid-output / agent-unavailable / agent-limit-reached / timeout)
+  -> metrics calculated once (unchanged metrics owner)
+  -> on a completed run: report -> plots -> screenshot -> gallery presentation
+```
+
+**Steps:**
+
+```text
+my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign codex-full --include-real-agents --out lab-output/warm-index-campaign
+```
+
+Use `--campaign claude-full` for the Claude preset, or `--campaign codex-timeout-isolation` to exercise bounded-timeout behavior. `--case <ids>` narrows the run to specific tasks within the preset's corpus; `--target`, `--cases`, and `--project-profiles` are rejected because the preset owns the corpus and project profiles.
+
+**Expected outputs:** the same `warm-index-execution.json`, `indexes/<project>/`, `commands/<project>/`, and plugin reports as an ordinary warm-index run, plus — only when the run status is `completed` — the standard report/plots/screenshot pipeline and a bounded 3-item campaign gallery (report, plots, screenshot) with relative paths and no raw agent stdout/stderr/telemetry.
+
+**Failure handling:** each task side's agent outcome is classified explicitly; `token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, and `timeout` are all reported rather than defaulted to success or silently dropped. A `partial` or `failed` run status does not trigger presentation (report/plots/screenshot/gallery); presentation runs only for a `completed` run.
+
+**Completion:** the run reports `completed`, the warm-index section and campaign agent evidence are present in the report, and — for a completed run — the campaign gallery exists with its three expected items.
 
 ## Stage-context strategy evaluation (v0.4.3)
 

@@ -90,7 +90,11 @@ function projectSummary(overrides: Partial<WarmIndexProjectSummaryV1> = {}): War
   };
 }
 
-function agentSide(variantId: WarmIndexAgentSideEvidenceV1["variantId"], totalTokens: number | null = 250): WarmIndexAgentSideEvidenceV1 {
+function agentSide(
+  variantId: WarmIndexAgentSideEvidenceV1["variantId"],
+  totalTokens: number | null = 250,
+  overrides: Partial<WarmIndexAgentSideEvidenceV1> = {}
+): WarmIndexAgentSideEvidenceV1 {
   return {
     variantId,
     agentId: "fake-agent",
@@ -106,6 +110,7 @@ function agentSide(variantId: WarmIndexAgentSideEvidenceV1["variantId"], totalTo
     warnings: [],
     errors: [],
     artifactPaths: {},
+    ...overrides,
   };
 }
 
@@ -156,6 +161,37 @@ function makeWarmRun(
   };
 }
 
+/** Builds a campaign-shaped run: metadata carries campaignPreset/campaignAgentId/campaignTimeoutMs. */
+function makeCampaignRun(args: {
+  agentId: "codex" | "claude";
+  presetId?: string;
+  timeoutMs?: number;
+  projects?: WarmIndexProjectSummaryV1[];
+  agentEvidence?: WarmIndexProjectAgentEvidenceV1[];
+  status?: ExperimentRun["status"];
+}): WarmIndexReuseRun {
+  const projects = args.projects ?? [projectSummary()];
+  const agentEvidence =
+    args.agentEvidence ??
+    projects.map((project) => ({
+      benchmarkProject: project.benchmarkProject,
+      tasks: project.tasks.map((task) => ({
+        caseId: task.caseId,
+        raw: task.rawBaseline ? agentSide("raw-full-file", 10, { agentId: args.agentId }) : null,
+        warm: task.warmRetrieval ? agentSide("warm-index-reuse", 10, { agentId: args.agentId }) : null,
+      })),
+    }));
+  const run = makeWarmRun(projects, args.status ?? "completed", agentEvidence);
+  return {
+    ...run,
+    metadata: {
+      campaignPreset: args.presetId ?? `${args.agentId}-full`,
+      campaignAgentId: args.agentId,
+      campaignTimeoutMs: args.timeoutMs ?? 240_000,
+    },
+  };
+}
+
 describe("buildWarmIndexReuseReport", () => {
   it("builds a summary, cost model, limitations, and ordered projects/tasks for warm runs", () => {
     const section = buildWarmIndexReuseReport(
@@ -179,12 +215,15 @@ describe("buildWarmIndexReuseReport", () => {
     expect(section.costModel.join(" ")).toContain("divided by N");
     expect(section.limitations).toHaveLength(7);
     expect(section.limitations.join(" ")).not.toContain("does not execute agents");
-    expect(section.limitations.join(" ")).toContain("deterministic fake agent only");
+    expect(section.limitations.join(" ")).toContain("deterministic simulated fake-agent evidence");
     expect(section.limitations.join(" ")).toContain("simulated harness telemetry, not provider billing telemetry");
     expect(section.summary).toEqual(
       expect.objectContaining({ agentSideCount: 8, agentCorrectnessAvailableCount: 8, agentTotalTokensAvailableCount: 8 })
     );
+    expect(section.agent).toEqual({ id: "fake-agent", mode: "deterministic-fake" });
+    expect(section.agentCampaign).toBeNull();
     expect(section.projects[0].tasks[0].warmAgent).toEqual({
+      agentId: "fake-agent",
       status: "completed",
       passed: true,
       tokenUsageSource: "agent-reported",
@@ -215,6 +254,134 @@ describe("buildWarmIndexReuseReport", () => {
   });
 });
 
+describe("v0.5.2 Batch 4 -- campaign report construction", () => {
+  it("builds a complete campaign summary for a fully executed, fully completed codex campaign", () => {
+    const run = makeCampaignRun({ agentId: "codex" });
+    const section = buildWarmIndexReuseReport(run)!;
+    expect(section.agent).toEqual({ id: "codex", mode: "real-provider" });
+    expect(section.agentCampaign).toEqual({
+      presetId: "codex-full",
+      agentId: "codex",
+      timeoutMs: 240_000,
+      selectedCaseCount: 2,
+      scheduledSideCount: 4,
+      executedSideCount: 4,
+      notRunForMissingContextCount: 0,
+      outcomeCounts: { completed: 4, failed: 0, timeout: 0, invalidOutput: 0, agentUnavailable: 0, agentLimitReached: 0, skipped: 0 },
+      agentEvidenceStatus: "complete",
+      tokenEvidenceStatus: "complete",
+    });
+    expect(section.limitations.join(" ")).toContain("Codex CLI campaign execution");
+    expect(section.limitations.join(" ")).not.toContain("simulated fake-agent evidence");
+  });
+
+  it("builds a complete claude campaign summary and uses claude-specific limitations", () => {
+    const run = makeCampaignRun({ agentId: "claude" });
+    const section = buildWarmIndexReuseReport(run)!;
+    expect(section.agent).toEqual({ id: "claude", mode: "real-provider" });
+    expect(section.agentCampaign?.agentId).toBe("claude");
+    expect(section.limitations.join(" ")).toContain("Claude CLI campaign execution");
+  });
+
+  it("computes agentEvidenceStatus=unavailable when zero campaign sides executed (section 16)", () => {
+    const project = projectSummary({ tasks: [taskSummary("t1")] });
+    const run = makeCampaignRun({
+      agentId: "codex",
+      projects: [project],
+      agentEvidence: [{ benchmarkProject: project.benchmarkProject, tasks: [{ caseId: "t1", raw: null, warm: null }] }],
+    });
+    const section = buildWarmIndexReuseReport(run)!;
+    expect(section.agentCampaign?.executedSideCount).toBe(0);
+    expect(section.agentCampaign?.agentEvidenceStatus).toBe("unavailable");
+    expect(section.agentCampaign?.tokenEvidenceStatus).toBe("unavailable");
+  });
+
+  it("marks a side not-run for missing context without fabricating a provider failure (section 34)", () => {
+    const project = projectSummary({ tasks: [taskSummary("t1")] });
+    const run = makeCampaignRun({
+      agentId: "codex",
+      projects: [project],
+      agentEvidence: [
+        {
+          benchmarkProject: project.benchmarkProject,
+          tasks: [{ caseId: "t1", raw: agentSide("raw-full-file", 10, { agentId: "codex" }), warm: null }],
+        },
+      ],
+    });
+    const section = buildWarmIndexReuseReport(run)!;
+    expect(section.projects[0].tasks[0].warmAgent).toBeNull();
+    expect(section.agentCampaign).toEqual(
+      expect.objectContaining({
+        scheduledSideCount: 2,
+        executedSideCount: 1,
+        notRunForMissingContextCount: 1,
+        outcomeCounts: expect.objectContaining({ completed: 1, failed: 0 }),
+        agentEvidenceStatus: "partial",
+      })
+    );
+  });
+
+  it("rejects a campaign status outside the closed outcome vocabulary", () => {
+    const project = projectSummary({ tasks: [taskSummary("t1")] });
+    const run = makeCampaignRun({
+      agentId: "codex",
+      projects: [project],
+      agentEvidence: [
+        {
+          benchmarkProject: project.benchmarkProject,
+          tasks: [{ caseId: "t1", raw: agentSide("raw-full-file", 10, { agentId: "codex", status: "unheard-of-status" }), warm: null }],
+        },
+      ],
+    });
+    expect(() => buildWarmIndexReuseReport(run)).toThrow(/unsupported campaign agent status/);
+  });
+
+  it("rejects a campaign whose metadata says codex but evidence says claude (section 35)", () => {
+    const project = projectSummary({ tasks: [taskSummary("t1")] });
+    const run = makeCampaignRun({
+      agentId: "codex",
+      projects: [project],
+      agentEvidence: [
+        {
+          benchmarkProject: project.benchmarkProject,
+          tasks: [{ caseId: "t1", raw: agentSide("raw-full-file", 10, { agentId: "claude" }), warm: null }],
+        },
+      ],
+    });
+    expect(() => buildWarmIndexReuseReport(run)).toThrow(/campaign metadata says codex but agent evidence contains claude/);
+  });
+
+  it("rejects a campaign whose metadata says claude but evidence says fake-agent (section 35)", () => {
+    const project = projectSummary({ tasks: [taskSummary("t1")] });
+    const run = makeCampaignRun({
+      agentId: "claude",
+      projects: [project],
+      agentEvidence: [
+        {
+          benchmarkProject: project.benchmarkProject,
+          tasks: [{ caseId: "t1", raw: agentSide("raw-full-file", 10, { agentId: "fake-agent" }), warm: null }],
+        },
+      ],
+    });
+    expect(() => buildWarmIndexReuseReport(run)).toThrow(/campaign metadata says claude but agent evidence contains fake-agent/);
+  });
+
+  it("rejects a legacy non-campaign run that contains codex or claude evidence (section 35)", () => {
+    const project = projectSummary({ tasks: [taskSummary("t1")] });
+    const run = makeWarmRun([project], "completed", [
+      {
+        benchmarkProject: project.benchmarkProject,
+        tasks: project.tasks.map((task) => ({
+          caseId: task.caseId,
+          raw: agentSide("raw-full-file", 10, { agentId: "codex" }),
+          warm: agentSide("warm-index-reuse", 10, { agentId: "codex" }),
+        })),
+      },
+    ]);
+    expect(() => buildWarmIndexReuseReport(run)).toThrow(/legacy non-campaign run must not contain non-fake agent evidence/);
+  });
+});
+
 describe("plugin report integration", () => {
   it("adds warmIndexReuse to warm reports and null to other plugins while keeping v0.4.3 key order", () => {
     const warm = buildPluginExperimentReport({ run: makeWarmRun([projectSummary()]), plugin: warmIndexReuseMetadata });
@@ -233,7 +400,7 @@ describe("plugin report integration", () => {
     const completed = buildPluginExperimentReport({ run: makeWarmRun([projectSummary()]), plugin: warmIndexReuseMetadata });
     expect(completed.interpretation.summary).toContain("prepared 1 of 1 project indexes and evaluated 2 tasks");
     expect(completed.interpretation.summary).toContain("not provider token usage");
-    expect(completed.interpretation.summary).toContain("Deterministic fake-agent correctness is available for 4 of 4 task sides");
+    expect(completed.interpretation.summary).toContain("Deterministic fake-agent correctness/token evidence is available for 4 of 4 task sides");
     const partial = buildPluginExperimentReport({
       run: makeWarmRun([projectSummary({ sessionPrepared: false, status: "partial" })], "partial"),
       plugin: warmIndexReuseMetadata,
@@ -262,10 +429,10 @@ describe("plugin report integration", () => {
     expect(text).toContain("Amortized Index Build Duration: 50 ms (derived)");
     expect(text).toContain("Cumulative Warm Component Duration: 104 ms (derived)");
     expect(text).toContain("Raw Estimated Context Tokens (estimate): 100 estimated-tokens (estimated-chars-div-4, method estimated_chars_div_4)");
-    expect(text).toContain("Warm Agent Correctness (fake agent): 1 score (agent)");
-    expect(text).toContain("Raw Agent Total Tokens (fake-agent simulated): 250 tokens (agent)");
-    expect(text).toContain("Cumulative Warm Agent Total Tokens (fake-agent simulated): 500 tokens (agent)");
-    expect(text).toContain("Warm Fake-Agent Evaluation: status completed, passed true, token source agent-reported, reliability high");
+    expect(text).toContain("Warm Agent Correctness: 1 score (agent)");
+    expect(text).toContain("Raw Agent Total Tokens: 250 tokens (agent)");
+    expect(text).toContain("Cumulative Warm Agent Total Tokens: 500 tokens (agent)");
+    expect(text).toContain("Warm Agent Evaluation: agent fake-agent, status completed, passed true, token source agent-reported, reliability high");
     expect(text).not.toContain("does not execute agents");
     expect(text).toContain("Index Build Duration: unavailable (No index setup was attempted because the project group was structurally inconsistent.)");
     expect(text).toContain("Cold Start And Warm Reuse:");
@@ -303,7 +470,7 @@ describe("plugin report integration", () => {
     expect(section).toContain("<th>Raw agent tokens</th>");
     expect(section).toContain("<td>250 tokens</td>");
     expect(section).toContain("simulated harness telemetry, not provider billing telemetry");
-    expect(section).toContain("The fake agent was not run because this side produced no context evidence.");
+    expect(section).toContain("The agent was not run because this side produced no usable context evidence.");
     expect(section).not.toContain("<script");
   });
 });
@@ -430,7 +597,7 @@ describe("warm report for the real v0.5.1 production corpus", () => {
     expect(text).toContain("Task Count: 6");
     expect(text).toContain("Amortized Index Build Duration:");
     expect(text).toContain("Cumulative Warm Component Duration:");
-    expect(text).toContain("(fake agent)");
+    expect(text).toContain("agent fake-agent");
     for (const [ordinal, caseId] of [...MEDIUM_ORDER.entries(), ...LARGE_ORDER.entries()]) {
       expect(text).toContain(`Task ${ordinal + 1}: ${caseId}`);
       expect(html).toContain(`${ordinal + 1}. ${caseId}`);

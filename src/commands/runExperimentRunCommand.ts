@@ -5,14 +5,18 @@ import { readBenchmarkProjectProfiles, readEvaluationCases } from "../evaluation
 import {
   contextStrategyComparisonPlugin,
   createDefaultExperimentPluginRegistry,
+  getWarmIndexCampaignPreset,
+  parseWarmIndexCampaignPresetId,
   resolveExperimentTarget,
   runExperiment,
   warmIndexReusePlugin
 } from "../experiments/index.js";
+import type { WarmIndexCampaignPresetId } from "../experiments/index.js";
 import { buildDefaultExperimentOutputRoot } from "../experiments/outputPaths.js";
 import { parsePromptComplexityLevel, parsePromptStrategy } from "../prompts/index.js";
 import { writePluginExperimentReports } from "../report/index.js";
 import { createLabExecutionContext, resolvePackageResource } from "../runtime/index.js";
+import { runWarmIndexCampaignPresentation } from "./runWarmIndexCampaignPresentation.js";
 import type { AgentCommandTemplate } from "../agents/types.js";
 import type {
   ExperimentAgentId,
@@ -52,6 +56,7 @@ const DEFAULT_PROJECT_PROFILES_RESOURCE = "benchmarks/contracts/benchmark-projec
 // warm-index-reuse, rejects) the fields it does not support.
 type ParsedExperimentRunConfig = Partial<ExperimentMatrixConfig> & {
   kitCommand?: string;
+  campaignPreset?: WarmIndexCampaignPresetId;
 };
 
 type ParsedRunExperimentArgs = {
@@ -70,6 +75,11 @@ export type RunExperimentRunCommandOptions = {
   // toolRoot-relative default unchanged. The installed CLI router passes
   // context.workspaceRoot here.
   installedDefaultOutputRoot?: string;
+  // v0.5.2 Batch 5 -- deterministic test seam for warm-index campaign presentation only. The
+  // installed CLI always uses the real captureReportScreenshot implementation.
+  presentation?: {
+    captureScreenshot?: Parameters<typeof runWarmIndexCampaignPresentation>[0]["captureScreenshot"];
+  };
 };
 
 export async function runExperimentRunCommandFromArgs(
@@ -105,20 +115,60 @@ export async function runExperimentRunCommandFromArgs(
       plugin: registry.describe(result.pluginId),
       outputRoot: String(result.metadata?.outputRoot ?? "")
     });
-    console.log(
-      [
-        `Experiment: ${result.pluginId}`,
-        `Run ID: ${result.runId}`,
-        `Status: ${result.status}`,
-        `Mode: ${result.target.isSelf ? "self" : "external target"}`,
-        `Tool root: ${result.target.toolRoot}`,
-        `Target root: ${result.target.targetRoot}`,
-        `Output: ${String(result.metadata?.outputRoot ?? "")}`,
-        `Report JSON: ${reports.outputPaths.jsonPath}`,
-        `Report HTML: ${reports.outputPaths.htmlPath}`
-      ].join("\n")
-    );
-    return result.status === "failed" ? 1 : 0;
+    const outputLines = [
+      `Experiment: ${result.pluginId}`,
+      `Run ID: ${result.runId}`,
+      `Status: ${result.status}`,
+      `Mode: ${result.target.isSelf ? "self" : "external target"}`,
+      `Tool root: ${result.target.toolRoot}`,
+      `Target root: ${result.target.targetRoot}`,
+      `Output: ${String(result.metadata?.outputRoot ?? "")}`,
+      `Report JSON: ${reports.outputPaths.jsonPath}`,
+      `Report HTML: ${reports.outputPaths.htmlPath}`
+    ];
+
+    // Automatic presentation (report already produced above) applies only to warm-index-reuse
+    // campaign runs; legacy fake-agent warm-index runs and context-strategy-comparison stay
+    // report-only, unchanged.
+    let screenshotFailed = false;
+    if (args.experimentId === warmIndexReusePlugin.metadata.id && args.config.campaignPreset) {
+      const executionArtifactPath = readMetadataString(result.metadata?.executionArtifactPath);
+      const campaignAgentId = readMetadataString(result.metadata?.campaignAgentId);
+      if (!executionArtifactPath) {
+        throw new Error("Warm-index campaign presentation requires an execution artifact path on the completed run.");
+      }
+      if (campaignAgentId !== "codex" && campaignAgentId !== "claude") {
+        throw new Error(
+          `Warm-index campaign presentation requires a codex or claude campaign agent id on the completed run; received ${String(campaignAgentId)}.`
+        );
+      }
+      const presentation = await runWarmIndexCampaignPresentation({
+        outputRoot: String(result.metadata?.outputRoot ?? ""),
+        reportPaths: reports.outputPaths,
+        executionArtifactPath,
+        campaignPreset: args.config.campaignPreset,
+        agentId: campaignAgentId,
+        captureScreenshot: options.presentation?.captureScreenshot
+      });
+      outputLines.push(`Plots: ${presentation.plots.artifactPaths.summaryPath}`);
+      if (presentation.screenshot.status === "captured") {
+        outputLines.push(`Screenshot: ${presentation.screenshot.pngPath}`);
+      } else if (presentation.screenshot.status === "skipped") {
+        outputLines.push("Screenshot: skipped");
+        if (presentation.screenshot.warning) outputLines.push(presentation.screenshot.warning);
+      } else {
+        outputLines.push("Screenshot: failed");
+        outputLines.push(presentation.screenshot.error ?? "Screenshot capture failed.");
+        screenshotFailed = true;
+      }
+      outputLines.push(`Gallery manifest: ${presentation.gallery.manifestPath}`);
+      outputLines.push(`Gallery index: ${presentation.gallery.indexPath}`);
+    }
+
+    console.log(outputLines.join("\n"));
+    if (result.status === "failed") return 1;
+    if (screenshotFailed) return 1;
+    return 0;
   } catch (error) {
     if (process.env.DEBUG) {
       console.error(error);
@@ -146,6 +196,7 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   let requireAgents: boolean | undefined;
   let includeRealAgents: boolean | undefined;
   let kitCommand: string | undefined;
+  let campaignPreset: WarmIndexCampaignPresetId | undefined;
   const commandTemplates: Partial<Record<"codex" | "claude", AgentCommandTemplate>> = {};
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -188,6 +239,8 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       commandTemplates.claude = parseAgentCommandTemplate(readRequiredValue(argv, ++index, "--command-template-claude"));
     } else if (arg === "--kit-command") {
       kitCommand = readRequiredValue(argv, ++index, "--kit-command");
+    } else if (arg === "--campaign") {
+      campaignPreset = parseWarmIndexCampaignPresetId(readRequiredValue(argv, ++index, "--campaign"));
     } else if (arg === "--no-screenshot") {
       // The plugin-aware report path does not capture screenshots yet; accept this
       // flag so smoke commands can share the legacy demo option set.
@@ -201,6 +254,20 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   }
   if (kitCommand !== undefined && experimentId !== warmIndexReusePlugin.metadata.id) {
     throw new Error(`--kit-command is only supported for --experiment ${warmIndexReusePlugin.metadata.id}.`);
+  }
+  if (campaignPreset !== undefined) {
+    if (experimentId !== warmIndexReusePlugin.metadata.id) {
+      throw new Error(`--campaign is only supported for --experiment ${warmIndexReusePlugin.metadata.id}.`);
+    }
+    if (targetPath !== undefined) {
+      throw new Error("--campaign cannot be combined with --target; campaigns run only against bundled synthetic benchmark projects.");
+    }
+    if (casesPath !== undefined) {
+      throw new Error("--campaign cannot be combined with --cases; the selected preset owns the production corpus.");
+    }
+    if (projectProfilesPath !== undefined) {
+      throw new Error("--campaign cannot be combined with --project-profiles; the selected preset owns the project profiles.");
+    }
   }
 
   return {
@@ -221,7 +288,8 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       requireAgents,
       includeRealAgents,
       commandTemplates: Object.keys(commandTemplates).length > 0 ? commandTemplates : undefined,
-      kitCommand
+      kitCommand,
+      campaignPreset
     })
   };
 }
@@ -276,6 +344,9 @@ async function loadPluginInputs(
     if (!validation.valid || !validation.config) {
       throw new Error(`Invalid warm index reuse config: ${validation.errors.join("; ")}`);
     }
+    if (args.config.campaignPreset) {
+      return loadCampaignCasesAndProjectProfiles(args.config.campaignPreset, toolRoot, context);
+    }
     return loadCasesAndProjectProfiles(args, toolRoot, context);
   }
   return undefined;
@@ -294,6 +365,24 @@ async function loadCasesAndProjectProfiles(
   const casesPath = args.config.casesPath
     ? path.resolve(toolRoot, args.config.casesPath)
     : resolvePackageResource(context, DEFAULT_CASES_RESOURCE);
+  const projectProfiles = await readBenchmarkProjectProfiles(projectProfilesPath, toolRoot);
+  const cases = await readEvaluationCases(casesPath, toolRoot, {
+    projectProfiles,
+    requireProjectProfileRef: true
+  });
+  return { cases, projectProfiles, env: process.env };
+}
+
+// Campaign resource resolution (v0.5.2 Batch 1): the preset owns both bundled resource paths;
+// explicit --cases/--project-profiles are already rejected for campaign mode by argument parsing.
+async function loadCampaignCasesAndProjectProfiles(
+  campaignPresetId: WarmIndexCampaignPresetId,
+  toolRoot: string,
+  context: LabExecutionContext
+): Promise<Record<string, unknown>> {
+  const preset = getWarmIndexCampaignPreset(campaignPresetId);
+  const projectProfilesPath = resolvePackageResource(context, preset.projectProfilesResourcePath);
+  const casesPath = resolvePackageResource(context, preset.casesResourcePath);
   const projectProfiles = await readBenchmarkProjectProfiles(projectProfilesPath, toolRoot);
   const cases = await readEvaluationCases(casesPath, toolRoot, {
     projectProfiles,
@@ -323,6 +412,10 @@ function parsePositiveInteger(label: string, value: string): number {
     throw new Error(`${label} must be a positive integer.`);
   }
   return parsed;
+}
+
+function readMetadataString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value : undefined;
 }
 
 function withoutUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {

@@ -1,7 +1,19 @@
 import { runMeasuredCommand } from "../../core/runMeasuredCommand.js";
 import { applyPromptToCommandTemplate } from "../runAgentPrompt.js";
 import { parseAgentTokenUsage } from "../parseAgentTokenUsage.js";
-import type { AgentAdapter, AgentRunRequest, AgentRunResult } from "../types.js";
+import type { AgentAdapter, AgentFinalAnswerParseResult, AgentRunRequest, AgentRunResult } from "../types.js";
+
+// v0.5.2 Batch 2 -- frozen stdin invocation for the real-agent evaluation transport. Every flag
+// here is planner-owned; do not add sandbox/model/approval-policy flags in this batch.
+const CODEX_STDIN_ARGS = [
+  "exec",
+  "--json",
+  "--ephemeral",
+  "--skip-git-repo-check",
+  "--ignore-user-config",
+  "--ignore-rules",
+  "-"
+];
 
 export const codexAdapter: AgentAdapter = {
   id: "codex",
@@ -22,8 +34,14 @@ export const codexAdapter: AgentAdapter = {
     return check.ok;
   },
   buildCommand(request) {
+    if (request.promptTransport === "stdin" && request.commandTemplate) {
+      throw new Error("codex agent: stdin prompt transport cannot be combined with a command template.");
+    }
     if (request.commandTemplate) {
       return applyPromptToCommandTemplate(request.commandTemplate, request.promptText);
+    }
+    if (request.promptTransport === "stdin") {
+      return { command: "codex", args: [...CODEX_STDIN_ARGS], stdinText: request.promptText };
     }
     return { command: "codex", args: ["exec", "--json", request.promptText] };
   },
@@ -31,11 +49,52 @@ export const codexAdapter: AgentAdapter = {
     return runCliAgent(request, this);
   },
   parseTokenUsage: parseAgentTokenUsage,
-  parseFinalAnswer(text) {
-    const trimmed = text.trim();
-    return { finalAnswerText: trimmed, finalAnswerParseStatus: trimmed ? "parsed" : "empty" };
-  }
+  parseFinalAnswer: parseCodexFinalAnswer
 };
+
+/**
+ * Recognizes a Codex JSONL event stream (at least one line parses to an object with a string
+ * `type`) and, when recognized, uses the LAST `item.completed` `agent_message` text as the final
+ * answer -- never the raw JSONL. Falls back to the legacy plain-text behavior when no event-shaped
+ * line is found, so non-JSONL Codex output (and existing tests) keep working unchanged.
+ */
+export function parseCodexFinalAnswer(text: string): AgentFinalAnswerParseResult {
+  let sawEventLine = false;
+  let lastAgentMessageText: string | null = null;
+
+  for (const line of text.split(/\r?\n/)) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmedLine);
+    } catch {
+      // Agent output can mix JSONL with incidental non-JSON noise; ignore malformed lines.
+      continue;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const event = parsed as Record<string, unknown>;
+    if (typeof event.type !== "string") continue;
+    sawEventLine = true;
+    if (event.type === "item.completed") {
+      const item = event.item;
+      if (item && typeof item === "object" && (item as Record<string, unknown>).type === "agent_message") {
+        const itemText = (item as Record<string, unknown>).text;
+        if (typeof itemText === "string") {
+          lastAgentMessageText = itemText;
+        }
+      }
+    }
+  }
+
+  if (sawEventLine) {
+    const finalAnswerText = lastAgentMessageText ?? "";
+    return { finalAnswerText, finalAnswerParseStatus: finalAnswerText ? "parsed" : "empty" };
+  }
+
+  const trimmed = text.trim();
+  return { finalAnswerText: trimmed, finalAnswerParseStatus: trimmed ? "parsed" : "empty" };
+}
 
 export async function runCliAgent(request: AgentRunRequest, adapter: AgentAdapter): Promise<AgentRunResult> {
   const started = Date.now();
@@ -78,7 +137,8 @@ export async function runCliAgent(request: AgentRunRequest, adapter: AgentAdapte
     cwd: request.commandTemplate?.cwd ?? request.cwd,
     outDir: request.outDir,
     env: request.env,
-    timeoutMs: request.timeoutMs
+    timeoutMs: request.timeoutMs,
+    stdinText: command.stdinText
   });
   const ended = Date.now();
   const combinedOutput = `${measured.stdout}\n${measured.stderr}`;

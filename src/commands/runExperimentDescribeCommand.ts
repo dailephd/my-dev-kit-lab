@@ -166,11 +166,19 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
   // Only advertise agent-matrix options for plugins that declare them.
   const agentOptions = hasConfigField(plugin, "agents") ? " --agents fake-agent --complexities short" : "";
   const screenshotOption = hasConfigField(plugin, "agents") ? " --no-screenshot" : "";
-  return [
+  const examples = [
     `my-dev-kit-lab experiment describe --experiment ${plugin.metadata.id}`,
     `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id}${agentOptions}`,
     `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1"${agentOptions}${screenshotOption}`
   ];
+  // Only advertise campaign examples for plugins that declare the campaignPreset config field.
+  if (hasConfigField(plugin, "campaignPreset")) {
+    examples.push(
+      `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --campaign codex-full --include-real-agents --out <dir>`,
+      `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --campaign claude-full --include-real-agents --case warm-medium-complete-idempotent --out <dir>`
+    );
+  }
+  return examples;
 }
 
 function hasConfigField(plugin: ExperimentPlugin, name: string): boolean {
