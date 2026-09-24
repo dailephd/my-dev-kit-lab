@@ -208,7 +208,7 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign codex-ful
 
 Use `--campaign claude-full` for the Claude preset, or `--campaign codex-timeout-isolation` to exercise bounded-timeout behavior. `--case <ids>` narrows the run to specific tasks within the preset's corpus; `--target`, `--cases`, and `--project-profiles` are rejected because the preset owns the corpus and project profiles.
 
-**Expected outputs:** the same `warm-index-execution.json`, `indexes/<project>/`, `commands/<project>/`, and plugin reports as an ordinary warm-index run, plus — only when the run status is `completed` — the standard report/plots/screenshot pipeline and a bounded 3-item campaign gallery (report, plots, screenshot) with relative paths and no raw agent stdout/stderr/telemetry.
+**Expected outputs:** the same `warm-index-execution.json`, `indexes/<project>/`, `commands/<project>/`, and plugin reports as an ordinary warm-index run, plus — only when the run status is `completed` — the standard report/plots/screenshot pipeline and a bounded 3-item campaign gallery (report, plots, bounded `warm-index-execution.json` evidence) with relative paths and no raw agent stdout/stderr/telemetry. When captured, the report screenshot is attached to the report gallery item rather than occupying its own gallery item.
 
 **Failure handling:** each task side's agent outcome is classified explicitly; `token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, and `timeout` are all reported rather than defaulted to success or silently dropped. A `partial` or `failed` run status does not trigger presentation (report/plots/screenshot/gallery); presentation runs only for a `completed` run.
 
@@ -323,7 +323,7 @@ npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-
 
 **Expected outputs:** JSON/HTML reports, plot data and SVG charts, a gallery manifest, and `gallery-index.html`.
 
-`generate-experiment-plots` (installed: `plots generate`) also accepts a `warm-index-reuse` output directory and then writes the four warm-index charts; see [Warm-index reuse experiment](#warm-index-reuse-experiment). Warm-index outputs have no dedicated gallery integration.
+`generate-experiment-plots` (installed: `plots generate`) also accepts a `warm-index-reuse` output directory and then writes the four warm-index charts; see [Warm-index reuse experiment](#warm-index-reuse-experiment). Ordinary non-campaign warm-index outputs have no dedicated gallery integration. A completed real-agent `--campaign` run is the exception: it automatically writes the bounded v0.5.2 campaign gallery described above.
 
 **Failure handling:** correct the missing or mismatched input directory reported by the failing renderer. Do not fabricate absent artifacts.
 
