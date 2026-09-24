@@ -14,6 +14,7 @@ const MAX_ARTIFACT_ENTRIES = 512;
 const MAX_UNRESOLVED_ENTRIES = 50;
 const MAX_REPORTED_PATH_LENGTH = 260;
 const HASH_CONCURRENCY = 32;
+const MAX_TOOL_VERSION_LENGTH = 128;
 
 export type IndexSnapshotStatus = "complete" | "partial" | "unavailable";
 
@@ -53,6 +54,14 @@ export type IndexSnapshotArtifactV1 = {
   sizeBytes: number;
 };
 
+export type IndexSnapshotToolV1 = {
+  name: "my-dev-kit";
+  /** What the configured kit command reported for `--version`; null when unavailable. */
+  version: string | null;
+  availability: "available" | "unavailable";
+  reason: string | null;
+};
+
 export type IndexSnapshotV1 = {
   schemaVersion: typeof INDEX_SNAPSHOT_SCHEMA_VERSION;
   /**
@@ -70,8 +79,8 @@ export type IndexSnapshotV1 = {
     symbolIndexPath: string;
     symbolIndexSchemaVersion: string;
   } | null;
-  /** The current my-dev-kit manifest and index build output do not expose the tool version. */
-  tool: { name: "my-dev-kit"; version: string | null; availability: "available" | "unavailable"; reason: string | null };
+  /** The my-dev-kit manifest and index output do not expose the tool version; it comes from a `--version` probe. */
+  tool: IndexSnapshotToolV1;
   indexCommand: { commandString: string; executable: string; args: string[] };
   indexedFileCount: number;
   files: IndexSnapshotFileV1[];
@@ -93,12 +102,41 @@ type ManifestContract = {
 
 type Failure = { ok: false; code: IndexSnapshotUnavailableCode; message: string };
 
-const TOOL_VERSION_UNAVAILABLE = {
-  name: "my-dev-kit" as const,
+const TOOL_VERSION_NOT_PROBED: IndexSnapshotToolV1 = {
+  name: "my-dev-kit",
   version: null,
-  availability: "unavailable" as const,
-  reason: "The my-dev-kit index manifest and index command output do not expose the tool version.",
+  availability: "unavailable",
+  reason: "The my-dev-kit index manifest and index command output do not expose the tool version, and no --version probe result was supplied.",
 };
+
+/**
+ * Policy: turns the outcome of a `<kit-command> --version` probe into bounded tool evidence. Uses
+ * the first non-empty output line verbatim (no semver requirement); anything unsupported, empty,
+ * unprintable, or oversized is explicitly unavailable rather than guessed. Pure.
+ */
+export function interpretToolVersionOutput(probe: { ok: boolean; exitCode: number | null; stdout: string; error?: string }): IndexSnapshotToolV1 {
+  const unavailable = (reason: string): IndexSnapshotToolV1 => ({
+    name: "my-dev-kit",
+    version: null,
+    availability: "unavailable",
+    reason: boundedText(reason),
+  });
+  if (!probe.ok) {
+    const detail = probe.error ? `: ${probe.error}` : "";
+    return unavailable(`The --version probe did not succeed (exit code ${probe.exitCode ?? "none"})${detail}`);
+  }
+  const line = probe.stdout.split(/\r?\n/).map((entry) => entry.trim()).find((entry) => entry.length > 0);
+  if (line === undefined) {
+    return unavailable("The --version probe produced no output.");
+  }
+  if (/[\u0000-\u001f\u007f]/.test(line)) {
+    return unavailable("The --version probe reported a non-printable value.");
+  }
+  if (line.length > MAX_TOOL_VERSION_LENGTH) {
+    return unavailable(`The --version probe reported a value longer than ${MAX_TOOL_VERSION_LENGTH} characters.`);
+  }
+  return { name: "my-dev-kit", version: line, availability: "available", reason: null };
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -252,7 +290,8 @@ async function hashFile(absolutePath: string): Promise<{ sha256: string; sizeByt
   return { sha256: hash.digest("hex"), sizeBytes };
 }
 
-async function snapshotIndexedFile(
+/** Reads and hashes one target-relative file without leaving the target (symlinks are resolved first). */
+export async function snapshotIndexedFile(
   targetRoot: string,
   realTargetRoot: string,
   relativePath: string
@@ -315,13 +354,27 @@ async function readJson(filePath: string): Promise<{ ok: true; value: unknown } 
   }
 }
 
-function unavailableSnapshot(command: MeasuredCommandResult, failure: Failure, manifest: IndexSnapshotV1["manifest"] = null): IndexSnapshotV1 {
+/** Runs `fn` over `items` with bounded concurrency, returning results in input order. */
+export async function mapInBatches<T, R>(items: readonly T[], fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  for (let start = 0; start < items.length; start += HASH_CONCURRENCY) {
+    results.push(...(await Promise.all(items.slice(start, start + HASH_CONCURRENCY).map(fn))));
+  }
+  return results;
+}
+
+function unavailableSnapshot(
+  command: MeasuredCommandResult,
+  failure: Failure,
+  tool: IndexSnapshotToolV1,
+  manifest: IndexSnapshotV1["manifest"] = null
+): IndexSnapshotV1 {
   return {
     schemaVersion: INDEX_SNAPSHOT_SCHEMA_VERSION,
     status: "unavailable",
     unavailable: { code: failure.code, message: boundedText(failure.message) },
     manifest,
-    tool: { ...TOOL_VERSION_UNAVAILABLE },
+    tool: { ...tool },
     indexCommand: summarizeIndexCommand(command),
     indexedFileCount: 0,
     files: [],
@@ -348,8 +401,11 @@ export async function captureIndexSnapshot(options: {
   targetRoot: string;
   sourceRoots: readonly string[];
   command: MeasuredCommandResult;
+  /** Result of the one `--version` probe for this index build; absent means it was not probed. */
+  tool?: IndexSnapshotToolV1;
 }): Promise<IndexSnapshotV1> {
   const { indexDir, targetRoot, sourceRoots, command } = options;
+  const tool = options.tool ?? TOOL_VERSION_NOT_PROBED;
   try {
     const manifestRead = await readJson(path.join(indexDir, MANIFEST_FILE));
     if (!manifestRead.ok) {
@@ -357,11 +413,11 @@ export async function captureIndexSnapshot(options: {
         ok: false,
         code: manifestRead.missing ? "manifest-missing" : "manifest-unreadable",
         message: `Index manifest ${manifestRead.message}.`,
-      });
+      }, tool);
     }
     const manifest = interpretIndexManifest(manifestRead.value, { sourceRoots });
     if (!manifest.ok) {
-      return unavailableSnapshot(command, manifest);
+      return unavailableSnapshot(command, manifest, tool);
     }
     const { contract } = manifest;
 
@@ -377,7 +433,7 @@ export async function captureIndexSnapshot(options: {
         ok: false,
         code: "manifest-target-mismatch",
         message: "Index manifest projectRoot does not match the target root.",
-      });
+      }, tool);
     }
 
     let symbolIndexFile: string;
@@ -388,7 +444,7 @@ export async function captureIndexSnapshot(options: {
         ok: false,
         code: "manifest-unsupported",
         message: "Index manifest symbolIndex path escapes the index directory.",
-      });
+      }, tool);
     }
     const symbolIndexRead = await readJson(symbolIndexFile);
     if (!symbolIndexRead.ok) {
@@ -396,7 +452,7 @@ export async function captureIndexSnapshot(options: {
         ok: false,
         code: symbolIndexRead.missing ? "symbol-index-missing" : "symbol-index-unreadable",
         message: `Symbol index ${symbolIndexRead.message}.`,
-      });
+      }, tool);
     }
     const symbolIndex = interpretSymbolIndexFiles(symbolIndexRead.value, contract.manifestFileCount);
     const manifestSummary: IndexSnapshotV1["manifest"] = {
@@ -408,7 +464,7 @@ export async function captureIndexSnapshot(options: {
       symbolIndexSchemaVersion: symbolIndex.ok ? symbolIndex.schemaVersion : "unknown",
     };
     if (!symbolIndex.ok) {
-      return unavailableSnapshot(command, symbolIndex, manifestSummary);
+      return unavailableSnapshot(command, symbolIndex, tool, manifestSummary);
     }
 
     const resolved = symbolIndex.paths.map((listed) => ({ listed, resolution: resolveIndexedFilePath(targetRoot, sourceRoots, listed) }));
@@ -443,7 +499,7 @@ export async function captureIndexSnapshot(options: {
       status: unresolved.length === 0 ? "complete" : "partial",
       unavailable: null,
       manifest: manifestSummary,
-      tool: { ...TOOL_VERSION_UNAVAILABLE },
+      tool: { ...tool },
       indexCommand: summarizeIndexCommand(command),
       indexedFileCount: symbolIndex.paths.length,
       files,
@@ -457,6 +513,6 @@ export async function captureIndexSnapshot(options: {
       ok: false,
       code: "snapshot-capture-failed",
       message: `Index snapshot capture failed: ${(error as Error).message}`,
-    });
+    }, tool);
   }
 }

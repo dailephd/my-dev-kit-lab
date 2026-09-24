@@ -209,7 +209,9 @@ describe("prepareWarmIndexSession index snapshot", () => {
     expect(indexSnapshot.indexCommand.args).toContain("index");
     expect(indexSnapshot.indexCommand.commandString).toBe(kit.command);
     expect(indexSnapshot.artifacts.map((artifact) => artifact.path)).toEqual(["manifest.json", "symbol-index.json"]);
-    expect(readFileSync(kit.logPath, "utf8").trim().split("\n")).toEqual(["index"]);
+    // TST-B2-022/023: exactly one index build and one --version probe; nothing else ran.
+    expect(readFileSync(kit.logPath, "utf8").trim().split("\n")).toEqual(["index", "--version"]);
+    expect(indexSnapshot.tool).toEqual({ name: "my-dev-kit", version: "fake-my-dev-kit 1.2.3-test", availability: "available", reason: null });
     expect(hashTree(baseCase.absoluteTargetRoot)).toEqual(targetBefore);
   });
 
@@ -232,5 +234,47 @@ describe("prepareWarmIndexSession index snapshot", () => {
     expect(prepared.session.indexSnapshot.files).toEqual([]);
     expect(prepared.build.warnings).toEqual([]);
     expect(Object.isFrozen(prepared.session)).toBe(true);
+  });
+});
+
+describe("prepareWarmIndexSession my-dev-kit version evidence", () => {
+  // TST-B2-021, TST-B2-022
+  it("treats an unsupported --version as non-fatal explicit unavailable tool evidence, probing once", async () => {
+    const root = tempRoot();
+    const kit = writeSnapshotFakeKit(root, { version: null });
+
+    const prepared = await prepareWarmIndexSession({
+      target: baseCase,
+      kitCommand: kit.command,
+      indexDir: path.join(root, "indexes", "todo-ts"),
+      commandsDir: path.join(root, "commands", "index"),
+      requireKit: true
+    });
+    if (!prepared.ok) {
+      throw new Error("expected a prepared session");
+    }
+
+    expect(prepared.session.indexSnapshot.status).toBe("complete");
+    expect(prepared.session.indexSnapshot.tool.version).toBeNull();
+    expect(prepared.session.indexSnapshot.tool.availability).toBe("unavailable");
+    expect(prepared.session.indexSnapshot.tool.reason).toContain("did not succeed");
+    expect(readFileSync(kit.logPath, "utf8").trim().split("\n")).toEqual(["index", "--version"]);
+    // The probe stays outside the measured index build.
+    expect(prepared.session.buildDurationMs).toBe(prepared.session.buildCommand.durationMs);
+  });
+
+  it("reports the shared fake kit's unsupported --version as unavailable without failing the session", async () => {
+    const root = tempRoot();
+    const prepared = await prepareWarmIndexSession({
+      target: baseCase,
+      kitCommand: fakeKitCommand,
+      indexDir: path.join(root, "indexes", "todo-ts"),
+      commandsDir: path.join(root, "commands", "index"),
+      requireKit: true
+    });
+    if (!prepared.ok) {
+      throw new Error("expected a prepared session");
+    }
+    expect(prepared.session.indexSnapshot.tool.availability).toBe("unavailable");
   });
 });

@@ -1,7 +1,10 @@
 import path from "node:path";
 import { countEstimatedTokens, countTextChars, tokenCountMethod } from "../core/countTokens.js";
 import { runMeasuredCommand, type MeasuredCommandResult } from "../core/runMeasuredCommand.js";
+import { interpretToolVersionOutput, type IndexSnapshotToolV1 } from "./indexSnapshot.js";
 import type { EvaluationCase, MyDevKitIndexBuildResult, MyDevKitIndexTarget, MyDevKitRetrievalResult } from "./types.js";
+
+const VERSION_PROBE_TIMEOUT_MS = 30_000;
 
 function parseJsonIfPossible(text: string): unknown | undefined {
   try {
@@ -106,6 +109,38 @@ export async function buildMyDevKitIndex(options: {
     warnings,
     command
   };
+}
+
+/**
+ * Runs `<kit-command> --version` once through the shared measured-command runner and returns
+ * bounded tool evidence. Kept separate from `buildMyDevKitIndex` so it never counts toward index
+ * duration. An unsupported, failing, slow, or empty probe is explicit `unavailable` evidence; it
+ * never throws and never fails the caller.
+ */
+export async function probeMyDevKitVersion(options: { kitCommand: string; commandsDir: string }): Promise<IndexSnapshotToolV1> {
+  try {
+    const command = await runMeasuredCommand({
+      commandId: "version",
+      commandString: options.kitCommand,
+      cwd: process.cwd(),
+      outDir: options.commandsDir,
+      extraArgs: ["--version"],
+      timeoutMs: VERSION_PROBE_TIMEOUT_MS
+    });
+    return interpretToolVersionOutput({
+      ok: command.ok,
+      exitCode: command.exitCode,
+      stdout: command.stdout,
+      error: command.error
+    });
+  } catch (error) {
+    return interpretToolVersionOutput({
+      ok: false,
+      exitCode: null,
+      stdout: "",
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
 }
 
 /**

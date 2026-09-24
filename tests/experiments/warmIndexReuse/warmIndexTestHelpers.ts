@@ -84,9 +84,15 @@ export function writeFakeKitVariant(
  * index). Every invocation's subcommand is appended to `<script>.log` so tests can prove no
  * command other than `index` ran during snapshot capture.
  */
-export function writeSnapshotFakeKit(dir: string): { command: string; logPath: string } {
+export function writeSnapshotFakeKit(
+  dir: string,
+  options: { version?: string | null; mutateOnFirstSearch?: string } = {}
+): { command: string; logPath: string } {
   const scriptPath = path.join(dir, "fake-kit-snapshot.mjs");
   const logPath = `${scriptPath}.log`;
+  // `version: null` makes `--version` unsupported (it falls through to the shared fake, which exits 1).
+  const version = options.version === undefined ? "fake-my-dev-kit 1.2.3-test" : options.version;
+  const markerPath = `${scriptPath}.mutated`;
   writeFileSync(
     scriptPath,
     [
@@ -95,6 +101,12 @@ export function writeSnapshotFakeKit(dir: string): { command: string; logPath: s
       `const [command, ...rest] = process.argv.slice(2);`,
       `fs.appendFileSync(${JSON.stringify(logPath)}, command + "\\n");`,
       `const arg = (flag) => { const i = rest.indexOf(flag); return i >= 0 ? rest[i + 1] : undefined; };`,
+      version === null ? "" : `if (command === "--version") { console.log(${JSON.stringify(version)}); process.exit(0); }`,
+      // Test-owned mutation of a temporary target file on the first `search`: task 1's freshness is
+      // measured before that search, task 2's after it.
+      options.mutateOnFirstSearch
+        ? `if (command === "search" && !fs.existsSync(${JSON.stringify(markerPath)})) { fs.writeFileSync(${JSON.stringify(markerPath)}, "1"); fs.appendFileSync(${JSON.stringify(options.mutateOnFirstSearch)}, "\\n// mutated between tasks\\n"); }`
+        : "",
       `if (command === "index") {`,
       `  const root = arg("--root");`,
       `  const out = arg("--out");`,

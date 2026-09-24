@@ -1,4 +1,5 @@
 import type { MeasuredCommandResult } from "../../../core/runMeasuredCommand.js";
+import type { IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import type { IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
 import type { ExperimentRunStatus } from "../../types.js";
 import type { WarmIndexExecutionError, WarmIndexProjectExecutionV1, WarmIndexTaskExecutionV1 } from "./execution.js";
@@ -49,6 +50,12 @@ export type WarmIndexTaskSummaryV1 = {
   warmStatus: ExperimentRunStatus;
   rawBaseline: WarmIndexRawBaselineSummaryV1 | null;
   warmRetrieval: WarmIndexRetrievalSummaryV1 | null;
+  /**
+   * Additive to schema v1: freshness of the session's indexed files immediately before this task's
+   * warm retrieval. Evidence only — it never affects the statuses above. `null` when no assessment
+   * was made; absent in artifacts written before it existed.
+   */
+  indexFreshness?: IndexFreshnessAssessmentV1 | null;
   warnings: string[];
   errors: WarmIndexExecutionError[];
 };
@@ -127,6 +134,7 @@ function summarizeTask(task: WarmIndexTaskExecutionV1): WarmIndexTaskSummaryV1 {
           commands: warm.commands.map(summarizeCommand),
         }
       : null,
+    indexFreshness: task.indexFreshness ? structuredClone(task.indexFreshness) : null,
     warnings: [...task.warnings],
     errors: task.errors.map((error) => ({ ...error })),
   };

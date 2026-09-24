@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { MeasuredCommandResult } from "../../../core/runMeasuredCommand.js";
-import { buildMyDevKitIndex } from "../../../evaluation/runMyDevKitRetrieval.js";
+import { buildMyDevKitIndex, probeMyDevKitVersion } from "../../../evaluation/runMyDevKitRetrieval.js";
 import { captureIndexSnapshot, type IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
 import type { MyDevKitIndexBuildResult, MyDevKitIndexTarget } from "../../../evaluation/types.js";
 
@@ -47,13 +47,17 @@ export async function prepareWarmIndexSession(options: {
     return { ok: false, warnings: [...build.warnings, message], build };
   }
   const sourceRoots = Object.freeze([...options.target.sourceRoots]);
+  // One `--version` probe per prepared session, outside the measured index build; it never fails
+  // the session (an unsupported probe becomes explicit `unavailable` tool evidence).
+  const tool = await probeMyDevKitVersion({ kitCommand: options.kitCommand, commandsDir: options.commandsDir });
   // Reads the just-built index and the files it lists; never invokes my-dev-kit again and never
   // fails the session (an uninterpretable index becomes an explicit `unavailable` snapshot).
   const indexSnapshot = await captureIndexSnapshot({
     indexDir: build.indexDir,
     targetRoot: options.target.absoluteTargetRoot,
     sourceRoots,
-    command: build.command
+    command: build.command,
+    tool
   });
   const session: WarmIndexSession = Object.freeze({
     indexDir: build.indexDir,
