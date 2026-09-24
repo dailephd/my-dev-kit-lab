@@ -7,6 +7,7 @@ This document records the repository's operational state. It is the source of tr
 - Package: `@dailephd/my-dev-kit-lab`
 - Package version: `0.6.0`
 - Latest release: `v0.6.0` (index freshness and changed-file detection)
+- Current release: `v0.6.0`
 - Previous release: `v0.5.2` (warm-index real-agent campaigns)
 - `v0.5.0` status: published; it is a historical release. The release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
