@@ -4,7 +4,9 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-### v0.5.2 — warm-index real-agent campaigns (implemented, unreleased)
+## [0.5.2] - 2026-09-23
+
+Warm-index real-agent campaigns.
 
 - Added three frozen `warm-index-reuse` campaign presets — `codex-full`, `claude-full`, and `codex-timeout-isolation` — each owning exactly one provider (Codex or Claude), the bundled production corpus, and project profiles. `codex-timeout-isolation` narrows to three large/mixed cases (`warm-large-health-label`, `warm-large-ts-leaderboard`, `warm-large-broad-analytics-comparison`) for provider timeout/partial-outcome exercises without the full 12-case corpus. Default per-agent timeout is 240000 ms, overridable with `--timeout-ms`.
 - Added the `experiment run --experiment warm-index-reuse` campaign surface: `--campaign <preset>`, `--include-real-agents` (required), `--case`, `--benchmark-project`, `--timeout-ms`, `--kit-command`, `--out`. Campaign mode rejects `--target`, explicit `--cases`/`--project-profiles`, and the agent-matrix flags owned by `context-strategy-comparison`. Legacy non-campaign warm-index runs are unchanged.
@@ -27,7 +29,6 @@ Expanded warm-index benchmark suite.
 - Regression tests prove the existing one-index-per-project warm-index runtime at six tasks per project: two index builds for the 12 tasks, task ordinals 1–6, amortized and cumulative metrics, per-project reset, strict-prefix availability, and isolation of single-task and single-project failures.
 - The existing warm-index report (schema `my-dev-kit-lab-warm-index-report-v1`) and the existing four plots cover the expanded suite: 2 projects, 12 tasks, and ordinals 1–6 per project.
 - The packed-package acceptance gate now checks that the corpus is in the tarball, readable from a clean install, and selectable through the installed CLI's existing `--cases` option.
-- No CLI command or flag, warm-index metric formula, report schema, or plot was added. The default cases file (`examples/token-savings-cases.json`) and the default my-dev-kit command are unchanged. Real-agent warm-index campaigns remain planned for v0.5.2.
 
 ## [0.5.0] - 2026-09-21
 

@@ -125,7 +125,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 
 Introduced in v0.5.0 and expanded in v0.5.1; see [CURRENT_STATE.md](CURRENT_STATE.md) for its lifecycle state.
 
-The expanded benchmark corpus used below was released in v0.5.1; it reuses the v0.5.0 runtime unchanged. Selectable real-agent warm-index campaigns are implemented on the unreleased v0.5.2 implementation (see "Real-agent warm-index campaign" below); they are not exposed by the installed v0.5.1 CLI.
+The expanded benchmark corpus used below was released in v0.5.1; it reuses the v0.5.0 runtime unchanged. Selectable real-agent warm-index campaigns are available in the installed v0.5.2 CLI (see "Real-agent warm-index campaign" below).
 
 **Goal:** measure how a one-time my-dev-kit index cost is amortized when the same prepared index is reused across several tasks, with a matched `raw-full-file` baseline for every task and deterministic fake-agent correctness and token evidence.
 
@@ -178,9 +178,9 @@ select cases (source order, optional --case / --benchmark-project filters)
 
 **Completion:** the run reports `completed` (or an explicit `partial` state that has been reviewed), each benchmark project shows exactly one index setup, the report's warm-index section and limitations are present, the optional plots output contains four charts, and any `--target` project is unchanged. Interpret the results as scoped fake-agent evidence: the report calculates no token-savings percentage, break-even task, winner, or ranking.
 
-## Real-agent warm-index campaign (v0.5.2, implemented/unreleased)
+## Real-agent warm-index campaign (v0.5.2)
 
-Implemented on `feature/v0.5.2-warm-index-real-agent-campaigns`; not exposed by the installed v0.5.1 CLI. This is a distinct campaign path through the `warm-index-reuse` plugin, separate from the generic `context-strategy-comparison` campaign described in "Real-agent campaign" above; it reuses the warm-index runtime described in "Warm-index reuse experiment" above rather than the agent-matrix path.
+Available in the installed v0.5.2 CLI. This is a distinct campaign path through the `warm-index-reuse` plugin, separate from the generic `context-strategy-comparison` campaign described in "Real-agent campaign" above; it reuses the warm-index runtime described in "Warm-index reuse experiment" above rather than the agent-matrix path.
 
 **Goal:** run the bundled production warm-index corpus against a single real Codex or Claude provider, reusing one prepared index per benchmark project, and produce the resulting report, plots, screenshot, and gallery presentation from a single command.
 

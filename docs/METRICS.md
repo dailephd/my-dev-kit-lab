@@ -517,9 +517,9 @@ The plugin evaluates each task side that has context evidence once with the dete
 
 **Interpretation.** The report separates the one-time index cost from per-task retrieval cost and shows the fixed cost falling per task as more tasks reuse the index. It calculates no token-savings percentage, duration-reduction percentage, break-even task, composite score, winner, or ranking. Warm-index plots map the same precomputed values: amortized index build duration, raw versus retrieved estimated context tokens, fake-agent correctness (or campaign agent correctness for a `--campaign` run), and cumulative fake-agent total tokens. Unavailable values become skipped plot points with their reason.
 
-### Warm-index real-agent campaign metrics (v0.5.2, implemented/unreleased)
+### Warm-index real-agent campaign metrics (v0.5.2, released)
 
-Implemented on the unreleased v0.5.2 implementation (`feature/v0.5.2-warm-index-real-agent-campaigns`); not exposed by the installed v0.5.1 CLI. A `--campaign` run replaces the deterministic fake-agent evaluation described above with one real Codex or Claude provider evaluation per task side with context evidence; every direct measurement, derived measurement, and the strict-prefix rule above are unchanged and reused as-is. Only the per-side agent evidence and its rollup are additive.
+Available in the installed v0.5.2 CLI. A `--campaign` run replaces the deterministic fake-agent evaluation described above with one real Codex or Claude provider evaluation per task side with context evidence; every direct measurement, derived measurement, and the strict-prefix rule above are unchanged and reused as-is. Only the per-side agent evidence and its rollup are additive.
 
 - `presetId`, `agentId`, `timeoutMs`, `selectedCaseCount`
   Meaning: which campaign preset ran, which single provider (`codex` or `claude`) it used, its resolved timeout, and how many cases were selected.

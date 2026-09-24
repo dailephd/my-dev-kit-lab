@@ -109,9 +109,9 @@ The `npm run run-final-demo` command builds the gallery automatically as the las
 
 ---
 
-## Warm-index campaign gallery (v0.5.2, implemented/unreleased)
+## Warm-index campaign gallery (v0.5.2, released)
 
-Implemented on the unreleased v0.5.2 implementation (`feature/v0.5.2-warm-index-real-agent-campaigns`, `src/gallery/writeWarmIndexCampaignGallery.ts`); not exposed by the installed v0.5.1 CLI. Unlike an ordinary `warm-index-reuse` run, a `--campaign` run that completes automatically produces its own bounded gallery — there is no separate `gallery build` invocation for it, and it does not reuse the generic `writeExperimentGalleryManifest()` contract, whose artifact names (`experiment-report.html`, `experiment-summary.json`, `experiment-runs.json`) do not match the warm-index plugin's own frozen artifact set.
+Available in the installed v0.5.2 CLI (`src/gallery/writeWarmIndexCampaignGallery.ts`). Unlike an ordinary `warm-index-reuse` run, a `--campaign` run that completes automatically produces its own bounded gallery — there is no separate `gallery build` invocation for it, and it does not reuse the generic `writeExperimentGalleryManifest()` contract, whose artifact names (`experiment-report.html`, `experiment-summary.json`, `experiment-runs.json`) do not match the warm-index plugin's own frozen artifact set.
 
 The campaign gallery contains exactly three items, in this order:
 
@@ -126,6 +126,6 @@ All paths in the manifest are relative POSIX paths under the gallery output dire
 - The gallery index is a static HTML file with no interactive filtering or search
 - Gallery entries are linked by relative path; moving the output directory breaks links
 - Filtering, tagging, search, and comparison views are not implemented
-- An ordinary `warm-index-reuse` run (deterministic fake agent, `v0.5.0`/`v0.5.1`) has no dedicated gallery integration: `gallery build --plots` lists any `charts/*.svg` generically under the experiment-plots entry, and the plugin's `report.json`/`report.html` are not gallery entries for that path. A real-agent warm-index **campaign** run (`--campaign`, implemented on the unreleased v0.5.2 implementation) is the exception — see "Warm-index campaign gallery" below
+- An ordinary `warm-index-reuse` run (deterministic fake agent, `v0.5.0`/`v0.5.1`) has no dedicated gallery integration: `gallery build --plots` lists any `charts/*.svg` generically under the experiment-plots entry, and the plugin's `report.json`/`report.html` are not gallery entries for that path. A real-agent warm-index **campaign** run (`--campaign`, released in v0.5.2) is the exception — see "Warm-index campaign gallery" below
 
 See [ROADMAP.md](ROADMAP.md) for the gallery UI roadmap item.

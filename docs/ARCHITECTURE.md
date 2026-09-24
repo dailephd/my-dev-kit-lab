@@ -215,9 +215,9 @@ flowchart LR
 - Runtime, report, and plot owners are reused unchanged: the 12-case corpus runs as two project groups with one index each and ordinals 1–6 per project; the report schema stays `my-dev-kit-lab-warm-index-report-v1`; and the four plot families are unchanged.
 - `scripts/verify-packed-package.mjs` adds an additive resource check: the corpus is present in the tarball (it ships under the existing `benchmarks/` package entry), it can be read from a clean install, and the installed CLI can select a case from it through the existing `--cases` option.
 
-## Real-agent warm-index campaign architecture (v0.5.2, implemented/unreleased)
+## Real-agent warm-index campaign architecture (v0.5.2, released)
 
-Implemented on `feature/v0.5.2-warm-index-real-agent-campaigns` (commit `ca66ab3888bc9bf166c75436bacd2970234465c6`); not yet released. It extends the `warm-index-reuse` plugin and the existing presentation/gallery pipeline; it does not add a second experiment runner, a second report writer, or a second gallery writer.
+Released in v0.5.2. The implementation extends the `warm-index-reuse` plugin and the existing presentation/gallery pipeline; it does not add a second experiment runner, a second report writer, or a second gallery writer.
 
 ```mermaid
 flowchart LR
@@ -579,7 +579,7 @@ The following layers remain planned and must not be treated as current behavior:
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
-- the expanded warm-index benchmark suite (`v0.5.1`) is released, see "Expanded warm-index benchmark suite (v0.5.1)" above; real-agent warm-index campaigns with screenshots/gallery output are implemented on the unreleased `v0.5.2` implementation, see "Real-agent warm-index campaign architecture (v0.5.2, implemented/unreleased)" above — they are not yet part of any published release
+- the v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above
 - additional experiment plugins for freshness, scale, retrieval quality, and agent success (`v0.6.0` and later)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
@@ -652,9 +652,9 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.5.1 warm-index corpus, suite-coverage, and task-stat validation (released) | `src/evaluation/benchmarkMetadata.ts` (`validateWarmIndexBenchmarkCases`, `validateWarmIndexBenchmarkSuiteCoverage`, `deriveWarmIndexTaskStats`) |
 | v0.5.1 dedicated warm-index benchmark corpus and project profiles (released) | `benchmarks/contracts/warm-index-benchmark-cases.json`, `benchmarks/contracts/benchmark-project-profiles.json` |
 | v0.5.1 benchmark and packed-package acceptance (released) | `scripts/verify-benchmarks.ts`, `scripts/verify-packed-package.mjs` |
-| v0.5.2 campaign preset policy (implemented, unreleased) | `src/experiments/plugins/warmIndexReuse/campaignPresets.ts` |
-| v0.5.2 real-agent campaign evaluation (implemented, unreleased) | `src/experiments/plugins/warmIndexReuse/agentEvaluation.ts` (`evaluateWarmIndexRealAgentCampaign`) |
-| v0.5.2 real-agent prompt construction (implemented, unreleased) | `src/experiments/plugins/warmIndexReuse/realAgentPrompt.ts` |
-| v0.5.2 campaign command orchestration (implemented, unreleased) | `src/commands/runExperimentRunCommand.ts` |
-| v0.5.2 campaign presentation sequencing (implemented, unreleased) | `src/commands/runWarmIndexCampaignPresentation.ts` |
-| v0.5.2 campaign gallery (implemented, unreleased) | `src/gallery/writeWarmIndexCampaignGallery.ts` |
+| v0.5.2 campaign preset policy (released) | `src/experiments/plugins/warmIndexReuse/campaignPresets.ts` |
+| v0.5.2 real-agent campaign evaluation (released) | `src/experiments/plugins/warmIndexReuse/agentEvaluation.ts` (`evaluateWarmIndexRealAgentCampaign`) |
+| v0.5.2 real-agent prompt construction (released) | `src/experiments/plugins/warmIndexReuse/realAgentPrompt.ts` |
+| v0.5.2 campaign command orchestration (released) | `src/commands/runExperimentRunCommand.ts` |
+| v0.5.2 campaign presentation sequencing (released) | `src/commands/runWarmIndexCampaignPresentation.ts` |
+| v0.5.2 campaign gallery (released) | `src/gallery/writeWarmIndexCampaignGallery.ts` |

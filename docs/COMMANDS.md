@@ -208,8 +208,8 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign <preset> 
 | `--case <ids>` | Optional comma-separated case filter; unknown IDs fail the run |
 | `--benchmark-project <ids>` | Optional comma-separated project filter; unknown IDs fail the run |
 | `--kit-command <command>` | `warm-index-reuse` only; the my-dev-kit command used to build one index per benchmark project and retrieve per task. Defaults to `npx @dailephd/my-dev-kit@latest` |
-| `--campaign <preset>` | `warm-index-reuse` only, implemented on the unreleased v0.5.2 implementation (not exposed by the installed v0.5.1 CLI); one of `codex-full`, `claude-full`, `codex-timeout-isolation`. Selects the bundled production corpus and a single real-agent provider for the run; cannot be combined with `--target`, `--cases`, or `--project-profiles` |
-| `--include-real-agents` | `warm-index-reuse` only, implemented on the unreleased v0.5.2 implementation. Required alongside `--campaign` to run real Codex/Claude providers instead of the deterministic fake agent; rejected without `--campaign` |
+| `--campaign <preset>` | `warm-index-reuse` only, available in the installed v0.5.2 CLI; one of `codex-full`, `claude-full`, `codex-timeout-isolation`. Selects the bundled production corpus and a single real-agent provider for the run; cannot be combined with `--target`, `--cases`, or `--project-profiles` |
+| `--include-real-agents` | `warm-index-reuse` only, available in the installed v0.5.2 CLI. Required alongside `--campaign` to run real Codex/Claude providers instead of the deterministic fake agent; rejected without `--campaign` |
 
 Explicit `--cases` and `--project-profiles` paths resolve against the tool root (the installed package root for the installed CLI), so the packaged corpus can be named by its relative path.
 
@@ -228,7 +228,7 @@ Behavior:
 my-dev-kit-lab experiment run --experiment warm-index-reuse --cases benchmarks/contracts/warm-index-benchmark-cases.json --benchmark-project task-workflow-medium-ts --out <dir>
 ```
 
-Real-agent campaigns (implemented on the unreleased v0.5.2 implementation; not exposed by the installed v0.5.1 CLI):
+Real-agent campaigns (available in the installed v0.5.2 CLI):
 
 ```text
 my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign codex-full --include-real-agents --out <dir>
