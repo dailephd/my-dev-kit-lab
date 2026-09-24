@@ -1,4 +1,5 @@
 import type { MeasuredCommandResult } from "../../../core/runMeasuredCommand.js";
+import type { IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
 import type { ExperimentRunStatus } from "../../types.js";
 import type { WarmIndexExecutionError, WarmIndexProjectExecutionV1, WarmIndexTaskExecutionV1 } from "./execution.js";
 
@@ -62,6 +63,11 @@ export type WarmIndexProjectSummaryV1 = {
   sessionPrepared: boolean;
   buildDurationMs: number | null;
   indexCommand: WarmIndexCommandTelemetryV1 | null;
+  /**
+   * Additive to schema v1: baseline index-build evidence (indexed-file hashes, generated artifact
+   * inventory). `null` when no session was prepared; absent in artifacts written before it existed.
+   */
+  indexSnapshot?: IndexSnapshotV1 | null;
   tasks: WarmIndexTaskSummaryV1[];
   warnings: string[];
   errors: string[];
@@ -138,6 +144,7 @@ export function summarizeProjectExecution(project: WarmIndexProjectExecutionV1):
     sessionPrepared: project.session !== undefined,
     buildDurationMs: project.build ? project.build.durationMs : null,
     indexCommand: project.build ? summarizeCommand(project.build.command) : null,
+    indexSnapshot: project.session ? structuredClone(project.session.indexSnapshot) : null,
     tasks: project.tasks.map(summarizeTask),
     warnings: [...project.warnings],
     errors: [...project.errors],

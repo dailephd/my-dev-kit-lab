@@ -1,4 +1,5 @@
-import { mkdtempSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,7 @@ import {
   assertWarmIndexSessionMatchesTarget,
   prepareWarmIndexSession
 } from "../../../src/experiments/plugins/warmIndexReuse/warmIndexSession.js";
+import { writeSnapshotFakeKit } from "./warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -53,7 +55,7 @@ describe("prepareWarmIndexSession", () => {
     }
     const { session } = prepared;
 
-    expect(Object.keys(session).sort()).toEqual(["buildCommand", "buildDurationMs", "indexDir", "sourceRoots", "targetRoot"]);
+    expect(Object.keys(session).sort()).toEqual(["buildCommand", "buildDurationMs", "indexDir", "indexSnapshot", "sourceRoots", "targetRoot"]);
     expect(session.indexDir).toBe(indexDir);
     expect(session.targetRoot).toBe(baseCase.absoluteTargetRoot);
     expect(session.sourceRoots).toEqual(["src", "tests"]);
@@ -160,5 +162,75 @@ describe("assertWarmIndexSessionMatchesTarget", () => {
     const session = await prepareSession();
     expect(() => assertWarmIndexSessionMatchesTarget(session, { ...baseCase, sourceRoots: ["src"] })).toThrow("source roots");
     expect(() => assertWarmIndexSessionMatchesTarget(session, { ...baseCase, sourceRoots: ["tests", "src"] })).toThrow("source roots");
+  });
+});
+
+function hashTree(root: string): Record<string, string> {
+  const hashes: Record<string, string> = {};
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else hashes[path.relative(root, full).replace(/\\/g, "/")] = createHash("sha256").update(readFileSync(full)).digest("hex");
+    }
+  };
+  walk(root);
+  return hashes;
+}
+
+describe("prepareWarmIndexSession index snapshot", () => {
+  // TST-B1-001, TST-B1-002, TST-B1-004
+  it("carries a complete snapshot of exactly the indexed files without invoking any other kit command or touching the target", async () => {
+    const root = tempRoot();
+    const kit = writeSnapshotFakeKit(root);
+    const targetBefore = hashTree(baseCase.absoluteTargetRoot);
+
+    const prepared = await prepareWarmIndexSession({
+      target: baseCase,
+      kitCommand: kit.command,
+      indexDir: path.join(root, "indexes", "todo-ts"),
+      commandsDir: path.join(root, "commands", "index"),
+      requireKit: true
+    });
+    if (!prepared.ok) {
+      throw new Error("expected a prepared session");
+    }
+    const { indexSnapshot } = prepared.session;
+
+    expect(indexSnapshot.status).toBe("complete");
+    const expectedPaths = Object.keys(targetBefore)
+      .filter((file) => /^(src|tests)\//.test(file) && /\.(ts|js|py)$/.test(file))
+      .sort();
+    expect(indexSnapshot.files.map((file) => file.path)).toEqual(expectedPaths);
+    expect(indexSnapshot.files.map((file) => file.path)).not.toContain("package.json");
+    for (const file of indexSnapshot.files) {
+      expect(file.sha256).toBe(targetBefore[file.path]);
+    }
+    expect(indexSnapshot.indexCommand.args).toContain("index");
+    expect(indexSnapshot.indexCommand.commandString).toBe(kit.command);
+    expect(indexSnapshot.artifacts.map((artifact) => artifact.path)).toEqual(["manifest.json", "symbol-index.json"]);
+    expect(readFileSync(kit.logPath, "utf8").trim().split("\n")).toEqual(["index"]);
+    expect(hashTree(baseCase.absoluteTargetRoot)).toEqual(targetBefore);
+  });
+
+  // TST-B1-009, TST-B1-010
+  it("still prepares the session and reports an explicit unavailable snapshot when the index contract is unsupported", async () => {
+    const root = tempRoot();
+    const prepared = await prepareWarmIndexSession({
+      target: baseCase,
+      kitCommand: fakeKitCommand,
+      indexDir: path.join(root, "indexes", "todo-ts"),
+      commandsDir: path.join(root, "commands", "index"),
+      requireKit: true
+    });
+    if (!prepared.ok) {
+      throw new Error("expected a prepared session");
+    }
+
+    expect(prepared.session.indexSnapshot.status).toBe("unavailable");
+    expect(prepared.session.indexSnapshot.unavailable?.code).toBe("manifest-unsupported");
+    expect(prepared.session.indexSnapshot.files).toEqual([]);
+    expect(prepared.build.warnings).toEqual([]);
+    expect(Object.isFrozen(prepared.session)).toBe(true);
   });
 });

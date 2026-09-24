@@ -31,6 +31,7 @@ import {
   makeCase,
   makeCases,
   writeFakeKitVariant,
+  writeSnapshotFakeKit,
 } from "./warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
@@ -776,3 +777,80 @@ describe("v0.5.2 Batch 1 -- campaign-aware case selection", () => {
 // tests/experiments/warmIndexReuse/warmIndexRealAgent.test.ts). Public CLI campaign execution
 // remains guarded at the command surface -- see the v0.5.2 Batch 3 guard tests in
 // tests/commands/warmIndexReuseCommand.spec.ts.
+
+describe("warm-index-execution.json index snapshot evidence", () => {
+  const taskServiceSource = readFileSync(path.resolve(process.cwd(), "benchmarks/projects/todo-ts/src/taskService.ts"), "utf8");
+  const distinctiveSourceLine = "constructor(private readonly store = new TaskStore()) {}";
+
+  // TST-B1-007, TST-B1-010
+  it("persists the bounded snapshot per project without source, context, prompts, or command bodies", async () => {
+    const kit = writeSnapshotFakeKit(tempDir("warm-snapshot-kit-"));
+    const { run, artifact, artifactText } = await runWarm(makeCases(2), kit.command);
+
+    expect(taskServiceSource).toContain(distinctiveSourceLine);
+    expect(artifact?.projects).toHaveLength(1);
+    const project = artifact!.projects[0];
+    expect(project.sessionPrepared).toBe(true);
+    expect(project.indexSnapshot?.status).toBe("complete");
+    expect(project.indexSnapshot?.files.map((file) => file.path)).toContain("src/taskService.ts");
+    expect(project.indexSnapshot?.files.every((file) => /^[0-9a-f]{64}$/.test(file.sha256))).toBe(true);
+    expect(Object.keys(project.indexSnapshot!).sort()).toEqual([
+      "artifacts",
+      "artifactsTruncated",
+      "files",
+      "indexCommand",
+      "indexedFileCount",
+      "manifest",
+      "schemaVersion",
+      "status",
+      "tool",
+      "unavailable",
+      "unresolvedFileCount",
+      "unresolvedFiles",
+    ]);
+    expect(artifactText).not.toContain(distinctiveSourceLine);
+    expect(artifactText).not.toContain("contextText");
+    expect(artifactText).not.toContain("1 export class TaskService");
+    expect(run.projectExecutions[0].indexSnapshot).toEqual(project.indexSnapshot);
+    // One index, two tasks: the snapshot is baseline evidence, not per-task retrieval.
+    expect(readFileSync(kit.logPath, "utf8").split("\n").filter((line) => line === "index")).toHaveLength(1);
+  });
+
+  // TST-B1-011
+  it("stays additive to schema v1 and leaves every pre-existing project field in place", async () => {
+    const { artifact } = await runWarm(makeCases(1));
+    const project = artifact!.projects[0];
+
+    expect(artifact?.schemaVersion).toBe("my-dev-kit-lab-warm-index-execution-v1");
+    expect(Object.keys(project).sort()).toEqual(
+      [
+        "benchmarkProject",
+        "buildDurationMs",
+        "errors",
+        "indexCommand",
+        "indexDir",
+        "indexSnapshot",
+        "sessionKey",
+        "sessionPrepared",
+        "sourceRoots",
+        "status",
+        "targetRoot",
+        "tasks",
+        "warnings",
+      ].sort()
+    );
+    // The shared fake kit writes a stub manifest: evidence is explicitly unavailable, never guessed.
+    expect(project.indexSnapshot?.status).toBe("unavailable");
+    expect(project.indexSnapshot?.unavailable?.code).toBe("manifest-unsupported");
+    expect(project.status).toBe("completed");
+  });
+
+  it("records a null snapshot when no session was prepared", async () => {
+    const dir = tempDir("warm-snapshot-fail-");
+    const failing = writeFakeKitVariant(dir, { failOn: "index" });
+    const { artifact } = await runWarm(makeCases(1), failing);
+
+    expect(artifact?.projects[0].sessionPrepared).toBe(false);
+    expect(artifact?.projects[0].indexSnapshot).toBeNull();
+  });
+});

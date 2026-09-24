@@ -68,6 +68,8 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/experiments/plugins/warmIndexReuse/execution.js",
   "dist/src/experiments/plugins/warmIndexReuse/metrics.js",
   "dist/src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.js",
+  // v0.6.0 -- index-build snapshot evidence.
+  "dist/src/evaluation/indexSnapshot.js",
   // v0.5.2 -- real-agent campaign runtime.
   "dist/src/experiments/plugins/warmIndexReuse/campaignPresets.js",
   "dist/src/experiments/plugins/warmIndexReuse/agentEvaluation.js",
@@ -122,9 +124,22 @@ import path from "node:path";
 const [command, ...rest] = process.argv.slice(2);
 const arg = (flag) => { const index = rest.indexOf(flag); return index >= 0 ? rest[index + 1] : undefined; };
 if (command === "index") {
+  const root = arg("--root");
   const out = arg("--out");
+  const roots = rest.flatMap((value, index) => (value === "--src" ? [rest[index + 1]] : []));
+  const files = [];
+  const walk = (rel) => {
+    for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
+      const child = rel + "/" + entry.name;
+      if (entry.isDirectory()) walk(child);
+      else if (/\\.(ts|js|py)$/.test(entry.name)) files.push(child);
+    }
+  };
+  roots.forEach(walk);
+  files.sort();
   fs.mkdirSync(out, { recursive: true });
-  fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify({ fake: true }));
+  fs.writeFileSync(path.join(out, "symbol-index.json"), JSON.stringify({ schemaVersion: "2", fileCount: files.length, files: files.map((p) => ({ path: p, language: "typescript" })) }));
+  fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify({ artifactKind: "my-dev-kit-v1-manifest", version: "1.0.0", projectRoot: root.replace(/\\\\/g, "/"), sourceRoots: roots, artifacts: { symbolIndex: "symbol-index.json" }, summary: { fileCount: files.length } }));
   console.log(JSON.stringify({ ok: true, command }));
 } else if (command === "search") {
   console.log(JSON.stringify({ results: [{ nodeId: "todo-ts:createTask", file: "src/taskService.ts", symbol: "createTask" }] }));
@@ -926,6 +941,29 @@ async function main() {
     }
     if (warmReportText.includes("contextText") || warmReportText.includes(FAKE_KIT_SOURCE_TEXT)) {
       fail("WARM_INDEX_REPORTS", "Installed warm-index report contains context text.");
+    }
+
+    // v0.6.0 Batch 1: the installed run records baseline index-build evidence (no comparison, no
+    // freshness). Target/installed-package immutability is proven by the end-of-run checks below.
+    const warmArtifactText = readFileSync(path.join(warmOut, "warm-index-execution.json"), "utf8");
+    const warmSnapshot = JSON.parse(warmArtifactText).projects?.[0]?.indexSnapshot;
+    const warmTaskServiceSource = readFileSync(path.join(installedPackageRoot, "benchmarks", "projects", "todo-ts", "src", "taskService.ts"), "utf8");
+    const warmTaskServiceEntry = warmSnapshot?.files?.find((file) => file.path === "src/taskService.ts");
+    if (
+      warmSnapshot?.schemaVersion !== "my-dev-kit-lab-index-snapshot-v1" ||
+      warmSnapshot.status !== "complete" ||
+      !warmTaskServiceEntry ||
+      warmTaskServiceEntry.sha256 !== createHash("sha256").update(warmTaskServiceSource).digest("hex") ||
+      !warmSnapshot.artifacts?.some((artifact) => artifact.path === "manifest.json") ||
+      warmSnapshot.tool?.availability !== "unavailable"
+    ) {
+      fail("WARM_INDEX_INDEX_SNAPSHOT", `Installed warm-index execution artifact lacks a complete index snapshot: ${JSON.stringify(warmSnapshot)?.slice(0, 400)}`);
+    }
+    if (warmArtifactText.includes(warmTaskServiceSource.split("\n").find((line) => line.includes("constructor(")) ?? "\u0000") || warmArtifactText.includes(FAKE_KIT_SOURCE_TEXT)) {
+      fail("WARM_INDEX_INDEX_SNAPSHOT", "Installed warm-index execution artifact contains source or context text.");
+    }
+    if (/"(?:freshness|changedFiles|changedFileCount)"/.test(warmArtifactText)) {
+      fail("WARM_INDEX_INDEX_SNAPSHOT", "Installed warm-index execution artifact contains freshness or changed-file fields before they are implemented.");
     }
 
     const warmPlots = runInstalledCli(cliCommand, dirs.consumer, ["plots", "generate", "--experiment", warmOut, "--out", warmPlotsOut], envWithBin);

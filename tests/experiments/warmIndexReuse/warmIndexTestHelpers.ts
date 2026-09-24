@@ -78,6 +78,49 @@ export function writeFakeKitVariant(
   return `node ${scriptPath}`;
 }
 
+/**
+ * Wraps the shared fake CLI, but `index` writes a real-shaped my-dev-kit manifest and symbol index
+ * listing every .ts/.js/.py file under the `--src` roots (paths relative to `--root`, like the real
+ * index). Every invocation's subcommand is appended to `<script>.log` so tests can prove no
+ * command other than `index` ran during snapshot capture.
+ */
+export function writeSnapshotFakeKit(dir: string): { command: string; logPath: string } {
+  const scriptPath = path.join(dir, "fake-kit-snapshot.mjs");
+  const logPath = `${scriptPath}.log`;
+  writeFileSync(
+    scriptPath,
+    [
+      `import fs from "node:fs";`,
+      `import path from "node:path";`,
+      `const [command, ...rest] = process.argv.slice(2);`,
+      `fs.appendFileSync(${JSON.stringify(logPath)}, command + "\\n");`,
+      `const arg = (flag) => { const i = rest.indexOf(flag); return i >= 0 ? rest[i + 1] : undefined; };`,
+      `if (command === "index") {`,
+      `  const root = arg("--root");`,
+      `  const out = arg("--out");`,
+      `  const roots = rest.flatMap((value, i) => (value === "--src" ? [rest[i + 1]] : []));`,
+      `  const files = [];`,
+      `  const walk = (rel) => {`,
+      `    for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {`,
+      `      const child = rel + "/" + entry.name;`,
+      `      if (entry.isDirectory()) walk(child);`,
+      `      else if (/\\.(ts|js|py)$/.test(entry.name)) files.push(child);`,
+      `    }`,
+      `  };`,
+      `  roots.forEach(walk);`,
+      `  files.sort();`,
+      `  fs.mkdirSync(out, { recursive: true });`,
+      `  fs.writeFileSync(path.join(out, "symbol-index.json"), JSON.stringify({ schemaVersion: "2", repoRoot: root, sourceRoots: roots, fileCount: files.length, symbolCount: 0, files: files.map((p) => ({ path: p, language: "typescript", lineCount: 1, imports: [], exports: [], symbols: [] })) }));`,
+      `  fs.writeFileSync(path.join(out, "manifest.json"), JSON.stringify({ artifactKind: "my-dev-kit-v1-manifest", version: "1.0.0", createdAt: "2026-01-01T00:00:00.000Z", projectRoot: root.replace(/\\\\/g, "/"), sourceRoots: roots, artifacts: { symbolIndex: "symbol-index.json" }, summary: { fileCount: files.length } }));`,
+      `  console.log(JSON.stringify({ ok: true, command }));`,
+      `  process.exit(0);`,
+      `}`,
+      `await import(${JSON.stringify(pathToFileURL(fakeKitPath).href)});`,
+    ].join("\n")
+  );
+  return { command: `node ${scriptPath}`, logPath };
+}
+
 /** Recursively lists files with the given name, as paths relative to root with forward slashes. */
 export function findFiles(root: string, fileName: string): string[] {
   const found: string[] = [];
