@@ -100,7 +100,7 @@ The repository has one experiment runtime, one audit framework, one standalone s
 
 Selectable Codex/Claude real-agent warm-index campaigns (`--campaign`, `--include-real-agents`), plus their screenshot and gallery presentation, are current capabilities.
 
-The installed `v0.5.2` CLI exposes `--campaign`. See [ROADMAP.md](ROADMAP.md), [COMMANDS.md](COMMANDS.md), and [GALLERY.md](GALLERY.md) for details.
+The installed 0.6.0 CLI exposes `--campaign`. See [ROADMAP.md](ROADMAP.md), [COMMANDS.md](COMMANDS.md), and [GALLERY.md](GALLERY.md) for details.
 
 The expanded warm-index benchmark suite was released in `v0.5.1`: the dedicated corpus must be selected explicitly with `--cases benchmarks/contracts/warm-index-benchmark-cases.json`. Task locality is benchmark metadata only; it does not change runtime behavior, and there is no locality CLI filter.
 
