@@ -235,9 +235,9 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign codex-ful
 my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign claude-full --include-real-agents --case warm-medium-complete-idempotent --out <dir>
 ```
 
-A `--campaign` run requires a locally configured Codex or Claude provider CLI matching the selected preset's agent; it reports partial outcomes (`token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) explicitly rather than treating them as success, and — on a completed run — additionally produces the campaign report/plots/screenshot/gallery presentation described in [ARCHITECTURE.md](ARCHITECTURE.md#real-agent-warm-index-campaign-architecture-v052-implementedunreleased) and [GALLERY.md](GALLERY.md).
+A `--campaign` run requires a locally configured Codex or Claude provider CLI matching the selected preset's agent; it reports partial outcomes (`token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) explicitly rather than treating them as success, and — on a completed run — additionally produces the campaign report/plots/screenshot/gallery presentation described in [ARCHITECTURE.md](ARCHITECTURE.md#real-agent-warm-index-campaign-architecture-v052-released) and [GALLERY.md](GALLERY.md).
 
-See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#warm-index-reuse-experiment) for the procedure.
+See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#real-agent-warm-index-campaign-v052) for the real-agent campaign procedure.
 
 ### `my-dev-kit-lab experiment controlled [options]`
 
