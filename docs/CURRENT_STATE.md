@@ -49,6 +49,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
 - Exact next action: Plan v0.6.1 affected-neighborhood experiments.
+- ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
 
 ## Implemented
 

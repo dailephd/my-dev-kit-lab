@@ -16,7 +16,9 @@ flowchart LR
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2]
-  V092 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
+  V092 --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
+  V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
+  V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
 ```
 
@@ -1154,6 +1156,173 @@ Acceptance:
 * Warm-index, retrieval, context-window, audit, security, and mobile reports can share or link through consistent infrastructure where appropriate.
 * Gallery can browse multiple experiment and validation outputs.
 * Gallery can browse finalized tutorial artifacts through the canonical tutorial manifest without forcing tutorial execution to depend on gallery generation.
+
+### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Provide the Lab-owned producer/certification side of the ECO-00 executable-evidence interface without replacing native Kit, Observer, Orchestrator, or Lab artifacts.
+
+Features:
+
+* Add authorized verification capture/import with an explicit controlled target boundary.
+* Reference native artifacts through the ECO-00 `NativeArtifactReferenceV1` / `EvidenceEnvelopeV1` layer rather than copying their domain semantics into a universal payload.
+* Record evidence identity, producer/package identity, integrity, environment, freshness, and applicability.
+* Add pure adapter contracts for supported native evidence families.
+* Add an isolated compatibility/certification harness using exact candidate or released package identities.
+* Reuse existing process, browser, workspace, report, and security boundaries.
+* Reject arbitrary executable instructions embedded in imported evidence.
+
+Acceptance:
+
+* A deterministic CLI fixture and a deterministic full-stack fixture can produce or import bounded verification evidence.
+* Required evidence failures remain failures even if unrelated evidence passes.
+* Exact package/contract identities and immutable result references can be written into a tested/certified compatibility bundle.
+* Malformed, stale, unsupported, or unauthorized evidence fails closed or remains explicitly unevaluated.
+* No unrestricted task runner or second audit/runtime framework is introduced.
+
+### v0.11.0 — bounded accessibility assurance (LAB-A11Y-01)
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Add bounded accessibility assurance through the existing quality-audit direction while preserving explicit manual-review and applicability states.
+
+Features:
+
+* Add local-target accessibility evidence adapters with explicit target-state/environment provenance.
+* Reuse the planned `quality` audit owner instead of creating a parallel accessibility subsystem.
+* Preserve machine-checkable findings separately from manual-review requirements.
+* Keep unsupported or unavailable evidence explicit.
+
+Acceptance:
+
+* Deterministic fixtures exercise pass, fail, unavailable, and manual-review outcomes.
+* Reports identify the rule/profile and evidence source for each automated finding.
+* The Lab does not claim to replace a complete accessibility review.
+
+### v0.12.0 — local web-application security assurance (LAB-WEBSEC-01)
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Extend the existing security-validation owner with a bounded local web-application profile.
+
+Features:
+
+* Add safe local-target setup and explicit authorization checks.
+* Add versioned control/profile coverage for supported web-application checks.
+* Reuse existing security findings, attack-scenario, process, and report ownership.
+* Keep candidate/review evidence distinct from confirmed findings.
+
+Acceptance:
+
+* Canonical local fixtures exercise supported positive and negative checks.
+* Remote/manual penetration testing remains out of scope by default.
+* Network/process activity stays inside the declared profile boundary.
+
+### v0.13.0 — performance evidence and regression policy (LAB-PERF-01)
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Evaluate bounded performance evidence with explicit applicability and comparison rules.
+
+Features:
+
+* Add performance-budget and regression adapters.
+* Record metric source, environment identity, sample/comparison provenance, and unavailable metrics.
+* Support compatible Observer performance evidence when selected without requiring Observer for non-browser performance checks.
+* Add statistical comparison only where the evidence supports it.
+
+Acceptance:
+
+* Reports distinguish measurement, comparison, threshold policy, and unavailable evidence.
+* Incompatible environments are not compared as equivalent.
+* No universal performance score is introduced.
+
+### v0.14.0 — API/schema and migration assurance (LAB-API-01)
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Evaluate API/schema compatibility and project-owned database/migration verification.
+
+Features:
+
+* Add bounded adapters for supported API/schema compatibility evidence.
+* Run only project-declared migration verification through controlled execution boundaries.
+* Allow Kit relationship evidence as optional enrichment, not a prerequisite.
+* Preserve executed verification separately from static association evidence.
+
+Acceptance:
+
+* Fixtures prove compatible/incompatible API or schema cases and explicit migration-verification outcomes.
+* A static relationship never substitutes for successful executable verification.
+
+### v0.15.0 — supply-chain evidence (LAB-SUPPLY-01)
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Add bounded software-supply-chain evidence without making legal or publication decisions.
+
+Features:
+
+* Add adapters for supported SBOM, license-policy, provenance, and signature evidence.
+* Distinguish manifest presence, signature verification, and artifact-to-source correspondence.
+* Preserve tool/version/profile provenance.
+
+Acceptance:
+
+* Reports state exactly which evidence was checked and which claims remain unavailable.
+* No automatic publication or legal-conformance claim is made.
+
+### v0.16.0 — test-quality evidence (LAB-TEST-01)
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Add non-heuristic test-quality evidence where supported.
+
+Features:
+
+* Add adapters for coverage, mutation, and repeated-run flakiness evidence.
+* Keep raw measurements and tool provenance visible.
+* Preserve unavailable/unsupported states rather than fabricating zeros.
+* Do not collapse unrelated dimensions into a universal quality score.
+
+Acceptance:
+
+* Deterministic fixtures exercise supported evidence and missing-evidence behavior.
+* Reports remain traceable to native tool output or immutable summaries.
+
+### v0.17.0 — operational/configuration evidence (LAB-OPS-01)
+
+Status: **planned; not implemented**.
+
+Purpose:
+
+* Reserve a bounded operational/configuration/IaC evidence layer only where real target projects justify it.
+
+Features:
+
+* Adapt supported configuration, instrumentation, observability, or IaC evidence.
+* Prefer existing external/native tools over building a hosted monitoring platform.
+* Preserve static configuration evidence separately from runtime operational evidence.
+
+Acceptance:
+
+* Every implemented adapter has a real consumer, canonical fixture, and explicit claim-strength boundary.
+* No deployment execution, hosted monitoring service, or cloud control plane is introduced.
 
 ## Stable and post-stable releases
 
