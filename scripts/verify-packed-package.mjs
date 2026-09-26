@@ -70,6 +70,8 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.js",
   // v0.6.0 -- index-build snapshot evidence.
   "dist/src/evaluation/indexSnapshot.js",
+  // v0.6.1 -- affected-neighborhood graph evidence, mapping, and assessment.
+  "dist/src/evaluation/affectedNeighborhood.js",
   "dist/src/evaluation/indexFreshness.js",
   // v0.5.2 -- real-agent campaign runtime.
   "dist/src/experiments/plugins/warmIndexReuse/campaignPresets.js",
@@ -107,6 +109,14 @@ const WARM_INDEX_BENCHMARK_CORPUS = "benchmarks/contracts/warm-index-benchmark-c
 const WARM_INDEX_BENCHMARK_CORPUS_PROJECT_COUNTS = { "task-workflow-medium-ts": 6, "task-analytics-large-mixed": 6 };
 const WARM_INDEX_BENCHMARK_CORPUS_LOCALITIES = ["localized", "cross-module", "broad-change"];
 const WARM_INDEX_BENCHMARK_CORPUS_SELECTED_CASE = "warm-medium-complete-idempotent";
+
+// v0.6.1 installed-package affected-neighborhood acceptance (real upstream my-dev-kit, no fake kit).
+const AFFECTED_FIRST_CASE = "warm-medium-import-dedupe";
+const AFFECTED_CHANGED_CASE = WARM_INDEX_BENCHMARK_CORPUS_SELECTED_CASE;
+const AFFECTED_BENCHMARK_PROJECT = "task-workflow-medium-ts";
+const AFFECTED_MUTATED_FILE = "src/store/taskStore.ts";
+const AFFECTED_MUTATION_TEXT = "\n// my-dev-kit-lab v0.6.1 packed acceptance controlled mutation\n";
+const AFFECTED_LEAKED_PATHS = /^(tests|reports|lab-output|\.my-dev-kit-context|\.claude)\/|(^|\/)node_modules\/|\.tgz$|verifyPackedPackage|affectedNeighborhoodTestHelpers|fixtures\/affected-neighborhood/;
 
 // v0.5.2 -- frozen real-agent stdin transport flags (Batch 2). Kept here, independent of the
 // installed package's own compiled copy, so an installed-execution regression in either adapter's
@@ -494,7 +504,14 @@ async function main() {
     validateManifestRelativePaths,
     validateWarmIndexCampaignGalleryManifest,
     snapshotDirectory,
-    diffSnapshots
+    diffSnapshots,
+    UPSTREAM_MY_DEV_KIT_PACKAGE,
+    UPSTREAM_MY_DEV_KIT_SPEC,
+    UPSTREAM_MY_DEV_KIT_VERSION,
+    validateUpstreamMyDevKitIdentity,
+    resolveUpstreamBinRelativePath,
+    buildControlledMutationKitWrapperSource,
+    validateAffectedNeighborhoodLayers
   } =
     await loadHelpers();
 
@@ -511,7 +528,12 @@ async function main() {
     fakeKit: path.join(tempRoot, "fake-my-dev-kit"),
     fakeAgents: path.join(tempRoot, "fake-agents"),
     fakeAgentsBin: path.join(tempRoot, "fake-agents", "bin"),
-    campaigns: path.join(tempRoot, "campaigns")
+    campaigns: path.join(tempRoot, "campaigns"),
+    // v0.6.1: real published upstream my-dev-kit, a disposable second install of the exact tarball
+    // that is the only place the controlled mutation may happen, and their outputs.
+    upstream: path.join(tempRoot, "upstream-my-dev-kit"),
+    mutableConsumer: path.join(tempRoot, "mutable-consumer"),
+    affectedRuns: path.join(tempRoot, "affected-neighborhood-runs")
   };
 
   try {
@@ -989,8 +1011,17 @@ async function main() {
         fail("WARM_INDEX_INDEX_FRESHNESS", `Installed warm-index task lacks fresh index-freshness evidence: ${JSON.stringify(freshness)?.slice(0, 400)}`);
       }
     }
-    if (/"(?:reindexRecommendation|changedSymbolCount|affectedNodeCount|taskOverlapPercent)"/.test(warmArtifactText)) {
-      fail("WARM_INDEX_INDEX_FRESHNESS", "Installed warm-index execution artifact contains v0.6.1+ fields.");
+    // v0.6.1: the additive affected-neighborhood evidence is persisted under the unchanged v1 schema.
+    // This fake kit builds no code graph, so the assessment ran but is unavailable; it never
+    // changes the task statuses asserted above.
+    if (JSON.parse(warmArtifactText).schemaVersion !== "my-dev-kit-lab-warm-index-execution-v1") {
+      fail("WARM_INDEX_AFFECTED_NEIGHBORHOOD_FAKE_KIT", "Installed warm-index execution artifact changed its outer schema version.");
+    }
+    for (const task of warmFreshnessTasks) {
+      const assessment = task.affectedNeighborhood;
+      if (assessment?.schemaVersion !== "my-dev-kit-lab-affected-neighborhood-assessment-v1" || assessment.status !== "unavailable" || task.status !== "completed") {
+        fail("WARM_INDEX_AFFECTED_NEIGHBORHOOD_FAKE_KIT", `Installed fake-kit task lacks an unavailable affected-neighborhood assessment: ${JSON.stringify(assessment)?.slice(0, 300)}`);
+      }
     }
 
     // v0.6.0 Batch 3: the installed report files present the persisted freshness evidence.
@@ -1118,6 +1149,241 @@ async function main() {
     console.log("WARM_INDEX_BENCHMARK_CORPUS_RESOURCE: PASS");
     console.log(`WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_READ: PASS (${installedCorpus.length} cases)`);
     console.log(`WARM_INDEX_BENCHMARK_CORPUS_INSTALLED_SELECTION: PASS (${WARM_INDEX_BENCHMARK_CORPUS_SELECTED_CASE})`);
+
+    // -----------------------------------------------------------------
+    // 9c-2. v0.6.1 affected-neighborhood installed-package acceptance. The
+    // installed CLIs (from the exact tarball) run against the REAL published
+    // @dailephd/my-dev-kit at the pinned version -- no fake kit, no
+    // hand-written graph. Case A is fresh. Case B needs a real post-baseline
+    // file change; the installed CLI only accepts case targets inside its own
+    // package root, so a disposable SECOND install of the same tarball is the
+    // sole mutable sandbox, while the primary install stays under the
+    // immutability gates. All generated output lives in dirs.affectedRuns.
+    // -----------------------------------------------------------------
+    const affectedPrimaryBenchmarkRoot = path.join(installedPackageRoot, "benchmarks", "projects", AFFECTED_BENCHMARK_PROJECT);
+    const canonicalBenchmarkRoot = path.join(REPO_ROOT, "benchmarks", "projects", AFFECTED_BENCHMARK_PROJECT);
+    const canonicalBenchmarkBefore = await snapshotDirectory(canonicalBenchmarkRoot);
+    const primaryBenchmarkBefore = await snapshotDirectory(affectedPrimaryBenchmarkRoot);
+    const readJsonFile = (file, gate) => {
+      try {
+        return JSON.parse(readFileSync(file, "utf8"));
+      } catch (error) {
+        fail(gate, `Could not read JSON ${file}: ${error.message}`);
+      }
+    };
+
+    // Upstream pin: the registry must still report the pinned version (never silently test a newer one).
+    const registryView = runNpm(resolveCommand, ["view", UPSTREAM_MY_DEV_KIT_PACKAGE, "version"], { cwd: dirs.consumer, gate: "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT" });
+    if (registryView.status !== 0 || registryView.stdout.trim() !== UPSTREAM_MY_DEV_KIT_VERSION) {
+      fail(
+        "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT",
+        `BLOCKED_UPSTREAM_MY_DEV_KIT_BASELINE_CHANGED: registry reports ${JSON.stringify(registryView.stdout?.trim())}, expected ${UPSTREAM_MY_DEV_KIT_VERSION}.`,
+        describeChildResult(registryView)
+      );
+    }
+    writeFileSync(path.join(dirs.upstream, "package.json"), `${JSON.stringify({ name: "my-dev-kit-lab-packed-upstream", version: "0.0.0", private: true }, null, 2)}\n`, "utf8");
+    const upstreamInstall = runNpm(resolveCommand, ["install", "--no-audit", "--no-fund", UPSTREAM_MY_DEV_KIT_SPEC], { cwd: dirs.upstream, gate: "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT" });
+    if (upstreamInstall.status !== 0) {
+      fail("AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT", `npm install of ${UPSTREAM_MY_DEV_KIT_SPEC} failed.`, describeChildResult(upstreamInstall));
+    }
+    const upstreamPackageRoot = path.join(dirs.upstream, "node_modules", ...UPSTREAM_MY_DEV_KIT_PACKAGE.split("/"));
+    const upstreamPackageJson = readJsonFile(path.join(upstreamPackageRoot, "package.json"), "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT");
+    const upstreamIdentityProblems = validateUpstreamMyDevKitIdentity(upstreamPackageJson);
+    const upstreamBinRelative = resolveUpstreamBinRelativePath(upstreamPackageJson);
+    if (upstreamIdentityProblems.length > 0 || !upstreamBinRelative) {
+      fail("AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT", `Installed upstream identity problem(s): ${[...upstreamIdentityProblems, ...(upstreamBinRelative ? [] : ["no bin entry"])].join("; ")}`);
+    }
+    const upstreamBin = path.join(upstreamPackageRoot, ...upstreamBinRelative.split("/"));
+    const upstreamVersionProbe = spawnSync(process.execPath, [upstreamBin, "--version"], { encoding: "utf8" });
+    if (upstreamVersionProbe.status !== 0 || !upstreamVersionProbe.stdout.includes(UPSTREAM_MY_DEV_KIT_VERSION)) {
+      fail("AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT", `Upstream --version probe did not report ${UPSTREAM_MY_DEV_KIT_VERSION}.`, describeChildResult(upstreamVersionProbe));
+    }
+    const realKitCommand = `"${process.execPath}" "${upstreamBin}"`;
+
+    // v0.6.1 adds no CLI command or flag: installed help must not mention the feature.
+    for (const helpArgs of [["--help"], ["experiment", "run", "--help"], ["experiment", "describe", "--experiment", "warm-index-reuse"]]) {
+      const helpOutput = runInstalledCli(cliCommand, dirs.consumer, helpArgs, envWithBin);
+      if (helpOutput.status !== 0 || /affected|neighborhood|reindex/i.test(helpOutput.stdout)) {
+        fail("AFFECTED_NEIGHBORHOOD_CLI_SURFACE", `Installed \`${helpArgs.join(" ")}\` exited ${helpOutput.status} or mentions affected-neighborhood/reindex options.`);
+      }
+    }
+
+    const assertOutputOutsidePackage = (outDir, packageRoot, label) => {
+      const relative = path.relative(packageRoot, outDir);
+      if (!relative.startsWith("..") && !path.isAbsolute(relative)) {
+        fail("AFFECTED_NEIGHBORHOOD_OUTPUT_LOCATION", `${label} output was written beneath its installed package root.`);
+      }
+      if (existsSync(path.join(packageRoot, "indexes")) || existsSync(path.join(packageRoot, "agents")) || existsSync(path.join(packageRoot, "commands"))) {
+        fail("AFFECTED_NEIGHBORHOOD_OUTPUT_LOCATION", `${label} generated indexes/commands beneath its installed package root.`);
+      }
+    };
+    const readRunOutputs = (outDir, gate) => ({
+      executionArtifact: readJsonFile(path.join(outDir, "warm-index-execution.json"), gate),
+      report: readJsonFile(path.join(outDir, "report.json"), gate).report,
+      reportText: readFileSync(path.join(outDir, "report.txt"), "utf8"),
+      reportHtml: readFileSync(path.join(outDir, "report.html"), "utf8")
+    });
+    const requireLayers = (gate, outputs, caseId, expected) => {
+      const problems = validateAffectedNeighborhoodLayers({ caseId, ...outputs, expected });
+      if (problems.length > 0) fail(gate, problems.join("\n"));
+    };
+    const requireRealUpstreamIndex = (outDir, gate) => {
+      const indexDir = path.join(outDir, "indexes", AFFECTED_BENCHMARK_PROJECT);
+      const manifest = readJsonFile(path.join(indexDir, "manifest.json"), gate);
+      const graph = readJsonFile(path.join(indexDir, "code-graph.json"), gate);
+      if (manifest.artifactKind !== "my-dev-kit-v1-manifest" || graph.artifactKind !== "code-graph" || !Array.isArray(graph.nodes) || graph.nodes.length === 0) {
+        fail(gate, "The real upstream index did not produce the expected manifest and code graph artifacts.");
+      }
+    };
+
+    // ---- Case A: fresh --------------------------------------------------
+    const freshOut = path.join(dirs.affectedRuns, "fresh");
+    const freshRun = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["experiment", "run", "--experiment", "warm-index-reuse", "--cases", WARM_INDEX_BENCHMARK_CORPUS, "--case", AFFECTED_CHANGED_CASE, "--kit-command", realKitCommand, "--out", freshOut],
+      envWithBin
+    );
+    if (freshRun.status !== 0) {
+      fail("AFFECTED_NEIGHBORHOOD_FRESH", "Installed fresh affected-neighborhood run did not exit 0.", describeChildResult(freshRun));
+    }
+    assertOutputOutsidePackage(freshOut, installedPackageRoot, "Fresh run");
+    for (const name of ["warm-index-execution.json", "report.json", "report.txt", "report.html"]) requireNonEmptyFile(path.join(freshOut, name), "AFFECTED_NEIGHBORHOOD_FRESH");
+    requireRealUpstreamIndex(freshOut, "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT");
+    const freshOutputs = readRunOutputs(freshOut, "AFFECTED_NEIGHBORHOOD_FRESH");
+    const freshProject = freshOutputs.executionArtifact.projects?.[0];
+    if (freshOutputs.executionArtifact.projects?.length !== 1 || freshProject?.sessionPrepared !== true || freshProject?.tasks?.length !== 1) {
+      fail("AFFECTED_NEIGHBORHOOD_FRESH", "Fresh run did not prepare exactly one session for one task.");
+    }
+    if (freshProject.indexSnapshot?.tool?.version?.includes(UPSTREAM_MY_DEV_KIT_VERSION) !== true) {
+      fail("AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT", `Fresh run index snapshot did not record the real upstream version: ${JSON.stringify(freshProject.indexSnapshot?.tool)}`);
+    }
+    if (freshProject.tasks[0].indexFreshness?.status !== "fresh") fail("AFFECTED_NEIGHBORHOOD_FRESH", "Fresh run task freshness is not fresh.");
+    requireLayers("AFFECTED_NEIGHBORHOOD_FRESH", freshOutputs, AFFECTED_CHANGED_CASE, {
+      freshnessStatus: "fresh",
+      assessmentStatus: "complete",
+      relationship: "unrelated",
+      reindexRecommendation: "not-indicated",
+      metrics: { changedFileCount: 0, changedSymbolCount: 0, affectedNodeCount: 0, affectedEdgeCount: 0, taskOverlapCount: 0, taskOverlapPercent: 0 }
+    });
+
+    // ---- Case B: controlled changed file in a disposable second install ----
+    writeFileSync(path.join(dirs.mutableConsumer, "package.json"), `${JSON.stringify({ name: "my-dev-kit-lab-packed-mutable-consumer", version: "0.0.0", private: true }, null, 2)}\n`, "utf8");
+    const sandboxInstall = runNpm(resolveCommand, ["install", "--no-audit", "--no-fund", tarballPath], { cwd: dirs.mutableConsumer, gate: "AFFECTED_NEIGHBORHOOD_CHANGED_FILE" });
+    if (sandboxInstall.status !== 0) {
+      fail("AFFECTED_NEIGHBORHOOD_CHANGED_FILE", "npm install of the exact tarball into the disposable mutable consumer failed.", describeChildResult(sandboxInstall));
+    }
+    const sandboxPackageRoot = path.join(dirs.mutableConsumer, "node_modules", EXPECTED_PACKAGE_NAME);
+    const { resolved: sandboxCliCommand, envWithBin: sandboxEnv } = resolveConsumerBinCommand(resolveCommand, dirs.mutableConsumer);
+    const sandboxBenchmarkRoot = path.join(sandboxPackageRoot, "benchmarks", "projects", AFFECTED_BENCHMARK_PROJECT);
+    const sandboxMutatedFile = path.join(sandboxBenchmarkRoot, ...AFFECTED_MUTATED_FILE.split("/"));
+    const sandboxBefore = await snapshotDirectory(sandboxPackageRoot);
+    const wrapperDir = path.join(dirs.affectedRuns, "mutation-wrapper");
+    await mkdir(wrapperDir, { recursive: true });
+    const wrapperScript = path.join(wrapperDir, "controlled-mutation-kit.mjs");
+    const wrapperState = path.join(wrapperDir, "state.json");
+    const wrapperLog = path.join(wrapperDir, "log.txt");
+    writeFileSync(
+      wrapperScript,
+      buildControlledMutationKitWrapperSource({ upstreamBin, mutateFile: sandboxMutatedFile, mutationText: AFFECTED_MUTATION_TEXT, statePath: wrapperState, logPath: wrapperLog }),
+      "utf8"
+    );
+    const changedOut = path.join(dirs.affectedRuns, "changed");
+    const changedRun = runInstalledCli(
+      sandboxCliCommand,
+      dirs.mutableConsumer,
+      ["experiment", "run", "--experiment", "warm-index-reuse", "--cases", WARM_INDEX_BENCHMARK_CORPUS, "--case", `${AFFECTED_FIRST_CASE},${AFFECTED_CHANGED_CASE}`, "--kit-command", `"${process.execPath}" "${wrapperScript}"`, "--out", changedOut],
+      sandboxEnv
+    );
+    if (changedRun.status !== 0) {
+      fail("AFFECTED_NEIGHBORHOOD_CHANGED_FILE", "Installed controlled changed-file run did not exit 0.", describeChildResult(changedRun));
+    }
+    assertOutputOutsidePackage(changedOut, sandboxPackageRoot, "Changed-file run");
+    for (const name of ["warm-index-execution.json", "report.json", "report.txt", "report.html"]) requireNonEmptyFile(path.join(changedOut, name), "AFFECTED_NEIGHBORHOOD_CHANGED_FILE");
+    requireRealUpstreamIndex(changedOut, "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT");
+
+    // Mutation timing evidence: the file was unchanged through the real index build, and mutated
+    // exactly once afterwards, only after a successful real index.
+    const mutation = readJsonFile(wrapperState, "AFFECTED_NEIGHBORHOOD_CHANGED_FILE");
+    const wrapperLines = readFileSync(wrapperLog, "utf8").trim().split("\n");
+    if (
+      mutation.indexSucceededCount !== 1 ||
+      mutation.mutationCount !== 1 ||
+      !mutation.shaBeforeIndex ||
+      mutation.shaBeforeIndex !== mutation.shaAfterIndex ||
+      mutation.shaAfterIndex !== mutation.shaBeforeMutation ||
+      mutation.shaAfterMutation === mutation.shaBeforeMutation ||
+      wrapperLines.findIndex((line) => line.startsWith("index\t")) !== wrapperLines.findIndex((line) => line.startsWith("index\t0")) ||
+      wrapperLines.findIndex((line) => line.startsWith("index\t0")) < 0 ||
+      wrapperLines.findIndex((line) => line.startsWith("search\t")) < wrapperLines.findIndex((line) => line.startsWith("index\t0"))
+    ) {
+      fail("AFFECTED_NEIGHBORHOOD_CHANGED_FILE", `Controlled mutation timing evidence is invalid: ${JSON.stringify(mutation)} log=${JSON.stringify(wrapperLines.slice(0, 8))}`);
+    }
+    const changedOutputs = readRunOutputs(changedOut, "AFFECTED_NEIGHBORHOOD_CHANGED_FILE");
+    const changedTasks = changedOutputs.executionArtifact.projects?.[0]?.tasks ?? [];
+    if (changedOutputs.executionArtifact.projects?.length !== 1 || changedOutputs.executionArtifact.projects[0].sessionPrepared !== true) {
+      fail("AFFECTED_NEIGHBORHOOD_CHANGED_FILE", "Changed-file run did not prepare exactly one session.");
+    }
+    if (changedTasks.map((task) => task.caseId).join(",") !== `${AFFECTED_FIRST_CASE},${AFFECTED_CHANGED_CASE}`) {
+      fail("AFFECTED_NEIGHBORHOOD_CHANGED_FILE", `Unexpected changed-file task order: ${changedTasks.map((task) => task.caseId).join(",")}`);
+    }
+    const changedProject = changedOutputs.executionArtifact.projects[0];
+    const baselineEntry = changedProject.indexSnapshot?.files?.find((file) => file.path === AFFECTED_MUTATED_FILE);
+    const staleChange = changedTasks[1].indexFreshness?.changes?.find((change) => change.path === AFFECTED_MUTATED_FILE);
+    if (
+      changedProject.indexSnapshot?.tool?.version?.includes(UPSTREAM_MY_DEV_KIT_VERSION) !== true ||
+      baselineEntry?.sha256 !== mutation.shaBeforeIndex ||
+      changedTasks[0].indexFreshness?.status !== "fresh" ||
+      changedTasks[1].indexFreshness?.status !== "stale" ||
+      changedTasks[1].indexFreshness.changedFileCount !== 1 ||
+      changedTasks[1].indexFreshness.changes?.length !== 1 ||
+      staleChange?.changeType !== "modified" ||
+      staleChange.baselineSha256 !== mutation.shaBeforeIndex ||
+      staleChange.currentSha256 !== mutation.shaAfterMutation
+    ) {
+      fail("AFFECTED_NEIGHBORHOOD_CHANGED_FILE", `Changed-file freshness/baseline evidence is inconsistent with the controlled mutation: ${JSON.stringify(changedTasks.map((task) => task.indexFreshness?.status))}`);
+    }
+    // Task 2 is the first task boundary after the mutation: real stale, related, recommended.
+    requireLayers("AFFECTED_NEIGHBORHOOD_CHANGED_FILE", changedOutputs, AFFECTED_CHANGED_CASE, {
+      freshnessStatus: "stale",
+      assessmentStatus: "complete",
+      relationship: "related",
+      reindexRecommendation: "recommended",
+      metrics: { changedFileCount: 1, changedSymbolCount: "positive", affectedNodeCount: "positive", affectedEdgeCount: "nonnegative", taskOverlapCount: "positive", taskOverlapPercent: "positive" }
+    });
+    // Task 1 (measured before the mutation) is fresh; its task mapping is partial (unresolved
+    // expected symbols), so zero overlap stays unknown / unknown rather than unrelated.
+    requireLayers("AFFECTED_NEIGHBORHOOD_PARTIAL_UNKNOWN", changedOutputs, AFFECTED_FIRST_CASE, {
+      freshnessStatus: "fresh",
+      assessmentStatus: "partial",
+      relationship: "unknown",
+      reindexRecommendation: "unknown",
+      metrics: { changedFileCount: 0, changedSymbolCount: 0, affectedNodeCount: 0, affectedEdgeCount: 0, taskOverlapCount: 0, taskOverlapPercent: 0 }
+    });
+
+    // Immutability: the authoritative fixtures never change; only the sandbox's one file does.
+    const sandboxChanges = diffSnapshots(sandboxBefore, await snapshotDirectory(sandboxPackageRoot));
+    const expectedSandboxChange = `modified: benchmarks/projects/${AFFECTED_BENCHMARK_PROJECT}/${AFFECTED_MUTATED_FILE}`;
+    if (sandboxChanges.length !== 1 || sandboxChanges[0] !== expectedSandboxChange) {
+      fail("AFFECTED_NEIGHBORHOOD_MUTABLE_COPY", `Disposable sandbox changed beyond the authorized single file: ${sandboxChanges.join(", ")}`);
+    }
+    const canonicalChanges = diffSnapshots(canonicalBenchmarkBefore, await snapshotDirectory(canonicalBenchmarkRoot));
+    if (canonicalChanges.length > 0) fail("AFFECTED_NEIGHBORHOOD_IMMUTABILITY", `Canonical source benchmark changed: ${canonicalChanges.join(", ")}`);
+    const primaryBenchmarkChanges = diffSnapshots(primaryBenchmarkBefore, await snapshotDirectory(affectedPrimaryBenchmarkRoot));
+    if (primaryBenchmarkChanges.length > 0) fail("AFFECTED_NEIGHBORHOOD_IMMUTABILITY", `Primary installed benchmark changed: ${primaryBenchmarkChanges.join(", ")}`);
+    const leakedTarballPaths = [...tarballFiles].filter((file) => AFFECTED_LEAKED_PATHS.test(file));
+    if (leakedTarballPaths.length > 0) fail("AFFECTED_NEIGHBORHOOD_PACKAGE_INVENTORY", `Tarball contains development/generated paths: ${leakedTarballPaths.slice(0, 10).join(", ")}`);
+
+    console.log(`AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT: PASS (${UPSTREAM_MY_DEV_KIT_SPEC}, real index + code-graph consumed, registry=${UPSTREAM_MY_DEV_KIT_VERSION})`);
+    console.log(`AFFECTED_NEIGHBORHOOD_FRESH: PASS (${AFFECTED_CHANGED_CASE}: fresh, complete, unrelated, not-indicated)`);
+    console.log(`AFFECTED_NEIGHBORHOOD_CHANGED_FILE: PASS (${AFFECTED_MUTATED_FILE}: stale, changedFileCount=1, related, recommended)`);
+    console.log("AFFECTED_NEIGHBORHOOD_METRICS: PASS (six structured, six generic warm-only, execution/metric/report layers agree)");
+    console.log("AFFECTED_NEIGHBORHOOD_REPORT: PASS (report.json, report.txt, report.html for fresh and changed runs)");
+    console.log(`AFFECTED_NEIGHBORHOOD_PARTIAL_UNKNOWN: PASS (${AFFECTED_FIRST_CASE}: partial, unknown, unknown)`);
+    console.log("AFFECTED_NEIGHBORHOOD_MUTABLE_COPY: PASS (exactly one authorized sandbox file changed, after the real index)");
+    console.log("AFFECTED_NEIGHBORHOOD_IMMUTABILITY: PASS (canonical and primary installed benchmarks unchanged)");
+    console.log("AFFECTED_NEIGHBORHOOD_CLI_SURFACE: PASS (no new command or flag)");
+    console.log("AFFECTED_NEIGHBORHOOD_PACKAGE_INVENTORY: PASS (no development or generated paths in the tarball)");
 
     // -----------------------------------------------------------------
     // 9d. v0.5.2 real-agent campaign acceptance. Deterministic local fake
@@ -1613,6 +1879,11 @@ async function main() {
         "EXPLICIT_WORKSPACE: PASS",
         "TARGET_IMMUTABILITY: PASS",
         "INSTALLED_PACKAGE_IMMUTABILITY: PASS",
+        "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT: PASS",
+        "AFFECTED_NEIGHBORHOOD_FRESH: PASS",
+        "AFFECTED_NEIGHBORHOOD_CHANGED_FILE: PASS",
+        "AFFECTED_NEIGHBORHOOD_METRICS: PASS",
+        "AFFECTED_NEIGHBORHOOD_REPORT: PASS",
         "SOURCE_CHECKOUT_RUNTIME_DEPENDENCY: NONE_OBSERVED"
       ].join("\n")
     );
