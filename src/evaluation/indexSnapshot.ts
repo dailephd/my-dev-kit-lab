@@ -339,7 +339,7 @@ async function enumerateIndexArtifacts(indexDir: string): Promise<{ artifacts: I
   return { artifacts, truncated };
 }
 
-async function readJson(filePath: string): Promise<{ ok: true; value: unknown } | { ok: false; missing: boolean; message: string }> {
+export async function readJson(filePath: string): Promise<{ ok: true; value: unknown } | { ok: false; missing: boolean; message: string }> {
   let text: string;
   try {
     text = await readFile(filePath, "utf8");

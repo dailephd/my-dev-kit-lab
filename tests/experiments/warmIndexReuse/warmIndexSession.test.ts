@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -55,7 +55,16 @@ describe("prepareWarmIndexSession", () => {
     }
     const { session } = prepared;
 
-    expect(Object.keys(session).sort()).toEqual(["buildCommand", "buildDurationMs", "indexDir", "indexSnapshot", "sourceRoots", "targetRoot"]);
+    // TST-B1-016: the only v0.6.1 addition is the internal graph-evidence field.
+    expect(Object.keys(session).sort()).toEqual([
+      "affectedNeighborhoodGraph",
+      "buildCommand",
+      "buildDurationMs",
+      "indexDir",
+      "indexSnapshot",
+      "sourceRoots",
+      "targetRoot"
+    ]);
     expect(session.indexDir).toBe(indexDir);
     expect(session.targetRoot).toBe(baseCase.absoluteTargetRoot);
     expect(session.sourceRoots).toEqual(["src", "tests"]);
@@ -276,5 +285,96 @@ describe("prepareWarmIndexSession my-dev-kit version evidence", () => {
       throw new Error("expected a prepared session");
     }
     expect(prepared.session.indexSnapshot.tool.availability).toBe("unavailable");
+  });
+});
+
+describe("prepareWarmIndexSession affected-neighborhood graph evidence", () => {
+  // TST-B1-013, TST-B1-016
+  it("keeps the session usable and reports explicit partial graph evidence when the index has no code graph", async () => {
+    const root = tempRoot();
+    const kit = writeSnapshotFakeKit(root);
+
+    const prepared = await prepareWarmIndexSession({
+      target: baseCase,
+      kitCommand: kit.command,
+      indexDir: path.join(root, "indexes", "todo-ts"),
+      commandsDir: path.join(root, "commands", "index"),
+      requireKit: true
+    });
+    if (!prepared.ok) {
+      throw new Error("expected a prepared session");
+    }
+    const { indexSnapshot, affectedNeighborhoodGraph } = prepared.session;
+
+    expect(indexSnapshot.status).toBe("complete");
+    expect(affectedNeighborhoodGraph.status).toBe("partial");
+    expect(affectedNeighborhoodGraph.codeGraph).toBeNull();
+    expect(affectedNeighborhoodGraph.warnings.map((warning) => warning.code)).toEqual(["code-graph-not-referenced"]);
+    expect(affectedNeighborhoodGraph.indexedFilePaths).toEqual(indexSnapshot.files.map((file) => file.path));
+    // Loading graph evidence runs no additional kit command.
+    expect(readFileSync(kit.logPath, "utf8").trim().split("\n")).toEqual(["index", "--version"]);
+  });
+
+  it("reports unavailable graph evidence without failing the session when the index contract is unsupported", async () => {
+    const root = tempRoot();
+    const prepared = await prepareWarmIndexSession({
+      target: baseCase,
+      kitCommand: fakeKitCommand,
+      indexDir: path.join(root, "indexes", "todo-ts"),
+      commandsDir: path.join(root, "commands", "index"),
+      requireKit: true
+    });
+    if (!prepared.ok) {
+      throw new Error("expected a prepared session");
+    }
+
+    expect(prepared.session.affectedNeighborhoodGraph.status).toBe("unavailable");
+    expect(prepared.session.affectedNeighborhoodGraph.unavailable?.code).toBe("index-snapshot-unavailable");
+  });
+
+  it("loads the referenced code graph once per session and retains it on the frozen session", async () => {
+    const root = tempRoot();
+    const kit = writeSnapshotFakeKit(root);
+    // Wraps the snapshot fake kit: after `index`, adds a real-shaped code graph the manifest references.
+    const wrapperPath = path.join(root, "graph-kit.mjs");
+    writeFileSync(
+      wrapperPath,
+      [
+        `import fs from "node:fs";`,
+        `import path from "node:path";`,
+        `import { spawnSync } from "node:child_process";`,
+        `const args = process.argv.slice(2);`,
+        `const inner = spawnSync(process.execPath, [${JSON.stringify(path.join(root, "fake-kit-snapshot.mjs"))}, ...args], { stdio: "inherit" });`,
+        `if (args[0] === "index" && inner.status === 0) {`,
+        `  const out = args[args.indexOf("--out") + 1];`,
+        `  const manifestPath = path.join(out, "manifest.json");`,
+        `  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));`,
+        `  manifest.artifacts.codeGraph = "code-graph.json";`,
+        `  fs.writeFileSync(manifestPath, JSON.stringify(manifest));`,
+        `  const symbolIndex = JSON.parse(fs.readFileSync(path.join(out, "symbol-index.json"), "utf8"));`,
+        `  const nodes = symbolIndex.files.map((f) => ({ id: "file:" + f.path, kind: "file", label: f.path, path: f.path }));`,
+        `  fs.writeFileSync(path.join(out, "code-graph.json"), JSON.stringify({ artifactKind: "code-graph", schemaVersion: "1.0.0", nodes, edges: [] }));`,
+        `}`,
+        `process.exit(inner.status ?? 1);`
+      ].join("\n")
+    );
+
+    const prepared = await prepareWarmIndexSession({
+      target: baseCase,
+      kitCommand: `node ${wrapperPath}`,
+      indexDir: path.join(root, "indexes", "todo-ts"),
+      commandsDir: path.join(root, "commands", "index"),
+      requireKit: true
+    });
+    if (!prepared.ok) {
+      throw new Error("expected a prepared session");
+    }
+    const { affectedNeighborhoodGraph, indexSnapshot } = prepared.session;
+
+    expect(affectedNeighborhoodGraph.status).toBe("complete");
+    expect(affectedNeighborhoodGraph.nodes.size).toBe(indexSnapshot.indexedFileCount);
+    expect(prepared.session.affectedNeighborhoodGraph).toBe(affectedNeighborhoodGraph);
+    expect(Object.isFrozen(prepared.session)).toBe(true);
+    expect(readFileSync(kit.logPath, "utf8").trim().split("\n")).toEqual(["index", "--version"]);
   });
 });

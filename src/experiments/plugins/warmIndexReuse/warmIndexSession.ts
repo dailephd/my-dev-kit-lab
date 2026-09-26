@@ -2,6 +2,10 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { MeasuredCommandResult } from "../../../core/runMeasuredCommand.js";
 import { buildMyDevKitIndex, probeMyDevKitVersion } from "../../../evaluation/runMyDevKitRetrieval.js";
+import {
+  loadAffectedNeighborhoodGraphEvidence,
+  type AffectedNeighborhoodGraphEvidenceV1
+} from "../../../evaluation/affectedNeighborhood.js";
 import { captureIndexSnapshot, type IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
 import type { MyDevKitIndexBuildResult, MyDevKitIndexTarget } from "../../../evaluation/types.js";
 
@@ -18,6 +22,11 @@ export type WarmIndexSession = {
   readonly sourceRoots: readonly string[];
   readonly buildCommand: MeasuredCommandResult;
   readonly indexSnapshot: IndexSnapshotV1;
+  /**
+   * Baseline graph evidence read once from the same index for later affected-neighborhood work.
+   * Experimental and runtime-only: it may be partial or unavailable without invalidating the session.
+   */
+  readonly affectedNeighborhoodGraph: AffectedNeighborhoodGraphEvidenceV1;
 };
 
 export type PrepareWarmIndexSessionResult =
@@ -59,13 +68,20 @@ export async function prepareWarmIndexSession(options: {
     command: build.command,
     tool
   });
+  // Loaded once per session from the manifest-referenced artifacts; never fails the session.
+  const affectedNeighborhoodGraph = await loadAffectedNeighborhoodGraphEvidence({
+    indexDir: build.indexDir,
+    sourceRoots,
+    indexSnapshot
+  });
   const session: WarmIndexSession = Object.freeze({
     indexDir: build.indexDir,
     buildDurationMs: build.durationMs,
     targetRoot: options.target.absoluteTargetRoot,
     sourceRoots,
     buildCommand: build.command,
-    indexSnapshot
+    indexSnapshot,
+    affectedNeighborhoodGraph
   });
   return { ok: true, session, build };
 }
