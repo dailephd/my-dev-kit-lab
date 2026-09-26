@@ -463,7 +463,7 @@ The released v0.5.1 expanded benchmark suite adds no warm-index metric and chang
 - `unavailable`: `value` is `null` and `reason` explains the missing or invalid evidence. Missing evidence is never reported as zero, and a non-finite upstream number becomes `unavailable` with an invalid-input reason.
 - `not-applicable`: `value` is `null` and `reason` explains why the metric does not apply. The contract supports it; the current warm-index metrics do not emit it.
 
-Units are `ms`, `characters`, `estimated-tokens`, `tokens`, and `score`; the affected-neighborhood metrics below add `count` and `percent` (implemented, unreleased). Sources are `measured`, `derived`, `estimated-chars-div-4`, and `agent`. `tokenCountMethod` is set only for estimated-token metrics (currently `estimated_chars_div_4`).
+Units are `ms`, `characters`, `estimated-tokens`, `tokens`, and `score`; the affected-neighborhood metrics below add `count` and `percent` in v0.6.1. Sources are `measured`, `derived`, `estimated-chars-div-4`, and `agent`. `tokenCountMethod` is set only for estimated-token metrics (currently `estimated_chars_div_4`).
 
 **Task ordinal.** Tasks keep their filtered source order inside each benchmark project and are numbered `1, 2, 3, …` per project. Ordinals, amortization, and every cumulative sum restart for each benchmark project.
 
@@ -513,7 +513,7 @@ The plugin evaluates each task side that has context evidence once with the dete
 - Cumulative fake-agent total tokens (`tokens`, `agent`)
   Formula: sum of fake-agent total tokens for tasks `1..N` on that side, under the strict-prefix rule.
 
-**Generic outcome metrics.** Available values also appear as `ExperimentMetric` entries on each outcome, with `variantId`, `caseId`, `unit`, and `description`. Both the `raw-full-file` and `warm-index-reuse` outcomes can carry `context-character-count`, `context-estimated-token-count`, `operation-duration-ms` (raw context construction or warm retrieval), `cumulative-component-duration-ms`, `cumulative-context-estimated-token-count`, `agent-correctness-score`, `agent-total-tokens`, and `cumulative-agent-total-tokens`. The warm outcome also carries `amortized-index-build-duration-ms` and, in the implemented, unreleased affected-neighborhood evidence, the six `affected-neighborhood-*` metrics listed below. Unavailable metrics are omitted rather than emitted as zero. Run-level metrics are limited to `warm-index-project-count`, `warm-index-task-count`, and `warm-index-session-prepared-project-count`.
+**Generic outcome metrics.** Available values also appear as `ExperimentMetric` entries on each outcome, with `variantId`, `caseId`, `unit`, and `description`. Both the `raw-full-file` and `warm-index-reuse` outcomes can carry `context-character-count`, `context-estimated-token-count`, `operation-duration-ms` (raw context construction or warm retrieval), `cumulative-component-duration-ms`, `cumulative-context-estimated-token-count`, `agent-correctness-score`, `agent-total-tokens`, and `cumulative-agent-total-tokens`. The warm outcome also carries `amortized-index-build-duration-ms` and the six released v0.6.1 affected-neighborhood metrics listed below. Unavailable metrics are omitted rather than emitted as zero. Run-level metrics are limited to `warm-index-project-count`, `warm-index-task-count`, and `warm-index-session-prepared-project-count`.
 
 **Interpretation.** The report separates the one-time index cost from per-task retrieval cost and shows the fixed cost falling per task as more tasks reuse the index. It calculates no token-savings percentage, duration-reduction percentage, break-even task, composite score, winner, or ranking. Warm-index plots map the same precomputed values: amortized index build duration, raw versus retrieved estimated context tokens, fake-agent correctness (or campaign agent correctness for a `--campaign` run), and cumulative fake-agent total tokens. Unavailable values become skipped plot points with their reason.
 
@@ -556,7 +556,7 @@ Before each task's warm retrieval, the warm-index run compares the files the ind
 
 ### Affected-neighborhood metrics (v0.6.1)
 
-Status: implemented; unreleased. This evidence is not part of the npm-published v0.6.0 package. It extends the warm-index evidence above without a new command, flag, plugin, plot, or gallery item.
+Status: released in v0.6.1. This evidence extends the warm-index evidence above without a new command, flag, plugin, plot, or gallery item.
 
 For each task, after that task's freshness assessment and before its warm retrieval, the run maps the confirmed changed indexed files, and the baseline symbols they contain, onto the baseline my-dev-kit graph of the prepared warm index, takes the exactly one-hop neighborhood, maps the task's `expectedFiles` and `expectedSymbols` onto the same graph, and compares them. The assessment is persisted as the per-task `affectedNeighborhood` in `warm-index-execution.json`. The metric owner (`metrics.ts`) converts that persisted assessment into the six warm-side metrics below exactly once; the report renders the metric owner's objects and never recomputes them.
 

@@ -4,9 +4,11 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-### v0.6.1 — affected-neighborhood experiments (implemented, unreleased)
+## [0.6.1] - 2026-09-26
 
-Affected-neighborhood evidence for warm-index runs. This is implemented in the repository and is not yet released or published; the package version remains `0.6.0`.
+### Affected-neighborhood experiments
+
+Affected-neighborhood evidence for warm-index runs.
 
 - Loaded the baseline my-dev-kit graph of the already prepared warm index once per session, from the manifest-referenced symbol index and code graph, and retained it on the existing `WarmIndexSession` (`AffectedNeighborhoodGraphEvidenceV1`, status `complete`, `partial`, or `unavailable`). Graph nodes and edges keep their upstream IDs and edge kinds. Missing, malformed, unsupported, or path-escaping graph artifacts degrade the evidence explicitly and never fail the warm-index session.
 - Mapped each task's confirmed changed indexed files (modified or missing files the index snapshot represents) and the baseline symbols they contain to graph nodes (`AffectedNeighborhoodSeedMappingV1`). A changed symbol means the baseline symbol was present in a confirmed changed indexed file; it is not proof that the symbol's own source text changed. Files the snapshot does not represent are never inferred as changed, and unresolved mappings stay explicit.

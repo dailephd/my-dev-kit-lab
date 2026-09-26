@@ -200,15 +200,15 @@ Released in v0.6.0 and available in the installed CLI. It extends the warm-index
 
 **Statuses** (same meanings as [METRICS.md](METRICS.md#index-freshness-evidence-v060)): `fresh` — the snapshot was complete, every represented file was compared, and every content identity still matches; `stale` — a complete comparison confirmed at least one represented file is modified or missing; `partially-stale` — at least one represented file is confirmed changed, but comparison evidence is incomplete; `unknown` — no confirmed change established staleness, but evidence is insufficient to prove freshness. A task with no assessment is shown as not assessed, which is different from `unknown`.
 
-**Boundaries:** freshness is observational. There is no automatic reindex, no reindex recommendation in v0.6.0 (the v0.6.1 extension below is unreleased and adds categorical evidence only), no retrieval suppression, and no status conversion (execution, provider, correctness, and token-evidence status are unchanged). It compares only files the snapshot lists, so it does not establish whole-repository freshness, and a new file is not by itself evidence of staleness. It adds no metric, plot, or gallery item.
+**Boundaries:** freshness is observational. There is no automatic reindex, no reindex recommendation in v0.6.0 (the v0.6.1 extension below adds categorical evidence only), no retrieval suppression, and no status conversion (execution, provider, correctness, and token-evidence status are unchanged). It compares only files the snapshot lists, so it does not establish whole-repository freshness, and a new file is not by itself evidence of staleness. It adds no metric, plot, or gallery item.
 
 **Where to read it:** `warm-index-execution.json` holds project `indexSnapshot` and task `indexFreshness` (with hashes); the report's "Index Freshness" summary and per-task entries show counts and at most 20 changed files and 10 unresolved entries per task, without hashes.
 
 **Completion (additional):** when freshness evidence is present, the report contains the index freshness summary and per-task freshness entries, each benchmark project still shows exactly one index setup, and freshness has not changed any run, task, or provider status.
 
-### Affected-neighborhood extension (v0.6.1, implemented; unreleased)
+### Affected-neighborhood extension (v0.6.1)
 
-Implemented in the repository and not available in the npm-published v0.6.0 package. It extends the warm-index workflow above without any new command or flag: a normal warm-index run records the evidence automatically.
+Released in v0.6.1. It extends the warm-index workflow above without any new command or flag: a normal warm-index run records the evidence automatically.
 
 **Lifecycle (per benchmark project):**
 
