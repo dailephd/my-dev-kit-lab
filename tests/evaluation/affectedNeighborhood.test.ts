@@ -1,16 +1,24 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   AFFECTED_NEIGHBORHOOD_SEED_MAPPING_SCHEMA_VERSION,
+  assessAffectedNeighborhood,
   interpretCodeGraphForNeighborhood,
   loadAffectedNeighborhoodGraphEvidence,
   lookupFileNode,
   lookupSymbolNode,
   mapAffectedNeighborhoodSeeds,
+  mapAffectedNeighborhoodTask,
+  traverseAffectedNeighborhood,
+  type AffectedNeighborhoodEvidenceStatus,
   type AffectedNeighborhoodGraphEvidenceV1,
+  type AffectedNeighborhoodGraphNodeV1,
+  type AffectedNeighborhoodSeedMappingV1,
 } from "../../src/evaluation/affectedNeighborhood.js";
+import { readEvaluationCases } from "../../src/evaluation/readEvaluationCases.js";
 import { assessIndexFreshness, type IndexFreshnessAssessmentV1 } from "../../src/evaluation/indexFreshness.js";
 import type { IndexSnapshotV1 } from "../../src/evaluation/indexSnapshot.js";
 import { capture, cleanupTempDirs, makeFixture, writeIndex, type Fixture } from "./indexSnapshotTestHelpers.js";
@@ -605,5 +613,547 @@ describe("mapAffectedNeighborhoodSeeds", () => {
 
     expect(hashTree(fixture.targetRoot)).toEqual(targetBefore);
     expect(hashTree(fixture.indexDir)).toEqual(indexBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// v0.6.1 Batch 2: one-hop neighborhood, task mapping, overlap, relationship, recommendation.
+// ---------------------------------------------------------------------------------------------
+
+type EdgeSpec = [id: string, source: string, target: string, kind?: string];
+
+/** Synthetic baseline graph evidence. Keeps the given node/edge order so output ordering is tested. */
+function synth(nodeIds: string[], edges: EdgeSpec[], status: AffectedNeighborhoodEvidenceStatus = "complete"): AffectedNeighborhoodGraphEvidenceV1 {
+  const nodes = new Map<string, AffectedNeighborhoodGraphNodeV1>();
+  for (const id of nodeIds) {
+    nodes.set(id, { id, kind: id.startsWith("file:") ? "file" : "symbol", path: null, label: null });
+  }
+  const usable = status !== "unavailable";
+  return {
+    schemaVersion: "my-dev-kit-lab-affected-neighborhood-graph-evidence-v1",
+    status,
+    unavailable: usable ? null : { code: "graph-evidence-load-failed", message: "synthetic" },
+    indexRoot: "synthetic",
+    manifest: null,
+    symbolIndex: null,
+    codeGraph: usable ? { path: "code-graph.json", artifactKind: "code-graph", schemaVersion: "1.0.0" } : null,
+    indexedFilePaths: [],
+    symbolFiles: new Map(),
+    nodes: usable ? nodes : new Map(),
+    edges: usable ? edges.map(([id, source, target, kind]) => ({ id, source, target, kind: kind ?? "calls" })) : [],
+    duplicateEdgeRecordCount: 0,
+    warningCount: 0,
+    warnings: [],
+    warningsTruncated: false,
+  };
+}
+
+function seedsOf(
+  seedNodeIds: string[],
+  status: AffectedNeighborhoodEvidenceStatus = "complete",
+  freshnessStatus: AffectedNeighborhoodSeedMappingV1["freshnessStatus"] = "stale"
+): AffectedNeighborhoodSeedMappingV1 {
+  return {
+    schemaVersion: AFFECTED_NEIGHBORHOOD_SEED_MAPPING_SCHEMA_VERSION,
+    status,
+    freshnessStatus,
+    graphEvidenceStatus: "complete",
+    changedFileCount: status === "unavailable" ? null : seedNodeIds.length,
+    changedSymbolCount: status === "unavailable" ? null : 0,
+    mappedChangedFileNodeCount: seedNodeIds.length,
+    mappedChangedSymbolNodeCount: 0,
+    seedNodeCount: seedNodeIds.length,
+    changesTruncated: false,
+    changedFiles: [],
+    changedSymbols: [],
+    seedNodeIds,
+    unresolvedCount: 0,
+    unresolved: [],
+    unresolvedTruncated: false,
+    warningCount: 0,
+    warnings: [],
+    warningsTruncated: false,
+  };
+}
+
+const NODES = [
+  "file:src/a.ts",
+  "file:src/b.ts",
+  "file:src/c.ts",
+  "symbol:src/a.ts#foo",
+  "symbol:src/a.ts#dup",
+  "symbol:src/b.ts#dup",
+  "symbol:src/b.ts#bar",
+  "symbol:src/c.ts#foo",
+];
+
+describe("traverseAffectedNeighborhood", () => {
+  // TST-B2-001
+  it("reaches neighbors along both edge directions without creating reverse edges", () => {
+    const graph = synth(["s", "A", "B"], [["e-out", "s", "A", "calls"], ["e-in", "B", "s", "calls"]]);
+
+    const result = traverseAffectedNeighborhood(graph, ["s"]);
+
+    expect(result.affectedNodeIds).toEqual(["A", "B", "s"]);
+    expect(result.participatingEdgeIds).toEqual(["e-in", "e-out"]);
+    expect(graph.edges).toEqual([
+      { id: "e-out", source: "s", target: "A", kind: "calls" },
+      { id: "e-in", source: "B", target: "s", kind: "calls" },
+    ]);
+  });
+
+  // TST-B2-002
+  it("stops after exactly one hop", () => {
+    const graph = synth(["s", "A", "B"], [["e1", "s", "A"], ["e2", "A", "B"]]);
+
+    const result = traverseAffectedNeighborhood(graph, ["s"]);
+
+    expect(result.affectedNodeIds).toEqual(["A", "s"]);
+    expect(result.participatingEdgeIds).toEqual(["e1"]);
+  });
+
+  // TST-B2-003
+  it("lets every valid edge kind participate equally, including an unfamiliar one", () => {
+    const kinds = ["defines", "exports", "calls", "imports", "totally-new-kind"];
+    const graph = synth(
+      ["s", ...kinds.map((_, index) => `n${index}`)],
+      kinds.map((kind, index): EdgeSpec => [`e${index}`, index % 2 === 0 ? "s" : `n${index}`, index % 2 === 0 ? `n${index}` : "s", kind])
+    );
+
+    const result = traverseAffectedNeighborhood(graph, ["s"]);
+
+    expect(result.affectedNodeIds).toEqual(["n0", "n1", "n2", "n3", "n4", "s"]);
+    expect(result.participatingEdgeIds).toEqual(["e0", "e1", "e2", "e3", "e4"]);
+  });
+
+  // TST-B2-004
+  it("counts a node reached through several edges and seeds once", () => {
+    const graph = synth(["s1", "s2", "X"], [["e1", "s1", "X"], ["e2", "s1", "X", "imports"], ["e3", "X", "s2"]]);
+
+    const result = traverseAffectedNeighborhood(graph, ["s1", "s2"]);
+
+    expect(result.affectedNodeIds).toEqual(["X", "s1", "s2"]);
+    expect(result.participatingEdgeIds).toEqual(["e1", "e2", "e3"]);
+  });
+
+  // TST-B2-005
+  it("counts only edges incident to a seed, not the induced subgraph of affected nodes", () => {
+    const graph = synth(
+      ["s1", "s2", "n1", "n2"],
+      [["seed-seed", "s1", "s2"], ["seed-neighbor", "s1", "n1"], ["s2-neighbor", "s2", "n2"], ["neighbor-neighbor", "n1", "n2"]]
+    );
+
+    const result = traverseAffectedNeighborhood(graph, ["s1", "s2"]);
+
+    expect(result.affectedNodeIds).toEqual(["n1", "n2", "s1", "s2"]);
+    expect(result.participatingEdgeIds).toEqual(["s2-neighbor", "seed-neighbor", "seed-seed"]);
+    expect(result.participatingEdgeIds).not.toContain("neighbor-neighbor");
+  });
+
+  it("ignores a seed ID that is not a node of the graph", () => {
+    const graph = synth(["s", "A"], [["e1", "s", "A"]]);
+
+    expect(traverseAffectedNeighborhood(graph, ["ghost"])).toEqual({ affectedNodeIds: [], participatingEdgeIds: [] });
+  });
+});
+
+describe("mapAffectedNeighborhoodTask", () => {
+  const graph = synth(NODES, []);
+  const mapTask = (expectedFiles: unknown, expectedSymbols: unknown, evidence = graph) =>
+    mapAffectedNeighborhoodTask({ graph: evidence, expectedFiles, expectedSymbols });
+
+  // TST-B2-009
+  it("maps expected files only to exact file nodes and keeps a missing file unresolved", () => {
+    const result = mapTask(["src/a.ts", "src/nope.ts", "a.ts"], []);
+
+    expect(result.resolvedFiles).toEqual([{ path: "src/a.ts", nodeId: "file:src/a.ts" }]);
+    expect(result.unresolved).toEqual([
+      { subject: "expected-file", name: "a.ts", reason: "graph-node-missing" },
+      { subject: "expected-file", name: "src/nope.ts", reason: "graph-node-missing" },
+    ]);
+    expect(result.resolvedTaskNodeIds).toEqual(["file:src/a.ts"]);
+    expect(result.status).toBe("partial");
+  });
+
+  // TST-B2-010
+  it("resolves an expected symbol that has exactly one candidate among the expected files", () => {
+    const result = mapTask(["src/a.ts", "src/b.ts"], ["foo", "bar"]);
+
+    expect(result.resolvedSymbols).toEqual([
+      { name: "bar", nodeId: "symbol:src/b.ts#bar" },
+      { name: "foo", nodeId: "symbol:src/a.ts#foo" },
+    ]);
+    expect(result.status).toBe("complete");
+  });
+
+  // TST-B2-011
+  it("leaves a symbol unresolved, with no global fallback, when no expected file defines it", () => {
+    // `foo` also exists in src/c.ts, which is not an expected file.
+    const result = mapTask(["src/b.ts"], ["foo"]);
+
+    expect(result.resolvedSymbols).toEqual([]);
+    expect(result.unresolved).toEqual([{ subject: "expected-symbol", name: "foo", reason: "graph-node-missing" }]);
+    expect(result.resolvedTaskNodeIds).toEqual(["file:src/b.ts"]);
+    expect(result.status).toBe("partial");
+  });
+
+  // TST-B2-012
+  it("reports a symbol found in several expected files as ambiguous and adds no node", () => {
+    const result = mapTask(["src/a.ts", "src/b.ts"], ["dup"]);
+
+    expect(result.ambiguousSymbols).toEqual([{ name: "dup", candidateNodeIds: ["symbol:src/a.ts#dup", "symbol:src/b.ts#dup"] }]);
+    expect(result.resolvedSymbols).toEqual([]);
+    expect(result.resolvedTaskNodeIds).toEqual(["file:src/a.ts", "file:src/b.ts"]);
+    expect(result.status).toBe("partial");
+  });
+
+  // TST-B2-013
+  it("does not let duplicate expected metadata inflate anything", () => {
+    const result = mapTask(["src/a.ts", "./src/a.ts", "src\\a.ts"], ["foo", "foo"]);
+
+    expect(result.expectedFiles).toEqual(["src/a.ts"]);
+    expect(result.expectedSymbols).toEqual(["foo"]);
+    expect(result.duplicateEntryCount).toBe(3);
+    expect(result.resolvableTaskNodeCount).toBe(2);
+    expect(result.status).toBe("complete");
+  });
+
+  // TST-B2-014
+  it("counts a node once when distinct metadata resolves to the same node identity", () => {
+    // File `src/a.ts` and, under the same normalization, `./src/a.ts` are one node; a symbol never re-adds its file.
+    const result = mapTask(["src/a.ts", "./src/a.ts"], ["foo"]);
+
+    expect(result.resolvedTaskNodeIds).toEqual(["file:src/a.ts", "symbol:src/a.ts#foo"]);
+    expect(new Set(result.resolvedTaskNodeIds).size).toBe(result.resolvedTaskNodeIds.length);
+  });
+
+  // TST-B2-015
+  it("uses only unique resolved file nodes and unambiguous symbol nodes as the denominator", () => {
+    const result = mapTask(["src/a.ts", "src/b.ts", "src/missing.ts"], ["foo", "dup", "bar", "ghost"]);
+
+    expect(result.resolvedTaskNodeIds).toEqual(["file:src/a.ts", "file:src/b.ts", "symbol:src/a.ts#foo", "symbol:src/b.ts#bar"]);
+    expect(result.resolvableTaskNodeCount).toBe(4);
+    expect(result.unresolvedCount).toBe(2);
+    expect(result.ambiguousCount).toBe(1);
+  });
+
+  it("is unavailable, not empty-complete, when nothing resolves or the graph or metadata is unusable", () => {
+    expect(mapTask(["src/missing.ts"], []).status).toBe("unavailable");
+    expect(mapTask([], []).status).toBe("unavailable");
+    expect(mapTask(["src/a.ts"], [], synth(NODES, [], "unavailable")).status).toBe("unavailable");
+    expect(mapTask("src/a.ts", []).status).toBe("unavailable");
+    expect(mapTask([42, ""], []).unresolved.map((entry) => entry.reason)).toEqual(["invalid-entry", "invalid-entry"]);
+  });
+
+  it("caps a complete task mapping at partial when the graph evidence is partial", () => {
+    expect(mapTask(["src/a.ts"], [], synth(NODES, [], "partial")).status).toBe("partial");
+  });
+});
+
+describe("assessAffectedNeighborhood", () => {
+  const task = { expectedFiles: ["src/a.ts", "src/b.ts"], expectedSymbols: ["foo"] };
+  const assess2 = (graph: AffectedNeighborhoodGraphEvidenceV1, seedMapping: AffectedNeighborhoodSeedMappingV1, t = task) =>
+    assessAffectedNeighborhood({ graph, seedMapping, task: t });
+
+  // TST-B2-006, TST-B2-021
+  it("gives a fresh, complete, empty neighborhood and an unrelated / not-indicated task", () => {
+    const result = assess2(synth(NODES, [["e", "file:src/a.ts", "symbol:src/a.ts#foo"]]), seedsOf([], "complete", "fresh"));
+
+    expect(result).toMatchObject({
+      status: "complete",
+      neighborhoodStatus: "complete",
+      affectedNodeCount: 0,
+      affectedEdgeCount: 0,
+      affectedNodeIds: [],
+      participatingEdgeIds: [],
+      taskOverlapCount: 0,
+      taskOverlapNodeIds: [],
+      taskOverlapPercent: 0,
+      relationship: "unrelated",
+      reindexRecommendation: "not-indicated",
+    });
+    expect(result.taskMapping.resolvableTaskNodeCount).toBe(3);
+  });
+
+  // TST-B2-007
+  it("preserves the positive neighborhood of resolved seeds when seed mapping is partial", () => {
+    const graph = synth(NODES, [["e1", "file:src/c.ts", "symbol:src/c.ts#foo"]]);
+
+    const result = assess2(graph, seedsOf(["file:src/c.ts"], "partial"));
+
+    expect(result.neighborhoodStatus).toBe("partial");
+    expect(result.affectedNodeIds).toEqual(["file:src/c.ts", "symbol:src/c.ts#foo"]);
+    expect(result.affectedNodeCount).toBe(2);
+    expect(result.affectedEdgeCount).toBe(1);
+    expect(result.status).toBe("partial");
+  });
+
+  // TST-B2-008
+  it("does not traverse or fabricate zero counts when seed mapping or graph evidence is unavailable", () => {
+    const fromSeeds = assess2(synth(NODES, [["e", "file:src/a.ts", "file:src/b.ts"]]), seedsOf([], "unavailable", "unknown"));
+    const fromGraph = assess2(synth(NODES, [], "unavailable"), seedsOf(["file:src/a.ts"], "complete"));
+
+    for (const result of [fromSeeds, fromGraph]) {
+      expect(result.status).toBe("unavailable");
+      expect(result.neighborhoodStatus).toBe("unavailable");
+      expect(result.affectedNodeCount).toBeNull();
+      expect(result.affectedEdgeCount).toBeNull();
+      expect(result.affectedNodeIds).toEqual([]);
+      expect(result.taskOverlapCount).toBeNull();
+      expect(result.taskOverlapPercent).toBeNull();
+      expect(result.relationship).toBe("unknown");
+      expect(result.reindexRecommendation).toBe("unknown");
+    }
+    expect(fromSeeds.changedFileCount).toBeNull();
+  });
+
+  // TST-B2-016
+  it("computes overlap as the affected / resolved-task intersection and its percentage over the resolvable denominator", () => {
+    const graph = synth(NODES, [["e1", "file:src/a.ts", "symbol:src/a.ts#foo"], ["e2", "file:src/c.ts", "symbol:src/c.ts#foo"]]);
+
+    const result = assess2(graph, seedsOf(["symbol:src/a.ts#foo"]));
+
+    expect(result.affectedNodeIds).toEqual(["file:src/a.ts", "symbol:src/a.ts#foo"]);
+    expect(result.taskMapping.resolvedTaskNodeIds).toEqual(["file:src/a.ts", "file:src/b.ts", "symbol:src/a.ts#foo"]);
+    expect(result.taskOverlapNodeIds).toEqual(["file:src/a.ts", "symbol:src/a.ts#foo"]);
+    expect(result.taskOverlapCount).toBe(2);
+    expect(result.taskOverlapPercent).toBe((2 / 3) * 100);
+    expect(result.relationship).toBe("related");
+    expect(result.reindexRecommendation).toBe("recommended");
+    expect(result.status).toBe("complete");
+  });
+
+  // TST-B2-017
+  it("gives a null percentage, never zero, when no task node resolves", () => {
+    const result = assess2(synth(NODES, [["e", "file:src/a.ts", "file:src/b.ts"]]), seedsOf(["file:src/a.ts"]), {
+      expectedFiles: ["src/missing.ts"],
+      expectedSymbols: [],
+    });
+
+    expect(result.taskMapping.resolvableTaskNodeCount).toBe(0);
+    expect(result.taskOverlapPercent).toBeNull();
+    expect(result.taskOverlapCount).toBeNull();
+    expect(result.relationship).toBe("unknown");
+    expect(result.status).toBe("unavailable");
+  });
+
+  // TST-B2-018
+  it("is related and recommended on positive overlap even when task mapping is partial", () => {
+    const graph = synth(NODES, [["e", "file:src/a.ts", "symbol:src/a.ts#foo"]]);
+
+    const result = assess2(graph, seedsOf(["file:src/a.ts"]), { expectedFiles: ["src/a.ts", "src/missing.ts"], expectedSymbols: ["ghost", "dup"] });
+
+    expect(result.taskMapping.status).toBe("partial");
+    expect(result.status).toBe("partial");
+    expect(result.taskOverlapCount).toBe(1);
+    expect(result.relationship).toBe("related");
+    expect(result.reindexRecommendation).toBe("recommended");
+    // The percentage covers only the resolvable subset.
+    expect(result.taskOverlapPercent).toBe((1 / 2) * 100);
+  });
+
+  // TST-B2-019
+  it("is unrelated and not-indicated for complete zero overlap", () => {
+    const graph = synth(NODES, [["e", "file:src/c.ts", "symbol:src/c.ts#foo"]]);
+
+    const result = assess2(graph, seedsOf(["file:src/c.ts"]));
+
+    expect(result.status).toBe("complete");
+    expect(result.taskOverlapCount).toBe(0);
+    expect(result.relationship).toBe("unrelated");
+    expect(result.reindexRecommendation).toBe("not-indicated");
+  });
+
+  // TST-B2-020
+  it.each([
+    ["partially-stale seed evidence", () => assess2(synth(NODES, []), seedsOf(["file:src/c.ts"], "partial", "partially-stale"))],
+    ["partial graph", () => assess2(synth(NODES, [], "partial"), seedsOf(["file:src/c.ts"]))],
+    ["an unresolved expected file", () => assess2(synth(NODES, []), seedsOf(["file:src/c.ts"]), { expectedFiles: ["src/a.ts", "src/gone.ts"], expectedSymbols: [] })],
+    ["an unresolved expected symbol", () => assess2(synth(NODES, []), seedsOf(["file:src/c.ts"]), { expectedFiles: ["src/a.ts"], expectedSymbols: ["ghost"] })],
+    ["an ambiguous expected symbol", () => assess2(synth(NODES, []), seedsOf(["file:src/c.ts"]), { expectedFiles: ["src/a.ts", "src/b.ts"], expectedSymbols: ["dup"] })],
+    ["zero resolvable task nodes", () => assess2(synth(NODES, []), seedsOf(["file:src/c.ts"]), { expectedFiles: ["src/gone.ts"], expectedSymbols: [] })],
+    ["unavailable seed mapping", () => assess2(synth(NODES, []), seedsOf([], "unavailable", "unknown"))],
+  ])("classifies zero observed overlap under %s as unknown, not unrelated", (_label, run) => {
+    const result = run();
+
+    expect(result.taskOverlapCount === null || result.taskOverlapCount === 0).toBe(true);
+    expect(result.relationship).toBe("unknown");
+    expect(result.reindexRecommendation).toBe("unknown");
+    expect(result.status).not.toBe("complete");
+  });
+
+  // TST-B2-022
+  it("keeps a confirmed positive overlap as related / recommended when the graph is partial", () => {
+    const graph = synth(NODES, [["e", "file:src/a.ts", "symbol:src/a.ts#foo"]], "partial");
+
+    const result = assess2(graph, seedsOf(["file:src/a.ts"]));
+
+    expect(result.status).toBe("partial");
+    expect(result.graphEvidenceStatus).toBe("partial");
+    expect(result.relationship).toBe("related");
+    expect(result.reindexRecommendation).toBe("recommended");
+  });
+
+  it("does not embed the graph and reports bounded diagnostics with untruncated counts", () => {
+    const many = Array.from({ length: 70 }, (_, index) => `s${String(index).padStart(2, "0")}`);
+    const result = assess2(synth(NODES, []), seedsOf([]), { expectedFiles: ["src/a.ts"], expectedSymbols: many });
+
+    expect(result.taskMapping.unresolvedCount).toBe(70);
+    expect(result.taskMapping.unresolved).toHaveLength(50);
+    expect(result.taskMapping.unresolvedTruncated).toBe(true);
+    expect(JSON.stringify(result)).not.toContain("symbol:src/c.ts#foo");
+  });
+
+  // TST-B2-023
+  it("produces equivalent output regardless of graph, edge, task, and seed ordering", () => {
+    const edges: EdgeSpec[] = [
+      ["e1", "file:src/a.ts", "symbol:src/a.ts#foo"],
+      ["e2", "file:src/b.ts", "file:src/a.ts", "imports"],
+      ["e3", "file:src/c.ts", "file:src/b.ts", "novel"],
+      ["e4", "symbol:src/b.ts#bar", "file:src/b.ts"],
+    ];
+    const seeds = ["file:src/a.ts", "file:src/c.ts"];
+    const forward = assess2(synth(NODES, edges), seedsOf(seeds), { expectedFiles: ["src/a.ts", "src/b.ts", "src/gone.ts"], expectedSymbols: ["foo", "bar", "dup", "ghost"] });
+    const reversed = assess2(synth([...NODES].reverse(), [...edges].reverse()), seedsOf([...seeds].reverse()), {
+      expectedFiles: ["src/gone.ts", "src/b.ts", "src/a.ts"],
+      expectedSymbols: ["ghost", "dup", "bar", "foo"],
+    });
+
+    expect(reversed).toEqual(forward);
+    expect(assess2(synth(NODES, edges), seedsOf(seeds), task)).toEqual(assess2(synth(NODES, edges), seedsOf(seeds), task));
+    expect(forward.affectedNodeIds).toEqual([...forward.affectedNodeIds].sort());
+    expect(forward.participatingEdgeIds).toEqual([...forward.participatingEdgeIds].sort());
+  });
+
+  // TST-B2-024
+  it("never mutates the graph evidence, seed mapping, or task metadata it is given", () => {
+    const graph = synth(NODES, [["e1", "file:src/a.ts", "symbol:src/a.ts#foo"], ["e2", "file:src/b.ts", "file:src/a.ts"]]);
+    const seedMapping = seedsOf(["file:src/a.ts"]);
+    const expectedFiles = Object.freeze(["src/b.ts", "src/a.ts", "src/a.ts"]);
+    const expectedSymbols = Object.freeze(["foo", "foo"]);
+    Object.freeze(seedMapping.seedNodeIds);
+    Object.freeze(graph.edges);
+    const before = structuredClone({ graph, seedMapping, expectedFiles, expectedSymbols });
+
+    assessAffectedNeighborhood({ graph, seedMapping, task: { expectedFiles, expectedSymbols } });
+
+    expect(structuredClone({ graph, seedMapping, expectedFiles, expectedSymbols })).toEqual(before);
+  });
+});
+
+describe("affected-neighborhood assessment against real my-dev-kit 1.12.4 graph evidence and the warm-index corpus", () => {
+  const fixtureDir = path.resolve(process.cwd(), "tests/fixtures/affected-neighborhood/task-workflow-medium-ts-1.12.4");
+  const targetRoot = path.resolve(process.cwd(), "benchmarks/projects/task-workflow-medium-ts");
+
+  async function loadRealEvidence() {
+    const indexDir = mkdtempSync(path.join(os.tmpdir(), "affected-neighborhood-real-"));
+    realIndexDirs.push(indexDir);
+    copyFileSync(path.join(fixtureDir, "symbol-index.json"), path.join(indexDir, "symbol-index.json"));
+    copyFileSync(path.join(fixtureDir, "code-graph.json"), path.join(indexDir, "code-graph.json"));
+    writeFileSync(
+      path.join(indexDir, "manifest.json"),
+      JSON.stringify({
+        artifactKind: "my-dev-kit-v1-manifest",
+        version: "1.0.0",
+        projectRoot: targetRoot.replace(/\\/g, "/"),
+        sourceRoots: ["src", "tests"],
+        artifacts: { symbolIndex: "symbol-index.json", codeGraph: "code-graph.json" },
+      })
+    );
+    const snapshot = await capture({ targetRoot, indexDir, sourceRoots: ["src", "tests"] });
+    const graph = await loadAffectedNeighborhoodGraphEvidence({ indexDir, sourceRoots: ["src", "tests"], indexSnapshot: snapshot });
+    return { snapshot, graph };
+  }
+  const realIndexDirs: string[] = [];
+  afterEach(() => {
+    for (const dir of realIndexDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  // TST-B2-025
+  it("keeps unresolved expected symbols explicit for localized, cross-module, and broad tasks and never resolves them globally", async () => {
+    const { graph } = await loadRealEvidence();
+    const cases = await readEvaluationCases(path.resolve(process.cwd(), "benchmarks/contracts/warm-index-benchmark-cases.json"), process.cwd());
+    const byId = (id: string) => cases.find((benchmarkCase) => benchmarkCase.id === id) as (typeof cases)[number];
+    const mapCase = (id: string) => mapAffectedNeighborhoodTask({ graph, expectedFiles: byId(id).expectedFiles, expectedSymbols: byId(id).expectedSymbols });
+
+    expect(graph.status).toBe("complete");
+
+    const localized = mapCase("warm-medium-complete-idempotent");
+    expect(localized.status).toBe("complete");
+    expect(localized.resolvableTaskNodeCount).toBe(4);
+
+    const crossModule = mapCase("warm-medium-import-dedupe");
+    expect(crossModule.status).toBe("partial");
+    expect(crossModule.resolvableTaskNodeCount).toBe(5);
+    expect(crossModule.unresolved).toEqual([
+      { subject: "expected-symbol", name: "createTask", reason: "graph-node-missing" },
+      { subject: "expected-symbol", name: "findDuplicate", reason: "graph-node-missing" },
+    ]);
+    // `createTask` exists elsewhere in the graph; it must not be picked up.
+    expect([...graph.nodes.keys()].some((id) => id.endsWith("#createTask"))).toBe(true);
+    expect(crossModule.resolvedTaskNodeIds.some((id) => id.endsWith("#createTask"))).toBe(false);
+
+    const broad = mapCase("warm-medium-broad-workflow-map");
+    expect(broad.status).toBe("complete");
+    expect(broad.resolvableTaskNodeCount).toBe(14);
+  });
+
+  it("treats a fresh index as unrelated only for tasks whose mapping is complete", async () => {
+    const { graph } = await loadRealEvidence();
+    const cases = await readEvaluationCases(path.resolve(process.cwd(), "benchmarks/contracts/warm-index-benchmark-cases.json"), process.cwd());
+    const relationships = new Map(
+      ["warm-medium-complete-idempotent", "warm-medium-import-dedupe", "warm-medium-broad-workflow-map"].map((id) => {
+        const benchmarkCase = cases.find((candidate) => candidate.id === id) as (typeof cases)[number];
+        const result = assessAffectedNeighborhood({ graph, seedMapping: seedsOf([], "complete", "fresh"), task: benchmarkCase });
+        return [id, [result.relationship, result.reindexRecommendation]] as const;
+      })
+    );
+
+    expect(relationships.get("warm-medium-complete-idempotent")).toEqual(["unrelated", "not-indicated"]);
+    expect(relationships.get("warm-medium-broad-workflow-map")).toEqual(["unrelated", "not-indicated"]);
+    // Its mapping is partial (unresolved expected symbols), so zero overlap is unknown.
+    expect(relationships.get("warm-medium-import-dedupe")).toEqual(["unknown", "unknown"]);
+  });
+
+  it("finds related overlap for a real changed file through the real graph", async () => {
+    const { snapshot, graph } = await loadRealEvidence();
+    const freshness = {
+      schemaVersion: "my-dev-kit-lab-index-freshness-v1",
+      status: "stale",
+      assessedAt: "2026-01-01T00:00:00.000Z",
+      baselineSnapshotStatus: "complete",
+      indexedFileCount: snapshot.indexedFileCount,
+      comparableFileCount: snapshot.indexedFileCount,
+      unchangedFileCount: snapshot.indexedFileCount - 1,
+      changedFileCount: 1,
+      missingFileCount: 0,
+      unresolvedFileCount: 0,
+      changes: [
+        {
+          path: "src/store/taskStore.ts",
+          changeType: "modified",
+          baselineSha256: "0".repeat(64),
+          baselineSizeBytes: 1,
+          baselineModifiedAt: "x",
+          currentSha256: "1".repeat(64),
+          currentSizeBytes: 1,
+          currentModifiedAt: "x",
+        },
+      ],
+      changesTruncated: false,
+      unresolved: [],
+      unresolvedTruncated: false,
+      warnings: [],
+    } as IndexFreshnessAssessmentV1;
+    const seedMapping = mapAffectedNeighborhoodSeeds({ indexSnapshot: snapshot, freshness, graph });
+    const cases = await readEvaluationCases(path.resolve(process.cwd(), "benchmarks/contracts/warm-index-benchmark-cases.json"), process.cwd());
+    const benchmarkCase = cases.find((candidate) => candidate.id === "warm-medium-complete-idempotent") as (typeof cases)[number];
+
+    const result = assessAffectedNeighborhood({ graph, seedMapping, task: benchmarkCase });
+
+    expect(seedMapping.status).toBe("complete");
+    expect(result.taskOverlapNodeIds).toContain("file:src/store/taskStore.ts");
+    expect(result.relationship).toBe("related");
+    expect(result.reindexRecommendation).toBe("recommended");
   });
 });

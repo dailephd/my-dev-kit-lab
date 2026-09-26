@@ -721,3 +721,337 @@ export function mapAffectedNeighborhoodSeeds(input: {
     warningsTruncated: warnings.length > MAX_WARNINGS,
   };
 }
+
+export const AFFECTED_NEIGHBORHOOD_ASSESSMENT_SCHEMA_VERSION = "my-dev-kit-lab-affected-neighborhood-assessment-v1";
+
+export type AffectedTaskRelationship = "related" | "unrelated" | "unknown";
+export type ReindexRecommendation = "recommended" | "not-indicated" | "unknown";
+
+export type AffectedNeighborhoodTaskUnresolvedReason = "graph-node-missing" | "graph-node-kind-mismatch" | "invalid-entry";
+
+export type AffectedNeighborhoodTaskUnresolvedV1 = {
+  subject: "expected-file" | "expected-symbol";
+  name: string;
+  reason: AffectedNeighborhoodTaskUnresolvedReason;
+};
+
+/** An expected symbol found in more than one expected file; no candidate is chosen. */
+export type AffectedNeighborhoodTaskAmbiguousSymbolV1 = {
+  name: string;
+  candidateNodeIds: string[];
+};
+
+export type AffectedNeighborhoodTaskMappingV1 = {
+  status: AffectedNeighborhoodEvidenceStatus;
+  /** Unique, normalized, code-unit sorted expected metadata after de-duplication. */
+  expectedFiles: string[];
+  expectedSymbols: string[];
+  resolvedFiles: Array<{ path: string; nodeId: string }>;
+  resolvedSymbols: Array<{ name: string; nodeId: string }>;
+  unresolvedCount: number;
+  unresolved: AffectedNeighborhoodTaskUnresolvedV1[];
+  unresolvedTruncated: boolean;
+  ambiguousCount: number;
+  ambiguousSymbols: AffectedNeighborhoodTaskAmbiguousSymbolV1[];
+  ambiguousTruncated: boolean;
+  /** Identical expected entries collapsed by de-duplication (diagnostic only; never inflates counts). */
+  duplicateEntryCount: number;
+  /** Unique graph node IDs of resolved files and unambiguously resolved symbols. Not bounded. */
+  resolvedTaskNodeIds: string[];
+  /** Denominator of the overlap percentage: `resolvedTaskNodeIds.length`. */
+  resolvableTaskNodeCount: number;
+};
+
+export type AffectedNeighborhoodAssessmentWarningCode =
+  | "seed-mapping-unavailable"
+  | "seed-mapping-partial"
+  | "graph-evidence-unavailable"
+  | "graph-evidence-partial"
+  | "task-mapping-unavailable"
+  | "task-mapping-partial"
+  | "zero-overlap-under-incomplete-evidence";
+
+export type AffectedNeighborhoodAssessmentWarningV1 = {
+  code: AffectedNeighborhoodAssessmentWarningCode;
+  message: string;
+};
+
+/**
+ * One-hop affected neighborhood of the confirmed changed seeds, its overlap with one benchmark
+ * task's expected nodes, and the resulting categorical evidence. Refers to graph identities only;
+ * the graph itself is not embedded. Runtime evidence in v0.6.1 Batch 2: not persisted, not a metric.
+ *
+ * Counts that cannot be established are null, never zero.
+ */
+export type AffectedNeighborhoodAssessmentV1 = {
+  schemaVersion: typeof AFFECTED_NEIGHBORHOOD_ASSESSMENT_SCHEMA_VERSION;
+  status: AffectedNeighborhoodEvidenceStatus;
+  freshnessStatus: AffectedNeighborhoodSeedMappingV1["freshnessStatus"];
+  seedMappingStatus: AffectedNeighborhoodEvidenceStatus;
+  graphEvidenceStatus: AffectedNeighborhoodEvidenceStatus;
+  neighborhoodStatus: AffectedNeighborhoodEvidenceStatus;
+  changedFileCount: number | null;
+  changedSymbolCount: number | null;
+  /** Resolved seed nodes traversed. */
+  seedNodeCount: number;
+  /** Unique resolved seeds plus their direct neighbors; null when no neighborhood could be established. */
+  affectedNodeCount: number | null;
+  /** Unique edges incident to at least one resolved seed (the one-hop frontier, not the induced subgraph). */
+  affectedEdgeCount: number | null;
+  affectedNodeIds: string[];
+  participatingEdgeIds: string[];
+  taskMapping: AffectedNeighborhoodTaskMappingV1;
+  /** Null when overlap could not be evaluated. */
+  taskOverlapCount: number | null;
+  taskOverlapNodeIds: string[];
+  /** Overlap among resolvable task nodes, unrounded; null when not evaluable or the denominator is zero. */
+  taskOverlapPercent: number | null;
+  relationship: AffectedTaskRelationship;
+  reindexRecommendation: ReindexRecommendation;
+  warningCount: number;
+  warnings: AffectedNeighborhoodAssessmentWarningV1[];
+  warningsTruncated: boolean;
+};
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort(compareCodeUnits);
+}
+
+function normalizeExpectedPath(value: string): string {
+  return normalizePath(value).replace(/^(\.\/)+/, "");
+}
+
+/**
+ * Policy: maps a task's expected files and symbols to baseline graph nodes. Files resolve only to
+ * their exact `file:` node. A symbol resolves only within the task's own expected files and only
+ * when exactly one same-name node exists there; zero matches is unresolved and several is
+ * ambiguous (no winner is picked, no node is added). Never searches the rest of the graph. Pure.
+ */
+export function mapAffectedNeighborhoodTask(input: {
+  graph: AffectedNeighborhoodGraphEvidenceV1;
+  expectedFiles: unknown;
+  expectedSymbols: unknown;
+}): AffectedNeighborhoodTaskMappingV1 {
+  const { graph } = input;
+  const unresolved: AffectedNeighborhoodTaskUnresolvedV1[] = [];
+  const ambiguous: AffectedNeighborhoodTaskAmbiguousSymbolV1[] = [];
+  const empty = (): AffectedNeighborhoodTaskMappingV1 => ({
+    status: "unavailable",
+    expectedFiles: [],
+    expectedSymbols: [],
+    resolvedFiles: [],
+    resolvedSymbols: [],
+    unresolvedCount: 0,
+    unresolved: [],
+    unresolvedTruncated: false,
+    ambiguousCount: 0,
+    ambiguousSymbols: [],
+    ambiguousTruncated: false,
+    duplicateEntryCount: 0,
+    resolvedTaskNodeIds: [],
+    resolvableTaskNodeCount: 0,
+  });
+  if (!Array.isArray(input.expectedFiles) || !Array.isArray(input.expectedSymbols)) {
+    return empty();
+  }
+
+  let duplicateEntryCount = 0;
+  const collect = (entries: readonly unknown[], subject: "expected-file" | "expected-symbol"): string[] => {
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      const value = typeof entry === "string" ? (subject === "expected-file" ? normalizeExpectedPath(entry) : entry) : "";
+      if (value.length === 0) {
+        unresolved.push({ subject, name: typeof entry === "string" ? "" : boundedText(String(entry)), reason: "invalid-entry" });
+        continue;
+      }
+      if (seen.has(value)) duplicateEntryCount += 1;
+      seen.add(value);
+    }
+    return [...seen].sort(compareCodeUnits);
+  };
+  const expectedFiles = collect(input.expectedFiles, "expected-file");
+  const expectedSymbols = collect(input.expectedSymbols, "expected-symbol");
+
+  const graphUsable = graph.status !== "unavailable" && graph.codeGraph !== null;
+  if (!graphUsable || (expectedFiles.length === 0 && expectedSymbols.length === 0)) {
+    // No truthful mapping exists, but invalid metadata entries stay visible as diagnostics.
+    unresolved.sort((left, right) => compareCodeUnits(left.subject, right.subject) || compareCodeUnits(left.name, right.name));
+    return {
+      ...empty(),
+      expectedFiles,
+      expectedSymbols,
+      duplicateEntryCount,
+      unresolvedCount: unresolved.length,
+      unresolved: unresolved.slice(0, MAX_UNRESOLVED),
+      unresolvedTruncated: unresolved.length > MAX_UNRESOLVED,
+    };
+  }
+
+  const resolvedFiles: Array<{ path: string; nodeId: string }> = [];
+  for (const filePath of expectedFiles) {
+    const lookup = lookupFileNode(graph, filePath);
+    if (lookup.ok) resolvedFiles.push({ path: filePath, nodeId: lookup.nodeId });
+    else unresolved.push({ subject: "expected-file", name: boundedText(filePath), reason: lookup.reason });
+  }
+
+  const resolvedSymbols: Array<{ name: string; nodeId: string }> = [];
+  for (const name of expectedSymbols) {
+    // Scope is the task's expected files, whether or not their own file node resolved.
+    const candidates = uniqueSorted(
+      expectedFiles.flatMap((filePath) => {
+        const lookup = lookupSymbolNode(graph, filePath, name);
+        return lookup.ok ? [lookup.nodeId] : [];
+      })
+    );
+    if (candidates.length === 1) {
+      resolvedSymbols.push({ name, nodeId: candidates[0] });
+    } else if (candidates.length === 0) {
+      unresolved.push({ subject: "expected-symbol", name: boundedText(name), reason: "graph-node-missing" });
+    } else {
+      ambiguous.push({ name: boundedText(name), candidateNodeIds: candidates });
+    }
+  }
+
+  const resolvedTaskNodeIds = uniqueSorted([...resolvedFiles.map((entry) => entry.nodeId), ...resolvedSymbols.map((entry) => entry.nodeId)]);
+  unresolved.sort((left, right) => compareCodeUnits(left.subject, right.subject) || compareCodeUnits(left.name, right.name) || compareCodeUnits(left.reason, right.reason));
+  ambiguous.sort((left, right) => compareCodeUnits(left.name, right.name));
+  const status: AffectedNeighborhoodEvidenceStatus =
+    resolvedTaskNodeIds.length === 0
+      ? "unavailable"
+      : graph.status === "complete" && unresolved.length === 0 && ambiguous.length === 0
+        ? "complete"
+        : "partial";
+  return {
+    status,
+    expectedFiles,
+    expectedSymbols,
+    resolvedFiles,
+    resolvedSymbols,
+    unresolvedCount: unresolved.length,
+    unresolved: unresolved.slice(0, MAX_UNRESOLVED),
+    unresolvedTruncated: unresolved.length > MAX_UNRESOLVED,
+    ambiguousCount: ambiguous.length,
+    ambiguousSymbols: ambiguous.slice(0, MAX_UNRESOLVED),
+    ambiguousTruncated: ambiguous.length > MAX_UNRESOLVED,
+    duplicateEntryCount,
+    resolvedTaskNodeIds,
+    resolvableTaskNodeCount: resolvedTaskNodeIds.length,
+  };
+}
+
+/**
+ * Policy: exactly one graph hop, bidirectional, over every retained structurally valid edge
+ * regardless of kind. Affected nodes are the resolved seeds plus the opposite endpoint of every
+ * edge incident to a seed. Affected edges are only those incident to a seed: an edge between two
+ * non-seed neighbors is not part of the frontier. A single scan of the sorted edge list, O(E); the
+ * graph evidence is not mutated.
+ */
+export function traverseAffectedNeighborhood(
+  graph: AffectedNeighborhoodGraphEvidenceV1,
+  seedNodeIds: readonly string[]
+): { affectedNodeIds: string[]; participatingEdgeIds: string[] } {
+  const seeds = new Set(seedNodeIds.filter((id) => graph.nodes.has(id)));
+  const affected = new Set(seeds);
+  const edgeIds = new Set<string>();
+  for (const edge of graph.edges) {
+    if (!seeds.has(edge.source) && !seeds.has(edge.target)) continue;
+    edgeIds.add(edge.id);
+    affected.add(edge.source);
+    affected.add(edge.target);
+  }
+  return { affectedNodeIds: [...affected].sort(compareCodeUnits), participatingEdgeIds: [...edgeIds].sort(compareCodeUnits) };
+}
+
+/**
+ * Assesses one task against the affected neighborhood of the confirmed changed seeds. Pure and
+ * deterministic; uses only the baseline graph evidence, the Batch 1 seed mapping, and the task's
+ * expected metadata. It never reads files, runs my-dev-kit, or classifies from task locality labels.
+ *
+ * Evidence rules: positive overlap is `related` (and `recommended`) even under partial evidence;
+ * zero overlap is `unrelated` (and `not-indicated`) only when seed mapping, neighborhood, and task
+ * mapping are all complete. Zero overlap under any incomplete evidence is `unknown`, never
+ * `unrelated`. "Not indicated" means only that this experiment's bounded evidence does not point
+ * to reindexing for this task.
+ */
+export function assessAffectedNeighborhood(input: {
+  graph: AffectedNeighborhoodGraphEvidenceV1;
+  seedMapping: AffectedNeighborhoodSeedMappingV1;
+  task: { expectedFiles: unknown; expectedSymbols: unknown };
+}): AffectedNeighborhoodAssessmentV1 {
+  const { graph, seedMapping, task } = input;
+  const warnings: AffectedNeighborhoodAssessmentWarningV1[] = [];
+  const warn = (code: AffectedNeighborhoodAssessmentWarningCode, message: string): void => {
+    warnings.push({ code, message });
+  };
+
+  const graphUsable = graph.status !== "unavailable" && graph.codeGraph !== null;
+  const neighborhoodUsable = graphUsable && seedMapping.status !== "unavailable";
+  let neighborhoodStatus: AffectedNeighborhoodEvidenceStatus = "unavailable";
+  let affectedNodeIds: string[] = [];
+  let participatingEdgeIds: string[] = [];
+  if (neighborhoodUsable) {
+    ({ affectedNodeIds, participatingEdgeIds } = traverseAffectedNeighborhood(graph, seedMapping.seedNodeIds));
+    neighborhoodStatus = seedMapping.status === "complete" && graph.status === "complete" ? "complete" : "partial";
+  }
+
+  const taskMapping = mapAffectedNeighborhoodTask({ graph, expectedFiles: task.expectedFiles, expectedSymbols: task.expectedSymbols });
+
+  const overlapEvaluable = neighborhoodStatus !== "unavailable" && taskMapping.status !== "unavailable";
+  let taskOverlapNodeIds: string[] = [];
+  let taskOverlapCount: number | null = null;
+  let taskOverlapPercent: number | null = null;
+  if (overlapEvaluable) {
+    const affected = new Set(affectedNodeIds);
+    taskOverlapNodeIds = taskMapping.resolvedTaskNodeIds.filter((id) => affected.has(id));
+    taskOverlapCount = taskOverlapNodeIds.length;
+    taskOverlapPercent = taskMapping.resolvableTaskNodeCount > 0 ? (taskOverlapCount / taskMapping.resolvableTaskNodeCount) * 100 : null;
+  }
+
+  const allComplete = seedMapping.status === "complete" && neighborhoodStatus === "complete" && taskMapping.status === "complete";
+  let relationship: AffectedTaskRelationship;
+  if (taskOverlapCount !== null && taskOverlapCount > 0) {
+    relationship = "related";
+  } else if (taskOverlapCount === 0 && allComplete) {
+    relationship = "unrelated";
+  } else {
+    relationship = "unknown";
+  }
+  const reindexRecommendation: ReindexRecommendation =
+    relationship === "related" ? "recommended" : relationship === "unrelated" ? "not-indicated" : "unknown";
+
+  if (seedMapping.status === "unavailable") warn("seed-mapping-unavailable", "Seed mapping is unavailable; no neighborhood was established.");
+  else if (seedMapping.status === "partial") warn("seed-mapping-partial", "Seed mapping is partial; only resolved seeds were traversed.");
+  if (!graphUsable) warn("graph-evidence-unavailable", "Baseline graph evidence is not usable for traversal.");
+  else if (graph.status === "partial") warn("graph-evidence-partial", "Baseline graph evidence is partial; only validated nodes and edges were used.");
+  if (taskMapping.status === "unavailable") warn("task-mapping-unavailable", "No task node could be resolved from the expected files and symbols.");
+  else if (taskMapping.status === "partial") warn("task-mapping-partial", "Some expected files or symbols are unresolved or ambiguous; overlap covers resolvable task nodes only.");
+  if (relationship === "unknown" && taskOverlapCount === 0) {
+    warn("zero-overlap-under-incomplete-evidence", "No overlap was observed, but incomplete evidence cannot prove the task unrelated.");
+  }
+  warnings.sort((left, right) => compareCodeUnits(left.code, right.code));
+
+  return {
+    schemaVersion: AFFECTED_NEIGHBORHOOD_ASSESSMENT_SCHEMA_VERSION,
+    status: allComplete ? "complete" : overlapEvaluable ? "partial" : "unavailable",
+    freshnessStatus: seedMapping.freshnessStatus,
+    seedMappingStatus: seedMapping.status,
+    graphEvidenceStatus: graph.status,
+    neighborhoodStatus,
+    changedFileCount: seedMapping.changedFileCount,
+    changedSymbolCount: seedMapping.changedSymbolCount,
+    seedNodeCount: seedMapping.seedNodeCount,
+    affectedNodeCount: neighborhoodUsable ? affectedNodeIds.length : null,
+    affectedEdgeCount: neighborhoodUsable ? participatingEdgeIds.length : null,
+    affectedNodeIds,
+    participatingEdgeIds,
+    taskMapping,
+    taskOverlapCount,
+    taskOverlapNodeIds,
+    taskOverlapPercent,
+    relationship,
+    reindexRecommendation,
+    warningCount: warnings.length,
+    warnings: warnings.slice(0, MAX_WARNINGS),
+    warningsTruncated: warnings.length > MAX_WARNINGS,
+  };
+}
