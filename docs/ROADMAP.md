@@ -853,7 +853,7 @@ Shipped implementation: warm-index runs capture index snapshot evidence and dete
 
 ### v0.6.1 — affected-neighborhood experiments
 
-Status: **implemented; unreleased; pre-release readiness pending**.
+Status: **implemented; unreleased; pre-release readiness passed**.
 
 Purpose:
 
