@@ -200,11 +200,41 @@ Released in v0.6.0 and available in the installed CLI. It extends the warm-index
 
 **Statuses** (same meanings as [METRICS.md](METRICS.md#index-freshness-evidence-v060)): `fresh` — the snapshot was complete, every represented file was compared, and every content identity still matches; `stale` — a complete comparison confirmed at least one represented file is modified or missing; `partially-stale` — at least one represented file is confirmed changed, but comparison evidence is incomplete; `unknown` — no confirmed change established staleness, but evidence is insufficient to prove freshness. A task with no assessment is shown as not assessed, which is different from `unknown`.
 
-**Boundaries:** freshness is observational. There is no automatic reindex, no reindex recommendation, no retrieval suppression, and no status conversion (execution, provider, correctness, and token-evidence status are unchanged). It compares only files the snapshot lists, so it does not establish whole-repository freshness, and a new file is not by itself evidence of staleness. It adds no metric, plot, or gallery item.
+**Boundaries:** freshness is observational. There is no automatic reindex, no reindex recommendation in v0.6.0 (the v0.6.1 extension below is unreleased and adds categorical evidence only), no retrieval suppression, and no status conversion (execution, provider, correctness, and token-evidence status are unchanged). It compares only files the snapshot lists, so it does not establish whole-repository freshness, and a new file is not by itself evidence of staleness. It adds no metric, plot, or gallery item.
 
 **Where to read it:** `warm-index-execution.json` holds project `indexSnapshot` and task `indexFreshness` (with hashes); the report's "Index Freshness" summary and per-task entries show counts and at most 20 changed files and 10 unresolved entries per task, without hashes.
 
 **Completion (additional):** when freshness evidence is present, the report contains the index freshness summary and per-task freshness entries, each benchmark project still shows exactly one index setup, and freshness has not changed any run, task, or provider status.
+
+### Affected-neighborhood extension (v0.6.1, implemented; unreleased)
+
+Implemented in the repository and not available in the npm-published v0.6.0 package. It extends the warm-index workflow above without any new command or flag: a normal warm-index run records the evidence automatically.
+
+**Lifecycle (per benchmark project):**
+
+1. Build exactly one my-dev-kit index and capture the index snapshot (unchanged).
+2. Load the baseline graph evidence once from the manifest-referenced symbol index and code graph of that same index, and retain it on the session. A missing or unusable graph degrades the evidence and never fails the session.
+3. For each selected task:
+   1. construct the matched raw baseline;
+   2. validate session and target identity;
+   3. assess index freshness for this task;
+   4. map the confirmed changed indexed files, and the baseline symbols they contain, to graph nodes;
+   5. assess the one-hop affected neighborhood and the task's overlap with it;
+   6. run the existing warm retrieval regardless of the evidence quality;
+   7. preserve the freshness and affected-neighborhood assessments in that task's execution evidence.
+4. Calculate the existing metrics plus the six warm-side affected-neighborhood metrics.
+5. Run the existing fake-agent or campaign provider path unchanged.
+6. Build the existing reports and render the persisted affected-neighborhood evidence in `report.json`, `report.txt`, and `report.html`.
+
+**Degraded behavior:** positive overlap can classify a task as `related` (and `recommended`) even when the assessment is partial; zero overlap under incomplete or unavailable evidence is `unknown` (recommendation `unknown`), never unrelated, including a fresh index with unresolved or ambiguous expected symbols. Only complete evidence with zero overlap is `unrelated` (`not-indicated`). A task with no valid session gets no assessment (`null`); an assessment can also be performed and be `unavailable`.
+
+**Boundaries:** the analysis is observational. There is no automatic reindex, no retrieval suppression, no status conversion, no graph-diff or refreshed-index comparison, and no new plugin, plot, gallery item, or CLI surface. It uses only the baseline graph and the snapshot-represented files, so it does not establish whole-repository freshness, and `not-indicated` never means that skipping a reindex is safe.
+
+**Where to read it:** `warm-index-execution.json` holds the per-task `affectedNeighborhood` assessment (full identity arrays, no graph); the report's affected-neighborhood summary and per-task entries show statuses, the six metrics, the relationship, the recommendation with its explanation, and bounded lists. See [METRICS.md](METRICS.md#affected-neighborhood-metrics-v061).
+
+**Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) additionally proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.4` for a fresh case and a controlled changed-file case, keeping the canonical and installed benchmarks immutable.
+
+**Completion (additional):** when the evidence is present, the report contains the affected-neighborhood summary and per-task entries, each benchmark project still shows exactly one index setup and one graph load, and the assessment has not changed any run, task, or provider status.
 
 ## Real-agent warm-index campaign (v0.5.2)
 

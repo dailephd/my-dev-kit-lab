@@ -135,7 +135,8 @@
         "src/browser",
         "src/tutorial",
         "managedProcess",
-        "src/experiments/plugins/warmIndexReuse"
+        "src/experiments/plugins/warmIndexReuse",
+        "affected-neighborhood"
       ]
     },
     "docs/COMMANDS.md": {
@@ -225,6 +226,10 @@
         "Experiment and run metrics",
         "Planned v0.4.3 metrics",
         "Warm-index reuse metrics"
+      ],
+      "requiredTopics": [
+        "affected-neighborhood",
+        "reindexRecommendation"
       ]
     },
     "docs/GALLERY.md": {
@@ -384,8 +389,8 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.6.0",
-    "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.6.1",
+    "currentImplementedUnreleasedVersion": "0.6.1",
+    "nextPlannedVersion": "0.6.2",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse"

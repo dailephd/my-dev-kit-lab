@@ -463,7 +463,7 @@ The released v0.5.1 expanded benchmark suite adds no warm-index metric and chang
 - `unavailable`: `value` is `null` and `reason` explains the missing or invalid evidence. Missing evidence is never reported as zero, and a non-finite upstream number becomes `unavailable` with an invalid-input reason.
 - `not-applicable`: `value` is `null` and `reason` explains why the metric does not apply. The contract supports it; the current warm-index metrics do not emit it.
 
-Units are `ms`, `characters`, `estimated-tokens`, `tokens`, and `score`. Sources are `measured`, `derived`, `estimated-chars-div-4`, and `agent`. `tokenCountMethod` is set only for estimated-token metrics (currently `estimated_chars_div_4`).
+Units are `ms`, `characters`, `estimated-tokens`, `tokens`, and `score`; the affected-neighborhood metrics below add `count` and `percent` (implemented, unreleased). Sources are `measured`, `derived`, `estimated-chars-div-4`, and `agent`. `tokenCountMethod` is set only for estimated-token metrics (currently `estimated_chars_div_4`).
 
 **Task ordinal.** Tasks keep their filtered source order inside each benchmark project and are numbered `1, 2, 3, …` per project. Ordinals, amortization, and every cumulative sum restart for each benchmark project.
 
@@ -513,7 +513,7 @@ The plugin evaluates each task side that has context evidence once with the dete
 - Cumulative fake-agent total tokens (`tokens`, `agent`)
   Formula: sum of fake-agent total tokens for tasks `1..N` on that side, under the strict-prefix rule.
 
-**Generic outcome metrics.** Available values also appear as `ExperimentMetric` entries on each outcome, with `variantId`, `caseId`, `unit`, and `description`. Both the `raw-full-file` and `warm-index-reuse` outcomes can carry `context-character-count`, `context-estimated-token-count`, `operation-duration-ms` (raw context construction or warm retrieval), `cumulative-component-duration-ms`, `cumulative-context-estimated-token-count`, `agent-correctness-score`, `agent-total-tokens`, and `cumulative-agent-total-tokens`. The warm outcome also carries `amortized-index-build-duration-ms`. Unavailable metrics are omitted rather than emitted as zero. Run-level metrics are limited to `warm-index-project-count`, `warm-index-task-count`, and `warm-index-session-prepared-project-count`.
+**Generic outcome metrics.** Available values also appear as `ExperimentMetric` entries on each outcome, with `variantId`, `caseId`, `unit`, and `description`. Both the `raw-full-file` and `warm-index-reuse` outcomes can carry `context-character-count`, `context-estimated-token-count`, `operation-duration-ms` (raw context construction or warm retrieval), `cumulative-component-duration-ms`, `cumulative-context-estimated-token-count`, `agent-correctness-score`, `agent-total-tokens`, and `cumulative-agent-total-tokens`. The warm outcome also carries `amortized-index-build-duration-ms` and, in the implemented, unreleased affected-neighborhood evidence, the six `affected-neighborhood-*` metrics listed below. Unavailable metrics are omitted rather than emitted as zero. Run-level metrics are limited to `warm-index-project-count`, `warm-index-task-count`, and `warm-index-session-prepared-project-count`.
 
 **Interpretation.** The report separates the one-time index cost from per-task retrieval cost and shows the fixed cost falling per task as more tasks reuse the index. It calculates no token-savings percentage, duration-reduction percentage, break-even task, composite score, winner, or ranking. Warm-index plots map the same precomputed values: amortized index build duration, raw versus retrieved estimated context tokens, fake-agent correctness (or campaign agent correctness for a `--campaign` run), and cumulative fake-agent total tokens. Unavailable values become skipped plot points with their reason.
 
@@ -553,3 +553,45 @@ Before each task's warm retrieval, the warm-index run compares the files the ind
 - **`unknown` versus not assessed.** `unknown` means an assessment ran and could not prove freshness. A task with no assessment (for example a report from before v0.6.0) is shown as `not assessed` and counted as unassessed, never as `unknown`.
 - **Report-level counts.** `report.warmIndexReuse.indexFreshnessSummary` holds direct presentation counts of assessed, unassessed, `fresh`, `stale`, `partially-stale`, and `unknown` tasks (assessed equals the sum of the four statuses). They are counts, not `ExperimentMetric` formulas: no percentage, score, or ranking is calculated. Each task's `indexFreshness` lists at most 20 changed files and 10 unresolved comparisons, with the persisted totals and the omitted count; hashes stay in `warm-index-execution.json`.
 - **Observational only.** Freshness does not trigger reindexing, suppress or alter warm retrieval, or change execution status, correctness, provider or agent outcome status, or token evidence. v0.6.0 makes no reindex recommendation.
+
+### Affected-neighborhood metrics (v0.6.1)
+
+Status: implemented; unreleased. This evidence is not part of the npm-published v0.6.0 package. It extends the warm-index evidence above without a new command, flag, plugin, plot, or gallery item.
+
+For each task, after that task's freshness assessment and before its warm retrieval, the run maps the confirmed changed indexed files, and the baseline symbols they contain, onto the baseline my-dev-kit graph of the prepared warm index, takes the exactly one-hop neighborhood, maps the task's `expectedFiles` and `expectedSymbols` onto the same graph, and compares them. The assessment is persisted as the per-task `affectedNeighborhood` in `warm-index-execution.json`. The metric owner (`metrics.ts`) converts that persisted assessment into the six warm-side metrics below exactly once; the report renders the metric owner's objects and never recomputes them.
+
+All six metrics are warm-side only (they are not on the raw-full-file side, because raw context construction does not own baseline index graph evidence), have source `derived`, and carry the standard availability contract: `available` with a finite value (zero is a valid available value) or `unavailable` with a reason. An absent or `null` assessment makes all six unavailable with the reason "No affected-neighborhood assessment was recorded for this task."; a `null` field in a performed assessment is unavailable with a reason naming the assessment, seed-mapping, graph, neighborhood, and task-mapping statuses. Missing evidence is never reported as zero.
+
+- `changedFileCount` (`count`)
+  Meaning: the number of unique confirmed modified or missing files that the index snapshot represents.
+  Availability: available (including 0 for a fresh index) when freshness gave a basis for a changed-file list; unavailable when freshness is `unknown`.
+  Limitations: files the snapshot does not represent, including new files, are not counted.
+- `changedSymbolCount` (`count`)
+  Meaning: the number of unique baseline symbol identities (file path plus symbol name) that belong to confirmed changed indexed files, read from the baseline symbol index.
+  Limitations: it does not prove that any individual counted symbol's own source text changed; it means the symbol was present in a changed indexed file. A symbol counts even when its graph node cannot be resolved, so mapping completeness is separate from this count. Duplicate same-file, same-name records count once. It is unavailable when the baseline symbol index is unavailable.
+- `affectedNodeCount` (`count`)
+  Meaning: the number of unique graph node IDs among the resolved seed nodes plus their direct one-hop neighbors.
+  Formula: exactly one hop, bidirectional (either endpoint of an edge may be the seed), over every structurally valid retained edge kind, with no weighting by kind. Unresolved seed identities are not counted as affected nodes.
+  Availability: 0 for a complete empty seed set (for example a fresh index); unavailable when the seed mapping or graph evidence is unavailable.
+- `affectedEdgeCount` (`count`)
+  Meaning: the number of unique baseline graph edges incident to at least one resolved seed node (the edges actually followed by the one-hop expansion).
+  Limitations: it is not the number of edges among all affected nodes; an edge between two non-seed neighbors is not counted.
+- `taskOverlapCount` (`count`)
+  Meaning: the number of unique graph nodes that are both in the affected neighborhood and among the task's resolved task nodes.
+  Availability: evaluable only when both the neighborhood and the task mapping are usable.
+- `taskOverlapPercent` (`percent`)
+  Formula: `taskOverlapCount / resolvableTaskNodeCount * 100`, unrounded.
+  Denominator: `resolvableTaskNodeCount` is the number of unique graph nodes resolved from the task's `expectedFiles` (exact `file:<path>` nodes) and its unambiguous `expectedSymbols`. An expected symbol resolves only within the task's own expected files, only when exactly one candidate exists (zero is unresolved, several is ambiguous), and never by a global lookup. Unresolved and ambiguous metadata are excluded from the denominator.
+  Availability: unavailable, never zero, when there are no resolvable task nodes or overlap cannot be evaluated. When task mapping is partial, the percentage covers only the resolvable subset.
+
+**Generic outcome metrics.** Available values appear as `ExperimentMetric` entries on the warm outcome only: `affected-neighborhood-changed-file-count`, `affected-neighborhood-changed-symbol-count`, `affected-neighborhood-node-count`, `affected-neighborhood-edge-count`, `affected-neighborhood-task-overlap-count`, and `affected-neighborhood-task-overlap-percent`. Unavailable metrics stay explicit in the structured metrics and the report but are omitted from these entries rather than emitted as zero. There is no run-level aggregate, average, ranking, or score for this evidence.
+
+**Categorical evidence (not metrics).** The assessment also records, and the report presents, two categories that are deliberately not numeric `ExperimentMetric` entries:
+
+- `relationship`: `related` when the confirmed overlap is greater than zero (even when other evidence is partial); `unrelated` only when the seed mapping, neighborhood, and task mapping are all complete and the overlap is zero; `unknown` for zero observed overlap under incomplete or unavailable evidence (for example partially-stale freshness, an unresolved changed file or symbol, a partial graph, an unresolved or ambiguous expected file or symbol, or no resolvable task nodes).
+- `reindexRecommendation`: `recommended` for `related`, `not-indicated` for `unrelated`, and `unknown` for `unknown`. There is no freshness-only shortcut: a fresh index with an empty affected neighborhood and incomplete task mapping is `unknown` / `unknown`. `not-indicated` means only that this bounded analysis found no evidence supporting reindexing for that task; it does not mean skipping a reindex is universally safe, that the whole repository is fresh, that no new non-indexed file exists, or that reindexing could never help.
+- The assessment `status` (`complete`, `partial`, or `unavailable`) says how complete the evidence was. A `partial` assessment can still be `related` and `recommended`. A `null` per-task value means no assessment was performed, an absent value means a pre-v0.6.1 artifact, and an assessment whose status is `unavailable` means it was performed but the evidence could not establish a usable result; these are reported separately.
+
+**Report presentation.** `report.warmIndexReuse.affectedNeighborhoodSummary` holds presentation counts (assessed and unassessed tasks; complete, partial, and unavailable assessments; related, unrelated, and unknown relationships; recommended, not-indicated, and unknown recommendations). They are counts, not metric formulas. Each task's `affectedNeighborhood` block shows the statuses, the six metric objects, the relationship, the recommendation with a fixed explanation, and bounded lists (at most 20 affected node IDs, 20 edge IDs, 10 unresolved and 10 ambiguous task mappings, and 10 warnings, each with its total and omitted count). The full identity arrays stay in `warm-index-execution.json`.
+
+**Observational only.** The evidence never triggers reindexing, suppresses or alters warm retrieval, or changes execution, provider, agent, correctness, or token-evidence status. It uses only the baseline graph of the prepared index: there is no graph-diff, refreshed-index, or stale-versus-refreshed comparison.
