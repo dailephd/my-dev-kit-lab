@@ -142,6 +142,21 @@ function freshnessSentence(report: WarmIndexReuseReportV1): string {
   );
 }
 
+/** Neutral, count-only sentence derived from the report's persisted affected-neighborhood summary. */
+function affectedNeighborhoodSentence(report: WarmIndexReuseReportV1): string {
+  const summary = report.affectedNeighborhoodSummary;
+  if (!summary || summary.assessedTaskCount === 0) {
+    return "No per-task affected-neighborhood assessment was available in this report.";
+  }
+  return (
+    `Affected-neighborhood evidence was available for ${summary.assessedTaskCount} task boundar${summary.assessedTaskCount === 1 ? "y" : "ies"}: ` +
+    `complete=${summary.completeAssessmentCount}, partial=${summary.partialAssessmentCount}, unavailable=${summary.unavailableAssessmentCount}; ` +
+    `relationships were related=${summary.relatedTaskCount}, unrelated=${summary.unrelatedTaskCount}, unknown=${summary.unknownRelationshipTaskCount}; ` +
+    `reindex recommendations were recommended=${summary.recommendedReindexCount}, not-indicated=${summary.notIndicatedReindexCount}, unknown=${summary.unknownReindexRecommendationCount}. ` +
+    "Affected-neighborhood evidence uses a one-hop baseline graph around confirmed changed indexed files/symbols. It is observational and does not alter retrieval or execution status."
+  );
+}
+
 function buildInterpretation(
   run: ExperimentRun,
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null,
@@ -158,7 +173,7 @@ function buildInterpretation(
           `Deterministic fake-agent correctness/token evidence is available for ${summary.agentCorrectnessAvailableCount} of ${summary.agentSideCount} task sides (correctness) and ${summary.agentTotalTokensAvailableCount} (total tokens); ` +
           "fake-agent totals are simulated harness evidence, not real-model or provider measurements. " +
           "Estimated context-token values are context-size estimates, not provider token usage. " +
-          freshnessSentence(warmIndexReuse),
+          freshnessSentence(warmIndexReuse) + " " + affectedNeighborhoodSentence(warmIndexReuse),
         recommendedNextStep:
           run.status === "completed"
             ? "Review per-task measurements and cumulative component costs for each project; the variants are reported side by side and are not ranked."
@@ -190,7 +205,7 @@ function buildInterpretation(
         `${nonCompletedCounts ? `; outcome counts: ${nonCompletedCounts}` : ""}). ` +
         `Token evidence status: ${campaign.tokenEvidenceStatus} (${summary.agentTotalTokensAvailableCount} of ${summary.agentSideCount} task sides have a total-token value). ` +
         "Context estimated tokens remain a separate character-based context-size estimate and are never substituted for provider telemetry. " +
-        freshnessSentence(warmIndexReuse),
+        freshnessSentence(warmIndexReuse) + " " + affectedNeighborhoodSentence(warmIndexReuse),
       recommendedNextStep: isInfrastructureComplete && isAgentEvidenceComplete
         ? "Review per-task correctness, token provenance, and cumulative component measurements."
         : "Review infrastructure gaps (index build, raw/warm retrieval) separately from provider/agent limitations before drawing conclusions from this run.",

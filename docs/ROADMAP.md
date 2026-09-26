@@ -849,11 +849,11 @@ Acceptance:
 * Lab can detect changed files after an index was built.
 * Freshness status appears in experiment artifacts and reports.
 
-Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation. Affected-neighborhood analysis, incremental-change experiments, and partial refresh remain planned for v0.6.1 through v0.6.3.
+Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation in v0.6.0. Later work builds on it: affected-neighborhood analysis shipped in v0.6.1, while incremental-change experiments (v0.6.2) and partial refresh (v0.6.3) remain planned.
 
 ### v0.6.1 — affected-neighborhood experiments
 
-Status: **planned; not implemented**.
+Status: **published**.
 
 Purpose:
 
@@ -877,6 +877,8 @@ Acceptance:
 
 * Experiment can classify next task as related or unrelated to a prior change.
 * Report explains whether reindex was recommended.
+
+Shipped implementation: the baseline graph of the prepared warm index maps each task's confirmed changed indexed files, and the baseline symbols they contain, to graph nodes; the affected neighborhood is those seeds plus their direct one-hop neighbors over every valid edge kind; the task's `expectedFiles` and file-scoped `expectedSymbols` are mapped to graph nodes and compared with it. The assessment is recorded additively in `warm-index-execution.json` and reported in the existing warm-index `report.json`, `report.txt`, and `report.html`, observationally: retrieval and every status are unchanged, and nothing is reindexed. The six numeric warm-side metrics are `changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, and `taskOverlapPercent`; `reindexRecommendation` remains categorical evidence (`recommended`, `not-indicated`, `unknown`) alongside a `related`, `unrelated`, or `unknown` relationship. Incomplete or unavailable evidence classifies the relationship and recommendation as `unknown` rather than unrelated. No CLI flag, plugin, plot, or gallery item was added.
 
 ### v0.6.2 — incremental-change and staleness plugin
 

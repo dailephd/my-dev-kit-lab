@@ -146,3 +146,60 @@ export function findFiles(root: string, fileName: string): string[] {
   walk(root);
   return found.sort();
 }
+
+/**
+ * Wraps `writeSnapshotFakeKit`: after `index`, rewrites the symbol index with the given symbols per
+ * file and writes a real-shaped code graph (file nodes, symbol nodes, `defines` edges, plus the
+ * given extra edges) that the manifest references. Every invocation is still logged by the inner
+ * kit, so tests can prove which commands ran.
+ */
+export function writeGraphFakeKit(
+  dir: string,
+  options: {
+    mutateOnFirstSearch?: string;
+    /** Baseline symbol names per indexed file path (relative to the target root). */
+    symbols: Record<string, string[]>;
+    /** Extra graph edges as [source, target, kind]. */
+    edges?: Array<[string, string, string]>;
+  }
+): { command: string; logPath: string } {
+  const inner = writeSnapshotFakeKit(dir, { mutateOnFirstSearch: options.mutateOnFirstSearch });
+  const wrapperPath = path.join(dir, "fake-kit-graph.mjs");
+  writeFileSync(
+    wrapperPath,
+    [
+      `import fs from "node:fs";`,
+      `import path from "node:path";`,
+      `import { spawnSync } from "node:child_process";`,
+      `const SYMBOLS = ${JSON.stringify(options.symbols)};`,
+      `const EXTRA_EDGES = ${JSON.stringify(options.edges ?? [])};`,
+      `const args = process.argv.slice(2);`,
+      `const innerScript = ${JSON.stringify(path.join(dir, "fake-kit-snapshot.mjs"))};`,
+      `const result = spawnSync(process.execPath, [innerScript, ...args], { stdio: "inherit" });`,
+      `if (args[0] === "index" && result.status === 0) {`,
+      `  const out = args[args.indexOf("--out") + 1];`,
+      `  const symbolIndexPath = path.join(out, "symbol-index.json");`,
+      `  const symbolIndex = JSON.parse(fs.readFileSync(symbolIndexPath, "utf8"));`,
+      `  const nodes = [];`,
+      `  const edges = [];`,
+      `  for (const file of symbolIndex.files) {`,
+      `    file.symbols = (SYMBOLS[file.path] ?? []).map((name) => ({ name, kind: "function" }));`,
+      `    nodes.push({ id: "file:" + file.path, kind: "file", label: file.path, path: file.path });`,
+      `    for (const symbol of file.symbols) {`,
+      `      nodes.push({ id: "symbol:" + file.path + "#" + symbol.name, kind: "symbol", label: symbol.name, path: file.path });`,
+      `      edges.push({ id: "file:" + file.path + "--defines-->symbol:" + file.path + "#" + symbol.name, source: "file:" + file.path, target: "symbol:" + file.path + "#" + symbol.name, kind: "defines" });`,
+      `    }`,
+      `  }`,
+      `  for (const [source, target, kind] of EXTRA_EDGES) edges.push({ id: source + "--" + kind + "-->" + target, source, target, kind });`,
+      `  fs.writeFileSync(symbolIndexPath, JSON.stringify(symbolIndex));`,
+      `  fs.writeFileSync(path.join(out, "code-graph.json"), JSON.stringify({ artifactKind: "code-graph", schemaVersion: "1.0.0", nodes, edges }));`,
+      `  const manifestPath = path.join(out, "manifest.json");`,
+      `  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));`,
+      `  manifest.artifacts.codeGraph = "code-graph.json";`,
+      `  fs.writeFileSync(manifestPath, JSON.stringify(manifest));`,
+      `}`,
+      `process.exit(result.status ?? 1);`,
+    ].join("\n")
+  );
+  return { command: `node ${wrapperPath}`, logPath: inner.logPath };
+}

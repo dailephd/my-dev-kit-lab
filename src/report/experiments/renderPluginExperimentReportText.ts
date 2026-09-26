@@ -8,6 +8,7 @@ import type {
 } from "./contextStrategyComparisonV043ReportModel.js";
 import type { WarmIndexNumberMetricV1 } from "../../experiments/plugins/warmIndexReuse/metrics.js";
 import type {
+  WarmIndexReuseReportAffectedNeighborhoodV1,
   WarmIndexReuseReportAgentV1,
   WarmIndexReuseReportBoundedListV1,
   WarmIndexReuseReportCampaignV1,
@@ -357,6 +358,7 @@ function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseRep
   lines.push(fieldLine("Agent Correctness Available (task sides)", `${section.summary.agentCorrectnessAvailableCount} of ${section.summary.agentSideCount}`));
   lines.push(fieldLine("Agent Token Totals Available (task sides)", `${section.summary.agentTotalTokensAvailableCount} of ${section.summary.agentSideCount}`));
   renderFreshnessSummary(lines, section);
+  renderAffectedNeighborhoodSummary(lines, section);
   if (section.agentCampaign) {
     renderCampaignSection(lines, section.agentCampaign);
   }
@@ -381,6 +383,7 @@ function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseRep
         ["Raw Status", task.rawStatus],
         ["Warm Status", task.warmStatus],
         ["Index Freshness Status", task.indexFreshness ? task.indexFreshness.status : "not assessed"],
+        ["Affected Neighborhood Status", task.affectedNeighborhood ? task.affectedNeighborhood.status : "not assessed"],
         ["Raw Context Characters", formatWarmMetric(task.raw.contextCharacters)],
         ["Warm Context Characters", formatWarmMetric(task.warm.contextCharacters)],
         ["Raw Estimated Context Tokens (estimate)", formatWarmMetric(task.raw.contextEstimatedTokens)],
@@ -405,6 +408,7 @@ function renderWarmIndexReuseSection(lines: string[], section: WarmIndexReuseRep
         lines.push(fieldLine(label, value));
       }
       renderTaskFreshnessDetail(lines, task.indexFreshness);
+      renderTaskAffectedNeighborhoodDetail(lines, task.affectedNeighborhood);
     }
   });
 }
@@ -426,6 +430,81 @@ function renderFreshnessSummary(lines: string[], section: WarmIndexReuseReportV1
   lines.push(fieldLine("Stale Tasks", summary.staleTaskCount));
   lines.push(fieldLine("Partially-Stale Tasks", summary.partiallyStaleTaskCount));
   lines.push(fieldLine("Unknown Tasks", summary.unknownTaskCount));
+}
+
+function renderAffectedNeighborhoodSummary(lines: string[], section: WarmIndexReuseReportV1): void {
+  // Reports serialized before v0.6.1 lack the summary; render them as having no assessment.
+  const summary = section.affectedNeighborhoodSummary ?? {
+    assessedTaskCount: 0,
+    unassessedTaskCount: section.summary.taskCount,
+    completeAssessmentCount: 0,
+    partialAssessmentCount: 0,
+    unavailableAssessmentCount: 0,
+    relatedTaskCount: 0,
+    unrelatedTaskCount: 0,
+    unknownRelationshipTaskCount: 0,
+    recommendedReindexCount: 0,
+    notIndicatedReindexCount: 0,
+    unknownReindexRecommendationCount: 0,
+  };
+  pushSection(lines, "Affected Neighborhood Summary");
+  lines.push(fieldLine("Assessed Tasks", summary.assessedTaskCount));
+  lines.push(fieldLine("Unassessed Tasks", summary.unassessedTaskCount));
+  lines.push(fieldLine("Complete Assessments", summary.completeAssessmentCount));
+  lines.push(fieldLine("Partial Assessments", summary.partialAssessmentCount));
+  lines.push(fieldLine("Unavailable Assessments", summary.unavailableAssessmentCount));
+  lines.push(fieldLine("Related Tasks", summary.relatedTaskCount));
+  lines.push(fieldLine("Unrelated Tasks", summary.unrelatedTaskCount));
+  lines.push(fieldLine("Unknown-Relationship Tasks", summary.unknownRelationshipTaskCount));
+  lines.push(fieldLine("Reindex Recommended", summary.recommendedReindexCount));
+  lines.push(fieldLine("Reindex Not Indicated", summary.notIndicatedReindexCount));
+  lines.push(fieldLine("Reindex Recommendation Unknown", summary.unknownReindexRecommendationCount));
+}
+
+/** Renders the persisted affected-neighborhood evidence; numeric lines come from the metric owner. */
+function renderTaskAffectedNeighborhoodDetail(lines: string[], evidence: WarmIndexReuseReportAffectedNeighborhoodV1 | null | undefined): void {
+  if (!evidence) return;
+  lines.push(fieldLine("Affected Neighborhood Relationship", evidence.relationship));
+  lines.push(fieldLine("Reindex Recommendation", evidence.reindexRecommendation));
+  lines.push(fieldLine("Reindex Recommendation Explanation", evidence.recommendationExplanation));
+  lines.push(fieldLine("Affected Neighborhood Freshness Status", evidence.freshnessStatus));
+  lines.push(fieldLine("Seed Mapping Status", evidence.seedMappingStatus));
+  lines.push(fieldLine("Graph Evidence Status", evidence.graphEvidenceStatus));
+  lines.push(fieldLine("Neighborhood Status", evidence.neighborhoodStatus));
+  lines.push(fieldLine("Task Mapping Status", evidence.taskMappingStatus));
+  lines.push(fieldLine("Resolvable Task Nodes", evidence.resolvableTaskNodeCount));
+  lines.push(fieldLine("Changed Indexed Files", formatWarmMetric(evidence.metrics.changedFileCount)));
+  lines.push(fieldLine("Changed Baseline Symbols", formatWarmMetric(evidence.metrics.changedSymbolCount)));
+  lines.push(fieldLine("Affected Graph Nodes", formatWarmMetric(evidence.metrics.affectedNodeCount)));
+  lines.push(fieldLine("Affected Graph Edges", formatWarmMetric(evidence.metrics.affectedEdgeCount)));
+  lines.push(fieldLine("Task-Overlap Nodes", formatWarmMetric(evidence.metrics.taskOverlapCount)));
+  lines.push(fieldLine("Task-Overlap Percent", formatWarmMetric(evidence.metrics.taskOverlapPercent)));
+  lines.push("Affected Node IDs:");
+  pushFreshnessBoundedNote(lines, evidence.affectedNodeIds);
+  if (evidence.affectedNodeIds.items.length === 0) lines.push("- none");
+  for (const id of evidence.affectedNodeIds.items) lines.push(`- ${sanitizeScalar(id)}`);
+  lines.push("Participating Edge IDs:");
+  pushFreshnessBoundedNote(lines, evidence.participatingEdgeIds);
+  if (evidence.participatingEdgeIds.items.length === 0) lines.push("- none");
+  for (const id of evidence.participatingEdgeIds.items) lines.push(`- ${sanitizeScalar(id)}`);
+  lines.push("Unresolved Task Mappings:");
+  pushFreshnessBoundedNote(lines, evidence.unresolvedTaskMappings);
+  if (evidence.unresolvedTaskMappings.items.length === 0) lines.push("- none");
+  for (const entry of evidence.unresolvedTaskMappings.items) {
+    lines.push(`- ${sanitizeScalar(entry.subject)} ${sanitizeScalar(entry.name)} [${sanitizeScalar(entry.reason)}]`);
+  }
+  lines.push("Ambiguous Task Symbols:");
+  pushFreshnessBoundedNote(lines, evidence.ambiguousTaskSymbols);
+  if (evidence.ambiguousTaskSymbols.items.length === 0) lines.push("- none");
+  for (const entry of evidence.ambiguousTaskSymbols.items) {
+    lines.push(`- ${sanitizeScalar(entry.name)}: ${entry.candidateNodeIds.map((id) => sanitizeScalar(id)).join(", ")}`);
+  }
+  lines.push("Affected Neighborhood Warnings:");
+  pushFreshnessBoundedNote(lines, evidence.warnings);
+  if (evidence.warnings.items.length === 0) lines.push("- none");
+  for (const warning of evidence.warnings.items) {
+    lines.push(`- [${sanitizeScalar(warning.code)}] ${sanitizeScalar(warning.message)}`);
+  }
 }
 
 function pushFreshnessBoundedNote(lines: string[], list: WarmIndexReuseReportBoundedListV1<unknown>): void {

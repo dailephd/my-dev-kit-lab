@@ -26,10 +26,11 @@ src/
     target.ts                                self/external-local target resolution
     types.ts                                 plugin contracts and normalized results
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
-    plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session (carrying the v0.6.0 index snapshot), execution (with the v0.6.0 per-task freshness assessment), bounded execution artifact, fake-agent evaluation, metrics
+    plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session (carrying the v0.6.0 index snapshot and the v0.6.1 baseline graph evidence), execution (with the v0.6.0 per-task freshness assessment and the v0.6.1 per-task affected-neighborhood assessment), bounded execution artifact, fake-agent evaluation, metrics
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released/current): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released/current): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
+    affectedNeighborhood.ts                  v0.6.1 (released/current): baseline graph evidence loader, changed-file/symbol seed mapping, one-hop neighborhood traversal, task mapping, overlap, relationship, and recommendation (one cohesive owner; pure analysis)
     runMyDevKitRetrieval.ts                  index invocation (buildMyDevKitIndex), retrieval against an existing index, and the configured-kit --version probe (probeMyDevKitVersion)
     upstreamArtifacts/                       exact ContextCapsule/RetrievalAuditRecord/WorkflowInstructionPacket mirrors, validators, and readers (v0.4.3); plus exact supplemental implementation/test-context packet/retrieval-report readers and a bounded plain-object readiness adapter (v0.4.4); plus exact condition-aware producer evidence mirrors (roleConditionCoverage, allocation/spillover GroupTruncationEntry fields, truncation.requiredEvidenceLost) and exact orchestrator run-integrity mirrors (RunIntegrityGateResult, JudgeIntegrityResult, FinalReportEligibilityResult, artifact-state.json lifecycle records) (v0.4.5)
     stageContextSelectors/                   selectors and consistency diagnostics over exact reader output (v0.4.3); plus orchestrator run-integrity selectors (v0.4.5)
@@ -227,9 +228,44 @@ Owners:
 
 Invariants:
 
-- Freshness never changes `ExperimentRunStatus`, provider or agent outcome status, correctness, or token evidence, and no reindex recommendation exists.
+- Freshness never changes `ExperimentRunStatus`, provider or agent outcome status, correctness, or token evidence, and v0.6.0 makes no reindex recommendation.
 - The metric owner (`metrics.ts`), the four warm-index plots, the three-item campaign gallery, and the provider architecture are unchanged; freshness counts are report presentation, not `ExperimentMetric` entries.
 - The exact packed package is validated to ship the snapshot and freshness runtime and to produce the evidence and report presentation in an installed run.
+
+## Affected-neighborhood architecture (v0.6.1, released/current)
+
+Released in v0.6.1. It extends the `warm-index-reuse` runner, session, execution artifact, metric owner, and report pipeline; it adds no experiment runner, plugin, CLI surface, plot, or gallery item. The analysis is observational: it does not gate retrieval, does not reindex, and does not participate in status aggregation.
+
+```mermaid
+flowchart TD
+  Build[one index per project] --> Snapshot[IndexSnapshotV1 on the WarmIndexSession]
+  Snapshot --> Graph[loadAffectedNeighborhoodGraphEvidence once per session: symbol index and code graph named by the manifest]
+  Graph --> Task[for each task]
+  Task --> Raw[raw baseline]
+  Raw --> Fresh[assessIndexFreshness for this task]
+  Fresh --> Seeds[mapAffectedNeighborhoodSeeds: confirmed changed files and their baseline symbols to graph nodes]
+  Seeds --> Assess[assessAffectedNeighborhood: one-hop neighborhood, task mapping, overlap, relationship, recommendation]
+  Assess --> Warm[warm retrieval, still always executed]
+  Warm --> Persist[persist tasks[].affectedNeighborhood additively]
+  Persist --> Metrics[metrics.ts converts the persisted assessment into six warm-side metrics once]
+  Metrics --> Report[report code presents persisted evidence and metric-owner values]
+```
+
+Owners:
+
+- `src/evaluation/affectedNeighborhood.ts` — the single evaluation-layer owner. `AffectedNeighborhoodGraphEvidenceV1` (schema `my-dev-kit-lab-affected-neighborhood-graph-evidence-v1`; `complete`, `partial`, or `unavailable`) is read only through the manifest-named artifacts inside the index directory (path containment enforced; no directory walking; only symbol-index schema 2 and code-graph 1.x are understood) and preserves nodes by their upstream IDs (`file:<path>`, `symbol:<path>#<name>`) and edges by id, source, target, and kind without an edge-kind allowlist. `AffectedNeighborhoodSeedMappingV1` (schema `my-dev-kit-lab-affected-neighborhood-seed-mapping-v1`) maps confirmed modified or missing snapshot-represented files, and the baseline symbols belonging to them, to same-file graph nodes. `AffectedNeighborhoodAssessmentV1` (schema `my-dev-kit-lab-affected-neighborhood-assessment-v1`) holds the one-hop neighborhood (exactly one hop, either edge direction, every valid edge kind, unweighted), the task mapping, overlap, `relationship`, and `reindexRecommendation`. Evidence status composition is conservative: partial or unavailable inputs degrade the result and never become zero counts.
+- `warmIndexSession.ts` — `prepareWarmIndexSession` loads the graph evidence once, after the snapshot, and retains it on the frozen session as `affectedNeighborhoodGraph`. A missing or unusable graph degrades the evidence and never fails the session; graph artifacts are not reread per task.
+- `execution.ts` — `executeTask` runs seed mapping and the assessment after that task's freshness assessment and before its warm retrieval, from in-memory evidence only (no my-dev-kit call, no source parsing, no filesystem scan). Without a valid session, or after a refused session/target identity check, no assessment is performed and the task records `null`; an assessment whose own status is `unavailable` is a different state.
+- `executionArtifact.ts` — persists the assessment as `projects[].tasks[].affectedNeighborhood` under the unchanged execution schema `my-dev-kit-lab-warm-index-execution-v1`: an object means an assessment was performed, `null` means none was performed, and absence means a pre-v0.6.1 artifact. The graph, symbol index, and source contents are never persisted.
+- `metrics.ts` — the sole owner of the six warm-side metrics (`changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, `taskOverlapPercent`), each a `WarmIndexNumberMetricV1` (`available` with a finite value including zero, or `unavailable` with a reason). Only available values become `ExperimentMetric` entries, on the warm outcome only; raw metrics and run-level metrics gain nothing.
+- `src/report/experiments/buildWarmIndexReuseReport.ts` (with `warmIndexReuseReportModel.ts`, `buildPluginExperimentReport.ts`, `renderPluginExperimentReportText.ts`, and `renderWarmIndexReuseHtml.ts`) — presentation only. It copies persisted statuses, relationship, and recommendation, reuses the metric owner's metric objects, adds fixed neutral recommendation explanations and summary counts, and bounds displayed lists (20 affected node IDs, 20 edge IDs, 10 unresolved and 10 ambiguous task mappings, 10 warnings). It never traverses the graph, remaps seeds, recomputes overlap, hashes files, reads index artifacts, or invokes my-dev-kit. A task with no persisted assessment is shown as not assessed. The report schema `my-dev-kit-lab-warm-index-report-v1` is unchanged.
+
+Invariants:
+
+- The graph belongs to the already prepared index; there is no second current-state index, no graph-diff, and no stale-versus-refreshed comparison.
+- The assessment never changes `ExperimentRunStatus`, provider or agent outcome status, correctness, or token evidence, and never triggers a reindex.
+- The categorical relationship and recommendation are not `ExperimentMetric` entries and there is no composite score.
+- `scripts/verify-packed-package.mjs` (with `scripts/verifyPackedPackageHelpers.ts`) proves the exact packed tarball in a clean consumer against the real registry package `@dailephd/my-dev-kit@1.12.4`, including a fresh case and a controlled changed-file case, and keeps the canonical and installed packages immutable. The controlled case uses a disposable second install of the same tarball as its only mutable sandbox.
 
 ## Expanded warm-index benchmark suite (v0.5.1)
 
@@ -616,7 +652,7 @@ The following layers remain planned and must not be treated as current behavior:
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
 - the v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above
-- additional experiment plugins: the incremental-change and staleness plugin (`v0.6.2`) and later scale, retrieval-quality, and agent-success plugins; the implemented v0.6.0 freshness evidence is described in "Index snapshot and freshness architecture (v0.6.0, released/current)" above
+- additional experiment plugins: the incremental-change and staleness plugin (`v0.6.2`) and later scale, retrieval-quality, and agent-success plugins; the released v0.6.0 freshness evidence and v0.6.1 affected-neighborhood evidence are described in "Index snapshot and freshness architecture (v0.6.0, released/current)" and "Affected-neighborhood architecture (v0.6.1, released/current)" above
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
 
@@ -695,6 +731,12 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.6.0 index freshness assessment (released/current) | `src/evaluation/indexFreshness.ts` (`IndexFreshnessAssessmentV1`, `assessIndexFreshness`, `classifyIndexFreshness`) |
 | v0.6.0 my-dev-kit version probe (released/current) | `src/evaluation/runMyDevKitRetrieval.ts` (`probeMyDevKitVersion`) |
 | v0.6.0 freshness report presentation (released/current) | `src/report/experiments/buildWarmIndexReuseReport.ts`, `warmIndexReuseReportModel.ts`, `renderPluginExperimentReportText.ts`, `renderWarmIndexReuseHtml.ts` |
+| v0.6.1 baseline graph evidence and seed mapping (released/current) | `src/evaluation/affectedNeighborhood.ts` (`AffectedNeighborhoodGraphEvidenceV1`, `loadAffectedNeighborhoodGraphEvidence`, `AffectedNeighborhoodSeedMappingV1`, `mapAffectedNeighborhoodSeeds`) |
+| v0.6.1 affected-neighborhood assessment (released/current) | `src/evaluation/affectedNeighborhood.ts` (`AffectedNeighborhoodAssessmentV1`, `assessAffectedNeighborhood`, `traverseAffectedNeighborhood`, `mapAffectedNeighborhoodTask`) |
+| v0.6.1 session graph retention and per-task integration (released/current) | `src/experiments/plugins/warmIndexReuse/warmIndexSession.ts`, `execution.ts`, `executionArtifact.ts` |
+| v0.6.1 affected-neighborhood metrics (released/current) | `src/experiments/plugins/warmIndexReuse/metrics.ts` |
+| v0.6.1 affected-neighborhood report presentation (released/current) | `src/report/experiments/buildWarmIndexReuseReport.ts`, `warmIndexReuseReportModel.ts`, `renderPluginExperimentReportText.ts`, `renderWarmIndexReuseHtml.ts` |
+| v0.6.1 installed-package acceptance (released/current) | `scripts/verify-packed-package.mjs`, `scripts/verifyPackedPackageHelpers.ts` |
 | v0.5.2 campaign command orchestration (released) | `src/commands/runExperimentRunCommand.ts` |
 | v0.5.2 campaign presentation sequencing (released) | `src/commands/runWarmIndexCampaignPresentation.ts` |
 | v0.5.2 campaign gallery (released) | `src/gallery/writeWarmIndexCampaignGallery.ts` |

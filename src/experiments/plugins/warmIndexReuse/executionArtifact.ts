@@ -1,4 +1,5 @@
 import type { MeasuredCommandResult } from "../../../core/runMeasuredCommand.js";
+import type { AffectedNeighborhoodAssessmentV1 } from "../../../evaluation/affectedNeighborhood.js";
 import type { IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import type { IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
 import type { ExperimentRunStatus } from "../../types.js";
@@ -56,6 +57,13 @@ export type WarmIndexTaskSummaryV1 = {
    * was made; absent in artifacts written before it existed.
    */
   indexFreshness?: IndexFreshnessAssessmentV1 | null;
+  /**
+   * Additive to schema v1 (v0.6.1): the bounded affected-neighborhood assessment made at this
+   * task's boundary. Evidence only. An object means an assessment was performed (its own status
+   * may still be partial or unavailable); `null` means none was performed; absent means the
+   * artifact predates v0.6.1. The baseline graph itself is never persisted here.
+   */
+  affectedNeighborhood?: AffectedNeighborhoodAssessmentV1 | null;
   warnings: string[];
   errors: WarmIndexExecutionError[];
 };
@@ -135,6 +143,7 @@ function summarizeTask(task: WarmIndexTaskExecutionV1): WarmIndexTaskSummaryV1 {
         }
       : null,
     indexFreshness: task.indexFreshness ? structuredClone(task.indexFreshness) : null,
+    affectedNeighborhood: task.affectedNeighborhood ? structuredClone(task.affectedNeighborhood) : null,
     warnings: [...task.warnings],
     errors: task.errors.map((error) => ({ ...error })),
   };

@@ -1,5 +1,7 @@
 import { agentLabel, type WarmIndexNumberMetricV1 } from "../../experiments/plugins/warmIndexReuse/metrics.js";
 import type {
+  WarmIndexReuseReportAffectedNeighborhoodSummaryV1,
+  WarmIndexReuseReportBoundedListV1,
   WarmIndexReuseReportAgentV1,
   WarmIndexReuseReportCampaignV1,
   WarmIndexReuseReportFreshnessSummaryV1,
@@ -14,6 +16,8 @@ const UNIT_LABELS: Record<WarmIndexNumberMetricV1["unit"], string> = {
   "estimated-tokens": "est. tokens",
   tokens: "tokens",
   score: "score",
+  count: "",
+  percent: "%",
 };
 
 export function renderWarmIndexReuseHtml(section: WarmIndexReuseReportV1 | null): string {
@@ -36,6 +40,7 @@ export function renderWarmIndexReuseHtml(section: WarmIndexReuseReportV1 | null)
       ["Agent token totals available", `${section.summary.agentTotalTokensAvailableCount} of ${section.summary.agentSideCount}`],
     ])}
     ${renderFreshnessSummary(section.indexFreshnessSummary ?? legacyFreshnessSummary(section.summary.taskCount))}
+    ${renderAffectedNeighborhoodSummary(section.affectedNeighborhoodSummary ?? legacyAffectedNeighborhoodSummary(section.summary.taskCount))}
     ${section.agentCampaign ? renderCampaignSection(section.agentCampaign) : ""}
     <h3>Cold Start And Warm Reuse</h3>
     ${list(section.costModel)}
@@ -55,6 +60,109 @@ function legacyFreshnessSummary(taskCount: number): WarmIndexReuseReportFreshnes
     partiallyStaleTaskCount: 0,
     unknownTaskCount: 0,
   };
+}
+
+// Reports serialized before v0.6.1 lack the summary; they are rendered as having no assessment.
+function legacyAffectedNeighborhoodSummary(taskCount: number): WarmIndexReuseReportAffectedNeighborhoodSummaryV1 {
+  return {
+    assessedTaskCount: 0,
+    unassessedTaskCount: taskCount,
+    completeAssessmentCount: 0,
+    partialAssessmentCount: 0,
+    unavailableAssessmentCount: 0,
+    relatedTaskCount: 0,
+    unrelatedTaskCount: 0,
+    unknownRelationshipTaskCount: 0,
+    recommendedReindexCount: 0,
+    notIndicatedReindexCount: 0,
+    unknownReindexRecommendationCount: 0,
+  };
+}
+
+function renderAffectedNeighborhoodSummary(summary: WarmIndexReuseReportAffectedNeighborhoodSummaryV1): string {
+  return `<h3>Affected Neighborhood</h3>
+    ${table(["Field", "Value"], [
+      ["Assessed tasks", String(summary.assessedTaskCount)],
+      ["Unassessed tasks", String(summary.unassessedTaskCount)],
+      ["Complete assessments", String(summary.completeAssessmentCount)],
+      ["Partial assessments", String(summary.partialAssessmentCount)],
+      ["Unavailable assessments", String(summary.unavailableAssessmentCount)],
+      ["Related tasks", String(summary.relatedTaskCount)],
+      ["Unrelated tasks", String(summary.unrelatedTaskCount)],
+      ["Unknown-relationship tasks", String(summary.unknownRelationshipTaskCount)],
+      ["Reindex recommended", String(summary.recommendedReindexCount)],
+      ["Reindex not indicated", String(summary.notIndicatedReindexCount)],
+      ["Reindex recommendation unknown", String(summary.unknownReindexRecommendationCount)],
+    ])}`;
+}
+
+function boundedNote(label: string, taskOrdinal: number, bounded: WarmIndexReuseReportBoundedListV1<unknown>): string[] {
+  return bounded.omittedCount > 0 ? [`Task ${taskOrdinal}: ${bounded.omittedCount} of ${bounded.totalCount} ${label} omitted.`] : [];
+}
+
+/** Persisted affected-neighborhood evidence per task; numeric cells are the metric owner's objects. */
+function renderProjectAffectedNeighborhood(tasks: readonly WarmIndexReuseReportTaskV1[]): string {
+  const overview = table(
+    ["Task", "Assessment", "Relationship", "Reindex recommendation", "Freshness", "Seeds", "Neighborhood", "Task mapping", "Resolvable task nodes"],
+    tasks.map((task) => {
+      const label = `${task.taskOrdinal}. ${task.caseId}`;
+      const evidence = task.affectedNeighborhood;
+      return evidence
+        ? [
+            label,
+            evidence.status,
+            evidence.relationship,
+            evidence.reindexRecommendation,
+            evidence.freshnessStatus,
+            evidence.seedMappingStatus,
+            evidence.neighborhoodStatus,
+            evidence.taskMappingStatus,
+            String(evidence.resolvableTaskNodeCount),
+          ]
+        : [label, "not assessed", "", "", "", "", "", "", ""];
+    })
+  );
+  const assessed = tasks.filter((task) => task.affectedNeighborhood !== null);
+  const metricRows = assessed.map((task) => {
+    const metrics = (task.affectedNeighborhood as NonNullable<typeof task.affectedNeighborhood>).metrics;
+    return [
+      `${task.taskOrdinal}. ${task.caseId}`,
+      withReason(metrics.changedFileCount),
+      withReason(metrics.changedSymbolCount),
+      withReason(metrics.affectedNodeCount),
+      withReason(metrics.affectedEdgeCount),
+      withReason(metrics.taskOverlapCount),
+      withReason(metrics.taskOverlapPercent),
+    ];
+  });
+  const explanations = assessed.map(
+    (task) => `Task ${task.taskOrdinal}: ${(task.affectedNeighborhood as NonNullable<typeof task.affectedNeighborhood>).recommendationExplanation}`
+  );
+  const detailRows = assessed.flatMap((task) => {
+    const evidence = task.affectedNeighborhood as NonNullable<typeof task.affectedNeighborhood>;
+    const label = `${task.taskOrdinal}. ${task.caseId}`;
+    return [
+      ...evidence.unresolvedTaskMappings.items.map((entry) => [label, `unresolved ${entry.subject}`, entry.name, entry.reason]),
+      ...evidence.ambiguousTaskSymbols.items.map((entry) => [label, "ambiguous expected-symbol", entry.name, entry.candidateNodeIds.join(", ")]),
+      ...evidence.warnings.items.map((warning) => [label, "warning", warning.code, warning.message]),
+    ];
+  });
+  const omitted = assessed.flatMap((task) => {
+    const evidence = task.affectedNeighborhood as NonNullable<typeof task.affectedNeighborhood>;
+    return [
+      ...boundedNote("affected node IDs", task.taskOrdinal, evidence.affectedNodeIds),
+      ...boundedNote("participating edge IDs", task.taskOrdinal, evidence.participatingEdgeIds),
+      ...boundedNote("unresolved task mappings", task.taskOrdinal, evidence.unresolvedTaskMappings),
+      ...boundedNote("ambiguous task symbols", task.taskOrdinal, evidence.ambiguousTaskSymbols),
+      ...boundedNote("warnings", task.taskOrdinal, evidence.warnings),
+    ];
+  });
+  return `<h4>Affected Neighborhood</h4>
+    ${overview}
+    ${metricRows.length === 0 ? "" : table(["Task", "Changed files", "Changed symbols", "Affected nodes", "Affected edges", "Task-overlap nodes", "Task-overlap percent"], metricRows)}
+    ${explanations.length === 0 ? "" : list(explanations)}
+    ${detailRows.length === 0 ? "" : table(["Task", "Evidence type", "Name", "Detail"], detailRows)}
+    ${omitted.length === 0 ? "" : list(omitted)}`;
 }
 
 function renderFreshnessSummary(summary: WarmIndexReuseReportFreshnessSummaryV1): string {
@@ -207,6 +315,7 @@ function renderProject(project: WarmIndexReuseReportProjectV1, index: number, ag
       ])
     )}
     ${renderProjectFreshness(project.tasks)}
+    ${renderProjectAffectedNeighborhood(project.tasks)}
     <p class="muted">Estimated tokens are character-based context-size estimates, not provider token usage.</p>
     <p class="muted">${agentColumnsNote(agentId)}</p>
     ${table(

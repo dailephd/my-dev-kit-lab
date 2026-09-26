@@ -1,9 +1,15 @@
 import type { AgentId } from "../../agents/types.js";
 import type { ExperimentRun } from "../../experiments/index.js";
+import type { AffectedNeighborhoodAssessmentV1, ReindexRecommendation } from "../../evaluation/affectedNeighborhood.js";
 import type { IndexFreshnessAssessmentV1 } from "../../evaluation/indexFreshness.js";
 import type { WarmIndexAgentSideEvidenceV1 } from "../../experiments/plugins/warmIndexReuse/agentEvaluation.js";
 import type { WarmIndexReuseRun } from "../../experiments/plugins/warmIndexReuse/plugin.js";
 import {
+  MAX_REPORT_AFFECTED_EDGES,
+  MAX_REPORT_AFFECTED_NODES,
+  MAX_REPORT_AFFECTED_TASK_AMBIGUOUS,
+  MAX_REPORT_AFFECTED_TASK_UNRESOLVED,
+  MAX_REPORT_AFFECTED_WARNINGS,
   MAX_REPORT_FRESHNESS_CHANGES,
   MAX_REPORT_FRESHNESS_UNRESOLVED,
   WARM_INDEX_REUSE_REPORT_SCHEMA_VERSION,
@@ -12,10 +18,13 @@ import {
   type WarmIndexReuseReportAgentIdentityV1,
   type WarmIndexReuseReportAgentV1,
   type WarmIndexReuseReportBoundedListV1,
+  type WarmIndexReuseReportAffectedNeighborhoodSummaryV1,
+  type WarmIndexReuseReportAffectedNeighborhoodV1,
   type WarmIndexReuseReportCampaignV1,
   type WarmIndexReuseReportFreshnessSummaryV1,
   type WarmIndexReuseReportFreshnessV1,
   type WarmIndexReuseReportProjectV1,
+  type WarmIndexReuseReportTaskV1,
   type WarmIndexReuseReportV1,
   type WarmIndexTokenEvidenceStatus,
 } from "./warmIndexReuseReportModel.js";
@@ -56,6 +65,20 @@ const FRESHNESS_LIMITATIONS = [
   "Freshness is observational evidence. It does not trigger reindexing, suppress warm retrieval, alter execution status, or alter provider/agent outcome status.",
   "Freshness statuses: fresh means all represented indexed files were completely compared and their content identities still match; stale means a complete comparison confirmed at least one represented indexed file is modified or missing; partially-stale means at least one represented indexed file is confirmed changed but comparison evidence is incomplete; unknown means no confirmed change established staleness but evidence is insufficient to prove freshness. A task without an assessment is reported as not assessed, which is not the same as unknown.",
 ];
+
+const AFFECTED_NEIGHBORHOOD_LIMITATIONS = [
+  "Affected-neighborhood evidence uses a one-hop baseline graph around confirmed changed indexed files/symbols. It is observational and does not alter retrieval or execution status.",
+  "A changed baseline symbol means the symbol was present in a confirmed changed indexed file; it is not proof that the symbol's own source text changed.",
+  "Reindex recommendation categories describe this bounded analysis only. They do not claim that reindexing is mandatory, that it guarantees correctness, that skipping it is universally safe, or that the whole repository is fresh.",
+];
+
+/** Fixed neutral wording per recommendation category. */
+export const REINDEX_RECOMMENDATION_EXPLANATIONS: Record<ReindexRecommendation, string> = {
+  recommended: "Reindex recommended: the task has confirmed overlap with the affected one-hop baseline graph neighborhood.",
+  "not-indicated": "Reindex not indicated by this bounded analysis: complete evidence found no task-node overlap with the affected neighborhood.",
+  unknown:
+    "Reindex recommendation unknown: evidence is incomplete or unavailable, so absence of observed overlap is not sufficient to conclude that the task is unaffected.",
+};
 
 const COST_MODEL = [
   "Index construction is a one-time cost per benchmark project; task retrieval is the repeated warm cost.",
@@ -132,6 +155,7 @@ export function buildWarmIndexReuseReport(run: ExperimentRun): WarmIndexReuseRep
           rawAgent: toReportAgent(rawEvidence),
           warmAgent: toReportAgent(warmEvidence),
           indexFreshness: toReportFreshness(execution.tasks[taskIndex].indexFreshness),
+          affectedNeighborhood: toReportAffectedNeighborhood(execution.tasks[taskIndex].affectedNeighborhood, task.warm),
         };
       }),
     };
@@ -166,6 +190,7 @@ export function buildWarmIndexReuseReport(run: ExperimentRun): WarmIndexReuseRep
     agent: agentIdentity,
     agentCampaign,
     indexFreshnessSummary: summarizeFreshness(projects.flatMap((project) => project.tasks)),
+    affectedNeighborhoodSummary: summarizeAffectedNeighborhood(projects.flatMap((project) => project.tasks)),
   };
 }
 
@@ -197,6 +222,83 @@ function toReportFreshness(freshness: IndexFreshnessAssessmentV1 | null | undefi
       message: entry.message,
     })),
     warnings: [...freshness.warnings],
+  };
+}
+
+/** Bounded list whose totals come from persisted counts, which can exceed the persisted item list. */
+function boundedListWithTotal<T, U>(
+  source: readonly T[],
+  totalCount: number,
+  limit: number,
+  map: (item: T) => U
+): WarmIndexReuseReportBoundedListV1<U> {
+  const items = source.slice(0, limit).map(map);
+  const total = Math.max(totalCount, source.length);
+  return { totalCount: total, displayedCount: items.length, omittedCount: total - items.length, items };
+}
+
+/**
+ * Presents a persisted affected-neighborhood assessment only: it never traverses, remaps seeds,
+ * recomputes overlap, or reads the graph, index, or filesystem. Numeric fields are the warm-side
+ * metric objects already calculated by the metric owner. Absent evidence stays null.
+ */
+function toReportAffectedNeighborhood(
+  assessment: AffectedNeighborhoodAssessmentV1 | null | undefined,
+  warm: WarmIndexReuseReportTaskV1["warm"]
+): WarmIndexReuseReportAffectedNeighborhoodV1 | null {
+  if (!assessment) return null;
+  const mapping = assessment.taskMapping;
+  return {
+    status: assessment.status,
+    freshnessStatus: assessment.freshnessStatus,
+    seedMappingStatus: assessment.seedMappingStatus,
+    graphEvidenceStatus: assessment.graphEvidenceStatus,
+    neighborhoodStatus: assessment.neighborhoodStatus,
+    metrics: {
+      changedFileCount: warm.changedFileCount,
+      changedSymbolCount: warm.changedSymbolCount,
+      affectedNodeCount: warm.affectedNodeCount,
+      affectedEdgeCount: warm.affectedEdgeCount,
+      taskOverlapCount: warm.taskOverlapCount,
+      taskOverlapPercent: warm.taskOverlapPercent,
+    },
+    taskMappingStatus: mapping.status,
+    resolvableTaskNodeCount: mapping.resolvableTaskNodeCount,
+    relationship: assessment.relationship,
+    reindexRecommendation: assessment.reindexRecommendation,
+    recommendationExplanation: REINDEX_RECOMMENDATION_EXPLANATIONS[assessment.reindexRecommendation],
+    affectedNodeIds: boundedList(assessment.affectedNodeIds, MAX_REPORT_AFFECTED_NODES, (id) => id),
+    participatingEdgeIds: boundedList(assessment.participatingEdgeIds, MAX_REPORT_AFFECTED_EDGES, (id) => id),
+    unresolvedTaskMappings: boundedListWithTotal(mapping.unresolved, mapping.unresolvedCount, MAX_REPORT_AFFECTED_TASK_UNRESOLVED, (entry) => ({ ...entry })),
+    ambiguousTaskSymbols: boundedListWithTotal(mapping.ambiguousSymbols, mapping.ambiguousCount, MAX_REPORT_AFFECTED_TASK_AMBIGUOUS, (entry) => ({
+      name: entry.name,
+      candidateNodeIds: [...entry.candidateNodeIds],
+    })),
+    warnings: boundedListWithTotal(assessment.warnings, assessment.warningCount, MAX_REPORT_AFFECTED_WARNINGS, (warning) => ({
+      code: warning.code,
+      message: warning.message,
+    })),
+  };
+}
+
+function summarizeAffectedNeighborhood(
+  tasks: ReadonlyArray<{ affectedNeighborhood: WarmIndexReuseReportAffectedNeighborhoodV1 | null }>
+): WarmIndexReuseReportAffectedNeighborhoodSummaryV1 {
+  const assessed = tasks.flatMap((task) => (task.affectedNeighborhood ? [task.affectedNeighborhood] : []));
+  const count = <K extends "status" | "relationship" | "reindexRecommendation">(key: K, value: WarmIndexReuseReportAffectedNeighborhoodV1[K]) =>
+    assessed.filter((entry) => entry[key] === value).length;
+  return {
+    assessedTaskCount: assessed.length,
+    unassessedTaskCount: tasks.length - assessed.length,
+    completeAssessmentCount: count("status", "complete"),
+    partialAssessmentCount: count("status", "partial"),
+    unavailableAssessmentCount: count("status", "unavailable"),
+    relatedTaskCount: count("relationship", "related"),
+    unrelatedTaskCount: count("relationship", "unrelated"),
+    unknownRelationshipTaskCount: count("relationship", "unknown"),
+    recommendedReindexCount: count("reindexRecommendation", "recommended"),
+    notIndicatedReindexCount: count("reindexRecommendation", "not-indicated"),
+    unknownReindexRecommendationCount: count("reindexRecommendation", "unknown"),
   };
 }
 
@@ -308,10 +410,10 @@ function buildCampaignSummary(args: {
 
 function buildLimitations(agent: WarmIndexReuseReportAgentIdentityV1): string[] {
   if (agent.mode === "deterministic-fake") {
-    return [...COMMON_LIMITATIONS, ...FAKE_AGENT_LIMITATIONS, ...FRESHNESS_LIMITATIONS];
+    return [...COMMON_LIMITATIONS, ...FAKE_AGENT_LIMITATIONS, ...FRESHNESS_LIMITATIONS, ...AFFECTED_NEIGHBORHOOD_LIMITATIONS];
   }
   const providerLimitations = agent.id === "codex" ? CODEX_CAMPAIGN_LIMITATIONS : CLAUDE_CAMPAIGN_LIMITATIONS;
-  return [...COMMON_LIMITATIONS, ...providerLimitations, ...FRESHNESS_LIMITATIONS];
+  return [...COMMON_LIMITATIONS, ...providerLimitations, ...FRESHNESS_LIMITATIONS, ...AFFECTED_NEIGHBORHOOD_LIMITATIONS];
 }
 
 function toReportAgent(agent: WarmIndexAgentSideEvidenceV1 | null): WarmIndexReuseReportAgentV1 | null {
