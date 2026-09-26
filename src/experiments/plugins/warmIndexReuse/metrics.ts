@@ -17,7 +17,7 @@ import type {
 export const WARM_INDEX_METRICS_SCHEMA_VERSION = "my-dev-kit-lab-warm-index-metrics-v1";
 
 export type WarmIndexMetricAvailability = "available" | "unavailable" | "not-applicable";
-export type WarmIndexMetricUnit = "ms" | "characters" | "estimated-tokens" | "tokens" | "score";
+export type WarmIndexMetricUnit = "ms" | "characters" | "estimated-tokens" | "tokens" | "score" | "count" | "percent";
 export type WarmIndexMetricSource = "measured" | "derived" | "estimated-chars-div-4" | "agent";
 
 /**
@@ -55,6 +55,13 @@ export type WarmIndexWarmTaskMetricsV1 = {
   agentCorrectness: WarmIndexNumberMetricV1;
   agentTotalTokens: WarmIndexNumberMetricV1;
   cumulativeAgentTotalTokens: WarmIndexNumberMetricV1;
+  /** v0.6.1 affected-neighborhood metrics: warm side only, taken from the persisted assessment. */
+  changedFileCount: WarmIndexNumberMetricV1;
+  changedSymbolCount: WarmIndexNumberMetricV1;
+  affectedNodeCount: WarmIndexNumberMetricV1;
+  affectedEdgeCount: WarmIndexNumberMetricV1;
+  taskOverlapCount: WarmIndexNumberMetricV1;
+  taskOverlapPercent: WarmIndexNumberMetricV1;
 };
 
 export type WarmIndexTaskMetricsV1 = {
@@ -270,6 +277,7 @@ export function calculateWarmIndexProjectMetrics(
         cumulativeComponentDurationMs: warmDuration.add(warm.retrievalDurationMs, label("warm retrieval duration")),
         cumulativeEstimatedContextTokens: warmTokens.add(warm.contextEstimatedTokens, label("warm estimated context tokens")),
         ...warmAgent,
+        ...affectedNeighborhoodMetrics(task),
         cumulativeAgentTotalTokens: warmAgentTokens.add(warmAgent.agentTotalTokens, label("warm agent total tokens")),
       },
     };
@@ -319,6 +327,46 @@ function warmDirect(task: WarmIndexTaskSummaryV1) {
   };
 }
 
+const NO_AFFECTED_NEIGHBORHOOD_REASON = "No affected-neighborhood assessment was recorded for this task.";
+
+type AffectedNeighborhoodMetricField =
+  | "changedFileCount"
+  | "changedSymbolCount"
+  | "affectedNodeCount"
+  | "affectedEdgeCount"
+  | "taskOverlapCount"
+  | "taskOverlapPercent";
+
+/**
+ * Converts the persisted affected-neighborhood assessment into the six warm-side metrics, once.
+ * A finite value (including zero) is available; an absent assessment or a null field is
+ * unavailable with a reason, never zero. The metric layer alone owns these value objects.
+ */
+function affectedNeighborhoodMetrics(
+  task: WarmIndexTaskSummaryV1
+): Pick<WarmIndexWarmTaskMetricsV1, AffectedNeighborhoodMetricField> {
+  const assessment = task.affectedNeighborhood;
+  const one = (field: AffectedNeighborhoodMetricField, label: string): WarmIndexNumberMetricV1 => {
+    const unit: WarmIndexMetricUnit = field === "taskOverlapPercent" ? "percent" : "count";
+    if (!assessment) return unavailableMetric(unit, "derived", NO_AFFECTED_NEIGHBORHOOD_REASON);
+    const value = assessment[field];
+    if (typeof value === "number") return availableMetric(value, unit, "derived");
+    const context =
+      `assessment ${assessment.status}; seed mapping ${assessment.seedMappingStatus}; ` +
+      `graph ${assessment.graphEvidenceStatus}; neighborhood ${assessment.neighborhoodStatus}; task mapping ${assessment.taskMapping.status}` +
+      (field === "taskOverlapPercent" ? `; resolvable task nodes ${assessment.taskMapping.resolvableTaskNodeCount}` : "");
+    return unavailableMetric(unit, "derived", `Affected-neighborhood evidence did not establish ${label} (${context}).`);
+  };
+  return {
+    changedFileCount: one("changedFileCount", "the changed indexed file count"),
+    changedSymbolCount: one("changedSymbolCount", "the changed baseline symbol count"),
+    affectedNodeCount: one("affectedNodeCount", "the affected graph node count"),
+    affectedEdgeCount: one("affectedEdgeCount", "the affected graph edge count"),
+    taskOverlapCount: one("taskOverlapCount", "the task-overlap node count"),
+    taskOverlapPercent: one("taskOverlapPercent", "the task-overlap percent"),
+  };
+}
+
 /** Pure, order-preserving calculation; ordinals and cumulative state restart for every project. */
 export function calculateWarmIndexMetrics(
   projects: readonly WarmIndexProjectSummaryV1[],
@@ -361,7 +409,49 @@ export function toWarmOutcomeMetrics(task: WarmIndexTaskMetricsV1, variantId: st
     { id: "cumulative-context-estimated-token-count", name: "Cumulative estimated context tokens", description: "Sum of retrieved estimated context tokens for tasks 1..N in this project; not provider token usage.", metric: task.warm.cumulativeEstimatedContextTokens },
     { id: "amortized-index-build-duration-ms", name: "Amortized index build duration", description: "Index build duration divided by this task's ordinal within its project.", metric: task.warm.amortizedIndexBuildDurationMs },
     ...agentSpecs(task.warm),
+    ...affectedNeighborhoodSpecs(task.warm),
   ]);
+}
+
+function affectedNeighborhoodSpecs(warm: WarmIndexWarmTaskMetricsV1): GenericMetricSpec[] {
+  return [
+    {
+      id: "affected-neighborhood-changed-file-count",
+      name: "Changed indexed files",
+      description: "Unique confirmed modified or missing files that the baseline index snapshot represents; new or non-indexed files are not counted.",
+      metric: warm.changedFileCount,
+    },
+    {
+      id: "affected-neighborhood-changed-symbol-count",
+      name: "Changed baseline symbols",
+      description: "Baseline indexed symbol identities (file path + name) belonging to confirmed changed indexed files; not proof that each symbol's own source text changed.",
+      metric: warm.changedSymbolCount,
+    },
+    {
+      id: "affected-neighborhood-node-count",
+      name: "Affected graph nodes",
+      description: "Unique resolved seed nodes plus their direct one-hop baseline graph neighbors, over edges of any kind and direction.",
+      metric: warm.affectedNodeCount,
+    },
+    {
+      id: "affected-neighborhood-edge-count",
+      name: "Affected graph edges",
+      description: "Unique baseline graph edges incident to at least one resolved seed node; not the induced subgraph of all affected nodes.",
+      metric: warm.affectedEdgeCount,
+    },
+    {
+      id: "affected-neighborhood-task-overlap-count",
+      name: "Task-overlap nodes",
+      description: "Unique baseline graph nodes that are both in the affected neighborhood and resolved from the task's expected files and symbols.",
+      metric: warm.taskOverlapCount,
+    },
+    {
+      id: "affected-neighborhood-task-overlap-percent",
+      name: "Task-overlap percent",
+      description: "Task-overlap nodes as a percentage of resolvable task graph nodes; unresolved or ambiguous expected metadata is not in the denominator.",
+      metric: warm.taskOverlapPercent,
+    },
+  ];
 }
 
 function agentSpecs(side: Pick<WarmIndexRawTaskMetricsV1, "agentCorrectness" | "agentTotalTokens" | "cumulativeAgentTotalTokens">): GenericMetricSpec[] {

@@ -875,6 +875,19 @@ describe("assessAffectedNeighborhood", () => {
     expect(result.taskMapping.resolvableTaskNodeCount).toBe(3);
   });
 
+  // Planner decision (v0.6.1 Batch 3): there is no freshness-specific recommendation exception.
+  it("keeps a fresh complete empty neighborhood with incomplete task mapping at unknown / unknown, never not-indicated", () => {
+    const graph = synth(NODES, [["e", "file:src/a.ts", "symbol:src/a.ts#foo"]]);
+
+    const result = assess2(graph, seedsOf([], "complete", "fresh"), { expectedFiles: ["src/a.ts", "src/gone.ts"], expectedSymbols: ["foo", "ghost"] });
+
+    expect(result).toMatchObject({ freshnessStatus: "fresh", seedMappingStatus: "complete", neighborhoodStatus: "complete", affectedNodeCount: 0, taskOverlapCount: 0 });
+    expect(result.taskMapping.status).toBe("partial");
+    expect(result.relationship).toBe("unknown");
+    expect(result.reindexRecommendation).toBe("unknown");
+    expect(result.status).toBe("partial");
+  });
+
   // TST-B2-007
   it("preserves the positive neighborhood of resolved seeds when seed mapping is partial", () => {
     const graph = synth(NODES, [["e1", "file:src/c.ts", "symbol:src/c.ts#foo"]]);

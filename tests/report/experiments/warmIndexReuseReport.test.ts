@@ -215,8 +215,8 @@ describe("buildWarmIndexReuseReport", () => {
     ]);
     expect(section.costModel.join(" ")).toContain("one-time index build plus the first retrieval");
     expect(section.costModel.join(" ")).toContain("divided by N");
-    // 5 common + 2 fake-agent limitations, plus the 5 v0.6.0 Batch 3 freshness interpretation lines.
-    expect(section.limitations).toHaveLength(7 + 5);
+    // 5 common + 2 fake-agent limitations, plus the 5 v0.6.0 freshness lines and 3 v0.6.1 affected-neighborhood lines.
+    expect(section.limitations).toHaveLength(7 + 5 + 3);
     expect(section.limitations.join(" ")).not.toContain("does not execute agents");
     expect(section.limitations.join(" ")).toContain("deterministic simulated fake-agent evidence");
     expect(section.limitations.join(" ")).toContain("simulated harness telemetry, not provider billing telemetry");
@@ -1031,7 +1031,8 @@ describe("v0.6.0 Batch 3 -- index freshness interpretation", () => {
     const summary = report.interpretation.summary;
 
     expect(summary).toContain("prepared 1 of 1 project indexes and evaluated 5 tasks");
-    const sentence = summary.slice(summary.indexOf("Index freshness was assessed"));
+    // The v0.6.1 affected-neighborhood sentence follows the unchanged freshness sentence.
+    const sentence = summary.slice(summary.indexOf("Index freshness was assessed"), summary.indexOf(" No per-task affected-neighborhood assessment"));
     expect(sentence).toBe(
       "Index freshness was assessed for 4 task boundaries: fresh=1, stale=1, partially-stale=1, unknown=1. " +
         "Freshness is observational evidence over files represented by the index snapshot and does not change retrieval or provider status."
@@ -1055,7 +1056,7 @@ describe("v0.6.0 Batch 3 -- index freshness interpretation", () => {
 
   it("keeps the added freshness limitation wording free of recommendation and ranking language", () => {
     const section = buildWarmIndexReuseReport(makeWarmRun([projectSummary()]))!;
-    const added = section.limitations.slice(-5);
+    const added = section.limitations.slice(-8, -3);
     expect(added[0]).toContain("Freshness compares only files");
     expect(added[4]).toContain("Freshness statuses:");
     for (const line of added) expect(line).not.toMatch(FORBIDDEN);

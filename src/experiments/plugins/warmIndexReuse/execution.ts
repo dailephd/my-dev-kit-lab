@@ -1,5 +1,10 @@
 import path from "node:path";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
+import {
+  assessAffectedNeighborhood,
+  mapAffectedNeighborhoodSeeds,
+  type AffectedNeighborhoodAssessmentV1,
+} from "../../../evaluation/affectedNeighborhood.js";
 import { assessIndexFreshness, type IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import { runMyDevKitRetrievalFromIndex } from "../../../evaluation/runMyDevKitRetrieval.js";
 import { runRawFullFileBaseline } from "../../../evaluation/runRawFullFileBaseline.js";
@@ -43,6 +48,14 @@ export type WarmIndexTaskExecutionV1 = {
    * warm retrieval was attempted for a reason other than a missing session.
    */
   indexFreshness?: IndexFreshnessAssessmentV1;
+  /**
+   * Observational affected-neighborhood assessment of this task, built in memory from this task's
+   * freshness, the session's baseline graph, and the task's expected metadata, after freshness and
+   * before warm retrieval. `null` means no assessment was performed (no valid session or target
+   * identity, or the assessment itself failed); an assessment with status `unavailable` means it
+   * ran but the evidence could not establish a result. Never gates retrieval or changes a status.
+   */
+  affectedNeighborhood?: AffectedNeighborhoodAssessmentV1 | null;
   /** Warnings reported by the warm retrieval, preserved verbatim. */
   warnings: string[];
   errors: WarmIndexExecutionError[];
@@ -164,6 +177,7 @@ async function executeTask(args: {
   let warmRetrieval: MyDevKitRetrievalResult | undefined;
   let warmStatus: ExperimentRunStatus = "failed";
   let indexFreshness: IndexFreshnessAssessmentV1 | undefined;
+  let affectedNeighborhood: AffectedNeighborhoodAssessmentV1 | null = null;
   if (!args.session) {
     errors.push(args.setupFailure ?? { side: "warm", code: "warm-index-setup-failed", message: "No warm index session." });
     // No snapshot exists, so freshness is conservatively unknown rather than assumed.
@@ -185,6 +199,23 @@ async function executeTask(args: {
         targetRoot: args.session.targetRoot,
         sourceRoots: args.session.sourceRoots,
       });
+      // Observational and in-memory: this task's freshness against the shared baseline graph. It
+      // reads no files, runs no my-dev-kit command, and cannot stop the retrieval below.
+      try {
+        const seedMapping = mapAffectedNeighborhoodSeeds({
+          indexSnapshot: args.session.indexSnapshot,
+          freshness: indexFreshness,
+          graph: args.session.affectedNeighborhoodGraph,
+        });
+        affectedNeighborhood = assessAffectedNeighborhood({
+          graph: args.session.affectedNeighborhoodGraph,
+          seedMapping,
+          task: evaluationCase,
+        });
+      } catch (error) {
+        affectedNeighborhood = null;
+        warnings.push(`Affected-neighborhood assessment was not recorded: ${errorMessage(error)}`);
+      }
       try {
         // requireKit: false retains subordinate command evidence; a skipped result caused by a
         // failed command is classified as failed below rather than as an honest skip.
@@ -219,6 +250,7 @@ async function executeTask(args: {
     rawBaseline,
     warmRetrieval,
     indexFreshness,
+    affectedNeighborhood,
     warnings,
     errors,
   };
