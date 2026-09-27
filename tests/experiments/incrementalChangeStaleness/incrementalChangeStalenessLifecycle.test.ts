@@ -487,8 +487,15 @@ describe("lifecycle boundaries (TST-B3-043..047, 053)", () => {
   const batch3Files = ["lifecycle.ts", "lifecyclePolicy.ts", "plugin.ts", "config.ts", "treatmentSession.ts", "scenarioSelection.ts"].map((file) =>
     path.join(repoRoot, "src/experiments/plugins/incrementalChangeStaleness", file)
   );
+  // v0.6.2 Batch 4 legitimately moves retrieval/correctness/comparison orchestration into
+  // plugin.ts (frozen batch prompt section 54); the pure lifecycle-preparation boundary (no
+  // retrieval, no neighborhood traversal, no agent evaluation, no correctness, no
+  // recommendation-driven action) is still frozen for these lifecycle-only files.
+  const pureLifecycleFiles = ["lifecycle.ts", "lifecyclePolicy.ts", "config.ts", "treatmentSession.ts", "scenarioSelection.ts"].map((file) =>
+    path.join(repoRoot, "src/experiments/plugins/incrementalChangeStaleness", file)
+  );
 
-  it("never references retrieval, neighborhood traversal/metrics, agent evaluation, correctness, or recommendation-driven action", () => {
+  it("lifecycle-only files never reference retrieval, neighborhood traversal/metrics, agent evaluation, correctness, or recommendation-driven action", () => {
     const forbidden = [
       "runMyDevKitRetrievalFromIndex",
       "runMyDevKitRetrieval(",
@@ -503,7 +510,7 @@ describe("lifecycle boundaries (TST-B3-043..047, 053)", () => {
       "fakeAgent",
       "runAgent"
     ];
-    for (const file of batch3Files) {
+    for (const file of pureLifecycleFiles) {
       const text = readFileSync(file, "utf8");
       for (const token of forbidden) {
         expect(text.includes(token), `${path.basename(file)} must not reference ${token}`).toBe(false);

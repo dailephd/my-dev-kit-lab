@@ -2,11 +2,15 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
+import { readBenchmarkProjectProfiles } from "../../../evaluation/benchmarkMetadata.js";
+import { toAffectedNeighborhoodMetricValues } from "../../../evaluation/affectedNeighborhoodMetrics.js";
+import type { BenchmarkProjectProfile } from "../../../evaluation/types.js";
 import { sanitizePathSegment } from "../../outputPaths.js";
 import { summarizeExperimentRun } from "../../results.js";
 import type {
   ExperimentCase,
   ExperimentExecutionContext,
+  ExperimentMetric,
   ExperimentOutcome,
   ExperimentPlugin,
   ExperimentPluginMetadata,
@@ -25,9 +29,14 @@ import {
   removeIncrementalChangeStalenessRuntimeRoot,
   type IncrementalChangeStalenessTreatmentId
 } from "./disposableTarget.js";
+import { executeIncrementalChangeStalenessScenario, type IncrementalChangeStalenessScenarioExecutionV1, type IncrementalChangeStalenessTreatmentExecutionV1 } from "./execution.js";
+import {
+  buildIncrementalChangeStalenessExecutionArtifact,
+  writeIncrementalChangeStalenessExecutionArtifact
+} from "./executionArtifact.js";
 import { prepareIncrementalChangeStalenessScenarioLifecycle, type IncrementalChangeStalenessLifecycleDeps } from "./lifecycle.js";
-import { resolveIncrementalChangeStalenessScenarios, type IncrementalChangeStalenessResolvedScenarioV1 } from "./scenarioSelection.js";
-import type { IncrementalChangeStalenessLifecycleResultV1 } from "./treatmentSession.js";
+import { BENCHMARK_PROJECT_PROFILES_PATH } from "./scenarioCatalog.js";
+import { resolveIncrementalChangeStalenessScenarios } from "./scenarioSelection.js";
 
 export const INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID = "incremental-change-staleness";
 export const STALE_INDEX_VARIANT_ID: IncrementalChangeStalenessTreatmentId = "stale-index";
@@ -40,7 +49,7 @@ export const incrementalChangeStalenessMetadata: ExperimentPluginMetadata = {
   id: INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID,
   name: "Incremental Change Staleness",
   description:
-    "Prepare matched stale-index and full-refresh my-dev-kit index treatments around the same frozen controlled source change in disposable copies of bundled benchmark projects.",
+    "Compares stale-index and full-refresh my-dev-kit retrieval after the same frozen controlled source change: matched correctness, required-file evidence, and a conservative stale-risk classification.",
   schemaVersion: "1.0.0",
   status: "experimental",
   supportedTargets: ["self"],
@@ -60,14 +69,6 @@ const TREATMENT_VARIANTS: ExperimentVariant[] = [
   }
 ];
 
-/** Status vocabulary (shared with existing plugin metadata) for evidence this intermediate build does not produce. */
-const NOT_RUN = "not-run";
-
-/**
- * Deterministic run-owned runtime root, derived from the run id under the
- * repository's gitignored incremental-change-staleness runtime root. Both
- * `run` and `cleanup` derive it from the context; no global state is kept.
- */
 export function resolveIncrementalChangeStalenessRunOwnedRoot(toolRoot: string, runId: string): string {
   return resolveWithinRoot(path.resolve(toolRoot), path.join(DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE, sanitizePathSegment(runId)));
 }
@@ -99,9 +100,10 @@ async function isOwnedByRun(runOwnedRoot: string, runId: string): Promise<boolea
 }
 
 /**
- * Removes the run-owned runtime root (targets, indexes, command logs) only
- * when it carries this run's ownership marker. Never touches the shared
- * runtime parent, canonical benchmarks, or any other run's directory.
+ * Removes the run-owned runtime root (targets, indexes, command logs, agent artifacts) only when
+ * it carries this run's ownership marker. Never touches the shared runtime parent, canonical
+ * benchmarks, or any other run's directory. Called by the framework's `cleanup` phase, strictly
+ * after `run()` has already written the persisted execution artifact to the (separate) output root.
  */
 export async function cleanupIncrementalChangeStalenessRun(toolRoot: string, runId: string): Promise<boolean> {
   const runOwnedRoot = resolveIncrementalChangeStalenessRunOwnedRoot(toolRoot, runId);
@@ -110,39 +112,6 @@ export async function cleanupIncrementalChangeStalenessRun(toolRoot: string, run
   }
   await removeIncrementalChangeStalenessRuntimeRoot(toolRoot, runOwnedRoot);
   return true;
-}
-
-export type IncrementalChangeStalenessScenarioLifecycleRecordV1 = {
-  readonly resolved: IncrementalChangeStalenessResolvedScenarioV1;
-  readonly result: IncrementalChangeStalenessLifecycleResultV1;
-};
-
-/**
- * Runs the matched lifecycle for every selected scenario, sequentially and in
- * catalog order. The returned in-memory sessions are valid until the
- * run-owned root is cleaned up.
- */
-export async function runIncrementalChangeStalenessLifecycles(options: {
-  repoRoot: string;
-  runOwnedRoot: string;
-  kitCommand: string;
-  scenarioIds?: readonly string[];
-  deps?: Partial<IncrementalChangeStalenessLifecycleDeps>;
-}): Promise<IncrementalChangeStalenessScenarioLifecycleRecordV1[]> {
-  const resolvedScenarios = await resolveIncrementalChangeStalenessScenarios({ repoRoot: options.repoRoot, scenarioIds: options.scenarioIds });
-  const records: IncrementalChangeStalenessScenarioLifecycleRecordV1[] = [];
-  for (const resolved of resolvedScenarios) {
-    const result = await prepareIncrementalChangeStalenessScenarioLifecycle({
-      repoRoot: options.repoRoot,
-      runOwnedRoot: options.runOwnedRoot,
-      scenario: resolved.scenario,
-      baseCase: resolved.baseCase,
-      kitCommand: options.kitCommand,
-      deps: options.deps
-    });
-    records.push({ resolved, result });
-  }
-  return records;
 }
 
 export type IncrementalChangeStalenessRun = ExperimentRun;
@@ -162,19 +131,55 @@ export const incrementalChangeStalenessPlugin: ExperimentPlugin<IncrementalChang
     const startedAt = context.startedAt.toISOString();
     const runOwnedRoot = resolveIncrementalChangeStalenessRunOwnedRoot(context.toolRoot, context.runId);
     await claimRunOwnedRoot(runOwnedRoot, context.runId);
-    const records = await runIncrementalChangeStalenessLifecycles({
+
+    const resolvedScenarios = await resolveIncrementalChangeStalenessScenarios({
       repoRoot: context.toolRoot,
-      runOwnedRoot,
-      kitCommand: context.config.kitCommand,
       scenarioIds: context.config.caseIds
     });
-    return mapIncrementalChangeStalenessLifecyclesToRun({
+    const projectProfiles: BenchmarkProjectProfile[] = await readBenchmarkProjectProfiles(
+      path.resolve(context.toolRoot, BENCHMARK_PROJECT_PROFILES_PATH),
+      context.toolRoot
+    );
+
+    const executions: IncrementalChangeStalenessScenarioExecutionV1[] = [];
+    for (const resolved of resolvedScenarios) {
+      const lifecycle = await prepareIncrementalChangeStalenessScenarioLifecycle({
+        repoRoot: context.toolRoot,
+        runOwnedRoot,
+        scenario: resolved.scenario,
+        baseCase: resolved.baseCase,
+        kitCommand: context.config.kitCommand
+      });
+      const execution = await executeIncrementalChangeStalenessScenario({
+        repoRoot: context.toolRoot,
+        scenario: resolved.scenario,
+        lifecycle,
+        baseCase: resolved.baseCase,
+        projectProfiles,
+        runOwnedRoot,
+        cwd: context.target.targetRoot
+      });
+      executions.push(execution);
+    }
+
+    const outDir = context.outputRoot ?? path.resolve(context.toolRoot, context.config.outDir);
+    const artifact = buildIncrementalChangeStalenessExecutionArtifact({
+      runId: context.runId,
+      pluginId: INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID,
+      executions
+    });
+    // The artifact is written before the framework's separate `cleanup` phase runs, so it is
+    // written before the run-owned ephemeral index/target state is ever destroyed.
+    const artifactPath = await writeIncrementalChangeStalenessExecutionArtifact(outDir, artifact);
+
+    return mapIncrementalChangeStalenessExecutionsToRun({
       runId: context.runId,
       startedAt,
       completedAt: new Date().toISOString(),
       target: context.target,
       kitCommand: context.config.kitCommand,
-      records
+      executions,
+      artifactPath
     });
   },
   summarize(result) {
@@ -185,34 +190,145 @@ export const incrementalChangeStalenessPlugin: ExperimentPlugin<IncrementalChang
   }
 };
 
-/**
- * Maps lifecycle-only results to the generic run contract. A ready lifecycle
- * is reported as a `partial` outcome because treatment retrieval, correctness,
- * and comparison are not executed yet; no retrieval/correctness/token metric
- * is emitted (absent, never zero). Every selected scenario yields exactly two
- * outcomes, stale-index then full-refresh, in catalog order.
- */
-export function mapIncrementalChangeStalenessLifecyclesToRun(args: {
+function metric(id: string, name: string, description: string, unit: string, value: number, variantId: string, caseId: string): ExperimentMetric {
+  return { id, name, description, unit, value, variantId, caseId };
+}
+
+function treatmentMetrics(treatment: IncrementalChangeStalenessTreatmentExecutionV1, caseId: string): ExperimentMetric[] {
+  const variantId = treatment.treatmentId;
+  const metrics: ExperimentMetric[] = [];
+  if (treatment.retrieval) {
+    metrics.push(
+      metric("context-character-count", "Context characters", "Characters in the retrieved my-dev-kit context.", "characters", treatment.retrieval.totalChars, variantId, caseId),
+      metric(
+        "context-estimated-token-count",
+        "Estimated context tokens",
+        "Character-based estimate of retrieved context tokens; not provider token usage.",
+        "estimated-tokens",
+        treatment.retrieval.totalEstimatedTokens,
+        variantId,
+        caseId
+      ),
+      metric(
+        "operation-duration-ms",
+        "Operation duration",
+        "Measured retrieval-only duration (search, lookup, slice, source); excludes index build.",
+        "ms",
+        treatment.retrieval.durationMs,
+        variantId,
+        caseId
+      )
+    );
+  }
+  if (treatment.fakeAgent && treatment.fakeAgent.correctness.available && treatment.fakeAgent.correctness.score !== null) {
+    metrics.push(
+      metric(
+        "agent-correctness-score",
+        "Agent correctness score",
+        "Deterministic benchmark answer-key correctness score for the selected agent output; not semantic LLM judging.",
+        "score",
+        treatment.fakeAgent.correctness.score,
+        variantId,
+        caseId
+      )
+    );
+  }
+  const affectedMetricValues = toAffectedNeighborhoodMetricValues(
+    treatment.affectedNeighborhood,
+    "No affected-neighborhood assessment was recorded for this treatment."
+  );
+  const affectedSpecs: Array<{ id: string; name: string; description: string; field: keyof typeof affectedMetricValues }> = [
+    { id: "affected-neighborhood-changed-file-count", name: "Changed indexed files", description: "Unique confirmed modified or missing files that the baseline index snapshot represents.", field: "changedFileCount" },
+    { id: "affected-neighborhood-changed-symbol-count", name: "Changed baseline symbols", description: "Baseline indexed symbol identities belonging to confirmed changed indexed files.", field: "changedSymbolCount" },
+    { id: "affected-neighborhood-node-count", name: "Affected graph nodes", description: "Unique resolved seed nodes plus their direct one-hop baseline graph neighbors.", field: "affectedNodeCount" },
+    { id: "affected-neighborhood-edge-count", name: "Affected graph edges", description: "Unique baseline graph edges incident to at least one resolved seed node.", field: "affectedEdgeCount" },
+    { id: "affected-neighborhood-task-overlap-count", name: "Task-overlap nodes", description: "Unique baseline graph nodes both in the affected neighborhood and resolved from the task's expected files/symbols.", field: "taskOverlapCount" },
+    { id: "affected-neighborhood-task-overlap-percent", name: "Task-overlap percent", description: "Task-overlap nodes as a percentage of resolvable task graph nodes.", field: "taskOverlapPercent" }
+  ];
+  for (const spec of affectedSpecs) {
+    const value = affectedMetricValues[spec.field];
+    if (value.availability === "available" && value.value !== null) {
+      metrics.push(metric(spec.id, spec.name, spec.description, value.unit, value.value, variantId, caseId));
+    }
+  }
+  return metrics;
+}
+
+function treatmentOutcome(execution: IncrementalChangeStalenessScenarioExecutionV1, treatmentId: IncrementalChangeStalenessTreatmentId): ExperimentOutcome {
+  const caseId = execution.scenarioId;
+  const base = { id: `${caseId}:${treatmentId}`, caseId, variantId: treatmentId, artifacts: [] };
+  if (execution.status === "failed" || !execution.stale || !execution.fullRefresh) {
+    return {
+      ...base,
+      status: "failed",
+      metrics: [],
+      warnings: [],
+      failures: [
+        {
+          code: "incremental-change-staleness-scenario-failed",
+          message: execution.failureReason ?? "Scenario execution failed before treatment evidence was produced.",
+          variantId: treatmentId,
+          caseId,
+          recoverable: false
+        }
+      ],
+      metadata: { treatmentId, scenarioStatus: execution.status }
+    };
+  }
+  const treatment = treatmentId === "stale-index" ? execution.stale : execution.fullRefresh;
+  const status = treatment.status === "completed" ? "completed" : treatment.status === "failed" ? "failed" : "partial";
+  return {
+    ...base,
+    status,
+    metrics: treatmentMetrics(treatment, caseId),
+    warnings: treatment.retrievalStatus === "failed" || treatment.fakeAgent?.status === "failed"
+      ? [{ code: "incremental-change-staleness-treatment-partial", message: treatment.failureReason ?? "Treatment retrieval or fake-agent evaluation did not fully complete.", variantId: treatmentId, caseId }]
+      : [],
+    failures: [],
+    metadata: {
+      treatmentId,
+      activeIndexPhase: treatment.activeIndexPhase,
+      retrievalStatus: treatment.retrievalStatus,
+      fakeAgentStatus: treatment.fakeAgent?.status ?? "not-run",
+      requiredFileEvidenceStatus: treatment.requiredFileEvidence.status,
+      affectedNeighborhoodRelationship: treatment.affectedNeighborhood.relationship,
+      affectedNeighborhoodReindexRecommendation: treatment.affectedNeighborhood.reindexRecommendation,
+      comparisonCorrectnessRelation: execution.comparison.correctnessRelation,
+      comparisonRequiredFileEvidenceRelation: execution.comparison.requiredFileEvidenceRelation,
+      staleRiskClassification: execution.comparison.staleRiskClassification
+    }
+  };
+}
+
+export function mapIncrementalChangeStalenessExecutionsToRun(args: {
   runId: string;
   startedAt: string;
   completedAt: string;
   target: ExperimentRun["target"];
   kitCommand: string;
-  records: readonly IncrementalChangeStalenessScenarioLifecycleRecordV1[];
+  executions: readonly IncrementalChangeStalenessScenarioExecutionV1[];
+  artifactPath: string;
 }): IncrementalChangeStalenessRun {
-  const cases: ExperimentCase[] = args.records.map(({ resolved, result }) => ({
-    id: resolved.scenario.id,
-    name: `${resolved.scenario.id} (${resolved.scenario.category})`,
-    outcomes: INCREMENTAL_CHANGE_STALENESS_TREATMENT_IDS.map((treatmentId) => buildOutcome(resolved, result, treatmentId)),
+  const cases: ExperimentCase[] = args.executions.map((execution) => ({
+    id: execution.scenarioId,
+    name: `${execution.scenarioId} (${execution.category})`,
+    // Exactly two outcomes per scenario, stale-index then full-refresh (never a third "raw" outcome).
+    outcomes: [treatmentOutcome(execution, "stale-index"), treatmentOutcome(execution, "full-refresh")],
     metadata: {
-      category: resolved.scenario.category,
-      benchmarkProject: resolved.baseCase.benchmarkProjectId,
-      baseCaseId: resolved.baseCase.caseId,
-      lifecycleStatus: result.status
+      category: execution.category,
+      benchmarkProject: execution.benchmarkProjectId,
+      baseCaseId: execution.baseCaseId,
+      scenarioStatus: execution.status,
+      staleRiskClassification: execution.comparison.staleRiskClassification
     }
   }));
   const outcomeStatuses = cases.flatMap((experimentCase) => experimentCase.outcomes.map((outcome) => outcome.status));
-  const status = outcomeStatuses.length > 0 && outcomeStatuses.every((value) => value === "failed") ? "failed" : "partial";
+  const status =
+    outcomeStatuses.length > 0 && outcomeStatuses.every((value) => value === "failed")
+      ? "failed"
+      : outcomeStatuses.every((value) => value === "completed")
+        ? "completed"
+        : "partial";
   const run: IncrementalChangeStalenessRun = {
     runId: args.runId,
     pluginId: INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID,
@@ -222,95 +338,34 @@ export function mapIncrementalChangeStalenessLifecyclesToRun(args: {
     target: args.target,
     variants: TREATMENT_VARIANTS.map((variant) => ({ ...variant })),
     cases,
-    metrics: [],
-    artifacts: [],
-    warnings: [
+    metrics: [
+      { id: "incremental-change-staleness-scenario-count", name: "Scenario count", value: args.executions.length, unit: "count", description: "Selected scenarios in this run." },
       {
-        code: "treatment-execution-not-implemented",
-        message:
-          "This build prepares and verifies the stale-index/full-refresh index lifecycle only; treatment retrieval, correctness, and stale-vs-refresh comparison are not executed."
+        id: "incremental-change-staleness-observed-regression-count",
+        name: "Observed stale regression count",
+        value: args.executions.filter((execution) => execution.comparison.staleRiskClassification === "observed-stale-regression").length,
+        unit: "count",
+        description: "Scenarios classified observed-stale-regression."
       }
     ],
+    artifacts: [
+      {
+        id: "incremental-change-staleness-execution",
+        label: "Incremental-change-staleness execution evidence",
+        path: args.artifactPath,
+        kind: "artifact",
+        mimeType: "application/json",
+        description: "Per-scenario matched stale-index/full-refresh execution and comparison evidence, without raw context bodies."
+      }
+    ],
+    warnings: [],
     failures: [],
     metadata: {
-      lifecycleOnly: true,
       kitCommand: args.kitCommand,
-      scenarioIds: args.records.map((record) => record.resolved.scenario.id),
-      retrievalStatus: NOT_RUN,
-      correctnessStatus: NOT_RUN,
-      comparisonStatus: NOT_RUN
+      scenarioIds: args.executions.map((execution) => execution.scenarioId),
+      executionArtifactPath: args.artifactPath
     }
   };
   run.summary = summarizeExperimentRun(run);
   return run;
-}
-
-function buildOutcome(
-  resolved: IncrementalChangeStalenessResolvedScenarioV1,
-  result: IncrementalChangeStalenessLifecycleResultV1,
-  treatmentId: IncrementalChangeStalenessTreatmentId
-): ExperimentOutcome {
-  const caseId = resolved.scenario.id;
-  const base = {
-    id: `${caseId}:${treatmentId}`,
-    caseId,
-    variantId: treatmentId,
-    metrics: [],
-    artifacts: []
-  };
-  const notRun = { retrievalStatus: NOT_RUN, correctnessStatus: NOT_RUN, comparisonStatus: NOT_RUN };
-  if (result.status === "failed") {
-    return {
-      ...base,
-      status: "failed",
-      warnings: [],
-      failures: [
-        {
-          code: `lifecycle-${result.failure.code}`,
-          message: result.failure.message,
-          variantId: treatmentId,
-          caseId,
-          recoverable: false,
-          details: { attributedTreatmentId: result.failure.treatmentId }
-        }
-      ],
-      metadata: {
-        treatmentId,
-        lifecycleStatus: "failed",
-        lifecycleFailureCode: result.failure.code,
-        indexBuildCount: result.indexBuildCounts[treatmentId],
-        ...notRun
-      }
-    };
-  }
-  const treatment = result.session.treatments[treatmentId];
-  const baselineFreshness = treatment.changeAuthority.postMutationBaselineFreshness;
-  return {
-    ...base,
-    status: "partial",
-    warnings: [
-      {
-        code: "treatment-execution-not-run",
-        message: "Index lifecycle is ready; treatment retrieval and correctness were not executed.",
-        variantId: treatmentId,
-        caseId
-      }
-    ],
-    failures: [],
-    metadata: {
-      treatmentId,
-      lifecycleStatus: "ready",
-      activeRetrievalIndexRole: treatment.activeRetrieval.role,
-      postMutationIndexBuilt: treatment.postMutationIndexBuilt,
-      indexBuildCount: treatment.indexBuildCount,
-      freshnessAssessmentCount: treatment.freshnessAssessmentCount,
-      baselineFreshnessStatus: baselineFreshness.status,
-      baselineChangedPaths: baselineFreshness.changes.map((change) => change.path),
-      baselineIndexBuildDurationMs: treatment.changeAuthority.baselineIndex.buildDurationMs,
-      refreshedIndexBuildDurationMs: treatment.refreshedIndex ? treatment.refreshedIndex.buildDurationMs : null,
-      refreshedFreshnessStatus: treatment.refreshedFreshness ? treatment.refreshedFreshness.status : null,
-      myDevKitVersion: result.session.toolIdentity.version,
-      ...notRun
-    }
-  };
 }

@@ -76,7 +76,7 @@ describe("incremental-change-staleness registration (TST-B3-001..003, 052)", () 
       id: "incremental-change-staleness",
       name: "Incremental Change Staleness",
       description:
-        "Prepare matched stale-index and full-refresh my-dev-kit index treatments around the same frozen controlled source change in disposable copies of bundled benchmark projects.",
+        "Compares stale-index and full-refresh my-dev-kit retrieval after the same frozen controlled source change: matched correctness, required-file evidence, and a conservative stale-risk classification.",
       schemaVersion: "1.0.0",
       status: "experimental",
       supportedTargets: ["self"],
@@ -153,8 +153,8 @@ describe("config and scenario selection (TST-B3-004, 005, 029)", () => {
   });
 });
 
-describe("plugin run behavior (TST-B3-006, 048..051)", () => {
-  it("runs matched lifecycles in catalog order with honest not-run retrieval/correctness evidence, then cleans up", async () => {
+describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
+  it("runs matched lifecycles and treatment execution in catalog order, writes the execution artifact, then cleans up", async () => {
     const kit = writeLifecycleFakeKit(makeKitDir(tracked));
     const runId = uniqueRunId("run");
     const runtimeParent = path.resolve(repoRoot, DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE);
@@ -162,16 +162,17 @@ describe("plugin run behavior (TST-B3-006, 048..051)", () => {
     mkdirSync(sibling, { recursive: true });
     writeFileSync(path.join(sibling, "keep.txt"), "not owned by the run");
     tracked.push(sibling);
+    const runOutputRoot = outDir();
 
     const run = await runExperiment({
       pluginId: "incremental-change-staleness",
-      outputRoot: outDir(),
+      outputRoot: runOutputRoot,
       config: { caseIds: ["L2", "U1"], kitCommand: kit.command },
       toolRoot: repoRoot,
       runId
     });
 
-    // TST-B3-049: scenario catalog order, then stale-index, then full-refresh.
+    // TST-B3-049 / Batch 4 section 37: scenario catalog order, then stale-index, then full-refresh.
     expect(run.cases.map((experimentCase) => experimentCase.id)).toEqual(["U1", "L2"]);
     expect(run.cases.flatMap((experimentCase) => experimentCase.outcomes.map((outcome) => outcome.id))).toEqual([
       "U1:stale-index",
@@ -181,35 +182,39 @@ describe("plugin run behavior (TST-B3-006, 048..051)", () => {
     ]);
     expect(run.variants.map((variant) => variant.id)).toEqual(["stale-index", "full-refresh"]);
 
-    // TST-B3-048: lifecycle-only intermediate run is `partial`, never a fabricated success.
-    expect(run.status).toBe("partial");
-    expect(run.summary?.partialCases).toBe(2);
-    expect(run.metrics).toEqual([]);
-    expect(run.metadata).toEqual(expect.objectContaining({ lifecycleOnly: true, retrievalStatus: "not-run", correctnessStatus: "not-run", comparisonStatus: "not-run" }));
-    expect(run.warnings.map((warning) => warning.code)).toContain("treatment-execution-not-implemented");
+    // This deterministic fake kit produces complete, non-empty retrieval/fake-agent evidence for
+    // both treatments of both scenarios, so the run is a real `completed` result, never fabricated.
+    expect(run.status).toBe("completed");
+    expect(run.summary?.completedCases).toBe(2);
+    expect(run.metrics.map((entry) => entry.id)).toEqual(["incremental-change-staleness-scenario-count", "incremental-change-staleness-observed-regression-count"]);
+    expect(run.metrics.find((entry) => entry.id === "incremental-change-staleness-scenario-count")?.value).toBe(2);
+    expect(run.metadata).toEqual(expect.objectContaining({ kitCommand: kit.command, scenarioIds: ["U1", "L2"] }));
+    expect(run.artifacts[0].id).toBe("incremental-change-staleness-execution");
+    expect(existsSync(run.artifacts[0].path!)).toBe(true);
+
     for (const experimentCase of run.cases) {
-      expect(experimentCase.metadata?.lifecycleStatus).toBe("ready");
+      expect(experimentCase.metadata?.scenarioStatus).toBe("ready");
       for (const outcome of experimentCase.outcomes) {
-        expect(outcome.status).toBe("partial");
-        // TST-B3-047: no retrieval/correctness/token metric is emitted, not even as zero.
-        expect(outcome.metrics).toEqual([]);
+        expect(outcome.status).toBe("completed");
         expect(outcome.failures).toEqual([]);
+        // Real evidence is emitted now, not a placeholder empty array.
+        expect(outcome.metrics.length).toBeGreaterThan(0);
         expect(outcome.metadata).toEqual(
-          expect.objectContaining({ lifecycleStatus: "ready", retrievalStatus: "not-run", correctnessStatus: "not-run", comparisonStatus: "not-run" })
+          expect.objectContaining({ retrievalStatus: "completed", fakeAgentStatus: "completed" })
         );
-        expect(outcome.metadata?.baselineFreshnessStatus).toBe("stale");
       }
       const [stale, full] = experimentCase.outcomes;
-      expect(stale.metadata).toEqual(
-        expect.objectContaining({ activeRetrievalIndexRole: "baseline", postMutationIndexBuilt: false, indexBuildCount: 1, refreshedFreshnessStatus: null, refreshedIndexBuildDurationMs: null })
-      );
-      expect(full.metadata).toEqual(expect.objectContaining({ activeRetrievalIndexRole: "refreshed", postMutationIndexBuilt: true, indexBuildCount: 2, refreshedFreshnessStatus: "fresh" }));
+      expect(stale.metadata).toEqual(expect.objectContaining({ activeIndexPhase: "baseline" }));
+      expect(full.metadata).toEqual(expect.objectContaining({ activeIndexPhase: "refreshed" }));
     }
+    // Exactly three index builds per scenario, unchanged from Batch 3 (Batch 4 adds retrieval, not
+    // additional index builds).
     expect(readKitLog(kit.logPath).filter((line) => line === "index")).toHaveLength(6);
 
     // TST-B3-050: the run-owned root is removed; the sibling directory is untouched.
     expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId))).toBe(false);
     expect(existsSync(path.join(sibling, "keep.txt"))).toBe(true);
+    await rm(runOutputRoot, { recursive: true, force: true });
   }, 120_000);
 
   it("maps a failed lifecycle to failed outcomes for both treatments without fabricated evidence", async () => {
@@ -230,8 +235,8 @@ describe("plugin run behavior (TST-B3-006, 048..051)", () => {
     ]);
     for (const outcome of experimentCase.outcomes) {
       expect(outcome.metrics).toEqual([]);
-      expect(outcome.failures.map((failure) => failure.code)).toEqual(["lifecycle-baseline-index-build-failed"]);
-      expect(outcome.metadata).toEqual(expect.objectContaining({ lifecycleStatus: "failed", retrievalStatus: "not-run", correctnessStatus: "not-run" }));
+      expect(outcome.failures.map((failure) => failure.code)).toEqual(["incremental-change-staleness-scenario-failed"]);
+      expect(outcome.metadata).toEqual(expect.objectContaining({ scenarioStatus: "failed" }));
     }
     expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId))).toBe(false);
   }, 60_000);
