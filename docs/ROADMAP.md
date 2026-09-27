@@ -882,32 +882,240 @@ Shipped implementation: the baseline graph of the prepared warm index maps each 
 
 ### v0.6.2 — incremental-change and staleness plugin
 
-Status: **planned; not implemented**.
+Status: **planned; design frozen; not implemented**.
 
 Purpose:
 
-* Compare stale and fully refreshed index behavior after controlled incremental code changes.
+* Compare retrieval and correctness evidence from a stale baseline index with evidence from a complete post-change reindex after deterministic controlled source changes.
+* Measure stale-index risk without changing the released `warm-index-reuse` experiment or turning reindex recommendations into automatic actions.
 
-Features:
+Planned plugin boundary:
 
-* Add incremental-change-staleness plugin.
-* Define change scenarios:
+* Add a new `incremental-change-staleness` experiment plugin through the existing generic experiment-plugin framework.
+* Keep `warm-index-reuse` behavior, artifacts, metrics, campaign behavior, and one-index-per-project semantics unchanged.
+* Reuse existing full-index construction, `IndexSnapshotV1`, `IndexFreshnessAssessmentV1`, affected-neighborhood analysis, answer-key correctness, command timing, context-size/token evidence, and generic experiment/report infrastructure where their current contracts apply.
+* Give the new plugin its own treatment lifecycle, persisted execution/comparison evidence, and report model rather than overloading `warm-index-execution.json`.
 
-  * unrelated file change
-  * local implementation change
-  * exported symbol change
-  * public API change
-  * import graph change
-  * test-only change
-* Run matched next tasks with the stale index and a fully refreshed index. Partial-refresh execution or simulation remains v0.6.3 scope.
-* Score correctness and retrieval safety.
-* Report stale-index risk.
+Primary treatments:
+
+* `stale-index`
+* `full-refresh`
+
+Treatment model:
+
+* Each treatment runs against its own disposable target copy derived from the same immutable benchmark baseline.
+* Each treatment owns indexes whose manifest/target identity matches that treatment's target root; an index from one disposable target must never be reused for another target root.
+* The planned stale treatment is: equivalent baseline target -> full baseline index -> snapshot and baseline-graph capture -> deterministic mutation -> retrieval continues against the pre-mutation index.
+* The planned full-refresh treatment is: equivalent baseline target -> baseline index and snapshot capture -> the same deterministic mutation -> new complete post-mutation index -> retrieval uses the refreshed index.
+* Before treatment behavior is compared, the experiment must be able to establish equivalent pre-mutation controlled source state and equivalent post-mutation controlled source state across the two disposable copies.
+* The planned equivalence basis is normalized target-relative indexed-file path plus SHA-256 evidence derived from existing snapshot ownership, with separate treatment target/index identity retained in the persisted evidence.
+
+Frozen controlled-change scenarios:
+
+1. **Unrelated file change — U1**
+   * Project: `task-analytics-large-mixed`.
+   * Follow-up case: `warm-large-ts-leaderboard`.
+   * Changed owner: `py/task_analytics/quality.py`, `determine_quality_label`.
+   * Planned mutation dimension: healthy completion-rate threshold `80 -> 81`.
+   * Purpose: negative control across the intentionally separate Python and TypeScript analytics implementations.
+   * The TypeScript leaderboard follow-up answer remains unchanged; complete zero-overlap evidence may classify the task as `unrelated`.
+
+2. **Local implementation change — L2**
+   * Project: `task-workflow-medium-ts`.
+   * Follow-up case: `warm-medium-complete-idempotent`.
+   * Changed owner: `src/services/completeTask.ts`, `completeTask`.
+   * Planned mutation: fixed `completedAt` value `2026-02-01T00:00:00.000Z -> 2026-03-01T00:00:00.000Z`.
+   * Exported name, function signature, idempotence, and unknown-task behavior remain unchanged.
+   * The post-mutation answer must identify the new timestamp.
+
+3. **Exported symbol change — E1**
+   * Project: `task-analytics-large-mixed`.
+   * Follow-up case: `warm-large-python-pipeline`.
+   * Changed owner: `py/task_analytics/quality.py`, exported `determine_quality_label`.
+   * Planned mutation dimension: healthy completion-rate threshold `80 -> 85`.
+   * Export presence, symbol name, and callable signature remain stable while externally observable behavior changes.
+   * The post-mutation answer must identify the new healthy-label boundary.
+
+4. **Public API change — P1**
+   * Project: `task-analytics-large-mixed`.
+   * Follow-up case: `warm-large-python-pipeline`.
+   * Changed owner: `py/task_analytics/metrics.py`, `calculate_project_metrics`.
+   * Planned contract change: add optional `stale_day_threshold` with default `STALE_DAY_THRESHOLD`, and use that parameter in the stale-task predicate.
+   * Existing callers that omit the new argument must preserve their prior default behavior.
+   * The post-mutation answer must describe the new callable contract and default behavior.
+
+5. **Import-graph change — I1**
+   * Project: `task-analytics-large-mixed`.
+   * Follow-up case: `warm-large-ts-analytics-snapshot`.
+   * Changed owner: `ts/src/services/buildAnalyticsSnapshot.ts`.
+   * Planned mutation: remove the local dependency on `listTasksByProject` and inline behaviorally equivalent task filtering through the existing task-store API.
+   * Intended snapshot output remains equivalent while the dependency edge changes.
+   * The post-mutation answer must describe the new filtering ownership and the absence of the prior helper dependency.
+
+6. **Test-only change — T1**
+   * Project: `task-analytics-large-mixed`.
+   * Relevant follow-up task family: `warm-large-python-pipeline`.
+   * Changed owner: `py/tests/test_quality.py`.
+   * Planned mutation: change exactly one healthy-label test input from its validated baseline value `X` to `X + 1`, keeping the same healthy-label assertion and leaving production source/behavior unchanged.
+   * The exact `X` and `X + 1` literals are materialized during scenario-contract implementation only after validating them against current source.
+   * The scenario query/answer targets test evidence rather than pretending production behavior changed.
+
+Scenario-category rule:
+
+* The categories identify the experimental dimension deliberately changed; they are not required to be structurally exclusive.
+* An exported function body is also implementation code, and a public-API owner may also be an exported symbol. The selected category describes the intended experimental contrast.
+
+Planned scenario catalog:
+
+* Add a separate versioned scenario catalog rather than changing the semantics of `benchmarks/contracts/warm-index-benchmark-cases.json`.
+* Preferred planned path: `benchmarks/contracts/incremental-change-staleness-scenarios.json`.
+* Planned schema version: `1.0.0`.
+* Scenario records reference the existing benchmark project/case contracts rather than duplicating project roots and other canonical benchmark metadata.
+* Preserve the existing warm-index benchmark corpus and its current answer keys as the released baseline.
+
+Planned answer-key policy:
+
+* `inherit`: reuse the existing case query/answer when the controlled change does not alter that task's truth.
+* `scenario`: provide a post-mutation query and answer using the existing benchmark answer-key structure when the mutation changes the fact being queried.
+* Do not introduce a second correctness vocabulary.
+
+Planned bounded mutation contract:
+
+* A scenario declares one or more controlled relative file paths.
+* Each file carries an expected pre-mutation SHA-256.
+* Each file carries an ordered list of literal exact-preimage -> literal replacement operations.
+* Every preimage must match exactly once at the point it is applied.
+* Each file carries an expected deterministic post-mutation SHA-256.
+* The mutation layer must reject wrong hashes, missing/ambiguous preimages, path escape, and files outside the configured indexed source roots.
+* Mutation validation may apply replacements to in-memory text, but scenario-contract validation must leave canonical benchmark files byte-for-byte unchanged.
+
+Explicitly excluded mutation mechanisms:
+
+* arbitrary shell commands
+* arbitrary JavaScript or callbacks
+* generic script execution
+* fuzzy replacement
+* regex-based mutation
+* global search/replace
+* arbitrary source-file creation/deletion
+* arbitrary directory moves
+
+Evidence compatibility inherited from v0.6.1:
+
+* Keep exactly six numeric affected-neighborhood metrics: `changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, and `taskOverlapPercent`.
+* Keep `relationship` and `reindexRecommendation` categorical, not numeric.
+* Preserve `changedSymbolCount` as baseline symbol identities belonging to confirmed changed indexed files; it does not become proof that each symbol's own source text changed.
+* Preserve classification semantics: confirmed positive overlap -> `related`; complete zero overlap -> `unrelated`; zero observed overlap with incomplete/unavailable evidence -> `unknown`.
+* Incomplete zero overlap remains `unknown`, never `unrelated`.
+* Preserve absent, `null`, unavailable, and available evidence as distinct states.
+* `reindexRecommendation` remains observational evidence and must never automatically select or execute a treatment.
+
+Graph-diff decision:
+
+* Published `@dailephd/my-dev-kit@1.12.4` exposes `graph-diff`, but v0.6.2 does **not** depend on it.
+* The stale-versus-full-refresh question can be answered through direct treatment evidence, baseline/refreshed indexes, snapshots, existing graph evidence, retrieval evidence, and correctness without adding an unnecessary upstream graph-diff contract.
+* v0.6.2 does not add a true-symbol-diff metric and does not redefine `changedSymbolCount`.
+
+Planned comparison/evidence scope:
+
+* Compare the matched stale and full-refresh treatments using evidence already owned or naturally extended by the experiment framework: index-build/retrieval command status and duration, snapshot/freshness evidence, affected-neighborhood evidence, retrieval/context evidence, existing answer-key correctness, and explicit availability/status.
+* Report observed stale regressions, no observed regression for the scoped scenario, or inconclusive/unavailable evidence conservatively.
+* Do not turn the six affected-neighborhood metrics or recommendations into a composite stale-risk score.
+* Do not claim universal stale-index safety from one scenario or from a `not-indicated` recommendation.
+
+Planned evidence/report flow:
+
+runtime treatment evidence
+-> persisted plugin execution/comparison artifact
+-> comparison/metric owner
+-> report model
+-> JSON/text/HTML presentation
+
+* Report builders remain presentation-only and must not inspect source files, re-hash targets, rebuild indexes, remap graph evidence, or recompute experiment truth.
+* New plots are not required for v0.6.2 unless implementation evidence later proves they are necessary for interpreting the frozen acceptance criteria.
+* Real-agent campaigns are not required for v0.6.2 acceptance; deterministic fixture/fake-agent evidence remains sufficient unless a later version explicitly adds a campaign requirement.
+
+Packed-package constraint:
+
+* Design acceptance from the start around the exact Lab tarball installed into clean/disposable consumers.
+* Exercise the real published my-dev-kit package relied upon by the release candidate, validating package identity/version and invoking its installed binary through the established cross-platform process boundary.
+* Preserve the existing containment model: do not weaken installed-package target-root security merely to simplify controlled mutation.
+* Prove stale and full-refresh treatment behavior inside disposable mutable copies while preserving canonical target, installed-package, and packaged-example immutability.
+
+Performance boundary:
+
+* Freshness currently re-hashes represented files per task.
+* Affected-neighborhood assessment scans approximately all retained graph edges per task; no adjacency cache is part of the released contract.
+* Matched treatments multiply retrieval/freshness/neighborhood work, while `full-refresh` additionally adds complete index builds.
+* Measure and report these costs through existing evidence where possible; do not make adjacency caching, freshness caching, or other optimization part of v0.6.2 unless measured evidence establishes a material problem.
+
+Implementation batches:
+
+1. **Scenario contract and immutable scenario catalog**
+   * Define the versioned catalog, bounded mutation declarations, answer-key policy, loader/validation, and the six frozen production scenarios.
+   * Do not execute mutations or register the plugin yet.
+
+2. **Disposable targets, bounded mutation engine, and source-state equivalence evidence**
+   * Create isolated treatment copies, implement exact replacement execution with pre/post hash guards, and establish pre/post controlled-source equivalence evidence.
+   * Do not implement retrieval treatments yet.
+
+3. **Plugin registration and stale/full-refresh index lifecycle**
+   * Register `incremental-change-staleness`, construct treatment-specific index/session state, and enforce correct mutation timing after baseline snapshot/graph capture.
+   * Preserve all `warm-index-reuse` behavior.
+
+4. **Treatment execution, persisted comparison evidence, and conservative stale-risk classification**
+   * Run stale retrieval against the baseline index and full-refresh retrieval against a complete post-mutation index.
+   * Persist treatment identity, correctness/evidence availability, and conservative comparison outcomes without a universal score.
+
+5. **JSON/text/HTML report integration**
+   * Add plugin-specific report modeling and presentation from persisted evidence only.
+   * Preserve explicit unavailable/unknown states and do not recompute source/index evidence in report builders.
+
+6. **Exact-tarball packed-package acceptance**
+   * Validate the exact Lab package in disposable consumers against the real published my-dev-kit contract used by the release candidate.
+   * Prove matched mutation, stale treatment, full-refresh treatment, report/artifact output, containment, and target/package/example immutability.
+
+After the implementation batches:
+
+* Run hardened documentation reconciliation and implementation-completeness audit from actual source-of-truth behavior.
+* Run separate pre-release readiness, including cross-platform, security, package, and version-specific validation.
+* Run release preparation only after readiness passes.
+* Publish only after release preparation passes and the user explicitly approves publication.
 
 Acceptance:
 
-* Plugin demonstrates safe and unsafe stale-index scenarios.
-* Reports do not recommend skipping reindex unless evidence supports it.
-* v0.6.2 does not execute or simulate partial-refresh treatments; that remains the separately planned v0.6.3 scope.
+* All six controlled scenario records are deterministic, versioned, and validated.
+* Existing warm-index benchmark records and canonical benchmark source/test files remain unchanged by scenario-contract validation.
+* Treatment copies begin from equivalent controlled source state and the same deterministic mutation produces equivalent post-mutation controlled source state.
+* The stale treatment demonstrably retrieves from a pre-mutation index after the controlled change.
+* The full-refresh treatment demonstrably retrieves from a complete post-mutation index.
+* Index/manifest identity never crosses treatment target roots.
+* Scenario-specific correctness uses the existing answer-key semantics.
+* Missing or partial evidence remains explicit; it is never fabricated as zero, false, unrelated, or safe.
+* Released v0.6.1 affected-neighborhood semantics and the six numeric metrics remain unchanged.
+* Existing `warm-index-reuse` behavior and artifacts remain compatible.
+* No v0.6.2 path executes or simulates partial refresh.
+* No graph-diff dependency or true-symbol-diff metric is introduced.
+* Reports consume persisted experiment evidence and do not inspect/recompute target/index state.
+* Packed-package acceptance exercises real published upstream tooling without weakening target containment.
+* Canonical target, installed package, packaged benchmark/example, and unrelated worktrees remain immutable.
+* Required validation remains deterministic and cross-platform compatible.
+
+Explicit exclusions:
+
+* partial refresh or partial-refresh simulation
+* changed-files or affected-neighborhood refresh treatments
+* graph-diff integration
+* a true changed-symbol metric
+* redefining `changedSymbolCount`
+* automatic reindex policy
+* automatic treatment selection from `reindexRecommendation`
+* v0.8.0 retrieval precision/recall metrics
+* coding-agent edit-quality or repair scoring
+* a universal stale-risk score
+* real-agent campaign requirements
+* treatment rankings, winners, or composite grades
+* changes to `warm-index-reuse` semantics
 
 ### v0.6.3 — partial-refresh planning
 
