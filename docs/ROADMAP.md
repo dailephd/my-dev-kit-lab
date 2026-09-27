@@ -863,7 +863,7 @@ Features:
 
 * Use my-dev-kit graph outputs to map changed files and symbols to affected nodes.
 * Determine whether a future task overlaps affected nodes.
-* Add affected-neighborhood metrics:
+* Add six numeric affected-neighborhood metrics:
 
   * changedFileCount
   * changedSymbolCount
@@ -871,12 +871,12 @@ Features:
   * affectedEdgeCount
   * taskOverlapCount
   * taskOverlapPercent
-  * reindexRecommendation
+* Add categorical relationship (`related`, `unrelated`, `unknown`) and `reindexRecommendation` (`recommended`, `not-indicated`, `unknown`) evidence separately from numeric metrics.
 
 Acceptance:
 
-* Experiment can classify next task as related or unrelated to a prior change.
-* Report explains whether reindex was recommended.
+* Experiment can classify the next task as `related`, `unrelated`, or `unknown` based on evidence completeness and overlap.
+* Report explains the categorical reindex recommendation without representing it as a numeric metric.
 
 Shipped implementation: the baseline graph of the prepared warm index maps each task's confirmed changed indexed files, and the baseline symbols they contain, to graph nodes; the affected neighborhood is those seeds plus their direct one-hop neighbors over every valid edge kind; the task's `expectedFiles` and file-scoped `expectedSymbols` are mapped to graph nodes and compared with it. The assessment is recorded additively in `warm-index-execution.json` and reported in the existing warm-index `report.json`, `report.txt`, and `report.html`, observationally: retrieval and every status are unchanged, and nothing is reindexed. The six numeric warm-side metrics are `changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, and `taskOverlapPercent`; `reindexRecommendation` remains categorical evidence (`recommended`, `not-indicated`, `unknown`) alongside a `related`, `unrelated`, or `unknown` relationship. Incomplete or unavailable evidence classifies the relationship and recommendation as `unknown` rather than unrelated. No CLI flag, plugin, plot, or gallery item was added.
 
@@ -886,7 +886,7 @@ Status: **planned; not implemented**.
 
 Purpose:
 
-* Compare stale, refreshed, and incrementally updated index behavior after controlled code changes.
+* Compare stale and fully refreshed index behavior after controlled incremental code changes.
 
 Features:
 
@@ -899,7 +899,7 @@ Features:
   * public API change
   * import graph change
   * test-only change
-* Run next tasks with stale index, refreshed full index, and partial refresh where available.
+* Run matched next tasks with the stale index and a fully refreshed index. Partial-refresh execution or simulation remains v0.6.3 scope.
 * Score correctness and retrieval safety.
 * Report stale-index risk.
 
@@ -907,6 +907,7 @@ Acceptance:
 
 * Plugin demonstrates safe and unsafe stale-index scenarios.
 * Reports do not recommend skipping reindex unless evidence supports it.
+* v0.6.2 does not execute or simulate partial-refresh treatments; that remains the separately planned v0.6.3 scope.
 
 ### v0.6.3 — partial-refresh planning
 
