@@ -598,7 +598,7 @@ All six metrics are warm-side only (they are not on the raw-full-file side, beca
 
 ## Incremental-change and staleness evidence (v0.6.2)
 
-Status: implemented in this repository, unreleased (pre-release readiness has not yet run). The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affected-neighborhood numeric metrics unchanged (`changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, `taskOverlapPercent`; see "Affected-neighborhood metrics (v0.6.1)" above) and adds no new numeric formula.
+The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affected-neighborhood numeric metrics unchanged (`changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, `taskOverlapPercent`; see "Affected-neighborhood metrics (v0.6.1)" above) and adds no new numeric formula.
 
 **Correctness relation** (per scenario, comparing the `stale-index` and `full-refresh` treatments' deterministic fake-agent correctness):
 

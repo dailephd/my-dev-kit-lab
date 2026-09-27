@@ -849,7 +849,7 @@ Acceptance:
 * Lab can detect changed files after an index was built.
 * Freshness status appears in experiment artifacts and reports.
 
-Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation in v0.6.0. Later work builds on it: affected-neighborhood analysis shipped in v0.6.1, incremental-change experiments (v0.6.2) are implemented and unreleased, and partial refresh (v0.6.3) remains planned.
+Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation in v0.6.0. Later work builds on it: affected-neighborhood analysis shipped in v0.6.1, incremental-change experiments (v0.6.2) are published, and partial refresh (v0.6.3) remains planned.
 
 ### v0.6.1 — affected-neighborhood experiments
 
@@ -882,7 +882,7 @@ Shipped implementation: the baseline graph of the prepared warm index maps each 
 
 ### v0.6.2 — incremental-change and staleness plugin
 
-Status: **implemented; unreleased; pre-release readiness pending**.
+Status: **published**.
 
 Purpose:
 

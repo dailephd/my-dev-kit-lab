@@ -238,7 +238,7 @@ Released in v0.6.1. It extends the warm-index workflow above without any new com
 
 ## Incremental-change and staleness experiment (v0.6.2)
 
-Implemented in this repository on the current feature branch; unreleased (pre-release readiness has not yet run). See [CURRENT_STATE.md](CURRENT_STATE.md) for its lifecycle state and [ROADMAP.md](ROADMAP.md) for the frozen scope.
+This is the current shipped workflow. See [ROADMAP.md](ROADMAP.md) for its preserved scope.
 
 **Goal:** compare matched `stale-index` and `full-refresh` treatment evidence after the same deterministic controlled source change, using the six frozen scenario families, without changing the released `warm-index-reuse` experiment.
 

@@ -4,9 +4,9 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-### v0.6.2 — Incremental-change and staleness plugin
+## [0.6.2] - 2026-09-27
 
-Implemented in this repository; unreleased.
+### Incremental-change and staleness plugin
 
 - Added the `incremental-change-staleness` experiment plugin (`src/experiments/plugins/incrementalChangeStaleness/`), registered alongside `context-strategy-comparison` and `warm-index-reuse` with registry status `experimental` and exactly two treatments, `stale-index` and `full-refresh`.
 - Added a separate versioned scenario catalog (`benchmarks/contracts/incremental-change-staleness-scenarios.json`, schema `1.0.0`) with six frozen controlled-change scenarios (`U1` unrelated-file, `L2` local-implementation, `E1` exported-symbol, `P1` public-API, `I1` import-graph, `T1` test-only), a bounded declarative mutation contract (relative path, pre/post SHA-256, ordered literal exact-preimage replacements, exactly-one-match validation), and an `inherit`/`scenario` answer-key policy reusing the existing benchmark answer-key vocabulary.

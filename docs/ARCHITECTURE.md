@@ -267,11 +267,11 @@ Invariants:
 - The categorical relationship and recommendation are not `ExperimentMetric` entries and there is no composite score.
 - `scripts/verify-packed-package.mjs` (with `scripts/verifyPackedPackageHelpers.ts`) proves the exact packed tarball in a clean consumer against the real registry package `@dailephd/my-dev-kit@1.12.4`, including a fresh case and a controlled changed-file case, and keeps the canonical and installed packages immutable. The controlled case uses a disposable second install of the same tarball as its only mutable sandbox.
 
-## Incremental-change and staleness architecture (v0.6.2, implemented/unreleased)
+## Incremental-change and staleness architecture (v0.6.2, released/current)
 
-Status: **implemented; unreleased; pre-release readiness pending**.
+Status: **published**.
 
-The `incremental-change-staleness` experiment plugin (`src/experiments/plugins/incrementalChangeStaleness/`) is implemented as a new experiment plugin layered on the existing generic experiment framework. It does not replace or change the released `warm-index-reuse` plugin. The plugin owns its own controlled-change scenarios, disposable treatment targets, stale/full-refresh index lifecycle, persisted comparison evidence, and plugin report model, while reusing established evaluation owners where their released contracts apply. It is implemented on the current feature branch and remains unreleased; pre-release readiness has not yet run.
+The `incremental-change-staleness` experiment plugin (`src/experiments/plugins/incrementalChangeStaleness/`) is implemented as a new experiment plugin layered on the existing generic experiment framework. It does not replace or change the released `warm-index-reuse` plugin. The plugin owns its own controlled-change scenarios, disposable treatment targets, stale/full-refresh index lifecycle, persisted comparison evidence, and plugin report model, while reusing established evaluation owners where their released contracts apply. It is the current released implementation.
 
 ### Ownership
 
@@ -751,7 +751,7 @@ The following layers remain planned and must not be treated as current behavior:
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
 - the v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above
-- additional experiment plugins: later scale, retrieval-quality, and agent-success plugins remain planned; the released v0.6.0 freshness evidence, the released v0.6.1 affected-neighborhood evidence, and the implemented/unreleased v0.6.2 incremental-change and staleness plugin are described in "Index snapshot and freshness architecture (v0.6.0, released/current)", "Affected-neighborhood architecture (v0.6.1, released/current)", and "Incremental-change and staleness architecture (v0.6.2, implemented/unreleased)" above
+- additional experiment plugins: later scale, retrieval-quality, and agent-success plugins remain planned; the released v0.6.0 freshness evidence, the released v0.6.1 affected-neighborhood evidence, and the released/current v0.6.2 incremental-change and staleness plugin are described in "Index snapshot and freshness architecture (v0.6.0, released/current)", "Affected-neighborhood architecture (v0.6.1, released/current)", and "Incremental-change and staleness architecture (v0.6.2, released/current)" above
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
 

@@ -176,7 +176,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (released in v0.5.0), and `incremental-change-staleness` (implemented in this repository, unreleased), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (released in v0.5.0), and `incremental-change-staleness` (released in v0.6.2), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -241,7 +241,7 @@ A `--campaign` run requires a locally configured Codex or Claude provider CLI ma
 
 See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#real-agent-warm-index-campaign-v052) for the real-agent campaign procedure.
 
-#### `incremental-change-staleness` (v0.6.2, implemented in this repository, unreleased)
+#### `incremental-change-staleness` (v0.6.2)
 
 ```text
 my-dev-kit-lab experiment describe --experiment incremental-change-staleness
@@ -393,7 +393,7 @@ Current implemented commands:
 - `npm run experiment:describe -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment warm-index-reuse`
-- `npm run experiment:run -- --experiment incremental-change-staleness` (v0.6.2, implemented in this repository, unreleased)
+- `npm run experiment:run -- --experiment incremental-change-staleness` (v0.6.2)
 - `npm run run-controlled-experiment`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`
@@ -416,7 +416,7 @@ npm run experiment:describe -- --experiment warm-index-reuse
 npm run experiment:run -- --experiment warm-index-reuse --cases benchmarks/contracts/warm-index-benchmark-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/warm-index-reuse
 ```
 
-`experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above. `experiment:run` options for `incremental-change-staleness` are `--out`, `--case`, and `--kit-command` only; see [`incremental-change-staleness`](#incremental-change-staleness-v062-implemented-in-this-repository-unreleased) above.
+`experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above. `experiment:run` options for `incremental-change-staleness` are `--out`, `--case`, and `--kit-command` only; see [`incremental-change-staleness`](#incremental-change-staleness-v062) above.
 
 `experiment:run` options for `context-strategy-comparison`:
 
