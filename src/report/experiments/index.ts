@@ -14,4 +14,7 @@ export { buildContextIntegrityReport } from "./buildContextIntegrityReport.js";
 export { renderContextIntegrityJsonReport } from "./renderContextIntegrityJsonReport.js";
 export { renderContextIntegrityText } from "./renderContextIntegrityText.js";
 export { renderContextIntegrityHtml } from "./renderContextIntegrityHtml.js";
+export * from "./incrementalChangeStalenessReportModel.js";
+export { buildIncrementalChangeStalenessReport, STALE_RISK_CLASSIFICATION_EXPLANATIONS } from "./buildIncrementalChangeStalenessReport.js";
+export { renderIncrementalChangeStalenessHtml } from "./renderIncrementalChangeStalenessHtml.js";
 

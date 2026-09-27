@@ -46,7 +46,8 @@
         "evidence",
         "manual pentest",
         "tutorial",
-        "Chromium"
+        "Chromium",
+        "incremental-change-staleness"
       ]
     },
     "docs/PROJECT_OVERVIEW.md": {
@@ -69,7 +70,8 @@
         "report",
         "planned",
         "tutorial",
-        "browser"
+        "browser",
+        "incremental-change-staleness"
       ]
     },
     "docs/CURRENT_STATE.md": {
@@ -105,7 +107,8 @@
         "--campaign",
         "real-agent warm-index campaign",
         "LAB-EVIDENCE-01",
-        "v0.10.0"
+        "v0.10.0",
+        "incremental-change-staleness"
       ]
     },
     "docs/ARCHITECTURE.md": {
@@ -136,7 +139,9 @@
         "src/tutorial",
         "managedProcess",
         "src/experiments/plugins/warmIndexReuse",
-        "affected-neighborhood"
+        "affected-neighborhood",
+        "src/experiments/plugins/incrementalChangeStaleness",
+        "incremental-change-staleness"
       ]
     },
     "docs/COMMANDS.md": {
@@ -168,7 +173,8 @@
         "warm-index-reuse",
         "--kit-command",
         "--campaign",
-        "--include-real-agents"
+        "--include-real-agents",
+        "incremental-change-staleness"
       ]
     },
     "docs/WORKFLOWS.md": {
@@ -201,7 +207,8 @@
         "documentation",
         "tutorial",
         "Chromium",
-        "--campaign"
+        "--campaign",
+        "incremental-change-staleness"
       ]
     },
     "docs/TUTORIAL.md": {
@@ -229,7 +236,8 @@
       ],
       "requiredTopics": [
         "affected-neighborhood",
-        "reindexRecommendation"
+        "reindexRecommendation",
+        "incremental-change-staleness"
       ]
     },
     "docs/GALLERY.md": {
@@ -385,22 +393,27 @@
       "0.5.1",
       "0.5.2",
       "0.6.0",
-      "0.6.1"
+      "0.6.1",
+      "0.6.2"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.6.1",
+    "latestPublishedVersion": "0.6.2",
     "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.6.2",
+    "nextPlannedVersion": "0.6.3",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
-      "warm-index-reuse"
+      "warm-index-reuse",
+      "incremental-change-staleness"
     ],
     "experimentPluginDocuments": [
       "README.md",
+      "docs/PROJECT_OVERVIEW.md",
       "docs/CURRENT_STATE.md",
       "docs/COMMANDS.md",
-      "docs/ARCHITECTURE.md"
+      "docs/ARCHITECTURE.md",
+      "docs/WORKFLOWS.md",
+      "docs/METRICS.md"
     ],
     "implementedAuditTypes": [
       "code-rot",

@@ -15,6 +15,13 @@ import type {
   WarmIndexReuseReportFreshnessV1,
   WarmIndexReuseReportV1,
 } from "./warmIndexReuseReportModel.js";
+import type {
+  IncrementalChangeStalenessReportScenarioV1,
+  IncrementalChangeStalenessReportTreatmentV1,
+  IncrementalChangeStalenessReportV1
+} from "./incrementalChangeStalenessReportModel.js";
+import { STALE_RISK_CLASSIFICATION_EXPLANATIONS } from "./buildIncrementalChangeStalenessReport.js";
+import { REINDEX_RECOMMENDATION_EXPLANATIONS } from "./buildWarmIndexReuseReport.js";
 
 function sanitizeScalar(value: unknown): string {
   const text = String(value);
@@ -544,6 +551,150 @@ function renderTaskFreshnessDetail(lines: string[], freshness: WarmIndexReuseRep
   }
 }
 
+const INCREMENTAL_CHANGE_STALENESS_MAX_DISPLAY_ITEMS = 20;
+
+function pushBoundedStringList(lines: string[], label: string, items: readonly string[]): void {
+  lines.push(`${label}:`);
+  if (items.length === 0) {
+    lines.push("- none");
+    return;
+  }
+  const shown = items.slice(0, INCREMENTAL_CHANGE_STALENESS_MAX_DISPLAY_ITEMS);
+  for (const item of shown) lines.push(`- ${sanitizeScalar(item)}`);
+  const omitted = items.length - shown.length;
+  if (omitted > 0) lines.push(`... ${omitted} more`);
+}
+
+function symmetricIncrementalAffectedNeighborhood(scenario: IncrementalChangeStalenessReportScenarioV1) {
+  const stale = scenario.staleTreatment?.affectedNeighborhood ?? null;
+  const fullRefresh = scenario.fullRefreshTreatment?.affectedNeighborhood ?? null;
+  if (!stale || !fullRefresh) return null;
+  if (stale.relationship !== fullRefresh.relationship || stale.reindexRecommendation !== fullRefresh.reindexRecommendation) {
+    return null;
+  }
+  return stale;
+}
+
+function renderIncrementalChangeStalenessTreatment(lines: string[], label: string, treatment: IncrementalChangeStalenessReportTreatmentV1 | null): void {
+  pushSection(lines, label);
+  if (!treatment) {
+    lines.push("Not available.");
+    return;
+  }
+  lines.push(fieldLine("Treatment Status", treatment.status));
+  lines.push(fieldLine("Failure Reason", treatment.failureReason));
+  lines.push(fieldLine("Active Index Phase", treatment.activeIndexPhase));
+  lines.push(fieldLine("Baseline Freshness Status", treatment.baselineFreshness.status));
+  lines.push("Retrieval (deterministic fake-agent / simulated harness evidence label applies to fakeAgent below):");
+  lines.push(fieldLine("Retrieval Status", treatment.retrieval.status));
+  lines.push(fieldLine("Selected Node ID", treatment.retrieval.selectedNodeId));
+  lines.push(fieldLine("Selected File", treatment.retrieval.selectedFile));
+  lines.push(fieldLine("Selected Symbol", treatment.retrieval.selectedSymbol));
+  lines.push(fieldLine("Context Characters", treatment.retrieval.totalChars));
+  lines.push(fieldLine("Estimated Context Tokens", treatment.retrieval.totalEstimatedTokens));
+  lines.push(fieldLine("Retrieval Duration (ms)", treatment.retrieval.durationMs));
+  pushBoundedStringList(lines, "Files Read", treatment.retrieval.filesRead);
+  pushBoundedStringList(lines, "Retrieval Warnings", treatment.retrieval.warnings);
+  lines.push("Fake-Agent Evidence (deterministic fake-agent / simulated harness evidence):");
+  if (treatment.fakeAgent) {
+    lines.push(fieldLine("Fake-Agent Status", treatment.fakeAgent.status));
+    lines.push(
+      fieldLine(
+        "Correctness Score",
+        treatment.fakeAgent.correctness.available ? treatment.fakeAgent.correctness.score : null
+      )
+    );
+    lines.push(fieldLine("Passed", treatment.fakeAgent.correctness.passed));
+    lines.push(fieldLine("Fake-Agent Duration (ms)", treatment.fakeAgent.durationMs));
+  } else {
+    lines.push("Not run for this treatment.");
+  }
+  lines.push("Required-File Evidence (bounded answer-key file-presence check, not retrieval precision/recall):");
+  lines.push(fieldLine("Required-File Status", treatment.requiredFileEvidence.status));
+  lines.push(fieldLine("Required-File Reason", treatment.requiredFileEvidence.reason));
+  pushBoundedStringList(lines, "Required Files", treatment.requiredFileEvidence.requiredFiles);
+  pushBoundedStringList(lines, "Observed Files", treatment.requiredFileEvidence.observedFiles);
+  pushBoundedStringList(lines, "Missing Files", treatment.requiredFileEvidence.missingFiles);
+}
+
+function renderIncrementalChangeStalenessScenario(lines: string[], scenario: IncrementalChangeStalenessReportScenarioV1): void {
+  pushSection(lines, `Scenario: ${scenario.scenarioId}`);
+  lines.push(fieldLine("Category", scenario.category));
+  lines.push(fieldLine("Status", scenario.status));
+  lines.push(fieldLine("Failure Reason", scenario.failureReason));
+  lines.push(fieldLine("Benchmark Project", scenario.benchmarkProjectId));
+  lines.push(fieldLine("Base Case", scenario.baseCaseId));
+  lines.push(fieldLine("Answer Policy", scenario.answerPolicy));
+  lines.push(fieldLine("Query", scenario.query));
+  pushBoundedStringList(lines, "Expected Files", scenario.expectedFiles);
+  pushBoundedStringList(lines, "Expected Symbols", scenario.expectedSymbols);
+
+  pushSection(lines, "Lifecycle");
+  const lifecycle = scenario.lifecycle;
+  if (!lifecycle) {
+    lines.push("Not available.");
+  } else {
+    lines.push(fieldLine("Pre-Mutation Equivalence", lifecycle.preMutationEquivalence));
+    lines.push(fieldLine("Post-Mutation Equivalence", lifecycle.postMutationEquivalence));
+    lines.push(fieldLine("my-dev-kit Version", lifecycle.myDevKitVersion));
+    lines.push(fieldLine("Stale Baseline Freshness Status", lifecycle.staleBaselineFreshnessStatus));
+    lines.push(fieldLine("Full-Refresh Baseline Freshness Status", lifecycle.fullRefreshBaselineFreshnessStatus));
+    lines.push(fieldLine("Full-Refresh Refreshed Freshness Status", lifecycle.fullRefreshRefreshedFreshnessStatus));
+    pushBoundedStringList(lines, "Controlled File Paths", lifecycle.controlledFilePaths);
+    pushBoundedStringList(lines, "Source Roots", lifecycle.sourceRoots);
+  }
+
+  pushSection(lines, "Affected-Neighborhood Evidence (changed baseline neighborhood relative to the task)");
+  const symmetric = symmetricIncrementalAffectedNeighborhood(scenario);
+  const bothPresent = scenario.staleTreatment?.affectedNeighborhood && scenario.fullRefreshTreatment?.affectedNeighborhood;
+  if (!scenario.staleTreatment?.affectedNeighborhood && !scenario.fullRefreshTreatment?.affectedNeighborhood) {
+    lines.push("Not available.");
+  } else if (bothPresent && !symmetric) {
+    lines.push("inconsistent persisted evidence");
+  } else if (symmetric) {
+    lines.push(fieldLine("Relationship", symmetric.relationship));
+    lines.push(fieldLine("Reindex Recommendation", symmetric.reindexRecommendation));
+    lines.push(fieldLine("Reindex Recommendation Explanation", REINDEX_RECOMMENDATION_EXPLANATIONS[symmetric.reindexRecommendation]));
+    lines.push(fieldLine("Changed Indexed Files", symmetric.changedFileCount));
+    lines.push(fieldLine("Changed Baseline Symbols", symmetric.changedSymbolCount));
+    lines.push(fieldLine("Affected Graph Nodes", symmetric.affectedNodeCount));
+    lines.push(fieldLine("Affected Graph Edges", symmetric.affectedEdgeCount));
+    lines.push(fieldLine("Task-Overlap Nodes", symmetric.taskOverlapCount));
+    lines.push(fieldLine("Task-Overlap Percent", symmetric.taskOverlapPercent));
+  }
+
+  renderIncrementalChangeStalenessTreatment(lines, "Stale-Index Treatment", scenario.staleTreatment);
+  renderIncrementalChangeStalenessTreatment(lines, "Full-Refresh Treatment", scenario.fullRefreshTreatment);
+
+  pushSection(lines, "Matched Comparison");
+  lines.push(fieldLine("Correctness Relation", scenario.comparison.correctnessRelation));
+  lines.push(fieldLine("Required-File Evidence Relation", scenario.comparison.requiredFileEvidenceRelation));
+  lines.push(fieldLine("Stale-Risk Classification", scenario.comparison.staleRiskClassification));
+  pushDashList(lines, scenario.comparison.reasonCodes);
+  lines.push(STALE_RISK_CLASSIFICATION_EXPLANATIONS[scenario.comparison.staleRiskClassification]);
+}
+
+function renderIncrementalChangeStalenessSection(lines: string[], section: IncrementalChangeStalenessReportV1 | null): void {
+  if (section === null) {
+    lines.push("Not applicable to this plugin.");
+    return;
+  }
+  pushSection(lines, "Summary");
+  lines.push(fieldLine("Scenarios", section.scenarioCount));
+  lines.push(fieldLine("Ready", section.readyScenarioCount));
+  lines.push(fieldLine("Failed", section.failedScenarioCount));
+  lines.push(fieldLine("Observed Stale Regression", section.observedStaleRegressionCount));
+  lines.push(fieldLine("No Observed Stale Regression", section.noObservedStaleRegressionCount));
+  lines.push(fieldLine("Inconclusive", section.inconclusiveCount));
+
+  for (const scenario of section.scenarios) {
+    renderIncrementalChangeStalenessScenario(lines, scenario);
+  }
+
+  pushSection(lines, "Limitations");
+  pushDashList(lines, section.limitations);
+}
+
 export function renderPluginExperimentReportText(report: PluginExperimentReport): string {
   const lines: string[] = [];
 
@@ -600,6 +751,9 @@ export function renderPluginExperimentReportText(report: PluginExperimentReport)
 
   pushSection(lines, "Warm Index Reuse Evidence");
   renderWarmIndexReuseSection(lines, report.warmIndexReuse);
+
+  pushSection(lines, "Incremental-Change And Staleness Evidence");
+  renderIncrementalChangeStalenessSection(lines, report.incrementalChangeStaleness);
 
   pushSection(lines, "Warnings, Skips, And Failures");
   pushDashList(

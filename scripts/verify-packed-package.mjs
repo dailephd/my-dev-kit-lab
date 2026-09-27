@@ -84,9 +84,24 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/plots/buildWarmIndexPlotData.js",
   "dist/src/screenshot/captureReportScreenshot.js",
   "dist/src/commands/generateExperimentPlotsCommand.js",
+  // v0.6.2 -- incremental-change-staleness plugin, execution/comparison artifact, and report owners.
+  "dist/src/experiments/plugins/incrementalChangeStaleness/plugin.js",
+  "dist/src/experiments/plugins/incrementalChangeStaleness/execution.js",
+  "dist/src/experiments/plugins/incrementalChangeStaleness/executionArtifact.js",
+  "dist/src/experiments/plugins/incrementalChangeStaleness/comparison.js",
+  "dist/src/experiments/plugins/incrementalChangeStaleness/lifecycle.js",
+  "dist/src/experiments/plugins/incrementalChangeStaleness/disposableTarget.js",
+  "dist/src/report/experiments/buildIncrementalChangeStalenessReport.js",
+  "dist/src/report/experiments/renderIncrementalChangeStalenessHtml.js",
   "benchmarks/contracts/benchmark-project-profiles.json",
   "benchmarks/contracts/warm-index-benchmark-cases.json",
+  "benchmarks/contracts/incremental-change-staleness-scenarios.json",
   "benchmarks/projects/todo-ts/src/taskService.ts",
+  "benchmarks/projects/task-analytics-large-mixed/py/task_analytics/quality.py",
+  "benchmarks/projects/task-analytics-large-mixed/py/task_analytics/metrics.py",
+  "benchmarks/projects/task-analytics-large-mixed/ts/src/services/buildAnalyticsSnapshot.ts",
+  "benchmarks/projects/task-analytics-large-mixed/py/tests/test_quality.py",
+  "benchmarks/projects/task-workflow-medium-ts/src/services/completeTask.ts",
   "examples/token-savings-cases.json",
   "examples/tutorial-browser/index.html",
   "examples/tutorial-browser/prepare.mjs",
@@ -94,7 +109,7 @@ const REQUIRED_TARBALL_PATHS = [
   "examples/tutorial-browser/scenario.json"
 ];
 
-const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse"];
+const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness"];
 
 const WARM_INDEX_CHARTS = [
   "warm-index-amortized-index-cost.svg",
@@ -511,7 +526,9 @@ async function main() {
     validateUpstreamMyDevKitIdentity,
     resolveUpstreamBinRelativePath,
     buildControlledMutationKitWrapperSource,
-    validateAffectedNeighborhoodLayers
+    validateAffectedNeighborhoodLayers,
+    validateIncrementalChangeStalenessArtifact,
+    validateIncrementalChangeStalenessReportConsistency
   } =
     await loadHelpers();
 
@@ -1386,6 +1403,160 @@ async function main() {
     console.log("AFFECTED_NEIGHBORHOOD_PACKAGE_INVENTORY: PASS (no development or generated paths in the tarball)");
 
     // -----------------------------------------------------------------
+    // 9c-3. v0.6.2 incremental-change-staleness installed-package acceptance
+    // (Batch 6). Consumer A (dirs.consumer) proves clean install/identity/
+    // CLI/plugin discovery only and never runs the six-scenario workflow, so
+    // it stays covered by the whole-run installedPackageBefore/After diff.
+    // Consumer B is the exact same tarball's already-independent second
+    // install (dirs.mutableConsumer / sandboxPackageRoot / sandboxCliCommand
+    // / sandboxEnv, established above): it runs the plugin's OWN production
+    // disposable-target/mutation/lifecycle architecture end to end against
+    // the REAL published upstream already resolved above (upstreamBin /
+    // realKitCommand) -- never the old v0.6.1 controlled-mutation wrapper,
+    // never a fake kit, never the source checkout's own benchmarks.
+    // -----------------------------------------------------------------
+    const icsListResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "list", "--json"], envWithBin);
+    if (icsListResult.status !== 0) {
+      fail("INCREMENTAL_CHANGE_STALENESS_DISCOVERY", "Installed `experiment list --json` did not exit 0.", describeChildResult(icsListResult));
+    }
+    const icsListParsed = parseJsonOutput(icsListResult, "INCREMENTAL_CHANGE_STALENESS_DISCOVERY");
+    const icsListedEntries = (icsListParsed.experiments ?? []).filter((entry) => entry.id === "incremental-change-staleness");
+    if (icsListedEntries.length !== 1) {
+      fail("INCREMENTAL_CHANGE_STALENESS_DISCOVERY", `Expected incremental-change-staleness exactly once in \`experiment list\`, found ${icsListedEntries.length}.`);
+    }
+    if (
+      icsListedEntries[0].status !== "experimental" ||
+      JSON.stringify(icsListedEntries[0].supportedVariants) !== JSON.stringify(["stale-index", "full-refresh"])
+    ) {
+      fail("INCREMENTAL_CHANGE_STALENESS_DISCOVERY", `Unexpected listed plugin metadata/variants: ${JSON.stringify(icsListedEntries[0])}`);
+    }
+
+    const icsDescribeResult = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["experiment", "describe", "--experiment", "incremental-change-staleness", "--json"],
+      envWithBin
+    );
+    if (icsDescribeResult.status !== 0) {
+      fail(
+        "INCREMENTAL_CHANGE_STALENESS_DISCOVERY",
+        "Installed `experiment describe --experiment incremental-change-staleness` did not exit 0.",
+        describeChildResult(icsDescribeResult)
+      );
+    }
+    const icsDescribed = parseJsonOutput(icsDescribeResult, "INCREMENTAL_CHANGE_STALENESS_DISCOVERY");
+    if (
+      icsDescribed.metadata?.id !== "incremental-change-staleness" ||
+      icsDescribed.metadata?.status !== "experimental" ||
+      JSON.stringify(icsDescribed.supportedVariants) !== JSON.stringify(["stale-index", "full-refresh"])
+    ) {
+      fail(
+        "INCREMENTAL_CHANGE_STALENESS_DISCOVERY",
+        `Installed describe output does not expose exactly stale-index/full-refresh: ${icsDescribeResult.stdout}`
+      );
+    }
+    console.log("INCREMENTAL_CHANGE_STALENESS_DISCOVERY: PASS (listed exactly once; describe exposes stale-index/full-refresh only)");
+
+    const icsSandboxBefore = await snapshotDirectory(sandboxPackageRoot);
+    const icsOut = path.join(dirs.affectedRuns, "incremental-change-staleness");
+    const icsRun = runInstalledCli(
+      sandboxCliCommand,
+      dirs.mutableConsumer,
+      ["experiment", "run", "--experiment", "incremental-change-staleness", "--kit-command", realKitCommand, "--out", icsOut],
+      sandboxEnv
+    );
+    if (icsRun.status !== 0) {
+      fail("INCREMENTAL_CHANGE_STALENESS_RUN", "Installed six-scenario incremental-change-staleness run did not exit 0.", describeChildResult(icsRun));
+    }
+    assertOutputOutsidePackage(icsOut, sandboxPackageRoot, "incremental-change-staleness run");
+    for (const name of ["incremental-change-staleness-execution.json", "report.json", "report.txt", "report.html"]) {
+      requireNonEmptyFile(path.join(icsOut, name), "INCREMENTAL_CHANGE_STALENESS_RUN");
+    }
+
+    const icsArtifact = readJsonFile(path.join(icsOut, "incremental-change-staleness-execution.json"), "INCREMENTAL_CHANGE_STALENESS_ARTIFACT");
+    const icsArtifactProblems = validateIncrementalChangeStalenessArtifact(icsArtifact);
+    if (icsArtifactProblems.length > 0) {
+      fail("INCREMENTAL_CHANGE_STALENESS_ARTIFACT", icsArtifactProblems.join("\n"));
+    }
+    if (icsArtifact.summary.failedScenarioCount !== 0) {
+      fail("INCREMENTAL_CHANGE_STALENESS_RUN", `Expected failedScenarioCount 0, got ${icsArtifact.summary.failedScenarioCount}.`);
+    }
+
+    const icsReportJson = readJsonFile(path.join(icsOut, "report.json"), "INCREMENTAL_CHANGE_STALENESS_REPORT").report;
+    const icsReportText = readFileSync(path.join(icsOut, "report.txt"), "utf8");
+    const icsReportHtml = readFileSync(path.join(icsOut, "report.html"), "utf8");
+    const icsReportProblems = validateIncrementalChangeStalenessReportConsistency({
+      artifact: icsArtifact,
+      report: icsReportJson,
+      reportText: icsReportText,
+      reportHtml: icsReportHtml
+    });
+    if (icsReportProblems.length > 0) {
+      fail("INCREMENTAL_CHANGE_STALENESS_REPORT", icsReportProblems.join("\n"));
+    }
+
+    // Section 41: reuse (never reimplement) the installed package's own pure comparison module.
+    const icsComparisonModulePath = path.join(
+      sandboxPackageRoot,
+      "dist",
+      "src",
+      "experiments",
+      "plugins",
+      "incrementalChangeStaleness",
+      "comparison.js"
+    );
+    if (!existsSync(icsComparisonModulePath)) {
+      fail("INCREMENTAL_CHANGE_STALENESS_COMPARISON", `Installed comparison module not found: ${icsComparisonModulePath}`);
+    }
+    const installedComparison = await import(pathToFileURL(icsComparisonModulePath).href);
+    for (const scenario of icsArtifact.scenarios) {
+      const correctnessComparable = (treatment) =>
+        treatment?.fakeAgent?.correctness?.available ? { available: true, score: treatment.fakeAgent.correctness.score } : { available: false };
+      const expectedCorrectnessRelation = installedComparison.compareCorrectness(
+        correctnessComparable(scenario.stale),
+        correctnessComparable(scenario.fullRefresh)
+      );
+      if (expectedCorrectnessRelation !== scenario.comparison.correctnessRelation) {
+        fail(
+          "INCREMENTAL_CHANGE_STALENESS_COMPARISON",
+          `[${scenario.scenarioId}] persisted correctnessRelation "${scenario.comparison.correctnessRelation}" disagrees with the installed pure comparison helper ("${expectedCorrectnessRelation}").`
+        );
+      }
+      const expectedRequiredFileRelation = installedComparison.compareRequiredFileEvidence(
+        scenario.stale.requiredFileEvidence,
+        scenario.fullRefresh.requiredFileEvidence
+      );
+      if (expectedRequiredFileRelation !== scenario.comparison.requiredFileEvidenceRelation) {
+        fail(
+          "INCREMENTAL_CHANGE_STALENESS_COMPARISON",
+          `[${scenario.scenarioId}] persisted requiredFileEvidenceRelation "${scenario.comparison.requiredFileEvidenceRelation}" disagrees with the installed pure comparison helper ("${expectedRequiredFileRelation}").`
+        );
+      }
+      const expectedClassification = installedComparison.classifyStaleRisk(expectedCorrectnessRelation, expectedRequiredFileRelation);
+      if (expectedClassification.staleRiskClassification !== scenario.comparison.staleRiskClassification) {
+        fail(
+          "INCREMENTAL_CHANGE_STALENESS_COMPARISON",
+          `[${scenario.scenarioId}] persisted staleRiskClassification "${scenario.comparison.staleRiskClassification}" disagrees with the installed pure classifier ("${expectedClassification.staleRiskClassification}").`
+        );
+      }
+    }
+
+    // Immutability: production mutation must stay inside the plugin's own gitignored runtime root
+    // (toolRoot/.my-dev-kit-context/runtime/incremental-change-staleness), which the generic
+    // runner's cleanup() phase always removes; the installed package tree must return byte-identical.
+    const icsSandboxAfter = await snapshotDirectory(sandboxPackageRoot);
+    const icsSandboxChanges = diffSnapshots(icsSandboxBefore, icsSandboxAfter);
+    if (icsSandboxChanges.length > 0) {
+      fail("INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY", `Installed package resources changed after the six-scenario run: ${icsSandboxChanges.join(", ")}`);
+    }
+
+    console.log(`INCREMENTAL_CHANGE_STALENESS_RUN: PASS (6 scenarios: ${icsArtifact.scenarios.map((s) => `${s.scenarioId}=${s.comparison.staleRiskClassification}`).join(", ")}; real ${UPSTREAM_MY_DEV_KIT_SPEC})`);
+    console.log("INCREMENTAL_CHANGE_STALENESS_ARTIFACT: PASS (schema, six-scenario order, lifecycle, active-index-phase, affected-neighborhood symmetry, comparison vocabulary)");
+    console.log("INCREMENTAL_CHANGE_STALENESS_REPORT: PASS (report.json/report.txt/report.html consistent with the execution artifact; limitations present; no overall verdict)");
+    console.log("INCREMENTAL_CHANGE_STALENESS_COMPARISON: PASS (persisted relations/classification agree with the installed pure comparison helper)");
+    console.log("INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY: PASS (installed package tree byte-identical after the run)");
+
+    // -----------------------------------------------------------------
     // 9d. v0.5.2 real-agent campaign acceptance. Deterministic local fake
     // Codex/Claude providers only -- no real provider is ever invoked. Every
     // scenario runs inside the same installed-package-immutability window
@@ -1884,6 +2055,12 @@ async function main() {
         "AFFECTED_NEIGHBORHOOD_CHANGED_FILE: PASS",
         "AFFECTED_NEIGHBORHOOD_METRICS: PASS",
         "AFFECTED_NEIGHBORHOOD_REPORT: PASS",
+        "INCREMENTAL_CHANGE_STALENESS_DISCOVERY: PASS",
+        "INCREMENTAL_CHANGE_STALENESS_RUN: PASS",
+        "INCREMENTAL_CHANGE_STALENESS_ARTIFACT: PASS",
+        "INCREMENTAL_CHANGE_STALENESS_REPORT: PASS",
+        "INCREMENTAL_CHANGE_STALENESS_COMPARISON: PASS",
+        "INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY: PASS",
         "SOURCE_CHECKOUT_RUNTIME_DEPENDENCY: NONE_OBSERVED"
       ].join("\n")
     );

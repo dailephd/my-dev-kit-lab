@@ -17,6 +17,7 @@ import { buildContextStrategyComparisonV043Report } from "./buildContextStrategy
 import type { ContextStrategyComparisonV043ReportV1 } from "./contextStrategyComparisonV043ReportModel.js";
 import { buildWarmIndexReuseReport } from "./buildWarmIndexReuseReport.js";
 import type { WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
+import { buildIncrementalChangeStalenessReport } from "./buildIncrementalChangeStalenessReport.js";
 
 const V043_BULK_ARRAY_KEYS = [
   "v043StageContextExecutions",
@@ -34,6 +35,7 @@ export function buildPluginExperimentReport(args: {
   const allOutcomes = args.run.cases.flatMap((experimentCase) => experimentCase.outcomes);
   const contextStrategyComparisonV043 = buildContextStrategyComparisonV043Report(args.run);
   const warmIndexReuse = buildWarmIndexReuseReport(args.run);
+  const incrementalChangeStaleness = buildIncrementalChangeStalenessReport(args.run);
   const rawRun: ExperimentRun = { ...args.run, artifacts: relativizeArtifacts(args.run.artifacts, outputRoot) };
   for (const key of V043_BULK_ARRAY_KEYS) {
     delete (rawRun as Record<string, unknown>)[key];
@@ -62,6 +64,7 @@ export function buildPluginExperimentReport(args: {
     skippedOutcomes: allOutcomes.filter((outcome) => outcome.status === "skipped"),
     findings: buildFindings(args.run),
     warmIndexReuse,
+    incrementalChangeStaleness,
     contextStrategyComparisonV043,
     interpretation: buildInterpretation(args.run, contextStrategyComparisonV043, warmIndexReuse),
     rawRun,

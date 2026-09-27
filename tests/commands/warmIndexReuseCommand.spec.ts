@@ -128,10 +128,18 @@ describe("experiment run --kit-command", () => {
   it("rejects --kit-command for context-strategy-comparison and a missing value", () => {
     expect(() =>
       parseRunExperimentArgs(["--experiment", "context-strategy-comparison", "--kit-command", "kit"])
-    ).toThrow("--kit-command is only supported for --experiment warm-index-reuse.");
+    ).toThrow("--kit-command is only supported for --experiment warm-index-reuse or incremental-change-staleness.");
     expect(() => parseRunExperimentArgs(["--experiment", "warm-index-reuse", "--kit-command"])).toThrow(
       "--kit-command requires a value."
     );
+  });
+
+  // v0.6.2 Batch 6: --kit-command must also work for incremental-change-staleness, since its
+  // installed-package acceptance overrides the default `npx @dailephd/my-dev-kit@1.12.4` with the
+  // already-resolved real upstream binary rather than shelling out through nested npx.
+  it("accepts --kit-command for incremental-change-staleness", () => {
+    const parsed = parseRunExperimentArgs(["--experiment", "incremental-change-staleness", "--kit-command", "node upstream.js"]);
+    expect(parsed.config.kitCommand).toBe("node upstream.js");
   });
 
   it("leaves context-strategy-comparison parsing unchanged", () => {
@@ -339,6 +347,7 @@ describe("experiment list/describe with warm-index-reuse", () => {
     expect(listed.experiments.map((experiment) => [experiment.id, experiment.supportedVariants])).toEqual([
       ["context-strategy-comparison", ["raw-full-file", "my-dev-kit-guided"]],
       ["warm-index-reuse", ["raw-full-file", "warm-index-reuse"]],
+      ["incremental-change-staleness", ["stale-index", "full-refresh"]],
     ]);
   });
 

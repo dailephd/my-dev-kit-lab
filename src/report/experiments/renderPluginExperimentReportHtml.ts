@@ -1,6 +1,7 @@
 import type { PluginExperimentReport } from "./experimentReportModel.js";
 import { renderContextStrategyComparisonV043Html } from "./renderContextStrategyComparisonV043Html.js";
 import { renderWarmIndexReuseHtml } from "./renderWarmIndexReuseHtml.js";
+import { renderIncrementalChangeStalenessHtml } from "./renderIncrementalChangeStalenessHtml.js";
 
 export function renderPluginExperimentReportHtml(report: PluginExperimentReport): string {
   return `<!DOCTYPE html>
@@ -100,6 +101,8 @@ export function renderPluginExperimentReportHtml(report: PluginExperimentReport)
   ${renderContextStrategyComparisonV043Html(report.contextStrategyComparisonV043)}
 
   ${renderWarmIndexReuseHtml(report.warmIndexReuse)}
+
+  ${renderIncrementalChangeStalenessHtml(report.incrementalChangeStaleness)}
 
   <section>
     <h2>Warnings, Skips, And Failures</h2>

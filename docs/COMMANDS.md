@@ -176,7 +176,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison` and `warm-index-reuse` (the latter released in v0.5.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (released in v0.5.0), and `incremental-change-staleness` (released in v0.6.2), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -189,7 +189,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
 
-`experiment run --help` groups options as common options (all plugins), `warm-index-reuse` only, and `context-strategy-comparison` only. Plugin-specific options are rejected for the other plugin rather than ignored.
+`experiment run --help` groups options as common options (all plugins), `warm-index-reuse` only, and `context-strategy-comparison` only. Plugin-specific options are rejected for the other plugin rather than ignored. `--kit-command` is accepted for both `warm-index-reuse` and `incremental-change-staleness`; it is rejected for `context-strategy-comparison`.
 
 #### `warm-index-reuse`
 
@@ -240,6 +240,35 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign claude-fu
 A `--campaign` run requires a locally configured Codex or Claude provider CLI matching the selected preset's agent; it reports partial outcomes (`token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) explicitly rather than treating them as success, and — on a completed run — additionally produces the campaign report/plots/screenshot/gallery presentation described in [ARCHITECTURE.md](ARCHITECTURE.md#real-agent-warm-index-campaign-architecture-v052-released) and [GALLERY.md](GALLERY.md).
 
 See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#real-agent-warm-index-campaign-v052) for the real-agent campaign procedure.
+
+#### `incremental-change-staleness` (v0.6.2)
+
+```text
+my-dev-kit-lab experiment describe --experiment incremental-change-staleness
+my-dev-kit-lab experiment run --experiment incremental-change-staleness [--out <dir>] [--case <ids>] [--kit-command <command>]
+```
+
+| Option | Allowed value or default |
+|---|---|
+| `--out <dir>` | Optional; installed default `<workspace>/lab-output/experiments/incremental-change-staleness/<target>/<run>/` |
+| `--case <ids>` | Optional comma-separated subset of the six frozen scenario IDs (`U1`, `L2`, `E1`, `P1`, `I1`, `T1`); defaults to all six. Mutation instructions are never configurable — the packaged scenario catalog is the only mutation authority |
+| `--kit-command <command>` | Accepted for `incremental-change-staleness` (in addition to `warm-index-reuse`); the my-dev-kit command used for every treatment index build. Defaults to `npx @dailephd/my-dev-kit@1.12.4` |
+
+This plugin does not accept `--target`, `--cases`, `--project-profiles`, `--benchmark-project`, `--campaign`, `--include-real-agents`, or any agent-matrix option; it always runs against the lab's own bundled benchmark projects.
+
+Behavior:
+
+- runs exactly two treatments per selected scenario, in order: `stale-index` then `full-refresh`
+- each scenario applies its frozen declarative bounded mutation to two independent disposable target copies, proves pre/post controlled-source equivalence, builds a baseline index/snapshot/graph for both treatments before mutation, keeps `stale-index` on that baseline index, and builds a distinct post-mutation index for `full-refresh`
+- outputs beneath the output root: `incremental-change-staleness-execution.json` (schema `my-dev-kit-lab-incremental-change-staleness-execution-v1`) and the plugin reports `report.json`, `report.txt`, and `report.html` with an incremental-change-staleness section
+- the run status is `completed`, `partial`, or `failed` from actual scenario outcomes; a scenario's lifecycle failure is recorded as that scenario's own failed status without fabricating treatment evidence
+- no partial refresh, no `graph-diff` dependency, and no numeric stale-risk score are produced
+
+```text
+my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U1,L2 --kit-command "node /path/to/my-dev-kit/bin/cli.js" --out <dir>
+```
+
+See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
 ### `my-dev-kit-lab experiment controlled [options]`
 
@@ -317,7 +346,7 @@ Useful current combinations:
 
 - `audit` and `security validate` findings can seed my-dev-kit search/lookup/slice/source investigation against the same target. They are candidate findings, not source-owner or deletion decisions.
 - The `context-strategy-comparison` plugin owns raw-full-file versus my-dev-kit-guided experiments. The released stage-context strategies can consume my-dev-kit capsule/audit evidence and Orchestrator `WorkflowInstructionPacket` evidence through programmatic `v043StrategyInputs` / `v043RunAssurance` configuration. There are no installed CLI flags for arbitrary live stage-context artifact paths.
-- `demo final --kit-command <command>` and `experiment run --experiment warm-index-reuse --kit-command <command>` are the installed surfaces that explicitly accept a my-dev-kit-compatible command. `experiment run` accepts `--kit-command` only for `warm-index-reuse`; it is rejected for `context-strategy-comparison`.
+- `demo final --kit-command <command>` and `experiment run --experiment <id> --kit-command <command>` are the installed surfaces that explicitly accept a my-dev-kit-compatible command. `experiment run` accepts `--kit-command` for `warm-index-reuse` and `incremental-change-staleness`; it is rejected for `context-strategy-comparison`.
 - Tutorial PNG screenshots are ordinary image files and may be deliberately selected as Observer external-reference inputs. The tutorial manifest, assertions, authentication state, and behavior do not transfer with the image.
 - `report render --visualizations` and `gallery build --visualizations` expect Lab visualization-demo artifacts. Arbitrary my-dev-kit graph-view directories or Observer evidence roots are not documented drop-in replacements.
 - Lab does not generically ingest Observer observations/comparisons/evaluations or Orchestrator export handoffs. Use a registered experiment/adapter or cite those results separately.
@@ -364,6 +393,7 @@ Current implemented commands:
 - `npm run experiment:describe -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment warm-index-reuse`
+- `npm run experiment:run -- --experiment incremental-change-staleness` (v0.6.2)
 - `npm run run-controlled-experiment`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`
@@ -386,7 +416,7 @@ npm run experiment:describe -- --experiment warm-index-reuse
 npm run experiment:run -- --experiment warm-index-reuse --cases benchmarks/contracts/warm-index-benchmark-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/warm-index-reuse
 ```
 
-`experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above.
+`experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above. `experiment:run` options for `incremental-change-staleness` are `--out`, `--case`, and `--kit-command` only; see [`incremental-change-staleness`](#incremental-change-staleness-v062) above.
 
 `experiment:run` options for `context-strategy-comparison`:
 
@@ -410,7 +440,7 @@ npm run experiment:run -- --experiment warm-index-reuse --cases benchmarks/contr
 
 Current behavior:
 
-- `context-strategy-comparison` and `warm-index-reuse` are the registered plugins
+- `context-strategy-comparison`, `warm-index-reuse`, and `incremental-change-staleness` are the registered plugins
 - omitting `--target` uses self mode
 - target projects are not modified by experiment execution
 

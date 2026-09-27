@@ -1,0 +1,360 @@
+{
+  "schemaVersion": "1.0.0",
+  "scenarios": [
+    {
+      "id": "U1",
+      "category": "unrelated-file-change",
+      "benchmarkProjectId": "task-analytics-large-mixed",
+      "baseCaseId": "warm-large-ts-leaderboard",
+      "answerPolicy": "inherit",
+      "expectedRelationship": "unrelated",
+      "mutation": {
+        "files": [
+          {
+            "path": "py/task_analytics/quality.py",
+            "expectedPreSha256": "5faab1bf018de6e647a11a2edffd641a51c0c05b399cb6f58a2c22b0ff035554",
+            "operations": [
+              {
+                "expectedPreimage": "metric.completion_rate >= 80 and metric.stale_tasks == 0",
+                "replacement": "metric.completion_rate >= 81 and metric.stale_tasks == 0"
+              }
+            ],
+            "expectedPostSha256": "9f59d256710a9345eb6e0f768e45c4676041b4cac215cd84cd1075cfd730ab18"
+          }
+        ]
+      },
+      "notes": "Negative control across the intentionally separate Python and TypeScript implementations. The follow-up TypeScript leaderboard query/answer is unaffected by this Python-only threshold change, so this record states the scenario planning expectation as unrelated. Runtime classification in later batches must still produce unknown instead of unrelated when evidence is incomplete, per v0.6.1 semantics; Batch 1 performs no runtime classification."
+    },
+    {
+      "id": "L2",
+      "category": "local-implementation-change",
+      "benchmarkProjectId": "task-workflow-medium-ts",
+      "baseCaseId": "warm-medium-complete-idempotent",
+      "answerPolicy": "scenario",
+      "scenarioQuery": "complete task by id after the completedAt timestamp change idempotent unknown task",
+      "scenarioAnswerKey": {
+        "expectedFiles": [
+          "src/services/completeTask.ts",
+          "src/store/taskStore.ts"
+        ],
+        "expectedSymbols": [
+          "completeTask",
+          "TaskWorkflowStore"
+        ],
+        "expectedFacts": [
+          {
+            "id": "warm062-l2-sets-new-completed-at",
+            "text": "The first completion sets completed to true and completedAt to \"2026-03-01T00:00:00.000Z\".",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-l2-still-idempotent",
+            "text": "When the task is already completed the updater returns it unchanged, so completing it again does not rewrite completedAt.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-l2-unknown-task-throws",
+            "text": "An unknown task id still throws \"Unknown task id: <id>\" from TaskWorkflowStore.updateTask.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-l2-targets-by-id",
+            "text": "completeTask(store, taskId) still changes exactly one task by id through TaskWorkflowStore.updateTask.",
+            "weight": 1,
+            "required": true
+          }
+        ],
+        "minimumCorrectFacts": 4,
+        "notes": "v0.6.2 L2 scenario: local implementation change to the completedAt literal. Exported name, callable signature, idempotence, and unknown-task behavior are preserved."
+      },
+      "mutation": {
+        "files": [
+          {
+            "path": "src/services/completeTask.ts",
+            "expectedPreSha256": "27f6833abb1c5f8fa7226ec8a4857ba267dd48272d7cf094c7a3462e425ca64c",
+            "operations": [
+              {
+                "expectedPreimage": "\"2026-02-01T00:00:00.000Z\"",
+                "replacement": "\"2026-03-01T00:00:00.000Z\""
+              }
+            ],
+            "expectedPostSha256": "0d148ddab0dbd43b9bc8eb40a09de9dfd4567b9097fb0f028b74ebf921798cc8"
+          }
+        ]
+      },
+      "notes": "Local implementation change: only the fixed completedAt literal changes."
+    },
+    {
+      "id": "E1",
+      "category": "exported-symbol-change",
+      "benchmarkProjectId": "task-analytics-large-mixed",
+      "baseCaseId": "warm-large-python-pipeline",
+      "answerPolicy": "scenario",
+      "scenarioQuery": "pipeline parse rows project metrics quality label health report after the healthy completion-rate boundary changed",
+      "scenarioAnswerKey": {
+        "expectedFiles": [
+          "py/task_analytics/pipeline.py",
+          "py/task_analytics/parser.py",
+          "py/task_analytics/metrics.py",
+          "py/task_analytics/quality.py",
+          "py/task_analytics/reporting.py"
+        ],
+        "expectedSymbols": [
+          "build_report_from_rows",
+          "parse_task_rows",
+          "calculate_project_metrics",
+          "determine_quality_label",
+          "build_health_report"
+        ],
+        "expectedFacts": [
+          {
+            "id": "warm062-e1-new-healthy-boundary",
+            "text": "determine_quality_label now returns \"healthy\" only when completion_rate is at least 85 (previously 80) and stale_tasks is 0.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-e1-signature-unchanged",
+            "text": "determine_quality_label keeps its exported name and single-argument signature; only its healthy-boundary behavior changed.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-e1-role-in-pipeline",
+            "text": "build_health_report still calls determine_quality_label for each metric produced by calculate_project_metrics inside build_report_from_rows.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-e1-deterministic-output",
+            "text": "The report remains one line per project in sorted project_id order, so fixed rows and current_day still produce the same output under the new boundary.",
+            "weight": 1,
+            "required": true
+          }
+        ],
+        "minimumCorrectFacts": 3,
+        "notes": "v0.6.2 E1 scenario: exported-symbol change. Export presence, symbol name, and callable signature remain stable; externally observable behavior changes."
+      },
+      "mutation": {
+        "files": [
+          {
+            "path": "py/task_analytics/quality.py",
+            "expectedPreSha256": "5faab1bf018de6e647a11a2edffd641a51c0c05b399cb6f58a2c22b0ff035554",
+            "operations": [
+              {
+                "expectedPreimage": "metric.completion_rate >= 80 and metric.stale_tasks == 0",
+                "replacement": "metric.completion_rate >= 85 and metric.stale_tasks == 0"
+              }
+            ],
+            "expectedPostSha256": "9cd4df5fd2fd29b99a1e82b744a7bd7afddb123a2fe1d861c1edcce21a32998c"
+          }
+        ]
+      },
+      "notes": "Same canonical quality.py file as U1, but with an independent scenario-specific mutation to threshold 85 instead of 81."
+    },
+    {
+      "id": "P1",
+      "category": "public-api-change",
+      "benchmarkProjectId": "task-analytics-large-mixed",
+      "baseCaseId": "warm-large-python-pipeline",
+      "answerPolicy": "scenario",
+      "scenarioQuery": "calculate_project_metrics signature stale_day_threshold parameter default behavior for callers that omit it",
+      "scenarioAnswerKey": {
+        "expectedFiles": [
+          "py/task_analytics/metrics.py",
+          "py/task_analytics/pipeline.py"
+        ],
+        "expectedSymbols": [
+          "calculate_project_metrics",
+          "STALE_DAY_THRESHOLD"
+        ],
+        "expectedFacts": [
+          {
+            "id": "warm062-p1-new-optional-param",
+            "text": "calculate_project_metrics(tasks, current_day, stale_day_threshold=STALE_DAY_THRESHOLD) now accepts an optional stale_day_threshold parameter.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-p1-default-preserved",
+            "text": "The parameter defaults to the existing STALE_DAY_THRESHOLD constant (10), so callers that omit it keep identical prior behavior.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-p1-predicate-uses-param",
+            "text": "The stale-task predicate now compares current_day minus task.updated_day against stale_day_threshold instead of the module constant directly.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-p1-pipeline-caller-unaffected",
+            "text": "pipeline.py build_report_from_rows calls calculate_project_metrics(tasks, current_day) without the new argument, so its behavior is unchanged.",
+            "weight": 1,
+            "required": true
+          }
+        ],
+        "minimumCorrectFacts": 3,
+        "notes": "v0.6.2 P1 scenario: public API change. Existing callers that omit the new argument preserve prior default behavior; the callable contract itself changes."
+      },
+      "mutation": {
+        "files": [
+          {
+            "path": "py/task_analytics/metrics.py",
+            "expectedPreSha256": "da2bfce46ec51016f87b3456a201e69a9d71721002e1781b44fdc59a96650e91",
+            "operations": [
+              {
+                "expectedPreimage": "def calculate_project_metrics(tasks, current_day):",
+                "replacement": "def calculate_project_metrics(tasks, current_day, stale_day_threshold=STALE_DAY_THRESHOLD):"
+              },
+              {
+                "expectedPreimage": "current_day - task.updated_day >= STALE_DAY_THRESHOLD",
+                "replacement": "current_day - task.updated_day >= stale_day_threshold"
+              }
+            ],
+            "expectedPostSha256": "c91af3c5549606c522a6cef8264d4da1a6febed0a58757ad5a96cafcb3ed58c9"
+          }
+        ]
+      },
+      "notes": "Two ordered exact replacements: the signature gains the optional parameter first, then the stale predicate is switched to use it."
+    },
+    {
+      "id": "I1",
+      "category": "import-graph-change",
+      "benchmarkProjectId": "task-analytics-large-mixed",
+      "baseCaseId": "warm-large-ts-analytics-snapshot",
+      "answerPolicy": "scenario",
+      "scenarioQuery": "analytics snapshot project completion rate stale tasks average story points task store after buildAnalyticsSnapshot task-listing dependency changed",
+      "scenarioAnswerKey": {
+        "expectedFiles": [
+          "ts/src/services/buildAnalyticsSnapshot.ts",
+          "ts/src/models/analyticsSnapshot.ts",
+          "ts/src/store/taskStore.ts"
+        ],
+        "expectedSymbols": [
+          "buildAnalyticsSnapshot",
+          "ProjectSnapshot",
+          "AnalyticsTaskStore"
+        ],
+        "expectedFacts": [
+          {
+            "id": "warm062-i1-no-longer-imports-helper",
+            "text": "buildAnalyticsSnapshot no longer imports or calls listTasksByProject.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-i1-inline-filtering",
+            "text": "buildAnalyticsSnapshot now obtains a target projects tasks directly with taskStore.list().filter((task) => task.projectId === project.id).",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-i1-output-unchanged",
+            "text": "The inline filtering is behaviorally identical to the removed helper, so totalTasks, completedTasks, openTasks, staleTasks, and averageStoryPoints per project are unchanged.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-i1-totals-aggregate-unchanged",
+            "text": "The snapshot totals still sum totalTasks, completedTasks, openTasks, and staleTasks across the per-project snapshots.",
+            "weight": 1,
+            "required": true
+          }
+        ],
+        "minimumCorrectFacts": 3,
+        "notes": "v0.6.2 I1 scenario: import-graph change. The intended snapshot output remains equivalent while the dependency edge on listTasksByProject disappears."
+      },
+      "mutation": {
+        "files": [
+          {
+            "path": "ts/src/services/buildAnalyticsSnapshot.ts",
+            "expectedPreSha256": "928af15041715ffa19ae3674e8d4f82e1c5f694cfa2bad1fea03db31bce6cedd",
+            "operations": [
+              {
+                "expectedPreimage": "import { listTasksByProject } from \"./listTasksByProject.js\";\r\n",
+                "replacement": ""
+              },
+              {
+                "expectedPreimage": "const tasks = listTasksByProject(taskStore, project.id);",
+                "replacement": "const tasks = taskStore.list().filter((task) => task.projectId === project.id);"
+              }
+            ],
+            "expectedPostSha256": "1ab0616f11107a2ffabfc1d7ee2b0614d9c9c58cd62fb461313a87c9754570b1"
+          }
+        ]
+      },
+      "notes": "Two ordered exact replacements: remove the now-unused import, then inline the equivalent filtering that listTasksByProject itself performed."
+    },
+    {
+      "id": "T1",
+      "category": "test-only-change",
+      "benchmarkProjectId": "task-analytics-large-mixed",
+      "baseCaseId": "warm-large-python-pipeline",
+      "answerPolicy": "scenario",
+      "scenarioQuery": "In py/tests/test_quality.py, what updated_day value does task-1 use in test_determine_quality_label, and what quality label does the test assert after calculating project metrics?",
+      "scenarioAnswerKey": {
+        "expectedFiles": [
+          "py/tests/test_quality.py"
+        ],
+        "expectedSymbols": [
+          "determine_quality_label",
+          "test_determine_quality_label"
+        ],
+        "expectedFacts": [
+          {
+            "id": "warm062-t1-task1-updated-day-nine",
+            "text": "task-1 row in test_determine_quality_label now uses updated_day 9 (previously 8).",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-t1-both-rows-completed",
+            "text": "Both fixture rows remain completed, so total_tasks stays 2 and completed_tasks stays 2.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-t1-completion-rate-unchanged",
+            "text": "The computed project completion_rate therefore remains 100.0.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-t1-no-stale-task-introduced",
+            "text": "current_day (15) minus the new updated_day (9) is 6, still below STALE_DAY_THRESHOLD (10), so stale_tasks remains 0.",
+            "weight": 1,
+            "required": true
+          },
+          {
+            "id": "warm062-t1-still-healthy",
+            "text": "The test still asserts determine_quality_label(metrics[0]) == \"healthy\"; production source and behavior are unchanged.",
+            "weight": 1,
+            "required": true
+          }
+        ],
+        "minimumCorrectFacts": 4,
+        "notes": "v0.6.2 T1 scenario: test-only change. Only the task-1 updated_day test input changes; production source in quality.py, metrics.py, and parser.py is unchanged, and the healthy-label assertion still passes."
+      },
+      "mutation": {
+        "files": [
+          {
+            "path": "py/tests/test_quality.py",
+            "expectedPreSha256": "b5610a2720012532baf6d18e114f375424008e0daadbc27291bfca2ce6316875",
+            "operations": [
+              {
+                "expectedPreimage": "{\"task_id\": \"task-1\", \"project_id\": \"alpha\", \"completed\": True, \"story_points\": 5, \"updated_day\": 8}",
+                "replacement": "{\"task_id\": \"task-1\", \"project_id\": \"alpha\", \"completed\": True, \"story_points\": 5, \"updated_day\": 9}"
+              }
+            ],
+            "expectedPostSha256": "eda7f39eed5b08d615b02a01b3b05655ed2aad06b65c39ad0ea09e9b93992ea5"
+          }
+        ]
+      },
+      "notes": "Test-only change: exactly one bounded test input literal changes. Production source and production behavior are unchanged; the query/answer targets the changed test evidence itself."
+    }
+  ]
+}

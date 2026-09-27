@@ -1,4 +1,5 @@
 import type { AgentId } from "../../../agents/types.js";
+import { toAffectedNeighborhoodMetricValues, type AffectedNeighborhoodMetricValueV1 } from "../../../evaluation/affectedNeighborhoodMetrics.js";
 import type { ExperimentMetric } from "../../types.js";
 import type { WarmIndexProjectSummaryV1, WarmIndexTaskSummaryV1 } from "./executionArtifact.js";
 import type {
@@ -337,33 +338,31 @@ type AffectedNeighborhoodMetricField =
   | "taskOverlapCount"
   | "taskOverlapPercent";
 
+function wrapAffectedNeighborhoodMetricValue(value: AffectedNeighborhoodMetricValueV1): WarmIndexNumberMetricV1 {
+  return value.availability === "available"
+    ? availableMetric(value.value as number, value.unit, "derived")
+    : unavailableMetric(value.unit, "derived", value.reason as string);
+}
+
 /**
  * Converts the persisted affected-neighborhood assessment into the six warm-side metrics, once.
  * A finite value (including zero) is available; an absent assessment or a null field is
- * unavailable with a reason, never zero. The metric layer alone owns these value objects.
+ * unavailable with a reason, never zero. The formula itself is owned by the shared
+ * `toAffectedNeighborhoodMetricValues` (src/evaluation/affectedNeighborhoodMetrics.ts, extracted in
+ * v0.6.2 Batch 4 for reuse by incremental-change-staleness); this function only wraps its bounded
+ * values into the warm-index `WarmIndexNumberMetricV1` envelope.
  */
 function affectedNeighborhoodMetrics(
   task: WarmIndexTaskSummaryV1
 ): Pick<WarmIndexWarmTaskMetricsV1, AffectedNeighborhoodMetricField> {
-  const assessment = task.affectedNeighborhood;
-  const one = (field: AffectedNeighborhoodMetricField, label: string): WarmIndexNumberMetricV1 => {
-    const unit: WarmIndexMetricUnit = field === "taskOverlapPercent" ? "percent" : "count";
-    if (!assessment) return unavailableMetric(unit, "derived", NO_AFFECTED_NEIGHBORHOOD_REASON);
-    const value = assessment[field];
-    if (typeof value === "number") return availableMetric(value, unit, "derived");
-    const context =
-      `assessment ${assessment.status}; seed mapping ${assessment.seedMappingStatus}; ` +
-      `graph ${assessment.graphEvidenceStatus}; neighborhood ${assessment.neighborhoodStatus}; task mapping ${assessment.taskMapping.status}` +
-      (field === "taskOverlapPercent" ? `; resolvable task nodes ${assessment.taskMapping.resolvableTaskNodeCount}` : "");
-    return unavailableMetric(unit, "derived", `Affected-neighborhood evidence did not establish ${label} (${context}).`);
-  };
+  const values = toAffectedNeighborhoodMetricValues(task.affectedNeighborhood, NO_AFFECTED_NEIGHBORHOOD_REASON);
   return {
-    changedFileCount: one("changedFileCount", "the changed indexed file count"),
-    changedSymbolCount: one("changedSymbolCount", "the changed baseline symbol count"),
-    affectedNodeCount: one("affectedNodeCount", "the affected graph node count"),
-    affectedEdgeCount: one("affectedEdgeCount", "the affected graph edge count"),
-    taskOverlapCount: one("taskOverlapCount", "the task-overlap node count"),
-    taskOverlapPercent: one("taskOverlapPercent", "the task-overlap percent"),
+    changedFileCount: wrapAffectedNeighborhoodMetricValue(values.changedFileCount),
+    changedSymbolCount: wrapAffectedNeighborhoodMetricValue(values.changedSymbolCount),
+    affectedNodeCount: wrapAffectedNeighborhoodMetricValue(values.affectedNodeCount),
+    affectedEdgeCount: wrapAffectedNeighborhoodMetricValue(values.affectedEdgeCount),
+    taskOverlapCount: wrapAffectedNeighborhoodMetricValue(values.taskOverlapCount),
+    taskOverlapPercent: wrapAffectedNeighborhoodMetricValue(values.taskOverlapPercent)
   };
 }
 

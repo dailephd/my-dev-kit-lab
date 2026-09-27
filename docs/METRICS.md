@@ -1,6 +1,6 @@
 # Metrics
 
-This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports.
+This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports across the registered experiment plugins (`context-strategy-comparison`, `warm-index-reuse`, and `incremental-change-staleness`).
 
 Related documentation:
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how metrics flow through the pipeline
@@ -595,3 +595,37 @@ All six metrics are warm-side only (they are not on the raw-full-file side, beca
 **Report presentation.** `report.warmIndexReuse.affectedNeighborhoodSummary` holds presentation counts (assessed and unassessed tasks; complete, partial, and unavailable assessments; related, unrelated, and unknown relationships; recommended, not-indicated, and unknown recommendations). They are counts, not metric formulas. Each task's `affectedNeighborhood` block shows the statuses, the six metric objects, the relationship, the recommendation with a fixed explanation, and bounded lists (at most 20 affected node IDs, 20 edge IDs, 10 unresolved and 10 ambiguous task mappings, and 10 warnings, each with its total and omitted count). The full identity arrays stay in `warm-index-execution.json`.
 
 **Observational only.** The evidence never triggers reindexing, suppresses or alters warm retrieval, or changes execution, provider, agent, correctness, or token-evidence status. It uses only the baseline graph of the prepared index: there is no graph-diff, refreshed-index, or stale-versus-refreshed comparison.
+
+## Incremental-change and staleness evidence (v0.6.2)
+
+The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affected-neighborhood numeric metrics unchanged (`changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, `taskOverlapPercent`; see "Affected-neighborhood metrics (v0.6.1)" above) and adds no new numeric formula.
+
+**Correctness relation** (per scenario, comparing the `stale-index` and `full-refresh` treatments' deterministic fake-agent correctness):
+
+- `stale-worse`: `stale-index` correctness is lower than `full-refresh` correctness.
+- `same`: both treatments have available, equal correctness.
+- `stale-better`: `stale-index` correctness is higher than `full-refresh` correctness.
+- `unknown`: either treatment's correctness is unavailable.
+
+**Required-file status** (per treatment, an answer-key file-presence check against that treatment's actual retrieved-files evidence — not retrieval precision, recall, F1, MRR, NDCG, or symbol recall):
+
+- `present`: every required file was observed.
+- `missing`: at least one required file was not observed, and the observed-files evidence was complete.
+- `unknown`: the actual-files-read evidence was not complete enough to establish presence or absence.
+
+**Required-file relation** (per scenario, comparing the two treatments' required-file status):
+
+- `stale-worse`: `stale-index` is `missing` while `full-refresh` is `present`.
+- `same`: both treatments have the same status (including `missing`/`missing`).
+- `stale-better`: `stale-index` is `present` while `full-refresh` is `missing`.
+- `unknown`: either treatment's status is `unknown`.
+
+**Stale-risk classification** (per scenario, the frozen precedence over the two relations above):
+
+1. `observed-stale-regression` — the correctness relation or the required-file relation is `stale-worse`.
+2. `inconclusive` — otherwise, if the correctness relation or the required-file relation is `unknown`.
+3. `no-observed-stale-regression` — otherwise.
+
+`staleRiskClassification` is not a numeric risk score, not a winner, not a ranking, and not an automatic reindex decision. `no-observed-stale-regression` means only that this matched scenario did not observe a stale-specific regression under these two frozen evidence dimensions; it does not establish that stale indexes are generally safe. `reindexRecommendation` (the released v0.6.1 categorical evidence) remains separate observational evidence about the affected-neighborhood analysis; it does not select or trigger either treatment and is not an input to the stale-risk classification above.
+
+**Report presentation.** `report.incrementalChangeStaleness` holds `scenarioCount`, `readyScenarioCount`, `failedScenarioCount`, `observedStaleRegressionCount`, `noObservedStaleRegressionCount`, `inconclusiveCount`, per-scenario evidence (lifecycle, both treatments in order, and the comparison), and fixed limitations text. There is no overall score, grade, winner, best-treatment, or safe-to-skip-reindex field anywhere in the report or the persisted execution artifact.

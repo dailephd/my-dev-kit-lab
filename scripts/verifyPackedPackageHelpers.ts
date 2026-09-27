@@ -425,3 +425,234 @@ export function validateAffectedNeighborhoodLayers(input: {
   }
   return problems;
 }
+
+// ---------------------------------------------------------------------------
+// v0.6.2 Batch 6 -- installed-package incremental-change-staleness acceptance
+// helpers. Pure and independently testable; the acceptance script owns all
+// process work, real upstream install, and the one call into the installed
+// package's own pure comparison module (Section 41).
+// ---------------------------------------------------------------------------
+
+export const INCREMENTAL_CHANGE_STALENESS_EXECUTION_SCHEMA_VERSION_EXPECTED = "my-dev-kit-lab-incremental-change-staleness-execution-v1";
+
+export const INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS = ["U1", "L2", "E1", "P1", "I1", "T1"] as const;
+
+/** Frozen scenario -> controlled file path contract (Section 30/56). */
+export const INCREMENTAL_CHANGE_STALENESS_CONTROLLED_PATHS: Record<(typeof INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS)[number], string> = {
+  U1: "py/task_analytics/quality.py",
+  L2: "src/services/completeTask.ts",
+  E1: "py/task_analytics/quality.py",
+  P1: "py/task_analytics/metrics.py",
+  I1: "ts/src/services/buildAnalyticsSnapshot.ts",
+  T1: "py/tests/test_quality.py"
+};
+
+const AFFECTED_RELATIONSHIP_VALUES = new Set(["related", "unrelated", "unknown"]);
+const AFFECTED_RECOMMENDATION_VALUES = new Set(["recommended", "not-indicated", "unknown"]);
+const REQUIRED_FILE_STATUS_VALUES = new Set(["present", "missing", "unknown"]);
+const RELATION_VALUES = new Set(["stale-worse", "same", "stale-better", "unknown"]);
+const CLASSIFICATION_VALUES = new Set(["observed-stale-regression", "no-observed-stale-regression", "inconclusive"]);
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+/**
+ * Validates one persisted execution artifact against the frozen Batch 4/6 contract: schema, exact
+ * six-scenario identity/order, treatment order, lifecycle states, active-index-phase, controlled
+ * file identity, affected-neighborhood vocabulary/symmetry, retrieval/required-file/correctness
+ * shape, comparison vocabulary, and top-level summary counts. Never recomputes a classification.
+ */
+export function validateIncrementalChangeStalenessArtifact(artifact: unknown): string[] {
+  const problems: string[] = [];
+  const root = record(artifact);
+  if (!root) return ["execution artifact did not parse to a JSON object"];
+  if (root.schemaVersion !== INCREMENTAL_CHANGE_STALENESS_EXECUTION_SCHEMA_VERSION_EXPECTED) {
+    problems.push(`schemaVersion is ${JSON.stringify(root.schemaVersion)}, expected ${INCREMENTAL_CHANGE_STALENESS_EXECUTION_SCHEMA_VERSION_EXPECTED}`);
+  }
+  const scenarios = Array.isArray(root.scenarios) ? root.scenarios.map(record) : [];
+  const expectedIds = INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS;
+  const actualIds = scenarios.map((s) => s?.scenarioId);
+  if (JSON.stringify(actualIds) !== JSON.stringify(expectedIds)) {
+    problems.push(`scenario order/identity mismatch: expected ${JSON.stringify(expectedIds)}, got ${JSON.stringify(actualIds)}`);
+  }
+
+  for (const scenario of scenarios) {
+    if (!scenario) continue;
+    const tag = `[${String(scenario.scenarioId)}]`;
+    if (scenario.status !== "ready") {
+      problems.push(`${tag} status is ${String(scenario.status)}, expected ready`);
+      continue;
+    }
+    const lifecycle = record(scenario.lifecycle);
+    if (!lifecycle) {
+      problems.push(`${tag} lifecycle is missing for a ready scenario`);
+    } else {
+      if (lifecycle.preMutationEquivalence !== "equivalent") problems.push(`${tag} preMutationEquivalence is ${String(lifecycle.preMutationEquivalence)}, expected equivalent`);
+      if (lifecycle.postMutationEquivalence !== "equivalent") problems.push(`${tag} postMutationEquivalence is ${String(lifecycle.postMutationEquivalence)}, expected equivalent`);
+      if (lifecycle.staleBaselineFreshnessStatus !== "stale") problems.push(`${tag} staleBaselineFreshnessStatus is ${String(lifecycle.staleBaselineFreshnessStatus)}, expected stale`);
+      if (lifecycle.fullRefreshBaselineFreshnessStatus !== "stale") problems.push(`${tag} fullRefreshBaselineFreshnessStatus is ${String(lifecycle.fullRefreshBaselineFreshnessStatus)}, expected stale`);
+      if (lifecycle.fullRefreshRefreshedFreshnessStatus !== "fresh") problems.push(`${tag} fullRefreshRefreshedFreshnessStatus is ${String(lifecycle.fullRefreshRefreshedFreshnessStatus)}, expected fresh`);
+      if (typeof lifecycle.myDevKitVersion !== "string" || !lifecycle.myDevKitVersion.includes(UPSTREAM_MY_DEV_KIT_VERSION)) {
+        problems.push(`${tag} myDevKitVersion is ${JSON.stringify(lifecycle.myDevKitVersion)}, expected to include ${UPSTREAM_MY_DEV_KIT_VERSION}`);
+      }
+      const controlledPaths = (Array.isArray(lifecycle.controlledFilePaths) ? lifecycle.controlledFilePaths : []).map((p) => String(p).replace(/\\/g, "/"));
+      const expectedControlledPath = INCREMENTAL_CHANGE_STALENESS_CONTROLLED_PATHS[scenario.scenarioId as keyof typeof INCREMENTAL_CHANGE_STALENESS_CONTROLLED_PATHS];
+      if (!expectedControlledPath || !controlledPaths.some((p) => p.endsWith(expectedControlledPath))) {
+        problems.push(`${tag} controlledFilePaths ${JSON.stringify(controlledPaths)} does not contain the frozen path ${JSON.stringify(expectedControlledPath)}`);
+      }
+    }
+
+    const stale = record(scenario.stale);
+    const fullRefresh = record(scenario.fullRefresh);
+    if (!stale || !fullRefresh) {
+      problems.push(`${tag} missing stale/fullRefresh treatment record for a ready scenario`);
+      continue;
+    }
+    if (stale.treatmentId !== "stale-index" || fullRefresh.treatmentId !== "full-refresh") {
+      problems.push(`${tag} treatment order/identity is not stale-index then full-refresh: ${String(stale.treatmentId)}, ${String(fullRefresh.treatmentId)}`);
+    }
+    if (stale.activeIndexPhase !== "baseline") problems.push(`${tag} stale-index activeIndexPhase is ${String(stale.activeIndexPhase)}, expected baseline`);
+    if (fullRefresh.activeIndexPhase !== "refreshed") problems.push(`${tag} full-refresh activeIndexPhase is ${String(fullRefresh.activeIndexPhase)}, expected refreshed`);
+
+    for (const [label, treatment] of [["stale-index", stale] as const, ["full-refresh", fullRefresh] as const]) {
+      const retrieval = record(treatment.retrieval);
+      if (!retrieval) problems.push(`${tag} ${label} has no retrieval record`);
+      const requiredFileEvidence = record(treatment.requiredFileEvidence);
+      if (!requiredFileEvidence || !REQUIRED_FILE_STATUS_VALUES.has(String(requiredFileEvidence.status))) {
+        problems.push(`${tag} ${label} required-file evidence status is invalid: ${JSON.stringify(requiredFileEvidence?.status)}`);
+      } else {
+        const required = new Set((Array.isArray(requiredFileEvidence.requiredFiles) ? requiredFileEvidence.requiredFiles : []).map(String));
+        const missing = Array.isArray(requiredFileEvidence.missingFiles) ? requiredFileEvidence.missingFiles.map(String) : [];
+        if (requiredFileEvidence.status === "present" && missing.length !== 0) problems.push(`${tag} ${label} required-file status is present but missingFiles is nonempty`);
+        if (requiredFileEvidence.status === "missing" && (missing.length === 0 || !missing.every((f) => required.has(f)))) {
+          problems.push(`${tag} ${label} required-file status is missing but missingFiles is empty or not a subset of requiredFiles`);
+        }
+      }
+      const fakeAgent = record(treatment.fakeAgent);
+      if (fakeAgent) {
+        const correctness = record(fakeAgent.correctness);
+        if (!correctness || typeof correctness.available !== "boolean") problems.push(`${tag} ${label} fake-agent correctness structure is invalid`);
+      }
+      const affected = record(treatment.affectedNeighborhood);
+      if (!affected) {
+        problems.push(`${tag} ${label} has no affectedNeighborhood assessment`);
+      } else {
+        if (!AFFECTED_RELATIONSHIP_VALUES.has(String(affected.relationship))) problems.push(`${tag} ${label} affected-neighborhood relationship is invalid: ${String(affected.relationship)}`);
+        if (!AFFECTED_RECOMMENDATION_VALUES.has(String(affected.reindexRecommendation))) problems.push(`${tag} ${label} reindexRecommendation is invalid: ${String(affected.reindexRecommendation)}`);
+        for (const field of AFFECTED_NEIGHBORHOOD_METRICS) {
+          const value = affected[field.field];
+          if (value !== null && typeof value !== "number") problems.push(`${tag} ${label} affected-neighborhood metric ${field.field} is neither a number nor null: ${JSON.stringify(value)}`);
+        }
+      }
+    }
+
+    const staleAffected = record(stale.affectedNeighborhood);
+    const fullAffected = record(fullRefresh.affectedNeighborhood);
+    if (staleAffected && fullAffected) {
+      const symmetryProblems: string[] = [];
+      if (staleAffected.status !== fullAffected.status) symmetryProblems.push("status");
+      if (staleAffected.relationship !== fullAffected.relationship) symmetryProblems.push("relationship");
+      if (staleAffected.reindexRecommendation !== fullAffected.reindexRecommendation) symmetryProblems.push("reindexRecommendation");
+      for (const field of AFFECTED_NEIGHBORHOOD_METRICS) {
+        if (staleAffected[field.field] !== fullAffected[field.field]) symmetryProblems.push(field.field);
+      }
+      if (symmetryProblems.length > 0) problems.push(`${tag} stale/full-refresh affected-neighborhood asymmetry: ${symmetryProblems.join(", ")}`);
+    }
+
+    const comparison = record(scenario.comparison);
+    if (!comparison || !RELATION_VALUES.has(String(comparison.correctnessRelation))) problems.push(`${tag} correctnessRelation is invalid: ${JSON.stringify(comparison?.correctnessRelation)}`);
+    if (!comparison || !RELATION_VALUES.has(String(comparison.requiredFileEvidenceRelation))) problems.push(`${tag} requiredFileEvidenceRelation is invalid: ${JSON.stringify(comparison?.requiredFileEvidenceRelation)}`);
+    if (!comparison || !CLASSIFICATION_VALUES.has(String(comparison.staleRiskClassification))) problems.push(`${tag} staleRiskClassification is invalid: ${JSON.stringify(comparison?.staleRiskClassification)}`);
+  }
+
+  const summary = record(root.summary);
+  if (!summary) {
+    problems.push("summary object is missing");
+  } else {
+    if (summary.scenarioCount !== 6) problems.push(`summary.scenarioCount is ${String(summary.scenarioCount)}, expected 6`);
+    if ((Number(summary.readyScenarioCount) || 0) + (Number(summary.failedScenarioCount) || 0) !== Number(summary.scenarioCount)) {
+      problems.push("summary readyScenarioCount + failedScenarioCount does not equal scenarioCount");
+    }
+    const classificationSum =
+      (Number(summary.observedStaleRegressionCount) || 0) + (Number(summary.noObservedStaleRegressionCount) || 0) + (Number(summary.inconclusiveCount) || 0);
+    if (classificationSum !== Number(summary.scenarioCount)) {
+      problems.push(`summary classification counts sum to ${classificationSum}, expected ${String(summary.scenarioCount)}`);
+    }
+  }
+
+  const serialized = JSON.stringify(root);
+  if (/"winner"|"overallScore"|"grade"|"recommendedTreatment"|"staleRiskPercent"/.test(serialized)) {
+    problems.push("execution artifact contains a forbidden overall-verdict field");
+  }
+  if (/"nodes"\s*:\s*\[|"edges"\s*:\s*\[|"kind":"(?:defines|exports|calls|imports)"/.test(serialized)) {
+    problems.push("execution artifact embeds full graph node/edge records");
+  }
+
+  return problems;
+}
+
+/**
+ * Cross-checks report.json/report.txt/report.html against the persisted execution artifact
+ * (Section 48/52/53). Never re-derives a classification from prose; only compares the same
+ * already-persisted fields and confirms their presence as text.
+ */
+export function validateIncrementalChangeStalenessReportConsistency(input: {
+  artifact: unknown;
+  report: unknown;
+  reportText: string;
+  reportHtml: string;
+}): string[] {
+  const problems: string[] = [];
+  const artifactScenarios = Array.isArray(record(input.artifact)?.scenarios) ? (record(input.artifact)!.scenarios as unknown[]).map(record) : [];
+  const reportSection = record(record(input.report)?.incrementalChangeStaleness);
+  if (!reportSection) return ["report.json has no incrementalChangeStaleness section"];
+  const reportScenarios = Array.isArray(reportSection.scenarios) ? reportSection.scenarios.map(record) : [];
+
+  if (reportScenarios.length !== artifactScenarios.length) {
+    problems.push(`report.json scenario count ${reportScenarios.length} does not match execution artifact scenario count ${artifactScenarios.length}`);
+  }
+  for (let index = 0; index < artifactScenarios.length; index += 1) {
+    const artifactScenario = artifactScenarios[index];
+    const reportScenario = reportScenarios[index];
+    if (!artifactScenario || !reportScenario) continue;
+    if (reportScenario.scenarioId !== artifactScenario.scenarioId) {
+      problems.push(`report.json scenario order mismatch at index ${index}: ${String(reportScenario.scenarioId)} vs ${String(artifactScenario.scenarioId)}`);
+    }
+    const artifactComparison = record(artifactScenario.comparison);
+    const reportComparison = record(reportScenario.comparison);
+    if (JSON.stringify(reportComparison) !== JSON.stringify(artifactComparison)) {
+      problems.push(`${String(artifactScenario.scenarioId)}: report.json comparison disagrees with execution artifact comparison`);
+    }
+    const classification = String(artifactComparison?.staleRiskClassification ?? "");
+    if (classification && !input.reportText.includes(classification)) problems.push(`report.txt lacks classification for ${String(artifactScenario.scenarioId)}: ${classification}`);
+    if (classification && !input.reportHtml.includes(classification)) problems.push(`report.html lacks classification for ${String(artifactScenario.scenarioId)}: ${classification}`);
+    if (!input.reportText.includes(String(artifactScenario.scenarioId))) problems.push(`report.txt lacks scenario id ${String(artifactScenario.scenarioId)}`);
+    if (!input.reportHtml.includes(String(artifactScenario.scenarioId))) problems.push(`report.html lacks scenario id ${String(artifactScenario.scenarioId)}`);
+  }
+
+  const artifactSummary = record(record(input.artifact)?.summary);
+  if (
+    reportSection.scenarioCount !== artifactSummary?.scenarioCount ||
+    reportSection.readyScenarioCount !== artifactSummary?.readyScenarioCount ||
+    reportSection.failedScenarioCount !== artifactSummary?.failedScenarioCount ||
+    reportSection.observedStaleRegressionCount !== artifactSummary?.observedStaleRegressionCount ||
+    reportSection.noObservedStaleRegressionCount !== artifactSummary?.noObservedStaleRegressionCount ||
+    reportSection.inconclusiveCount !== artifactSummary?.inconclusiveCount
+  ) {
+    problems.push("report.json summary counts disagree with the execution artifact summary");
+  }
+
+  if (!Array.isArray(reportSection.limitations) || reportSection.limitations.length === 0) problems.push("report.json limitations are missing");
+  for (const marker of ["scoped", "does not prove stale indexes are generally safe", "did not select or trigger", "not retrieval precision/recall", "deterministic fake-agent"]) {
+    if (!input.reportText.toLowerCase().includes(marker.toLowerCase())) problems.push(`report.txt limitations lack expected meaning: "${marker}"`);
+    if (!input.reportHtml.toLowerCase().includes(marker.toLowerCase())) problems.push(`report.html limitations lack expected meaning: "${marker}"`);
+  }
+
+  for (const forbidden of ["overall stale risk", "stale index is safe", "stale index is unsafe", "full refresh wins", "stale wins", "recommended treatment", ">Winner<", ">Score<"]) {
+    if (input.reportText.toLowerCase().includes(forbidden.toLowerCase())) problems.push(`report.txt makes a forbidden overall-verdict claim: "${forbidden}"`);
+    if (input.reportHtml.toLowerCase().includes(forbidden.toLowerCase())) problems.push(`report.html makes a forbidden overall-verdict claim: "${forbidden}"`);
+  }
+
+  return problems;
+}

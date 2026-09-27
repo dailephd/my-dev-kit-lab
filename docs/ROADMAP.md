@@ -849,7 +849,7 @@ Acceptance:
 * Lab can detect changed files after an index was built.
 * Freshness status appears in experiment artifacts and reports.
 
-Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation in v0.6.0. Later work builds on it: affected-neighborhood analysis shipped in v0.6.1, while incremental-change experiments (v0.6.2) and partial refresh (v0.6.3) remain planned.
+Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation in v0.6.0. Later work builds on it: affected-neighborhood analysis shipped in v0.6.1, incremental-change experiments (v0.6.2) are published, and partial refresh (v0.6.3) remains planned.
 
 ### v0.6.1 — affected-neighborhood experiments
 
@@ -882,7 +882,7 @@ Shipped implementation: the baseline graph of the prepared warm index maps each 
 
 ### v0.6.2 — incremental-change and staleness plugin
 
-Status: **planned; design frozen; not implemented**.
+Status: **published**.
 
 Purpose:
 
@@ -1049,7 +1049,7 @@ Performance boundary:
 * Matched treatments multiply retrieval/freshness/neighborhood work, while `full-refresh` additionally adds complete index builds.
 * Measure and report these costs through existing evidence where possible; do not make adjacency caching, freshness caching, or other optimization part of v0.6.2 unless measured evidence establishes a material problem.
 
-Implementation batches:
+Implementation batches (complete):
 
 1. **Scenario contract and immutable scenario catalog**
    * Define the versioned catalog, bounded mutation declarations, answer-key policy, loader/validation, and the six frozen production scenarios.

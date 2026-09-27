@@ -75,7 +75,11 @@ function argAfter(args: string[], flag: string): string | undefined {
 describe("warm-index-reuse registration and config", () => {
   it("is registered next to the unchanged context-strategy-comparison plugin", () => {
     const registry = createDefaultExperimentPluginRegistry();
-    expect(registry.list().map((metadata) => metadata.id)).toEqual(["context-strategy-comparison", "warm-index-reuse"]);
+    expect(registry.list().map((metadata) => metadata.id)).toEqual([
+      "context-strategy-comparison",
+      "warm-index-reuse",
+      "incremental-change-staleness",
+    ]);
     expect(registry.get("context-strategy-comparison")).toBe(contextStrategyComparisonPlugin);
     expect(registry.get("warm-index-reuse")).toBe(warmIndexReusePlugin);
   });
