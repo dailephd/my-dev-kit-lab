@@ -13,8 +13,9 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Current implemented/unreleased version: none.
-- Active planned version: `v0.6.2` (incremental-change and staleness plugin)
-- `v0.6.3` (partial-refresh planning) remains separately planned.
+- Active planned version: `v0.6.2` (incremental-change and staleness plugin); design/planning is frozen and implementation has not started.
+- Two read-only v0.6.2 planning passes established the current plugin/index/report extension points and selected the six controlled-change scenarios documented in [ROADMAP.md](ROADMAP.md).
+- The frozen v0.6.2 primary treatments are `stale-index` and `full-refresh`; partial-refresh execution or simulation remains separately planned for `v0.6.3`.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
 - Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
 
@@ -130,7 +131,7 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- an incremental-change and staleness plugin (`v0.6.2`) and partial-refresh planning (`v0.6.3`), plus later context-window scaling, retrieval precision/recall, and agent-success experiment plugins (through `v0.9.x`)
+- the design-frozen but not-yet-implemented `incremental-change-staleness` plugin (`v0.6.2`), with exactly `stale-index` and `full-refresh` primary treatments; partial-refresh planning/execution remains `v0.6.3`, followed by later context-window scaling, retrieval precision/recall, and agent-success experiment plugins (through `v0.9.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
 ## Limitations
@@ -194,4 +195,4 @@ For the published `v0.6.1`: release blockers — none. Readiness candidate `b9b1
 
 ## Next step
 
-Continue development against the published `v0.6.1` contract. The next planned product version is `v0.6.2`; `v0.6.3` remains separately planned.
+Continue development against the published `v0.6.1` contract. The v0.6.2 design is frozen in [ROADMAP.md](ROADMAP.md); implementation has not started. The next allowed implementation step is v0.6.2 Batch 1: scenario contract and immutable scenario catalog. `v0.6.3` remains separately planned for partial-refresh work.
