@@ -6,6 +6,7 @@ import {
   contextStrategyComparisonPlugin,
   createDefaultExperimentPluginRegistry,
   getWarmIndexCampaignPreset,
+  incrementalChangeStalenessPlugin,
   parseWarmIndexCampaignPresetId,
   resolveExperimentTarget,
   runExperiment,
@@ -252,8 +253,9 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   if (!experimentId) {
     throw new Error("Usage: --experiment <id> [--target <path>] [--out <directory>]");
   }
-  if (kitCommand !== undefined && experimentId !== warmIndexReusePlugin.metadata.id) {
-    throw new Error(`--kit-command is only supported for --experiment ${warmIndexReusePlugin.metadata.id}.`);
+  const KIT_COMMAND_PLUGIN_IDS = [warmIndexReusePlugin.metadata.id, incrementalChangeStalenessPlugin.metadata.id];
+  if (kitCommand !== undefined && !KIT_COMMAND_PLUGIN_IDS.includes(experimentId)) {
+    throw new Error(`--kit-command is only supported for --experiment ${KIT_COMMAND_PLUGIN_IDS.join(" or ")}.`);
   }
   if (campaignPreset !== undefined) {
     if (experimentId !== warmIndexReusePlugin.metadata.id) {
