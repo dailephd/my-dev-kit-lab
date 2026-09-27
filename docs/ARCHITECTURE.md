@@ -325,7 +325,7 @@ The production scenario catalog is planned around six selected benchmark changes
 - **Exported symbol change (E1):** exported Python `determine_quality_label` healthy threshold `80 -> 85`, with symbol identity/signature unchanged.
 - **Public API change (P1):** Python `calculate_project_metrics` gains optional `stale_day_threshold` defaulting to `STALE_DAY_THRESHOLD`, preserving old-call default behavior.
 - **Import-graph change (I1):** TypeScript `buildAnalyticsSnapshot` removes its dependency on `listTasksByProject` and performs equivalent filtering through the existing store API.
-- **Test-only change (T1):** one indexed Python healthy-label test input changes from a validated baseline `X` to `X + 1`, with production source and production answer unchanged.
+- **Test-only change (T1):** in `py/tests/test_quality.py`, the first completed row (`task-1`) changes `updated_day` from `8 -> 9`; both rows remain completed, so completion rate stays `100.0`, stale tasks stay `0`, and the asserted `"healthy"` label plus production source/answer remain unchanged.
 
 These labels identify the experimental dimension being changed; they are not assertions that the underlying source edits are structurally exclusive.
 
