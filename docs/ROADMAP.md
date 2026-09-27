@@ -955,10 +955,10 @@ Frozen controlled-change scenarios:
 6. **Test-only change — T1**
    * Project: `task-analytics-large-mixed`.
    * Relevant follow-up task family: `warm-large-python-pipeline`.
-   * Changed owner: `py/tests/test_quality.py`.
-   * Planned mutation: change exactly one healthy-label test input from its validated baseline value `X` to `X + 1`, keeping the same healthy-label assertion and leaving production source/behavior unchanged.
-   * The exact `X` and `X + 1` literals are materialized during scenario-contract implementation only after validating them against current source.
-   * The scenario query/answer targets test evidence rather than pretending production behavior changed.
+   * Changed owner: `py/tests/test_quality.py`, `QualityTests.test_determine_quality_label`.
+   * Planned mutation: in the first completed test row (`task-1`), change `updated_day` from `8 -> 9`.
+   * Both test rows remain completed, so the derived completion rate remains `100.0`, stale-task count remains `0`, and the asserted production quality label remains `"healthy"`; production source and production answer remain unchanged.
+   * The scenario query/answer targets this indexed test evidence (the `task-1` `updated_day` value and healthy-label assertion) rather than pretending production behavior changed.
 
 Scenario-category rule:
 
