@@ -1,2 +1,11 @@
-# This fixture corpus is SHA-256 verified; preserve its exact bytes on every platform.
-tests/fixtures/ecosystem/context-integrity/v0.4.5/** -text whitespace=cr-at-eol
+# These frozen benchmark inputs use byte-level SHA-256 identities in the
+# incremental-change-staleness scenarios. Keep their checked-out line endings
+# stable across Windows, macOS, and Linux so the guarded mutations identify
+# the same canonical bytes on every supported platform.
+benchmarks/contracts/warm-index-benchmark-cases.json text eol=crlf
+benchmarks/contracts/incremental-change-staleness-scenarios.json text eol=crlf
+benchmarks/projects/task-analytics-large-mixed/py/task_analytics/quality.py text eol=crlf
+benchmarks/projects/task-analytics-large-mixed/py/task_analytics/metrics.py text eol=crlf
+benchmarks/projects/task-analytics-large-mixed/ts/src/services/buildAnalyticsSnapshot.ts text eol=crlf
+benchmarks/projects/task-analytics-large-mixed/py/tests/test_quality.py text eol=crlf
+benchmarks/projects/task-workflow-medium-ts/src/services/completeTask.ts text eol=crlf
