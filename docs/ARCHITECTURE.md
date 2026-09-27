@@ -267,6 +267,104 @@ Invariants:
 - The categorical relationship and recommendation are not `ExperimentMetric` entries and there is no composite score.
 - `scripts/verify-packed-package.mjs` (with `scripts/verifyPackedPackageHelpers.ts`) proves the exact packed tarball in a clean consumer against the real registry package `@dailephd/my-dev-kit@1.12.4`, including a fresh case and a controlled changed-file case, and keeps the canonical and installed packages immutable. The controlled case uses a disposable second install of the same tarball as its only mutable sandbox.
 
+## Planned incremental-change/staleness architecture (v0.6.2)
+
+Status: **planned; design frozen; not implemented**.
+
+v0.6.2 is planned as a new `incremental-change-staleness` experiment plugin layered on the existing generic experiment framework. It does not replace or change the released `warm-index-reuse` plugin. The new plugin owns its own controlled-change scenarios, disposable treatment targets, stale/full-refresh index lifecycle, persisted comparison evidence, and plugin report model while reusing established evaluation owners where their current contracts apply.
+
+### Planned ownership
+
+- **Scenario catalog and validation:** a separate versioned v0.6.2 scenario catalog references existing benchmark projects/cases and declares bounded deterministic source changes. The preferred planned catalog is `benchmarks/contracts/incremental-change-staleness-scenarios.json` with schema `1.0.0`. Existing `warm-index-benchmark-cases.json` semantics remain unchanged.
+- **Disposable treatment targets:** the plugin creates independent disposable copies derived from the same immutable benchmark baseline. Each treatment must retain its own target identity and may use only indexes whose manifest belongs to that target root.
+- **Bounded mutation owner:** planned mutations use target-relative file paths, expected pre-mutation SHA-256, ordered literal exact-preimage replacements, exactly-one-match validation, and expected post-mutation SHA-256. Arbitrary shell/script/callback/regex execution is outside the planned contract.
+- **Source-state equivalence evidence:** before treatment comparison, normalized target-relative indexed-file path/SHA-256 evidence is planned to establish equivalent pre-mutation controlled source state and equivalent post-mutation controlled source state across the treatment copies.
+- **Index lifecycle:** reuse the existing full-index construction owner in `src/evaluation/runMyDevKitRetrieval.ts` rather than adding a parallel index runner.
+- **Snapshot/freshness:** reuse `IndexSnapshotV1`, `captureIndexSnapshot`, `IndexFreshnessAssessmentV1`, and `assessIndexFreshness` without changing their released semantics.
+- **Affected-neighborhood evidence:** reuse the v0.6.1 graph-loading, seed mapping, one-hop traversal, task mapping, relationship, recommendation, and six numeric metric semantics without redefining them.
+- **Correctness/evidence:** reuse existing benchmark answer-key correctness and generic experiment outcome/status infrastructure; scenario-specific post-mutation answers use the existing answer-key vocabulary.
+- **Persistence/comparison:** the new plugin should own a separate versioned execution/comparison artifact rather than overloading `warm-index-execution.json`.
+- **Reporting:** persisted plugin evidence flows through the existing plugin report architecture into JSON/text/HTML presentation. Report builders remain presentation-only and must not inspect or recompute target/index state.
+- **Packed-package acceptance:** extend the existing packed-package verifier pattern using exact Lab tarballs, disposable installations, the real published my-dev-kit package relied on by the candidate, installed-binary execution, bounded mutable benchmark copies, and existing immutability boundaries.
+
+### Planned control flow
+
+```text
+immutable benchmark baseline
+  -> equivalent disposable treatment copies
+      -> treatment-specific baseline index
+      -> IndexSnapshotV1 capture
+      -> baseline graph-evidence capture
+      -> validated deterministic mutation
+      -> verify equivalent post-mutation controlled source state
+      -> branch
+
+stale-index
+  -> keep using the pre-mutation index
+  -> freshness / affected-neighborhood / retrieval / correctness evidence
+
+full-refresh
+  -> build a new complete post-mutation index
+  -> freshness / affected-neighborhood / retrieval / correctness evidence
+
+matched treatment evidence
+  -> persisted v0.6.2 plugin artifact
+  -> comparison / metric owner
+  -> report model
+  -> JSON / text / HTML presentation
+```
+
+The mutation must occur only after the treatment's baseline index has completed and Lab has captured its baseline snapshot (and required baseline graph evidence). The v0.6.1 packed acceptance proved that mutation immediately after the upstream index subprocess exits can be too early because snapshot capture happens after the index command returns.
+
+### Frozen scenario dimensions
+
+The production scenario catalog is planned around six selected benchmark changes:
+
+- **Unrelated file change (U1):** Python quality threshold `80 -> 81` followed by the independent TypeScript leaderboard task.
+- **Local implementation change (L2):** `completeTask` fixed completion timestamp `2026-02-01T00:00:00.000Z -> 2026-03-01T00:00:00.000Z`, with callable contract unchanged.
+- **Exported symbol change (E1):** exported Python `determine_quality_label` healthy threshold `80 -> 85`, with symbol identity/signature unchanged.
+- **Public API change (P1):** Python `calculate_project_metrics` gains optional `stale_day_threshold` defaulting to `STALE_DAY_THRESHOLD`, preserving old-call default behavior.
+- **Import-graph change (I1):** TypeScript `buildAnalyticsSnapshot` removes its dependency on `listTasksByProject` and performs equivalent filtering through the existing store API.
+- **Test-only change (T1):** one indexed Python healthy-label test input changes from a validated baseline `X` to `X + 1`, with production source and production answer unchanged.
+
+These labels identify the experimental dimension being changed; they are not assertions that the underlying source edits are structurally exclusive.
+
+### Compatibility boundaries
+
+v0.6.2 must preserve all of these released contracts:
+
+- `warm-index-reuse` remains unchanged, including its one-index-per-project model and existing artifacts.
+- The six v0.6.1 numeric affected-neighborhood metrics remain exactly `changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, and `taskOverlapPercent`.
+- `relationship` and `reindexRecommendation` remain categorical evidence.
+- `changedSymbolCount` remains the count of unique baseline symbol identities belonging to confirmed changed indexed files; it is not true source-symbol diff evidence.
+- Confirmed positive overlap remains `related`; complete zero overlap remains `unrelated`; zero observed overlap with incomplete/unavailable evidence remains `unknown`.
+- Incomplete zero overlap must never be promoted to `unrelated`.
+- `reindexRecommendation` remains observational and cannot automatically trigger or select a treatment.
+- Missing, unavailable, `null`, and absent evidence remain distinct.
+- Reports must consume persisted runtime evidence rather than read files, hash targets, load indexes, or retraverse graphs.
+
+### Explicitly outside the v0.6.2 architecture
+
+- partial refresh or simulated partial refresh
+- changed-files refresh
+- affected-neighborhood refresh
+- my-dev-kit `graph-diff` dependency
+- a true changed-symbol metric
+- redefinition of `changedSymbolCount`
+- automatic reindex policy
+- treatment selection driven by `reindexRecommendation`
+- retrieval precision/recall metrics planned for v0.8.0
+- coding-agent edit-quality scoring
+- universal stale-risk scoring
+- mandatory real-agent campaigns
+- treatment rankings or winner selection
+
+Partial-refresh experiment architecture remains v0.6.3 work.
+
+### Planned performance boundary
+
+The design intentionally inherits the current implementation costs unless measurement proves optimization is necessary: freshness re-hashes represented files at task boundaries; affected-neighborhood assessment scans approximately all retained graph edges per assessment; matched stale/full-refresh treatments multiply retrieval and evidence work; and the full-refresh treatment adds complete index builds. v0.6.2 should measure/report existing cost evidence rather than casually add caches or alter released semantics.
+
 ## Expanded warm-index benchmark suite (v0.5.1)
 
 Released in v0.5.1. v0.5.1 extends the benchmark/evaluation contract layer; it does not change the warm-index runtime described above, which stays authoritative and handles any ordered set of tasks grouped by project.
