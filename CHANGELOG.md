@@ -4,6 +4,20 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### v0.6.2 — Incremental-change and staleness plugin
+
+Implemented in this repository; unreleased.
+
+- Added the `incremental-change-staleness` experiment plugin (`src/experiments/plugins/incrementalChangeStaleness/`), registered alongside `context-strategy-comparison` and `warm-index-reuse` with registry status `experimental` and exactly two treatments, `stale-index` and `full-refresh`.
+- Added a separate versioned scenario catalog (`benchmarks/contracts/incremental-change-staleness-scenarios.json`, schema `1.0.0`) with six frozen controlled-change scenarios (`U1` unrelated-file, `L2` local-implementation, `E1` exported-symbol, `P1` public-API, `I1` import-graph, `T1` test-only), a bounded declarative mutation contract (relative path, pre/post SHA-256, ordered literal exact-preimage replacements, exactly-one-match validation), and an `inherit`/`scenario` answer-key policy reusing the existing benchmark answer-key vocabulary.
+- Added disposable treatment targets: each scenario runs against two independent disposable copies of the same immutable benchmark project, proving pre-mutation and post-mutation controlled-source equivalence before and after the shared deterministic mutation.
+- Added the stale/full-refresh index lifecycle: both treatments build a baseline index/snapshot/graph before mutation; `stale-index` keeps retrieving from that baseline index, while `full-refresh` builds a distinct complete post-mutation index and retrieves from it. Affected-neighborhood evidence (the released v0.6.1 six numeric metrics, `relationship`, and `reindexRecommendation`) is asserted symmetric across both treatments before retrieval; the six-metric conversion is now shared through `src/evaluation/affectedNeighborhoodMetrics.ts`.
+- Added deterministic fake-agent retrieval/correctness evidence, required-file evidence (`present`/`missing`/`unknown`), a `correctnessRelation` and `requiredFileEvidenceRelation` (`stale-worse`/`same`/`stale-better`/`unknown`), and a conservative `staleRiskClassification` (`observed-stale-regression`/`no-observed-stale-regression`/`inconclusive`) with no numeric stale-risk score, no treatment winner, and no safety verdict.
+- Added the persisted execution artifact `incremental-change-staleness-execution.json` (schema `my-dev-kit-lab-incremental-change-staleness-execution-v1`) and plugin `report.json`/`report.txt`/`report.html` presentation built from that persisted evidence only, with fixed limitations text.
+- `experiment run --kit-command` now also accepts `incremental-change-staleness`, in addition to `warm-index-reuse`; it remains rejected for `context-strategy-comparison`.
+- Validated the exact npm tarball end to end against the real published `@dailephd/my-dev-kit@1.12.4`: all six scenarios ran through the installed CLI, producing the execution artifact and all three reports while keeping the installed package, canonical benchmarks, and source checkout immutable.
+- No partial refresh, no `graph-diff` dependency, no true-symbol-diff metric, and no new plot, screenshot, gallery item, or top-level CLI command were added.
+
 ## [0.6.1] - 2026-09-26
 
 ### Affected-neighborhood experiments
