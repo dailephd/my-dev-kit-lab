@@ -4,8 +4,22 @@ import path from "node:path";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
 import type { IncrementalChangeStalenessMutationFile } from "./scenarioTypes.js";
 
-function sha256Hex(data: Buffer): string {
+export function sha256Hex(data: Buffer): string {
   return createHash("sha256").update(data).digest("hex");
+}
+
+/**
+ * True when `relativePath` (project-root-relative, either separator style) is
+ * covered by one of the declared source roots, i.e. equals a root or is
+ * nested underneath one. Shared by Batch 1 catalog validation and Batch 2
+ * execution-time re-validation so both enforce identical coverage semantics.
+ */
+export function isPathCoveredBySourceRoots(relativePath: string, sourceRoots: readonly string[]): boolean {
+  const normalizedFilePath = relativePath.replace(/\\/g, "/");
+  return sourceRoots.some((root) => {
+    const normalizedRoot = root.replace(/\\/g, "/").replace(/\/+$/, "");
+    return normalizedFilePath === normalizedRoot || normalizedFilePath.startsWith(`${normalizedRoot}/`);
+  });
 }
 
 /**
@@ -72,11 +86,7 @@ export async function validateMutationFile(
     return { errors: [`${label}: mutation file path must be a safe project-relative path: ${file.path}.`] };
   }
 
-  const normalizedFilePath = file.path.replace(/\\/g, "/");
-  const covered = caseSourceRoots.some((root) => {
-    const normalizedRoot = root.replace(/\\/g, "/").replace(/\/+$/, "");
-    return normalizedFilePath === normalizedRoot || normalizedFilePath.startsWith(`${normalizedRoot}/`);
-  });
+  const covered = isPathCoveredBySourceRoots(file.path, caseSourceRoots);
   if (!covered) {
     errors.push(`${label}: mutation file path ${file.path} is not covered by the referenced case's indexed source roots (${caseSourceRoots.join(", ")}).`);
   }
