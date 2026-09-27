@@ -1,3 +1,6 @@
+# This fixture corpus is SHA-256 verified; preserve its exact bytes on every platform.
+tests/fixtures/ecosystem/context-integrity/v0.4.5/** -text whitespace=cr-at-eol
+
 # These frozen benchmark inputs use byte-level SHA-256 identities in the
 # incremental-change-staleness scenarios. Keep their checked-out line endings
 # stable across Windows, macOS, and Linux so the guarded mutations identify
