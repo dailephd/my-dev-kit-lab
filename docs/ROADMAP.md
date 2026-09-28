@@ -1127,19 +1127,33 @@ Purpose:
 
 Features:
 
-* Add experiment treatments:
+* Add experiment treatment intents:
 
   * my-dev-kit-full-refresh
   * my-dev-kit-no-refresh
   * my-dev-kit-changed-files-refresh
   * my-dev-kit-affected-neighborhood-refresh
-* If my-dev-kit does not yet support partial reindex, simulate or mark treatment unavailable.
-* Document dependency on future my-dev-kit support.
+* Use supported upstream my-dev-kit behavior where it exists; otherwise keep the treatment explicitly unavailable or use a separately frozen Lab simulation boundary rather than implying unsupported upstream behavior.
+* Document the exact upstream capability dependency and every fallback/unavailable state.
+
+Pre-implementation planner design-freeze gate:
+
+* Freeze the exact semantics and lifecycle of all four treatment intents.
+* Freeze the upstream-capability versus Lab-simulation/unavailable boundary. Current `@dailephd/my-dev-kit@1.12.4` exposes real `index --incremental` partial-rebuild behavior and explicit fallback modes, but no affected-neighborhood-targeted refresh command.
+* Freeze refresh authority: decide which component may request or perform each refresh and forbid ad hoc index-artifact mutation outside that authority.
+* Freeze target, baseline-index, refreshed-index, cache, snapshot, and graph identity rules for every treatment.
+* Freeze correctness and safety-comparison semantics, including conservative `unknown`/`unavailable`/`inconclusive` handling and no treatment winner or global safety verdict.
+* Freeze execution-artifact schema/versioning, report semantics, backward compatibility with v0.6.2 evidence, and presentation-only report ownership.
+* Freeze exact packed-package acceptance against the published upstream my-dev-kit contract and target/package/benchmark immutability requirements.
+* Freeze scenario-discrimination criteria. The v0.6.2 observation that deterministic fake-agent correctness often did not separate stale from refreshed treatments is not evidence that stale indexes are generally safe; required-file and lifecycle evidence must remain first-class.
 
 Acceptance:
 
-* Lab can model partial-refresh experiments even if my-dev-kit support is incomplete.
-* Reports clearly distinguish implemented behavior from planned capability.
+* No v0.6.3 implementation begins until the planner design-freeze gate above is resolved.
+* Lab can model partial-refresh experiments even if one treatment remains unavailable because upstream support is incomplete.
+* Supported partial-refresh executions record the actual upstream mode/fallback rather than assuming that a requested incremental run was partial.
+* Unsupported or incomplete evidence stays explicit as unavailable, unknown, or inconclusive rather than being fabricated as successful or safe.
+* Reports clearly distinguish implemented behavior, unavailable treatment capability, and later planned capability.
 
 ### v0.7.0 — context-window scaling plugin
 

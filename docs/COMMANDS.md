@@ -207,7 +207,7 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign <preset> 
 | `--project-profiles <path>` | Defaults to the bundled `benchmarks/contracts/benchmark-project-profiles.json` |
 | `--case <ids>` | Optional comma-separated case filter; unknown IDs fail the run |
 | `--benchmark-project <ids>` | Optional comma-separated project filter; unknown IDs fail the run |
-| `--kit-command <command>` | `warm-index-reuse` only; the my-dev-kit command used to build one index per benchmark project and retrieve per task. Defaults to `npx @dailephd/my-dev-kit@latest` |
+| `--kit-command <command>` | For `warm-index-reuse`, the my-dev-kit command used to build one index per benchmark project and retrieve per task; defaults to `npx @dailephd/my-dev-kit@latest`. The option is also accepted by `incremental-change-staleness` with that plugin's documented default and semantics below, and is rejected for `context-strategy-comparison`. |
 | `--campaign <preset>` | `warm-index-reuse` only, available in the installed v0.5.2 CLI; one of `codex-full`, `claude-full`, `codex-timeout-isolation`. Selects the bundled production corpus and a single real-agent provider for the run; cannot be combined with `--target`, `--cases`, or `--project-profiles` |
 | `--include-real-agents` | `warm-index-reuse` only, available in the installed v0.5.2 CLI. Required alongside `--campaign` to run real Codex/Claude providers instead of the deterministic fake agent; rejected without `--campaign` |
 
@@ -441,8 +441,9 @@ npm run experiment:run -- --experiment warm-index-reuse --cases benchmarks/contr
 Current behavior:
 
 - `context-strategy-comparison`, `warm-index-reuse`, and `incremental-change-staleness` are the registered plugins
-- omitting `--target` uses self mode
-- target projects are not modified by experiment execution
+- `context-strategy-comparison` and ordinary `warm-index-reuse` runs support optional `--target`; omitting it uses self mode
+- `incremental-change-staleness` does not accept `--target` and always uses the bundled benchmark projects
+- when a plugin supports an explicit target, experiment execution does not modify that target project
 
 Outputs are written beneath the selected `--out` directory. Invalid experiment IDs or configuration fail with a nonzero exit code. Real-agent commands can also record structured partial outcomes such as timeouts, unavailable agents, usage limits, or invalid output.
 
