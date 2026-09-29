@@ -77,6 +77,22 @@ describe("prepareWarmIndexSession", () => {
     expect(session.sourceRoots).toEqual(["src", "tests"]);
   });
 
+  it("builds with the ordinary full index command shape and no incremental refresh request", async () => {
+    const root = tempRoot();
+    const prepared = await prepareWarmIndexSession({
+      target: baseCase,
+      kitCommand: fakeKitCommand,
+      indexDir: path.join(root, "indexes", "todo-ts"),
+      commandsDir: path.join(root, "commands", "index"),
+      requireKit: true
+    });
+    expect(prepared.ok).toBe(true);
+    expect(prepared.build.mode).toEqual({ kind: "full" });
+    expect(prepared.build.incrementalRefresh).toBeNull();
+    expect(prepared.build.command.args).not.toContain("--incremental");
+    expect(prepared.build.command.args).not.toContain("--refresh-scope");
+  });
+
   it("is passed explicitly to several tasks that retrieve against the same index without re-indexing", async () => {
     const root = tempRoot();
     const prepared = await prepareWarmIndexSession({
