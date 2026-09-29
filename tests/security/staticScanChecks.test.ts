@@ -5,16 +5,14 @@ import { runSemgrepCheck, parseSemgrepJson } from "../../src/securityValidation/
 // ---------------------------------------------------------------------------
 // Static scan checks
 //
-// Both CodeQL and Semgrep are optional tools. These tests verify that:
+// CodeQL local CLI and Semgrep are optional tools. These tests verify that:
 //   - Unavailable tools produce a structured "skipped" result, not a crash.
 //   - The result always conforms to SecurityCheckResult shape.
 //   - JSON parsers handle minimal and empty outputs without throwing.
 // ---------------------------------------------------------------------------
 
-describe("CodeQL check — unavailable CLI", () => {
-  it("returns a skipped result when CodeQL CLI is not in PATH", async () => {
-    // CodeQL is not expected to be in PATH on standard dev/CI machines.
-    // This test passes on any machine; if CodeQL IS present, we accept passed too.
+describe("CodeQL local availability preflight", () => {
+  it("reports unavailable local CLI as skipped, never as full analysis", async () => {
     const result = await runCodeqlCheck({ cwd: process.cwd(), timeoutMs: 5000 });
     expect(["skipped", "passed", "failed", "warning"]).toContain(result.status);
     expect(result.id).toBe("codeql-scan");
@@ -22,6 +20,15 @@ describe("CodeQL check — unavailable CLI", () => {
     expect(Array.isArray(result.findings)).toBe(true);
     expect(result.startedAt).toBeTruthy();
     expect(result.finishedAt).toBeTruthy();
+    if (result.status === "skipped") {
+      expect(result.skippedReason).toMatch(/local CodeQL CLI is unavailable/i);
+      expect(result.skippedReason).toMatch(/GitHub CodeQL advanced-setup analysis/i);
+      expect(result.skippedReason).toMatch(/exact candidate SHA/i);
+      expect(result.skippedReason).not.toMatch(/CodeQL.*passed/i);
+    }
+    if (result.status === "passed") {
+      expect(result.name).toBe("CodeQL CLI availability preflight");
+    }
   });
 
   it("skipped result has a human-readable skippedReason", async () => {
@@ -38,7 +45,7 @@ describe("CodeQL check — unavailable CLI", () => {
     expect(result.severity).toBeTruthy();
   });
 
-  it("absence of CodeQL does not produce blocker findings", async () => {
+  it("keeps local CLI absence non-blocking for this local preflight only", async () => {
     const result = await runCodeqlCheck({ cwd: process.cwd(), timeoutMs: 5000 });
     if (result.status === "skipped") {
       expect(result.findings).toHaveLength(0);

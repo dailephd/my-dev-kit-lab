@@ -17,6 +17,7 @@ Implemented in this repository; unreleased.
 - `experiment run --help` now states that `--target` applies only to plugins that support external targets and that self-only plugins reject an explicit external `--target`.
 - Automatic warm-index campaign report screenshots are best-effort presentation evidence: failed capture stays explicitly failed with its warning and no fabricated PNG, but does not fail an otherwise successful campaign. Required campaign, report, plot, and gallery failures remain fatal.
 - Updated the packed-package acceptance gate (`npm run verify:packed-package`) to pin the real registry package `@dailephd/my-dev-kit@1.12.5` and to verify all six scenarios with four treatments, applied partial refresh, operational discrimination, and installed-package, upstream-package, and canonical-benchmark immutability.
+- Added repository-controlled GitHub CodeQL advanced-setup analysis required by release readiness; exact-candidate execution and alert review remain for R5.
 - No new plugin, `graph-diff` dependency, true-symbol-diff metric, multi-hop traversal, automatic refresh policy, external-target support, or new plot, screenshot, or gallery item was added.
 
 ## [0.6.2] - 2026-09-27

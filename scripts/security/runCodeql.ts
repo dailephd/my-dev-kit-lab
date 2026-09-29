@@ -21,7 +21,7 @@ try {
   process.exit(1);
 }
 
-console.log("Running CodeQL static analysis check...");
+console.log("Checking local CodeQL CLI and integration availability...");
 
 const result = await runCodeqlCheck({
   cwd: toolRoot,
@@ -46,11 +46,17 @@ if (result.findings.length > 0) {
 console.log(`\nDuration: ${result.durationMs}ms`);
 
 if (result.status === "skipped") {
-  console.log("\nCodeQL is optional. Absence does not block release.");
+  console.log("\nLocal CodeQL CLI is unavailable; this standalone preflight is skipped and exits successfully.");
+  console.log(
+    "This skip is not full analysis or release-readiness evidence. Release readiness requires successful GitHub CodeQL advanced-setup analysis for the exact candidate SHA.",
+  );
   process.exitCode = 0;
 } else if (result.status === "failed") {
   process.exitCode = 1;
 } else {
+  console.log(
+    "Local CLI availability is confirmed; full repository analysis remains a separate GitHub CodeQL workflow requirement for release readiness.",
+  );
   process.exitCode = 0;
 }
 

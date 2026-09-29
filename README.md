@@ -259,7 +259,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 Android validation uses `--profile android`. Its default path is static and non-destructive: it starts zero Gradle processes, zero external tools, and zero network operations. Only confirmed `SecurityFinding` records can become audit issues; Android `CandidateEvidence` remains review-only evidence.
 
-Optional scanners are reported as `skipped` when unavailable, never as passed. The framework does not provide runtime isolation proof, device or APK/AAB analysis, signing verification, Play Console validation, automatic fixes, or manual pentesting. Manual pentest remains deferred until post-v1/version TBD.
+Optional local scanners are reported as `skipped` when unavailable, never as passed. This local availability rule does not make CodeQL coverage optional for release readiness: the exact candidate must pass the repository-controlled GitHub CodeQL workflow and have its Code Scanning alerts reviewed. The framework does not provide runtime isolation proof, device or APK/AAB analysis, signing verification, Play Console validation, automatic fixes, or manual pentesting. Manual pentest remains deferred until post-v1/version TBD.
 
 See [COMMANDS.md](docs/COMMANDS.md) for exact syntax and [Security Validation Framework](docs/security-validation-framework.md) for checks, evidence semantics, verdicts, and limitations.
 

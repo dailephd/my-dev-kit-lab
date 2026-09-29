@@ -493,6 +493,8 @@ Current implemented commands:
 - `npm run test:fuzz:smoke`
 - `npm run security:validate`
 
+`npm run security:codeql` is a local CLI availability/integration preflight. An unavailable local CLI is reported as `skipped`; a skip or local CLI version success is not full-analysis evidence. Full CodeQL analysis is performed by [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml), and release readiness requires successful analysis and alert review for the exact candidate SHA.
+
 ### `npm run security:validate`
 
 Current options:

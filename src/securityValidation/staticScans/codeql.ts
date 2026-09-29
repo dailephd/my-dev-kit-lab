@@ -3,9 +3,9 @@ import { resolveCommand } from "../../core/resolveCommand.js";
 import { skippedCheck } from "../cliAdversarial/runAdversarialCheck.js";
 import type { SecurityCheckResult } from "../types.js";
 
-// CodeQL is primarily a GitHub Actions / code-scanning integration.
-// Local CodeQL CLI is optional — if unavailable the check is skipped.
-// Absence is not a release blocker; it surfaces as "ready except optional checks".
+// This local check only verifies CodeQL CLI availability and integration.
+// Full CodeQL analysis is owned by .github/workflows/codeql.yml.
+// Release readiness requires successful GitHub analysis for the exact candidate SHA.
 
 export async function runCodeqlCheck(options: {
   cwd: string;
@@ -18,10 +18,10 @@ export async function runCodeqlCheck(options: {
   if (resolved.resolutionKind === "unavailable") {
     return skippedCheck({
       id: "codeql-scan",
-      name: "CodeQL static analysis",
+      name: "CodeQL CLI availability preflight",
       category: "static-scan",
       reason:
-        "CodeQL CLI not found in PATH. Full analysis runs via GitHub Actions code-scanning workflow. Install the CodeQL CLI locally for local analysis.",
+        "Local CodeQL CLI is unavailable, so the local availability preflight is skipped. Full release-readiness coverage requires a successful GitHub CodeQL advanced-setup analysis for the exact candidate SHA.",
     });
   }
 
@@ -42,7 +42,7 @@ export async function runCodeqlCheck(options: {
   if (versionCmd.exitCode !== 0 || versionCmd.exitCode === null) {
     return {
       id: "codeql-scan",
-      name: "CodeQL static analysis",
+      name: "CodeQL CLI availability preflight",
       category: "static-scan",
       status: "failed",
       severity: "major",
@@ -64,10 +64,10 @@ export async function runCodeqlCheck(options: {
     };
   }
 
-  // CLI is present and functional. Full analysis runs in GitHub Actions.
+  // The CLI is present and functional; this is not repository-wide analysis.
   return {
     id: "codeql-scan",
-    name: "CodeQL static analysis",
+    name: "CodeQL CLI availability preflight",
     category: "static-scan",
     status: "passed",
     severity: "informational",
