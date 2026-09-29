@@ -849,7 +849,7 @@ Acceptance:
 * Lab can detect changed files after an index was built.
 * Freshness status appears in experiment artifacts and reports.
 
-Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation in v0.6.0. Later work builds on it: affected-neighborhood analysis shipped in v0.6.1, incremental-change experiments (v0.6.2) are published, and partial refresh (v0.6.3) remains planned.
+Shipped implementation: warm-index runs capture index snapshot evidence and detect changes to represented files, then report four-state freshness per task through the existing execution and report artifacts. Freshness adds no CLI surface, metric, plot, gallery item, or reindex recommendation in v0.6.0. Later work builds on it: affected-neighborhood analysis shipped in v0.6.1, incremental-change experiments (v0.6.2) are published, and partial refresh (v0.6.3) is implemented and unreleased.
 
 ### v0.6.1 — affected-neighborhood experiments
 
@@ -1117,43 +1117,42 @@ Explicit exclusions:
 * treatment rankings, winners, or composite grades
 * changes to `warm-index-reuse` semantics
 
-### v0.6.3 — partial-refresh planning
+### v0.6.3 — partial-refresh experiments
 
-Status: **planned; not implemented**.
+Status: **implemented; unreleased; pre-release readiness pending**.
 
 Purpose:
 
-* Add evidence and planning support for bounded index refreshes.
+* Add evidence for bounded index refreshes by extending the existing `incremental-change-staleness` plugin from two treatments to four. No new experiment plugin was added.
 
-Features:
+Implemented scope:
 
-* Add experiment treatment intents:
+* Four treatment intents, run in this fixed order for every frozen scenario:
 
-  * my-dev-kit-full-refresh
-  * my-dev-kit-no-refresh
-  * my-dev-kit-changed-files-refresh
-  * my-dev-kit-affected-neighborhood-refresh
-* Use supported upstream my-dev-kit behavior where it exists; otherwise keep the treatment explicitly unavailable or use a separately frozen Lab simulation boundary rather than implying unsupported upstream behavior.
-* Document the exact upstream capability dependency and every fallback/unavailable state.
-
-Pre-implementation planner design-freeze gate:
-
-* Freeze the exact semantics and lifecycle of all four treatment intents.
-* Freeze the upstream-capability versus Lab-simulation/unavailable boundary. Current `@dailephd/my-dev-kit@1.12.4` exposes real `index --incremental` partial-rebuild behavior and explicit fallback modes, but no affected-neighborhood-targeted refresh command.
-* Freeze refresh authority: decide which component may request or perform each refresh and forbid ad hoc index-artifact mutation outside that authority.
-* Freeze target, baseline-index, refreshed-index, cache, snapshot, and graph identity rules for every treatment.
-* Freeze correctness and safety-comparison semantics, including conservative `unknown`/`unavailable`/`inconclusive` handling and no treatment winner or global safety verdict.
-* Freeze execution-artifact schema/versioning, report semantics, backward compatibility with v0.6.2 evidence, and presentation-only report ownership.
-* Freeze exact packed-package acceptance against the published upstream my-dev-kit contract and target/package/benchmark immutability requirements.
-* Freeze scenario-discrimination criteria. The v0.6.2 observation that deterministic fake-agent correctness often did not separate stale from refreshed treatments is not evidence that stale indexes are generally safe; required-file and lifecycle evidence must remain first-class.
+  * `stale-index` -> my-dev-kit-no-refresh
+  * `changed-files-refresh` -> my-dev-kit-changed-files-refresh
+  * `affected-neighborhood-refresh` -> my-dev-kit-affected-neighborhood-refresh
+  * `full-refresh` -> my-dev-kit-full-refresh
+* Real upstream dependency: the default kit command is `npx @dailephd/my-dev-kit@1.12.5`, because the published `--refresh-scope changed-files|affected-neighborhood` option of `index --incremental` first exists in that version. Lab requests the scope internally per treatment; it exposes no Lab-level `--refresh-scope` flag and never edits index artifacts itself.
+* Lifecycle: four isolated disposable targets from the same immutable benchmark; equivalent trusted baselines; one shared controlled mutation applied only after every baseline (and each partial treatment's cloned index directory) is ready; then no refresh, changed-files refresh, affected-neighborhood refresh, or full refresh; then per-treatment retrieval and deterministic fake-agent evaluation.
+* Truthful refresh evidence: each partial treatment records upstream `requestedScope`, `appliedScope`, `selectionStatus`, `fallbackReason`, and file/neighborhood counts, plus a Lab `refreshRealization` of `APPLIED_PARTIAL` or `FALLBACK_FULL`. A fallback is reported as it happened and is never counted as evidence about the requested partial behavior.
+* Conservative comparison: exactly three comparisons against `full-refresh`. `stale-index` keeps the v0.6.2 stale-risk vocabulary; each partial treatment uses `observed-regression-relative-to-full`, `no-observed-regression-relative-to-full`, `inconclusive`, or `not-comparable-as-partial-refresh`. There is no winner, ranking, safety score, or automatic refresh policy.
+* Persistence and reports: new runs write `my-dev-kit-lab-incremental-change-staleness-execution-v2` and report schema `my-dev-kit-lab-incremental-change-staleness-report-v2`; historical V1 artifacts remain readable with their v0.6.2 semantics. The plugin remains self-only.
+* Lab task-relationship affected-neighborhood evidence (released v0.6.1) and upstream refresh execution evidence are separate evidence families and are never merged.
 
 Acceptance:
 
-* No v0.6.3 implementation begins until the planner design-freeze gate above is resolved.
-* Lab can model partial-refresh experiments even if one treatment remains unavailable because upstream support is incomplete.
-* Supported partial-refresh executions record the actual upstream mode/fallback rather than assuming that a requested incremental run was partial.
-* Unsupported or incomplete evidence stays explicit as unavailable, unknown, or inconclusive rather than being fabricated as successful or safe.
-* Reports clearly distinguish implemented behavior, unavailable treatment capability, and later planned capability.
+* The exact packed Lab package, installed into a disposable consumer with the real registry package `@dailephd/my-dev-kit@1.12.5`, ran all six frozen scenarios through the installed CLI; both partial treatments were applied without fallback, four scenarios showed distinct affected-neighborhood versus changed-files refresh geometry, and the installed packages and canonical benchmarks stayed unchanged.
+* Missing or partial evidence stays explicit as unavailable, unknown, or inconclusive; it is never fabricated as zero, successful, or safe.
+* Released v0.6.1 affected-neighborhood semantics, `warm-index-reuse`, and V1 evidence remain compatible.
+
+Explicit exclusions (unchanged, not implemented):
+
+* a new plugin, `graph-diff` integration, a true changed-symbol metric, or redefining `changedSymbolCount`
+* multi-hop affected-neighborhood traversal, automatic refresh or reindex policy, or treatment selection from `reindexRecommendation`
+* treatment rankings, winners, safety scores, or composite grades
+* real-agent campaign requirements, new plots, screenshots, or gallery items
+* external-target support for `incremental-change-staleness` or a public Lab `--refresh-scope` flag
 
 ### v0.7.0 — context-window scaling plugin
 

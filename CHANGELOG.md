@@ -4,6 +4,20 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### v0.6.3 — Four-treatment partial-refresh experiments
+
+Implemented in this repository; unreleased.
+
+- Extended the `incremental-change-staleness` plugin from two treatments to four, in fixed order: `stale-index` (`my-dev-kit-no-refresh`), `changed-files-refresh` (`my-dev-kit-changed-files-refresh`), `affected-neighborhood-refresh` (`my-dev-kit-affected-neighborhood-refresh`), and `full-refresh` (`my-dev-kit-full-refresh`). No new experiment plugin was added.
+- Changed the default kit command of `incremental-change-staleness` from `npx @dailephd/my-dev-kit@1.12.4` to `npx @dailephd/my-dev-kit@1.12.5`, the first published version with `index --incremental --refresh-scope changed-files|affected-neighborhood`. Lab requests the scope internally; no Lab-level `--refresh-scope` flag exists.
+- Added a four-treatment lifecycle: four isolated disposable targets, equivalent trusted baselines, containment-checked whole-directory index clones for the two partial treatments, a mutation barrier, and per-treatment freshness validation. `stale-index` performs no post-mutation index invocation.
+- Added truthful refresh evidence: upstream `requestedScope`, `appliedScope`, `selectionStatus`, `fallbackReason`, fresh-extraction, reused-file, forced-neighbor, and seed/affected counts, and a Lab `refreshRealization` of `NO_REFRESH`, `APPLIED_PARTIAL`, `FALLBACK_FULL`, or `FULL_REFRESH`. A partial treatment that falls back is `not-comparable-as-partial-refresh`.
+- Added exactly three reference comparisons against `full-refresh`: `stale-index` (unchanged v0.6.2 stale-risk vocabulary) and the two partial treatments (`observed-regression-relative-to-full`, `no-observed-regression-relative-to-full`, `inconclusive`, `not-comparable-as-partial-refresh`). There is no winner, ranking, safety score, or automatic refresh policy.
+- New runs write execution schema `my-dev-kit-lab-incremental-change-staleness-execution-v2` and report schema `my-dev-kit-lab-incremental-change-staleness-report-v2` (JSON, text, HTML); historical V1 artifacts and reports remain readable. Added additive numeric `upstream-refresh-*` metrics for the partial treatments, kept separate from the Lab affected-neighborhood metrics.
+- `experiment run --help` now states that `--target` applies only to plugins that support external targets and that self-only plugins reject an explicit external `--target`.
+- Updated the packed-package acceptance gate (`npm run verify:packed-package`) to pin the real registry package `@dailephd/my-dev-kit@1.12.5` and to verify all six scenarios with four treatments, applied partial refresh, operational discrimination, and installed-package, upstream-package, and canonical-benchmark immutability.
+- No new plugin, `graph-diff` dependency, true-symbol-diff metric, multi-hop traversal, automatic refresh policy, external-target support, or new plot, screenshot, or gallery item was added.
+
 ## [0.6.2] - 2026-09-27
 
 ### Incremental-change and staleness plugin

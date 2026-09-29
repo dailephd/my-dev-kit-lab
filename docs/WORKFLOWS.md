@@ -232,57 +232,57 @@ Released in v0.6.1. It extends the warm-index workflow above without any new com
 
 **Where to read it:** `warm-index-execution.json` holds the per-task `affectedNeighborhood` assessment (full identity arrays, no graph); the report's affected-neighborhood summary and per-task entries show statuses, the six metrics, the relationship, the recommendation with its explanation, and bounded lists. See [METRICS.md](METRICS.md#affected-neighborhood-metrics-v061).
 
-**Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) additionally proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.4` for a fresh case and a controlled changed-file case, keeping the canonical and installed benchmarks immutable.
+**Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) additionally proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.5` (the pin of the current verifier) for a fresh case and a controlled changed-file case, keeping the canonical and installed benchmarks immutable.
 
 **Completion (additional):** when the evidence is present, the report contains the affected-neighborhood summary and per-task entries, each benchmark project still shows exactly one index setup and one graph load, and the assessment has not changed any run, task, or provider status.
 
 ## Incremental-change and staleness experiment (v0.6.2)
 
-This is the current shipped workflow. See [ROADMAP.md](ROADMAP.md) for its preserved scope.
+This is the current source workflow. The released v0.6.2 ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 work (unreleased) runs four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
 
-**Goal:** compare matched `stale-index` and `full-refresh` treatment evidence after the same deterministic controlled source change, using the six frozen scenario families, without changing the released `warm-index-reuse` experiment.
+**Goal:** compare matched `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, and `full-refresh` treatment evidence after the same deterministic controlled source change, using the six frozen scenario families, without changing the released `warm-index-reuse` experiment. `full-refresh` is a comparison reference, not a preferred treatment.
 
-**Prerequisites:** install dependencies and run `npm run build`. Choose a my-dev-kit command: the default `npx @dailephd/my-dev-kit@1.12.4`, a locally installed my-dev-kit, or the deterministic fixture `node tests/fixtures/fake-my-dev-kit-cli.js` in a source checkout. This plugin always runs against the lab's own bundled benchmark projects; it does not accept `--target`.
+**Prerequisites:** install dependencies and run `npm run build`. Choose a my-dev-kit command: the default `npx @dailephd/my-dev-kit@1.12.5` (network access required) or a locally installed my-dev-kit of version 1.12.5 or later, because the partial treatments need upstream `index --incremental --refresh-scope`. The `tests/fixtures/fake-my-dev-kit-cli.js` fixture does not emulate that evidence and cannot drive the four-treatment run. This plugin always runs against the lab's own bundled benchmark projects; it does not accept `--target`, and there is no Lab `--refresh-scope` option.
 
 **Starting state:** the output directory is new or empty; the packaged scenario catalog and benchmark projects are unchanged.
 
 **Lifecycle (per selected scenario):**
 
 1. Choose the packaged six canonical scenarios, or a valid `--case` subset of `U1`, `L2`, `E1`, `P1`, `I1`, `T1`.
-2. Create two independent disposable target copies from the same immutable benchmark baseline.
-3. Build one baseline index/snapshot/graph for each treatment copy before any mutation.
-4. Apply the scenario's frozen declarative bounded mutation to both copies and prove pre/post controlled-source equivalence.
-5. Assess affected-neighborhood evidence from each treatment's baseline change authority and confirm stale/full-refresh symmetry.
-6. `stale-index`: run retrieval against the unchanged baseline index.
-7. `full-refresh`: build a new complete post-mutation index, then run retrieval against it.
-8. Evaluate deterministic fake-agent correctness for each treatment.
-9. Compare correctness and required-file evidence between treatments.
-10. Classify the matched comparison as `observed-stale-regression`, `no-observed-stale-regression`, or `inconclusive`.
-11. Persist scenario/treatment/comparison evidence in `incremental-change-staleness-execution.json`.
-12. Build `report.json`, `report.txt`, and `report.html` from that persisted evidence only.
+2. Create four independent disposable target copies (one per treatment) from the same immutable benchmark baseline, and prove they start from equivalent controlled source state.
+3. Bootstrap a trusted baseline index/snapshot/graph for each treatment before any mutation, and clone each partial treatment's baseline index directory into its own refreshed index directory.
+4. Mutation barrier: apply the scenario's frozen declarative bounded mutation to all four copies only after every baseline is ready, and prove post-mutation controlled-source equivalence.
+5. `stale-index`: no refresh; no post-mutation index invocation. Retrieval uses the pre-mutation baseline.
+6. `changed-files-refresh`: upstream refresh with `--refresh-scope changed-files` on the cloned baseline.
+7. `affected-neighborhood-refresh`: upstream refresh with `--refresh-scope affected-neighborhood` (trusted prior index, one graph hop in both directions) on the cloned baseline.
+8. `full-refresh`: build a new complete post-mutation index.
+9. Fallback behavior: if upstream applies a full rebuild instead of a requested partial scope, the treatment is recorded as `FALLBACK_FULL` with the upstream reason and its comparison is `not-comparable-as-partial-refresh`; it is never counted as partial-refresh evidence.
+10. Assess affected-neighborhood evidence (Lab task relationship) and confirm it is symmetric across treatments, then run retrieval and deterministic fake-agent correctness for each treatment.
+11. Produce exactly three comparisons against `full-refresh`: `stale-index`, `changed-files-refresh`, and `affected-neighborhood-refresh`. Other treatment pairs are not compared.
+12. Persist scenario/treatment/comparison evidence in `incremental-change-staleness-execution.json` (schema `my-dev-kit-lab-incremental-change-staleness-execution-v2`) and build `report.json`, `report.txt`, and `report.html` from that persisted evidence only.
+13. Cleanup: the disposable targets and indexes live in the plugin's own gitignored runtime root and are removed by the generic runner after the run.
 
 **Steps:**
 
-1. Run the experiment over all six canonical scenarios. PowerShell (source checkout, deterministic fixture):
+1. Run the experiment over all six canonical scenarios. PowerShell (source checkout):
 
    ```powershell
    npm run experiment:run -- `
      --experiment incremental-change-staleness `
-     --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" `
      --out lab-output/incremental-change-staleness
    ```
 
-   This runs all six scenarios in their canonical order, each with `stale-index` then `full-refresh`. Add `--case U1,L2` to narrow the selection to a subset of the six frozen scenario IDs. The installed equivalent is `my-dev-kit-lab experiment run --experiment incremental-change-staleness --kit-command "<command>" --out <dir>`.
+   This runs all six scenarios in their canonical order, each with the four treatments in fixed order. Add `--case U1,L2` to narrow the selection to a subset of the six frozen scenario IDs, and `--kit-command "<command>"` to use a different my-dev-kit 1.12.5-or-later command. The installed equivalent is `my-dev-kit-lab experiment run --experiment incremental-change-staleness --out <dir>`.
 
-2. Read the "Incremental-Change And Staleness Evidence" section of `report.html` or `report.txt`, and use `report.json` (`report.incrementalChangeStaleness`) for machine-readable review.
+2. Read the incremental-change-staleness section of `report.html` or `report.txt`, and use `report.json` (`report.incrementalChangeStaleness`) for machine-readable review.
 
 **Expected outputs:** `incremental-change-staleness-execution.json`, `report.json`, `report.txt`, and `report.html` beneath the run output. Reports and the execution artifact contain bounded measurements only, never full source contents, complete graph objects, or full retrieved-context bodies.
 
-**Failure handling:** a scenario whose lifecycle cannot reach a ready state (for example a controlled-mutation or baseline-symmetry failure) is recorded as that scenario's own failed status with an explicit failure reason; it does not fabricate treatment evidence and does not stop other scenarios. Missing or partial correctness/required-file evidence is classified `inconclusive`, never silently treated as no regression.
+**Failure handling:** a scenario whose lifecycle cannot reach a ready state (for example a controlled-mutation, baseline-bootstrap, or baseline-symmetry failure) is recorded as that scenario's own failed status with an explicit failure reason; it does not fabricate treatment evidence and does not stop other scenarios. Missing or partial correctness/required-file evidence is classified `inconclusive`, never silently treated as no regression.
 
-**Completion:** the run reports `completed` (or a reviewed `partial` state), each selected scenario shows both treatments in the persisted order (`stale-index` then `full-refresh`), the report's incremental-change-staleness section and limitations are present, and the packaged benchmark projects and scenario catalog remain unchanged. Interpret the results as scenario-scoped evidence: there is no partial refresh, no `graph-diff` dependency, no numeric stale-risk score, and no treatment winner or global safety verdict.
+**Completion:** the run reports `completed` (or a reviewed `partial` state), each ready scenario shows four treatments in the persisted order and three reference comparisons, the report's incremental-change-staleness section and limitations are present, and the packaged benchmark projects and scenario catalog remain unchanged. Interpret the results as scenario-scoped evidence: an applied partial refresh in one run does not guarantee the next run cannot fall back, and there is no `graph-diff` dependency, no numeric stale-risk score, no treatment winner, and no global safety verdict. Historical V1 artifacts from the two-treatment release remain readable.
 
-**Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.4` for all six scenarios, keeping the canonical and installed benchmarks immutable and introducing no new plot, screenshot, or gallery item.
+**Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.5` for all six scenarios with all four treatments, requires both partial treatments to be applied without fallback, checks operational discrimination between changed-files and affected-neighborhood refresh, and keeps the canonical benchmarks and both installed packages immutable. It introduces no new plot, screenshot, or gallery item.
 
 ## Real-agent warm-index campaign (v0.5.2)
 

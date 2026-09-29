@@ -241,7 +241,7 @@ A `--campaign` run requires a locally configured Codex or Claude provider CLI ma
 
 See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#real-agent-warm-index-campaign-v052) for the real-agent campaign procedure.
 
-#### `incremental-change-staleness` (v0.6.2)
+#### `incremental-change-staleness` (v0.6.2; four treatments since v0.6.3, unreleased)
 
 ```text
 my-dev-kit-lab experiment describe --experiment incremental-change-staleness
@@ -252,23 +252,25 @@ my-dev-kit-lab experiment run --experiment incremental-change-staleness [--out <
 |---|---|
 | `--out <dir>` | Optional; installed default `<workspace>/lab-output/experiments/incremental-change-staleness/<target>/<run>/` |
 | `--case <ids>` | Optional comma-separated subset of the six frozen scenario IDs (`U1`, `L2`, `E1`, `P1`, `I1`, `T1`); defaults to all six. Mutation instructions are never configurable — the packaged scenario catalog is the only mutation authority |
-| `--kit-command <command>` | Accepted for `incremental-change-staleness` (in addition to `warm-index-reuse`); the my-dev-kit command used for every treatment index build. Defaults to `npx @dailephd/my-dev-kit@1.12.4` |
+| `--kit-command <command>` | Accepted for `incremental-change-staleness` (in addition to `warm-index-reuse`); the my-dev-kit command used for every treatment index build. Defaults to `npx @dailephd/my-dev-kit@1.12.5`; a custom command must be my-dev-kit 1.12.5 or later |
 
-This plugin does not accept `--target`, `--cases`, `--project-profiles`, `--benchmark-project`, `--campaign`, `--include-real-agents`, or any agent-matrix option; it always runs against the lab's own bundled benchmark projects.
+This plugin is self-only: `experiment describe` lists `Supported targets: self`, and it does not accept `--target`, `--cases`, `--project-profiles`, `--benchmark-project`, `--campaign`, `--include-real-agents`, or any agent-matrix option; it always runs against the lab's own bundled benchmark projects. The generic `--target` option applies only to plugins that support external targets, and `experiment run --help` says so. There is no Lab `--refresh-scope` option: the plugin requests the upstream `changed-files` and `affected-neighborhood` refresh scopes internally per treatment.
 
 Behavior:
 
-- runs exactly two treatments per selected scenario, in order: `stale-index` then `full-refresh`
-- each scenario applies its frozen declarative bounded mutation to two independent disposable target copies, proves pre/post controlled-source equivalence, builds a baseline index/snapshot/graph for both treatments before mutation, keeps `stale-index` on that baseline index, and builds a distinct post-mutation index for `full-refresh`
-- outputs beneath the output root: `incremental-change-staleness-execution.json` (schema `my-dev-kit-lab-incremental-change-staleness-execution-v1`) and the plugin reports `report.json`, `report.txt`, and `report.html` with an incremental-change-staleness section
+- runs exactly four treatments per selected scenario, in fixed order: `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, then `full-refresh` (`experiment describe` shows these as the supported variants)
+- each scenario applies its frozen declarative bounded mutation to four independent disposable target copies, proves pre/post controlled-source equivalence, bootstraps a trusted baseline index/snapshot/graph for every treatment before mutation, and clones each partial treatment's baseline into its own refreshed index directory; `stale-index` keeps its pre-mutation baseline with no post-mutation index invocation, the two partial treatments are refreshed in place by my-dev-kit with the requested scope, and `full-refresh` builds a distinct complete post-mutation index
+- each partial treatment records what my-dev-kit actually did (`APPLIED_PARTIAL` or, truthfully, `FALLBACK_FULL`); a fallback is reported as not comparable as partial refresh
+- exactly three reference comparisons against `full-refresh` are persisted: `stale-index`, `changed-files-refresh`, and `affected-neighborhood-refresh`
+- outputs beneath the output root: `incremental-change-staleness-execution.json` (schema `my-dev-kit-lab-incremental-change-staleness-execution-v2`) and the plugin reports `report.json`, `report.txt`, and `report.html` with an incremental-change-staleness section (report schema `my-dev-kit-lab-incremental-change-staleness-report-v2`); historical V1 artifacts and reports remain readable
 - the run status is `completed`, `partial`, or `failed` from actual scenario outcomes; a scenario's lifecycle failure is recorded as that scenario's own failed status without fabricating treatment evidence
-- no partial refresh, no `graph-diff` dependency, and no numeric stale-risk score are produced
+- no `graph-diff` dependency, no numeric stale-risk score, no treatment winner or ranking, and no safety score are produced
 
 ```text
 my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U1,L2 --kit-command "node /path/to/my-dev-kit/bin/cli.js" --out <dir>
 ```
 
-See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
+See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
 ### `my-dev-kit-lab experiment controlled [options]`
 

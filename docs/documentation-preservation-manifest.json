@@ -399,8 +399,8 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.6.2",
-    "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.6.3",
+    "currentImplementedUnreleasedVersion": "0.6.3",
+    "nextPlannedVersion": "0.7.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",
