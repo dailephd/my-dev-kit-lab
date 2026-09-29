@@ -10,10 +10,14 @@ import type {
 import { STALE_RISK_CLASSIFICATION_EXPLANATIONS } from "./buildIncrementalChangeStalenessReport.js";
 import { REINDEX_RECOMMENDATION_EXPLANATIONS } from "./buildWarmIndexReuseReport.js";
 import type { AffectedNeighborhoodAssessmentV1 } from "../../evaluation/affectedNeighborhood.js";
+import type { IncrementalChangeStalenessReportV2 } from "./incrementalChangeStalenessReportModelV2.js";
+import { isV2ReportSection } from "./buildIncrementalChangeStalenessReportV2.js";
+import { renderIncrementalChangeStalenessHtmlV2 } from "./renderIncrementalChangeStalenessHtmlV2.js";
 
 const MAX_DISPLAY_ITEMS = 20;
 
-export function renderIncrementalChangeStalenessHtml(section: IncrementalChangeStalenessReportV1 | null): string {
+export function renderIncrementalChangeStalenessHtml(section: IncrementalChangeStalenessReportV1 | IncrementalChangeStalenessReportV2 | null): string {
+  if (section !== null && isV2ReportSection(section)) return renderIncrementalChangeStalenessHtmlV2(section);
   if (section === null) {
     return `<section>
     <h2>Incremental-Change And Staleness Evidence</h2>

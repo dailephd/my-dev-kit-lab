@@ -4,6 +4,7 @@ import {
   defaultIncrementalChangeStalenessExecutionDeps,
   type IncrementalChangeStalenessExecutionDeps
 } from "../../../src/experiments/plugins/incrementalChangeStaleness/execution.js";
+import { INCREMENTAL_CHANGE_STALENESS_TREATMENT_IDS } from "../../../src/experiments/plugins/incrementalChangeStaleness/disposableTarget.js";
 import { checkAffectedNeighborhoodFourWaySymmetry } from "../../../src/experiments/plugins/incrementalChangeStaleness/executionV2.js";
 import { incrementalChangeStalenessPlugin } from "../../../src/experiments/plugins/incrementalChangeStaleness/plugin.js";
 import type { IncrementalChangeStalenessLifecycleResultV2 } from "../../../src/experiments/plugins/incrementalChangeStaleness/treatmentSessionV2.js";
@@ -225,7 +226,8 @@ describe("v0.6.3 four-treatment execution", () => {
     expect(checkAffectedNeighborhoodFourWaySymmetry(altered).symmetric).toBe(false);
   }, 120_000);
 
-  it("leaves the public plugin at the released two-treatment surface", () => {
-    expect([...(incrementalChangeStalenessPlugin.supportedVariants ?? [])]).toEqual(["stale-index", "full-refresh"]);
+  it("exposes the four-treatment surface publicly (Batch 4) while the released V1 treatment set stays two", () => {
+    expect([...(incrementalChangeStalenessPlugin.supportedVariants ?? [])]).toEqual([...ORDER]);
+    expect([...INCREMENTAL_CHANGE_STALENESS_TREATMENT_IDS]).toEqual(["stale-index", "full-refresh"]);
   });
 });

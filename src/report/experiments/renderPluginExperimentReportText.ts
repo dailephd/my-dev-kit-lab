@@ -21,6 +21,9 @@ import type {
   IncrementalChangeStalenessReportV1
 } from "./incrementalChangeStalenessReportModel.js";
 import { STALE_RISK_CLASSIFICATION_EXPLANATIONS } from "./buildIncrementalChangeStalenessReport.js";
+import type { IncrementalChangeStalenessReportV2 } from "./incrementalChangeStalenessReportModelV2.js";
+import { isV2ReportSection } from "./buildIncrementalChangeStalenessReportV2.js";
+import { renderIncrementalChangeStalenessSectionV2 } from "./renderIncrementalChangeStalenessTextV2.js";
 import { REINDEX_RECOMMENDATION_EXPLANATIONS } from "./buildWarmIndexReuseReport.js";
 
 function sanitizeScalar(value: unknown): string {
@@ -674,9 +677,13 @@ function renderIncrementalChangeStalenessScenario(lines: string[], scenario: Inc
   lines.push(STALE_RISK_CLASSIFICATION_EXPLANATIONS[scenario.comparison.staleRiskClassification]);
 }
 
-function renderIncrementalChangeStalenessSection(lines: string[], section: IncrementalChangeStalenessReportV1 | null): void {
+function renderIncrementalChangeStalenessSection(lines: string[], section: IncrementalChangeStalenessReportV1 | IncrementalChangeStalenessReportV2 | null): void {
   if (section === null) {
     lines.push("Not applicable to this plugin.");
+    return;
+  }
+  if (isV2ReportSection(section)) {
+    renderIncrementalChangeStalenessSectionV2(lines, section, { pushSection, fieldLine, pushDashList, pushBoundedStringList });
     return;
   }
   pushSection(lines, "Summary");

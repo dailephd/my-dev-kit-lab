@@ -87,9 +87,9 @@ describe("v0.6.3 four-treatment lifecycle: identities and v0.6.2 compatibility",
     });
   });
 
-  it("leaves the released public v0.6.2 plugin and treatment set at two treatments", () => {
+  it("keeps the released V1 treatment constant at two treatments while the public plugin now exposes the four (Batch 4)", () => {
     expect([...INCREMENTAL_CHANGE_STALENESS_TREATMENT_IDS]).toEqual(["stale-index", "full-refresh"]);
-    expect([...(incrementalChangeStalenessPlugin.supportedVariants ?? [])]).toEqual(["stale-index", "full-refresh"]);
+    expect([...(incrementalChangeStalenessPlugin.supportedVariants ?? [])]).toEqual([...ALL_IDS]);
   });
 });
 

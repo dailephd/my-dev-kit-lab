@@ -347,7 +347,7 @@ describe("experiment list/describe with warm-index-reuse", () => {
     expect(listed.experiments.map((experiment) => [experiment.id, experiment.supportedVariants])).toEqual([
       ["context-strategy-comparison", ["raw-full-file", "my-dev-kit-guided"]],
       ["warm-index-reuse", ["raw-full-file", "warm-index-reuse"]],
-      ["incremental-change-staleness", ["stale-index", "full-refresh"]],
+      ["incremental-change-staleness", ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]],
     ]);
   });
 
