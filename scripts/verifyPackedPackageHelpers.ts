@@ -113,11 +113,13 @@ const EXPECTED_WARM_CAMPAIGN_GALLERY_ITEM_IDS = [
 
 type WarmIndexCampaignGalleryManifestItem = {
   id?: string;
+  status?: string;
   htmlPath?: string;
   summaryPath?: string;
   runsPath?: string;
   screenshotPath?: string;
   artifactPaths?: string[];
+  warnings?: string[];
 };
 
 function isBoundedRelativePath(value: string): boolean {
@@ -159,6 +161,54 @@ export function validateWarmIndexCampaignGalleryManifest(manifest: { items?: War
       if (/agents\//.test(artifactPath) || /\bstdout\b|\bstderr\b|telemetry/i.test(artifactPath)) {
         problems.push(`item ${item.id} artifactPaths entry links detailed/forensic agent evidence: ${artifactPath}`);
       }
+    }
+  }
+  return problems;
+}
+
+export type WarmIndexCampaignScreenshotEvidence = {
+  status: "captured" | "skipped" | "failed";
+  commandOutput: string;
+  expectedPngPath: string;
+  pngExists: boolean;
+  reportItem: Pick<WarmIndexCampaignGalleryManifestItem, "status" | "screenshotPath" | "warnings">;
+};
+
+/** Validates the optional screenshot outcome against the installed campaign's CLI and gallery evidence. */
+export function validateWarmIndexCampaignScreenshotEvidence(evidence: WarmIndexCampaignScreenshotEvidence): string[] {
+  const problems: string[] = [];
+  const { status, commandOutput, pngExists, reportItem } = evidence;
+  const screenshotLine = `Screenshot: ${evidence.expectedPngPath}`;
+  if (status === "captured") {
+    if (!commandOutput.split(/\r?\n/).includes(screenshotLine)) {
+      problems.push("captured screenshot is not reported by the campaign command");
+    }
+    if (!pngExists) problems.push("screenshot was reported captured but report.png is missing");
+    if (reportItem.status !== "pass" || reportItem.screenshotPath !== "../report.png") {
+      problems.push("captured screenshot is inconsistent with the gallery report item");
+    }
+    return problems;
+  }
+
+  if (!commandOutput.split(/\r?\n/).includes(`Screenshot: ${status}`)) {
+    problems.push(`${status} screenshot outcome is not reported by the campaign command`);
+  }
+  if (pngExists) problems.push(`${status} screenshot outcome unexpectedly has report.png`);
+  if (reportItem.status !== "warning" || reportItem.screenshotPath !== undefined) {
+    problems.push(`${status} screenshot outcome is inconsistent with the gallery report item`);
+  }
+
+  const warnings = reportItem.warnings ?? [];
+  if (status === "skipped") {
+    if (!warnings.some((warning) => /Playwright or browser runtime is unavailable/.test(warning))) {
+      problems.push("skipped screenshot is missing the browser-unavailable warning");
+    }
+  } else {
+    const failureWarning = warnings.find((warning) => /^Report screenshot capture failed: .+\.$/.test(warning));
+    if (!failureWarning) {
+      problems.push("failed screenshot is missing explicit gallery failure evidence");
+    } else if (!commandOutput.includes(failureWarning.slice("Report screenshot capture failed: ".length, -1))) {
+      problems.push("campaign command output does not preserve the screenshot failure detail");
     }
   }
   return problems;

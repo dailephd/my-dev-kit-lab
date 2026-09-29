@@ -131,7 +131,6 @@ export async function runExperimentRunCommandFromArgs(
     // Automatic presentation (report already produced above) applies only to warm-index-reuse
     // campaign runs; legacy fake-agent warm-index runs and context-strategy-comparison stay
     // report-only, unchanged.
-    let screenshotFailed = false;
     if (args.experimentId === warmIndexReusePlugin.metadata.id && args.config.campaignPreset) {
       const executionArtifactPath = readMetadataString(result.metadata?.executionArtifactPath);
       const campaignAgentId = readMetadataString(result.metadata?.campaignAgentId);
@@ -160,7 +159,6 @@ export async function runExperimentRunCommandFromArgs(
       } else {
         outputLines.push("Screenshot: failed");
         outputLines.push(presentation.screenshot.error ?? "Screenshot capture failed.");
-        screenshotFailed = true;
       }
       outputLines.push(`Gallery manifest: ${presentation.gallery.manifestPath}`);
       outputLines.push(`Gallery index: ${presentation.gallery.indexPath}`);
@@ -168,7 +166,6 @@ export async function runExperimentRunCommandFromArgs(
 
     console.log(outputLines.join("\n"));
     if (result.status === "failed") return 1;
-    if (screenshotFailed) return 1;
     return 0;
   } catch (error) {
     if (process.env.DEBUG) {

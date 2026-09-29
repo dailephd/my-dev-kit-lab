@@ -9,6 +9,7 @@ import {
   validateManifestRelativePaths,
   validatePlaywrightRuntimeDependency,
   validateWarmIndexCampaignGalleryManifest,
+  validateWarmIndexCampaignScreenshotEvidence,
   snapshotDirectory,
   validateInstalledPackageIdentity
 } from "../../scripts/verifyPackedPackageHelpers.js";
@@ -149,6 +150,63 @@ describe("validateWarmIndexCampaignGalleryManifest", () => {
       ]
     });
     expect(problems.some((p) => p.includes("detailed/forensic agent evidence"))).toBe(true);
+  });
+});
+
+describe("validateWarmIndexCampaignScreenshotEvidence", () => {
+  it.each([
+    {
+      status: "captured" as const,
+      commandOutput: "Status: completed\nScreenshot: C:/campaign/report.png",
+      expectedPngPath: "C:/campaign/report.png",
+      pngExists: true,
+      reportItem: { status: "pass", screenshotPath: "../report.png", warnings: [] }
+    },
+    {
+      status: "skipped" as const,
+      commandOutput: "Status: completed\nScreenshot: skipped\nPNG screenshot skipped because Playwright or browser runtime is unavailable.",
+      expectedPngPath: "C:/campaign/report.png",
+      pngExists: false,
+      reportItem: { status: "warning", warnings: ["PNG screenshot skipped because Playwright or browser runtime is unavailable."] }
+    },
+    {
+      status: "failed" as const,
+      commandOutput: "Status: completed\nScreenshot: failed\nProtocol error (Page.captureScreenshot): Unable to capture screenshot",
+      expectedPngPath: "C:/campaign/report.png",
+      pngExists: false,
+      reportItem: {
+        status: "warning",
+        warnings: ["Report screenshot capture failed: Protocol error (Page.captureScreenshot): Unable to capture screenshot."]
+      }
+    }
+  ])("accepts consistent $status screenshot evidence", (evidence) => {
+    expect(validateWarmIndexCampaignScreenshotEvidence(evidence)).toEqual([]);
+  });
+
+  it("rejects contradictory captured evidence when the PNG is missing", () => {
+    expect(validateWarmIndexCampaignScreenshotEvidence({
+      status: "captured",
+      commandOutput: "Status: completed\nScreenshot: C:/campaign/report.png",
+      expectedPngPath: "C:/campaign/report.png",
+      pngExists: false,
+      reportItem: { status: "pass", screenshotPath: "../report.png" }
+    }).join("; ")).toMatch(/report.png is missing/);
+  });
+
+  it("rejects a failed capture that claims a screenshot path or fabricates a PNG", () => {
+    const problems = validateWarmIndexCampaignScreenshotEvidence({
+      status: "failed",
+      commandOutput: "Status: completed\nScreenshot: failed\nProtocol error (Page.captureScreenshot): Unable to capture screenshot",
+      expectedPngPath: "C:/campaign/report.png",
+      pngExists: true,
+      reportItem: {
+        status: "warning",
+        screenshotPath: "../report.png",
+        warnings: ["Report screenshot capture failed: Protocol error (Page.captureScreenshot): Unable to capture screenshot."]
+      }
+    });
+    expect(problems.some((problem) => problem.includes("unexpectedly has report.png"))).toBe(true);
+    expect(problems.some((problem) => problem.includes("inconsistent with the gallery report item"))).toBe(true);
   });
 });
 

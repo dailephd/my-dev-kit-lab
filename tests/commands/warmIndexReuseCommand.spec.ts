@@ -550,14 +550,14 @@ describe("v0.5.2 Batch 4/5 -- public real-agent campaign commands and presentati
     };
   }
 
-  function failedScreenshotOptions(): RunOptions {
+  function failedScreenshotOptions(error = "forced screenshot failure"): RunOptions {
     return {
       presentation: {
         captureScreenshot: async (htmlPath: string, pngPath: string) => ({
           status: "failed" as const,
           htmlPath,
           pngPath,
-          error: "forced screenshot failure",
+          error,
         }),
       },
     };
@@ -723,7 +723,10 @@ describe("v0.5.2 Batch 4/5 -- public real-agent campaign commands and presentati
     expect(stdout).toContain(SCREENSHOT_SKIP_WARNING);
   });
 
-  it("returns exit 1 but preserves report/plots/gallery when screenshot capture fails (section 35)", async () => {
+  it.each([
+    ["generic capture failure", "forced screenshot failure"],
+    ["Chromium protocol failure", "Protocol error (Page.captureScreenshot): Unable to capture screenshot"],
+  ])("keeps the campaign successful and preserves presentation when screenshot capture has a %s", async (_label, error) => {
     const binDir = makeCampaignBin("codex-fail-bin-");
     writeFakeCodexExecutable(path.join(binDir, shimName("codex")));
     const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-public-codex-shotfail-"));
@@ -731,19 +734,20 @@ describe("v0.5.2 Batch 4/5 -- public real-agent campaign commands and presentati
     const output = captureConsole();
 
     const exitCode = await withPatchedPath(binDir, () =>
-      runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot), failedScreenshotOptions())
+      runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot), failedScreenshotOptions(error))
     );
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(0);
     expectFullCampaignTopology(outRoot, false);
     const manifest = JSON.parse(readFileSync(path.join(outRoot, "gallery", "gallery-manifest.json"), "utf8")) as {
-      items: Array<{ id: string; status: string; warnings: string[] }>;
+      items: Array<{ id: string; status: string; warnings: string[]; screenshotPath?: string }>;
     };
     expect(manifest.items[0].status).toBe("warning");
-    expect(manifest.items[0].warnings.some((warning) => warning.includes("forced screenshot failure"))).toBe(true);
+    expect(manifest.items[0].screenshotPath).toBeUndefined();
+    expect(manifest.items[0].warnings.some((warning) => warning.includes(error))).toBe(true);
     const stdout = output.stdout();
     expect(stdout).toContain("Screenshot: failed");
-    expect(stdout).toContain("forced screenshot failure");
+    expect(stdout).toContain(error);
   });
 
   it("reports a partial campaign when one provider side fails while later sides succeed, and still generates full presentation (sections 32, 36)", async () => {
