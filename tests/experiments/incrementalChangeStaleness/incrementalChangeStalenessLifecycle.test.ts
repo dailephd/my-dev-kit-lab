@@ -485,8 +485,9 @@ describe("lifecycle-integrity failures (TST-B3-008, 018, 022, 035..042)", () => 
 
 describe("lifecycle boundaries (TST-B3-043..047, 053)", () => {
   // v0.6.3 Batch 4: plugin.ts is intentionally excluded -- the public plugin now wires the four-treatment
-  // (changed-files / affected-neighborhood) lifecycle. The V1 lifecycle-only files stay guarded.
-  const batch3Files = ["lifecycle.ts", "lifecyclePolicy.ts", "config.ts", "treatmentSession.ts", "scenarioSelection.ts"].map((file) =>
+  // (changed-files / affected-neighborhood) lifecycle. The V1 runtime files stay guarded; config.ts carries
+  // the current public treatment description and is covered by the config/describe contract tests.
+  const batch3Files = ["lifecycle.ts", "lifecyclePolicy.ts", "treatmentSession.ts", "scenarioSelection.ts"].map((file) =>
     path.join(repoRoot, "src/experiments/plugins/incrementalChangeStaleness", file)
   );
   // v0.6.2 Batch 4 legitimately moves retrieval/correctness/comparison orchestration into

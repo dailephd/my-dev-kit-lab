@@ -91,6 +91,12 @@ describe("incremental-change-staleness registration (TST-B3-001..003, 052)", () 
     });
     expect(INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND).toBe("npx @dailephd/my-dev-kit@1.12.5");
     expect(incrementalChangeStalenessPlugin.configDefinition?.fields.map((field) => field.name)).toEqual(["outDir", "kitCommand", "caseIds"]);
+    const caseIdsDescription = incrementalChangeStalenessPlugin.configDefinition?.fields.find((field) => field.name === "caseIds")?.description ?? "";
+    for (const treatment of ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]) {
+      expect(caseIdsDescription).toContain(treatment);
+    }
+    expect(caseIdsDescription).toContain("All four treatments run for each selected scenario");
+    expect(caseIdsDescription).not.toContain("Both stale-index and full-refresh");
   });
 });
 

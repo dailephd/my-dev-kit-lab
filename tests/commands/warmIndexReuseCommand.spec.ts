@@ -401,17 +401,23 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     return { code, text: stdout.join("\n") };
   }
 
-  it("documents --kit-command as warm-index-reuse only and keeps context-strategy options separate", async () => {
+  it("documents --kit-command for both supporting plugins and keeps context-strategy options separate", async () => {
     const { code, text } = await help(["experiment", "run", "--help"]);
     expect(code).toBe(0);
     const common = text.indexOf("Common options (all plugins):");
+    const kitCommand = text.indexOf("my-dev-kit command override (warm-index-reuse and incremental-change-staleness):");
     const warm = text.indexOf("warm-index-reuse only:");
     const context = text.indexOf("context-strategy-comparison only:");
     expect(common).toBeGreaterThan(-1);
+    expect(kitCommand).toBeGreaterThan(common);
     expect(warm).toBeGreaterThan(common);
     expect(context).toBeGreaterThan(warm);
+    const kitSection = text.slice(kitCommand, warm);
+    expect(kitSection).toContain("--kit-command <command>");
+    expect(kitSection).toContain("warm-index-reuse");
+    expect(kitSection).toContain("incremental-change-staleness");
+    expect(kitSection).not.toContain("warm-index-reuse only");
     const warmSection = text.slice(warm, context);
-    expect(warmSection).toContain("--kit-command <command>");
     expect(warmSection).toContain("deterministic fake agent only");
     expect(warmSection).toContain("--campaign <preset>");
     expect(warmSection).toContain("codex-full");

@@ -189,7 +189,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
 
-`experiment run --help` groups options as common options (all plugins), `warm-index-reuse` only, and `context-strategy-comparison` only. Plugin-specific options are rejected for the other plugin rather than ignored. `--kit-command` is accepted for both `warm-index-reuse` and `incremental-change-staleness`; it is rejected for `context-strategy-comparison`.
+`experiment run --help` groups options as common options (all plugins), a my-dev-kit command override for `warm-index-reuse` and `incremental-change-staleness`, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for the other plugin rather than ignored. `--kit-command` is accepted for both `warm-index-reuse` and `incremental-change-staleness`; it is rejected for `context-strategy-comparison`.
 
 #### `warm-index-reuse`
 

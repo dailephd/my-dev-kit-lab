@@ -765,16 +765,21 @@ async function main() {
 
     const runHelpResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--help"], envWithBin);
     const runHelp = runHelpResult.stdout ?? "";
+    const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse and incremental-change-staleness):");
     const warmHelpStart = runHelp.indexOf("warm-index-reuse only:");
     const contextHelpStart = runHelp.indexOf("context-strategy-comparison only:");
     if (
       runHelpResult.status !== 0 ||
+      kitCommandHelpStart < 0 ||
       warmHelpStart < 0 ||
       contextHelpStart <= warmHelpStart ||
-      !runHelp.slice(warmHelpStart, contextHelpStart).includes("--kit-command <command>") ||
+      warmHelpStart <= kitCommandHelpStart ||
+      !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("--kit-command <command>") ||
+      !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("warm-index-reuse") ||
+      !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("incremental-change-staleness") ||
       !runHelp.slice(contextHelpStart).includes("--agents")
     ) {
-      fail("EXPERIMENT_RUN_HELP", "Installed `experiment run --help` does not document --kit-command as warm-index-reuse-specific.", describeChildResult(runHelpResult));
+      fail("EXPERIMENT_RUN_HELP", "Installed `experiment run --help` does not document --kit-command for both supported experiment plugins.", describeChildResult(runHelpResult));
     }
 
     // -----------------------------------------------------------------

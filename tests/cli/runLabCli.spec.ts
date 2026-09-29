@@ -283,6 +283,7 @@ describe("runLabCli", () => {
     const output = stdout.join("\n");
     for (const flag of [
       "--experiment",
+      "--kit-command",
       "--target",
       "--out",
       "--cases",
@@ -480,6 +481,18 @@ describe("runLabCli", () => {
     const output = joinSpyCalls(logSpy);
     expect(output).toContain("Context Strategy Comparison");
     expect(output).toContain("Purpose:");
+  });
+
+  it("describes all four incremental-change-staleness treatments", async () => {
+    const { logSpy } = spyOnConsole();
+    const code = await runLabCli(["experiment", "describe", "--experiment", "incremental-change-staleness"]);
+    expect(code).toBe(0);
+    const output = joinSpyCalls(logSpy);
+    for (const treatment of ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]) {
+      expect(output).toContain(treatment);
+    }
+    expect(output).toContain("All four treatments run for each selected scenario");
+    expect(output).not.toContain("Both stale-index and full-refresh");
   });
 
   it("returns exit 1 for `experiment describe` on an unknown plugin, unchanged", async () => {

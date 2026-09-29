@@ -34,7 +34,7 @@ export const incrementalChangeStalenessConfigDefinition: ExperimentConfigDefinit
     {
       name: "caseIds",
       type: "array",
-      description: `Frozen scenario ids to include (${FROZEN_INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS.join(", ")}); defaults to all. Both stale-index and full-refresh always run for each selected scenario.`
+      description: `Frozen scenario ids to include (${FROZEN_INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS.join(", ")}); defaults to all. All four treatments run for each selected scenario: stale-index, changed-files-refresh, affected-neighborhood-refresh, and full-refresh.`
     }
   ]
 };
