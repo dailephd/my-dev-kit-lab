@@ -214,7 +214,9 @@ export function diffSnapshots(before: DirectorySnapshotEntry[], after: Directory
 // ---------------------------------------------------------------------------
 
 export const UPSTREAM_MY_DEV_KIT_PACKAGE = "@dailephd/my-dev-kit";
-export const UPSTREAM_MY_DEV_KIT_VERSION = "1.12.4";
+export const UPSTREAM_MY_DEV_KIT_VERSION = "1.12.5";
+/** The upstream version the released v0.6.2 two-treatment (V1) acceptance was proven against. Historical only. */
+export const HISTORICAL_V1_UPSTREAM_MY_DEV_KIT_VERSION = "1.12.4";
 export const UPSTREAM_MY_DEV_KIT_SPEC = `${UPSTREAM_MY_DEV_KIT_PACKAGE}@${UPSTREAM_MY_DEV_KIT_VERSION}`;
 
 /** The six warm-side affected-neighborhood metrics: assessment/report field, generic metric ID, unit. */
@@ -427,7 +429,9 @@ export function validateAffectedNeighborhoodLayers(input: {
 }
 
 // ---------------------------------------------------------------------------
-// v0.6.2 Batch 6 -- installed-package incremental-change-staleness acceptance
+// v0.6.2 Batch 6 -- HISTORICAL V1 (two-treatment) installed-package incremental-change-staleness
+// acceptance helpers, retained for the released v0.6.2 contract. Current v0.6.3 acceptance uses the V2
+// helpers at the end of this file.
 // helpers. Pure and independently testable; the acceptance script owns all
 // process work, real upstream install, and the one call into the installed
 // package's own pure comparison module (Section 41).
@@ -493,8 +497,8 @@ export function validateIncrementalChangeStalenessArtifact(artifact: unknown): s
       if (lifecycle.staleBaselineFreshnessStatus !== "stale") problems.push(`${tag} staleBaselineFreshnessStatus is ${String(lifecycle.staleBaselineFreshnessStatus)}, expected stale`);
       if (lifecycle.fullRefreshBaselineFreshnessStatus !== "stale") problems.push(`${tag} fullRefreshBaselineFreshnessStatus is ${String(lifecycle.fullRefreshBaselineFreshnessStatus)}, expected stale`);
       if (lifecycle.fullRefreshRefreshedFreshnessStatus !== "fresh") problems.push(`${tag} fullRefreshRefreshedFreshnessStatus is ${String(lifecycle.fullRefreshRefreshedFreshnessStatus)}, expected fresh`);
-      if (typeof lifecycle.myDevKitVersion !== "string" || !lifecycle.myDevKitVersion.includes(UPSTREAM_MY_DEV_KIT_VERSION)) {
-        problems.push(`${tag} myDevKitVersion is ${JSON.stringify(lifecycle.myDevKitVersion)}, expected to include ${UPSTREAM_MY_DEV_KIT_VERSION}`);
+      if (typeof lifecycle.myDevKitVersion !== "string" || !lifecycle.myDevKitVersion.includes(HISTORICAL_V1_UPSTREAM_MY_DEV_KIT_VERSION)) {
+        problems.push(`${tag} myDevKitVersion is ${JSON.stringify(lifecycle.myDevKitVersion)}, expected to include ${HISTORICAL_V1_UPSTREAM_MY_DEV_KIT_VERSION}`);
       }
       const controlledPaths = (Array.isArray(lifecycle.controlledFilePaths) ? lifecycle.controlledFilePaths : []).map((p) => String(p).replace(/\\/g, "/"));
       const expectedControlledPath = INCREMENTAL_CHANGE_STALENESS_CONTROLLED_PATHS[scenario.scenarioId as keyof typeof INCREMENTAL_CHANGE_STALENESS_CONTROLLED_PATHS];
@@ -654,5 +658,371 @@ export function validateIncrementalChangeStalenessReportConsistency(input: {
     if (input.reportHtml.toLowerCase().includes(forbidden.toLowerCase())) problems.push(`report.html makes a forbidden overall-verdict claim: "${forbidden}"`);
   }
 
+  return problems;
+}
+
+// ---------------------------------------------------------------------------
+// v0.6.3 Batch 5 -- installed-package four-treatment (V2) acceptance helpers. Pure and independently
+// testable; the acceptance script owns process work and calls the installed package's own production
+// artifact validator. These helpers add the acceptance-only gates (real-upstream partial realization,
+// refreshed freshness, operational discrimination) and never reclassify a comparison.
+// ---------------------------------------------------------------------------
+
+export const INCREMENTAL_CHANGE_STALENESS_EXECUTION_SCHEMA_VERSION_V2_EXPECTED = "my-dev-kit-lab-incremental-change-staleness-execution-v2";
+export const INCREMENTAL_CHANGE_STALENESS_REPORT_SCHEMA_VERSION_V2_EXPECTED = "my-dev-kit-lab-incremental-change-staleness-report-v2";
+export const INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS_EXPECTED = ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"] as const;
+export const INCREMENTAL_CHANGE_STALENESS_V2_COMPARISON_CANDIDATES_EXPECTED = ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh"] as const;
+export const FORCED_NEIGHBOR_SAMPLE_CAP = 20;
+
+const STALE_CLASSIFICATIONS_V2 = new Set(["observed-stale-regression", "no-observed-stale-regression", "inconclusive"]);
+const PARTIAL_CLASSIFICATIONS_V2 = new Set(["observed-regression-relative-to-full", "no-observed-regression-relative-to-full", "inconclusive"]);
+
+export type IncrementalChangeStalenessV2AcceptanceVerdict =
+  | "PASS"
+  | "BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH"
+  | "BLOCKED_CHANGED_FILES_PARTIAL_NOT_REALIZED"
+  | "BLOCKED_AFFECTED_NEIGHBORHOOD_PARTIAL_NOT_REALIZED"
+  | "BLOCKED_SCENARIO_DISCRIMINATION_INSUFFICIENT";
+
+export type IncrementalChangeStalenessV2EvidenceRow = {
+  scenarioId: string;
+  treatmentId: string;
+  treatmentIntent: unknown;
+  refreshKind: unknown;
+  refreshRealization: unknown;
+  requestedScope: unknown;
+  appliedScope: unknown;
+  selectionStatus: unknown;
+  fallbackReason: unknown;
+  freshExtractionFileCount: unknown;
+  reusedFileCount: unknown;
+  forcedNeighborReanalysisFileCount: unknown;
+  forcedNeighborSample: unknown;
+  seedFileCount: unknown;
+  affectedNodeCount: unknown;
+  baselineFreshness: unknown;
+  refreshedFreshness: unknown;
+  requiredFileStatus: unknown;
+  correctness: string;
+  referenceClassification: unknown;
+};
+
+export type IncrementalChangeStalenessV2Acceptance = {
+  verdict: IncrementalChangeStalenessV2AcceptanceVerdict;
+  problems: string[];
+  contractProblems: string[];
+  changedFilesRealizationProblems: string[];
+  affectedRealizationProblems: string[];
+  discriminationProblems: string[];
+  /** "insufficient" = no forced neighbor anywhere; "invariant-violation" = forced neighbor without a fresh/reused geometry difference. */
+  discrimination: "pass" | "insufficient" | "invariant-violation" | "not-evaluated";
+  forcedNeighborScenarios: string[];
+  geometryDifferenceScenarios: string[];
+  rows: IncrementalChangeStalenessV2EvidenceRow[];
+};
+
+const isCount = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0;
+
+function incrementalEvidence(treatment: JsonRecord | null): JsonRecord | null {
+  const refresh = asRecord(treatment?.refreshExecution);
+  return refresh?.kind === "incremental" ? asRecord(refresh.incrementalRefresh) : null;
+}
+
+/** One flat evidence row per scenario/treatment; unavailable evidence stays null/"unavailable", never zero. */
+export function extractIncrementalChangeStalenessV2EvidenceRows(artifact: unknown): IncrementalChangeStalenessV2EvidenceRow[] {
+  const rows: IncrementalChangeStalenessV2EvidenceRow[] = [];
+  const scenarios = (Array.isArray(asRecord(artifact)?.scenarios) ? (asRecord(artifact)!.scenarios as unknown[]) : []).map(asRecord);
+  for (const scenario of scenarios) {
+    if (!scenario) continue;
+    for (const treatment of (Array.isArray(scenario.treatments) ? scenario.treatments : []).map(asRecord)) {
+      if (!treatment) continue;
+      const refresh = asRecord(treatment.refreshExecution);
+      const upstream = incrementalEvidence(treatment);
+      const correctness = asRecord(asRecord(treatment.fakeAgent)?.correctness);
+      const comparison = (Array.isArray(scenario.referenceComparisons) ? scenario.referenceComparisons : [])
+        .map(asRecord)
+        .find((entry) => entry?.candidateTreatmentId === treatment.treatmentId);
+      const stale = asRecord(comparison?.comparison);
+      rows.push({
+        scenarioId: String(scenario.scenarioId),
+        treatmentId: String(treatment.treatmentId),
+        treatmentIntent: treatment.treatmentIntent ?? null,
+        refreshKind: refresh?.kind ?? null,
+        refreshRealization: refresh?.realization ?? null,
+        requestedScope: upstream?.requestedScope ?? null,
+        appliedScope: upstream?.appliedScope ?? null,
+        selectionStatus: upstream?.selectionStatus ?? null,
+        fallbackReason: upstream ? (upstream.fallbackReason ?? null) : null,
+        freshExtractionFileCount: upstream?.freshExtractionFileCount ?? null,
+        reusedFileCount: upstream?.reusedFileCount ?? null,
+        forcedNeighborReanalysisFileCount: upstream?.forcedNeighborReanalysisFileCount ?? null,
+        forcedNeighborSample: upstream?.forcedNeighborSample ?? null,
+        seedFileCount: upstream?.seedFileCount ?? null,
+        affectedNodeCount: upstream?.affectedNodeCount ?? null,
+        baselineFreshness: asRecord(treatment.baselineFreshness)?.status ?? null,
+        refreshedFreshness: asRecord(treatment.refreshedFreshness)?.status ?? null,
+        requiredFileStatus: asRecord(treatment.requiredFileEvidence)?.status ?? null,
+        correctness: correctness?.available === true && typeof correctness.score === "number" ? `available:${correctness.score}` : "unavailable",
+        referenceClassification: comparison ? (comparison.kind === "stale-risk" ? (stale?.staleRiskClassification ?? null) : (comparison.classification ?? null)) : null
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Acceptance gates over one persisted V2 execution artifact from the installed package run against the
+ * real published upstream. Verdict precedence: contract mismatch, changed-files realization,
+ * affected-neighborhood realization, discrimination. A correctness or required-file *difference* is never
+ * demanded; null evidence is never coerced to zero.
+ */
+export function evaluateIncrementalChangeStalenessV2Acceptance(artifact: unknown): IncrementalChangeStalenessV2Acceptance {
+  const contractProblems: string[] = [];
+  const changedFilesRealizationProblems: string[] = [];
+  const affectedRealizationProblems: string[] = [];
+  const discriminationProblems: string[] = [];
+  const forcedNeighborScenarios: string[] = [];
+  const geometryDifferenceScenarios: string[] = [];
+  const rows = extractIncrementalChangeStalenessV2EvidenceRows(artifact);
+
+  const root = asRecord(artifact);
+  if (!root) {
+    const problems = ["execution artifact did not parse to a JSON object"];
+    return {
+      verdict: "BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH",
+      problems,
+      contractProblems: problems,
+      changedFilesRealizationProblems,
+      affectedRealizationProblems,
+      discriminationProblems,
+      discrimination: "not-evaluated",
+      forcedNeighborScenarios,
+      geometryDifferenceScenarios,
+      rows
+    };
+  }
+  if (root.schemaVersion !== INCREMENTAL_CHANGE_STALENESS_EXECUTION_SCHEMA_VERSION_V2_EXPECTED) {
+    contractProblems.push(`schemaVersion is ${JSON.stringify(root.schemaVersion)}, expected ${INCREMENTAL_CHANGE_STALENESS_EXECUTION_SCHEMA_VERSION_V2_EXPECTED}`);
+  }
+  const scenarios = (Array.isArray(root.scenarios) ? root.scenarios : []).map(asRecord);
+  const actualIds = scenarios.map((scenario) => scenario?.scenarioId);
+  if (JSON.stringify(actualIds) !== JSON.stringify(INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS)) {
+    contractProblems.push(`scenario order/identity mismatch: expected ${JSON.stringify(INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS)}, got ${JSON.stringify(actualIds)}`);
+  }
+
+  let discriminationEvaluable = true;
+  for (const scenario of scenarios) {
+    if (!scenario) continue;
+    const id = String(scenario.scenarioId);
+    const tag = `[${id}]`;
+    if (scenario.status !== "ready") {
+      contractProblems.push(`${tag} status is ${String(scenario.status)}, expected ready`);
+      discriminationEvaluable = false;
+      continue;
+    }
+    const treatments = (Array.isArray(scenario.treatments) ? scenario.treatments : []).map(asRecord);
+    if (JSON.stringify(treatments.map((t) => t?.treatmentId)) !== JSON.stringify(INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS_EXPECTED)) {
+      contractProblems.push(`${tag} treatments are not exactly ${INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS_EXPECTED.join(", ")} in order: ${JSON.stringify(treatments.map((t) => t?.treatmentId))}`);
+      discriminationEvaluable = false;
+      continue;
+    }
+    const intents = treatments.map((t) => t?.treatmentIntent);
+    if (intents.some((intent) => typeof intent !== "string" || intent.length === 0) || new Set(intents).size !== intents.length) {
+      contractProblems.push(`${tag} treatment intents are not explicit and distinct: ${JSON.stringify(intents)}`);
+    }
+    const comparisons = (Array.isArray(scenario.referenceComparisons) ? scenario.referenceComparisons : []).map(asRecord);
+    if (JSON.stringify(comparisons.map((c) => c?.candidateTreatmentId)) !== JSON.stringify(INCREMENTAL_CHANGE_STALENESS_V2_COMPARISON_CANDIDATES_EXPECTED)) {
+      contractProblems.push(`${tag} reference comparisons are not exactly ${INCREMENTAL_CHANGE_STALENESS_V2_COMPARISON_CANDIDATES_EXPECTED.join(", ")} in order`);
+    }
+    for (const comparison of comparisons) {
+      if (comparison?.referenceTreatmentId !== "full-refresh") contractProblems.push(`${tag} comparison reference is ${String(comparison?.referenceTreatmentId)}, expected full-refresh`);
+      if (comparison?.candidateTreatmentId === "stale-index") {
+        if (!STALE_CLASSIFICATIONS_V2.has(String(asRecord(comparison.comparison)?.staleRiskClassification))) contractProblems.push(`${tag} stale-index classification is outside the frozen vocabulary`);
+      } else if (!PARTIAL_CLASSIFICATIONS_V2.has(String(comparison?.classification))) {
+        // Includes not-comparable-as-partial-refresh: a production run that realizes both partials must never produce it.
+        contractProblems.push(`${tag} ${String(comparison?.candidateTreatmentId)} classification ${JSON.stringify(comparison?.classification)} is not an acceptable production partial classification`);
+      }
+    }
+
+    const [stale, changed, affected, full] = treatments;
+
+    const staleRefresh = asRecord(stale?.refreshExecution);
+    if (staleRefresh?.kind !== "no-refresh" || staleRefresh.realization !== "NO_REFRESH") contractProblems.push(`${tag} stale-index is not no-refresh/NO_REFRESH`);
+    if (stale?.activeIndexPhase !== "baseline") contractProblems.push(`${tag} stale-index activeIndexPhase is ${String(stale?.activeIndexPhase)}, expected baseline`);
+    if (asRecord(stale?.baselineFreshness)?.status !== "stale") contractProblems.push(`${tag} stale-index baseline freshness is ${String(asRecord(stale?.baselineFreshness)?.status)}, expected stale`);
+    if (stale?.refreshedFreshness !== null) contractProblems.push(`${tag} stale-index must not have refreshed freshness`);
+
+    const fullRefresh = asRecord(full?.refreshExecution);
+    if (fullRefresh?.kind !== "full" || fullRefresh.realization !== "FULL_REFRESH" || fullRefresh.incrementalRefresh !== null) {
+      contractProblems.push(`${tag} full-refresh is not full/FULL_REFRESH without incrementalRefresh evidence`);
+    }
+    for (const [label, treatment] of [["changed-files-refresh", changed], ["affected-neighborhood-refresh", affected], ["full-refresh", full]] as const) {
+      if (treatment?.activeIndexPhase !== "refreshed") contractProblems.push(`${tag} ${label} activeIndexPhase is ${String(treatment?.activeIndexPhase)}, expected refreshed`);
+      if (asRecord(treatment?.baselineFreshness)?.status !== "stale") contractProblems.push(`${tag} ${label} baseline freshness is ${String(asRecord(treatment?.baselineFreshness)?.status)}, expected stale`);
+      if (asRecord(treatment?.refreshedFreshness)?.status !== "fresh") contractProblems.push(`${tag} ${label} refreshed freshness is ${String(asRecord(treatment?.refreshedFreshness)?.status)}, expected fresh`);
+    }
+    for (const treatment of treatments) {
+      const evidence = asRecord(treatment?.requiredFileEvidence);
+      if (!evidence || !REQUIRED_FILE_STATUS_VALUES.has(String(evidence.status))) contractProblems.push(`${tag} ${String(treatment?.treatmentId)} required-file evidence status is invalid: ${JSON.stringify(evidence?.status)}`);
+      const correctness = asRecord(asRecord(treatment?.fakeAgent)?.correctness);
+      if (!correctness || typeof correctness.available !== "boolean") contractProblems.push(`${tag} ${String(treatment?.treatmentId)} fake-agent correctness structure is invalid`);
+      const relationship = asRecord(treatment?.affectedNeighborhood)?.relationship;
+      if (!AFFECTED_RELATIONSHIP_VALUES.has(String(relationship))) contractProblems.push(`${tag} ${String(treatment?.treatmentId)} Lab affected-neighborhood relationship is invalid`);
+    }
+
+    // Realization gates: the real upstream must actually have applied each requested partial scope.
+    const realization = (treatment: JsonRecord | null, label: "changed-files" | "affected-neighborhood", sink: string[]): JsonRecord | null => {
+      const refresh = asRecord(treatment?.refreshExecution);
+      const upstream = incrementalEvidence(treatment);
+      if (refresh?.kind !== "incremental" || !upstream) {
+        sink.push(`${tag} ${label}-refresh has no incremental refresh evidence`);
+        return null;
+      }
+      if (refresh.realization !== "APPLIED_PARTIAL") {
+        sink.push(`${tag} ${label}-refresh realization is ${String(refresh.realization)} (requested ${String(upstream.requestedScope)}, applied ${String(upstream.appliedScope)}, status ${String(upstream.selectionStatus)}, fallbackReason ${JSON.stringify(upstream.fallbackReason ?? null)})`);
+      }
+      if (upstream.requestedScope !== label) sink.push(`${tag} ${label}-refresh upstream requestedScope is ${String(upstream.requestedScope)}`);
+      if (upstream.appliedScope !== label) sink.push(`${tag} ${label}-refresh upstream appliedScope is ${String(upstream.appliedScope)}`);
+      if (upstream.selectionStatus !== "applied") sink.push(`${tag} ${label}-refresh upstream selectionStatus is ${String(upstream.selectionStatus)}`);
+      if ((upstream.fallbackReason ?? null) !== null) sink.push(`${tag} ${label}-refresh upstream fallbackReason is ${JSON.stringify(upstream.fallbackReason)}`);
+      for (const field of ["freshExtractionFileCount", "reusedFileCount", "forcedNeighborReanalysisFileCount"] as const) {
+        if (!isCount(upstream[field])) contractProblems.push(`${tag} ${label}-refresh ${field} is unavailable or not a non-negative integer: ${JSON.stringify(upstream[field])}`);
+      }
+      const sample = upstream.forcedNeighborSample;
+      const forced = upstream.forcedNeighborReanalysisFileCount;
+      if (!Array.isArray(sample) || sample.some((entry) => typeof entry !== "string" || entry.length === 0)) {
+        contractProblems.push(`${tag} ${label}-refresh forcedNeighborSample is not a list of path strings`);
+      } else {
+        if (sample.length > FORCED_NEIGHBOR_SAMPLE_CAP) contractProblems.push(`${tag} ${label}-refresh forcedNeighborSample has ${sample.length} entries, above the cap ${FORCED_NEIGHBOR_SAMPLE_CAP}`);
+        if (isCount(forced) && sample.length > forced) contractProblems.push(`${tag} ${label}-refresh forcedNeighborSample (${sample.length}) exceeds forcedNeighborReanalysisFileCount (${forced})`);
+        if (isCount(forced) && forced > 0 && sample.length === 0) contractProblems.push(`${tag} ${label}-refresh has ${forced} forced neighbors but an empty forcedNeighborSample`);
+      }
+      return upstream;
+    };
+    const changedUpstream = realization(changed, "changed-files", changedFilesRealizationProblems);
+    const affectedUpstream = realization(affected, "affected-neighborhood", affectedRealizationProblems);
+
+    if (changedUpstream && affectedUpstream) {
+      const forced = affectedUpstream.forcedNeighborReanalysisFileCount;
+      const affectedFresh = affectedUpstream.freshExtractionFileCount;
+      const changedFresh = changedUpstream.freshExtractionFileCount;
+      const affectedReused = affectedUpstream.reusedFileCount;
+      const changedReused = changedUpstream.reusedFileCount;
+      if (isCount(forced) && isCount(affectedFresh) && isCount(changedFresh) && isCount(affectedReused) && isCount(changedReused)) {
+        if (forced > 0) {
+          forcedNeighborScenarios.push(id);
+          if (affectedFresh > changedFresh && affectedReused < changedReused) geometryDifferenceScenarios.push(id);
+          else {
+            discriminationProblems.push(
+              `${tag} forcedNeighborReanalysisFileCount=${forced} but affected fresh/reused (${affectedFresh}/${affectedReused}) does not exceed/undercut changed-files (${changedFresh}/${changedReused})`
+            );
+          }
+        }
+      } else {
+        discriminationEvaluable = false;
+      }
+    } else {
+      discriminationEvaluable = false;
+    }
+  }
+
+  const serialized = JSON.stringify(root);
+  const forbiddenKey = /"(winner|bestTreatment|recommendedTreatment|rank|grade|compositeScore|safetyScore|safeToSkipRefresh|staleRiskPercent|refreshSafetyPercent|overallScore)"\s*:/.exec(serialized);
+  if (forbiddenKey) contractProblems.push(`execution artifact contains a forbidden aggregate field: ${forbiddenKey[1]}`);
+  if (/"nodes"\s*:\s*\[|"edges"\s*:\s*\[|"contextText"\s*:/.test(serialized)) contractProblems.push("execution artifact embeds graph node/edge records or raw context text");
+
+  let discrimination: IncrementalChangeStalenessV2Acceptance["discrimination"] = "not-evaluated";
+  if (discriminationEvaluable && changedFilesRealizationProblems.length === 0 && affectedRealizationProblems.length === 0) {
+    if (discriminationProblems.length > 0) discrimination = "invariant-violation";
+    else if (forcedNeighborScenarios.length === 0) {
+      discrimination = "insufficient";
+      discriminationProblems.push("no production scenario has affected-neighborhood forcedNeighborReanalysisFileCount > 0");
+    } else discrimination = "pass";
+  }
+
+  let verdict: IncrementalChangeStalenessV2AcceptanceVerdict = "PASS";
+  if (contractProblems.length > 0) verdict = "BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH";
+  else if (changedFilesRealizationProblems.length > 0) verdict = "BLOCKED_CHANGED_FILES_PARTIAL_NOT_REALIZED";
+  else if (affectedRealizationProblems.length > 0) verdict = "BLOCKED_AFFECTED_NEIGHBORHOOD_PARTIAL_NOT_REALIZED";
+  else if (discrimination !== "pass") verdict = "BLOCKED_SCENARIO_DISCRIMINATION_INSUFFICIENT";
+
+  return {
+    verdict,
+    problems: [...contractProblems, ...changedFilesRealizationProblems, ...affectedRealizationProblems, ...(discrimination === "pass" ? [] : discriminationProblems)],
+    contractProblems,
+    changedFilesRealizationProblems,
+    affectedRealizationProblems,
+    discriminationProblems,
+    discrimination,
+    forcedNeighborScenarios,
+    geometryDifferenceScenarios,
+    rows
+  };
+}
+
+const HTML_ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&#x27;": "'" };
+const unescapeHtml = (html: string): string => html.replace(/&(?:amp|lt|gt|quot|#39|#x27);/g, (entity) => HTML_ENTITIES[entity]);
+
+/**
+ * Cross-checks the installed package's V2 report.json/report.txt/report.html against the persisted V2
+ * execution artifact. Only compares already-persisted fields and confirms their presence as text.
+ */
+export function validateIncrementalChangeStalenessReportConsistencyV2(input: {
+  artifact: unknown;
+  report: unknown;
+  reportText: string;
+  reportHtml: string;
+  /** The installed package's own frozen V2 limitations list. */
+  expectedLimitations: readonly string[];
+}): string[] {
+  const problems: string[] = [];
+  const artifact = asRecord(input.artifact);
+  const section = asRecord(asRecord(input.report)?.incrementalChangeStaleness);
+  if (!section) return ["report.json has no incrementalChangeStaleness section"];
+  if (section.schemaVersion !== INCREMENTAL_CHANGE_STALENESS_REPORT_SCHEMA_VERSION_V2_EXPECTED) {
+    problems.push(`report.json schemaVersion is ${JSON.stringify(section.schemaVersion)}, expected ${INCREMENTAL_CHANGE_STALENESS_REPORT_SCHEMA_VERSION_V2_EXPECTED}`);
+  }
+  if (JSON.stringify(section.summary) !== JSON.stringify(artifact?.summary)) problems.push("report.json summary disagrees with the execution artifact summary");
+  const artifactScenarios = (Array.isArray(artifact?.scenarios) ? artifact!.scenarios : []).map(asRecord);
+  const reportScenarios = (Array.isArray(section.scenarios) ? section.scenarios : []).map(asRecord);
+  if (artifactScenarios.length !== reportScenarios.length) problems.push(`report.json scenario count ${reportScenarios.length} does not match execution artifact ${artifactScenarios.length}`);
+
+  const text = input.reportText;
+  const html = unescapeHtml(input.reportHtml);
+  const both = (marker: string, what: string) => {
+    if (!text.includes(marker)) problems.push(`report.txt lacks ${what}: "${marker}"`);
+    if (!html.includes(marker)) problems.push(`report.html lacks ${what}: "${marker}"`);
+  };
+  for (let index = 0; index < artifactScenarios.length; index += 1) {
+    const expected = artifactScenarios[index];
+    const actual = reportScenarios[index];
+    if (!expected || !actual) continue;
+    const id = String(expected.scenarioId);
+    if (actual.scenarioId !== expected.scenarioId) problems.push(`report.json scenario order mismatch at ${index}: ${String(actual.scenarioId)} vs ${id}`);
+    for (const field of ["treatments", "referenceComparisons", "lifecycle"] as const) {
+      if (JSON.stringify(actual[field]) !== JSON.stringify(expected[field])) problems.push(`[${id}] report.json ${field} disagrees with the execution artifact`);
+    }
+    both(id, "scenario id");
+    for (const treatment of (Array.isArray(expected.treatments) ? expected.treatments : []).map(asRecord)) {
+      const treatmentId = String(treatment?.treatmentId);
+      both(`(${treatmentId})`, `treatment section for ${id}`);
+      both(String(asRecord(treatment?.refreshExecution)?.realization), `refresh realization for ${id}/${treatmentId}`);
+    }
+    for (const comparison of (Array.isArray(expected.referenceComparisons) ? expected.referenceComparisons : []).map(asRecord)) {
+      const classification = comparison?.kind === "stale-risk" ? asRecord(comparison.comparison)?.staleRiskClassification : comparison?.classification;
+      both(String(classification), `reference classification for ${id}/${String(comparison?.candidateTreatmentId)}`);
+    }
+  }
+  for (const marker of ["Reference Comparisons", "Refresh Execution", "Changed-Files Refresh vs Full Refresh", "Affected-Neighborhood Refresh vs Full Refresh", "No Refresh vs Full Refresh", "different evidence families", "Forced-neighbor reanalysis files"]) {
+    both(marker, "required section/label");
+  }
+  if (!Array.isArray(section.limitations) || JSON.stringify(section.limitations) !== JSON.stringify(input.expectedLimitations)) problems.push("report.json limitations differ from the installed frozen V2 limitations");
+  for (const limitation of input.expectedLimitations) both(limitation, "limitation");
+
+  for (const forbidden of ["overall stale risk", "stale index is safe", "stale index is unsafe", "full refresh wins", "stale wins", "recommended treatment", "partial refresh is safe", "affected-neighborhood is better", ">Winner<", ">Score<"]) {
+    if (text.toLowerCase().includes(forbidden.toLowerCase())) problems.push(`report.txt makes a forbidden claim: "${forbidden}"`);
+    if (html.toLowerCase().includes(forbidden.toLowerCase())) problems.push(`report.html makes a forbidden claim: "${forbidden}"`);
+  }
+  if (/contextText/.test(JSON.stringify(section)) || /contextText/.test(input.reportHtml)) problems.push("report exposes raw retrieved context text");
   return problems;
 }

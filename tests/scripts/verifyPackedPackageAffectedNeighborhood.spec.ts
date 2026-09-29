@@ -44,15 +44,15 @@ const sha256 = (file: string) => createHash("sha256").update(readFileSync(file))
 
 describe("upstream my-dev-kit pin (TST-B4-002)", () => {
   it("pins the exact published spec and never a dist-tag", () => {
-    expect(UPSTREAM_MY_DEV_KIT_SPEC).toBe("@dailephd/my-dev-kit@1.12.4");
+    expect(UPSTREAM_MY_DEV_KIT_SPEC).toBe("@dailephd/my-dev-kit@1.12.5");
     expect(UPSTREAM_MY_DEV_KIT_SPEC).not.toContain("latest");
   });
 
   it("accepts only the pinned package identity and rejects any other version or package", () => {
-    expect(validateUpstreamMyDevKitIdentity({ name: "@dailephd/my-dev-kit", version: "1.12.4" })).toEqual([]);
-    expect(validateUpstreamMyDevKitIdentity({ name: "@dailephd/my-dev-kit", version: "1.12.5" })).toHaveLength(1);
+    expect(validateUpstreamMyDevKitIdentity({ name: "@dailephd/my-dev-kit", version: "1.12.5" })).toEqual([]);
+    expect(validateUpstreamMyDevKitIdentity({ name: "@dailephd/my-dev-kit", version: "1.12.4" })).toHaveLength(1);
     expect(validateUpstreamMyDevKitIdentity({ name: "@dailephd/my-dev-kit", version: "latest" })).toHaveLength(1);
-    expect(validateUpstreamMyDevKitIdentity({ name: "some-other-kit", version: "1.12.4" })).toHaveLength(1);
+    expect(validateUpstreamMyDevKitIdentity({ name: "some-other-kit", version: "1.12.5" })).toHaveLength(1);
     expect(validateUpstreamMyDevKitIdentity(null)).toEqual(["upstream package.json is missing"]);
   });
 
