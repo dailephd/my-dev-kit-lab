@@ -193,6 +193,50 @@ describe("validateWarmIndexCampaignScreenshotEvidence", () => {
     }).join("; ")).toMatch(/report.png is missing/);
   });
 
+  it("accepts semantic failure evidence when wrapper wording varies and the diagnostic spans lines", () => {
+    const error = "Protocol error (Page.captureScreenshot):\nUnable to capture screenshot";
+    expect(validateWarmIndexCampaignScreenshotEvidence({
+      status: "failed",
+      commandOutput: `Status: completed\nScreenshot: failed\n${error}\nGallery manifest: C:/campaign/gallery/gallery-manifest.json`,
+      expectedPngPath: "C:/campaign/report.png",
+      pngExists: false,
+      reportItem: {
+        status: "warning",
+        warnings: [`Report screenshot failed: ${error}`]
+      }
+    })).toEqual([]);
+  });
+
+  it.each([
+    { label: "empty warnings", warnings: [] },
+    { label: "unrelated warning", warnings: ["Plot contains a skipped point."] },
+    { label: "failure warning without the available diagnostic", warnings: ["Report screenshot capture failed: browser error."] }
+  ])("rejects failed screenshot evidence with $label", ({ warnings }) => {
+    const problems = validateWarmIndexCampaignScreenshotEvidence({
+      status: "failed",
+      commandOutput: "Status: completed\nScreenshot: failed\nProtocol error (Page.captureScreenshot): Unable to capture screenshot",
+      expectedPngPath: "C:/campaign/report.png",
+      pngExists: false,
+      reportItem: { status: "warning", warnings }
+    });
+    expect(problems.length).toBeGreaterThan(0);
+  });
+
+  it("rejects skipped evidence that claims a screenshot path", () => {
+    const problems = validateWarmIndexCampaignScreenshotEvidence({
+      status: "skipped",
+      commandOutput: "Status: completed\nScreenshot: skipped",
+      expectedPngPath: "C:/campaign/report.png",
+      pngExists: false,
+      reportItem: {
+        status: "warning",
+        screenshotPath: "../report.png",
+        warnings: ["PNG screenshot skipped because Playwright or browser runtime is unavailable."]
+      }
+    });
+    expect(problems.some((problem) => problem.includes("inconsistent with the gallery report item"))).toBe(true);
+  });
+
   it("rejects a failed capture that claims a screenshot path or fabricates a PNG", () => {
     const problems = validateWarmIndexCampaignScreenshotEvidence({
       status: "failed",

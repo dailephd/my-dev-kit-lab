@@ -141,13 +141,16 @@ describe("writeWarmIndexCampaignGallery", () => {
     expect(executionItem.status).toBe("pass");
   });
 
-  it("marks the report item warning with a bounded failure warning when screenshot failed (section 30.3)", async () => {
+  it.each([
+    "forced screenshot failure",
+    "Protocol error (Page.captureScreenshot): Unable to capture screenshot",
+  ])("marks the report item warning and preserves the failed screenshot diagnostic: %s (section 30.3)", async (error) => {
     const fixture = await makeFixture();
     const screenshot: ScreenshotCaptureResult = {
       status: "failed",
       htmlPath: fixture.htmlPath,
       pngPath: path.join(fixture.root, "report.png"),
-      error: "forced screenshot failure",
+      error,
     };
 
     const { manifest, manifestPath, indexPath } = await writeWarmIndexCampaignGallery({
@@ -164,7 +167,8 @@ describe("writeWarmIndexCampaignGallery", () => {
     const [reportItem] = manifest.items;
     expect(reportItem.status).toBe("warning");
     expect(reportItem.screenshotPath).toBeUndefined();
-    expect(reportItem.warnings.some((warning) => warning.includes("forced screenshot failure"))).toBe(true);
+    expect(reportItem.warnings.some((warning) => warning.includes("screenshot capture failed") && warning.includes(error))).toBe(true);
+    expect(existsSync(path.join(fixture.root, "report.png"))).toBe(false);
     expect(existsSync(manifestPath)).toBe(true);
     expect(existsSync(indexPath)).toBe(true);
   });

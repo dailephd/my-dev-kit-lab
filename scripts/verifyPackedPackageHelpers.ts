@@ -204,11 +204,26 @@ export function validateWarmIndexCampaignScreenshotEvidence(evidence: WarmIndexC
       problems.push("skipped screenshot is missing the browser-unavailable warning");
     }
   } else {
-    const failureWarning = warnings.find((warning) => /^Report screenshot capture failed: .+\.$/.test(warning));
+    const normalizeDiagnostic = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+    const identifiesScreenshotFailure = (warning: string) => {
+      const normalized = normalizeDiagnostic(warning);
+      return normalized.includes("screenshot") &&
+        /\b(?:failed|failure)\b/.test(normalized) &&
+        (/\bcapture\b/.test(normalized) || /\bscreenshot failed\b/.test(normalized));
+    };
+    const failureWarning = warnings.find(identifiesScreenshotFailure);
     if (!failureWarning) {
       problems.push("failed screenshot is missing explicit gallery failure evidence");
-    } else if (!commandOutput.includes(failureWarning.slice("Report screenshot capture failed: ".length, -1))) {
-      problems.push("campaign command output does not preserve the screenshot failure detail");
+    } else {
+      const outputLines = commandOutput.split(/\r?\n/);
+      const failedLineIndex = outputLines.indexOf("Screenshot: failed");
+      const afterFailedLine = failedLineIndex < 0 ? [] : outputLines.slice(failedLineIndex + 1);
+      const galleryLineIndex = afterFailedLine.findIndex((line) => /^Gallery (?:manifest|index):/.test(line));
+      const diagnosticLines = galleryLineIndex < 0 ? afterFailedLine : afterFailedLine.slice(0, galleryLineIndex);
+      const commandDiagnostic = diagnosticLines.join(" ").trim();
+      if (commandDiagnostic && !normalizeDiagnostic(failureWarning).includes(normalizeDiagnostic(commandDiagnostic))) {
+        problems.push("gallery warning does not preserve the campaign screenshot failure detail");
+      }
     }
   }
   return problems;
