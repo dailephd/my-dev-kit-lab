@@ -769,6 +769,19 @@ async function main() {
     const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse and incremental-change-staleness):");
     const warmHelpStart = runHelp.indexOf("warm-index-reuse only:");
     const contextHelpStart = runHelp.indexOf("context-strategy-comparison only:");
+    const warmCampaignHelp = warmHelpStart >= 0 && contextHelpStart > warmHelpStart
+      ? runHelp.slice(warmHelpStart, contextHelpStart)
+      : "";
+    const normalizedWarmCampaignHelp = warmCampaignHelp.replace(/\s+/g, " ");
+    const campaignScreenshotHelpContract = [
+      "campaign report screenshot is best-effort presentation",
+      "skipped or failed capture is reported explicitly",
+      "failed remains failed",
+      "no PNG is fabricated",
+      "screenshot status alone does not fail an otherwise successful campaign command",
+      "Core experiment, report,",
+      "plot, and gallery failures remain fatal."
+    ];
     if (
       runHelpResult.status !== 0 ||
       kitCommandHelpStart < 0 ||
@@ -778,9 +791,11 @@ async function main() {
       !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("--kit-command <command>") ||
       !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("warm-index-reuse") ||
       !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("incremental-change-staleness") ||
+      campaignScreenshotHelpContract.some((phrase) => !normalizedWarmCampaignHelp.includes(phrase)) ||
+      /screenshot failure makes the command unsuccessful/i.test(normalizedWarmCampaignHelp) ||
       !runHelp.slice(contextHelpStart).includes("--agents")
     ) {
-      fail("EXPERIMENT_RUN_HELP", "Installed `experiment run --help` does not document --kit-command for both supported experiment plugins.", describeChildResult(runHelpResult));
+      fail("EXPERIMENT_RUN_HELP", "Installed `experiment run --help` does not document both supported --kit-command plugins and the nonfatal automatic campaign screenshot contract.", describeChildResult(runHelpResult));
     }
 
     // -----------------------------------------------------------------

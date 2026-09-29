@@ -418,6 +418,7 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     expect(kitSection).toContain("incremental-change-staleness");
     expect(kitSection).not.toContain("warm-index-reuse only");
     const warmSection = text.slice(warm, context);
+    const normalizedWarmSection = warmSection.replace(/\s+/g, " ");
     expect(warmSection).toContain("deterministic fake agent only");
     expect(warmSection).toContain("--campaign <preset>");
     expect(warmSection).toContain("codex-full");
@@ -425,6 +426,14 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     expect(warmSection).toContain("codex-timeout-isolation");
     expect(warmSection).not.toContain("guarded");
     expect(warmSection).toContain("infrastructure status from agent/provider outcome status");
+    expect(normalizedWarmSection).toContain("campaign report screenshot is best-effort presentation");
+    expect(normalizedWarmSection).toContain("skipped or failed capture is reported explicitly");
+    expect(normalizedWarmSection).toContain("failed remains failed");
+    expect(normalizedWarmSection).toContain("no PNG is fabricated");
+    expect(normalizedWarmSection).toContain("screenshot status alone does not fail an otherwise successful campaign command");
+    expect(normalizedWarmSection).toContain("Core experiment, report,");
+    expect(normalizedWarmSection).toContain("plot, and gallery failures remain fatal");
+    expect(normalizedWarmSection).not.toContain("screenshot failure makes the command unsuccessful");
     expect(warmSection).not.toMatch(/--agents|--strategies|--complexities|--command-template/);
     const contextSection = text.slice(context);
     for (const flag of ["--agents", "--strategies", "--complexities", "--include-real-agents", "--command-template-codex", "--no-screenshot"]) {
