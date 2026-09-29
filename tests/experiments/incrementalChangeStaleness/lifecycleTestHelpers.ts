@@ -152,3 +152,75 @@ export const EXPECTED_READY_LIFECYCLE_EVENTS = [
   "full-refresh:refreshed-active",
   "lifecycle-ready"
 ];
+
+export type FakeRefreshBehavior = "applied" | "fallback" | "not-needed" | "fail" | "invalid";
+
+export type IncrementalFakeKitOptions = {
+  /** How `--incremental` behaves against an index directory without cache metadata (default: cache-missing fallback). */
+  bootstrap?: "cache-missing" | "wrong-reason" | "applied" | "fail" | "no-evidence";
+  /** How `--incremental` behaves once cache metadata exists, per requested scope. Default: applied. */
+  refresh?: Partial<Record<"changed-files" | "affected-neighborhood", FakeRefreshBehavior>>;
+  /** A full (non-incremental) index whose --out contains this text fails. */
+  failFullWhenOutContains?: string;
+};
+
+/**
+ * Test-local fake that models the documented my-dev-kit 1.12.5 `--incremental --refresh-scope` JSON
+ * contract on top of the real-shaped lifecycle fake kit. Incremental invocations always leave a
+ * complete index of the current target (so freshness can be proven) plus `cache-metadata.json`, and
+ * every `index` invocation's arguments are appended to `<returned argsLogPath>`.
+ */
+export function writeIncrementalLifecycleFakeKit(
+  dir: string,
+  options: IncrementalFakeKitOptions = {}
+): LifecycleFakeKit & { argsLogPath: string } {
+  const graph = writeGraphFakeKit(dir, { symbols: {} });
+  const graphScript = path.join(dir, "fake-kit-graph.mjs");
+  const wrapperPath = path.join(dir, "fake-kit-incremental.mjs");
+  const argsLogPath = `${wrapperPath}.args.log`;
+  writeFileSync(
+    wrapperPath,
+    [
+      `import fs from "node:fs";`,
+      `import path from "node:path";`,
+      `import { spawnSync } from "node:child_process";`,
+      `const options = ${JSON.stringify(options)};`,
+      `const args = process.argv.slice(2);`,
+      `if (args[0] !== "index") { const r = spawnSync(process.execPath, [${JSON.stringify(graphScript)}, ...args], { stdio: "inherit" }); process.exit(r.status ?? 1); }`,
+      `fs.appendFileSync(${JSON.stringify(argsLogPath)}, JSON.stringify(args) + "\\n");`,
+      `const out = args[args.indexOf("--out") + 1];`,
+      `const normalizedOut = out.replace(/\\\\/g, "/");`,
+      `const incremental = args.includes("--incremental");`,
+      `if (!incremental) {`,
+      `  if (options.failFullWhenOutContains && normalizedOut.includes(options.failFullWhenOutContains)) { process.stderr.write("forced full index failure"); process.exit(1); }`,
+      `  const r = spawnSync(process.execPath, [${JSON.stringify(graphScript)}, ...args], { stdio: "inherit" }); process.exit(r.status ?? 1);`,
+      `}`,
+      `const scope = args[args.indexOf("--refresh-scope") + 1];`,
+      `const cachePath = path.join(out, "cache-metadata.json");`,
+      `const cachePresent = fs.existsSync(cachePath);`,
+      `const behavior = cachePresent ? (options.refresh?.[scope] ?? "applied") : (options.bootstrap ?? "cache-missing");`,
+      `if (behavior === "fail") { process.stderr.write("forced incremental failure"); process.exit(1); }`,
+      `const forwarded = args.filter((value, i) => value !== "--incremental" && value !== "--refresh-scope" && args[i - 1] !== "--refresh-scope");`,
+      `const r = spawnSync(process.execPath, [${JSON.stringify(graphScript)}, ...forwarded], { stdio: ["ignore", "pipe", "inherit"] });`,
+      `if ((r.status ?? 1) !== 0) process.exit(r.status ?? 1);`,
+      `fs.writeFileSync(cachePath, JSON.stringify({ cache: "fake" }));`,
+      `const base = { requestedScope: scope, appliedScope: scope, selectionStatus: "applied", fallbackReason: null, seedFileCount: scope === "affected-neighborhood" ? 1 : null, seedSymbolCount: scope === "affected-neighborhood" ? 2 : null, affectedNodeCount: scope === "affected-neighborhood" ? 5 : null, affectedEdgeCount: scope === "affected-neighborhood" ? 4 : null, forcedNeighborReanalysisFileCount: 0, forcedNeighborSample: [], freshExtractionFileCount: 1, reusedFileCount: 9 };`,
+      `const fallback = (reason) => ({ ...base, appliedScope: "full", selectionStatus: "fallback-full", fallbackReason: reason, seedFileCount: null, seedSymbolCount: null, affectedNodeCount: null, affectedEdgeCount: null, freshExtractionFileCount: 10, reusedFileCount: 0 });`,
+      `let evidence;`,
+      `if (behavior === "cache-missing") evidence = fallback("cache-missing");`,
+      `else if (behavior === "wrong-reason") evidence = fallback("cache-incompatible");`,
+      `else if (behavior === "applied") evidence = base;`,
+      `else if (behavior === "fallback") evidence = fallback("seed-selection-unavailable");`,
+      `else if (behavior === "not-needed") evidence = { ...base, appliedScope: "none", selectionStatus: "not-needed", seedFileCount: null, seedSymbolCount: null, affectedNodeCount: null, affectedEdgeCount: null, freshExtractionFileCount: 0, reusedFileCount: 10 };`,
+      `else if (behavior === "invalid") evidence = { ...base, selectionStatus: "maybe" };`,
+      `else evidence = undefined;`,
+      `console.log(JSON.stringify(evidence === undefined ? { ok: true } : { ok: true, incrementalRefresh: evidence }));`,
+      `process.exit(0);`
+    ].join("\n")
+  );
+  return { command: `node ${wrapperPath}`, logPath: graph.logPath, argsLogPath };
+}
+
+export function readIndexArgsLog(argsLogPath: string): string[][] {
+  return readKitLog(argsLogPath).map((line) => JSON.parse(line) as string[]);
+}

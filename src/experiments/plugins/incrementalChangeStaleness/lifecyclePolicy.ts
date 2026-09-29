@@ -2,7 +2,7 @@ import path from "node:path";
 import type { AffectedNeighborhoodGraphEvidenceV1 } from "../../../evaluation/affectedNeighborhood.js";
 import type { IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import type { IndexSnapshotToolV1 } from "../../../evaluation/indexSnapshot.js";
-import type { IncrementalChangeStalenessTreatmentId } from "./disposableTarget.js";
+import type { IncrementalChangeStalenessV2TreatmentId } from "./disposableTarget.js";
 import type {
   IncrementalChangeStalenessIndexEvidenceV1,
   IncrementalChangeStalenessLifecycleFailureV1
@@ -47,7 +47,7 @@ export function isUsableGraphEvidence(graph: AffectedNeighborhoodGraphEvidenceV1
 function failure(
   code: IncrementalChangeStalenessLifecycleFailureV1["code"],
   message: string,
-  treatmentId: IncrementalChangeStalenessTreatmentId | null
+  treatmentId: IncrementalChangeStalenessV2TreatmentId | null
 ): IncrementalChangeStalenessLifecycleFailureV1 {
   return { code, message, treatmentId };
 }
@@ -60,7 +60,7 @@ function failure(
  * same index directory. Never relies on directory naming alone.
  */
 export function evaluateIndexEvidence(
-  evidence: IncrementalChangeStalenessIndexEvidenceV1,
+  evidence: IncrementalChangeStalenessIndexEvidenceV1<IncrementalChangeStalenessV2TreatmentId>,
   expected: { targetRoot: string; sourceRoots: readonly string[]; indexDir: string }
 ): IncrementalChangeStalenessLifecycleFailureV1 | null {
   const refreshed = evidence.role === "refreshed";
@@ -105,7 +105,7 @@ export function evaluateIndexEvidence(
  * readiness explicitly.
  */
 export function evaluateToolIdentity(
-  indexes: readonly IncrementalChangeStalenessIndexEvidenceV1[]
+  indexes: readonly IncrementalChangeStalenessIndexEvidenceV1<IncrementalChangeStalenessV2TreatmentId>[]
 ): { failure: IncrementalChangeStalenessLifecycleFailureV1 | null; tool: IndexSnapshotToolV1 | null } {
   for (const index of indexes) {
     if (index.snapshot.tool.availability !== "available" || index.snapshot.tool.version === null) {
@@ -154,7 +154,7 @@ function changedPaths(assessment: IndexFreshnessAssessmentV1): string[] {
 export function evaluateBaselineStaleFreshness(
   assessment: IndexFreshnessAssessmentV1,
   controlledChangedPaths: readonly string[],
-  treatmentId: IncrementalChangeStalenessTreatmentId
+  treatmentId: IncrementalChangeStalenessV2TreatmentId
 ): IncrementalChangeStalenessLifecycleFailureV1 | null {
   if (assessment.status !== "stale") {
     return failure("baseline-freshness-not-stale", `${treatmentId} baseline freshness after mutation is ${assessment.status}, not complete stale.`, treatmentId);
@@ -186,7 +186,8 @@ export function evaluateBaselineStaleFreshness(
  */
 export function evaluateChangedPathSymmetry(
   stale: IndexFreshnessAssessmentV1,
-  fullRefresh: IndexFreshnessAssessmentV1
+  fullRefresh: IndexFreshnessAssessmentV1,
+  labels: { reference: string; other: string } = { reference: "stale-index", other: "full-refresh" }
 ): IncrementalChangeStalenessLifecycleFailureV1 | null {
   const key = (assessment: IndexFreshnessAssessmentV1) =>
     assessment.changes
@@ -198,7 +199,7 @@ export function evaluateChangedPathSymmetry(
   if (!same) {
     return failure(
       "treatment-changed-paths-conflict",
-      `stale-index and full-refresh baseline freshness disagree about the controlled change: stale=[${left.join("; ")}] full-refresh=[${right.join("; ")}].`,
+      `${labels.reference} and ${labels.other} baseline freshness disagree about the controlled change: ${labels.reference}=[${left.join("; ")}] ${labels.other}=[${right.join("; ")}].`,
       null
     );
   }
@@ -206,14 +207,20 @@ export function evaluateChangedPathSymmetry(
 }
 
 /** The refreshed index must be proven complete `fresh` against the unchanged mutated target. */
-export function evaluateRefreshedFreshness(assessment: IndexFreshnessAssessmentV1): IncrementalChangeStalenessLifecycleFailureV1 | null {
+export function evaluateRefreshedFreshness(
+  assessment: IndexFreshnessAssessmentV1,
+  treatmentId: IncrementalChangeStalenessV2TreatmentId = "full-refresh"
+): IncrementalChangeStalenessLifecycleFailureV1 | null {
   const complete = assessment.baselineSnapshotStatus === "complete" && assessment.unresolvedFileCount === 0;
   if (assessment.status !== "fresh" || !complete || assessment.changedFileCount !== 0 || assessment.missingFileCount !== 0) {
     return failure(
       "refreshed-freshness-not-fresh",
-      `full-refresh refreshed index freshness is ${assessment.status} (snapshot ${assessment.baselineSnapshotStatus}, ${assessment.changedFileCount} changed, ${assessment.missingFileCount} missing, ${assessment.unresolvedFileCount} unresolved); complete fresh is required.`,
-      "full-refresh"
+      `${treatmentId} refreshed index freshness is ${assessment.status} (snapshot ${assessment.baselineSnapshotStatus}, ${assessment.changedFileCount} changed, ${assessment.missingFileCount} missing, ${assessment.unresolvedFileCount} unresolved); complete fresh is required.`,
+      treatmentId
     );
   }
   return null;
 }
+
+/** Shared failure constructor for the v0.6.3 lifecycle policy module. */
+export { failure as lifecycleFailure };

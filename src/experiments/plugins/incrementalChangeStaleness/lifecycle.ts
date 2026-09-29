@@ -4,10 +4,12 @@ import { resolveWithinRoot } from "../../../core/pathSafety.js";
 import { assessIndexFreshness } from "../../../evaluation/indexFreshness.js";
 import type { IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import { prepareWarmIndexSession } from "../warmIndexReuse/warmIndexSession.js";
+import type { MyDevKitIndexBuildMode, MyDevKitIndexBuildResult } from "../../../evaluation/types.js";
 import {
   createDisposableTreatmentTarget,
   type DisposableTreatmentTargetV1,
-  type IncrementalChangeStalenessTreatmentId
+  type IncrementalChangeStalenessTreatmentId,
+  type IncrementalChangeStalenessV2TreatmentId
 } from "./disposableTarget.js";
 import {
   evaluateBaselineStaleFreshness,
@@ -79,7 +81,7 @@ export function incrementalChangeStalenessTargetsRoot(runOwnedRoot: string): str
 export function incrementalChangeStalenessIndexDir(
   runOwnedRoot: string,
   scenarioId: string,
-  treatmentId: IncrementalChangeStalenessTreatmentId,
+  treatmentId: IncrementalChangeStalenessV2TreatmentId,
   role: IncrementalChangeStalenessIndexRole
 ): string {
   return resolveWithinRoot(path.resolve(runOwnedRoot), path.join("indexes", scenarioId, treatmentId, role));
@@ -88,20 +90,86 @@ export function incrementalChangeStalenessIndexDir(
 export function incrementalChangeStalenessCommandsDir(
   runOwnedRoot: string,
   scenarioId: string,
-  treatmentId: IncrementalChangeStalenessTreatmentId,
+  treatmentId: IncrementalChangeStalenessV2TreatmentId,
   role: IncrementalChangeStalenessIndexRole
 ): string {
   return resolveWithinRoot(path.resolve(runOwnedRoot), path.join("commands", scenarioId, treatmentId, role));
 }
 
-class LifecycleFailure extends Error {
+export class LifecycleFailure extends Error {
   constructor(readonly failure: IncrementalChangeStalenessLifecycleFailureV1) {
     super(failure.message);
   }
 }
 
-function fail(failure: IncrementalChangeStalenessLifecycleFailureV1 | null): void {
+export function fail(failure: IncrementalChangeStalenessLifecycleFailureV1 | null): void {
   if (failure) throw new LifecycleFailure(failure);
+}
+
+/**
+ * Shared by the v0.6.2 and v0.6.3 lifecycles: runs the index through the established warm-index
+ * session owner (index -> version probe -> snapshot -> graph), then proves target/index identity.
+ * `mode` defaults to an ordinary full build. The index directory must be absent unless
+ * `existingIndexDir` is set (an in-place refresh of an already-cloned baseline).
+ */
+export async function prepareTreatmentIndexEvidence(params: {
+  deps: IncrementalChangeStalenessLifecycleDeps;
+  runOwnedRoot: string;
+  scenarioId: string;
+  kitCommand: string;
+  sourceRoots: readonly string[];
+  target: DisposableTreatmentTargetV1<IncrementalChangeStalenessV2TreatmentId>;
+  role: IncrementalChangeStalenessIndexRole;
+  indexDir: string;
+  mode?: MyDevKitIndexBuildMode;
+  existingIndexDir?: boolean;
+  /** Called once the index, snapshot, and graph are all ready, before identity is proven. */
+  onIndexPrepared?: () => void;
+}): Promise<{ evidence: IncrementalChangeStalenessIndexEvidenceV1<IncrementalChangeStalenessV2TreatmentId>; build: MyDevKitIndexBuildResult }> {
+  const { deps, target, role, indexDir, sourceRoots } = params;
+  const treatmentId = target.treatmentId;
+  if (params.existingIndexDir ? !existsSync(indexDir) : existsSync(indexDir)) {
+    fail({
+      code: "index-directory-collision",
+      message: params.existingIndexDir
+        ? `Expected an existing cloned ${treatmentId} ${role} index directory: ${indexDir}.`
+        : `Refusing to overwrite existing ${treatmentId} ${role} index directory: ${indexDir}.`,
+      treatmentId
+    });
+  }
+  const commandsDir = incrementalChangeStalenessCommandsDir(params.runOwnedRoot, params.scenarioId, treatmentId, role);
+  const prepared = await deps.prepareIndexSession({
+    target: { absoluteTargetRoot: target.targetRoot, sourceRoots: [...sourceRoots] },
+    kitCommand: params.kitCommand,
+    indexDir,
+    commandsDir,
+    requireKit: false,
+    ...(params.mode ? { mode: params.mode } : {})
+  });
+  if (!prepared.ok) {
+    fail({
+      code: role === "baseline" ? "baseline-index-build-failed" : "refresh-index-build-failed",
+      message: `${treatmentId} ${role} my-dev-kit index build failed: ${prepared.warnings.join(" ") || `exit code ${prepared.build.command.exitCode}`}`,
+      treatmentId
+    });
+    throw new Error("unreachable");
+  }
+  params.onIndexPrepared?.();
+  const evidence: IncrementalChangeStalenessIndexEvidenceV1<IncrementalChangeStalenessV2TreatmentId> = Object.freeze({
+    role,
+    treatmentId,
+    builtRelativeToMutation: role === "baseline" ? ("pre-mutation" as const) : ("post-mutation" as const),
+    indexDir: prepared.session.indexDir,
+    commandsDir,
+    targetRoot: prepared.session.targetRoot,
+    sourceRoots: prepared.session.sourceRoots,
+    buildDurationMs: prepared.session.buildDurationMs,
+    buildCommand: prepared.session.buildCommand,
+    snapshot: prepared.session.indexSnapshot,
+    graph: prepared.session.affectedNeighborhoodGraph
+  });
+  fail(evaluateIndexEvidence(evidence, { targetRoot: target.targetRoot, sourceRoots, indexDir }));
+  return { evidence, build: prepared.build };
 }
 
 /**
@@ -149,42 +217,23 @@ export async function prepareIncrementalChangeStalenessScenarioLifecycle(
     if (existsSync(indexDir)) {
       fail({ code: "index-directory-collision", message: `Refusing to overwrite existing ${treatmentId} ${role} index directory: ${indexDir}.`, treatmentId });
     }
-    const commandsDir = incrementalChangeStalenessCommandsDir(runOwnedRoot, scenario.id, treatmentId, role);
     indexBuildCounts[treatmentId] += 1;
-    const prepared = await deps.prepareIndexSession({
-      target: { absoluteTargetRoot: target.targetRoot, sourceRoots: [...sourceRoots] },
+    const { evidence } = await prepareTreatmentIndexEvidence({
+      deps,
+      runOwnedRoot,
+      scenarioId: scenario.id,
       kitCommand,
-      indexDir,
-      commandsDir,
-      requireKit: false
-    });
-    if (!prepared.ok) {
-      fail({
-        code: role === "baseline" ? "baseline-index-build-failed" : "refresh-index-build-failed",
-        message: `${treatmentId} ${role} my-dev-kit index build failed: ${prepared.warnings.join(" ") || `exit code ${prepared.build.command.exitCode}`}`,
-        treatmentId
-      });
-      throw new Error("unreachable");
-    }
-    // prepareIndexSession resolves only after the index command, snapshot capture, and graph
-    // loading have all completed, in that order.
-    events.push(`${treatmentId}:${role}-index-built`, `${treatmentId}:${role}-snapshot-captured`, `${treatmentId}:${role}-graph-loaded`);
-    const evidence: IncrementalChangeStalenessIndexEvidenceV1 = Object.freeze({
+      sourceRoots,
+      target,
       role,
-      treatmentId,
-      builtRelativeToMutation: role === "baseline" ? "pre-mutation" : "post-mutation",
-      indexDir: prepared.session.indexDir,
-      commandsDir,
-      targetRoot: prepared.session.targetRoot,
-      sourceRoots: prepared.session.sourceRoots,
-      buildDurationMs: prepared.session.buildDurationMs,
-      buildCommand: prepared.session.buildCommand,
-      snapshot: prepared.session.indexSnapshot,
-      graph: prepared.session.affectedNeighborhoodGraph
+      indexDir,
+      // prepareIndexSession resolves only after the index command, snapshot capture, and graph
+      // loading have all completed, in that order.
+      onIndexPrepared: () =>
+        events.push(`${treatmentId}:${role}-index-built`, `${treatmentId}:${role}-snapshot-captured`, `${treatmentId}:${role}-graph-loaded`)
     });
-    fail(evaluateIndexEvidence(evidence, { targetRoot: target.targetRoot, sourceRoots, indexDir }));
     events.push(`${treatmentId}:${role}-identity-verified`);
-    return evidence;
+    return evidence as IncrementalChangeStalenessIndexEvidenceV1;
   }
 
   async function captureState(target: DisposableTreatmentTargetV1): Promise<IncrementalChangeStalenessSourceStateV1> {
