@@ -162,6 +162,8 @@ export type IncrementalFakeKitOptions = {
   refresh?: Partial<Record<"changed-files" | "affected-neighborhood", FakeRefreshBehavior>>;
   /** A full (non-incremental) index whose --out contains this text fails. */
   failFullWhenOutContains?: string;
+  /** `search` returns this single file when the --index path contains the given text (otherwise no candidates). */
+  searchMap?: Array<{ whenIndexDirContains: string; file: string; symbol: string }>;
 };
 
 /**
@@ -186,6 +188,12 @@ export function writeIncrementalLifecycleFakeKit(
       `import { spawnSync } from "node:child_process";`,
       `const options = ${JSON.stringify(options)};`,
       `const args = process.argv.slice(2);`,
+      `if (args[0] === "search" && options.searchMap) {`,
+      `  const indexDir = String(args[args.indexOf("--index") + 1]).split(String.fromCharCode(92)).join("/");`,
+      `  const matched = options.searchMap.find((entry) => indexDir.includes(entry.whenIndexDirContains));`,
+      `  console.log(JSON.stringify({ results: matched ? [{ nodeId: "file:" + matched.file, file: matched.file, symbol: matched.symbol }] : [] }));`,
+      `  process.exit(0);`,
+      `}`,
       `if (args[0] !== "index") { const r = spawnSync(process.execPath, [${JSON.stringify(graphScript)}, ...args], { stdio: "inherit" }); process.exit(r.status ?? 1); }`,
       `fs.appendFileSync(${JSON.stringify(argsLogPath)}, JSON.stringify(args) + "\\n");`,
       `const out = args[args.indexOf("--out") + 1];`,

@@ -120,7 +120,7 @@ export type IncrementalChangeStalenessExecutionArtifactV1 = {
   summary: IncrementalChangeStalenessExecutionSummaryV1;
 };
 
-function sortedUnique(values: readonly string[]): string[] {
+export function sortedUnique(values: readonly string[]): string[] {
   return [...new Set(values)].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
@@ -137,7 +137,7 @@ function summarizeCommand(command: MeasuredCommandResult): IncrementalChangeStal
   };
 }
 
-function summarizeRetrieval(treatment: IncrementalChangeStalenessTreatmentExecutionV1): IncrementalChangeStalenessRetrievalSummaryV1 {
+export function summarizeRetrieval(treatment: Pick<IncrementalChangeStalenessTreatmentExecutionV1, "retrieval" | "retrievalStatus">): IncrementalChangeStalenessRetrievalSummaryV1 {
   const retrieval = treatment.retrieval;
   if (!retrieval) {
     return {
@@ -170,7 +170,7 @@ function summarizeRetrieval(treatment: IncrementalChangeStalenessTreatmentExecut
   };
 }
 
-function summarizeFakeAgent(treatment: IncrementalChangeStalenessTreatmentExecutionV1): IncrementalChangeStalenessFakeAgentSummaryV1 {
+export function summarizeFakeAgent(treatment: Pick<IncrementalChangeStalenessTreatmentExecutionV1, "fakeAgent">): IncrementalChangeStalenessFakeAgentSummaryV1 {
   if (!treatment.fakeAgent) return null;
   const agent = treatment.fakeAgent;
   return {
@@ -183,7 +183,7 @@ function summarizeFakeAgent(treatment: IncrementalChangeStalenessTreatmentExecut
   };
 }
 
-function summarizeRequiredFileEvidence(evidence: RequiredFileEvidenceV1): RequiredFileEvidenceV1 {
+export function summarizeRequiredFileEvidence(evidence: RequiredFileEvidenceV1): RequiredFileEvidenceV1 {
   return {
     status: evidence.status,
     requiredFiles: sortedUnique(evidence.requiredFiles),
