@@ -5,6 +5,8 @@ export type ContextFitStatus = "fits" | "context-too-large";
 
 export type ContextWindowScalingConfig = {
   contextBudgets: ContextBudgetTokens[];
+  /** my-dev-kit command used for my-dev-kit-guided retrieval. */
+  kitCommand: string;
 };
 
 /** Compact per-(treatment, budget) evidence; the persisted artifact schema belongs to a later batch. */

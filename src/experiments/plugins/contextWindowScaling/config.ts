@@ -7,6 +7,7 @@ const MAX_REPORTED_INVALID_BUDGETS = 5;
 
 export const defaultContextWindowScalingConfig: ContextWindowScalingConfig = {
   contextBudgets: [...STANDARD_CONTEXT_BUDGETS],
+  kitCommand: "npx @dailephd/my-dev-kit@latest",
 };
 
 export const contextWindowScalingConfigDefinition: ExperimentConfigDefinition = {
@@ -18,6 +19,7 @@ export const contextWindowScalingConfigDefinition: ExperimentConfigDefinition = 
         "Estimated-context-token budgets (positive safe integers, no duplicates). Defaults to 8192, 16384, 32768, 65536.",
       defaultValue: [...STANDARD_CONTEXT_BUDGETS],
     },
+    { name: "kitCommand", type: "string", description: "my-dev-kit command used for my-dev-kit-guided retrieval." },
   ],
 };
 
@@ -78,9 +80,18 @@ export function validateContextWindowScalingConfig(
       `Unsupported context-window-scaling config field(s): ${unsupported.sort().join(", ")}.`,
     ]);
   }
-  if (config === undefined || config.contextBudgets === undefined) {
-    return validExperimentConfig({ contextBudgets: [...STANDARD_CONTEXT_BUDGETS] });
+  const errors: string[] = [];
+  const kitCommand = config?.kitCommand ?? defaultContextWindowScalingConfig.kitCommand;
+  if (typeof kitCommand !== "string" || !kitCommand.trim()) {
+    errors.push("kitCommand must be a non-empty string.");
   }
-  const { budgets, errors } = validateContextBudgets(config.contextBudgets);
-  return errors.length > 0 ? invalidExperimentConfig(errors) : validExperimentConfig({ contextBudgets: budgets });
+  let contextBudgets = [...STANDARD_CONTEXT_BUDGETS];
+  if (config?.contextBudgets !== undefined) {
+    const validated = validateContextBudgets(config.contextBudgets);
+    errors.push(...validated.errors);
+    contextBudgets = validated.budgets;
+  }
+  return errors.length > 0
+    ? invalidExperimentConfig(errors)
+    : validExperimentConfig({ contextBudgets, kitCommand: kitCommand as string });
 }
