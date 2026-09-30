@@ -395,7 +395,7 @@ Current implemented commands:
 - `npm run experiment:describe -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment warm-index-reuse`
-- `npm run experiment:run -- --experiment incremental-change-staleness` (v0.6.2)
+- `npm run experiment:run -- --experiment incremental-change-staleness` (introduced in v0.6.2; four-treatment behavior in v0.6.3)
 - `npm run run-controlled-experiment`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`
