@@ -236,7 +236,7 @@ Released in v0.6.1. It extends the warm-index workflow above without any new com
 
 **Completion (additional):** when the evidence is present, the report contains the affected-neighborhood summary and per-task entries, each benchmark project still shows exactly one index setup and one graph load, and the assessment has not changed any run, task, or provider status.
 
-## Incremental-change and staleness experiment (v0.6.2)
+## Incremental-change and staleness experiment (introduced in v0.6.2; four-treatment workflow in v0.6.3)
 
 This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the current v0.6.3 release runs four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
 
