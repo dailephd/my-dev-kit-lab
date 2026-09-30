@@ -630,7 +630,7 @@ The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affecte
 
 **Report presentation.** `report.incrementalChangeStaleness` holds `scenarioCount`, `readyScenarioCount`, `failedScenarioCount`, `observedStaleRegressionCount`, `noObservedStaleRegressionCount`, `inconclusiveCount`, per-scenario evidence (lifecycle, both treatments in order, and the comparison), and fixed limitations text. There is no overall score, grade, winner, best-treatment, or safe-to-skip-reindex field anywhere in the report or the persisted execution artifact.
 
-### Partial-refresh treatment evidence (v0.6.3, implemented; unreleased)
+### Partial-refresh treatment evidence (v0.6.3, current release)
 
 The `incremental-change-staleness` plugin now compares four treatments (`stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, `full-refresh`). It defines no new formula. Two evidence families must not be merged:
 

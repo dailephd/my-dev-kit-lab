@@ -238,7 +238,7 @@ Released in v0.6.1. It extends the warm-index workflow above without any new com
 
 ## Incremental-change and staleness experiment (v0.6.2)
 
-This is the current source workflow. The released v0.6.2 ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 work (unreleased) runs four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
+This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the current v0.6.3 release runs four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
 
 **Goal:** compare matched `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, and `full-refresh` treatment evidence after the same deterministic controlled source change, using the six frozen scenario families, without changing the released `warm-index-reuse` experiment. `full-refresh` is a comparison reference, not a preferred treatment.
 
@@ -612,7 +612,7 @@ Run safe command discovery/help smokes for changed command families and any rele
 
 **Completion:** the worktree is clean, package/release metadata is internally consistent, required checks pass, and no generated report or local artifact is staged.
 
-When the local CodeQL CLI preflight is skipped, pre-release readiness still requires a successful GitHub CodeQL advanced-setup analysis for the exact candidate SHA, recorded Code Scanning analyses for both configured languages (`javascript-typescript` and `actions`), and review of open applicable CodeQL alerts. Verify the analyses through GitHub's code-scanning analysis API or an equivalent `gh` query, including the candidate SHA/ref and analysis categories; workflow success alone is insufficient. An unresolved alert must be surfaced for explicit classification or correction; do not auto-dismiss it. The R5 readiness run requires all three workflow families: [`ci.yml`](../.github/workflows/ci.yml), [`pre-release-latest-node-readiness.yml`](../.github/workflows/pre-release-latest-node-readiness.yml), and [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml). GitHub default setup does not need to be enabled when this advanced-setup workflow is used.
+When the local CodeQL CLI preflight is skipped, pre-release readiness still requires a successful GitHub CodeQL advanced-setup analysis for the exact candidate SHA, recorded Code Scanning analyses for both configured languages (`javascript-typescript` and `actions`), and review of open applicable CodeQL alerts. Verify the analyses through GitHub's code-scanning analysis API or an equivalent `gh` query, including the candidate SHA/ref and analysis categories; workflow success alone is insufficient. An unresolved alert must be surfaced for explicit classification or correction; do not auto-dismiss it. A complete readiness run requires all three workflow families: [`ci.yml`](../.github/workflows/ci.yml), [`pre-release-latest-node-readiness.yml`](../.github/workflows/pre-release-latest-node-readiness.yml), and [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml). GitHub default setup does not need to be enabled when this advanced-setup workflow is used.
 
 ## Release preparation and publication
 

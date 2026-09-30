@@ -241,7 +241,7 @@ A `--campaign` run requires a locally configured Codex or Claude provider CLI ma
 
 See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#real-agent-warm-index-campaign-v052) for the real-agent campaign procedure.
 
-#### `incremental-change-staleness` (v0.6.2; four treatments since v0.6.3, unreleased)
+#### `incremental-change-staleness` (introduced in v0.6.2; four-treatment behavior in v0.6.3)
 
 ```text
 my-dev-kit-lab experiment describe --experiment incremental-change-staleness

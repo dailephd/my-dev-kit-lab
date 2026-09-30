@@ -366,9 +366,9 @@ The v0.6.3 extension of this plugin to four treatments is described in the next 
 
 The implementation intentionally inherits the current implementation costs unless measurement proves optimization is necessary: freshness re-hashes represented files at task boundaries; affected-neighborhood assessment scans approximately all retained graph edges per assessment; matched stale/full-refresh treatments multiply retrieval and evidence work; and the full-refresh treatment adds complete index builds. v0.6.2 measures/reports existing cost evidence rather than adding caches or altering released semantics.
 
-## Four-treatment partial-refresh architecture (v0.6.3, implemented; unreleased)
+## Four-treatment partial-refresh architecture (v0.6.3)
 
-Status: **implemented; unreleased**.
+Status: **released/current**.
 
 v0.6.3 extends the `incremental-change-staleness` plugin from two treatments to four. It adds no experiment plugin and no top-level command, keeps one experiment runtime, and reuses the v0.6.2 scenario catalog, bounded mutation owner, snapshot/freshness evidence, affected-neighborhood evidence, correctness scoring, and plugin report architecture.
 
