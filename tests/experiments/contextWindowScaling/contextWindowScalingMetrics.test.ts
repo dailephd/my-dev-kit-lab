@@ -206,8 +206,8 @@ describe("generic experiment metrics and plugin metadata", () => {
     expect(toAggregateExperimentMetrics(run.aggregate)).toEqual(run.metrics);
   });
 
-  it("advertises json, text, and html but not plot, and stays unregistered", () => {
-    expect(contextWindowScalingMetadata.supportedOutputs).toEqual(["json", "text", "html"]);
+  it("advertises json, text, html, and plot but not screenshot, and stays unregistered", () => {
+    expect(contextWindowScalingMetadata.supportedOutputs).toEqual(["json", "text", "html", "plot"]);
     expect(createDefaultExperimentPluginRegistry().list()).toHaveLength(3);
   });
 });
