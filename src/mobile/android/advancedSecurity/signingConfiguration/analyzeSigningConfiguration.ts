@@ -194,7 +194,7 @@ export function analyzeModuleSigningConfiguration(
   const buildFileAbsolutePath = path.join(targetRoot, buildFileRelativePath);
   const location = loc(targetRoot, buildFileAbsolutePath);
 
-  const signingConfigs = extractSigningConfigurations(buildFileText);
+  const signingConfigs = extractSigningConfigurations(buildFileText, { sourcePath: location.path });
   const literalCredentialConfigNames = new Set<string>();
 
   for (const config of signingConfigs) {

@@ -29,6 +29,13 @@ describe("makeCandidateEvidence", () => {
     expect(first.id).not.toBe(second.id);
   });
 
+  it("produces distinct stable ids for different values at the same location", () => {
+    const first = makeCandidateEvidence({ ...baseInput, rawValue: "FAKE-TOKEN-VALUE-0000000000" });
+    const second = makeCandidateEvidence({ ...baseInput, rawValue: "FAKE-TOKEN-VALUE-1111111111" });
+    expect(first.id).not.toBe(second.id);
+    expect(first.id).toBe(makeCandidateEvidence({ ...baseInput, rawValue: "FAKE-TOKEN-VALUE-0000000000" }).id);
+  });
+
   it("never stores the raw value on the returned object", () => {
     const rawValue = "FAKE-TOKEN-VALUE-0000000000";
     const evidence = makeCandidateEvidence({ ...baseInput, rawValue });

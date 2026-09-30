@@ -88,11 +88,20 @@ function collectJsonCandidates(text: string): string[] {
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     candidates.push(trimmed);
   }
-  for (const match of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
-    const body = match[1]?.trim();
+  let cursor = 0;
+  while (cursor < text.length) {
+    const opening = text.indexOf("```", cursor);
+    if (opening < 0) break;
+    let bodyStart = opening + 3;
+    if (text.slice(bodyStart, bodyStart + 4).toLowerCase() === "json") bodyStart += 4;
+    while (bodyStart < text.length && isWhitespace(text[bodyStart]!)) bodyStart += 1;
+    const closing = text.indexOf("```", bodyStart);
+    if (closing < 0) break;
+    const body = text.slice(bodyStart, closing).trim();
     if (body?.startsWith("{")) {
       candidates.push(body);
     }
+    cursor = closing + 3;
   }
   return candidates;
 }
@@ -101,19 +110,69 @@ function collectFieldValues(text: string): Map<string, string[]> {
   const fields = new Map<string, string[]>();
   let currentKey: string | undefined;
   for (const line of text.split(/\r?\n/)) {
-    const fieldMatch = line.match(/^\s*(?:[-*]\s*)?(?:[*_`]{0,2})([A-Za-z][A-Za-z0-9 _-]{1,40})(?:[*_`]{0,2})\s*:\s*(.*)$/);
-    if (fieldMatch) {
-      currentKey = normalizeKey(fieldMatch[1]);
+    const field = parseStructuredFieldLine(line);
+    if (field) {
+      currentKey = normalizeKey(field.label);
       const current = fields.get(currentKey) ?? [];
-      current.push(stripMarkupOnlyValue(fieldMatch[2] ?? ""));
+      current.push(stripMarkupOnlyValue(field.value));
       fields.set(currentKey, current);
       continue;
     }
-    if (currentKey && (/^\s+[-*]?\s*\S/.test(line) || /^\s*[-*]\s+\S/.test(line))) {
-      fields.get(currentKey)?.push(line.trim().replace(/^[-*]\s*/, ""));
+    if (currentKey) {
+      const continuation = parseFieldContinuation(line);
+      if (continuation !== undefined) fields.get(currentKey)?.push(continuation);
     }
   }
   return fields;
+}
+
+function isWhitespace(character: string): boolean {
+  return character.trim().length === 0;
+}
+
+function parseStructuredFieldLine(line: string): { label: string; value: string } | undefined {
+  let start = 0;
+  while (start < line.length && isWhitespace(line[start]!)) start += 1;
+  if (line[start] === "-" || line[start] === "*") {
+    start += 1;
+    while (start < line.length && isWhitespace(line[start]!)) start += 1;
+  }
+  let leadingMarkup = 0;
+  while (start < line.length && leadingMarkup < 2 && "*_`".includes(line[start]!)) { start += 1; leadingMarkup += 1; }
+  const colon = line.indexOf(":", start);
+  if (colon < 0) return undefined;
+  let labelEnd = colon;
+  let trailingMarkup = 0;
+  while (labelEnd > start && trailingMarkup < 2 && "*_`".includes(line[labelEnd - 1]!)) { labelEnd -= 1; trailingMarkup += 1; }
+  const label = line.slice(start, labelEnd);
+  if (label.length < 2 || label.length > 41 || !isAsciiLetter(label[0]!)) return undefined;
+  for (let index = 1; index < label.length; index += 1) {
+    const character = label[index]!;
+    if (!isAsciiLetter(character) && !(character >= "0" && character <= "9") && character !== " " && character !== "_" && character !== "-") return undefined;
+  }
+  let valueStart = colon + 1;
+  while (valueStart < line.length && isWhitespace(line[valueStart]!)) valueStart += 1;
+  return { label, value: line.slice(valueStart) };
+}
+
+function isAsciiLetter(character: string): boolean {
+  return (character >= "a" && character <= "z") || (character >= "A" && character <= "Z");
+}
+
+function parseFieldContinuation(line: string): string | undefined {
+  let index = 0;
+  while (index < line.length && isWhitespace(line[index]!)) index += 1;
+  const indented = index > 0;
+  if (index === line.length) return undefined;
+  if (line[index] === "-" || line[index] === "*") {
+    index += 1;
+    const whitespaceStart = index;
+    while (index < line.length && isWhitespace(line[index]!)) index += 1;
+    if ((!indented && index === whitespaceStart) || index === line.length) return undefined;
+    return line.slice(index).trim();
+  }
+  if (!indented) return undefined;
+  return line.slice(index).trim();
 }
 
 function parseMarkdownSection(text: string, headings: string[]): string[] {
@@ -121,25 +180,54 @@ function parseMarkdownSection(text: string, headings: string[]): string[] {
   const values: string[] = [];
   let inSection = false;
   for (const line of lines) {
-    const heading = line.match(/^\s*#{1,6}\s*(.+?)\s*$/);
-    if (heading) {
-      inSection = headings.some((candidate) => normalizeKey(candidate) === normalizeKey(heading[1]));
+    const heading = parseMarkdownHeading(line);
+    if (heading !== undefined) {
+      inSection = headings.some((candidate) => normalizeKey(candidate) === normalizeKey(heading));
       continue;
     }
     if (!inSection) {
       continue;
     }
-    if (/^\s*#{1,6}\s+/.test(line)) {
+    if (isMarkdownHeading(line)) {
       break;
     }
-    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
-    if (bullet) {
-      values.push(bullet[1].trim());
+    const bullet = parseMarkdownBullet(line);
+    if (bullet !== undefined) {
+      values.push(bullet);
     } else if (line.includes(",")) {
       values.push(...splitListValues([line]));
     }
   }
   return unique(values);
+}
+
+function parseMarkdownHeading(line: string): string | undefined {
+  let index = 0;
+  while (index < line.length && isWhitespace(line[index]!)) index += 1;
+  const hashStart = index;
+  while (index < line.length && line[index] === "#" && index - hashStart < 6) index += 1;
+  if (index === hashStart || (index < line.length && line[index] === "#")) return undefined;
+  const heading = line.slice(index).trim();
+  return heading.length > 0 ? heading : undefined;
+}
+
+function isMarkdownHeading(line: string): boolean {
+  let index = 0;
+  while (index < line.length && isWhitespace(line[index]!)) index += 1;
+  const start = index;
+  while (index < line.length && line[index] === "#" && index - start < 6) index += 1;
+  return index > start && index < line.length && isWhitespace(line[index]!);
+}
+
+function parseMarkdownBullet(line: string): string | undefined {
+  let index = 0;
+  while (index < line.length && isWhitespace(line[index]!)) index += 1;
+  if (line[index] !== "-" && line[index] !== "*") return undefined;
+  index += 1;
+  if (index >= line.length || !isWhitespace(line[index]!)) return undefined;
+  while (index < line.length && isWhitespace(line[index]!)) index += 1;
+  const content = line.slice(index).trim();
+  return content.length > 0 ? content : undefined;
 }
 
 function enrichFacts(parsed: ParsedAgentAnswer, text: string, answerKey?: BenchmarkTaskAnswerKey): ParsedAgentAnswer {
@@ -188,15 +276,43 @@ function splitListValues(values: string[] | undefined): string[] {
 }
 
 function cleanListItem(value: string): string {
-  const codeSpan = value.match(/`([^`]+)`/);
-  const cleaned = (codeSpan?.[1] ?? value)
-    .trim()
-    .replace(/^[-*]\s*/, "")
-    .replace(/^["'`]+|["'`.]+$/g, "")
-    .replace(/\s+[--]\s+.*$/g, "")
-    .replace(/\s+[-–—]\s+.*$/g, "")
-    .trim();
-  return cleaned;
+  let source = value;
+  let searchFrom = 0;
+  while (searchFrom < value.length) {
+    const open = value.indexOf("`", searchFrom);
+    if (open < 0) break;
+    const close = value.indexOf("`", open + 1);
+    if (close < 0) break;
+    if (close > open + 1) {
+      source = value.slice(open + 1, close);
+      break;
+    }
+    searchFrom = close + 1;
+  }
+  let start = 0;
+  let end = source.length;
+  while (start < end && isWhitespace(source[start]!)) start += 1;
+  while (end > start && isWhitespace(source[end - 1]!)) end -= 1;
+  if (source[start] === "-" || source[start] === "*") {
+    start += 1;
+    while (start < end && isWhitespace(source[start]!)) start += 1;
+  }
+  while (start < end && (source[start] === '"' || source[start] === "'" || source[start] === "`")) start += 1;
+  while (end > start && (source[end - 1] === '"' || source[end - 1] === "'" || source[end - 1] === "`" || source[end - 1] === ".")) end -= 1;
+  let whitespaceStart = -1;
+  for (let index = start; index < end; index += 1) {
+    const character = source[index]!;
+    if (isWhitespace(character)) {
+      if (whitespaceStart < 0) whitespaceStart = index;
+      continue;
+    }
+    if ((character === "-" || character === "–" || character === "—") && whitespaceStart >= start && index + 1 < end && isWhitespace(source[index + 1]!)) {
+      end = whitespaceStart;
+      break;
+    }
+    whitespaceStart = -1;
+  }
+  return source.slice(start, end).trim();
 }
 
 function stripMarkupOnlyValue(value: string): string {

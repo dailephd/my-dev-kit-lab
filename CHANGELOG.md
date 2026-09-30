@@ -8,6 +8,8 @@ All notable changes to my-dev-kit-lab are documented here.
 
 Implemented in this repository; unreleased.
 
+- Replaced CodeQL-flagged polynomial regular-expression parsing paths with linear scanning and strengthened credential evidence fingerprints with context-salted scrypt derivation.
+
 - Extended the `incremental-change-staleness` plugin from two treatments to four, in fixed order: `stale-index` (`my-dev-kit-no-refresh`), `changed-files-refresh` (`my-dev-kit-changed-files-refresh`), `affected-neighborhood-refresh` (`my-dev-kit-affected-neighborhood-refresh`), and `full-refresh` (`my-dev-kit-full-refresh`). No new experiment plugin was added.
 - Changed the default kit command of `incremental-change-staleness` from `npx @dailephd/my-dev-kit@1.12.4` to `npx @dailephd/my-dev-kit@1.12.5`, the first published version with `index --incremental --refresh-scope changed-files|affected-neighborhood`. Lab requests the scope internally; no Lab-level `--refresh-scope` flag exists.
 - Added a four-treatment lifecycle: four isolated disposable targets, equivalent trusted baselines, containment-checked whole-directory index clones for the two partial treatments, a mutation barrier, and per-treatment freshness validation. `stale-index` performs no post-mutation index invocation.

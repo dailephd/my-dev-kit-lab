@@ -2,6 +2,8 @@
 
 This document records the repository's operational state. It is the source of truth for what is implemented, planned, blocked, validated, and next.
 
+- The v0.6.3 R5 readiness run established real CodeQL analysis and found eight applicable high-security-severity alerts. A focused security correction addresses those findings; full pre-release readiness R6 remains required afterward.
+
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`

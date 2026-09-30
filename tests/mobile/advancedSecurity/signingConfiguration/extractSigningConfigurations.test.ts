@@ -4,12 +4,13 @@ import { describe, expect, it } from "vitest";
 import { extractSigningConfigurations } from "../../../../src/mobile/android/advancedSecurity/signingConfiguration/extractSigningConfigurations.js";
 
 const FIXTURES_ROOT = path.resolve("tests/fixtures/android/advanced-security-fixtures/secret-candidates");
+const FINGERPRINT_CONTEXT = { sourcePath: "app/build.gradle" };
 
 // ANDROID-V041-B4-30 — Groovy signing config literal extraction (existing Batch 1 fixture).
 describe("extractSigningConfigurations — Groovy (existing fixture)", () => {
   it("classifies storeFile/storePassword/keyAlias/keyPassword from the Batch 1 build.gradle fixture", () => {
     const text = fs.readFileSync(path.join(FIXTURES_ROOT, "build.gradle"), "utf8");
-    const configs = extractSigningConfigurations(text);
+    const configs = extractSigningConfigurations(text, FINGERPRINT_CONTEXT);
     expect(configs).toHaveLength(1);
     const release = configs[0];
     expect(release.name).toBe("release");
@@ -23,7 +24,7 @@ describe("extractSigningConfigurations — Groovy (existing fixture)", () => {
 
   it("never includes the raw storePassword/keyPassword literal anywhere in the returned object", () => {
     const text = fs.readFileSync(path.join(FIXTURES_ROOT, "build.gradle"), "utf8");
-    const configs = extractSigningConfigurations(text);
+    const configs = extractSigningConfigurations(text, FINGERPRINT_CONTEXT);
     const serialized = JSON.stringify(configs);
     expect(serialized).not.toContain("FAKE-KEYSTORE-PASSWORD-0000");
     expect(serialized).not.toContain("FAKE-KEY-PASSWORD-0000");
@@ -34,7 +35,7 @@ describe("extractSigningConfigurations — Groovy (existing fixture)", () => {
 describe("extractSigningConfigurations — Kotlin DSL (existing fixture)", () => {
   it("classifies storeFile/storePassword/keyAlias/keyPassword from the Batch 1 build.gradle.kts fixture", () => {
     const text = fs.readFileSync(path.join(FIXTURES_ROOT, "build.gradle.kts"), "utf8");
-    const configs = extractSigningConfigurations(text);
+    const configs = extractSigningConfigurations(text, FINGERPRINT_CONTEXT);
     expect(configs).toHaveLength(1);
     const release = configs.find((c) => c.name === "release")!;
     expect(release.storeFile.state).toBe("literal");
@@ -47,7 +48,7 @@ describe("extractSigningConfigurations — Kotlin DSL (existing fixture)", () =>
 describe("extractSigningConfigurations — expression classification", () => {
   it("classifies System.getenv as environment-reference, never a literal", () => {
     const configs = extractSigningConfigurations(
-      `android { signingConfigs { release { storePassword System.getenv("STORE_PASSWORD") } } }`
+      `android { signingConfigs { release { storePassword System.getenv("STORE_PASSWORD") } } }`, FINGERPRINT_CONTEXT
     );
     expect(configs[0].storePassword.state).toBe("environment-reference");
     expect(configs[0].storePassword.redactedPreview).toBeUndefined();
@@ -56,30 +57,30 @@ describe("extractSigningConfigurations — expression classification", () => {
 
   it("classifies a Gradle property lookup as gradle-property-reference", () => {
     const configs = extractSigningConfigurations(
-      `android { signingConfigs { release { storePassword project.findProperty("storePassword") } } }`
+      `android { signingConfigs { release { storePassword project.findProperty("storePassword") } } }`, FINGERPRINT_CONTEXT
     );
     expect(configs[0].storePassword.state).toBe("gradle-property-reference");
   });
 
   it("classifies a bare variable reference distinctly from a literal", () => {
-    const configs = extractSigningConfigurations(`android { signingConfigs { release { storePassword storePasswordVar } } }`);
+    const configs = extractSigningConfigurations(`android { signingConfigs { release { storePassword storePasswordVar } } }`, FINGERPRINT_CONTEXT);
     expect(configs[0].storePassword.state).toBe("variable-reference");
   });
 
   it("reports missing when a field is absent", () => {
-    const configs = extractSigningConfigurations(`android { signingConfigs { release { keyAlias "fake-alias" } } }`);
+    const configs = extractSigningConfigurations(`android { signingConfigs { release { keyAlias "fake-alias" } } }`, FINGERPRINT_CONTEXT);
     expect(configs[0].storePassword.state).toBe("missing");
   });
 
   it("classifies enableV1Signing/V2/V3/V4 literal booleans", () => {
     const configs = extractSigningConfigurations(
-      `android { signingConfigs { release { enableV1Signing true\nenableV2Signing false } } }`
+      `android { signingConfigs { release { enableV1Signing true\nenableV2Signing false } } }`, FINGERPRINT_CONTEXT
     );
     expect(configs[0].enableV1Signing).toBe(true);
     expect(configs[0].enableV2Signing).toBe(false);
   });
 
   it("returns an empty array when there is no signingConfigs block", () => {
-    expect(extractSigningConfigurations(`android { namespace "com.example" }`)).toEqual([]);
+    expect(extractSigningConfigurations(`android { namespace "com.example" }`, FINGERPRINT_CONTEXT)).toEqual([]);
   });
 });

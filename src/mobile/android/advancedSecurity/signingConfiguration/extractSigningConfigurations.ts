@@ -6,6 +6,7 @@ import type {
   SigningExpressionState,
   SigningPathValue,
 } from "./types.js";
+import type { CandidateFingerprintContext } from "../redaction.js";
 
 // ---------------------------------------------------------------------------
 // v0.4.1 Batch 4 — static Gradle signingConfigs extraction.
@@ -59,17 +60,17 @@ function extractStoreFileValue(content: string): SigningPathValue {
   return extractPathValue(content, ["storeFile"]);
 }
 
-function extractCredentialValue(content: string, keys: string[]): SigningCredentialValue {
+function extractCredentialValue(content: string, keys: string[], context: CandidateFingerprintContext): SigningCredentialValue {
   const result = extractLiteral(content, keys);
   const state = classifyExpressionState(result);
   if (state === "literal" && result.value !== undefined) {
-    return { state, redactedPreview: redactedPreviewForCandidate(result.value), fingerprint: fingerprintCandidateValue(result.value) };
+    return { state, redactedPreview: redactedPreviewForCandidate(result.value), fingerprint: fingerprintCandidateValue(result.value, context) };
   }
   if (result.raw !== undefined) return { state, rawExpression: boundedRawExpression(result.raw) };
   return { state: "missing" };
 }
 
-function extractSigningConfigEntry(name: string, content: string): AndroidGradleSigningConfigInfo {
+function extractSigningConfigEntry(name: string, content: string, sourcePath: string): AndroidGradleSigningConfigInfo {
   const v1 = extractBooleanLiteral(content, ["enableV1Signing", "v1SigningEnabled"]);
   const v2 = extractBooleanLiteral(content, ["enableV2Signing", "v2SigningEnabled"]);
   const v3 = extractBooleanLiteral(content, ["enableV3Signing", "v3SigningEnabled"]);
@@ -78,9 +79,9 @@ function extractSigningConfigEntry(name: string, content: string): AndroidGradle
   return {
     name,
     storeFile: extractStoreFileValue(content),
-    storePassword: extractCredentialValue(content, ["storePassword"]),
+    storePassword: extractCredentialValue(content, ["storePassword"], { ruleId: "android-signing-password-literal", sourcePath, purpose: `signing-credential:${name}:storePassword` }),
     keyAlias: extractPathValue(content, ["keyAlias"]),
-    keyPassword: extractCredentialValue(content, ["keyPassword"]),
+    keyPassword: extractCredentialValue(content, ["keyPassword"], { ruleId: "android-signing-password-literal", sourcePath, purpose: `signing-credential:${name}:keyPassword` }),
     enableV1Signing: v1.value,
     enableV2Signing: v2.value,
     enableV3Signing: v3.value,
@@ -90,9 +91,9 @@ function extractSigningConfigEntry(name: string, content: string): AndroidGradle
 
 // Extracts every named entry inside a module build file's `signingConfigs { }`
 // block. Returns an empty array (never throws) when no such block exists.
-export function extractSigningConfigurations(rawBuildFileText: string): AndroidGradleSigningConfigInfo[] {
+export function extractSigningConfigurations(rawBuildFileText: string, context: { sourcePath: string }): AndroidGradleSigningConfigInfo[] {
   const text = stripComments(rawBuildFileText);
   return extractNamedSubBlocks(text, "signingConfigs")
-    .map(({ name, content }) => extractSigningConfigEntry(name, content))
+    .map(({ name, content }) => extractSigningConfigEntry(name, content, context.sourcePath))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

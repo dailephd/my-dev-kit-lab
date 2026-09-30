@@ -6,6 +6,7 @@ const SHORT_TOKEN = "abc123";
 const MULTILINE_KEY = "-----BEGIN PRIVATE KEY-----\nMIIFAKEFAKEFAKE\nMIIFAKEFAKEFAKE\n-----END PRIVATE KEY-----";
 const UNICODE_VALUE = "パスワード🔑1234567890abcdef";
 const BINARY_LIKE = "\x00\x01\x02\x03binary\x1b[31mred\x1b[0mtext";
+const FINGERPRINT_CONTEXT = { ruleId: "android-secret-test", sourcePath: "src/main/Example.kt", line: 12, column: 3, purpose: "test-value" };
 
 // ANDROID-V041-B1-05 — redaction never exposes the raw value.
 describe("redactedPreviewForCandidate — non-disclosure", () => {
@@ -56,27 +57,39 @@ describe("redactedPreviewForCandidate — non-disclosure", () => {
   });
 });
 
-// ANDROID-V041-B1-06 — stable non-reversible fingerprint.
+// ANDROID-V041-B1-06 — deterministic one-way evidence fingerprint.
 describe("fingerprintCandidateValue", () => {
   it("produces the same fingerprint for equivalent input", () => {
-    expect(fingerprintCandidateValue(LONG_TOKEN)).toBe(fingerprintCandidateValue(LONG_TOKEN));
+    expect(fingerprintCandidateValue(LONG_TOKEN, FINGERPRINT_CONTEXT)).toBe(fingerprintCandidateValue(LONG_TOKEN, FINGERPRINT_CONTEXT));
   });
 
   it("produces a different fingerprint for different input", () => {
-    expect(fingerprintCandidateValue(LONG_TOKEN)).not.toBe(fingerprintCandidateValue(SHORT_TOKEN));
+    expect(fingerprintCandidateValue(LONG_TOKEN, FINGERPRINT_CONTEXT)).not.toBe(fingerprintCandidateValue(SHORT_TOKEN, FINGERPRINT_CONTEXT));
+  });
+
+  it("separates the same value across distinct evidence contexts", () => {
+    expect(fingerprintCandidateValue(LONG_TOKEN, FINGERPRINT_CONTEXT)).not.toBe(
+      fingerprintCandidateValue(LONG_TOKEN, { ...FINGERPRINT_CONTEXT, line: 13 })
+    );
+  });
+
+  it("normalizes equivalent source path separators in the context", () => {
+    expect(fingerprintCandidateValue(LONG_TOKEN, FINGERPRINT_CONTEXT)).toBe(
+      fingerprintCandidateValue(LONG_TOKEN, { ...FINGERPRINT_CONTEXT, sourcePath: "src\\main\\Example.kt" })
+    );
   });
 
   it("never embeds the raw input in the fingerprint", () => {
-    expect(fingerprintCandidateValue(LONG_TOKEN)).not.toContain(LONG_TOKEN);
+    expect(fingerprintCandidateValue(LONG_TOKEN, FINGERPRINT_CONTEXT)).not.toContain(LONG_TOKEN);
   });
 
   it("distinguishes unavailable input from an empty literal", () => {
-    expect(fingerprintCandidateValue(undefined)).toBe("unavailable");
-    expect(fingerprintCandidateValue("")).not.toBe("unavailable");
+    expect(fingerprintCandidateValue(undefined, FINGERPRINT_CONTEXT)).toBe("unavailable");
+    expect(fingerprintCandidateValue("", FINGERPRINT_CONTEXT)).not.toBe("unavailable");
   });
 
-  it("uses a stable sha256-prefixed format", () => {
-    expect(fingerprintCandidateValue("x")).toMatch(/^sha256:[0-9a-f]{64}$/);
+  it("uses the versioned scrypt format", () => {
+    expect(fingerprintCandidateValue("x", FINGERPRINT_CONTEXT)).toMatch(/^scrypt-v1:[0-9a-f]{64}$/);
   });
 });
 
@@ -88,7 +101,7 @@ describe("redaction helpers never throw for adversarial input", () => {
     "does not throw for %s",
     (input) => {
       expect(() => redactedPreviewForCandidate(input)).not.toThrow();
-      expect(() => fingerprintCandidateValue(input)).not.toThrow();
+      expect(() => fingerprintCandidateValue(input, FINGERPRINT_CONTEXT)).not.toThrow();
     }
   );
 });
