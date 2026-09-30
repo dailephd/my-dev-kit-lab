@@ -29,7 +29,7 @@ Android validation is static and non-destructive by default. Its nineteen defaul
 | Package checks | `npm pack --dry-run` parsing and forbidden-content detection |
 | CLI adversarial checks | path boundaries, read-only boundaries, malformed artifacts, JSON output, subprocess/DOT safety, and bounded data-volume scenarios |
 | Attack scenarios | boundary, subprocess, secrets, and network scenarios with profile filtering, payload corpus, evidence, and redaction |
-| Static scans | CodeQL availability/execution integration and Semgrep integration |
+| Static scans | Local CodeQL CLI availability preflight, GitHub-hosted full CodeQL analysis, and Semgrep integration |
 | Fuzz smoke | deterministic bounded targets for security-sensitive parsers and helpers |
 | Validation gate | normalized findings, skips, four-category verdict, fail-on thresholds, verdict-impact reasoning, and text/JSON reports |
 
@@ -78,7 +78,7 @@ Target-aware behavior is implemented in:
 |---|---|
 | `npm run security:deps` | Dependency and vulnerability checks |
 | `npm run security:package` | Tarball content checks |
-| `npm run security:codeql` | CodeQL integration; structured skip when unavailable |
+| `npm run security:codeql` | Local CodeQL CLI availability/integration preflight; structured skip when unavailable |
 | `npm run security:semgrep` | Semgrep integration; structured skip when unavailable |
 | `npm run test:security` | Automated security and adversarial test suite |
 | `npm run test:fuzz:smoke` | Bounded deterministic fuzz checks |
@@ -158,6 +158,16 @@ Supported verdicts are:
 
 Optional scanners can be recorded as skipped. A skip is not silently converted into a pass, and its effect is reflected in the verdict and report.
 
+### CodeQL coverage contract
+
+CodeQL has separate local and hosted responsibilities:
+
+- **Local preflight:** `npm run security:codeql` checks whether a local CodeQL CLI can be resolved and responds to a version request. If unavailable, its result is `skipped`, never `passed`. A functional local CLI result confirms availability only; it does not build or analyze a repository database.
+- **GitHub full analysis:** [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml) uses CodeQL advanced setup for the JavaScript/TypeScript implementation and GitHub Actions workflows, then uploads analysis to GitHub Code Scanning.
+- **Release readiness:** requires a successful CodeQL workflow for the exact candidate SHA, GitHub-recorded CodeQL analyses for that SHA and expected language/category coverage, and review of open applicable CodeQL alerts. Unresolved alerts must be surfaced for explicit classification or correction; they are not auto-dismissed.
+
+The local `security:validate` verdict remains deterministic and local. `READY EXCEPT OPTIONAL MANUAL CHECKS` may include a skipped local CodeQL preflight; that verdict alone is not release-readiness evidence. Release readiness separately requires the exact-SHA GitHub analysis and alert review described above.
+
 Current attack-scenario coverage:
 - `boundary`: target sandbox, package boundary, output boundary, path traversal, config injection, report poisoning
 - `subprocess`: subprocess injection
@@ -184,7 +194,7 @@ Current report/schema details:
 - Profile-specific behavior beyond profile-based selection/default checks is not implemented.
 - Package-boundary severity is currently applied at the result level, not per evidence item.
 - Some checks depend on locally installed tools or network-backed package metadata.
-- CodeQL's full analysis can depend on the configured environment; availability checks and CI integration do not guarantee identical local coverage.
+- Local CodeQL CLI availability does not prove full analysis. The version-controlled GitHub advanced-setup workflow owns full repository analysis; each release candidate still requires its own successful run and alert review.
 - Symlink and junction scenarios can be operating-system dependent.
 - Informational architectural assertions are not equivalent to dynamic network or secret-leakage proofs.
 - Manual pentest is deferred until after `v1.0.0`. It is a human-led workflow and is not required for automated Android security validation.

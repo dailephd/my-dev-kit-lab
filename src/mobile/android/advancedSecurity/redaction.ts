@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { scryptSync } from "node:crypto";
+import path from "node:path";
 import { stripUnsafeControlChars } from "../../../securityValidation/attackScenarios/exploitEvidence.js";
 
 // ---------------------------------------------------------------------------
@@ -14,8 +15,8 @@ import { stripUnsafeControlChars } from "../../../securityValidation/attackScena
 // payload). Android candidate evidence has a different, narrower need: a
 // human reviewing a static-candidate finding benefits from a short prefix/
 // suffix so they can recognize *which* secret in their own source it is
-// without the full value ever being reconstructable — so this module adds
-// that prefix/suffix-preserving preview and a non-reversible fingerprint on
+// without retaining the full value — so this module adds that
+// prefix/suffix-preserving preview and a one-way fingerprint on
 // top of the shared control-character stripping, instead of creating a
 // second, competing full-redaction implementation.
 // ---------------------------------------------------------------------------
@@ -53,12 +54,31 @@ export function redactedPreviewForCandidate(
   return `${prefix}${MASK}${suffix}`;
 }
 
-// Stable, non-reversible fingerprint for deduplication. Uses Node's built-in
-// sha256 (no new dependency). Distinct from redactedPreviewForCandidate: the
-// fingerprint is stored for dedup, the preview is stored for human review —
-// neither one can be used to recover the raw value.
-export function fingerprintCandidateValue(input: RedactedPreviewInput): string {
+export type CandidateFingerprintContext = {
+  ruleId: string;
+  sourcePath: string;
+  line?: number;
+  column?: number;
+  purpose: string;
+};
+
+// Deterministic, one-way evidence identity. Scrypt makes guessing more costly
+// than a fast hash, but low-entropy values are not cryptographically
+// unrecoverable. The context salt separates equivalent values at distinct
+// evidence locations without storing a secret salt or the raw value.
+export function fingerprintCandidateValue(input: RedactedPreviewInput, context: CandidateFingerprintContext): string {
   if (input === undefined) return "unavailable";
-  const hash = createHash("sha256").update(input, "utf8").digest("hex");
-  return `sha256:${hash}`;
+  const contextSalt = Buffer.from(
+    JSON.stringify([
+      "my-dev-kit-lab/android-candidate-fingerprint/v2",
+      context.ruleId,
+      path.posix.normalize(context.sourcePath.replaceAll("\\", "/")),
+      context.line ?? null,
+      context.column ?? null,
+      context.purpose
+    ]),
+    "utf8"
+  );
+  const derived = scryptSync(input, contextSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
+  return `scrypt-v1:${derived.toString("hex")}`;
 }

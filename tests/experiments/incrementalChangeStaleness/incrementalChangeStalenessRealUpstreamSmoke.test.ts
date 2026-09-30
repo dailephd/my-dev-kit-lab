@@ -1,14 +1,13 @@
-import { existsSync, readdirSync } from "node:fs";
-import { rm } from "node:fs/promises";
 import path from "node:path";
+import { rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { readBenchmarkProjectProfiles } from "../../../src/evaluation/benchmarkMetadata.js";
 import { INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND } from "../../../src/experiments/plugins/incrementalChangeStaleness/config.js";
-import { executeIncrementalChangeStalenessScenario } from "../../../src/experiments/plugins/incrementalChangeStaleness/execution.js";
-import { prepareIncrementalChangeStalenessScenarioLifecycle } from "../../../src/experiments/plugins/incrementalChangeStaleness/lifecycle.js";
+import { buildIncrementalChangeStalenessExecutionArtifactV2 } from "../../../src/experiments/plugins/incrementalChangeStaleness/executionArtifactV2.js";
+import { executeIncrementalChangeStalenessScenarioV2 } from "../../../src/experiments/plugins/incrementalChangeStaleness/executionV2.js";
+import { prepareIncrementalChangeStalenessScenarioLifecycleV2 } from "../../../src/experiments/plugins/incrementalChangeStaleness/lifecycleV2.js";
 import { BENCHMARK_PROJECT_PROFILES_PATH } from "../../../src/experiments/plugins/incrementalChangeStaleness/scenarioCatalog.js";
 import {
-  EXPECTED_READY_LIFECYCLE_EVENTS,
   expectCanonicalFilesUnchanged,
   expectNoIndexOutputInCanonicalProjects,
   makeRunOwnedRoot,
@@ -17,11 +16,11 @@ import {
 } from "./lifecycleTestHelpers.js";
 
 /**
- * Focused Batch 3 compatibility smoke against the REAL published
- * `@dailephd/my-dev-kit@1.12.4` (network/npx required), for scenario L2 only.
+ * v0.6.3 real-upstream smoke against the REAL published `@dailephd/my-dev-kit@1.12.5` (network/npx
+ * required) for scenario L2 only, through the current four-treatment V2 lifecycle and execution owners.
  * Opt-in so ordinary test runs stay deterministic and offline:
  *   MY_DEV_KIT_LAB_REAL_UPSTREAM_SMOKE=1 npx vitest run <this file>
- * This is not packed-package acceptance (Batch 6).
+ * This is not packed-package acceptance: `npm run verify:packed-package` owns the six-scenario proof.
  */
 const enabled = process.env.MY_DEV_KIT_LAB_REAL_UPSTREAM_SMOKE === "1";
 
@@ -32,83 +31,33 @@ afterEach(async () => {
   expectNoIndexOutputInCanonicalProjects();
 });
 
-function commandIds(commandsDir: string): string[] {
-  return existsSync(commandsDir) ? readdirSync(commandsDir).map((name) => name.split(".")[0]).sort() : [];
-}
-
-describe.runIf(enabled)("L2 lifecycle against the real published my-dev-kit (TST-B3-054, 055)", () => {
-  it(
-    "baseline indexes -> snapshots/graphs -> mutation -> stale baseline freshness -> refreshed index -> fresh refreshed state, with no retrieval",
-    async () => {
-      const resolved = await resolveScenario("L2");
-      const runOwnedRoot = makeRunOwnedRoot(tracked, "ics-batch3-real-");
-      const result = await prepareIncrementalChangeStalenessScenarioLifecycle({
-        repoRoot,
-        runOwnedRoot,
-        scenario: resolved.scenario,
-        baseCase: resolved.baseCase,
-        kitCommand: INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND
-      });
-      if (result.status !== "ready") {
-        throw new Error(`Real upstream lifecycle failed: ${result.failure.code}: ${result.failure.message}`);
-      }
-      const session = result.session;
-      const stale = session.treatments["stale-index"];
-      const full = session.treatments["full-refresh"];
-      const controlled = resolved.scenario.mutation.files[0];
-
-      expect(session.lifecycleEvents).toEqual(EXPECTED_READY_LIFECYCLE_EVENTS);
-      expect(session.toolIdentity.availability).toBe("available");
-      expect(session.toolIdentity.version).toBe("1.12.4");
-
-      for (const baseline of [stale.changeAuthority.baselineIndex, full.changeAuthority.baselineIndex]) {
-        expect(baseline.buildCommand.ok).toBe(true);
-        expect(baseline.snapshot.status).toBe("complete");
-        expect(baseline.graph.codeGraph).not.toBeNull();
-        expect(baseline.snapshot.files.find((file) => file.path === controlled.path)?.sha256).toBe(controlled.expectedPreSha256);
-      }
-      for (const treatment of [stale, full]) {
-        expect(treatment.mutationReceipt.status).toBe("applied");
-        expect(treatment.changeAuthority.postMutationBaselineFreshness.status).toBe("stale");
-        expect(treatment.changeAuthority.postMutationBaselineFreshness.changes.map((change) => change.path)).toEqual([controlled.path]);
-      }
-      expect(stale.activeRetrieval.index).toBe(stale.changeAuthority.baselineIndex);
-      expect(stale.refreshedIndex).toBeNull();
-      expect(full.refreshedIndex.buildCommand.ok).toBe(true);
-      expect(full.refreshedIndex.snapshot.status).toBe("complete");
-      expect(full.refreshedIndex.graph.codeGraph).not.toBeNull();
-      expect(full.refreshedIndex.snapshot.files.find((file) => file.path === controlled.path)?.sha256).toBe(controlled.expectedPostSha256);
-      expect(full.refreshedFreshness.status).toBe("fresh");
-      expect(full.refreshedFreshness.changedFileCount).toBe(0);
-
-      // TST-B3-055: only `index` and `--version` ran; no search/lookup/slice/source/context.
-      for (const index of [stale.changeAuthority.baselineIndex, full.changeAuthority.baselineIndex, full.refreshedIndex]) {
-        expect(commandIds(index.commandsDir)).toEqual(["index", "index", "index", "version", "version", "version"]);
-      }
-      expect(readdirSync(path.join(runOwnedRoot, "commands", "L2", "stale-index"))).toEqual(["baseline"]);
-      expect(readdirSync(path.join(runOwnedRoot, "commands", "L2", "full-refresh")).sort()).toEqual(["baseline", "refreshed"]);
-    },
-    600_000
-  );
+describe("the default kit command", () => {
+  it("pins the published upstream that provides --refresh-scope", () => {
+    expect(INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND).toBe("npx @dailephd/my-dev-kit@1.12.5");
+  });
 });
 
-describe.runIf(enabled)("L2 Batch 4 treatment execution against the real published my-dev-kit (TST-B4-085)", () => {
+describe.runIf(enabled)("L2 four-treatment lifecycle and execution against the real published my-dev-kit 1.12.5", () => {
   it(
-    "runs stale/full-refresh retrieval, fake-agent evaluation, correctness, required-file evidence, and a comparison classification with no retry/fallback and an unchanged canonical benchmark",
+    "realizes both partial treatments with the real upstream, keeps stale as no-refresh, and builds a valid V2 artifact",
     async () => {
       const resolved = await resolveScenario("L2");
-      const runOwnedRoot = makeRunOwnedRoot(tracked, "ics-batch4-real-");
-      const lifecycle = await prepareIncrementalChangeStalenessScenarioLifecycle({
+      const runOwnedRoot = makeRunOwnedRoot(tracked, "ics-v063-real-");
+      const lifecycle = await prepareIncrementalChangeStalenessScenarioLifecycleV2({
         repoRoot,
         runOwnedRoot,
         scenario: resolved.scenario,
         baseCase: resolved.baseCase,
         kitCommand: INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND
       });
-      expect(lifecycle.status).toBe("ready");
-      const projectProfiles = await readBenchmarkProjectProfiles(path.resolve(repoRoot, BENCHMARK_PROJECT_PROFILES_PATH), repoRoot);
+      if (lifecycle.status !== "ready") {
+        throw new Error(`Real upstream lifecycle failed: ${lifecycle.failure.code}: ${lifecycle.failure.message}`);
+      }
+      expect(lifecycle.session.toolIdentity.availability).toBe("available");
+      expect(lifecycle.session.toolIdentity.version).toContain("1.12.5");
 
-      const execution = await executeIncrementalChangeStalenessScenario({
+      const projectProfiles = await readBenchmarkProjectProfiles(path.resolve(repoRoot, BENCHMARK_PROJECT_PROFILES_PATH), repoRoot);
+      const execution = await executeIncrementalChangeStalenessScenarioV2({
         repoRoot,
         scenario: resolved.scenario,
         lifecycle,
@@ -117,37 +66,37 @@ describe.runIf(enabled)("L2 Batch 4 treatment execution against the real publish
         runOwnedRoot,
         cwd: repoRoot
       });
-
       expect(execution.status).toBe("ready");
-      const stale = execution.stale!;
-      const full = execution.fullRefresh!;
+      expect(execution.treatments.map((treatment) => treatment.treatmentId)).toEqual([
+        "stale-index",
+        "changed-files-refresh",
+        "affected-neighborhood-refresh",
+        "full-refresh"
+      ]);
+      expect(execution.referenceComparisons).toHaveLength(3);
 
-      // Faithfully recorded, real evidence for both treatments.
-      expect(stale.retrieval).not.toBeNull();
-      expect(full.retrieval).not.toBeNull();
-      expect(stale.retrieval!.commands.filter((command) => command.commandId === "search")).toHaveLength(1);
-      expect(full.retrieval!.commands.filter((command) => command.commandId === "search")).toHaveLength(1);
-      expect(stale.fakeAgent).not.toBeNull();
-      expect(full.fakeAgent).not.toBeNull();
-      expect(stale.requiredFileEvidence.status).not.toBe("");
-      expect(full.requiredFileEvidence.status).not.toBe("");
-
-      // Retrieval authority: stale against the pre-mutation baseline index, full-refresh against the
-      // post-mutation refreshed index.
-      expect(lifecycle.status === "ready" && lifecycle.session.treatments["stale-index"].activeRetrieval.index.indexDir).toContain(
-        path.join("stale-index", "baseline")
-      );
-      expect(lifecycle.status === "ready" && lifecycle.session.treatments["full-refresh"].activeRetrieval.index.indexDir).toContain(
-        path.join("full-refresh", "refreshed")
-      );
-
-      // Classification follows the frozen algorithm; the observed result is empirical (not asserted).
-      expect(["observed-stale-regression", "no-observed-stale-regression", "inconclusive"]).toContain(execution.comparison.staleRiskClassification);
-      // Rule precedence is internally consistent with the two frozen comparison dimensions.
-      if (execution.comparison.correctnessRelation === "stale-worse" || execution.comparison.requiredFileEvidenceRelation === "stale-worse") {
-        expect(execution.comparison.staleRiskClassification).toBe("observed-stale-regression");
+      const byId = Object.fromEntries(execution.treatments.map((treatment) => [treatment.treatmentId, treatment]));
+      expect(byId["stale-index"].refreshExecution).toMatchObject({ kind: "no-refresh", realization: "NO_REFRESH" });
+      expect(byId["stale-index"].activeIndexPhase).toBe("baseline");
+      expect(byId["full-refresh"].refreshExecution).toMatchObject({ kind: "full", realization: "FULL_REFRESH" });
+      for (const [id, scope] of [
+        ["changed-files-refresh", "changed-files"],
+        ["affected-neighborhood-refresh", "affected-neighborhood"]
+      ] as const) {
+        const refresh = byId[id].refreshExecution;
+        expect(refresh.kind).toBe("incremental");
+        if (refresh.kind !== "incremental") continue;
+        // A real cloned baseline must be accepted as trusted: a full fallback is not partial-refresh evidence.
+        expect(refresh.realization, `${id} fallbackReason=${refresh.incrementalRefresh.fallbackReason}`).toBe("APPLIED_PARTIAL");
+        expect(refresh.incrementalRefresh).toMatchObject({ requestedScope: scope, appliedScope: scope, selectionStatus: "applied", fallbackReason: null });
+        expect(byId[id].refreshedFreshness?.status).toBe("fresh");
       }
+
+      // The artifact builder runs the production contradiction validator and never serializes an inconsistency.
+      const artifact = buildIncrementalChangeStalenessExecutionArtifactV2({ runId: "real-upstream-smoke", pluginId: "incremental-change-staleness", executions: [execution] });
+      expect(artifact.scenarios[0].treatments).toHaveLength(4);
+      expect(artifact.scenarios[0].referenceComparisons).toHaveLength(3);
     },
-    600_000
+    900_000
   );
 });

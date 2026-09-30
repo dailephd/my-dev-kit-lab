@@ -347,7 +347,7 @@ describe("experiment list/describe with warm-index-reuse", () => {
     expect(listed.experiments.map((experiment) => [experiment.id, experiment.supportedVariants])).toEqual([
       ["context-strategy-comparison", ["raw-full-file", "my-dev-kit-guided"]],
       ["warm-index-reuse", ["raw-full-file", "warm-index-reuse"]],
-      ["incremental-change-staleness", ["stale-index", "full-refresh"]],
+      ["incremental-change-staleness", ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]],
     ]);
   });
 
@@ -401,17 +401,24 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     return { code, text: stdout.join("\n") };
   }
 
-  it("documents --kit-command as warm-index-reuse only and keeps context-strategy options separate", async () => {
+  it("documents --kit-command for both supporting plugins and keeps context-strategy options separate", async () => {
     const { code, text } = await help(["experiment", "run", "--help"]);
     expect(code).toBe(0);
     const common = text.indexOf("Common options (all plugins):");
+    const kitCommand = text.indexOf("my-dev-kit command override (warm-index-reuse and incremental-change-staleness):");
     const warm = text.indexOf("warm-index-reuse only:");
     const context = text.indexOf("context-strategy-comparison only:");
     expect(common).toBeGreaterThan(-1);
+    expect(kitCommand).toBeGreaterThan(common);
     expect(warm).toBeGreaterThan(common);
     expect(context).toBeGreaterThan(warm);
+    const kitSection = text.slice(kitCommand, warm);
+    expect(kitSection).toContain("--kit-command <command>");
+    expect(kitSection).toContain("warm-index-reuse");
+    expect(kitSection).toContain("incremental-change-staleness");
+    expect(kitSection).not.toContain("warm-index-reuse only");
     const warmSection = text.slice(warm, context);
-    expect(warmSection).toContain("--kit-command <command>");
+    const normalizedWarmSection = warmSection.replace(/\s+/g, " ");
     expect(warmSection).toContain("deterministic fake agent only");
     expect(warmSection).toContain("--campaign <preset>");
     expect(warmSection).toContain("codex-full");
@@ -419,6 +426,14 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     expect(warmSection).toContain("codex-timeout-isolation");
     expect(warmSection).not.toContain("guarded");
     expect(warmSection).toContain("infrastructure status from agent/provider outcome status");
+    expect(normalizedWarmSection).toContain("campaign report screenshot is best-effort presentation");
+    expect(normalizedWarmSection).toContain("skipped or failed capture is reported explicitly");
+    expect(normalizedWarmSection).toContain("failed remains failed");
+    expect(normalizedWarmSection).toContain("no PNG is fabricated");
+    expect(normalizedWarmSection).toContain("screenshot status alone does not fail an otherwise successful campaign command");
+    expect(normalizedWarmSection).toContain("Core experiment, report,");
+    expect(normalizedWarmSection).toContain("plot, and gallery failures remain fatal");
+    expect(normalizedWarmSection).not.toContain("screenshot failure makes the command unsuccessful");
     expect(warmSection).not.toMatch(/--agents|--strategies|--complexities|--command-template/);
     const contextSection = text.slice(context);
     for (const flag of ["--agents", "--strategies", "--complexities", "--include-real-agents", "--command-template-codex", "--no-screenshot"]) {
@@ -544,14 +559,14 @@ describe("v0.5.2 Batch 4/5 -- public real-agent campaign commands and presentati
     };
   }
 
-  function failedScreenshotOptions(): RunOptions {
+  function failedScreenshotOptions(error = "forced screenshot failure"): RunOptions {
     return {
       presentation: {
         captureScreenshot: async (htmlPath: string, pngPath: string) => ({
           status: "failed" as const,
           htmlPath,
           pngPath,
-          error: "forced screenshot failure",
+          error,
         }),
       },
     };
@@ -717,7 +732,10 @@ describe("v0.5.2 Batch 4/5 -- public real-agent campaign commands and presentati
     expect(stdout).toContain(SCREENSHOT_SKIP_WARNING);
   });
 
-  it("returns exit 1 but preserves report/plots/gallery when screenshot capture fails (section 35)", async () => {
+  it.each([
+    ["generic capture failure", "forced screenshot failure"],
+    ["Chromium protocol failure", "Protocol error (Page.captureScreenshot): Unable to capture screenshot"],
+  ])("keeps the campaign successful and preserves presentation when screenshot capture has a %s", async (_label, error) => {
     const binDir = makeCampaignBin("codex-fail-bin-");
     writeFakeCodexExecutable(path.join(binDir, shimName("codex")));
     const outRoot = mkdtempSync(path.join(os.tmpdir(), "warm-public-codex-shotfail-"));
@@ -725,19 +743,20 @@ describe("v0.5.2 Batch 4/5 -- public real-agent campaign commands and presentati
     const output = captureConsole();
 
     const exitCode = await withPatchedPath(binDir, () =>
-      runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot), failedScreenshotOptions())
+      runExperimentRunCommandFromArgs(campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot), failedScreenshotOptions(error))
     );
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(0);
     expectFullCampaignTopology(outRoot, false);
     const manifest = JSON.parse(readFileSync(path.join(outRoot, "gallery", "gallery-manifest.json"), "utf8")) as {
-      items: Array<{ id: string; status: string; warnings: string[] }>;
+      items: Array<{ id: string; status: string; warnings: string[]; screenshotPath?: string }>;
     };
     expect(manifest.items[0].status).toBe("warning");
-    expect(manifest.items[0].warnings.some((warning) => warning.includes("forced screenshot failure"))).toBe(true);
+    expect(manifest.items[0].screenshotPath).toBeUndefined();
+    expect(manifest.items[0].warnings.some((warning) => warning.includes(error))).toBe(true);
     const stdout = output.stdout();
     expect(stdout).toContain("Screenshot: failed");
-    expect(stdout).toContain("forced screenshot failure");
+    expect(stdout).toContain(error);
   });
 
   it("reports a partial campaign when one provider side fails while later sides succeed, and still generates full presentation (sections 32, 36)", async () => {

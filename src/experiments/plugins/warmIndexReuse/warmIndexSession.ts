@@ -7,7 +7,7 @@ import {
   type AffectedNeighborhoodGraphEvidenceV1
 } from "../../../evaluation/affectedNeighborhood.js";
 import { captureIndexSnapshot, type IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
-import type { MyDevKitIndexBuildResult, MyDevKitIndexTarget } from "../../../evaluation/types.js";
+import type { MyDevKitIndexBuildMode, MyDevKitIndexBuildResult, MyDevKitIndexTarget } from "../../../evaluation/types.js";
 
 /**
  * One successfully prepared my-dev-kit index that later tasks receive explicitly and retrieve
@@ -35,7 +35,9 @@ export type PrepareWarmIndexSessionResult =
 
 /**
  * Builds the index once through the shared `buildMyDevKitIndex` owner. A build that reports
- * success but leaves no index directory is not treated as a prepared session.
+ * success but leaves no index directory is not treated as a prepared session. `mode` is optional
+ * and defaults to an ordinary full build; only callers that explicitly request an incremental
+ * build mode get one.
  */
 export async function prepareWarmIndexSession(options: {
   target: MyDevKitIndexTarget;
@@ -43,6 +45,7 @@ export async function prepareWarmIndexSession(options: {
   indexDir: string;
   commandsDir: string;
   requireKit: boolean;
+  mode?: MyDevKitIndexBuildMode;
 }): Promise<PrepareWarmIndexSessionResult> {
   const build = await buildMyDevKitIndex(options);
   if (!build.ok) {

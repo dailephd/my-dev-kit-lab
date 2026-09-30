@@ -93,7 +93,8 @@ function buildCandidateEvidenceId(ruleId: string, location: AndroidSourceLocatio
   const locationPart = [location.path, location.line !== undefined ? `l${location.line}` : undefined, location.column !== undefined ? `c${location.column}` : undefined]
     .filter((part): part is string => Boolean(part))
     .join(":");
-  return [ruleId, slug(locationPart), fingerprint.slice(0, 16)].join("--");
+  const payloadStart = fingerprint.indexOf(":") + 1;
+  return [ruleId, slug(locationPart), fingerprint.slice(payloadStart, payloadStart + 16)].join("--");
 }
 
 // Never accepts a raw secret value as a plain string parameter name to
@@ -101,7 +102,13 @@ function buildCandidateEvidenceId(ruleId: string, location: AndroidSourceLocatio
 // fingerprinted here, once, and the raw value is never stored on the
 // returned object.
 export function makeCandidateEvidence(input: MakeCandidateEvidenceInput): CandidateEvidence {
-  const fingerprint = fingerprintCandidateValue(input.rawValue);
+  const fingerprint = fingerprintCandidateValue(input.rawValue, {
+    ruleId: input.ruleId,
+    sourcePath: input.location.path,
+    line: input.location.line,
+    column: input.location.column,
+    purpose: "candidate-evidence"
+  });
   const redactedPreview = redactedPreviewForCandidate(input.rawValue);
   const id = buildCandidateEvidenceId(input.ruleId, input.location, fingerprint);
 

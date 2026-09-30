@@ -34,12 +34,13 @@ import type {
 } from "./scenarioTypes.js";
 import type {
   IncrementalChangeStalenessBaseCaseIdentityV1,
+  IncrementalChangeStalenessIndexEvidenceV1,
   IncrementalChangeStalenessIndexRole,
   IncrementalChangeStalenessLifecycleResultV1,
   IncrementalChangeStalenessScenarioSessionV1,
   IncrementalChangeStalenessTreatmentSessionV1
 } from "./treatmentSession.js";
-import type { IncrementalChangeStalenessTreatmentId } from "./disposableTarget.js";
+import type { IncrementalChangeStalenessTreatmentId, IncrementalChangeStalenessV2TreatmentId } from "./disposableTarget.js";
 
 // ---------------------------------------------------------------------------
 // v0.6.2 Batch 4 -- treatment retrieval, correctness, and required-file
@@ -144,7 +145,12 @@ export function buildIncrementalChangeStalenessDerivedTask(args: {
  * already-established post-mutation baseline freshness.
  */
 export function assessIncrementalChangeStalenessAffectedNeighborhood(
-  treatment: IncrementalChangeStalenessTreatmentSessionV1,
+  treatment: {
+    readonly changeAuthority: {
+      readonly baselineIndex: Pick<IncrementalChangeStalenessIndexEvidenceV1<IncrementalChangeStalenessV2TreatmentId>, "snapshot" | "graph">;
+      readonly postMutationBaselineFreshness: IndexFreshnessAssessmentV1;
+    };
+  },
   derivedTask: Pick<EvaluationCase, "expectedFiles" | "expectedSymbols">
 ): AffectedNeighborhoodAssessmentV1 {
   const changeAuthority = treatment.changeAuthority;
@@ -353,7 +359,7 @@ export type IncrementalChangeStalenessTreatmentExecutionV1 = {
   requiredFileEvidence: RequiredFileEvidenceV1;
 };
 
-function correctnessComparable(fakeAgent: IncrementalChangeStalenessFakeAgentEvidenceV1 | null): CorrectnessComparableV1 {
+export function correctnessComparable(fakeAgent: IncrementalChangeStalenessFakeAgentEvidenceV1 | null): CorrectnessComparableV1 {
   if (!fakeAgent || !fakeAgent.correctness.available || fakeAgent.correctness.score === null) {
     return { available: false };
   }
@@ -384,7 +390,7 @@ export type IncrementalChangeStalenessScenarioExecutionV1 = {
   comparison: IncrementalChangeStalenessComparisonV1;
 };
 
-const INCONCLUSIVE_NO_EXECUTION: IncrementalChangeStalenessComparisonV1 = {
+export const INCONCLUSIVE_NO_EXECUTION: IncrementalChangeStalenessComparisonV1 = {
   correctnessRelation: "unknown",
   requiredFileEvidenceRelation: "unknown",
   staleRiskClassification: "inconclusive",
@@ -401,9 +407,16 @@ export const defaultIncrementalChangeStalenessExecutionDeps: IncrementalChangeSt
   runFakeAgent: runIncrementalChangeStalenessFakeAgent
 };
 
-async function executeOneTreatment(args: {
-  session: IncrementalChangeStalenessScenarioSessionV1;
-  treatmentId: IncrementalChangeStalenessTreatmentId;
+/**
+ * Retrieval + deterministic fake-agent + required-file evidence for ONE treatment against its own active
+ * index. Shared by the v0.6.2 two-treatment path and the v0.6.3 four-treatment path; takes only the
+ * lifecycle-provided facts it needs so it never reaches into another treatment's state.
+ */
+export async function executeTreatmentEvaluation<T extends IncrementalChangeStalenessV2TreatmentId>(args: {
+  treatmentId: T;
+  baselineFreshness: IndexFreshnessAssessmentV1;
+  activeIndexPhase: IncrementalChangeStalenessIndexRole;
+  activeIndexDir: string;
   derivedTask: EvaluationCase;
   affectedNeighborhood: AffectedNeighborhoodAssessmentV1;
   requiredFiles: readonly string[];
@@ -414,11 +427,18 @@ async function executeOneTreatment(args: {
   cwd: string;
   env?: NodeJS.ProcessEnv;
   deps: IncrementalChangeStalenessExecutionDeps;
-}): Promise<IncrementalChangeStalenessTreatmentExecutionV1> {
-  const treatment = args.session.treatments[args.treatmentId];
-  const baselineFreshness = treatment.changeAuthority.postMutationBaselineFreshness;
-  const activeIndexPhase = treatment.activeRetrieval.role;
-
+}): Promise<{
+  treatmentId: T;
+  status: IncrementalChangeStalenessTreatmentExecutionStatus;
+  failureReason: string | null;
+  activeIndexPhase: IncrementalChangeStalenessIndexRole;
+  baselineFreshness: IndexFreshnessAssessmentV1;
+  affectedNeighborhood: AffectedNeighborhoodAssessmentV1;
+  retrieval: MyDevKitRetrievalResult | null;
+  retrievalStatus: IncrementalChangeStalenessRetrievalStatus | "not-run";
+  fakeAgent: IncrementalChangeStalenessFakeAgentEvidenceV1 | null;
+  requiredFileEvidence: RequiredFileEvidenceV1;
+}> {
   let retrieval: MyDevKitRetrievalResult | null = null;
   let retrievalStatus: IncrementalChangeStalenessRetrievalStatus | "not-run" = "not-run";
   let failureReason: string | null = null;
@@ -426,7 +446,7 @@ async function executeOneTreatment(args: {
     retrieval = await args.deps.runRetrieval({
       derivedTask: args.derivedTask,
       kitCommand: args.kitCommand,
-      indexDir: treatment.activeRetrieval.index.indexDir,
+      indexDir: args.activeIndexDir,
       commandsDir: args.retrievalCommandsDir
     });
     retrievalStatus = classifyIncrementalChangeStalenessRetrieval(retrieval);
@@ -463,14 +483,62 @@ async function executeOneTreatment(args: {
     treatmentId: args.treatmentId,
     status,
     failureReason,
-    activeIndexPhase,
-    baselineFreshness,
+    activeIndexPhase: args.activeIndexPhase,
+    baselineFreshness: args.baselineFreshness,
     affectedNeighborhood: args.affectedNeighborhood,
     retrieval,
     retrievalStatus,
     fakeAgent,
     requiredFileEvidence
   };
+}
+
+async function executeOneTreatment(args: {
+  session: IncrementalChangeStalenessScenarioSessionV1;
+  treatmentId: IncrementalChangeStalenessTreatmentId;
+  derivedTask: EvaluationCase;
+  affectedNeighborhood: AffectedNeighborhoodAssessmentV1;
+  requiredFiles: readonly string[];
+  kitCommand: string;
+  retrievalCommandsDir: string;
+  agentOutDir: string;
+  projectProfiles: readonly BenchmarkProjectProfile[];
+  cwd: string;
+  env?: NodeJS.ProcessEnv;
+  deps: IncrementalChangeStalenessExecutionDeps;
+}): Promise<IncrementalChangeStalenessTreatmentExecutionV1> {
+  const treatment = args.session.treatments[args.treatmentId];
+  return executeTreatmentEvaluation({
+    treatmentId: args.treatmentId,
+    baselineFreshness: treatment.changeAuthority.postMutationBaselineFreshness,
+    activeIndexPhase: treatment.activeRetrieval.role,
+    activeIndexDir: treatment.activeRetrieval.index.indexDir,
+    derivedTask: args.derivedTask,
+    affectedNeighborhood: args.affectedNeighborhood,
+    requiredFiles: args.requiredFiles,
+    kitCommand: args.kitCommand,
+    retrievalCommandsDir: args.retrievalCommandsDir,
+    agentOutDir: args.agentOutDir,
+    projectProfiles: args.projectProfiles,
+    cwd: args.cwd,
+    env: args.env,
+    deps: args.deps
+  });
+}
+
+/** Resolves the scenario's query/answer and derives the one in-memory task shared by every matched treatment. */
+export async function resolveIncrementalChangeStalenessScenarioTask(options: {
+  repoRoot: string;
+  scenario: IncrementalChangeStalenessScenario;
+}): Promise<{ resolved: IncrementalChangeStalenessResolvedQueryAnswerV1; derivedTask: EvaluationCase }> {
+  const { scenario } = options;
+  const resolved = await resolveIncrementalChangeStalenessQueryAndAnswer({ scenario, repoRoot: options.repoRoot });
+  const cases = await readEvaluationCases(path.resolve(options.repoRoot, WARM_INDEX_BENCHMARK_CASES_PATH), options.repoRoot);
+  const baseEvaluationCase = cases.find((candidate) => candidate.id === scenario.baseCaseId);
+  if (!baseEvaluationCase) {
+    throw new Error(`Scenario ${scenario.id}: base case ${scenario.baseCaseId} was not found for task-descriptor construction.`);
+  }
+  return { resolved, derivedTask: buildIncrementalChangeStalenessDerivedTask({ scenario, baseEvaluationCase, resolved }) };
 }
 
 /**
@@ -515,14 +583,7 @@ export async function executeIncrementalChangeStalenessScenario(options: {
   }
 
   const session = options.lifecycle.session;
-  const resolved = await resolveIncrementalChangeStalenessQueryAndAnswer({ scenario, repoRoot: options.repoRoot });
-
-  const cases = await readEvaluationCases(path.resolve(options.repoRoot, WARM_INDEX_BENCHMARK_CASES_PATH), options.repoRoot);
-  const baseEvaluationCase = cases.find((candidate) => candidate.id === scenario.baseCaseId);
-  if (!baseEvaluationCase) {
-    throw new Error(`Scenario ${scenario.id}: base case ${scenario.baseCaseId} was not found for task-descriptor construction.`);
-  }
-  const derivedTask = buildIncrementalChangeStalenessDerivedTask({ scenario, baseEvaluationCase, resolved });
+  const { resolved, derivedTask } = await resolveIncrementalChangeStalenessScenarioTask({ repoRoot: options.repoRoot, scenario });
 
   const staleAffected = assessIncrementalChangeStalenessAffectedNeighborhood(session.treatments["stale-index"], derivedTask);
   const fullAffected = assessIncrementalChangeStalenessAffectedNeighborhood(session.treatments["full-refresh"], derivedTask);

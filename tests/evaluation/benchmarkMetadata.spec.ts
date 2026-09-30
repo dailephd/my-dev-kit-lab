@@ -154,6 +154,27 @@ describe("warm-index benchmark corpus validation", () => {
     expect(normalized).toEqual([]);
   });
 
+  it("normalizes relative-root slash suffixes and backslashes linearly", async () => {
+    for (const spelling of [
+      "benchmarks/projects/task-workflow-medium-ts/",
+      "benchmarks/projects/task-workflow-medium-ts////",
+      "./benchmarks/projects/task-workflow-medium-ts/",
+      "benchmarks\\projects\\task-workflow-medium-ts\\"
+    ]) {
+      const errors = await validateMutated((cases) => { medium(cases).targetRoot = spelling; });
+      expect(errors.filter((error) => error.includes("does not match profile"))).toEqual([]);
+    }
+    const longSuffix = `benchmarks/projects/task-workflow-medium-ts${"/".repeat(150_000)}`;
+    const errors = await validateMutated((cases) => { medium(cases).targetRoot = longSuffix; });
+    expect(errors.filter((error) => error.includes("does not match profile"))).toEqual([]);
+
+    const rootSlashBehavior = await validateMutated((cases, profiles) => {
+      medium(cases).targetRoot = "/";
+      profiles.find((profile) => profile.projectId === "task-workflow-medium-ts")!.rootPath = "";
+    });
+    expect(rootSlashBehavior.filter((error) => error.startsWith("warm-index case warm-medium-import-dedupe: targetRoot / does not match profile"))).toHaveLength(1);
+  });
+
   it("rejects unknown, missing, and duplicate source roots", async () => {
     const unknown = await validateMutated((cases) => {
       medium(cases).sourceRoots = ["src", "tests", "lib"];

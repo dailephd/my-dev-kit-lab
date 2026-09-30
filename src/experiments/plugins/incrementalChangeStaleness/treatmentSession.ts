@@ -2,7 +2,7 @@ import type { MeasuredCommandResult } from "../../../core/runMeasuredCommand.js"
 import type { AffectedNeighborhoodGraphEvidenceV1 } from "../../../evaluation/affectedNeighborhood.js";
 import type { IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import type { IndexSnapshotToolV1, IndexSnapshotV1 } from "../../../evaluation/indexSnapshot.js";
-import type { DisposableTreatmentTargetV1, IncrementalChangeStalenessTreatmentId } from "./disposableTarget.js";
+import type { DisposableTreatmentTargetV1, IncrementalChangeStalenessTreatmentId, IncrementalChangeStalenessV2TreatmentId } from "./disposableTarget.js";
 import type { IncrementalChangeStalenessMutationReceiptV1 } from "./mutationExecution.js";
 import type { IncrementalChangeStalenessScenario } from "./scenarioTypes.js";
 import type { IncrementalChangeStalenessSourceStateComparisonV1, IncrementalChangeStalenessSourceStateV1 } from "./sourceState.js";
@@ -22,9 +22,9 @@ export type IncrementalChangeStalenessIndexRole = "baseline" | "refreshed";
  * command evidence, the IndexSnapshotV1 captured from it, and the graph
  * evidence loaded from it. Built through the existing full-index owner only.
  */
-export type IncrementalChangeStalenessIndexEvidenceV1 = {
+export type IncrementalChangeStalenessIndexEvidenceV1<T extends IncrementalChangeStalenessV2TreatmentId = IncrementalChangeStalenessTreatmentId> = {
   readonly role: IncrementalChangeStalenessIndexRole;
-  readonly treatmentId: IncrementalChangeStalenessTreatmentId;
+  readonly treatmentId: T;
   /** `pre-mutation` for every baseline index, `post-mutation` for the refreshed index. */
   readonly builtRelativeToMutation: "pre-mutation" | "post-mutation";
   readonly indexDir: string;
@@ -159,13 +159,19 @@ export type IncrementalChangeStalenessLifecycleFailureCode =
   | "refreshed-graph-unavailable"
   | "refreshed-freshness-not-fresh"
   | "active-index-target-mismatch"
-  | "lifecycle-error";
+  | "lifecycle-error"
+  // v0.6.3 four-treatment lifecycle (additive)
+  | "baseline-bootstrap-contract-mismatch"
+  | "index-clone-failed"
+  | "refresh-not-needed-after-mutation"
+  | "refresh-evidence-invalid"
+  | "invocation-count-mismatch";
 
 export type IncrementalChangeStalenessLifecycleFailureV1 = {
   readonly code: IncrementalChangeStalenessLifecycleFailureCode;
   readonly message: string;
   /** The treatment the failure is attributable to; null for scenario-level failures. */
-  readonly treatmentId: IncrementalChangeStalenessTreatmentId | null;
+  readonly treatmentId: IncrementalChangeStalenessV2TreatmentId | null;
 };
 
 export type IncrementalChangeStalenessLifecycleResultV1 =

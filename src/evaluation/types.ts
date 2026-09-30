@@ -64,12 +64,43 @@ export type MyDevKitRetrievalResult = {
 export type MyDevKitIndexTarget = Pick<EvaluationCase, "absoluteTargetRoot" | "sourceRoots">;
 
 /** Outcome of one my-dev-kit `index` invocation, measured separately from any retrieval. */
+export type MyDevKitRefreshScope = "changed-files" | "affected-neighborhood";
+
+export type MyDevKitAppliedRefreshScope = "none" | "changed-files" | "affected-neighborhood" | "full";
+
+export type MyDevKitRefreshSelectionStatus = "not-needed" | "applied" | "fallback-full";
+
+/** Requested index build mode. `full` is the ordinary complete index without `--incremental`. */
+export type MyDevKitIndexBuildMode =
+  | { kind: "full" }
+  | { kind: "incremental"; refreshScope: MyDevKitRefreshScope };
+
+/** Lab's typed interpretation of the per-invocation `incrementalRefresh` object from my-dev-kit >= 1.12.5. */
+export type MyDevKitIncrementalRefreshEvidence = {
+  requestedScope: MyDevKitRefreshScope;
+  appliedScope: MyDevKitAppliedRefreshScope;
+  selectionStatus: MyDevKitRefreshSelectionStatus;
+  fallbackReason: string | null;
+  seedFileCount: number | null;
+  seedSymbolCount: number | null;
+  affectedNodeCount: number | null;
+  affectedEdgeCount: number | null;
+  forcedNeighborReanalysisFileCount: number;
+  forcedNeighborSample: string[];
+  freshExtractionFileCount: number;
+  reusedFileCount: number;
+};
+
 export type MyDevKitIndexBuildResult = {
   ok: boolean;
   indexDir: string;
   durationMs: number;
   warnings: string[];
   command: MeasuredCommandResult;
+  /** The requested build mode (defaults to `full`). */
+  mode: MyDevKitIndexBuildMode;
+  /** Validated upstream evidence; `null` for full builds and for any incremental build without valid evidence. */
+  incrementalRefresh: MyDevKitIncrementalRefreshEvidence | null;
 };
 
 export type TokenSavingsCaseResult = {

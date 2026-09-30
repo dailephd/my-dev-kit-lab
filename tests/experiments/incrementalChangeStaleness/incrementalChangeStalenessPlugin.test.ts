@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,7 +32,9 @@ import {
   makeKitDir,
   makeRunOwnedRoot,
   readKitLog,
+  readIndexArgsLog,
   repoRoot,
+  writeIncrementalLifecycleFakeKit,
   writeLifecycleFakeKit
 } from "./lifecycleTestHelpers.js";
 
@@ -71,24 +73,30 @@ describe("incremental-change-staleness registration (TST-B3-001..003, 052)", () 
     expect(warmIndexReusePlugin.supportedVariants).toEqual(["raw-full-file", "warm-index-reuse"]);
   });
 
-  it("declares deterministic experimental metadata and exactly the two frozen treatments", () => {
+  it("declares deterministic experimental metadata and exactly the four v0.6.3 treatments in fixed order", () => {
     expect(incrementalChangeStalenessPlugin.metadata).toEqual({
       id: "incremental-change-staleness",
       name: "Incremental Change Staleness",
       description:
-        "Compares stale-index and full-refresh my-dev-kit retrieval after the same frozen controlled source change: matched correctness, required-file evidence, and a conservative stale-risk classification.",
+        "Compares no refresh, my-dev-kit changed-files incremental refresh, my-dev-kit affected-neighborhood incremental refresh, and full refresh after the same deterministic controlled source change. Comparisons are scoped to the observed evidence (correctness and required-file presence); full refresh is a reference treatment, not an asserted winner, and a partial treatment may truthfully fall back to a full rebuild.",
       schemaVersion: "1.0.0",
       status: "experimental",
       supportedTargets: ["self"],
       supportedOutputs: ["json", "html"]
     });
-    expect(incrementalChangeStalenessPlugin.supportedVariants).toEqual(["stale-index", "full-refresh"]);
+    expect(incrementalChangeStalenessPlugin.supportedVariants).toEqual(["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]);
     expect(defaultIncrementalChangeStalenessConfig).toEqual({
       outDir: "lab-output/incremental-change-staleness",
-      kitCommand: "npx @dailephd/my-dev-kit@1.12.4"
+      kitCommand: "npx @dailephd/my-dev-kit@1.12.5"
     });
-    expect(INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND).toBe("npx @dailephd/my-dev-kit@1.12.4");
+    expect(INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND).toBe("npx @dailephd/my-dev-kit@1.12.5");
     expect(incrementalChangeStalenessPlugin.configDefinition?.fields.map((field) => field.name)).toEqual(["outDir", "kitCommand", "caseIds"]);
+    const caseIdsDescription = incrementalChangeStalenessPlugin.configDefinition?.fields.find((field) => field.name === "caseIds")?.description ?? "";
+    for (const treatment of ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]) {
+      expect(caseIdsDescription).toContain(treatment);
+    }
+    expect(caseIdsDescription).toContain("All four treatments run for each selected scenario");
+    expect(caseIdsDescription).not.toContain("Both stale-index and full-refresh");
   });
 });
 
@@ -154,8 +162,8 @@ describe("config and scenario selection (TST-B3-004, 005, 029)", () => {
 });
 
 describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
-  it("runs matched lifecycles and treatment execution in catalog order, writes the execution artifact, then cleans up", async () => {
-    const kit = writeLifecycleFakeKit(makeKitDir(tracked));
+  it("runs matched V2 lifecycles and four-treatment execution in catalog order, writes the V2 execution artifact, then cleans up", async () => {
+    const kit = writeIncrementalLifecycleFakeKit(makeKitDir(tracked));
     const runId = uniqueRunId("run");
     const runtimeParent = path.resolve(repoRoot, DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE);
     const sibling = path.join(runtimeParent, `${runId}-sibling`);
@@ -176,17 +184,28 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
     expect(run.cases.map((experimentCase) => experimentCase.id)).toEqual(["U1", "L2"]);
     expect(run.cases.flatMap((experimentCase) => experimentCase.outcomes.map((outcome) => outcome.id))).toEqual([
       "U1:stale-index",
+      "U1:changed-files-refresh",
+      "U1:affected-neighborhood-refresh",
       "U1:full-refresh",
       "L2:stale-index",
+      "L2:changed-files-refresh",
+      "L2:affected-neighborhood-refresh",
       "L2:full-refresh"
     ]);
-    expect(run.variants.map((variant) => variant.id)).toEqual(["stale-index", "full-refresh"]);
+    expect(run.variants.map((variant) => variant.id)).toEqual(["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]);
 
     // This deterministic fake kit produces complete, non-empty retrieval/fake-agent evidence for
     // both treatments of both scenarios, so the run is a real `completed` result, never fabricated.
     expect(run.status).toBe("completed");
     expect(run.summary?.completedCases).toBe(2);
-    expect(run.metrics.map((entry) => entry.id)).toEqual(["incremental-change-staleness-scenario-count", "incremental-change-staleness-observed-regression-count"]);
+    expect(run.metrics.map((entry) => entry.id)).toEqual([
+      "incremental-change-staleness-scenario-count",
+      "incremental-change-staleness-observed-regression-count",
+      "incremental-change-staleness-changed-files-applied-partial-count",
+      "incremental-change-staleness-changed-files-fallback-full-count",
+      "incremental-change-staleness-affected-neighborhood-applied-partial-count",
+      "incremental-change-staleness-affected-neighborhood-fallback-full-count"
+    ]);
     expect(run.metrics.find((entry) => entry.id === "incremental-change-staleness-scenario-count")?.value).toBe(2);
     expect(run.metadata).toEqual(expect.objectContaining({ kitCommand: kit.command, scenarioIds: ["U1", "L2"] }));
     expect(run.artifacts[0].id).toBe("incremental-change-staleness-execution");
@@ -203,13 +222,26 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
           expect.objectContaining({ retrievalStatus: "completed", fakeAgentStatus: "completed" })
         );
       }
-      const [stale, full] = experimentCase.outcomes;
-      expect(stale.metadata).toEqual(expect.objectContaining({ activeIndexPhase: "baseline" }));
-      expect(full.metadata).toEqual(expect.objectContaining({ activeIndexPhase: "refreshed" }));
+      const [stale, changed, affected, full] = experimentCase.outcomes;
+      expect(stale.metadata).toEqual(expect.objectContaining({ activeIndexPhase: "baseline", refreshKind: "no-refresh", refreshRealization: "NO_REFRESH" }));
+      expect(changed.metadata).toEqual(
+        expect.objectContaining({ activeIndexPhase: "refreshed", refreshKind: "incremental", refreshRealization: "APPLIED_PARTIAL", requestedScope: "changed-files", appliedScope: "changed-files", selectionStatus: "applied", fallbackReason: null })
+      );
+      expect(affected.metadata).toEqual(
+        expect.objectContaining({ refreshRealization: "APPLIED_PARTIAL", requestedScope: "affected-neighborhood", appliedScope: "affected-neighborhood", selectionStatus: "applied" })
+      );
+      expect(full.metadata).toEqual(expect.objectContaining({ activeIndexPhase: "refreshed", refreshKind: "full", refreshRealization: "FULL_REFRESH" }));
+      expect(stale.metadata).not.toHaveProperty("requestedScope");
+      expect(full.metadata).not.toHaveProperty("appliedScope");
     }
-    // Exactly three index builds per scenario, unchanged from Batch 3 (Batch 4 adds retrieval, not
-    // additional index builds).
-    expect(readKitLog(kit.logPath).filter((line) => line === "index")).toHaveLength(6);
+    // Seven index invocations per scenario (four incremental bootstraps, two partial refreshes, one full build).
+    expect(readIndexArgsLog(kit.argsLogPath)).toHaveLength(14);
+
+    // The normal run persisted the V2 execution artifact under the canonical filename.
+    const persisted = JSON.parse(readFileSync(run.artifacts[0].path!, "utf8")) as { schemaVersion: string; scenarios: Array<{ treatments: unknown[]; referenceComparisons: unknown[] }> };
+    expect(path.basename(run.artifacts[0].path!)).toBe("incremental-change-staleness-execution.json");
+    expect(persisted.schemaVersion).toBe("my-dev-kit-lab-incremental-change-staleness-execution-v2");
+    expect(persisted.scenarios.map((scenario) => [scenario.treatments.length, scenario.referenceComparisons.length])).toEqual([[4, 3], [4, 3]]);
 
     // TST-B3-050: the run-owned root is removed; the sibling directory is untouched.
     expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId))).toBe(false);
@@ -217,7 +249,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
     await rm(runOutputRoot, { recursive: true, force: true });
   }, 120_000);
 
-  it("maps a failed lifecycle to failed outcomes for both treatments without fabricated evidence", async () => {
+  it("maps a failed lifecycle to four failed outcomes without fabricated evidence", async () => {
     const command = writeFakeKitVariant(makeKitDir(tracked), { failOn: "index" });
     const runId = uniqueRunId("fail");
     const run = await runExperiment({
@@ -231,6 +263,8 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
     const [experimentCase] = run.cases;
     expect(experimentCase.outcomes.map((outcome) => [outcome.variantId, outcome.status])).toEqual([
       ["stale-index", "failed"],
+      ["changed-files-refresh", "failed"],
+      ["affected-neighborhood-refresh", "failed"],
       ["full-refresh", "failed"]
     ]);
     for (const outcome of experimentCase.outcomes) {

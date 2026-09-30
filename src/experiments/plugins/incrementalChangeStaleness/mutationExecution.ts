@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { DisposableTreatmentTargetV1, IncrementalChangeStalenessTreatmentId } from "./disposableTarget.js";
+import type { DisposableTreatmentTargetV1, IncrementalChangeStalenessV2TreatmentId } from "./disposableTarget.js";
 import { resolveWithinDisposableTarget } from "./disposableTarget.js";
 import { applyMutationOperations, isPathCoveredBySourceRoots, sha256Hex } from "./scenarioMutation.js";
 import type { IncrementalChangeStalenessMutationFile, IncrementalChangeStalenessScenario } from "./scenarioTypes.js";
@@ -28,7 +28,7 @@ export type IncrementalChangeStalenessMutationFileReceipt = {
 export type IncrementalChangeStalenessMutationReceiptV1 = {
   schemaVersion: string;
   scenarioId: string;
-  treatmentId: IncrementalChangeStalenessTreatmentId;
+  treatmentId: IncrementalChangeStalenessV2TreatmentId;
   benchmarkProjectId: string;
   status: IncrementalChangeStalenessMutationStatus;
   files: IncrementalChangeStalenessMutationFileReceipt[];
@@ -66,7 +66,7 @@ type PlannedWrite = {
  */
 export async function executeIncrementalChangeStalenessMutation(
   scenario: IncrementalChangeStalenessScenario,
-  target: DisposableTreatmentTargetV1,
+  target: DisposableTreatmentTargetV1<IncrementalChangeStalenessV2TreatmentId>,
   caseSourceRoots: readonly string[],
   repoRoot: string
 ): Promise<IncrementalChangeStalenessMutationReceiptV1> {

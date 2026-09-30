@@ -96,7 +96,7 @@ function toReportScenario(
   };
 }
 
-function readArtifactPath(run: ExperimentRun): string | undefined {
+export function readArtifactPath(run: ExperimentRun): string | undefined {
   const fromMetadata = run.metadata?.executionArtifactPath;
   if (typeof fromMetadata === "string" && fromMetadata) return fromMetadata;
   return run.artifacts.find((artifact) => artifact.id === "incremental-change-staleness-execution")?.path ?? undefined;

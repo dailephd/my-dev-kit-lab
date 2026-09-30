@@ -12,15 +12,39 @@ export const INCREMENTAL_CHANGE_STALENESS_TREATMENT_IDS = ["stale-index", "full-
 export type IncrementalChangeStalenessTreatmentId = (typeof INCREMENTAL_CHANGE_STALENESS_TREATMENT_IDS)[number];
 
 /**
+ * The four v0.6.3 internal lifecycle treatment identities in their fixed order
+ * (never alphabetical). The released v0.6.2 public constant above is unchanged;
+ * this set is used only by the internal v0.6.3 lifecycle.
+ */
+export const INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS = [
+  "stale-index",
+  "changed-files-refresh",
+  "affected-neighborhood-refresh",
+  "full-refresh"
+] as const;
+export type IncrementalChangeStalenessV2TreatmentId = (typeof INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS)[number];
+
+/** Treatment ID and treatment intent are separate runtime evidence. */
+export const INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_INTENTS = {
+  "stale-index": "my-dev-kit-no-refresh",
+  "changed-files-refresh": "my-dev-kit-changed-files-refresh",
+  "affected-neighborhood-refresh": "my-dev-kit-affected-neighborhood-refresh",
+  "full-refresh": "my-dev-kit-full-refresh"
+} as const satisfies Record<IncrementalChangeStalenessV2TreatmentId, string>;
+export type IncrementalChangeStalenessV2TreatmentIntent =
+  (typeof INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_INTENTS)[IncrementalChangeStalenessV2TreatmentId];
+
+/**
  * Default project-relative, gitignored runtime location for disposable
  * treatment targets. Callers may pass a different `runRoot`, but it must
  * still resolve inside `repoRoot` (see `createDisposableTreatmentTarget`).
  */
 export const DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE = ".my-dev-kit-context/runtime/incremental-change-staleness";
 
-export type DisposableTreatmentTargetV1 = {
+/** Defaults to the released v0.6.2 treatment set; the v0.6.3 lifecycle widens it to the four-treatment set. */
+export type DisposableTreatmentTargetV1<T extends IncrementalChangeStalenessV2TreatmentId = IncrementalChangeStalenessTreatmentId> = {
   scenarioId: string;
-  treatmentId: IncrementalChangeStalenessTreatmentId;
+  treatmentId: T;
   benchmarkProjectId: string;
   /** Absolute path to the immutable canonical benchmark project this copy was created from. */
   canonicalProjectRoot: string;
@@ -28,13 +52,13 @@ export type DisposableTreatmentTargetV1 = {
   targetRoot: string;
 };
 
-export type CreateDisposableTreatmentTargetOptions = {
+export type CreateDisposableTreatmentTargetOptions<T extends IncrementalChangeStalenessV2TreatmentId = IncrementalChangeStalenessTreatmentId> = {
   /** Repository root; both `runRoot` and the canonical project root must resolve inside it. */
   repoRoot: string;
   /** Absolute runtime root the caller owns (e.g. a temp dir in tests, or the default runtime root in normal use). */
   runRoot: string;
   scenarioId: string;
-  treatmentId: IncrementalChangeStalenessTreatmentId;
+  treatmentId: T;
   benchmarkProjectId: string;
   /** Canonical benchmark project root, relative to `repoRoot` (e.g. "benchmarks/projects/task-analytics-large-mixed"). */
   canonicalProjectRootRelative: string;
@@ -64,11 +88,13 @@ function assertDisposableRootDoesNotOverlapCanonical(targetRoot: string, canonic
  * destination and never allows the destination to overlap the canonical
  * project tree.
  */
-export async function createDisposableTreatmentTarget(options: CreateDisposableTreatmentTargetOptions): Promise<DisposableTreatmentTargetV1> {
+export async function createDisposableTreatmentTarget<T extends IncrementalChangeStalenessV2TreatmentId = IncrementalChangeStalenessTreatmentId>(
+  options: CreateDisposableTreatmentTargetOptions<T>
+): Promise<DisposableTreatmentTargetV1<T>> {
   const { repoRoot, scenarioId, treatmentId, benchmarkProjectId, canonicalProjectRootRelative } = options;
 
-  if (!(INCREMENTAL_CHANGE_STALENESS_TREATMENT_IDS as readonly string[]).includes(treatmentId)) {
-    throw new Error(`Unknown treatment id: ${treatmentId}. Expected one of ${INCREMENTAL_CHANGE_STALENESS_TREATMENT_IDS.join(", ")}.`);
+  if (!(INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS as readonly string[]).includes(treatmentId)) {
+    throw new Error(`Unknown treatment id: ${treatmentId}. Expected one of ${INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS.join(", ")}.`);
   }
   if (typeof scenarioId !== "string" || scenarioId.length === 0) {
     throw new Error("scenarioId must be a nonempty string.");

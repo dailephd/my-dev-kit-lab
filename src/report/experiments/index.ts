@@ -15,6 +15,9 @@ export { renderContextIntegrityJsonReport } from "./renderContextIntegrityJsonRe
 export { renderContextIntegrityText } from "./renderContextIntegrityText.js";
 export { renderContextIntegrityHtml } from "./renderContextIntegrityHtml.js";
 export * from "./incrementalChangeStalenessReportModel.js";
+export * from "./incrementalChangeStalenessReportModelV2.js";
+export { buildIncrementalChangeStalenessPluginReport } from "./buildIncrementalChangeStalenessPluginReport.js";
+export { buildIncrementalChangeStalenessReportV2FromArtifact, findReportTreatment, findReportComparison, LIMITATIONS_V2 } from "./buildIncrementalChangeStalenessReportV2.js";
 export { buildIncrementalChangeStalenessReport, STALE_RISK_CLASSIFICATION_EXPLANATIONS } from "./buildIncrementalChangeStalenessReport.js";
 export { renderIncrementalChangeStalenessHtml } from "./renderIncrementalChangeStalenessHtml.js";
 

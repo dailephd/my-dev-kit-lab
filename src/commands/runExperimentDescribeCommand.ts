@@ -168,9 +168,14 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
   const screenshotOption = hasConfigField(plugin, "agents") ? " --no-screenshot" : "";
   const examples = [
     `my-dev-kit-lab experiment describe --experiment ${plugin.metadata.id}`,
-    `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id}${agentOptions}`,
-    `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1"${agentOptions}${screenshotOption}`
+    `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id}${agentOptions}`
   ];
+  // Only advertise an explicit --target example for plugins that support external targets.
+  if (plugin.metadata.supportedTargets.includes("external-local")) {
+    examples.push(
+      `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1"${agentOptions}${screenshotOption}`
+    );
+  }
   // Only advertise campaign examples for plugins that declare the campaignPreset config field.
   if (hasConfigField(plugin, "campaignPreset")) {
     examples.push(

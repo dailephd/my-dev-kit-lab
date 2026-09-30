@@ -78,7 +78,6 @@ export function analyzeSecretCandidateFile(targetRoot: string, file: SecretScanF
 
   for (const block of matchPrivateKeyBlocks(file.content)) {
     const location = buildAndroidSourceLocation(targetRoot, file.absolutePath, { line: block.line });
-    const fingerprint = fingerprintCandidateValue(block.rawBlock);
     if (!block.terminated) {
       candidates.push(
         makeCandidateEvidence({
@@ -95,6 +94,12 @@ export function analyzeSecretCandidateFile(targetRoot: string, file: SecretScanF
       );
       continue;
     }
+    const fingerprint = fingerprintCandidateValue(block.rawBlock, {
+      ruleId: "android-secret-private-key-candidate",
+      sourcePath: location.path,
+      line: location.line,
+      purpose: "private-key-finding"
+    });
     findings.push(
       makeAndroidFinding({
         ruleId: "android-secret-private-key-candidate",
@@ -134,7 +139,12 @@ export function analyzeSecretCandidateFile(targetRoot: string, file: SecretScanF
       continue;
     }
 
-    const fingerprint = fingerprintCandidateValue(match.rawValue);
+    const fingerprint = fingerprintCandidateValue(match.rawValue, {
+      ruleId: classification.ruleId,
+      sourcePath: location.path,
+      line: location.line,
+      purpose: `credential-finding:${classification.sensitiveDataCategory}`
+    });
     findings.push(
       makeAndroidFinding({
         ruleId: classification.ruleId,

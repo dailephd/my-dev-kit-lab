@@ -10,7 +10,7 @@ import {
   runMyDevKitRetrieval,
   runMyDevKitRetrievalFromIndex
 } from "../../src/evaluation/runMyDevKitRetrieval.js";
-import type { EvaluationCase } from "../../src/evaluation/types.js";
+import type { EvaluationCase, MyDevKitIndexBuildMode } from "../../src/evaluation/types.js";
 
 const fakeKitPath = path.resolve(process.cwd(), "tests/fixtures/fake-my-dev-kit-cli.js");
 const fakeKitCommand = `node ${fakeKitPath}`;
@@ -336,5 +336,167 @@ describe("runMyDevKitRetrievalFromIndex", () => {
     } else {
       expect(result.contextText).toBe(context);
     }
+  });
+});
+
+describe("buildMyDevKitIndex build modes", () => {
+  type Evidence = Record<string, unknown>;
+
+  const appliedNeighborhood: Evidence = {
+    requestedScope: "affected-neighborhood",
+    appliedScope: "affected-neighborhood",
+    selectionStatus: "applied",
+    fallbackReason: null,
+    seedFileCount: 1,
+    seedSymbolCount: 2,
+    affectedNodeCount: 5,
+    affectedEdgeCount: 4,
+    forcedNeighborReanalysisFileCount: 1,
+    forcedNeighborSample: ["src/a.ts"],
+    freshExtractionFileCount: 2,
+    reusedFileCount: 8
+  };
+  const appliedChangedFiles: Evidence = {
+    requestedScope: "changed-files",
+    appliedScope: "changed-files",
+    selectionStatus: "applied",
+    fallbackReason: null,
+    seedFileCount: null,
+    seedSymbolCount: null,
+    affectedNodeCount: null,
+    affectedEdgeCount: null,
+    forcedNeighborReanalysisFileCount: 0,
+    forcedNeighborSample: [],
+    freshExtractionFileCount: 1,
+    reusedFileCount: 9
+  };
+
+  // Test-local fake kit whose `index` prints the given stdout (documented v1.12.5 JSON contract).
+  function fakeIncrementalKit(dir: string, stdout: string): string {
+    const scriptPath = path.join(dir, "fake-incremental-kit.mjs");
+    writeFileSync(scriptPath, `process.stdout.write(${JSON.stringify(stdout)});\n`);
+    return `node ${scriptPath}`;
+  }
+
+  async function build(
+    mode: MyDevKitIndexBuildMode | undefined,
+    payload: string | Evidence | undefined,
+    requireKit = false
+  ) {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "kit-mode-"));
+    tempDirs.push(outDir);
+    const stdout = typeof payload === "string" ? payload : JSON.stringify(payload === undefined ? { ok: true } : { ok: true, incrementalRefresh: payload });
+    return buildMyDevKitIndex({
+      target: baseCase,
+      kitCommand: fakeIncrementalKit(outDir, stdout),
+      indexDir: path.join(outDir, "index"),
+      commandsDir: path.join(outDir, "commands"),
+      requireKit,
+      ...(mode ? { mode } : {})
+    });
+  }
+
+  const changedFiles: MyDevKitIndexBuildMode = { kind: "incremental", refreshScope: "changed-files" };
+  const neighborhood: MyDevKitIndexBuildMode = { kind: "incremental", refreshScope: "affected-neighborhood" };
+
+  it("omitted mode keeps the legacy full command shape and reports full mode without evidence", async () => {
+    const result = await build(undefined, undefined);
+    expect(result.ok).toBe(true);
+    expect(result.mode).toEqual({ kind: "full" });
+    expect(result.incrementalRefresh).toBeNull();
+    expect(result.command.args).not.toContain("--incremental");
+    expect(result.command.args).not.toContain("--refresh-scope");
+    expect(result.command.args.slice(-3)).toEqual(["--out", result.indexDir, "--json"]);
+  });
+
+  it("changed-files mode requests the explicit scope and parses evidence", async () => {
+    const result = await build(changedFiles, appliedChangedFiles);
+    expect(result.command.args.slice(-6)).toEqual(["--out", result.indexDir, "--incremental", "--refresh-scope", "changed-files", "--json"]);
+    expect(result.ok).toBe(true);
+    expect(result.mode).toEqual(changedFiles);
+    expect(result.incrementalRefresh).toEqual(appliedChangedFiles);
+  });
+
+  it("affected-neighborhood mode requests the explicit scope and preserves applied evidence unchanged", async () => {
+    const result = await build(neighborhood, appliedNeighborhood);
+    expect(result.command.args.slice(-6)).toEqual(["--out", result.indexDir, "--incremental", "--refresh-scope", "affected-neighborhood", "--json"]);
+    expect(result.ok).toBe(true);
+    expect(result.incrementalRefresh).toEqual(appliedNeighborhood);
+  });
+
+  it("keeps a truthful full fallback as successful evidence with the exact reason", async () => {
+    const fallback = { ...appliedNeighborhood, appliedScope: "full", selectionStatus: "fallback-full", fallbackReason: "cache-missing", seedFileCount: null, seedSymbolCount: null, affectedNodeCount: null, affectedEdgeCount: null };
+    const result = await build(neighborhood, fallback);
+    expect(result.ok).toBe(true);
+    expect(result.incrementalRefresh?.requestedScope).toBe("affected-neighborhood");
+    expect(result.incrementalRefresh?.appliedScope).toBe("full");
+    expect(result.incrementalRefresh?.selectionStatus).toBe("fallback-full");
+    expect(result.incrementalRefresh?.fallbackReason).toBe("cache-missing");
+  });
+
+  it("keeps a no-change run as successful evidence", async () => {
+    const noChange = { ...appliedChangedFiles, appliedScope: "none", selectionStatus: "not-needed", freshExtractionFileCount: 0, reusedFileCount: 10 };
+    const result = await build(changedFiles, noChange);
+    expect(result.ok).toBe(true);
+    expect(result.incrementalRefresh?.appliedScope).toBe("none");
+    expect(result.incrementalRefresh?.selectionStatus).toBe("not-needed");
+  });
+
+  it("does not claim success when incrementalRefresh is missing (warning without requireKit, throw with it)", async () => {
+    const soft = await build(changedFiles, undefined);
+    expect(soft.ok).toBe(false);
+    expect(soft.incrementalRefresh).toBeNull();
+    expect(soft.mode).toEqual(changedFiles);
+    expect(soft.command.ok).toBe(true);
+    expect(soft.warnings.join(" ")).toContain("no valid incrementalRefresh evidence");
+    await expect(build(changedFiles, undefined, true)).rejects.toThrow("incrementalRefresh");
+  });
+
+  it("rejects non-JSON stdout for an incremental build", async () => {
+    const result = await build(changedFiles, "not json");
+    expect(result.ok).toBe(false);
+    expect(result.warnings.join(" ")).toContain("not valid JSON");
+  });
+
+  const invalidCases: Array<[string, MyDevKitIndexBuildMode, Evidence]> = [
+    ["requestedScope mismatch", changedFiles, appliedNeighborhood],
+    ["unknown appliedScope", neighborhood, { ...appliedNeighborhood, appliedScope: "partial" }],
+    ["unknown selectionStatus", neighborhood, { ...appliedNeighborhood, selectionStatus: "maybe" }],
+    ["negative count", changedFiles, { ...appliedChangedFiles, reusedFileCount: -1 }],
+    ["non-integer count", changedFiles, { ...appliedChangedFiles, freshExtractionFileCount: 1.5 }],
+    ["wrong-type count", changedFiles, { ...appliedChangedFiles, forcedNeighborReanalysisFileCount: "0" }],
+    ["non-string sample entry", changedFiles, { ...appliedChangedFiles, forcedNeighborSample: [1] }],
+    ["fallback-full with changed-files appliedScope", neighborhood, { ...appliedNeighborhood, selectionStatus: "fallback-full", appliedScope: "changed-files", fallbackReason: "x" }],
+    ["fallback-full with null reason", neighborhood, { ...appliedNeighborhood, selectionStatus: "fallback-full", appliedScope: "full", fallbackReason: null }],
+    ["fallback-full with empty reason", neighborhood, { ...appliedNeighborhood, selectionStatus: "fallback-full", appliedScope: "full", fallbackReason: "" }],
+    ["applied with a fallback reason", changedFiles, { ...appliedChangedFiles, fallbackReason: "x" }],
+    ["applied with a different appliedScope", changedFiles, { ...appliedChangedFiles, appliedScope: "full" }],
+    ["not-needed with full appliedScope", changedFiles, { ...appliedChangedFiles, selectionStatus: "not-needed", appliedScope: "full" }],
+    ["applied neighborhood with null counts", neighborhood, { ...appliedNeighborhood, affectedNodeCount: null }]
+  ];
+
+  it.each(invalidCases)("rejects invalid evidence: %s", async (_name, mode, evidence) => {
+    const result = await build(mode, evidence);
+    expect(result.ok).toBe(false);
+    expect(result.incrementalRefresh).toBeNull();
+    expect(result.mode).toEqual(mode);
+    expect(result.warnings).toHaveLength(1);
+  });
+
+  it("preserves process-failure behavior for an incremental request", async () => {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "kit-mode-"));
+    tempDirs.push(outDir);
+    const result = await buildMyDevKitIndex({
+      target: baseCase,
+      kitCommand: "definitely-not-a-real-command",
+      indexDir: path.join(outDir, "index"),
+      commandsDir: path.join(outDir, "commands"),
+      requireKit: false,
+      mode: neighborhood
+    });
+    expect(result.ok).toBe(false);
+    expect(result.mode).toEqual(neighborhood);
+    expect(result.incrementalRefresh).toBeNull();
+    expect(result.warnings).toEqual(["my-dev-kit index command was unavailable or failed."]);
   });
 });

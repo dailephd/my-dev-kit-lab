@@ -629,3 +629,35 @@ The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affecte
 `staleRiskClassification` is not a numeric risk score, not a winner, not a ranking, and not an automatic reindex decision. `no-observed-stale-regression` means only that this matched scenario did not observe a stale-specific regression under these two frozen evidence dimensions; it does not establish that stale indexes are generally safe. `reindexRecommendation` (the released v0.6.1 categorical evidence) remains separate observational evidence about the affected-neighborhood analysis; it does not select or trigger either treatment and is not an input to the stale-risk classification above.
 
 **Report presentation.** `report.incrementalChangeStaleness` holds `scenarioCount`, `readyScenarioCount`, `failedScenarioCount`, `observedStaleRegressionCount`, `noObservedStaleRegressionCount`, `inconclusiveCount`, per-scenario evidence (lifecycle, both treatments in order, and the comparison), and fixed limitations text. There is no overall score, grade, winner, best-treatment, or safe-to-skip-reindex field anywhere in the report or the persisted execution artifact.
+
+### Partial-refresh treatment evidence (v0.6.3, current release)
+
+The `incremental-change-staleness` plugin now compares four treatments (`stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, `full-refresh`). It defines no new formula. Two evidence families must not be merged:
+
+- **Lab task-relationship affected-neighborhood evidence** (released v0.6.1, unchanged): the six numeric metrics `changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, `taskOverlapPercent`, plus the categorical `relationship` and `reindexRecommendation`. They describe the baseline graph neighborhood of the controlled change relative to the task. `changedSymbolCount` still means baseline symbol identities belonging to confirmed changed indexed files, not proof that any symbol body changed, and `reindexRecommendation` stays observational: it selects and executes no treatment.
+- **Upstream refresh execution evidence** (new): what my-dev-kit actually did during a partial refresh invocation. It does not depend on the task and is not a task-relevance measure.
+
+**Numeric upstream-refresh metrics** (unit `count`; emitted as `ExperimentMetric` entries on the outcome of an incremental treatment, `changed-files-refresh` or `affected-neighborhood-refresh`, and never on `stale-index` or `full-refresh`):
+
+| Metric ID | Meaning |
+|---|---|
+| `upstream-refresh-fresh-extraction-file-count` | Files upstream freshly re-extracted during the refresh invocation. |
+| `upstream-refresh-reused-file-count` | Files upstream reused from the previous index. |
+| `upstream-refresh-forced-neighbor-reanalysis-file-count` | Neighboring files upstream forced to re-analyze during the refresh. |
+| `upstream-refresh-seed-file-count` | Seed files upstream selected for the affected-neighborhood refresh. |
+| `upstream-refresh-seed-symbol-count` | Seed symbols upstream selected. |
+| `upstream-refresh-affected-node-count` | Graph nodes upstream treated as affected. |
+| `upstream-refresh-affected-edge-count` | Graph edges upstream treated as affected. |
+
+Availability: the first three are always present for a validated incremental treatment. The seed, node, and edge counts appear only when upstream supplied a non-null value; a `null` upstream value is unavailable evidence and the metric is omitted, never emitted as zero. These counts describe upstream execution only: they do not prove a treatment is better, faster, safer, or more accurate, and they are distinct from the Lab `affectedNodeCount`/`affectedEdgeCount` above (different metric IDs).
+
+**Categorical refresh evidence** (not numeric metrics, never converted to numbers): `requestedScope` (`changed-files` or `affected-neighborhood`), `appliedScope` (the scope upstream actually applied: `changed-files`, `affected-neighborhood`, `full`, or `none`), `selectionStatus` (`applied`, `fallback-full`, or `not-needed`), `fallbackReason` (an upstream reason or `null`), `forcedNeighborSample` (a bounded sample of path strings, capped by upstream, so its length can be less than the forced-neighbor count), and the Lab `refreshRealization` (`NO_REFRESH`, `APPLIED_PARTIAL`, `FALLBACK_FULL`, `FULL_REFRESH`). Only `changed-files-refresh` and `affected-neighborhood-refresh` can be `APPLIED_PARTIAL` or `FALLBACK_FULL`.
+
+**Reference comparisons** (exactly three per ready scenario, each against `full-refresh`):
+
+- `stale-index` vs `full-refresh` uses the v0.6.2 stale-risk vocabulary and precedence unchanged (`observed-stale-regression`, `no-observed-stale-regression`, `inconclusive`).
+- `changed-files-refresh` vs `full-refresh` and `affected-neighborhood-refresh` vs `full-refresh` use neutral candidate relations (`candidate-worse`, `same`, `candidate-better`, `unknown`) for deterministic fake-agent correctness and for the required-file status, with the frozen precedence: (1) `not-comparable-as-partial-refresh` if the candidate fell back to a full rebuild (`FALLBACK_FULL`); (2) `observed-regression-relative-to-full` if correctness or required-file presence is `candidate-worse`; (3) `inconclusive` if either relation is `unknown`; (4) otherwise `no-observed-regression-relative-to-full`.
+
+`no-observed-regression-relative-to-full` means only that the executed scenario showed no regression under those two evidence dimensions. It does not establish equivalence or safety and does not show that full refresh is unnecessary. `not-comparable-as-partial-refresh` says the run gives no evidence about the requested partial behavior. There is no winner, ranking, composite score, safety score, safe-to-skip-refresh flag, or stale-risk percentage. Ordinary per-treatment correctness `score` remains the existing deterministic fake-agent evidence.
+
+**Report presentation.** `report.incrementalChangeStaleness` (schema `my-dev-kit-lab-incremental-change-staleness-report-v2`) holds the summary counts (including per-treatment applied-partial, fallback, and classification counts), per-scenario lifecycle, four treatments and three comparisons identified by explicit treatment IDs, and fixed limitations text. Unavailable evidence is written as `unavailable` or `not applicable`, never zero. Historical V1 reports keep their original two-treatment presentation.

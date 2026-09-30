@@ -2,7 +2,17 @@ import path from "node:path";
 import { countEstimatedTokens, countTextChars, tokenCountMethod } from "../core/countTokens.js";
 import { runMeasuredCommand, type MeasuredCommandResult } from "../core/runMeasuredCommand.js";
 import { interpretToolVersionOutput, type IndexSnapshotToolV1 } from "./indexSnapshot.js";
-import type { EvaluationCase, MyDevKitIndexBuildResult, MyDevKitIndexTarget, MyDevKitRetrievalResult } from "./types.js";
+import type {
+  EvaluationCase,
+  MyDevKitAppliedRefreshScope,
+  MyDevKitIncrementalRefreshEvidence,
+  MyDevKitIndexBuildMode,
+  MyDevKitIndexBuildResult,
+  MyDevKitIndexTarget,
+  MyDevKitRefreshScope,
+  MyDevKitRefreshSelectionStatus,
+  MyDevKitRetrievalResult
+} from "./types.js";
 
 const VERSION_PROBE_TIMEOUT_MS = 30_000;
 
@@ -66,10 +76,116 @@ function skippedRetrieval(
   };
 }
 
+const APPLIED_SCOPES: readonly MyDevKitAppliedRefreshScope[] = ["none", "changed-files", "affected-neighborhood", "full"];
+const SELECTION_STATUSES: readonly MyDevKitRefreshSelectionStatus[] = ["not-needed", "applied", "fallback-full"];
+const NEIGHBORHOOD_COUNT_KEYS = ["seedFileCount", "seedSymbolCount", "affectedNodeCount", "affectedEdgeCount"] as const;
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * Validates the per-invocation `incrementalRefresh` object from `my-dev-kit index --incremental --json`
+ * stdout against the scope Lab requested. Returns validated evidence or an explicit error; never coerces.
+ * The fallback reason is intentionally an open string: upstream reason codes may evolve additively.
+ */
+export function parseIncrementalRefreshEvidence(
+  stdout: string,
+  requestedScope: MyDevKitRefreshScope
+): { ok: true; evidence: MyDevKitIncrementalRefreshEvidence } | { ok: false; error: string } {
+  const payload = parseJsonIfPossible(stdout);
+  if (payload === undefined) return { ok: false, error: "index stdout is not valid JSON" };
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return { ok: false, error: "index JSON result is not an object" };
+  }
+  const raw = (payload as Record<string, unknown>).incrementalRefresh;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "index JSON result has no incrementalRefresh object" };
+  }
+  const r = raw as Record<string, unknown>;
+
+  if (r.requestedScope !== requestedScope) {
+    return {
+      ok: false,
+      error: `incrementalRefresh.requestedScope ${JSON.stringify(r.requestedScope)} does not match requested scope ${requestedScope}`
+    };
+  }
+  if (!APPLIED_SCOPES.includes(r.appliedScope as MyDevKitAppliedRefreshScope)) {
+    return { ok: false, error: `incrementalRefresh.appliedScope ${JSON.stringify(r.appliedScope)} is not a known value` };
+  }
+  if (!SELECTION_STATUSES.includes(r.selectionStatus as MyDevKitRefreshSelectionStatus)) {
+    return { ok: false, error: `incrementalRefresh.selectionStatus ${JSON.stringify(r.selectionStatus)} is not a known value` };
+  }
+  if (r.fallbackReason !== null && typeof r.fallbackReason !== "string") {
+    return { ok: false, error: "incrementalRefresh.fallbackReason must be a string or null" };
+  }
+  for (const key of NEIGHBORHOOD_COUNT_KEYS) {
+    if (r[key] !== null && !isNonNegativeInteger(r[key])) {
+      return { ok: false, error: `incrementalRefresh.${key} must be a non-negative integer or null` };
+    }
+  }
+  for (const key of ["forcedNeighborReanalysisFileCount", "freshExtractionFileCount", "reusedFileCount"] as const) {
+    if (!isNonNegativeInteger(r[key])) {
+      return { ok: false, error: `incrementalRefresh.${key} must be a non-negative integer` };
+    }
+  }
+  if (!Array.isArray(r.forcedNeighborSample) || r.forcedNeighborSample.some((item) => typeof item !== "string")) {
+    return { ok: false, error: "incrementalRefresh.forcedNeighborSample must be an array of strings" };
+  }
+
+  const appliedScope = r.appliedScope as MyDevKitAppliedRefreshScope;
+  const selectionStatus = r.selectionStatus as MyDevKitRefreshSelectionStatus;
+  const fallbackReason = r.fallbackReason as string | null;
+  if (selectionStatus === "applied") {
+    if (appliedScope !== requestedScope) {
+      return { ok: false, error: "incrementalRefresh applied status requires appliedScope equal to requestedScope" };
+    }
+    if (fallbackReason !== null) return { ok: false, error: "incrementalRefresh applied status requires a null fallbackReason" };
+  } else if (selectionStatus === "fallback-full") {
+    if (appliedScope !== "full") return { ok: false, error: "incrementalRefresh fallback-full status requires appliedScope full" };
+    if (fallbackReason === null || fallbackReason.length === 0) {
+      return { ok: false, error: "incrementalRefresh fallback-full status requires a nonempty fallbackReason" };
+    }
+  } else {
+    if (appliedScope !== "none") return { ok: false, error: "incrementalRefresh not-needed status requires appliedScope none" };
+    if (fallbackReason !== null) return { ok: false, error: "incrementalRefresh not-needed status requires a null fallbackReason" };
+  }
+  if (requestedScope === "affected-neighborhood" && selectionStatus === "applied") {
+    for (const key of NEIGHBORHOOD_COUNT_KEYS) {
+      if (r[key] === null) {
+        return { ok: false, error: `incrementalRefresh.${key} must be numeric for an applied affected-neighborhood refresh` };
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    evidence: {
+      requestedScope,
+      appliedScope,
+      selectionStatus,
+      fallbackReason,
+      seedFileCount: r.seedFileCount as number | null,
+      seedSymbolCount: r.seedSymbolCount as number | null,
+      affectedNodeCount: r.affectedNodeCount as number | null,
+      affectedEdgeCount: r.affectedEdgeCount as number | null,
+      forcedNeighborReanalysisFileCount: r.forcedNeighborReanalysisFileCount as number,
+      forcedNeighborSample: [...(r.forcedNeighborSample as string[])],
+      freshExtractionFileCount: r.freshExtractionFileCount as number,
+      reusedFileCount: r.reusedFileCount as number
+    }
+  };
+}
+
 /**
  * Runs exactly one my-dev-kit `index` command for the target and writes the index only to
  * `indexDir`. Performs no search/lookup/slice/source work. With `requireKit` a failed index
  * throws; otherwise the failure is returned as `ok: false` with a warning.
+ *
+ * `mode` defaults to a full index. An incremental mode adds `--incremental --refresh-scope <scope>`
+ * and requires valid per-invocation `incrementalRefresh` JSON evidence on stdout; a successful
+ * process without that evidence is not a usable incremental build. Upstream full-fallback and
+ * no-change outcomes are valid evidence and are returned as-is.
  */
 export async function buildMyDevKitIndex(options: {
   target: MyDevKitIndexTarget;
@@ -77,8 +193,10 @@ export async function buildMyDevKitIndex(options: {
   indexDir: string;
   commandsDir: string;
   requireKit: boolean;
+  mode?: MyDevKitIndexBuildMode;
 }): Promise<MyDevKitIndexBuildResult> {
   const warnings: string[] = [];
+  const mode: MyDevKitIndexBuildMode = options.mode ?? { kind: "full" };
   const command = await runMeasuredCommand({
     commandId: "index",
     commandString: options.kitCommand,
@@ -91,24 +209,32 @@ export async function buildMyDevKitIndex(options: {
       ...options.target.sourceRoots.flatMap((sourceRoot) => ["--src", sourceRoot]),
       "--out",
       options.indexDir,
+      ...(mode.kind === "incremental" ? ["--incremental", "--refresh-scope", mode.refreshScope] : []),
       "--json"
     ]
   });
+  const result = { indexDir: options.indexDir, durationMs: command.durationMs, command, mode };
 
   if (!command.ok) {
     if (options.requireKit) {
       throw new Error(command.error || `my-dev-kit index failed with exit code ${command.exitCode}`);
     }
     warnings.push("my-dev-kit index command was unavailable or failed.");
+    return { ...result, ok: false, warnings, incrementalRefresh: null };
   }
 
-  return {
-    ok: command.ok,
-    indexDir: options.indexDir,
-    durationMs: command.durationMs,
-    warnings,
-    command
-  };
+  if (mode.kind === "full") {
+    return { ...result, ok: true, warnings, incrementalRefresh: null };
+  }
+
+  const parsed = parseIncrementalRefreshEvidence(command.stdout, mode.refreshScope);
+  if (!parsed.ok) {
+    const message = `my-dev-kit incremental index (${mode.refreshScope}) returned no valid incrementalRefresh evidence: ${parsed.error}`;
+    if (options.requireKit) throw new Error(message);
+    warnings.push(message);
+    return { ...result, ok: false, warnings, incrementalRefresh: null };
+  }
+  return { ...result, ok: true, warnings, incrementalRefresh: parsed.evidence };
 }
 
 /**

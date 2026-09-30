@@ -12,6 +12,7 @@ import type {
 import type { ContextStrategyComparisonV043ReportV1 } from "./contextStrategyComparisonV043ReportModel.js";
 import type { WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
 import type { IncrementalChangeStalenessReportV1 } from "./incrementalChangeStalenessReportModel.js";
+import type { IncrementalChangeStalenessReportV2 } from "./incrementalChangeStalenessReportModelV2.js";
 
 export type PluginExperimentReportMetadata = {
   generatedAt: string;
@@ -73,7 +74,7 @@ export type PluginExperimentReport = {
   /** Populated for warm-index-reuse runs; null for every other plugin. */
   warmIndexReuse: WarmIndexReuseReportV1 | null;
   /** Populated for incremental-change-staleness runs; null for every other plugin. */
-  incrementalChangeStaleness: IncrementalChangeStalenessReportV1 | null;
+  incrementalChangeStaleness: IncrementalChangeStalenessReportV1 | IncrementalChangeStalenessReportV2 | null;
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null;
   interpretation: {
     summary: string;

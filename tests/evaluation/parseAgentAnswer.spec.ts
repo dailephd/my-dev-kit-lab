@@ -79,4 +79,45 @@ describe("parseAgentAnswer", () => {
     expect(empty.parseStatus).toBe("failed");
     expect(empty.warnings[0]).toContain("empty");
   });
+
+  it("preserves plain fenced JSON and all structured markdown sections", () => {
+    const fenced = parseAgentAnswer({ text: '```\n{"answer":"ok","relevantFiles":["src/a.ts"]}\n```' });
+    expect(fenced.answerText).toBe("ok");
+    expect(fenced.relevantFiles).toEqual(["src/a.ts"]);
+    const sections = parseAgentAnswer({ text: [
+      "## Relevant Files", "- src/a.ts", "## Relevant Symbols", "- Thing.run", "## Expected Facts Found", "- fact-1", "## Commands Run", "- npm test"
+    ].join("\n") });
+    expect(sections.relevantFiles).toEqual(["src/a.ts"]);
+    expect(sections.relevantSymbols).toEqual(["Thing.run"]);
+    expect(sections.expectedFactsFound).toEqual(["fact-1"]);
+    expect(sections.commandsRun).toEqual(["npm test"]);
+  });
+
+  it("keeps field markup, bullet continuations, inline code, and dash descriptions compatible", () => {
+    const parsed = parseAgentAnswer({ text: [
+      "* answer: ok", "relevantFiles: src/a.ts", "  src/b.ts", "  - src/c.ts", "**relevantSymbols:** `Thing.run` - public symbol",
+      "commandsRun: npm test \u2013 local run", "selectedContext: path \u2014 description", "fullFileReads: file - reason"
+    ].join("\n") });
+    expect(parsed.answerText).toBe("ok");
+    expect(parsed.relevantFiles).toEqual(["src/a.ts", "src/b.ts", "src/c.ts"]);
+    expect(parsed.relevantSymbols).toEqual(["Thing.run"]);
+    expect(parsed.commandsRun).toEqual(["npm test"]);
+    expect(parsed.selectedContext).toEqual(["path"]);
+    expect(parsed.fullFileReads).toEqual(["file"]);
+  });
+
+  it("classifies large malformed parser inputs without throwing", () => {
+    const fences = parseAgentAnswer({ text: "```".repeat(50_000) });
+    expect(fences.parseStatus).toBe("partial");
+    const malformedField = parseAgentAnswer({ text: `${" ".repeat(120_000)}${"*".repeat(120_000)} not-a-label:` });
+    expect(malformedField.parseStatus).toBe("partial");
+    const headings = parseAgentAnswer({ text: `${"#".repeat(120_000)} heading` });
+    expect(headings.parseStatus).toBe("partial");
+    const bullets = parseAgentAnswer({ text: `## Relevant Files\n- ${"x".repeat(120_000)}` });
+    expect(bullets.parseStatus).toBe("parsed");
+    expect(bullets.relevantFiles[0]).toHaveLength(120_000);
+    const quoteTail = ("'\"``").repeat(30_000);
+    const malformedTail = parseAgentAnswer({ text: `relevantFiles: ${"x".repeat(120_000)} - ${quoteTail}` });
+    expect(malformedTail.relevantFiles).toEqual(["x".repeat(120_000)]);
+  });
 });

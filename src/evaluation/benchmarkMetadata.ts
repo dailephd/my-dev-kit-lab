@@ -321,7 +321,10 @@ function validateWarmIndexSourceRoots(sourceRoots: unknown[], profile: Benchmark
 }
 
 function normalizeRelativeRoot(value: string): string {
-  return path.posix.normalize(value.replace(/\\/g, "/")).replace(/\/+$/, "");
+  const normalized = path.posix.normalize(value.replaceAll("\\", "/"));
+  let end = normalized.length;
+  while (end > 0 && normalized[end - 1] === "/") end -= 1;
+  return normalized.slice(0, end);
 }
 
 function sameOrderedValues(left: readonly unknown[], right: readonly unknown[]): boolean {

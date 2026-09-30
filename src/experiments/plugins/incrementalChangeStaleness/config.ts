@@ -3,10 +3,11 @@ import type { ExperimentConfigDefinition, ExperimentConfigValidationResult } fro
 import { FROZEN_INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS } from "./scenarioTypes.js";
 
 /**
- * The frozen v0.6.2 compatibility baseline for the upstream tool. Every index
- * of one matched scenario must come from this one configured command.
+ * The upstream tool version the four-treatment experiment expects: 1.12.5 is the first published
+ * my-dev-kit that exposes the incremental refresh-scope options. Every index of one matched scenario
+ * must come from this one configured command.
  */
-export const INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND = "npx @dailephd/my-dev-kit@1.12.4";
+export const INCREMENTAL_CHANGE_STALENESS_DEFAULT_KIT_COMMAND = "npx @dailephd/my-dev-kit@1.12.5";
 
 export type IncrementalChangeStalenessConfig = {
   outDir: string;
@@ -33,7 +34,7 @@ export const incrementalChangeStalenessConfigDefinition: ExperimentConfigDefinit
     {
       name: "caseIds",
       type: "array",
-      description: `Frozen scenario ids to include (${FROZEN_INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS.join(", ")}); defaults to all. Both stale-index and full-refresh always run for each selected scenario.`
+      description: `Frozen scenario ids to include (${FROZEN_INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS.join(", ")}); defaults to all. All four treatments run for each selected scenario: stale-index, changed-files-refresh, affected-neighborhood-refresh, and full-refresh.`
     }
   ]
 };

@@ -265,13 +265,13 @@ Invariants:
 - The graph belongs to the already prepared index; there is no second current-state index, no graph-diff, and no stale-versus-refreshed comparison.
 - The assessment never changes `ExperimentRunStatus`, provider or agent outcome status, correctness, or token evidence, and never triggers a reindex.
 - The categorical relationship and recommendation are not `ExperimentMetric` entries and there is no composite score.
-- `scripts/verify-packed-package.mjs` (with `scripts/verifyPackedPackageHelpers.ts`) proves the exact packed tarball in a clean consumer against the real registry package `@dailephd/my-dev-kit@1.12.4`, including a fresh case and a controlled changed-file case, and keeps the canonical and installed packages immutable. The controlled case uses a disposable second install of the same tarball as its only mutable sandbox.
+- `scripts/verify-packed-package.mjs` (with `scripts/verifyPackedPackageHelpers.ts`) proves the exact packed tarball in a clean consumer against the real registry package `@dailephd/my-dev-kit@1.12.5` (the pin of the current verifier), including a fresh case and a controlled changed-file case, and keeps the canonical and installed packages immutable. The controlled case uses a disposable second install of the same tarball as its only mutable sandbox.
 
-## Incremental-change and staleness architecture (v0.6.2, released/current)
+## Incremental-change and staleness architecture (v0.6.2, released)
 
 Status: **published**.
 
-The `incremental-change-staleness` experiment plugin (`src/experiments/plugins/incrementalChangeStaleness/`) is implemented as a new experiment plugin layered on the existing generic experiment framework. It does not replace or change the released `warm-index-reuse` plugin. The plugin owns its own controlled-change scenarios, disposable treatment targets, stale/full-refresh index lifecycle, persisted comparison evidence, and plugin report model, while reusing established evaluation owners where their released contracts apply. It is the current released implementation.
+The `incremental-change-staleness` experiment plugin (`src/experiments/plugins/incrementalChangeStaleness/`) is implemented as a new experiment plugin layered on the existing generic experiment framework. It does not replace or change the released `warm-index-reuse` plugin. The plugin owns its own controlled-change scenarios, disposable treatment targets, stale/full-refresh index lifecycle, persisted comparison evidence, and plugin report model, while reusing established evaluation owners where their released contracts apply. It is the released two-treatment baseline that v0.6.3 extends.
 
 ### Ownership
 
@@ -286,7 +286,7 @@ The `incremental-change-staleness` experiment plugin (`src/experiments/plugins/i
 - **Persistence/comparison:** `comparison.ts` is the sole pure classifier (`compareCorrectness`, `compareRequiredFileEvidence`, `classifyStaleRisk`); `executionArtifact.ts` owns a separate versioned execution/comparison artifact (`incremental-change-staleness-execution.json`, schema `my-dev-kit-lab-incremental-change-staleness-execution-v1`) rather than overloading `warm-index-execution.json`.
 - **Reporting:** `src/report/experiments/incrementalChangeStalenessReportModel.ts`, `buildIncrementalChangeStalenessReport.ts`, and `renderIncrementalChangeStalenessHtml.ts` project the persisted artifact into `report.json`/`report.txt`/`report.html` through the existing plugin report architecture (`buildPluginExperimentReport.ts`, `renderPluginExperimentReportText.ts`, `renderPluginExperimentReportHtml.ts`). Report builders remain presentation-only and never inspect or recompute target/index state.
 - **Command surface:** `src/commands/runExperimentRunCommand.ts` accepts `--kit-command` for this plugin in addition to `warm-index-reuse`; the plugin's own config validation still rejects unsupported fields, and no new top-level command or flag was added.
-- **Packed-package acceptance:** `scripts/verify-packed-package.mjs` (with `scripts/verifyPackedPackageHelpers.ts`) extends the existing packed-package verifier pattern with the exact Lab tarball, disposable installations, the real published `@dailephd/my-dev-kit@1.12.4` package, installed-binary execution of all six scenarios, bounded mutable benchmark copies inside the plugin's own gitignored runtime root (removed by the generic runner's `cleanup()` phase after every run), and the existing immutability boundaries.
+- **Packed-package acceptance:** `scripts/verify-packed-package.mjs` (with `scripts/verifyPackedPackageHelpers.ts`) extends the existing packed-package verifier pattern with the exact Lab tarball, disposable installations, the real published upstream package (`@dailephd/my-dev-kit@1.12.4` for the released v0.6.2; the current source pins `1.12.5`), installed-binary execution of all six scenarios, bounded mutable benchmark copies inside the plugin's own gitignored runtime root (removed by the generic runner's `cleanup()` phase after every run), and the existing immutability boundaries.
 
 ### Control flow
 
@@ -360,11 +360,63 @@ v0.6.2 preserves all of these released contracts:
 - mandatory real-agent campaigns
 - treatment rankings or winner selection
 
-Partial-refresh experiment architecture remains `v0.6.3` work.
+The v0.6.3 extension of this plugin to four treatments is described in the next section.
 
 ### Performance boundary
 
 The implementation intentionally inherits the current implementation costs unless measurement proves optimization is necessary: freshness re-hashes represented files at task boundaries; affected-neighborhood assessment scans approximately all retained graph edges per assessment; matched stale/full-refresh treatments multiply retrieval and evidence work; and the full-refresh treatment adds complete index builds. v0.6.2 measures/reports existing cost evidence rather than adding caches or altering released semantics.
+
+## Four-treatment partial-refresh architecture (v0.6.3)
+
+Status: **released/current**.
+
+v0.6.3 extends the `incremental-change-staleness` plugin from two treatments to four. It adds no experiment plugin and no top-level command, keeps one experiment runtime, and reuses the v0.6.2 scenario catalog, bounded mutation owner, snapshot/freshness evidence, affected-neighborhood evidence, correctness scoring, and plugin report architecture.
+
+### Ownership boundary
+
+- **my-dev-kit** owns indexing and real refresh execution. `index --incremental --refresh-scope changed-files` and `--refresh-scope affected-neighborhood` (my-dev-kit 1.12.5) refresh a trusted prior index in place. The affected-neighborhood scope uses the trusted prior index, exactly one graph hop in both directions with no recursive expansion, and freshly re-extracts otherwise-unchanged selected neighboring files. Upstream verifies its own trusted-baseline state and reports whether the requested scope was applied or fell back to a full rebuild.
+- **my-dev-kit-lab** owns treatment orchestration, evidence comparison, persistence, and reporting. Lab never hand-edits index artifacts, cache metadata, or hashes, and never bypasses upstream baseline-integrity checks. The refresh scope is chosen internally by the treatment; there is no Lab-level `--refresh-scope` flag.
+
+### Ownership
+
+- **Upstream execution contract:** `src/evaluation/runMyDevKitRetrieval.ts` and `src/evaluation/types.ts` build indexes in a typed `MyDevKitIndexBuildMode` (`full`, or `incremental` with a refresh scope) and parse the per-invocation upstream `incrementalRefresh` object into validated `MyDevKitIncrementalRefreshEvidence`. Missing or invalid evidence is `null`, never fabricated.
+- **Lifecycle:** `disposableTarget.ts` (treatment ids and intents), `lifecycleV2.ts`, `lifecyclePolicyV2.ts`, `treatmentSessionV2.ts`, and `indexClone.ts` (containment-checked whole-directory index clone).
+- **Execution and comparison:** `executionV2.ts` reuses the shared treatment-evaluation owner; `comparisonV2.ts` is the pure partial-refresh classifier, and the unchanged `comparison.ts` still classifies `stale-index` against `full-refresh`.
+- **Persistence:** `executionArtifactV2.ts` owns the V2 execution artifact and its contradiction validator; V1 and V2 are discriminated by `schemaVersion`, and historical V1 evidence is never converted.
+- **Presentation:** `buildIncrementalChangeStalenessReportV2.ts`, `incrementalChangeStalenessReportModelV2.ts`, `incrementalChangeStalenessReportRowsV2.ts`, and the V2 text/HTML renderers project the persisted artifact; `buildIncrementalChangeStalenessPluginReport.ts` dispatches V1 or V2 by artifact schema. Report code is presentation-only.
+- **Plugin mapping:** `plugin.ts` maps executed V2 evidence into the generic `ExperimentRun` (four outcomes per scenario) and adds the additive upstream-refresh metrics.
+- **Packed acceptance:** `scripts/verify-packed-package.mjs` and `scripts/verifyPackedPackageHelpers.ts` prove the exact tarball in a clean consumer against the real registry package `@dailephd/my-dev-kit@1.12.5`.
+
+### Control flow
+
+```text
+canonical benchmark (immutable)
+  -> four isolated disposable targets
+  -> equivalent trusted baselines (each bootstrapped into a new index directory)
+  -> partial treatments: untouched baseline cloned into its own refreshed index directory
+  -> barrier: same controlled mutation applied to all four only after every baseline is ready
+  -> stale-index: no post-mutation index invocation; retrieval uses the pre-mutation baseline
+  -> changed-files-refresh: upstream --refresh-scope changed-files on the clone
+  -> affected-neighborhood-refresh: upstream --refresh-scope affected-neighborhood on the clone
+  -> full-refresh: new complete post-mutation index
+  -> per-treatment freshness, retrieval, deterministic fake-agent evaluation
+  -> persisted V2 execution evidence
+  -> presentation-only JSON / text / HTML reports
+```
+
+Baseline bootstrap is requested as an incremental changed-files build into a brand-new index directory; upstream truthfully reports a full fallback with reason `cache-missing`, and Lab treats that only as expected bootstrap evidence, never as an experimental partial-refresh fallback. Cloning the whole baseline directory keeps upstream's trusted-baseline state intact so the later in-place refresh operates on a valid prior index.
+
+### Refresh realization and comparison
+
+- Each partial treatment records the upstream `requestedScope`, `appliedScope`, `selectionStatus`, `fallbackReason`, and counts, and a Lab `refreshRealization`: `APPLIED_PARTIAL` (upstream applied the requested scope) or `FALLBACK_FULL` (upstream rebuilt fully). `stale-index` is `NO_REFRESH` and `full-refresh` is `FULL_REFRESH`, neither carrying incremental-refresh evidence.
+- Exactly three comparisons against `full-refresh` are persisted: `stale-index` (v0.6.2 stale-risk semantics), `changed-files-refresh`, and `affected-neighborhood-refresh` (neutral partial-refresh reference semantics). A `FALLBACK_FULL` partial treatment is `not-comparable-as-partial-refresh`. No winner, ranking, safety score, or automatic refresh policy exists.
+- Two evidence families stay separate: Lab task-relationship affected-neighborhood evidence (`changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, `taskOverlapPercent`, `relationship`, `reindexRecommendation`) and upstream refresh execution evidence (what my-dev-kit actually refreshed). `reindexRecommendation` remains observational and selects no treatment.
+
+### Compatibility and exclusions
+
+- New runs write `my-dev-kit-lab-incremental-change-staleness-execution-v2` (same `incremental-change-staleness-execution.json` file name) and report schema `my-dev-kit-lab-incremental-change-staleness-report-v2`; historical V1 artifacts and reports remain readable with their v0.6.2 semantics. The persisted V2 evidence is bounded and never embeds raw retrieved context bodies or full graphs.
+- `warm-index-reuse`, the released v0.6.1 affected-neighborhood semantics, and `changedSymbolCount` are unchanged. The plugin remains self-only.
+- Not added: a new plugin, `graph-diff` dependency, true-symbol-diff metric, multi-hop traversal, automatic refresh policy, treatment ranking, safety score, real-agent campaign requirement, new plot/screenshot/gallery item, external-target support, or a public Lab `--refresh-scope` flag.
 
 ## Expanded warm-index benchmark suite (v0.5.1)
 

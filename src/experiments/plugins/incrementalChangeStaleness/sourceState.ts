@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
-import type { IncrementalChangeStalenessTreatmentId } from "./disposableTarget.js";
+import type { IncrementalChangeStalenessV2TreatmentId } from "./disposableTarget.js";
 import { sha256Hex } from "./scenarioMutation.js";
 
 /**
@@ -23,7 +23,7 @@ export type IncrementalChangeStalenessSourceFileIdentity = {
 
 export type IncrementalChangeStalenessSourceStateV1 = {
   schemaVersion: string;
-  treatmentId: IncrementalChangeStalenessTreatmentId;
+  treatmentId: IncrementalChangeStalenessV2TreatmentId;
   benchmarkProjectId: string;
   /** Declared source roots this capture is scoped to (as configured on the base case), normalized. */
   sourceRoots: string[];
@@ -86,7 +86,7 @@ function computeDigest(files: readonly IncrementalChangeStalenessSourceFileIdent
 export async function captureIncrementalChangeStalenessSourceState(
   projectRoot: string,
   sourceRoots: readonly string[],
-  treatmentId: IncrementalChangeStalenessTreatmentId,
+  treatmentId: IncrementalChangeStalenessV2TreatmentId,
   benchmarkProjectId: string
 ): Promise<IncrementalChangeStalenessSourceStateV1> {
   const normalizedSourceRoots = sourceRoots.map(normalizeSourceRoot);

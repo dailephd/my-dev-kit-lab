@@ -1,0 +1,9 @@
+# Keep CodeQL focused on Lab implementation and workflow definitions. These
+# excluded trees are generated output, dependency code, tests, or controlled
+# benchmark applications; production src/, scripts/, and .github/workflows/
+# remain in scope.
+paths-ignore:
+  - dist/**
+  - node_modules/**
+  - tests/**
+  - benchmarks/**

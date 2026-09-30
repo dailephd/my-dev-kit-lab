@@ -20,7 +20,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -91,6 +91,14 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/experiments/plugins/incrementalChangeStaleness/comparison.js",
   "dist/src/experiments/plugins/incrementalChangeStaleness/lifecycle.js",
   "dist/src/experiments/plugins/incrementalChangeStaleness/disposableTarget.js",
+  // v0.6.3 -- four-treatment V2 lifecycle, execution, comparison, artifact, and report owners.
+  "dist/src/experiments/plugins/incrementalChangeStaleness/lifecycleV2.js",
+  "dist/src/experiments/plugins/incrementalChangeStaleness/executionV2.js",
+  "dist/src/experiments/plugins/incrementalChangeStaleness/comparisonV2.js",
+  "dist/src/experiments/plugins/incrementalChangeStaleness/executionArtifactV2.js",
+  "dist/src/report/experiments/buildIncrementalChangeStalenessReportV2.js",
+  "dist/src/report/experiments/renderIncrementalChangeStalenessTextV2.js",
+  "dist/src/report/experiments/renderIncrementalChangeStalenessHtmlV2.js",
   "dist/src/report/experiments/buildIncrementalChangeStalenessReport.js",
   "dist/src/report/experiments/renderIncrementalChangeStalenessHtml.js",
   "benchmarks/contracts/benchmark-project-profiles.json",
@@ -110,6 +118,7 @@ const REQUIRED_TARBALL_PATHS = [
 ];
 
 const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness"];
+const INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS_LOCAL = ["U1", "L2", "E1", "P1", "I1", "T1"];
 
 const WARM_INDEX_CHARTS = [
   "warm-index-amortized-index-cost.svg",
@@ -518,6 +527,7 @@ async function main() {
     missingRequiredTarballPaths,
     validateManifestRelativePaths,
     validateWarmIndexCampaignGalleryManifest,
+    validateWarmIndexCampaignScreenshotEvidence,
     snapshotDirectory,
     diffSnapshots,
     UPSTREAM_MY_DEV_KIT_PACKAGE,
@@ -527,8 +537,9 @@ async function main() {
     resolveUpstreamBinRelativePath,
     buildControlledMutationKitWrapperSource,
     validateAffectedNeighborhoodLayers,
-    validateIncrementalChangeStalenessArtifact,
-    validateIncrementalChangeStalenessReportConsistency
+    evaluateIncrementalChangeStalenessV2Acceptance,
+    validateIncrementalChangeStalenessReportConsistencyV2,
+    INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS_EXPECTED
   } =
     await loadHelpers();
 
@@ -755,16 +766,36 @@ async function main() {
 
     const runHelpResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--help"], envWithBin);
     const runHelp = runHelpResult.stdout ?? "";
+    const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse and incremental-change-staleness):");
     const warmHelpStart = runHelp.indexOf("warm-index-reuse only:");
     const contextHelpStart = runHelp.indexOf("context-strategy-comparison only:");
+    const warmCampaignHelp = warmHelpStart >= 0 && contextHelpStart > warmHelpStart
+      ? runHelp.slice(warmHelpStart, contextHelpStart)
+      : "";
+    const normalizedWarmCampaignHelp = warmCampaignHelp.replace(/\s+/g, " ");
+    const campaignScreenshotHelpContract = [
+      "campaign report screenshot is best-effort presentation",
+      "skipped or failed capture is reported explicitly",
+      "failed remains failed",
+      "no PNG is fabricated",
+      "screenshot status alone does not fail an otherwise successful campaign command",
+      "Core experiment, report,",
+      "plot, and gallery failures remain fatal."
+    ];
     if (
       runHelpResult.status !== 0 ||
+      kitCommandHelpStart < 0 ||
       warmHelpStart < 0 ||
       contextHelpStart <= warmHelpStart ||
-      !runHelp.slice(warmHelpStart, contextHelpStart).includes("--kit-command <command>") ||
+      warmHelpStart <= kitCommandHelpStart ||
+      !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("--kit-command <command>") ||
+      !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("warm-index-reuse") ||
+      !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("incremental-change-staleness") ||
+      campaignScreenshotHelpContract.some((phrase) => !normalizedWarmCampaignHelp.includes(phrase)) ||
+      /screenshot failure makes the command unsuccessful/i.test(normalizedWarmCampaignHelp) ||
       !runHelp.slice(contextHelpStart).includes("--agents")
     ) {
-      fail("EXPERIMENT_RUN_HELP", "Installed `experiment run --help` does not document --kit-command as warm-index-reuse-specific.", describeChildResult(runHelpResult));
+      fail("EXPERIMENT_RUN_HELP", "Installed `experiment run --help` does not document both supported --kit-command plugins and the nonfatal automatic campaign screenshot contract.", describeChildResult(runHelpResult));
     }
 
     // -----------------------------------------------------------------
@@ -1426,7 +1457,7 @@ async function main() {
     }
     if (
       icsListedEntries[0].status !== "experimental" ||
-      JSON.stringify(icsListedEntries[0].supportedVariants) !== JSON.stringify(["stale-index", "full-refresh"])
+      JSON.stringify(icsListedEntries[0].supportedVariants) !== JSON.stringify(INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS_EXPECTED)
     ) {
       fail("INCREMENTAL_CHANGE_STALENESS_DISCOVERY", `Unexpected listed plugin metadata/variants: ${JSON.stringify(icsListedEntries[0])}`);
     }
@@ -1448,15 +1479,27 @@ async function main() {
     if (
       icsDescribed.metadata?.id !== "incremental-change-staleness" ||
       icsDescribed.metadata?.status !== "experimental" ||
-      JSON.stringify(icsDescribed.supportedVariants) !== JSON.stringify(["stale-index", "full-refresh"])
+      JSON.stringify(icsDescribed.supportedVariants) !== JSON.stringify(INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS_EXPECTED)
     ) {
       fail(
         "INCREMENTAL_CHANGE_STALENESS_DISCOVERY",
-        `Installed describe output does not expose exactly stale-index/full-refresh: ${icsDescribeResult.stdout}`
+        `Installed describe output does not expose exactly the four V2 treatments: ${icsDescribeResult.stdout}`
       );
     }
-    console.log("INCREMENTAL_CHANGE_STALENESS_DISCOVERY: PASS (listed exactly once; describe exposes stale-index/full-refresh only)");
+    console.log("INCREMENTAL_CHANGE_STALENESS_DISCOVERY: PASS (listed exactly once; describe exposes the four V2 treatments in order)");
 
+    // v0.6.3 Batch 5: the acceptance experiment must use the real published upstream, never a fake.
+    if (!realKitCommand.includes(upstreamBin)) {
+      fail("INCREMENTAL_CHANGE_STALENESS_REAL_UPSTREAM", `Kit command is not the installed real published upstream binary: ${realKitCommand}`);
+    }
+    const gitOutput = (args) => {
+      const result = spawnSync("git", args, { cwd: REPO_ROOT, encoding: "utf8" });
+      if (result.status !== 0) fail("INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY", `git ${args.join(" ")} failed.`, describeChildResult(result));
+      return result.stdout.trim();
+    };
+    const icsRepoStatusBefore = gitOutput(["status", "--short"]);
+    const icsCanonicalBenchmarksBefore = await snapshotDirectory(path.join(REPO_ROOT, "benchmarks"));
+    const icsUpstreamBefore = await snapshotDirectory(upstreamPackageRoot);
     const icsSandboxBefore = await snapshotDirectory(sandboxPackageRoot);
     const icsOut = path.join(dirs.affectedRuns, "incremental-change-staleness");
     const icsRun = runInstalledCli(
@@ -1474,87 +1517,157 @@ async function main() {
     }
 
     const icsArtifact = readJsonFile(path.join(icsOut, "incremental-change-staleness-execution.json"), "INCREMENTAL_CHANGE_STALENESS_ARTIFACT");
-    const icsArtifactProblems = validateIncrementalChangeStalenessArtifact(icsArtifact);
-    if (icsArtifactProblems.length > 0) {
-      fail("INCREMENTAL_CHANGE_STALENESS_ARTIFACT", icsArtifactProblems.join("\n"));
+    const installedModule = async (...segments) => {
+      const modulePath = path.join(sandboxPackageRoot, "dist", "src", ...segments);
+      if (!existsSync(modulePath)) fail("INCREMENTAL_CHANGE_STALENESS_ARTIFACT", `Installed module not found: ${modulePath}`);
+      return import(pathToFileURL(modulePath).href);
+    };
+
+    // The production V2 artifact validator of the INSTALLED package (never a looser acceptance parser).
+    const installedArtifactModule = await installedModule("experiments", "plugins", "incrementalChangeStaleness", "executionArtifactV2.js");
+    let productionValidatorError = null;
+    try {
+      installedArtifactModule.validateIncrementalChangeStalenessExecutionArtifactV2(icsArtifact);
+    } catch (error) {
+      productionValidatorError = error.message;
+    }
+    const icsAcceptance = evaluateIncrementalChangeStalenessV2Acceptance(icsArtifact);
+    const icsReportJson = readJsonFile(path.join(icsOut, "report.json"), "INCREMENTAL_CHANGE_STALENESS_REPORT").report;
+    const icsReportText = readFileSync(path.join(icsOut, "report.txt"), "utf8");
+    const icsReportHtml = readFileSync(path.join(icsOut, "report.html"), "utf8");
+    const installedReportModule = await installedModule("report", "experiments", "buildIncrementalChangeStalenessReportV2.js");
+    const icsReportProblems = validateIncrementalChangeStalenessReportConsistencyV2({
+      artifact: icsArtifact,
+      report: icsReportJson,
+      reportText: icsReportText,
+      reportHtml: icsReportHtml,
+      expectedLimitations: installedReportModule.LIMITATIONS_V2
+    });
+
+    const icsGitHead = gitOutput(["rev-parse", "HEAD"]);
+    const icsGitBranch = gitOutput(["branch", "--show-current"]);
+    const icsPackageVersion = packEntry.version;
+    const writeIcsEvidence = (finalVerdict, immutability) => {
+      const reportPath = path.join(REPO_ROOT, ".my-dev-kit-context", "reports", "v0.6.3-real-upstream-partial-refresh-acceptance.txt");
+      const cell = (value) => (value === null || value === undefined ? "null" : Array.isArray(value) ? JSON.stringify(value) : String(value));
+      const lines = [
+        "my-dev-kit-lab v0.6.3 real-upstream partial-refresh acceptance (local-only evidence; not public documentation)",
+        `timestamp: ${new Date().toISOString()}`,
+        `source branch: ${icsGitBranch}`,
+        `source commit: ${icsGitHead}`,
+        `lab package: ${packEntry.name}@${icsPackageVersion}`,
+        `lab tarball: ${tarballFilename}`,
+        `lab tarball sha256: ${tarballSha256}`,
+        `upstream package: ${UPSTREAM_MY_DEV_KIT_SPEC}`,
+        `kit command: ${realKitCommand}`,
+        `packed consumer path: ${dirs.mutableConsumer}`,
+        "command surface: installed CLI: experiment run --experiment incremental-change-staleness --kit-command <real upstream> --out <run dir>",
+        `scenarios: ${INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS_LOCAL.join(", ")}`,
+        "",
+        "per scenario/treatment evidence:"
+      ];
+      for (const row of icsAcceptance.rows) {
+        lines.push(
+          `  [${row.scenarioId}] ${row.treatmentId} intent=${cell(row.treatmentIntent)} kind=${cell(row.refreshKind)} realization=${cell(row.refreshRealization)}`,
+          `      requestedScope=${cell(row.requestedScope)} appliedScope=${cell(row.appliedScope)} selectionStatus=${cell(row.selectionStatus)} fallbackReason=${cell(row.fallbackReason)}`,
+          `      freshExtractionFileCount=${cell(row.freshExtractionFileCount)} reusedFileCount=${cell(row.reusedFileCount)} forcedNeighborReanalysisFileCount=${cell(row.forcedNeighborReanalysisFileCount)} seedFileCount=${cell(row.seedFileCount)} affectedNodeCount=${cell(row.affectedNodeCount)}`,
+          `      forcedNeighborSample=${cell(row.forcedNeighborSample)}`,
+          `      baselineFreshness=${cell(row.baselineFreshness)} refreshedFreshness=${cell(row.refreshedFreshness)} requiredFileStatus=${cell(row.requiredFileStatus)} correctness=${row.correctness} referenceClassification=${cell(row.referenceClassification)}`
+        );
+      }
+      lines.push(
+        "",
+        `scenarios with forcedNeighborReanalysisFileCount > 0: ${icsAcceptance.forcedNeighborScenarios.join(", ") || "none"}`,
+        `scenarios where affected fresh extraction exceeds changed-files (and reused is lower): ${icsAcceptance.geometryDifferenceScenarios.join(", ") || "none"}`,
+        `production V2 artifact validator: ${productionValidatorError ?? "PASS"}`,
+        `contract problems: ${icsAcceptance.contractProblems.join(" | ") || "none"}`,
+        `changed-files realization gate: ${icsAcceptance.changedFilesRealizationProblems.length === 0 ? "PASS" : icsAcceptance.changedFilesRealizationProblems.join(" | ")}`,
+        `affected-neighborhood realization gate: ${icsAcceptance.affectedRealizationProblems.length === 0 ? "PASS" : icsAcceptance.affectedRealizationProblems.join(" | ")}`,
+        `discrimination gate: ${icsAcceptance.discrimination}${icsAcceptance.discriminationProblems.length > 0 ? ` (${icsAcceptance.discriminationProblems.join(" | ")})` : ""}`,
+        `report json/text/html consistency: ${icsReportProblems.length === 0 ? "PASS" : icsReportProblems.join(" | ")}`,
+        `immutability: ${immutability}`,
+        "note: no treatment ranking or safety claim is made; counts and durations are descriptive only.",
+        `final acceptance verdict: ${finalVerdict}`
+      );
+      mkdirSync(path.dirname(reportPath), { recursive: true });
+      writeFileSync(reportPath, `${lines.join("\n")}\n`, "utf8");
+      return reportPath;
+    };
+
+    if (productionValidatorError) {
+      writeIcsEvidence("BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH", "not evaluated");
+      fail("BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH", `Installed production V2 artifact validator rejected the artifact: ${productionValidatorError}`);
+    }
+    if (icsAcceptance.verdict !== "PASS") {
+      writeIcsEvidence(icsAcceptance.verdict, "not evaluated");
+      fail(icsAcceptance.verdict, icsAcceptance.problems.join("\n"));
+    }
+    if (icsReportProblems.length > 0) {
+      writeIcsEvidence("BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH", "not evaluated");
+      fail("BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH", icsReportProblems.join("\n"));
     }
     if (icsArtifact.summary.failedScenarioCount !== 0) {
       fail("INCREMENTAL_CHANGE_STALENESS_RUN", `Expected failedScenarioCount 0, got ${icsArtifact.summary.failedScenarioCount}.`);
     }
-
-    const icsReportJson = readJsonFile(path.join(icsOut, "report.json"), "INCREMENTAL_CHANGE_STALENESS_REPORT").report;
-    const icsReportText = readFileSync(path.join(icsOut, "report.txt"), "utf8");
-    const icsReportHtml = readFileSync(path.join(icsOut, "report.html"), "utf8");
-    const icsReportProblems = validateIncrementalChangeStalenessReportConsistency({
-      artifact: icsArtifact,
-      report: icsReportJson,
-      reportText: icsReportText,
-      reportHtml: icsReportHtml
-    });
-    if (icsReportProblems.length > 0) {
-      fail("INCREMENTAL_CHANGE_STALENESS_REPORT", icsReportProblems.join("\n"));
-    }
-
-    // Section 41: reuse (never reimplement) the installed package's own pure comparison module.
-    const icsComparisonModulePath = path.join(
-      sandboxPackageRoot,
-      "dist",
-      "src",
-      "experiments",
-      "plugins",
-      "incrementalChangeStaleness",
-      "comparison.js"
-    );
-    if (!existsSync(icsComparisonModulePath)) {
-      fail("INCREMENTAL_CHANGE_STALENESS_COMPARISON", `Installed comparison module not found: ${icsComparisonModulePath}`);
-    }
-    const installedComparison = await import(pathToFileURL(icsComparisonModulePath).href);
     for (const scenario of icsArtifact.scenarios) {
+      const version = scenario.lifecycle?.myDevKitVersion;
+      if (typeof version !== "string" || !version.includes(UPSTREAM_MY_DEV_KIT_VERSION)) {
+        fail("INCREMENTAL_CHANGE_STALENESS_REAL_UPSTREAM", `[${scenario.scenarioId}] lifecycle myDevKitVersion ${JSON.stringify(version)} does not identify the real upstream ${UPSTREAM_MY_DEV_KIT_VERSION}.`);
+      }
+    }
+
+    // Reuse (never reimplement) the installed package's own pure stale-risk comparison module.
+    const installedComparison = await installedModule("experiments", "plugins", "incrementalChangeStaleness", "comparison.js");
+    for (const scenario of icsArtifact.scenarios) {
+      const byId = (id) => scenario.treatments.find((treatment) => treatment.treatmentId === id);
       const correctnessComparable = (treatment) =>
         treatment?.fakeAgent?.correctness?.available ? { available: true, score: treatment.fakeAgent.correctness.score } : { available: false };
-      const expectedCorrectnessRelation = installedComparison.compareCorrectness(
-        correctnessComparable(scenario.stale),
-        correctnessComparable(scenario.fullRefresh)
-      );
-      if (expectedCorrectnessRelation !== scenario.comparison.correctnessRelation) {
-        fail(
-          "INCREMENTAL_CHANGE_STALENESS_COMPARISON",
-          `[${scenario.scenarioId}] persisted correctnessRelation "${scenario.comparison.correctnessRelation}" disagrees with the installed pure comparison helper ("${expectedCorrectnessRelation}").`
-        );
-      }
-      const expectedRequiredFileRelation = installedComparison.compareRequiredFileEvidence(
-        scenario.stale.requiredFileEvidence,
-        scenario.fullRefresh.requiredFileEvidence
-      );
-      if (expectedRequiredFileRelation !== scenario.comparison.requiredFileEvidenceRelation) {
-        fail(
-          "INCREMENTAL_CHANGE_STALENESS_COMPARISON",
-          `[${scenario.scenarioId}] persisted requiredFileEvidenceRelation "${scenario.comparison.requiredFileEvidenceRelation}" disagrees with the installed pure comparison helper ("${expectedRequiredFileRelation}").`
-        );
-      }
-      const expectedClassification = installedComparison.classifyStaleRisk(expectedCorrectnessRelation, expectedRequiredFileRelation);
-      if (expectedClassification.staleRiskClassification !== scenario.comparison.staleRiskClassification) {
-        fail(
-          "INCREMENTAL_CHANGE_STALENESS_COMPARISON",
-          `[${scenario.scenarioId}] persisted staleRiskClassification "${scenario.comparison.staleRiskClassification}" disagrees with the installed pure classifier ("${expectedClassification.staleRiskClassification}").`
-        );
+      const stale = byId("stale-index");
+      const full = byId("full-refresh");
+      const persisted = scenario.referenceComparisons.find((comparison) => comparison.candidateTreatmentId === "stale-index").comparison;
+      const correctnessRelation = installedComparison.compareCorrectness(correctnessComparable(stale), correctnessComparable(full));
+      const requiredRelation = installedComparison.compareRequiredFileEvidence(stale.requiredFileEvidence, full.requiredFileEvidence);
+      const classification = installedComparison.classifyStaleRisk(correctnessRelation, requiredRelation);
+      if (
+        correctnessRelation !== persisted.correctnessRelation ||
+        requiredRelation !== persisted.requiredFileEvidenceRelation ||
+        classification.staleRiskClassification !== persisted.staleRiskClassification
+      ) {
+        fail("INCREMENTAL_CHANGE_STALENESS_COMPARISON", `[${scenario.scenarioId}] persisted stale-vs-full comparison disagrees with the installed pure comparison helper.`);
       }
     }
 
-    // Immutability: production mutation must stay inside the plugin's own gitignored runtime root
-    // (toolRoot/.my-dev-kit-context/runtime/incremental-change-staleness), which the generic
-    // runner's cleanup() phase always removes; the installed package tree must return byte-identical.
-    const icsSandboxAfter = await snapshotDirectory(sandboxPackageRoot);
-    const icsSandboxChanges = diffSnapshots(icsSandboxBefore, icsSandboxAfter);
+    // Immutability: mutation stays inside the plugin's own runtime root; installed Lab package, installed
+    // upstream package, canonical benchmark sources, and the source checkout must all be unchanged.
+    const icsSandboxChanges = diffSnapshots(icsSandboxBefore, await snapshotDirectory(sandboxPackageRoot));
     if (icsSandboxChanges.length > 0) {
-      fail("INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY", `Installed package resources changed after the six-scenario run: ${icsSandboxChanges.join(", ")}`);
+      writeIcsEvidence("BLOCKED_IMMUTABILITY_VIOLATION", `installed Lab package changed: ${icsSandboxChanges.join(", ")}`);
+      fail("BLOCKED_IMMUTABILITY_VIOLATION", `Installed package resources changed after the six-scenario run: ${icsSandboxChanges.join(", ")}`);
     }
+    const icsUpstreamChanges = diffSnapshots(icsUpstreamBefore, await snapshotDirectory(upstreamPackageRoot));
+    if (icsUpstreamChanges.length > 0) {
+      writeIcsEvidence("BLOCKED_IMMUTABILITY_VIOLATION", `installed upstream package changed: ${icsUpstreamChanges.join(", ")}`);
+      fail("BLOCKED_IMMUTABILITY_VIOLATION", `Installed upstream package changed after the run: ${icsUpstreamChanges.join(", ")}`);
+    }
+    const icsCanonicalChanges = diffSnapshots(icsCanonicalBenchmarksBefore, await snapshotDirectory(path.join(REPO_ROOT, "benchmarks")));
+    const icsRepoStatusAfter = gitOutput(["status", "--short"]);
+    if (icsCanonicalChanges.length > 0 || icsRepoStatusAfter !== icsRepoStatusBefore) {
+      writeIcsEvidence("BLOCKED_IMMUTABILITY_VIOLATION", "source checkout or canonical benchmarks changed");
+      fail("BLOCKED_IMMUTABILITY_VIOLATION", `Source checkout changed during the run: canonical=${icsCanonicalChanges.join(", ") || "none"}; git status before/after: ${JSON.stringify(icsRepoStatusBefore)} / ${JSON.stringify(icsRepoStatusAfter)}`);
+    }
+    const icsEvidencePath = writeIcsEvidence(
+      "PASS",
+      "installed Lab package, installed upstream package, canonical benchmarks, and source git status unchanged"
+    );
 
-    console.log(`INCREMENTAL_CHANGE_STALENESS_RUN: PASS (6 scenarios: ${icsArtifact.scenarios.map((s) => `${s.scenarioId}=${s.comparison.staleRiskClassification}`).join(", ")}; real ${UPSTREAM_MY_DEV_KIT_SPEC})`);
-    console.log("INCREMENTAL_CHANGE_STALENESS_ARTIFACT: PASS (schema, six-scenario order, lifecycle, active-index-phase, affected-neighborhood symmetry, comparison vocabulary)");
-    console.log("INCREMENTAL_CHANGE_STALENESS_REPORT: PASS (report.json/report.txt/report.html consistent with the execution artifact; limitations present; no overall verdict)");
-    console.log("INCREMENTAL_CHANGE_STALENESS_COMPARISON: PASS (persisted relations/classification agree with the installed pure comparison helper)");
-    console.log("INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY: PASS (installed package tree byte-identical after the run)");
+    console.log(`INCREMENTAL_CHANGE_STALENESS_RUN: PASS (6 scenarios x 4 treatments; real ${UPSTREAM_MY_DEV_KIT_SPEC}; ${icsArtifact.scenarios.map((s) => `${s.scenarioId}=${s.referenceComparisons.map((c) => c.kind === "stale-risk" ? c.comparison.staleRiskClassification : c.classification).join("/")}`).join(", ")})`);
+    console.log("INCREMENTAL_CHANGE_STALENESS_ARTIFACT: PASS (V2 schema; installed production validator; four treatments; three comparisons; no forbidden aggregate fields)");
+    console.log("INCREMENTAL_CHANGE_STALENESS_REALIZATION: PASS (changed-files and affected-neighborhood APPLIED_PARTIAL for every scenario; stale NO_REFRESH; full FULL_REFRESH; refreshed states fresh)");
+    console.log(`INCREMENTAL_CHANGE_STALENESS_DISCRIMINATION: PASS (forced neighbors: ${icsAcceptance.forcedNeighborScenarios.join(",")}; geometry difference: ${icsAcceptance.geometryDifferenceScenarios.join(",")})`);
+    console.log("INCREMENTAL_CHANGE_STALENESS_REPORT: PASS (report.json/report.txt/report.html consistent with the V2 execution artifact; limitations present; no aggregate verdict)");
+    console.log("INCREMENTAL_CHANGE_STALENESS_COMPARISON: PASS (persisted stale-vs-full comparison agrees with the installed pure comparison helper)");
+    console.log("INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY: PASS (installed Lab package, installed upstream package, canonical benchmarks, source git status unchanged)");
+    console.log(`INCREMENTAL_CHANGE_STALENESS_EVIDENCE: ${icsEvidencePath}`);
 
     // -----------------------------------------------------------------
     // 9d. v0.5.2 real-agent campaign acceptance. Deterministic local fake
@@ -1693,50 +1806,29 @@ async function main() {
     }
 
     // --- 9d.1 Codex installed success campaign (sections 19-22) ---------
-    // A real (non-isolated) Chromium capture, run a second time in the same job right after the
-    // existing tutorial's own full real-browser recording, has proven to exceed available resources
-    // on hosted Linux/macOS CI runners (observed as the child process being killed outright, not a
-    // graceful screenshot failure) even though it is reliable on Windows and in local development.
-    // Rather than risk destabilizing the shared Playwright runtime with launch-flag/environment
-    // hacks, this gate only requires a *captured* screenshot -- proving the installed campaign's
-    // real-browser integration end to end -- on win32, where it is reliable. Linux/macOS still prove
-    // every other part of this scenario (report, campaign summary, token evidence, argv privacy,
-    // plots, gallery) plus the deterministic *skipped* path here (an isolated empty browser cache),
-    // and the deterministic captured/skipped/failed screenshot *semantics* already have dedicated,
-    // always-reliable coverage in the Batch 5 focused command tests.
+    // The normal screenshot attempt remains enabled on Windows. Screenshot output is optional
+    // campaign presentation evidence on every platform: captured, skipped, and failed results are
+    // validated against the command output, gallery manifest, and actual PNG presence below.
+    // Core campaign execution is performed exactly once; a failed screenshot does not retry it.
     const codexSuccessCaptureCapable = process.platform === "win32";
-    const MAX_SCREENSHOT_ATTEMPTS = codexSuccessCaptureCapable ? 3 : 1;
-    let codexSuccessOut;
-    let codexSuccess;
-    for (let attempt = 1; attempt <= MAX_SCREENSHOT_ATTEMPTS; attempt += 1) {
-      const attemptOut = path.join(dirs.campaigns, MAX_SCREENSHOT_ATTEMPTS > 1 ? `codex-success-attempt-${attempt}` : "codex-success");
-      clearProviderLog();
-      const attemptResult = runInstalledCli(
-        cliCommand,
-        dirs.consumer,
-        campaignArgs("codex-full", attemptOut, ["--case", "warm-medium-complete-idempotent"]),
-        campaignEnv({
-          mode: "success",
-          playwrightBrowsersPath: codexSuccessCaptureCapable ? undefined : dirs.browserCache
-        })
-      );
-      process.stderr.write(
-        `[diagnostic] codex-success attempt ${attempt} finished at ${new Date().toISOString()} (${Date.now() - gateStartedAt}ms since gate start): status=${attemptResult.status} signal=${attemptResult.signal ?? "none"} error=${attemptResult.error ? (attemptResult.error.message ?? String(attemptResult.error)) : "none"}\n`
-      );
-      if (attemptResult.status === 0) {
-        codexSuccessOut = attemptOut;
-        codexSuccess = { result: attemptResult, log: readProviderLog() };
-        break;
-      }
-      const isRealBrowserFlake =
-        /Screenshot: failed/.test(attemptResult.stdout ?? "") && /Status: completed/.test(attemptResult.stdout ?? "");
-      if (!isRealBrowserFlake || attempt === MAX_SCREENSHOT_ATTEMPTS) {
-        fail("WARM_INDEX_CAMPAIGN_CODEX_INSTALLED", "Installed campaign command did not exit 0.", describeChildResult(attemptResult));
-      }
-      console.error(
-        `[WARM_INDEX_CAMPAIGN_CODEX_INSTALLED] Real-browser screenshot capture failed on attempt ${attempt}/${MAX_SCREENSHOT_ATTEMPTS} (known transient Chromium flake under sequential load); retrying with a fresh output directory.`
-      );
+    const codexSuccessOut = path.join(dirs.campaigns, "codex-success");
+    clearProviderLog();
+    const codexSuccessResult = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      campaignArgs("codex-full", codexSuccessOut, ["--case", "warm-medium-complete-idempotent"]),
+      campaignEnv({
+        mode: "success",
+        playwrightBrowsersPath: codexSuccessCaptureCapable ? undefined : dirs.browserCache
+      })
+    );
+    process.stderr.write(
+      `[diagnostic] codex-success finished at ${new Date().toISOString()} (${Date.now() - gateStartedAt}ms since gate start): status=${codexSuccessResult.status} signal=${codexSuccessResult.signal ?? "none"} error=${codexSuccessResult.error ? (codexSuccessResult.error.message ?? String(codexSuccessResult.error)) : "none"}\n`
+    );
+    if (codexSuccessResult.status !== 0) {
+      fail("WARM_INDEX_CAMPAIGN_CODEX_INSTALLED", "Installed campaign command did not exit 0.", describeChildResult(codexSuccessResult));
     }
+    const codexSuccess = { result: codexSuccessResult, log: readProviderLog() };
     requireCampaignReportFiles("WARM_INDEX_CAMPAIGN_CODEX_INSTALLED", codexSuccessOut);
     const codexSuccessReport = readCampaignReport(codexSuccessOut);
     const codexWarm = codexSuccessReport?.warmIndexReuse;
@@ -1772,26 +1864,34 @@ async function main() {
     requireProviderArgvPrivacy("WARM_INDEX_CAMPAIGN_PROVIDER_ARGV_PRIVACY", codexSuccess.log);
     requireFrozenProviderFlags("WARM_INDEX_CAMPAIGN_PROVIDER_ARGV_PRIVACY", codexSuccess.log, CODEX_STDIN_ARGS);
 
-    // Presentation acceptance: four plots, screenshot capture (captured on win32; deterministic
-    // skip elsewhere per the resource note above), and the three-item campaign gallery.
+    // Presentation acceptance: four plots, screenshot state consistency, and the three-item gallery.
     requireFourCampaignCharts("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", codexSuccessOut);
     const codexGallery = requireCampaignGallery("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", codexSuccessOut);
     const [codexReportItem, codexPlotsItem, codexExecutionItem] = codexGallery.items;
-    if (codexSuccessCaptureCapable) {
-      requireNonEmptyFile(path.join(codexSuccessOut, "report.png"), "WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION");
-      if (codexReportItem.status !== "pass" || !codexReportItem.screenshotPath) {
-        fail("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", "Codex campaign gallery report item is not a captured pass.");
-      }
-    } else {
-      if (existsSync(path.join(codexSuccessOut, "report.png"))) {
-        fail("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", "Codex campaign unexpectedly produced report.png with an isolated empty browser cache.");
-      }
-      if (codexReportItem.status !== "warning" || codexReportItem.screenshotPath) {
-        fail("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", "Codex campaign gallery report item did not reflect the skipped screenshot.");
-      }
-      if (!codexReportItem.warnings?.some((warning) => /Playwright or browser runtime is unavailable/.test(warning))) {
-        fail("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", "Codex campaign gallery is missing the canonical screenshot-skip warning.");
-      }
+    const screenshotLine = (codexSuccess.result.stdout ?? "").split(/\r?\n/).find((line) => line.startsWith("Screenshot: "));
+    const expectedPngPath = path.join(codexSuccessOut, "report.png");
+    const screenshotStatus = screenshotLine === "Screenshot: skipped"
+      ? "skipped"
+      : screenshotLine === "Screenshot: failed"
+        ? "failed"
+        : screenshotLine === `Screenshot: ${expectedPngPath}`
+          ? "captured"
+          : undefined;
+    if (!screenshotStatus) {
+      fail("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", "Installed campaign did not report a screenshot outcome.");
+    }
+    if (screenshotStatus === "captured") {
+      requireNonEmptyFile(expectedPngPath, "WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION");
+    }
+    const screenshotProblems = validateWarmIndexCampaignScreenshotEvidence({
+      status: screenshotStatus,
+      commandOutput: codexSuccess.result.stdout ?? "",
+      expectedPngPath,
+      pngExists: existsSync(expectedPngPath),
+      reportItem: codexReportItem
+    });
+    if (screenshotProblems.length > 0) {
+      fail("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", screenshotProblems.join("; "));
     }
     if (codexPlotsItem.status !== "pass" || !codexPlotsItem.metrics?.some((metric) => metric.id === "chart-count" && metric.value === 4)) {
       fail("WARM_INDEX_CAMPAIGN_CODEX_PRESENTATION", "Codex campaign gallery plots item is not pass with a chart-count of 4.");
