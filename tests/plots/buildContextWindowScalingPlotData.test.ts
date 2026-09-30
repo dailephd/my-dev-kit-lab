@@ -199,10 +199,10 @@ describe("fixed-corpus plots from a real ContextWindowScalingRun", () => {
 });
 
 describe("plugin metadata and registration", () => {
-  it("advertises plot without screenshot and stays publicly unregistered", () => {
+  it("advertises plot without screenshot and is registered last", () => {
     expect(contextWindowScalingMetadata.supportedOutputs).toEqual(["json", "text", "html", "plot"]);
     const registry = createDefaultExperimentPluginRegistry();
-    expect(registry.list()).toHaveLength(3);
-    expect(registry.list().map((p) => p.id)).not.toContain("context-window-scaling");
+    expect(registry.list()).toHaveLength(4);
+    expect(registry.list().map((p) => p.id).at(-1)).toBe("context-window-scaling");
   });
 });

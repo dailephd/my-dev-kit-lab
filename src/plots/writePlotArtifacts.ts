@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveWithinRoot } from "../core/pathSafety.js";
+import { buildContextWindowScalingPlotData, readContextWindowScalingPlotSource } from "./buildContextWindowScalingPlotData.js";
 import { buildExperimentPlotData } from "./buildExperimentPlotData.js";
 import { buildWarmIndexPlotData, readWarmIndexPlotSource } from "./buildWarmIndexPlotData.js";
 import { renderSvgChart } from "./renderSvgChart.js";
@@ -19,10 +20,20 @@ export async function writePlotArtifacts(options: { experimentDir: string; outDi
   // A warm-index-reuse plugin output directory is detected by its plugin report; every other
   // directory keeps the legacy controlled-experiment plot path unchanged.
   const experimentDir = path.resolve(options.repoRoot ?? process.cwd(), options.experimentDir);
+  // A context-window-scaling directory is detected by its V1 execution artifact; evidence for more
+  // than one plugin family in the same directory is ambiguous and fails instead of choosing one.
+  const scalingSource = await readContextWindowScalingPlotSource(experimentDir);
   const warmSection = await readWarmIndexPlotSource(experimentDir);
-  const data = warmSection
-    ? buildWarmIndexPlotData({ section: warmSection, experimentDir })
-    : await buildExperimentPlotData({ experimentDir: options.experimentDir, repoRoot: options.repoRoot });
+  if (scalingSource && warmSection) {
+    throw new Error(
+      `Ambiguous experiment directory for plots (${experimentDir}): it contains both context-window-scaling and warm-index-reuse evidence.`
+    );
+  }
+  const data = scalingSource
+    ? buildContextWindowScalingPlotData({ aggregate: scalingSource.aggregate, experimentDir, generatedAt: scalingSource.generatedAt })
+    : warmSection
+      ? buildWarmIndexPlotData({ section: warmSection, experimentDir })
+      : await buildExperimentPlotData({ experimentDir: options.experimentDir, repoRoot: options.repoRoot });
   return writePlotArtifactsFromData({ data, outDir: options.outDir });
 }
 

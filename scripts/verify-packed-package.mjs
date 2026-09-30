@@ -104,6 +104,15 @@ const REQUIRED_TARBALL_PATHS = [
   "benchmarks/contracts/benchmark-project-profiles.json",
   "benchmarks/contracts/warm-index-benchmark-cases.json",
   "benchmarks/contracts/incremental-change-staleness-scenarios.json",
+  // v0.7.0 -- context-window-scaling plugin, artifact reader, report, plot owners, and bundled resources.
+  "dist/src/experiments/plugins/contextWindowScaling/plugin.js",
+  "dist/src/experiments/plugins/contextWindowScaling/cliBudgets.js",
+  "dist/src/experiments/plugins/contextWindowScaling/executionArtifactReader.js",
+  "dist/src/experiments/plugins/contextWindowScaling/metrics.js",
+  "dist/src/report/experiments/buildContextWindowScalingReport.js",
+  "dist/src/plots/buildContextWindowScalingPlotData.js",
+  "benchmarks/contracts/context-window-scaling-cases.json",
+  "benchmarks/projects/context-window-scaling-fixed-ts/src/tasks/shippingQuote.ts",
   "benchmarks/projects/todo-ts/src/taskService.ts",
   "benchmarks/projects/task-analytics-large-mixed/py/task_analytics/quality.py",
   "benchmarks/projects/task-analytics-large-mixed/py/task_analytics/metrics.py",
@@ -117,7 +126,7 @@ const REQUIRED_TARBALL_PATHS = [
   "examples/tutorial-browser/scenario.json"
 ];
 
-const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness"];
+const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling"];
 const INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS_LOCAL = ["U1", "L2", "E1", "P1", "I1", "T1"];
 
 const WARM_INDEX_CHARTS = [
@@ -766,7 +775,7 @@ async function main() {
 
     const runHelpResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--help"], envWithBin);
     const runHelp = runHelpResult.stdout ?? "";
-    const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse and incremental-change-staleness):");
+    const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, and context-window-scaling):");
     const warmHelpStart = runHelp.indexOf("warm-index-reuse only:");
     const contextHelpStart = runHelp.indexOf("context-strategy-comparison only:");
     const warmCampaignHelp = warmHelpStart >= 0 && contextHelpStart > warmHelpStart
@@ -791,6 +800,8 @@ async function main() {
       !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("--kit-command <command>") ||
       !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("warm-index-reuse") ||
       !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("incremental-change-staleness") ||
+      !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("context-window-scaling") ||
+      !runHelp.slice(kitCommandHelpStart, warmHelpStart).includes("--context-budgets <values>") ||
       campaignScreenshotHelpContract.some((phrase) => !normalizedWarmCampaignHelp.includes(phrase)) ||
       /screenshot failure makes the command unsuccessful/i.test(normalizedWarmCampaignHelp) ||
       !runHelp.slice(contextHelpStart).includes("--agents")
@@ -1432,6 +1443,165 @@ async function main() {
     console.log("AFFECTED_NEIGHBORHOOD_IMMUTABILITY: PASS (canonical and primary installed benchmarks unchanged)");
     console.log("AFFECTED_NEIGHBORHOOD_CLI_SURFACE: PASS (no new command or flag)");
     console.log("AFFECTED_NEIGHBORHOOD_PACKAGE_INVENTORY: PASS (no development or generated paths in the tarball)");
+
+    // -----------------------------------------------------------------
+    // 9c-4. v0.7.0 context-window-scaling installed-package acceptance.
+    // Runs through the INSTALLED bin of consumer A from a working directory
+    // that is neither the source checkout nor the installed package root. The
+    // deterministic fake kit is copied from the repository test fixtures into
+    // this gate's temp directory at verification time (never packaged, no
+    // network). The bundled case catalog and fixed project are resolved from
+    // the installed package; the project profile is derived in memory.
+    // -----------------------------------------------------------------
+    const SCALING_ID = "context-window-scaling";
+    const SCALING_PLOT_IDS = [
+      "context-window-scaling-context-size",
+      "context-window-scaling-success-rate-by-budget",
+      "context-window-scaling-correctness-by-budget"
+    ];
+    const SCALING_OUTPUTS = ["json", "text", "html", "plot"];
+    const SCALING_VARIANTS = ["raw-full-file", "my-dev-kit-guided"];
+    const scalingListed = knownExperiments.filter((entry) => entry.id === SCALING_ID);
+    if (
+      scalingListed.length !== 1 ||
+      scalingListed[0].status !== "experimental" ||
+      JSON.stringify(scalingListed[0].supportedVariants) !== JSON.stringify(SCALING_VARIANTS) ||
+      JSON.stringify(scalingListed[0].supportedOutputs) !== JSON.stringify(SCALING_OUTPUTS) ||
+      JSON.stringify(scalingListed[0].supportedTargets) !== JSON.stringify(["self"])
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_DISCOVERY", `Installed experiment list lacks the expected context-window-scaling entry: ${JSON.stringify(scalingListed)}`);
+    }
+    const scalingDescribeResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "describe", "--experiment", SCALING_ID, "--json"], envWithBin);
+    if (scalingDescribeResult.status !== 0) {
+      fail("CONTEXT_WINDOW_SCALING_DISCOVERY", "Installed experiment describe for context-window-scaling did not exit 0.", describeChildResult(scalingDescribeResult));
+    }
+    const scalingDescribed = parseJsonOutput(scalingDescribeResult, "CONTEXT_WINDOW_SCALING_DISCOVERY");
+    if (
+      scalingDescribed.metadata?.id !== SCALING_ID ||
+      scalingDescribed.metadata?.status !== "experimental" ||
+      JSON.stringify(scalingDescribed.metadata?.supportedTargets) !== JSON.stringify(["self"]) ||
+      JSON.stringify(scalingDescribed.metadata?.supportedOutputs) !== JSON.stringify(SCALING_OUTPUTS) ||
+      JSON.stringify(scalingDescribed.supportedVariants) !== JSON.stringify(SCALING_VARIANTS)
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_DISCOVERY", `Installed describe output is not the expected context-window-scaling contract: ${scalingDescribeResult.stdout}`);
+    }
+
+    if (path.resolve(dirs.consumer) === path.resolve(installedPackageRoot) || path.resolve(dirs.consumer) === REPO_ROOT) {
+      fail("CONTEXT_WINDOW_SCALING_RESOURCE_RESOLUTION", "The consumer working directory must differ from the installed package root and the source checkout.");
+    }
+    const scalingFakeKitScript = path.join(dirs.fakeKit, "fake-context-scaling-kit.mjs");
+    writeFileSync(scalingFakeKitScript, readFileSync(path.join(REPO_ROOT, "tests", "fixtures", "fake-context-scaling-kit-cli.js"), "utf8"), "utf8");
+    const scalingKitCommand = `"${process.execPath}" "${scalingFakeKitScript}"`;
+    const scalingProjectRoot = path.join(installedPackageRoot, "benchmarks", "projects", "context-window-scaling-fixed-ts");
+    const scalingContractsRoot = path.join(installedPackageRoot, "benchmarks", "contracts");
+    for (const required of [scalingProjectRoot, path.join(scalingContractsRoot, "context-window-scaling-cases.json")]) {
+      if (!existsSync(required)) fail("CONTEXT_WINDOW_SCALING_RESOURCE_RESOLUTION", `Installed package is missing bundled resource ${required}.`);
+    }
+    const scalingProjectBefore = await snapshotDirectory(scalingProjectRoot);
+    const scalingContractsBefore = await snapshotDirectory(scalingContractsRoot);
+
+    // Negative public CLI behavior through the installed bin.
+    for (const badArgs of [["--context-budgets", "12k"], ["--case", "not-a-real-case"], ["--target", dirs.target]]) {
+      const bad = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--experiment", SCALING_ID, "--kit-command", scalingKitCommand, ...badArgs], envWithBin);
+      if (bad.status === 0) {
+        fail("CONTEXT_WINDOW_SCALING_CLI_REJECTION", `Installed run accepted invalid options: ${badArgs.join(" ")}`);
+      }
+    }
+
+    const runScaling = (label, caseId, budgets) => {
+      const out = path.join(dirs.workspace, `context-window-scaling-${label}`);
+      const plotsOut = path.join(dirs.workspace, `context-window-scaling-${label}-plots`);
+      const run = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        ["experiment", "run", "--experiment", SCALING_ID, "--case", caseId, "--context-budgets", budgets, "--kit-command", scalingKitCommand, "--out", out],
+        envWithBin
+      );
+      if (run.status !== 0) {
+        fail("CONTEXT_WINDOW_SCALING_RUN", `Installed context-window-scaling run (${label}) did not exit 0.`, describeChildResult(run));
+      }
+      assertOutputOutsidePackage(out, installedPackageRoot, `context-window-scaling ${label} run`);
+      for (const name of ["context-window-scaling-execution.json", "report.json", "report.txt", "report.html"]) {
+        requireNonEmptyFile(path.join(out, name), "CONTEXT_WINDOW_SCALING_REPORTS");
+      }
+      const artifact = readJsonFile(path.join(out, "context-window-scaling-execution.json"), "CONTEXT_WINDOW_SCALING_ARTIFACT");
+      const report = readJsonFile(path.join(out, "report.json"), "CONTEXT_WINDOW_SCALING_REPORTS").report;
+      if (report?.plugin?.id !== SCALING_ID) {
+        fail("CONTEXT_WINDOW_SCALING_REPORTS", `Installed report.json does not belong to ${SCALING_ID}.`);
+      }
+      const plots = runInstalledCli(cliCommand, dirs.consumer, ["plots", "generate", "--experiment", out, "--out", plotsOut], envWithBin);
+      if (plots.status !== 0) {
+        fail("CONTEXT_WINDOW_SCALING_PLOTS", `Installed plots generate (${label}) did not exit 0.`, describeChildResult(plots));
+      }
+      const plotSummary = readJsonFile(path.join(plotsOut, "plots-summary.json"), "CONTEXT_WINDOW_SCALING_PLOTS");
+      if (plotSummary.chartCount !== SCALING_PLOT_IDS.length) {
+        fail("CONTEXT_WINDOW_SCALING_PLOTS", `Expected ${SCALING_PLOT_IDS.length} context-window-scaling charts, got ${plotSummary.chartCount}.`);
+      }
+      for (const plotId of SCALING_PLOT_IDS) {
+        const chartPath = path.join(plotsOut, "charts", `${plotId}.svg`);
+        requireNonEmptyFile(chartPath, "CONTEXT_WINDOW_SCALING_PLOTS");
+        if (!readFileSync(chartPath, "utf8").includes("<svg")) {
+          fail("CONTEXT_WINDOW_SCALING_PLOTS", `Chart is not SVG markup: ${plotId}`);
+        }
+      }
+      const plotData = readJsonFile(path.join(plotsOut, "plot-data.json"), "CONTEXT_WINDOW_SCALING_PLOTS");
+      if (JSON.stringify(plotData.plots.map((plot) => plot.id)) !== JSON.stringify(SCALING_PLOT_IDS)) {
+        fail("CONTEXT_WINDOW_SCALING_PLOTS", `Unexpected plot set: ${plotData.plots.map((plot) => plot.id).join(", ")}`);
+      }
+      return { out, artifact, plotData };
+    };
+
+    // Bounded representative run: raw is too large at 8k/16k and fits at 32k; guided fits everywhere.
+    const scalingMain = runScaling("b-standard", "ctx-scale-b-16k-32k", "8k,16k,32k");
+    if (
+      scalingMain.artifact.schemaVersion !== "my-dev-kit-lab-context-window-scaling-execution-v1" ||
+      JSON.stringify(scalingMain.artifact.contextBudgets) !== JSON.stringify([8192, 16384, 32768]) ||
+      JSON.stringify(scalingMain.artifact.cases.map((entry) => entry.caseId)) !== JSON.stringify(["ctx-scale-b-16k-32k"])
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_ARTIFACT", "Installed execution artifact does not show the selected case and normalized 8k,16k,32k budgets.");
+    }
+    const scalingTreatments = Object.fromEntries(scalingMain.artifact.cases[0].treatments.map((treatment) => [treatment.variantId, treatment]));
+    const fitOf = (variantId) => scalingTreatments[variantId].budgetCells.map((cell) => cell.contextFitStatus);
+    if (
+      JSON.stringify(fitOf("raw-full-file")) !== JSON.stringify(["context-too-large", "context-too-large", "fits"]) ||
+      JSON.stringify(fitOf("my-dev-kit-guided")) !== JSON.stringify(["fits", "fits", "fits"]) ||
+      scalingTreatments["my-dev-kit-guided"].context.status !== "available" ||
+      scalingTreatments["my-dev-kit-guided"].evaluation.agentId !== "fake-agent"
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_ARTIFACT", "Installed run did not use the bundled fixed project with the deterministic fake kit (unexpected fit evidence).");
+    }
+    const correctnessPlot = scalingMain.plotData.plots.find((plot) => plot.id === "context-window-scaling-correctness-by-budget");
+    if (
+      correctnessPlot.points.some((point) => point.group === "raw-full-file" && (point.x === 8192 || point.x === 16384)) ||
+      !scalingMain.plotData.skippedPoints.some((point) => point.plotId === correctnessPlot.id && point.label === "raw-full-file 8k")
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_PLOTS", "Unavailable raw correctness was plotted instead of skipped.");
+    }
+
+    // Custom budget and case-filter proof.
+    const scalingCustom = runScaling("a-custom", "ctx-scale-a-8k-16k", "8k,12000,32k");
+    if (
+      JSON.stringify(scalingCustom.artifact.contextBudgets) !== JSON.stringify([8192, 12000, 32768]) ||
+      JSON.stringify(scalingCustom.artifact.cases.map((entry) => entry.caseId)) !== JSON.stringify(["ctx-scale-a-8k-16k"])
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_ARTIFACT", "Custom --context-budgets 8k,12000,32k did not reach the installed artifact as 8192,12000,32768.");
+    }
+    const customRate = scalingCustom.plotData.plots.find((plot) => plot.id === "context-window-scaling-success-rate-by-budget");
+    if (JSON.stringify([...new Set(customRate.points.map((point) => point.x))]) !== JSON.stringify([8192, 12000, 32768])) {
+      fail("CONTEXT_WINDOW_SCALING_PLOTS", "Custom budgets were not preserved numerically in the installed plot data.");
+    }
+
+    const scalingProjectChanges = diffSnapshots(scalingProjectBefore, await snapshotDirectory(scalingProjectRoot));
+    const scalingContractsChanges = diffSnapshots(scalingContractsBefore, await snapshotDirectory(scalingContractsRoot));
+    if (scalingProjectChanges.length > 0 || scalingContractsChanges.length > 0) {
+      fail("CONTEXT_WINDOW_SCALING_IMMUTABILITY", `Bundled benchmark resources changed during execution: ${[...scalingProjectChanges, ...scalingContractsChanges].join(", ")}`);
+    }
+    console.log("CONTEXT_WINDOW_SCALING_DISCOVERY: PASS (listed and described as experimental, self-only, json/text/html/plot)");
+    console.log("CONTEXT_WINDOW_SCALING_RUN: PASS (installed bin, cwd outside checkout and package, fake kit, bundled case catalog and fixed project)");
+    console.log("CONTEXT_WINDOW_SCALING_ARTIFACT: PASS (V1 schema; standard and custom budgets; case filter)");
+    console.log("CONTEXT_WINDOW_SCALING_REPORTS: PASS (report.json, report.txt, report.html)");
+    console.log("CONTEXT_WINDOW_SCALING_PLOTS: PASS (exactly three SVG plots; null correctness skipped; custom budgets preserved)");
+    console.log("CONTEXT_WINDOW_SCALING_IMMUTABILITY: PASS (bundled fixed project and case contract unchanged)");
 
     // -----------------------------------------------------------------
     // 9c-3. v0.6.2 incremental-change-staleness installed-package acceptance
@@ -2161,6 +2331,12 @@ async function main() {
         "INCREMENTAL_CHANGE_STALENESS_REPORT: PASS",
         "INCREMENTAL_CHANGE_STALENESS_COMPARISON: PASS",
         "INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY: PASS",
+        "CONTEXT_WINDOW_SCALING_DISCOVERY: PASS",
+        "CONTEXT_WINDOW_SCALING_RUN: PASS",
+        "CONTEXT_WINDOW_SCALING_ARTIFACT: PASS",
+        "CONTEXT_WINDOW_SCALING_REPORTS: PASS",
+        "CONTEXT_WINDOW_SCALING_PLOTS: PASS",
+        "CONTEXT_WINDOW_SCALING_IMMUTABILITY: PASS",
         "SOURCE_CHECKOUT_RUNTIME_DEPENDENCY: NONE_OBSERVED"
       ].join("\n")
     );

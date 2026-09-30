@@ -1,4 +1,9 @@
-import type { ContextWindowScalingAggregateV1 } from "../experiments/plugins/contextWindowScaling/metrics.js";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { CONTEXT_WINDOW_SCALING_EXECUTION_ARTIFACT_FILE } from "../experiments/plugins/contextWindowScaling/executionArtifact.js";
+import { parseContextWindowScalingExecutionArtifact } from "../experiments/plugins/contextWindowScaling/executionArtifactReader.js";
+import { aggregateContextWindowScaling, type ContextWindowScalingAggregateV1 } from "../experiments/plugins/contextWindowScaling/metrics.js";
 import { STANDARD_CONTEXT_BUDGETS } from "../experiments/plugins/contextWindowScaling/contextBudget.js";
 import type { ExperimentPlotData, PlotPoint, PlotSeries, PlotSkippedPoint } from "./types.js";
 
@@ -23,6 +28,29 @@ export const CONTEXT_WINDOW_SCALING_SKIP_REASONS = {
 /** Standard budgets read as 8k/16k/32k/64k; any other budget keeps its exact integer form. */
 export function formatContextBudgetLabel(budget: number): string {
   return STANDARD_CONTEXT_BUDGETS.includes(budget) ? `${budget / 1024}k` : String(budget);
+}
+
+/**
+ * Returns the aggregate rebuilt from `<experimentDir>/context-window-scaling-execution.json`, or null
+ * when that artifact is absent. A present artifact is validated (schema version and structure) and
+ * aggregated by the canonical aggregateContextWindowScaling(); malformed input fails, never falls back.
+ */
+export async function readContextWindowScalingPlotSource(
+  experimentDir: string
+): Promise<{ aggregate: ContextWindowScalingAggregateV1; generatedAt: string } | null> {
+  const artifactPath = path.join(experimentDir, CONTEXT_WINDOW_SCALING_EXECUTION_ARTIFACT_FILE);
+  if (!existsSync(artifactPath)) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(artifactPath, "utf8"));
+  } catch (error) {
+    throw new Error(`Invalid context-window-scaling execution artifact (${artifactPath}): not valid JSON (${error instanceof Error ? error.message : String(error)}).`);
+  }
+  const artifact = parseContextWindowScalingExecutionArtifact(parsed);
+  return {
+    aggregate: aggregateContextWindowScaling({ contextBudgets: artifact.contextBudgets, cases: artifact.cases }),
+    generatedAt: artifact.completedAt,
+  };
 }
 
 export function buildContextWindowScalingPlotData(args: {

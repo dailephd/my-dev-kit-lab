@@ -79,6 +79,7 @@ describe("warm-index-reuse registration and config", () => {
       "context-strategy-comparison",
       "warm-index-reuse",
       "incremental-change-staleness",
+      "context-window-scaling",
     ]);
     expect(registry.get("context-strategy-comparison")).toBe(contextStrategyComparisonPlugin);
     expect(registry.get("warm-index-reuse")).toBe(warmIndexReusePlugin);
