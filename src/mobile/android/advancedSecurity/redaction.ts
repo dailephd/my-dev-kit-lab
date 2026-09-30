@@ -1,4 +1,4 @@
-import { createHash, scryptSync } from "node:crypto";
+import { scryptSync } from "node:crypto";
 import path from "node:path";
 import { stripUnsafeControlChars } from "../../../securityValidation/attackScenarios/exploitEvidence.js";
 
@@ -68,16 +68,17 @@ export type CandidateFingerprintContext = {
 // evidence locations without storing a secret salt or the raw value.
 export function fingerprintCandidateValue(input: RedactedPreviewInput, context: CandidateFingerprintContext): string {
   if (input === undefined) return "unavailable";
-  const contextSalt = createHash("sha256")
-    .update(JSON.stringify([
+  const contextSalt = Buffer.from(
+    JSON.stringify([
       "my-dev-kit-lab/android-candidate-fingerprint/v2",
       context.ruleId,
       path.posix.normalize(context.sourcePath.replaceAll("\\", "/")),
       context.line ?? null,
       context.column ?? null,
       context.purpose
-    ]), "utf8")
-    .digest();
+    ]),
+    "utf8"
+  );
   const derived = scryptSync(input, contextSalt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
   return `scrypt-v1:${derived.toString("hex")}`;
 }
