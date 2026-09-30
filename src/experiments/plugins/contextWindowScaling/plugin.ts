@@ -31,6 +31,12 @@ import {
   type TreatmentExecutionEvidenceV1,
 } from "./executionArtifact.js";
 import { CONTEXT_WINDOW_SCALING_TREATMENT_IDS, contextWindowScalingMetadata } from "./metadata.js";
+import {
+  aggregateContextWindowScaling,
+  toAggregateExperimentMetrics,
+  toOutcomeBudgetMetrics,
+  type ContextWindowScalingAggregateV1,
+} from "./metrics.js";
 import { resolveScalingProjectProfiles } from "./projectProfile.js";
 import type { ContextWindowScalingConfig } from "./types.js";
 
@@ -55,6 +61,8 @@ const VARIANTS: ExperimentVariant[] = [
 export type ContextWindowScalingRun = ExperimentRun & {
   contextBudgets: number[];
   executionEvidence: CaseExecutionEvidenceV1[];
+  /** Calculated once from executionEvidence; reports and plots never recalculate it. */
+  aggregate: ContextWindowScalingAggregateV1;
 };
 
 /** Internal-only seam: tests inject construction/evaluation owners through inputs.dependencies. */
@@ -126,6 +134,7 @@ export function mapExecutionToRun(args: {
     outcomes: caseEvidence.treatments.map((treatment) => buildOutcome(caseEvidence, treatment)),
     metadata: { benchmarkProject: caseEvidence.benchmarkProject },
   }));
+  const aggregate = aggregateContextWindowScaling({ contextBudgets: args.contextBudgets, cases: args.executionEvidence });
   const run: ContextWindowScalingRun = {
     runId: args.runId,
     pluginId: contextWindowScalingMetadata.id,
@@ -135,7 +144,7 @@ export function mapExecutionToRun(args: {
     target: args.target,
     variants: VARIANTS.map((variant) => ({ ...variant })),
     cases,
-    metrics: [],
+    metrics: toAggregateExperimentMetrics(aggregate),
     artifacts: [
       {
         id: "context-window-scaling-execution",
@@ -151,6 +160,7 @@ export function mapExecutionToRun(args: {
     metadata: { executionArtifactPath: args.artifactPath },
     contextBudgets: [...args.contextBudgets],
     executionEvidence: structuredClone([...args.executionEvidence]),
+    aggregate,
   };
   run.summary = summarizeExperimentRun(run);
   return run;
@@ -180,6 +190,7 @@ function buildOutcome(caseEvidence: CaseExecutionEvidenceV1, treatment: Treatmen
       caseId,
     });
   }
+  metrics.push(...toOutcomeBudgetMetrics(treatment, caseId));
   const warnings: ExperimentWarning[] = [
     ...treatment.context.warnings.map((message) => ({ code: "guided-retrieval-warning", message, variantId, caseId })),
     ...(treatment.evaluation.status === "unavailable"

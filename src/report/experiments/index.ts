@@ -21,3 +21,7 @@ export { buildIncrementalChangeStalenessReportV2FromArtifact, findReportTreatmen
 export { buildIncrementalChangeStalenessReport, STALE_RISK_CLASSIFICATION_EXPLANATIONS } from "./buildIncrementalChangeStalenessReport.js";
 export { renderIncrementalChangeStalenessHtml } from "./renderIncrementalChangeStalenessHtml.js";
 
+export * from "./contextWindowScalingReportModel.js";
+export { buildContextWindowScalingReport, CONTEXT_WINDOW_SCALING_INTERPRETATION } from "./buildContextWindowScalingReport.js";
+export { renderContextWindowScalingHtml } from "./renderContextWindowScalingHtml.js";
+export { renderContextWindowScalingTextLines } from "./renderContextWindowScalingText.js";

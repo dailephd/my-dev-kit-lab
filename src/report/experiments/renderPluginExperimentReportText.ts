@@ -25,6 +25,7 @@ import type { IncrementalChangeStalenessReportV2 } from "./incrementalChangeStal
 import { isV2ReportSection } from "./buildIncrementalChangeStalenessReportV2.js";
 import { renderIncrementalChangeStalenessSectionV2 } from "./renderIncrementalChangeStalenessTextV2.js";
 import { REINDEX_RECOMMENDATION_EXPLANATIONS } from "./buildWarmIndexReuseReport.js";
+import { renderContextWindowScalingTextLines } from "./renderContextWindowScalingText.js";
 
 function sanitizeScalar(value: unknown): string {
   const text = String(value);
@@ -761,6 +762,13 @@ export function renderPluginExperimentReportText(report: PluginExperimentReport)
 
   pushSection(lines, "Incremental-Change And Staleness Evidence");
   renderIncrementalChangeStalenessSection(lines, report.incrementalChangeStaleness);
+
+  pushSection(lines, "Context Window Scaling");
+  if (report.contextWindowScaling === null) {
+    lines.push("Not applicable to this plugin.");
+  } else {
+    lines.push(...renderContextWindowScalingTextLines(report.contextWindowScaling));
+  }
 
   pushSection(lines, "Warnings, Skips, And Failures");
   pushDashList(

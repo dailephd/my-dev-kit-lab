@@ -18,6 +18,12 @@ import type { ContextStrategyComparisonV043ReportV1 } from "./contextStrategyCom
 import { buildWarmIndexReuseReport } from "./buildWarmIndexReuseReport.js";
 import type { WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
 import { buildIncrementalChangeStalenessPluginReport } from "./buildIncrementalChangeStalenessPluginReport.js";
+import { buildContextWindowScalingReport } from "./buildContextWindowScalingReport.js";
+import type { ContextWindowScalingReportV1 } from "./contextWindowScalingReportModel.js";
+
+// Bulk context-window-scaling evidence is presented by the typed report section; the complete
+// evidence stays in context-window-scaling-execution.json.
+const CONTEXT_WINDOW_SCALING_BULK_KEYS = ["executionEvidence", "aggregate"] as const;
 
 const V043_BULK_ARRAY_KEYS = [
   "v043StageContextExecutions",
@@ -36,9 +42,15 @@ export function buildPluginExperimentReport(args: {
   const contextStrategyComparisonV043 = buildContextStrategyComparisonV043Report(args.run);
   const warmIndexReuse = buildWarmIndexReuseReport(args.run);
   const incrementalChangeStaleness = buildIncrementalChangeStalenessPluginReport(args.run);
+  const contextWindowScaling = buildContextWindowScalingReport(args.run);
   const rawRun: ExperimentRun = { ...args.run, artifacts: relativizeArtifacts(args.run.artifacts, outputRoot) };
   for (const key of V043_BULK_ARRAY_KEYS) {
     delete (rawRun as Record<string, unknown>)[key];
+  }
+  if (contextWindowScaling) {
+    for (const key of CONTEXT_WINDOW_SCALING_BULK_KEYS) {
+      delete (rawRun as Record<string, unknown>)[key];
+    }
   }
   return {
     metadata: {
@@ -65,8 +77,9 @@ export function buildPluginExperimentReport(args: {
     findings: buildFindings(args.run),
     warmIndexReuse,
     incrementalChangeStaleness,
+    contextWindowScaling,
     contextStrategyComparisonV043,
-    interpretation: buildInterpretation(args.run, contextStrategyComparisonV043, warmIndexReuse),
+    interpretation: buildInterpretation(args.run, contextStrategyComparisonV043, warmIndexReuse, contextWindowScaling),
     rawRun,
   };
 }
@@ -163,8 +176,20 @@ function affectedNeighborhoodSentence(report: WarmIndexReuseReportV1): string {
 function buildInterpretation(
   run: ExperimentRun,
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null,
-  warmIndexReuse: WarmIndexReuseReportV1 | null
+  warmIndexReuse: WarmIndexReuseReportV1 | null,
+  contextWindowScaling: ContextWindowScalingReportV1 | null
 ): PluginExperimentReport["interpretation"] {
+  if (contextWindowScaling) {
+    const summary = contextWindowScaling.runSummary;
+    return {
+      summary:
+        `Context-window-scaling evidence covers ${summary.caseCount} case${summary.caseCount === 1 ? "" : "s"}, ${summary.treatmentCount} treatments, and ${summary.budgetCount} budget${summary.budgetCount === 1 ? "" : "s"} ` +
+        `(${summary.totalBudgetCellCount} budget cells): ${summary.evaluatedBudgetCellCount} evaluated, ${summary.contextTooLargeCellCount} context-too-large, ${summary.contextUnavailableCellCount} with unavailable context. ` +
+        "Context-too-large is an expected measurement state, not an execution failure. The treatments are reported side by side and are not ranked.",
+      recommendedNextStep:
+        "Review the budget summary, per-case context sizes, and per-case budget matrix; unavailable correctness and success evidence are excluded from the rates and are never treated as zero.",
+    };
+  }
   if (run.pluginId === "warm-index-reuse" && warmIndexReuse) {
     const summary = warmIndexReuse.summary;
     const campaign = warmIndexReuse.agentCampaign;

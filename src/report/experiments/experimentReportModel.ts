@@ -13,6 +13,7 @@ import type { ContextStrategyComparisonV043ReportV1 } from "./contextStrategyCom
 import type { WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
 import type { IncrementalChangeStalenessReportV1 } from "./incrementalChangeStalenessReportModel.js";
 import type { IncrementalChangeStalenessReportV2 } from "./incrementalChangeStalenessReportModelV2.js";
+import type { ContextWindowScalingReportV1 } from "./contextWindowScalingReportModel.js";
 
 export type PluginExperimentReportMetadata = {
   generatedAt: string;
@@ -75,6 +76,8 @@ export type PluginExperimentReport = {
   warmIndexReuse: WarmIndexReuseReportV1 | null;
   /** Populated for incremental-change-staleness runs; null for every other plugin. */
   incrementalChangeStaleness: IncrementalChangeStalenessReportV1 | IncrementalChangeStalenessReportV2 | null;
+  /** Populated for context-window-scaling runs; null for every other plugin. */
+  contextWindowScaling: ContextWindowScalingReportV1 | null;
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null;
   interpretation: {
     summary: string;

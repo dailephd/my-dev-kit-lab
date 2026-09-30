@@ -15,5 +15,5 @@ export const contextWindowScalingMetadata: ExperimentPluginMetadata = {
   schemaVersion: "1.0.0",
   status: "experimental",
   supportedTargets: ["self"],
-  supportedOutputs: ["json"],
+  supportedOutputs: ["json", "text", "html"],
 };
