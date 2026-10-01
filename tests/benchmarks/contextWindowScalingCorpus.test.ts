@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { tokenCountMethod } from "../../src/core/countTokens.js";
@@ -81,6 +81,13 @@ describe("context-window-scaling fixed corpus", () => {
     const files = walk(projectRoot).map((full) => path.relative(projectRoot, full).replace(/\\/g, "/"));
     expect(files.some((file) => /(^|\/)(node_modules|dist|build|coverage|lab-output)(\/|$)/.test(file))).toBe(false);
     expect(files.some((file) => /generat/i.test(path.basename(file)))).toBe(false);
+  });
+
+  it("checks out the frozen scaling corpus with LF line endings", () => {
+    const corpusFiles = [...walk(projectRoot), scalingCasesPath];
+    for (const file of corpusFiles) {
+      expect(readFileSync(file).includes(0x0d), path.relative(rootDir, file)).toBe(false);
+    }
   });
 
   it("keeps an existing shipped case below the smallest standard budget", async () => {

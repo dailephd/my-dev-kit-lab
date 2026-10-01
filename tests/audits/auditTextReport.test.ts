@@ -94,17 +94,31 @@ describe("renderAuditTextReport — 0 issues", () => {
 
 describe("renderAuditTextReport — source facts summary", () => {
   it("renders a readable, bounded parse-status line (not a per-file dump)", async () => {
-    const config = normalizeAuditConfig({}, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
-    const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });
-    const text = renderAuditTextReport(model);
+    const root = makeTempDir();
+    try {
+      const sourceText = "export const privateFixtureText = 'must not appear in summary';\n";
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
+      writeFile(root, "src/private-fixture.ts", sourceText);
+      const config = normalizeAuditConfig({}, root);
+      const target = fakeTargetFor(root);
+      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const model = buildAuditReportModel(result, { target, registry: [] });
+      const text = renderAuditTextReport(model);
 
-    expect(text).toMatch(/analyzed=\d+/);
-    expect(text).toMatch(/parsed=\d+ file-level-only=\d+ unsupported=\d+ parse-error=\d+ skipped=\d+/);
-    // Bounded: no full source text or per-file paths from the source-facts
-    // snapshot leak into the summary section itself.
-    const summarySection = text.split("Source facts summary")[1]?.split("Source-of-truth summary")[0] ?? "";
-    expect(summarySection.length).toBeLessThan(500);
+      expect(text).toMatch(/analyzed=1/);
+      expect(text).toMatch(/parsed=1 file-level-only=0 unsupported=0 parse-error=0 skipped=0/);
+      // The summary is aggregate-only: it must not serialize file identities
+      // or source excerpts from the source-facts snapshot.
+      const summarySection = text.split("Source facts summary")[1]?.split("Source-of-truth summary")[0] ?? "";
+      expect(summarySection).not.toContain("src/private-fixture.ts");
+      expect(summarySection).not.toContain("privateFixtureText");
+      expect(summarySection).not.toContain(sourceText.trim());
+      expect(summarySection.split("\n").filter(Boolean)).toHaveLength(8);
+      expect(text).toContain("Python project metadata");
+      expect(text).toContain("Source-of-truth summary");
+    } finally {
+      cleanup(root);
+    }
   });
 
   it("renders a source-facts-derived evidence message in a bounded, readable issue block", async () => {
