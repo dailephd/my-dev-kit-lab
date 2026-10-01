@@ -383,15 +383,29 @@ describe("context-window-scaling plugin with production owners and the fake kit"
   });
 
   it("produces equivalent scientific evidence across repeated runs", async () => {
-    const cases = await loadScalingCases();
-    const first = await runProduction(cases, "run-a");
-    const second = await runProduction(cases, "run-b");
-    expect(second.run.executionEvidence).toEqual(first.run.executionEvidence);
+    const [benchmarkCase] = await loadScalingCases();
+    const firstStub = stubs({ rawTokens: 14035, guidedTokens: 200 });
+    const secondStub = stubs({ rawTokens: 14035, guidedTokens: 200 });
+    const firstOutputRoot = await tempDir();
+    const secondOutputRoot = await tempDir();
+    const firstRun = await contextWindowScalingPlugin.run(
+      contextFor(firstOutputRoot, "run-a", { cases: [benchmarkCase], dependencies: firstStub.deps })
+    );
+    const secondRun = await contextWindowScalingPlugin.run(
+      contextFor(secondOutputRoot, "run-b", { cases: [benchmarkCase], dependencies: secondStub.deps })
+    );
+
+    expect(firstStub.counters).toEqual({ raw: 1, guided: 1, evaluated: ["raw-full-file", "my-dev-kit-guided"] });
+    expect(secondStub.counters).toEqual({ raw: 1, guided: 1, evaluated: ["raw-full-file", "my-dev-kit-guided"] });
+    expect(secondRun.executionEvidence).toEqual(firstRun.executionEvidence);
+    expect(secondRun.aggregate).toEqual(firstRun.aggregate);
     const read = async (root: string) => {
-      const { runId: _runId, startedAt: _s, completedAt: _c, ...scientific } = JSON.parse(await readFile(path.join(root, "context-window-scaling-execution.json"), "utf8"));
+      const { runId: _runId, startedAt: _startedAt, completedAt: _completedAt, ...scientific } = JSON.parse(
+        await readFile(path.join(root, "context-window-scaling-execution.json"), "utf8")
+      );
       return scientific;
     };
-    expect(await read(second.outputRoot)).toEqual(await read(first.outputRoot));
+    expect(await read(secondOutputRoot)).toEqual(await read(firstOutputRoot));
   });
 
   it("requires cases input and is registered last in the public default registry", async () => {
