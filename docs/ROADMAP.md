@@ -1119,7 +1119,7 @@ Explicit exclusions:
 
 ### v0.6.3 — partial-refresh experiments
 
-Status: **published/current (2026-09-30)**.
+Status: **published (2026-09-30); previous release**.
 
 Purpose:
 
@@ -1156,7 +1156,7 @@ Explicit exclusions (unchanged, not implemented):
 
 ### v0.7.0 — context-window scaling plugin
 
-Status: **implemented; unreleased; pre-release readiness pending**.
+Status: **published/current (2026-10-01)**.
 
 Purpose:
 

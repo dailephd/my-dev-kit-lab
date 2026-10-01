@@ -10,7 +10,7 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout. The implemented v0.7.0 `context-window-scaling` command surface is unreleased and is not present in the published v0.6.3 package.
+This section describes the current source checkout and published package. The v0.7.0 `context-window-scaling` command surface is included in the current 0.7.0 package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -178,7 +178,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), and `context-window-scaling` (implemented, unreleased v0.7.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), and `context-window-scaling` (released in v0.7.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -274,7 +274,7 @@ my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
-#### `context-window-scaling` (implemented, unreleased v0.7.0)
+#### `context-window-scaling` (released in v0.7.0)
 
 ```text
 my-dev-kit-lab experiment describe --experiment context-window-scaling

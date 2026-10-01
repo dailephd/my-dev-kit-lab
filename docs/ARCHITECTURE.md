@@ -28,7 +28,7 @@ src/
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
     plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session (carrying the v0.6.0 index snapshot and the v0.6.1 baseline graph evidence), execution (with the v0.6.0 per-task freshness assessment and the v0.6.1 per-task affected-neighborhood assessment), bounded execution artifact, fake-agent evaluation, metrics
     plugins/incrementalChangeStaleness/      v0.6.2 plugin; four-treatment V2 execution and report extension in released v0.6.3
-    plugins/contextWindowScaling/             implemented, unreleased v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
+    plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released; retained): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released; retained): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
@@ -128,7 +128,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers four plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and the implemented-but-unreleased v0.7.0 `context-window-scaling`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers four plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and the released v0.7.0 `context-window-scaling`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -424,7 +424,7 @@ Baseline bootstrap is requested as an incremental changed-files build into a bra
 
 ## Context-window scaling architecture (v0.7.0)
 
-Status: **implemented; unreleased; pre-release readiness pending**.
+Status: **published in v0.7.0**.
 
 The `context-window-scaling` plugin is registered with the generic experiment runtime and runs only against its bundled self-target case catalog. It compares the existing `raw-full-file` and `my-dev-kit-guided` treatment owners. The budget axis is an evidence classification over each treatment's single constructed context: a context is measured once, then compared to each selected budget. Budgets do not enter raw-context construction, my-dev-kit retrieval, or the evaluator; the system does not truncate or rebuild the context per budget.
 
@@ -830,7 +830,7 @@ The following layers remain planned and must not be treated as current behavior:
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
 - the v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above
-- additional experiment plugins: the v0.7.0 context-window-scaling plugin is implemented but unreleased; retrieval-quality and agent-success plugins remain planned. The released v0.6.0 freshness and v0.6.1 affected-neighborhood evidence remain available, and the v0.6.2 incremental-change baseline is extended by released v0.6.3. See the corresponding architecture sections above.
+- additional experiment plugins: the v0.7.0 context-window-scaling plugin is released; retrieval-quality and agent-success plugins remain planned. The released v0.6.0 freshness and v0.6.1 affected-neighborhood evidence remain available, and the v0.6.2 incremental-change baseline is extended by released v0.6.3. See the corresponding architecture sections above.
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
 

@@ -598,7 +598,7 @@ All six metrics are warm-side only (they are not on the raw-full-file side, beca
 
 ## Context-window scaling evidence (v0.7.0)
 
-Status: **implemented; unreleased; pre-release readiness pending**. The `context-window-scaling` plugin compares `raw-full-file` and `my-dev-kit-guided` treatment contexts against selected estimated-token budgets. It runs the bundled case catalog against the fixed self target.
+Status: **released in v0.7.0**. The `context-window-scaling` plugin compares `raw-full-file` and `my-dev-kit-guided` treatment contexts against selected estimated-token budgets. It runs the bundled case catalog against the fixed self target.
 
 ### Measurement and budget-cell semantics
 
@@ -656,7 +656,7 @@ The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affecte
 
 **Report presentation.** `report.incrementalChangeStaleness` holds `scenarioCount`, `readyScenarioCount`, `failedScenarioCount`, `observedStaleRegressionCount`, `noObservedStaleRegressionCount`, `inconclusiveCount`, per-scenario evidence (lifecycle, both treatments in order, and the comparison), and fixed limitations text. There is no overall score, grade, winner, best-treatment, or safe-to-skip-reindex field anywhere in the report or the persisted execution artifact.
 
-### Partial-refresh treatment evidence (v0.6.3, current release)
+### Partial-refresh treatment evidence (v0.6.3, retained in current release)
 
 The `incremental-change-staleness` plugin now compares four treatments (`stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, `full-refresh`). It defines no new formula. Two evidence families must not be merged:
 

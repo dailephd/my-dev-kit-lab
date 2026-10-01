@@ -397,12 +397,13 @@
       "0.6.0",
       "0.6.1",
       "0.6.2",
-      "0.6.3"
+      "0.6.3",
+      "0.7.0"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.6.3",
-    "currentImplementedUnreleasedVersion": "0.7.0",
+    "latestPublishedVersion": "0.7.0",
+    "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.7.1",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
