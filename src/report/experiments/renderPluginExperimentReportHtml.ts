@@ -2,6 +2,7 @@ import type { PluginExperimentReport } from "./experimentReportModel.js";
 import { renderContextStrategyComparisonV043Html } from "./renderContextStrategyComparisonV043Html.js";
 import { renderWarmIndexReuseHtml } from "./renderWarmIndexReuseHtml.js";
 import { renderIncrementalChangeStalenessHtml } from "./renderIncrementalChangeStalenessHtml.js";
+import { renderContextWindowScalingHtml } from "./renderContextWindowScalingHtml.js";
 
 export function renderPluginExperimentReportHtml(report: PluginExperimentReport): string {
   return `<!DOCTYPE html>
@@ -103,6 +104,8 @@ export function renderPluginExperimentReportHtml(report: PluginExperimentReport)
   ${renderWarmIndexReuseHtml(report.warmIndexReuse)}
 
   ${renderIncrementalChangeStalenessHtml(report.incrementalChangeStaleness)}
+
+  ${renderContextWindowScalingHtml(report.contextWindowScaling)}
 
   <section>
     <h2>Warnings, Skips, And Failures</h2>

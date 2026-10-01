@@ -7,6 +7,8 @@ tests/fixtures/ecosystem/context-integrity/v0.4.5/** -text whitespace=cr-at-eol
 # the same canonical bytes on every supported platform.
 benchmarks/contracts/warm-index-benchmark-cases.json text eol=crlf
 benchmarks/contracts/incremental-change-staleness-scenarios.json text eol=lf
+benchmarks/contracts/context-window-scaling-cases.json text eol=lf
+benchmarks/projects/context-window-scaling-fixed-ts/** text eol=lf
 benchmarks/projects/task-analytics-large-mixed/py/task_analytics/quality.py text eol=crlf
 benchmarks/projects/task-analytics-large-mixed/py/task_analytics/metrics.py text eol=crlf
 benchmarks/projects/task-analytics-large-mixed/ts/src/services/buildAnalyticsSnapshot.ts text eol=crlf

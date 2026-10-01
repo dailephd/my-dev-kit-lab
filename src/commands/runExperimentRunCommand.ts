@@ -4,9 +4,11 @@ import { parseAgentId } from "../agents/agentRegistry.js";
 import { readBenchmarkProjectProfiles, readEvaluationCases } from "../evaluation/index.js";
 import {
   contextStrategyComparisonPlugin,
+  contextWindowScalingPlugin,
   createDefaultExperimentPluginRegistry,
   getWarmIndexCampaignPreset,
   incrementalChangeStalenessPlugin,
+  parseContextBudgetsCliValue,
   parseWarmIndexCampaignPresetId,
   resolveExperimentTarget,
   runExperiment,
@@ -52,12 +54,18 @@ import type { LabExecutionContext } from "../runtime/index.js";
 
 const DEFAULT_CASES_RESOURCE = "examples/token-savings-cases.json";
 const DEFAULT_PROJECT_PROFILES_RESOURCE = "benchmarks/contracts/benchmark-project-profiles.json";
+// context-window-scaling owns one frozen bundled case catalog; its fixed project is referenced by the
+// catalog's package-relative targetRoot, so both resolve from the package root, never the cwd.
+const CONTEXT_WINDOW_SCALING_CASES_RESOURCE = "benchmarks/contracts/context-window-scaling-cases.json";
+// Options the context-window-scaling plugin accepts; every other flag is rejected, not ignored.
+const CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS = ["--experiment", "--out", "--case", "--context-budgets", "--kit-command"];
 
 // Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
 // warm-index-reuse, rejects) the fields it does not support.
 type ParsedExperimentRunConfig = Partial<ExperimentMatrixConfig> & {
   kitCommand?: string;
   campaignPreset?: WarmIndexCampaignPresetId;
+  contextBudgets?: number[];
 };
 
 type ParsedRunExperimentArgs = {
@@ -106,7 +114,7 @@ export async function runExperimentRunCommandFromArgs(
       registry,
       targetPath: args.targetPath,
       outputRoot,
-      config: args.config,
+      config: pluginConfigFor(args),
       inputs,
       toolRoot,
       runId
@@ -195,10 +203,13 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   let includeRealAgents: boolean | undefined;
   let kitCommand: string | undefined;
   let campaignPreset: WarmIndexCampaignPresetId | undefined;
+  let contextBudgets: number[] | undefined;
+  const seenFlags: string[] = [];
   const commandTemplates: Partial<Record<"codex" | "claude", AgentCommandTemplate>> = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg !== undefined && arg.startsWith("--")) seenFlags.push(arg);
     if (arg === "--experiment") {
       experimentId = readRequiredValue(argv, ++index, "--experiment");
     } else if (arg === "--target") {
@@ -237,6 +248,8 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       commandTemplates.claude = parseAgentCommandTemplate(readRequiredValue(argv, ++index, "--command-template-claude"));
     } else if (arg === "--kit-command") {
       kitCommand = readRequiredValue(argv, ++index, "--kit-command");
+    } else if (arg === "--context-budgets") {
+      contextBudgets = parseContextBudgetsCliValue(readRequiredValue(argv, ++index, "--context-budgets"));
     } else if (arg === "--campaign") {
       campaignPreset = parseWarmIndexCampaignPresetId(readRequiredValue(argv, ++index, "--campaign"));
     } else if (arg === "--no-screenshot") {
@@ -250,7 +263,25 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   if (!experimentId) {
     throw new Error("Usage: --experiment <id> [--target <path>] [--out <directory>]");
   }
-  const KIT_COMMAND_PLUGIN_IDS = [warmIndexReusePlugin.metadata.id, incrementalChangeStalenessPlugin.metadata.id];
+  const KIT_COMMAND_PLUGIN_IDS = [
+    warmIndexReusePlugin.metadata.id,
+    incrementalChangeStalenessPlugin.metadata.id,
+    contextWindowScalingPlugin.metadata.id
+  ];
+  if (contextBudgets !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
+    throw new Error(`--context-budgets is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
+  }
+  if (experimentId === contextWindowScalingPlugin.metadata.id) {
+    const unsupported = [...new Set(seenFlags.filter((flag) => !CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS.includes(flag)))];
+    if (unsupported.length > 0) {
+      throw new Error(
+        `${unsupported.join(", ")} ${unsupported.length === 1 ? "is" : "are"} not supported for --experiment ${experimentId}; supported options: ${CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS.join(", ")}.`
+      );
+    }
+    if (seenFlags.includes("--case") && caseIds.length === 0) {
+      throw new Error("--case must list at least one case id.");
+    }
+  }
   if (kitCommand !== undefined && !KIT_COMMAND_PLUGIN_IDS.includes(experimentId)) {
     throw new Error(`--kit-command is only supported for --experiment ${KIT_COMMAND_PLUGIN_IDS.join(" or ")}.`);
   }
@@ -288,7 +319,8 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       includeRealAgents,
       commandTemplates: Object.keys(commandTemplates).length > 0 ? commandTemplates : undefined,
       kitCommand,
-      campaignPreset
+      campaignPreset,
+      contextBudgets
     })
   };
 }
@@ -348,7 +380,44 @@ async function loadPluginInputs(
     }
     return loadCasesAndProjectProfiles(args, toolRoot, context);
   }
+  if (args.experimentId === contextWindowScalingPlugin.metadata.id) {
+    return loadContextWindowScalingInputs(args, toolRoot, context);
+  }
   return undefined;
+}
+
+// --case is a selection over the frozen bundled catalog (catalog order, not argument order);
+// the rest of the CLI config is the plugin's own ContextWindowScalingConfig.
+function pluginConfigFor(args: ParsedRunExperimentArgs): ParsedExperimentRunConfig {
+  if (args.experimentId !== contextWindowScalingPlugin.metadata.id) return args.config;
+  const { caseIds: _caseIds, ...config } = args.config;
+  return config;
+}
+
+async function loadContextWindowScalingInputs(
+  args: ParsedRunExperimentArgs,
+  toolRoot: string,
+  context: LabExecutionContext
+): Promise<Record<string, unknown>> {
+  const validation = contextWindowScalingPlugin.validateConfig(pluginConfigFor(args));
+  if (!validation.valid || !validation.config) {
+    throw new Error(`Invalid context window scaling config: ${validation.errors.join("; ")}`);
+  }
+  const catalog = await readEvaluationCases(resolvePackageResource(context, CONTEXT_WINDOW_SCALING_CASES_RESOURCE), toolRoot);
+  const requested = args.config.caseIds;
+  if (requested === undefined) return { cases: catalog, env: process.env };
+  const duplicates = [...new Set(requested.filter((id, position) => requested.indexOf(id) !== position))];
+  if (duplicates.length > 0) {
+    throw new Error(`--case contains duplicate case id(s): ${duplicates.join(", ")}.`);
+  }
+  const known = new Set(catalog.map((evaluationCase) => evaluationCase.id));
+  const unknown = requested.filter((id) => !known.has(id));
+  if (unknown.length > 0) {
+    throw new Error(
+      `--case contains unknown case id(s): ${unknown.join(", ")}. Expected one of ${catalog.map((evaluationCase) => evaluationCase.id).join(", ")}.`
+    );
+  }
+  return { cases: catalog.filter((evaluationCase) => requested.includes(evaluationCase.id)), env: process.env };
 }
 
 // Shared by both registered plugins: explicit paths resolve against toolRoot, defaults come from

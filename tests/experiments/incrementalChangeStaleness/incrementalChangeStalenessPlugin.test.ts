@@ -65,7 +65,7 @@ describe("incremental-change-staleness registration (TST-B3-001..003, 052)", () 
   it("registers exactly once in the default registry after the unchanged existing plugins", () => {
     const registry = createDefaultExperimentPluginRegistry();
     const ids = registry.list().map((metadata) => metadata.id);
-    expect(ids).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness"]);
+    expect(ids).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling"]);
     expect(ids.filter((id) => id === "incremental-change-staleness")).toHaveLength(1);
     expect(registry.get("incremental-change-staleness")).toBe(incrementalChangeStalenessPlugin);
     expect(registry.get("context-strategy-comparison")).toBe(contextStrategyComparisonPlugin);

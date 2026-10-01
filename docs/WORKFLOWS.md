@@ -238,7 +238,7 @@ Released in v0.6.1. It extends the warm-index workflow above without any new com
 
 ## Incremental-change and staleness experiment (introduced in v0.6.2; four-treatment workflow in v0.6.3)
 
-This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the current v0.6.3 release runs four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
+This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 release added two treatments, and the current v0.7.0 release continues to run all four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
 
 **Goal:** compare matched `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, and `full-refresh` treatment evidence after the same deterministic controlled source change, using the six frozen scenario families, without changing the released `warm-index-reuse` experiment. `full-refresh` is a comparison reference, not a preferred treatment.
 
@@ -283,6 +283,36 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 **Completion:** the run reports `completed` (or a reviewed `partial` state), each ready scenario shows four treatments in the persisted order and three reference comparisons, the report's incremental-change-staleness section and limitations are present, and the packaged benchmark projects and scenario catalog remain unchanged. Interpret the results as scenario-scoped evidence: an applied partial refresh in one run does not guarantee the next run cannot fall back, and there is no `graph-diff` dependency, no numeric stale-risk score, no treatment winner, and no global safety verdict. Historical V1 artifacts from the two-treatment release remain readable.
 
 **Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.5` for all six scenarios with all four treatments, requires both partial treatments to be applied without fallback, checks operational discrimination between changed-files and affected-neighborhood refresh, and keeps the canonical benchmarks and both installed packages immutable. It introduces no new plot, screenshot, or gallery item.
+
+## Context-window scaling experiment (v0.7.0)
+
+**Status:** released in v0.7.0. This plugin uses a bundled four-case catalog and fixed self target; it does not accept an external `--target` or real-agent campaign options.
+
+**Goal:** compare the measured raw-full-file and my-dev-kit-guided contexts at the same selected estimated-token budgets, and preserve fit, deterministic correctness/success, and omitted expected relevant-file evidence.
+
+**Steps (source checkout):**
+
+```powershell
+npm run experiment:run -- `
+  --experiment context-window-scaling `
+  --context-budgets 8k,16k,32k,64k `
+  --kit-command "npx @dailephd/my-dev-kit@latest" `
+  --out lab-output/context-window-scaling
+
+npm run generate-experiment-plots -- `
+  --experiment lab-output/context-window-scaling `
+  --out lab-output/context-window-scaling-plots
+```
+
+The installed equivalents are `my-dev-kit-lab experiment run --experiment context-window-scaling [--case <ids>] [--context-budgets <values>] [--kit-command <command>] [--out <dir>]` and `my-dev-kit-lab plots generate --experiment <run dir> --out <plots dir>`. The default budget set is 8k/16k/32k/64k; positive integer custom values are accepted. Duplicates after normalization are rejected.
+
+**Expected outputs:** `context-window-scaling-execution.json` and the plugin `report.json`, `report.txt`, and `report.html` beneath the run output. Plot output contains `plot-data.json`, `plots-summary.json`, and exactly `context-window-scaling-context-size.svg`, `context-window-scaling-success-rate-by-budget.svg`, and `context-window-scaling-correctness-by-budget.svg` under `charts/`.
+
+**Interpretation and limits:** each treatment context is constructed once. Budgets classify that measured context; they do not truncate or rebuild it, change retrieval, or configure a model. Estimated tokens use `ceil(characters / 4)`. `context-too-large` is an expected unsuccessful budget cell, not an operational run failure; correctness is unavailable for that cell and the cell remains in the success-rate denominator. Deterministic fake-agent correctness is context-independent, so the run does not demonstrate semantic sensitivity to context differences or real-provider behavior. Omitted relevant files are benchmark expected files not observed in a treatment's context; this is not precision/recall. The plugin adds no dedicated gallery or screenshot integration.
+
+**Plot input selection:** `plots generate` detects `context-window-scaling-execution.json`. If both that artifact and warm-index evidence appear in one directory, generation fails as ambiguous; it does not choose a plugin by precedence.
+
+**Completion:** review fit and unavailable counts, per-budget success/correctness/utilization, omitted-file evidence and fixed limitations in the report. Confirm all three plots exist and treat their values as scoped deterministic benchmark evidence.
 
 ## Real-agent warm-index campaign (v0.5.2)
 
@@ -429,7 +459,7 @@ npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-
 
 **Expected outputs:** JSON/HTML reports, plot data and SVG charts, a gallery manifest, and `gallery-index.html`.
 
-`generate-experiment-plots` (installed: `plots generate`) also accepts a `warm-index-reuse` output directory and then writes the four warm-index charts; see [Warm-index reuse experiment](#warm-index-reuse-experiment). Ordinary non-campaign warm-index outputs have no dedicated gallery integration. A completed real-agent `--campaign` run is the exception: it automatically writes the bounded v0.5.2 campaign gallery described above.
+`generate-experiment-plots` (installed: `plots generate`) accepts warm-index output directories and writes their four charts, or context-window-scaling run directories and writes their three charts; legacy controlled-experiment directories keep the existing plot path. The generic `gallery build --plots` workflow can include a plots directory, but context-window-scaling has no dedicated gallery integration. Ordinary non-campaign warm-index outputs also have no dedicated gallery integration. A completed real-agent warm-index `--campaign` run is the exception: it automatically writes the bounded v0.5.2 campaign gallery described above.
 
 **Failure handling:** correct the missing or mismatched input directory reported by the failing renderer. Do not fabricate absent artifacts.
 

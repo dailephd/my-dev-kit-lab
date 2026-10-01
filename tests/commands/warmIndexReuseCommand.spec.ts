@@ -128,7 +128,7 @@ describe("experiment run --kit-command", () => {
   it("rejects --kit-command for context-strategy-comparison and a missing value", () => {
     expect(() =>
       parseRunExperimentArgs(["--experiment", "context-strategy-comparison", "--kit-command", "kit"])
-    ).toThrow("--kit-command is only supported for --experiment warm-index-reuse or incremental-change-staleness.");
+    ).toThrow("--kit-command is only supported for --experiment warm-index-reuse or incremental-change-staleness or context-window-scaling.");
     expect(() => parseRunExperimentArgs(["--experiment", "warm-index-reuse", "--kit-command"])).toThrow(
       "--kit-command requires a value."
     );
@@ -348,6 +348,7 @@ describe("experiment list/describe with warm-index-reuse", () => {
       ["context-strategy-comparison", ["raw-full-file", "my-dev-kit-guided"]],
       ["warm-index-reuse", ["raw-full-file", "warm-index-reuse"]],
       ["incremental-change-staleness", ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]],
+      ["context-window-scaling", ["raw-full-file", "my-dev-kit-guided"]],
     ]);
   });
 
@@ -405,7 +406,7 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     const { code, text } = await help(["experiment", "run", "--help"]);
     expect(code).toBe(0);
     const common = text.indexOf("Common options (all plugins):");
-    const kitCommand = text.indexOf("my-dev-kit command override (warm-index-reuse and incremental-change-staleness):");
+    const kitCommand = text.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, and context-window-scaling):");
     const warm = text.indexOf("warm-index-reuse only:");
     const context = text.indexOf("context-strategy-comparison only:");
     expect(common).toBeGreaterThan(-1);
@@ -416,6 +417,7 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     expect(kitSection).toContain("--kit-command <command>");
     expect(kitSection).toContain("warm-index-reuse");
     expect(kitSection).toContain("incremental-change-staleness");
+    expect(kitSection).toContain("context-window-scaling");
     expect(kitSection).not.toContain("warm-index-reuse only");
     const warmSection = text.slice(warm, context);
     const normalizedWarmSection = warmSection.replace(/\s+/g, " ");
@@ -451,7 +453,10 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     const generate = await help(["plots", "generate", "--help"]);
     expect(generate.text).toContain("legacy controlled-experiment output directories");
     expect(generate.text).toContain("warm-index-reuse plugin output directories");
-    expect(generate.text).toContain("Other plugin outputs are not plotted by this command.");
+    expect(generate.text).toContain("context-window-scaling plugin output directories");
+    expect(generate.text).toContain("context-window-scaling-execution.json");
+    expect(generate.text).not.toContain("Other plugin outputs are not plotted by this command.");
+    expect(generate.text).not.toMatch(/all (?:experiment )?plugins/i);
     expect(generate.text).not.toContain("Path to a controlled-experiment output directory");
   });
 });

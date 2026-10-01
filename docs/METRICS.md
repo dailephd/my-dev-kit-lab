@@ -596,6 +596,32 @@ All six metrics are warm-side only (they are not on the raw-full-file side, beca
 
 **Observational only.** The evidence never triggers reindexing, suppresses or alters warm retrieval, or changes execution, provider, agent, correctness, or token-evidence status. It uses only the baseline graph of the prepared index: there is no graph-diff, refreshed-index, or stale-versus-refreshed comparison.
 
+## Context-window scaling evidence (v0.7.0)
+
+Status: **released in v0.7.0**. The `context-window-scaling` plugin compares `raw-full-file` and `my-dev-kit-guided` treatment contexts against selected estimated-token budgets. It runs the bundled case catalog against the fixed self target.
+
+### Measurement and budget-cell semantics
+
+- **Estimated tokens:** context construction records character count and an estimated token count using the Lab's deterministic `ceil(characters / 4)` heuristic. It is not a provider tokenizer result, model-window measurement, or billing telemetry.
+- **Budget values:** defaults are 8192, 16384, 32768, and 65536 tokens (shown as 8k, 16k, 32k, and 64k). Users can select other positive safe integers. Duplicate values after normalization are rejected; accepted budgets are sorted ascending.
+- **Context fit:** `fits` when estimated context tokens are less than or equal to the selected budget; `context-too-large` when they exceed it; `unavailable` when context measurement is unavailable. This classification does not truncate or reconstruct the context. Each treatment's context is built once, independent of its budgets.
+- **Budget utilization:** `contextBudgetUtilizationPercent = estimatedContextTokens / budget * 100`. It is not capped at 100 percent, so an over-budget context can have utilization greater than 100. It is unavailable when context size is unavailable.
+- **Correctness:** the existing deterministic fake-agent answer-key evaluator runs no more than once per treatment and is shared by every budget cell where that treatment's context fits. Correctness is unavailable for a `context-too-large` cell and is not converted to zero. This harness's evaluation is context-independent; it does not estimate how a real model's correctness would change with the supplied context.
+- **Success:** success is true only when the context fits and the available correctness evidence passes. A too-large context is an available unsuccessful cell with reason `context-too-large`, even though no evaluation ran. Operational or evidence-unavailable cells remain unavailable and are excluded from success-rate denominators. Thus context-too-large cells count as not successful, while unavailable cells do not.
+- **Omitted relevant files:** benchmark-expected relevant files absent from the treatment's observed context provenance. This is an evidence count/list, not retrieval precision, recall, or an irrelevant-context ratio. The report bounds displayed omitted paths and retains total/displayed/omitted counts.
+
+### Aggregate and per-cell metrics
+
+`aggregateContextWindowScaling` in `src/experiments/plugins/contextWindowScaling/metrics.ts` owns the per-budget and run summaries. `buildContextWindowScalingReport.ts` presents these results without recalculating fit, utilization, success, or correctness.
+
+For each budget and treatment, aggregate evidence includes `fitCount`, `contextTooLargeCount`, `contextUnavailableCount`, `successfulCellCount`, `notSuccessfulCellCount`, success-evidence availability counts, `successRatePercent`, correctness availability counts and `meanCorrectnessScore`, and availability counts plus mean/min/max context-budget utilization. Success rate is successful cells divided by success-evidence-available cells; it is null when none are available. Mean correctness averages only available scores and is null when none are available. Utilization summaries include only measured values and remain uncapped.
+
+The generic `ExperimentMetric` projection emits run-level case and budget counts, plus per-budget/per-treatment fit count, too-large count, successful count, success rate, mean correctness, and mean utilization. Per-case treatment outcomes carry context estimated tokens, omitted relevant file count when available, and budget-scoped utilization, correctness score, and success evidence. Unavailable values remain null/unavailable with their evidence status; no value is fabricated as zero.
+
+The report artifact schema is `my-dev-kit-lab-context-window-scaling-report-v1`. It includes run summaries, budget-treatment summaries, per-treatment context measurements, budget cells, relevant-file summary, and fixed interpretation limits. The execution artifact is `context-window-scaling-execution.json` (`my-dev-kit-lab-context-window-scaling-execution-v1`) and does not embed context text.
+
+There is no composite score, winner, or ranking. Budgets are experiment thresholds, not assertions about actual provider context-window capacities. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Incremental-change and staleness evidence (v0.6.2)
 
 The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affected-neighborhood numeric metrics unchanged (`changedFileCount`, `changedSymbolCount`, `affectedNodeCount`, `affectedEdgeCount`, `taskOverlapCount`, `taskOverlapPercent`; see "Affected-neighborhood metrics (v0.6.1)" above) and adds no new numeric formula.
@@ -630,7 +656,7 @@ The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affecte
 
 **Report presentation.** `report.incrementalChangeStaleness` holds `scenarioCount`, `readyScenarioCount`, `failedScenarioCount`, `observedStaleRegressionCount`, `noObservedStaleRegressionCount`, `inconclusiveCount`, per-scenario evidence (lifecycle, both treatments in order, and the comparison), and fixed limitations text. There is no overall score, grade, winner, best-treatment, or safe-to-skip-reindex field anywhere in the report or the persisted execution artifact.
 
-### Partial-refresh treatment evidence (v0.6.3, current release)
+### Partial-refresh treatment evidence (v0.6.3, retained in current release)
 
 The `incremental-change-staleness` plugin now compares four treatments (`stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, `full-refresh`). It defines no new formula. Two evidence families must not be merged:
 

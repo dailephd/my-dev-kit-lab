@@ -108,7 +108,9 @@
         "real-agent warm-index campaign",
         "LAB-EVIDENCE-01",
         "v0.10.0",
-        "incremental-change-staleness"
+        "incremental-change-staleness",
+        "context-window-scaling",
+        "v0.7.0"
       ]
     },
     "docs/ARCHITECTURE.md": {
@@ -395,16 +397,19 @@
       "0.6.0",
       "0.6.1",
       "0.6.2",
-      "0.6.3"
+      "0.6.3",
+      "0.7.0"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.6.3",
-    "nextPlannedVersion": "0.7.0",
+    "latestPublishedVersion": "0.7.0",
+    "currentImplementedUnreleasedVersion": null,
+    "nextPlannedVersion": "0.7.1",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",
-      "incremental-change-staleness"
+      "incremental-change-staleness",
+      "context-window-scaling"
     ],
     "experimentPluginDocuments": [
       "README.md",

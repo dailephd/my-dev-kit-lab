@@ -1,5 +1,6 @@
 export * from "./types.js";
 export * from "./buildExperimentPlotData.js";
 export * from "./buildWarmIndexPlotData.js";
+export * from "./buildContextWindowScalingPlotData.js";
 export * from "./renderSvgChart.js";
 export * from "./writePlotArtifacts.js";

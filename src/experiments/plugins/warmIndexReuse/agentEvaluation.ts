@@ -117,7 +117,7 @@ export async function evaluateWarmIndexFakeAgents(options: {
   return result;
 }
 
-async function evaluateFakeSide(args: {
+export async function evaluateFakeSide(args: {
   evaluationCase: EvaluationCase | undefined;
   caseId: string;
   variantId: WarmIndexAgentVariantId;

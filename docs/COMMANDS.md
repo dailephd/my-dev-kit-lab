@@ -10,6 +10,8 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
+This section describes the current source checkout and published package. The v0.7.0 `context-window-scaling` command surface is included in the current 0.7.0 package.
+
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
 ```
@@ -176,7 +178,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (released in v0.5.0), and `incremental-change-staleness` (released in v0.6.2), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), and `context-window-scaling` (released in v0.7.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -189,7 +191,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
 
-`experiment run --help` groups options as common options (all plugins), a my-dev-kit command override for `warm-index-reuse` and `incremental-change-staleness`, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for the other plugin rather than ignored. `--kit-command` is accepted for both `warm-index-reuse` and `incremental-change-staleness`; it is rejected for `context-strategy-comparison`.
+`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. `context-window-scaling` accepts only `--out`, `--case`, `--context-budgets`, and `--kit-command`; it is self-only and uses its bundled four-case catalog.
 
 #### `warm-index-reuse`
 
@@ -272,6 +274,24 @@ my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
+#### `context-window-scaling` (released in v0.7.0)
+
+```text
+my-dev-kit-lab experiment describe --experiment context-window-scaling
+my-dev-kit-lab experiment run --experiment context-window-scaling [--out <dir>] [--case <ids>] [--context-budgets <values>] [--kit-command <command>]
+```
+
+The plugin compares `raw-full-file` and `my-dev-kit-guided` on the bundled self-target case catalog. Its default my-dev-kit command is `npx @dailephd/my-dev-kit@latest`.
+
+| Option | Allowed value or default |
+|---|---|
+| `--out <dir>` | Optional output directory; when omitted the normal experiment default applies beneath `lab-output/experiments/` in a source checkout or the installed workspace |
+| `--case <ids>` | Optional comma-separated filter over the bundled four-case catalog |
+| `--context-budgets <values>` | Optional comma-separated budgets: `8k`, `16k`, `32k`, `64k`, or positive safe integers such as `12000`; defaults to `8k,16k,32k,64k`. Values are normalized, sorted, and duplicate values after normalization are rejected |
+| `--kit-command <command>` | Optional command for my-dev-kit-guided retrieval; defaults to `npx @dailephd/my-dev-kit@latest` |
+
+The plugin is self-only and rejects external targets and unrelated common/plugin options. Budgets classify the estimated size of each constructed context; they do not truncate/rebuild contexts or configure a provider model window. Correctness comes from one deterministic fake-agent evaluation per treatment and is context-independent in the current harness. The execution artifact and reports contain bounded evidence, never context text. See [WORKFLOWS.md](WORKFLOWS.md#context-window-scaling-experiment-v070) and [METRICS.md](METRICS.md#context-window-scaling-evidence-v070).
+
 ### `my-dev-kit-lab experiment controlled [options]`
 
 Runs the `context-strategy-comparison` plugin's legacy controlled-experiment path directly (not through the generic plugin runner). Options:
@@ -307,10 +327,10 @@ Runs the `context-strategy-comparison` plugin's legacy controlled-experiment pat
 
 | Option | Allowed value or default |
 |---|---|
-| `--experiment <dir>` | Required; a legacy controlled-experiment output directory or a `warm-index-reuse` plugin output directory |
+| `--experiment <dir>` | Required; a legacy controlled-experiment output directory, a `warm-index-reuse` plugin output directory, or a `context-window-scaling` run directory |
 | `--out <dir>` | Required |
 
-Input detection: when the experiment directory contains a `report.json` from the `warm-index-reuse` plugin, the command builds the four warm-index charts (a malformed warm-index report fails instead of falling back); every other directory uses the unchanged legacy controlled-experiment plot path. Other plugin outputs are not plotted by this command.
+Input detection: the command recognizes a `context-window-scaling-execution.json` artifact and builds exactly three context-window charts; a malformed artifact fails. A `warm-index-reuse` `report.json` selects the four warm-index charts; a malformed warm-index report fails instead of falling back. Other directories use the legacy controlled-experiment plot path. These are the currently supported evidence families; the command does not claim support for every experiment plugin. A directory containing both context-window-scaling and warm-index evidence is ambiguous and fails rather than selecting a precedence.
 
 Warm-index charts, written to `<out>/charts/` with `plot-data.json` and `plots-summary.json`:
 
@@ -320,6 +340,14 @@ Warm-index charts, written to `<out>/charts/` with `plot-data.json` and `plots-s
 - `warm-index-cumulative-token-usage.svg` — cumulative fake-agent total tokens (never estimated context tokens)
 
 Unavailable metrics become skipped points with their reason; a chart with no available points renders "No comparable data available".
+
+Context-window-scaling charts, written to `<out>/charts/` with `plot-data.json` and `plots-summary.json`:
+
+- `context-window-scaling-context-size.svg`
+- `context-window-scaling-success-rate-by-budget.svg`
+- `context-window-scaling-correctness-by-budget.svg`
+
+The context-size plot compares measured context estimates per case and treatment. The other plots use the selected numeric context budgets as the x-axis; unavailable aggregate values are skipped with their reason.
 
 ### `my-dev-kit-lab gallery build [options]`
 

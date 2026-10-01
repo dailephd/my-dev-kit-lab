@@ -1,0 +1,220 @@
+[
+  {
+    "id": "ctx-scale-a-8k-16k",
+    "title": "Context scaling A: Shipping quote by weight band",
+    "benchmarkProject": "context-window-scaling-fixed-ts",
+    "taskLocality": "localized",
+    "targetRoot": "benchmarks/projects/context-window-scaling-fixed-ts",
+    "sourceRoots": [
+      "src",
+      "tests"
+    ],
+    "query": "shipping quote weight band zone surcharge parcel",
+    "expectedFiles": [
+      "src/tasks/shippingQuote.ts",
+      "tests/tasks/shippingQuote.test.ts"
+    ],
+    "expectedSymbols": [
+      "selectWeightBand",
+      "calculateShippingQuote"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "src/tasks/shippingQuote.ts",
+        "tests/tasks/shippingQuote.test.ts"
+      ],
+      "expectedSymbols": [
+        "selectWeightBand",
+        "calculateShippingQuote"
+      ],
+      "expectedFacts": [
+        {
+          "id": "ctx-scale-a-band-selection",
+          "text": "selectWeightBand returns the smallest weight band whose maxGrams holds the parcel weight and rejects non-positive or oversize weights.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "ctx-scale-a-zone-surcharge",
+          "text": "calculateShippingQuote adds a zone surcharge (domestic 0, regional 250, international 1200 cents) to the selected band base price.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 2,
+      "notes": "Small task-relevant surface inside a fixed static repository whose filler tiers scale raw context."
+    },
+    "rawIncludeGlobs": [
+      "src/tasks/**/*",
+      "tests/**/*",
+      "src/filler/tier-1/**/*"
+    ],
+    "notes": "Raw context scale band A (filler tiers 1..1); band bounds are enforced by the corpus test."
+  },
+  {
+    "id": "ctx-scale-b-16k-32k",
+    "title": "Context scaling B: Invoice total with bulk discount and tax",
+    "benchmarkProject": "context-window-scaling-fixed-ts",
+    "taskLocality": "localized",
+    "targetRoot": "benchmarks/projects/context-window-scaling-fixed-ts",
+    "sourceRoots": [
+      "src",
+      "tests"
+    ],
+    "query": "invoice total bulk discount quantity tax rounding cents",
+    "expectedFiles": [
+      "src/tasks/invoiceTotals.ts",
+      "tests/tasks/invoiceTotals.test.ts"
+    ],
+    "expectedSymbols": [
+      "calculateInvoiceTotal",
+      "applyBulkDiscount",
+      "roundToCents"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "src/tasks/invoiceTotals.ts",
+        "tests/tasks/invoiceTotals.test.ts"
+      ],
+      "expectedSymbols": [
+        "calculateInvoiceTotal",
+        "applyBulkDiscount",
+        "roundToCents"
+      ],
+      "expectedFacts": [
+        {
+          "id": "ctx-scale-b-bulk-discount",
+          "text": "applyBulkDiscount gives 5 percent off at quantity 20 and 10 percent off at quantity 100 or more.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "ctx-scale-b-tax-after-discount",
+          "text": "calculateInvoiceTotal adds rounded tax computed on the discounted subtotal.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 2,
+      "notes": "Small task-relevant surface inside a fixed static repository whose filler tiers scale raw context."
+    },
+    "rawIncludeGlobs": [
+      "src/tasks/**/*",
+      "tests/**/*",
+      "src/filler/tier-1/**/*",
+      "src/filler/tier-2/**/*"
+    ],
+    "notes": "Raw context scale band B (filler tiers 1..2); band bounds are enforced by the corpus test."
+  },
+  {
+    "id": "ctx-scale-c-32k-64k",
+    "title": "Context scaling C: Inventory stock reservation",
+    "benchmarkProject": "context-window-scaling-fixed-ts",
+    "taskLocality": "localized",
+    "targetRoot": "benchmarks/projects/context-window-scaling-fixed-ts",
+    "sourceRoots": [
+      "src",
+      "tests"
+    ],
+    "query": "reserve stock release reservation available quantity insufficient",
+    "expectedFiles": [
+      "src/tasks/inventoryReservation.ts",
+      "tests/tasks/inventoryReservation.test.ts"
+    ],
+    "expectedSymbols": [
+      "reserveStock",
+      "releaseReservation",
+      "availableStock"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "src/tasks/inventoryReservation.ts",
+        "tests/tasks/inventoryReservation.test.ts"
+      ],
+      "expectedSymbols": [
+        "reserveStock",
+        "releaseReservation",
+        "availableStock"
+      ],
+      "expectedFacts": [
+        {
+          "id": "ctx-scale-c-reserve-limits",
+          "text": "reserveStock rejects non-positive quantities and quantities above available stock, returning a new level without mutating the input.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "ctx-scale-c-release-limits",
+          "text": "releaseReservation rejects quantities that are non-positive or larger than the reserved amount.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 2,
+      "notes": "Small task-relevant surface inside a fixed static repository whose filler tiers scale raw context."
+    },
+    "rawIncludeGlobs": [
+      "src/tasks/**/*",
+      "tests/**/*",
+      "src/filler/tier-1/**/*",
+      "src/filler/tier-2/**/*",
+      "src/filler/tier-3/**/*"
+    ],
+    "notes": "Raw context scale band C (filler tiers 1..3); band bounds are enforced by the corpus test."
+  },
+  {
+    "id": "ctx-scale-d-64k-plus",
+    "title": "Context scaling D: Audit entry redaction",
+    "benchmarkProject": "context-window-scaling-fixed-ts",
+    "taskLocality": "localized",
+    "targetRoot": "benchmarks/projects/context-window-scaling-fixed-ts",
+    "sourceRoots": [
+      "src",
+      "tests"
+    ],
+    "query": "audit entry redact mask email token",
+    "expectedFiles": [
+      "src/tasks/auditRedaction.ts",
+      "tests/tasks/auditRedaction.test.ts"
+    ],
+    "expectedSymbols": [
+      "redactAuditEntry",
+      "maskEmail"
+    ],
+    "answerKey": {
+      "expectedFiles": [
+        "src/tasks/auditRedaction.ts",
+        "tests/tasks/auditRedaction.test.ts"
+      ],
+      "expectedSymbols": [
+        "redactAuditEntry",
+        "maskEmail"
+      ],
+      "expectedFacts": [
+        {
+          "id": "ctx-scale-d-email-mask",
+          "text": "maskEmail keeps the first local-part character, masks the rest, and returns [invalid-email] for malformed addresses.",
+          "weight": 1,
+          "required": true
+        },
+        {
+          "id": "ctx-scale-d-token-redaction",
+          "text": "redactAuditEntry replaces any token with [redacted] and drops fields other than actor, action, email, and token.",
+          "weight": 1,
+          "required": true
+        }
+      ],
+      "minimumCorrectFacts": 2,
+      "notes": "Small task-relevant surface inside a fixed static repository whose filler tiers scale raw context."
+    },
+    "rawIncludeGlobs": [
+      "src/tasks/**/*",
+      "tests/**/*",
+      "src/filler/tier-1/**/*",
+      "src/filler/tier-2/**/*",
+      "src/filler/tier-3/**/*",
+      "src/filler/tier-4/**/*"
+    ],
+    "notes": "Raw context scale band D (filler tiers 1..4); band bounds are enforced by the corpus test."
+  }
+]

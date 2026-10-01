@@ -4,6 +4,14 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-01
+
+### Context-window scaling
+
+- Added the self-only `context-window-scaling` experiment plugin with standard and custom estimated-token budgets, raw-full-file and my-dev-kit-guided context evidence, fit/utilization/correctness/success measurements, and bounded omitted-relevant-file reporting.
+- Added the versioned `context-window-scaling-execution.json` artifact, JSON/text/HTML report section, and three context-window plot families through the existing `plots generate` command.
+- Extended exact packed-package acceptance to cover installed discovery, execution, reports, plots, custom budgets, and immutability of the bundled context-window case contract and fixed project.
+
 ## [0.6.3] - 2026-09-30
 
 ### Four-treatment partial-refresh experiments

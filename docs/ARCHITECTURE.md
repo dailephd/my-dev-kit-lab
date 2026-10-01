@@ -27,6 +27,8 @@ src/
     types.ts                                 plugin contracts and normalized results
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
     plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session (carrying the v0.6.0 index snapshot and the v0.6.1 baseline graph evidence), execution (with the v0.6.0 per-task freshness assessment and the v0.6.1 per-task affected-neighborhood assessment), bounded execution artifact, fake-agent evaluation, metrics
+    plugins/incrementalChangeStaleness/      v0.6.2 plugin; four-treatment V2 execution and report extension in released v0.6.3
+    plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released; retained): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released; retained): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
@@ -83,6 +85,8 @@ flowchart TD
   Runner --> Target[self or external-local target]
   Runner --> Plugin[context-strategy-comparison plugin]
   Runner --> WarmPlugin[warm-index-reuse plugin]
+  Runner --> ScalingPlugin[context-window-scaling plugin]
+  Runner --> IncrementalPlugin[incremental-change-staleness plugin]
   WarmPlugin --> Evaluation
   WarmPlugin --> Results
   Plugin --> Evaluation[src/evaluation]
@@ -124,7 +128,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers `context-strategy-comparison` and `warm-index-reuse` (introduced in v0.5.0; see "Warm-index reuse architecture" below). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers four plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and the released v0.7.0 `context-window-scaling`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -197,7 +201,7 @@ Invariants and boundaries:
 - Estimated context tokens (character-based context size) and fake-agent total tokens (simulated harness telemetry) are separate evidence families; neither is provider billing telemetry.
 - The run, `warm-index-execution.json`, reports, and plot data are bounded: no context text, source contents, prompts, answers, or stdout/stderr bodies. Per-command and per-agent files hold the raw evidence beneath the output root.
 - Agent evaluation never changes the execution status; its status is reported separately.
-- `plots generate` detects a `warm-index-reuse` `report.json` and uses the existing `renderSvgChart`/`writePlotArtifactsFromData`; every other directory keeps the legacy controlled-experiment plot path.
+- `plots generate` detects `context-window-scaling-execution.json` or a `warm-index-reuse` `report.json` and uses the corresponding plugin plot-data builder plus the existing `renderSvgChart`/`writePlotArtifactsFromData`; directories without either recognized plugin source keep the legacy controlled-experiment plot path. Mixed context-window-scaling and warm-index evidence fails as ambiguous.
 
 ## Index snapshot and freshness architecture (v0.6.0, released; retained)
 
@@ -418,6 +422,29 @@ Baseline bootstrap is requested as an incremental changed-files build into a bra
 - `warm-index-reuse`, the released v0.6.1 affected-neighborhood semantics, and `changedSymbolCount` are unchanged. The plugin remains self-only.
 - Not added: a new plugin, `graph-diff` dependency, true-symbol-diff metric, multi-hop traversal, automatic refresh policy, treatment ranking, safety score, real-agent campaign requirement, new plot/screenshot/gallery item, external-target support, or a public Lab `--refresh-scope` flag.
 
+## Context-window scaling architecture (v0.7.0)
+
+Status: **published in v0.7.0**.
+
+The `context-window-scaling` plugin is registered with the generic experiment runtime and runs only against its bundled self-target case catalog. It compares the existing `raw-full-file` and `my-dev-kit-guided` treatment owners. The budget axis is an evidence classification over each treatment's single constructed context: a context is measured once, then compared to each selected budget. Budgets do not enter raw-context construction, my-dev-kit retrieval, or the evaluator; the system does not truncate or rebuild the context per budget.
+
+### Ownership and lifecycle
+
+- `plugin.ts` owns plugin metadata, bundled case/profile resolution, execution orchestration, the bounded `context-window-scaling-execution.json` artifact, and mapping into the shared `ExperimentRun` contract.
+- `execution.ts` calls the existing raw-full-file baseline and my-dev-kit retrieval owners once per case/treatment. `evaluation.ts` uses the deterministic fake-agent answer-key evaluator once for a treatment when at least one budget fits; that correctness evidence is reused for every fitting budget cell.
+- `contextBudget.ts` owns positive-integer budget validation, the standard 8192/16384/32768/65536 budgets, exact fit boundary (`estimatedTokens <= budget`), and uncapped utilization calculations. `successEvidence.ts` preserves `context-too-large` as an expected, available unsuccessful cell with no evaluation, rather than an operational execution failure.
+- `relevantFiles.ts` compares benchmark-expected relevant files with the observed treatment context provenance. It records omitted-file evidence; it does not calculate retrieval precision, recall, or irrelevant-context ratio.
+- `metrics.ts` owns aggregate and per-outcome budget metrics. `buildContextWindowScalingReport.ts` presents aggregate evidence as bounded JSON, text, and HTML reports; report rendering does not remeasure context or recalculate fit, success, or correctness.
+- `buildContextWindowScalingPlotData.ts` reads and validates `context-window-scaling-execution.json`, rebuilds the aggregate with the existing metric owner, and defines exactly three chart IDs. `writePlotArtifacts.ts` routes this artifact through the normal SVG writer. If a directory contains both context-window-scaling and warm-index evidence, the router fails as ambiguous; it applies no precedence rule.
+- `scripts/verify-packed-package.mjs` proves the installed package can discover, run, report, and plot this plugin from a clean consumer while leaving the bundled case contract and fixed project unchanged.
+
+### Evidence semantics and boundaries
+
+- Estimated tokens use `ceil(characters / 4)`, a Lab heuristic. Budgets are experiment thresholds, not claims about provider tokenizer output or actual model context-window limits. Utilization is unbounded and can exceed 100 percent.
+- Deterministic fake-agent correctness tests the existing answer-key/evaluation pipeline and is context-independent in this harness; it does not measure semantic model sensitivity to different context content. Success is true only when the context fits and correctness passes. Too-large cells count as unsuccessful in the success-rate denominator; unavailable operational/evaluation evidence is excluded and counted separately.
+- A budget does not physically constrain retrieval or the fake evaluator. There are no provider runs, campaign mode, external targets, or synthetic-repository generator in v0.7.0. Synthetic repository generation remains the planned v0.7.1 scope.
+- The artifact and report contain measurements and bounded identifiers, not context text. The plugin adds no dedicated screenshot or gallery integration.
+
 ## Expanded warm-index benchmark suite (v0.5.1)
 
 Released in v0.5.1. v0.5.1 extends the benchmark/evaluation contract layer; it does not change the warm-index runtime described above, which stays authoritative and handles any ordered set of tasks grouped by project.
@@ -550,7 +577,7 @@ The contributor `scripts/*.ts` npm-script entrypoints are thin adapters over the
 
 ### Packed-package acceptance boundary
 
-`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, both experiment plugins are registered, `experiment describe --experiment warm-index-reuse` and `experiment run --help` document the warm-index surface, an installed `warm-index-reuse` run (using a temporary test-owned fake my-dev-kit script, never packaged) produces its execution artifact and reports, `plots generate` produces the four warm-index charts, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
+`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, all four experiment plugins are registered, `experiment describe --experiment warm-index-reuse` and `experiment run --help` document the warm-index surface, an installed `warm-index-reuse` run (using a temporary test-owned fake my-dev-kit script, never packaged) produces its execution artifact and reports, `plots generate` produces the four warm-index charts and the context-window-scaling charts from its V1 execution artifact, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
 
 ## Automated security-validation architecture
 
@@ -803,7 +830,7 @@ The following layers remain planned and must not be treated as current behavior:
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
 - the v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above
-- additional experiment plugins: later scale, retrieval-quality, and agent-success plugins remain planned; the released v0.6.0 freshness evidence and released v0.6.1 affected-neighborhood evidence remain available in the current package, while the released v0.6.2 two-treatment incremental-change and staleness baseline is the previous release extended by current v0.6.3. These are described in "Index snapshot and freshness architecture (v0.6.0, released; retained)", "Affected-neighborhood architecture (v0.6.1, released; retained)", "Incremental-change and staleness architecture (v0.6.2, released)", and "Four-treatment partial-refresh architecture (v0.6.3)" above
+- additional experiment plugins: the v0.7.0 context-window-scaling plugin is released; retrieval-quality and agent-success plugins remain planned. The released v0.6.0 freshness and v0.6.1 affected-neighborhood evidence remain available, and the v0.6.2 incremental-change baseline is extended by released v0.6.3. See the corresponding architecture sections above.
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
 
