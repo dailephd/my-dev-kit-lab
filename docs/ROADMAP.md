@@ -1156,7 +1156,7 @@ Explicit exclusions (unchanged, not implemented):
 
 ### v0.7.0 — context-window scaling plugin
 
-Status: **planned; not implemented**.
+Status: **implemented; unreleased; pre-release readiness pending**.
 
 Purpose:
 
@@ -1180,6 +1180,8 @@ Acceptance:
 
 * Experiment can mark raw strategy as context-too-large without treating it as a normal failure.
 * my-dev-kit-guided treatment can be evaluated under the same budget.
+
+Implementation status: the v0.7.0 plugin is registered and runs the bundled four-case catalog against the fixed self target. It measures each `raw-full-file` and `my-dev-kit-guided` context once, then classifies that measured context against each selected budget; no context is truncated or rebuilt per budget, and the budget is not passed to my-dev-kit or an agent. The deterministic fake-agent correctness result is shared by budget cells where that treatment's context fits. Token counts use the Lab's `ceil(characters / 4)` heuristic, not a provider tokenizer. The plugin writes a versioned execution artifact and JSON/text/HTML reports, and the existing plot command generates the three listed chart families. This satisfies the listed v0.7.0 acceptance; synthetic repository generation, external targets, and real-agent context-window campaigns remain later or out-of-scope work.
 
 ### v0.7.1 — synthetic large-repository generator
 

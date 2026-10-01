@@ -11,11 +11,12 @@ This document records the repository's operational state. It is the source of tr
 - Latest release: `v0.6.3` (four-treatment partial-refresh experiments)
 - Current release: `v0.6.3` (published/current; released)
 - Previous release: `v0.6.2` (incremental-change and staleness experiments)
+- Implemented, unreleased version: `v0.7.0` (context-window scaling plugin; implementation and packed-package acceptance complete, documentation reconciliation in progress)
 - `v0.5.0` status: published; it is a historical release. The release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Released/current version: `v0.6.3` (four-treatment partial-refresh experiments in the `incremental-change-staleness` plugin).
-- Active planned version: `v0.7.0` (context-window scaling plugin), planned and not started.
+- Active planned version: `v0.7.1` (synthetic large-repository generator).
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -35,7 +36,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
 - Current published release: `v0.6.3` four-treatment partial-refresh experiments. The package includes matched stale-index, changed-files refresh, affected-neighborhood refresh, and full-refresh scenarios and preserves v0.6.1 affected-neighborhood evidence.
-- Workflow stage: `v0.6.3` release readiness and release preparation completed successfully; `v0.6.3` is the current release line.
+- Workflow stage: v0.7.0 implementation is complete and documentation reconciliation is in progress; pre-release readiness, release preparation, and publication for v0.7.0 have not started.
 - The repository-controlled CodeQL advanced setup in `.github/workflows/codeql.yml` produced exact-SHA JavaScript/TypeScript and Actions analyses for v0.6.3; both recorded zero results and the release ref had zero open alerts. Local optional scanner availability is reported separately.
 - `v0.6.0` status: published; index snapshot evidence and changed-file freshness remain available in the current package.
 - Release evidence for v0.6.0: validated readiness candidate `95542a7954fbbd0169975524c7346eff53c85c99`; ordinary CI run `36014637655`; dedicated readiness run `36017418744`; local full test suite 392 files / 5107 passed / 1 skipped / 0 failed; security blockers 0; packed-package PASS; real published my-dev-kit compatibility smoke PASS; target, installed-package, and packaged-example immutability PASS. Canonical readiness evidence: [docs/reports/v0.6.0-pre-release-readiness.md](reports/v0.6.0-pre-release-readiness.md).
@@ -58,18 +59,19 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
-- Exact next action: continue the v0.7.0 roadmap after maintaining the current v0.6.3 release line.
+- Exact next action: continue the v0.7.1 roadmap after maintaining the current v0.6.3 release line; v0.7.0 is implemented but remains unreleased.
 - ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
 
 ## Implemented
 
 - Generic experiment-plugin runtime in `src/experiments`.
-- Registry containing three experimental plugins: `context-strategy-comparison`, `warm-index-reuse`, and `incremental-change-staleness`.
+- Registry containing four experimental plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling` (implemented, unreleased v0.7.0).
 - Raw-full-file versus my-dev-kit-guided behavior routed through that plugin while preserving legacy artifacts and commands.
 - Self and explicit local-project experiment targets.
 - Plugin-aware JSON and HTML reports in `src/report/experiments`.
 - Benchmark metadata, prompt variants, fake-agent, Codex, and Claude adapters.
 - Correctness, token, duration, status, reliability, plot, screenshot, visualization, gallery, and final-demo workflows.
+- The `context-window-scaling` plugin compares `raw-full-file` and `my-dev-kit-guided` at the standard 8192/16384/32768/65536 estimated-token budgets or custom positive-integer budgets. It persists per-treatment context measurements and per-budget fit, utilization, correctness, evaluation, and success evidence in `context-window-scaling-execution.json`; writes JSON/text/HTML reports with bounded omitted-relevant-file presentation; and uses the existing `plots generate` route for exactly three context-window plot families.
 - Automated security validation in `src/securityValidation`, covering dependency and package checks, CLI adversarial checks, CodeQL/Semgrep integration, bounded fuzz smoke, structured reports, and release verdicts.
 - Attack-scenario security validation in `src/securityValidation/attackScenarios`, covering boundary, subprocess, secrets, and network checks with reusable profiles, payload/evidence models, report-schema guarding, and verdict-impact metadata.
 - Self and explicit local-project security-validation targets.
@@ -108,7 +110,7 @@ The repository has one experiment runtime, one audit framework, one standalone s
 
 ## Experimental versus planned
 
-`context-strategy-comparison` is implemented but its registry status is `experimental`. Real-agent campaigns are implemented but depend on locally configured provider CLIs and may produce partial outcomes.
+`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling` are registered with experimental status. The v0.7.0 context-window scaling plugin is implemented but unreleased. Its estimated-token counts use `ceil(characters / 4)`, its budgets do not represent provider model limits, and its deterministic fake-agent correctness path is context-independent. It is self-only and has no real-agent campaign.
 
 `warm-index-reuse` was introduced in `v0.5.0` and is included in published release `v0.5.1` with registry status `experimental`. In the published `v0.5.1` release, its agent evidence comes from the deterministic fake agent only.
 
@@ -138,7 +140,7 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- context-window scaling, retrieval precision/recall, and agent-success experiment plugins (`v0.7.0` through `v0.9.x`)
+- synthetic large-repository generation (`v0.7.1`), retrieval precision/recall (`v0.8.x`), and agent-success experiment plugins (`v0.9.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
 ## Limitations
@@ -154,7 +156,8 @@ The following remain planned, not implemented:
 - `v0.6.0` freshness covers only the files an index snapshot lists as indexed; it does not establish whole-repository freshness, and a file that is new since indexing is outside the comparison. The `unknown` status means evidence was insufficient, while a task with no assessment is reported as not assessed. The `v0.6.0` package makes no reindex recommendation; the released `v0.6.1` evidence adds categorical recommendation evidence.
 - `v0.6.1` affected-neighborhood evidence is bounded to the baseline graph of the prepared index and to the files the index snapshot represents. `changedSymbolCount` counts baseline symbol identities that belong to confirmed changed indexed files; it does not prove any individual symbol's own source text changed. `affectedEdgeCount` counts unique baseline edges incident to at least one seed, not every edge among the affected nodes. `taskOverlapPercent` is over resolvable task nodes and is unavailable, never zero, when there are none. Unresolved or ambiguous expected symbols keep a task at `unknown` rather than unrelated, and `not-indicated` means only that this bounded analysis found no evidence supporting reindexing: it does not mean skipping a reindex is safe, that the whole repository is fresh, or that no new non-indexed file exists. There is no automatic reindex, no graph-diff or refreshed-index comparison, and no partial refresh.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
-- Three experiment plugins are registered: `context-strategy-comparison`, `warm-index-reuse` (released in `v0.5.0`), and `incremental-change-staleness` (introduced in `v0.6.2` and extended to four treatments in released `v0.6.3`). Later planned experiment plugins remain future roadmap work.
+- Four experiment plugins are registered: `context-strategy-comparison`, `warm-index-reuse` (introduced in `v0.5.0`), and `incremental-change-staleness` (introduced in `v0.6.2`, extended to four treatments in released `v0.6.3`), plus `context-window-scaling`.
+- `context-window-scaling` is implemented and unreleased in v0.7.0. Retrieval precision/recall and agent-success plugins remain planned. Context-window budgets classify measured contexts without truncation or per-budget reconstruction; correctness is deterministic fake-agent evidence and context-independent in the current harness.
 - `v0.6.3` refresh evidence is scoped to the executed deterministic scenarios and the configured my-dev-kit tool. `APPLIED_PARTIAL` in one accepted run does not guarantee that a later run cannot fall back; a fallback is reported as `FALLBACK_FULL` and is not evidence about the requested partial behavior. `no-observed-regression-relative-to-full` means only that the scenario showed no regression under the frozen correctness and required-file dimensions; it does not prove equivalence or safety, or that full refresh is unnecessary. Full refresh is a reference, not a preferred treatment. Correctness remains deterministic fake-agent evidence.
 - In the accepted real-upstream `v0.6.3` run, required-file status was `missing` for every treatment record (including `full-refresh`) and correctness was equal across treatments within each scenario, so those dimensions did not separate the treatments; the operational refresh counts did. The `tests/fixtures/fake-my-dev-kit-cli.js` fixture does not emulate `--refresh-scope` evidence, so the four-treatment public run requires a real my-dev-kit `1.12.5` or later.
 - R6 ran security validation, the audit workflow, the cross-platform CI matrix, and the latest-Node readiness workflow for `v0.6.3`.
@@ -190,6 +193,10 @@ The full pre-release readiness suite (`npm run test`, `npm run verify`, `npm run
 `v0.6.0` implementation validation (evidence from the completed implementation stage on `feature/v0.6.0-index-freshness-changed-file-detection`): see the "v0.6.0 implementation validation summary" above for the candidate SHA, gate list, test counts, and exact-SHA CI run. The documentation reconciliation stage separately ran `npm run docs:check`, `npm run typecheck`, `npm run build`, the focused v0.6.0 suites, and `npm run verify`; it changed no production or test code, did not re-run the full cross-platform CI matrix, and did not invoke any real provider.
 `v0.6.3` implementation validation (completed implementation stage on `feature/v0.6.3-partial-refresh`; not release readiness): the network-gated real-upstream smoke, the exact `npm run verify:packed-package` gate, the incremental-change-staleness and report suites, `npm run typecheck`, `npm run build`, `npm run verify`, and the full `npm test` suite (419 files, 5601 passed, 2 skipped, 0 failed) passed. The packed gate installed the exact Lab tarball and the real registry package `@dailephd/my-dev-kit@1.12.5` into a disposable consumer and ran all six frozen scenarios (`U1`, `L2`, `E1`, `P1`, `I1`, `T1`) through the installed CLI: both partial treatments were `APPLIED_PARTIAL` with matching requested and applied scope and no fallback, `stale-index` stayed `NO_REFRESH`, `full-refresh` stayed `FULL_REFRESH`, and every refreshed index ended `fresh`. Four scenarios (`U1`, `E1`, `P1`, `T1`) showed forced-neighbor reanalysis with more fresh extraction and fewer reused files for affected-neighborhood than for changed-files refresh, which shows the treatments can produce operationally distinct refresh behavior; it does not show that either is better. The installed Lab package, installed upstream package, canonical benchmarks, and source checkout stayed unchanged.
 
+`v0.7.0` implementation validation (unreleased; separate from documentation reconciliation and readiness): candidate `ae0ec812c73f38772784d559d0aad0247db6148e` passed `npm run typecheck`, `npm run build`, `npm run test:plots` (35 tests), the full `npm test` suite (433 files, 5840 passed, 2 skipped), and `npm run verify:packed-package`. The exact packed package passed context-window discovery, execution, V1 artifact, JSON/text/HTML reports, exactly three plots, standard/custom budget and case-filter checks, and bundled-project/case-contract immutability. Pre-release readiness, release preparation, and publication have not started. Documentation reconciliation is being completed separately from that implementation validation.
+
+Documentation reconciliation and implementation-completeness evidence: [v0.7.0 audit report](v0.7.0-documentation-reconciliation-completeness-audit.md).
+
 ## Blockers
 
 Release blockers for the published `v0.4.9`: none.
@@ -208,4 +215,4 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-`v0.6.3` is the current release and `v0.6.2` is the previous release. `v0.7.0` remains the next planned version. The v0.6.3 R6 readiness completed; release-branch CodeQL analyses, standard CI, and dedicated readiness evidence are recorded above.
+`v0.6.3` is the current release and `v0.6.2` is the previous release. v0.7.0 context-window scaling is implemented but unreleased; pre-release readiness, release preparation, and publication have not started. v0.7.1 is the next planned version. The v0.6.3 R6 readiness completed; release-branch CodeQL analyses, standard CI, and dedicated readiness evidence are recorded above.
