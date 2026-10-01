@@ -453,7 +453,10 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     const generate = await help(["plots", "generate", "--help"]);
     expect(generate.text).toContain("legacy controlled-experiment output directories");
     expect(generate.text).toContain("warm-index-reuse plugin output directories");
-    expect(generate.text).toContain("Other plugin outputs are not plotted by this command.");
+    expect(generate.text).toContain("context-window-scaling plugin output directories");
+    expect(generate.text).toContain("context-window-scaling-execution.json");
+    expect(generate.text).not.toContain("Other plugin outputs are not plotted by this command.");
+    expect(generate.text).not.toMatch(/all (?:experiment )?plugins/i);
     expect(generate.text).not.toContain("Path to a controlled-experiment output directory");
   });
 });

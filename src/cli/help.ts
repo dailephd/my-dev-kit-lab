@@ -311,7 +311,7 @@ export function renderPlotsGenerateHelp(): string {
     "Supported inputs:",
     "  - legacy controlled-experiment output directories",
     "  - warm-index-reuse plugin output directories (containing its report.json)",
-    "  Other plugin outputs are not plotted by this command.",
+    "  - context-window-scaling plugin output directories (containing context-window-scaling-execution.json)",
     "",
     "Required:",
     "  --experiment <dir>   Path to a supported experiment output directory",
