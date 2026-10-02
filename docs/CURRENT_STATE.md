@@ -15,7 +15,7 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Released/current version: `v0.7.0` (context-window scaling plugin).
-- Active planned version: `v0.7.1` (synthetic large-repository generator).
+- Active version: `v0.7.1` (synthetic large-repository generator); pre-implementation planning is complete and Batch 1 has not started.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -26,6 +26,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 ## Operational state
 
 - Release channel/current branch: `main`.
+- v0.7.1 implementation branch: `feature/v0.7.1-synthetic-large-repository-generator`, created from documentation-reconciled `main` commit `b90f79a185f56625086b72449ea0d24cb27b2bd2`.
 - `v0.5.1` status: published; the expanded warm-index benchmark suite is included in the package and release channels.
 - `v0.5.2` status: published historical release; real-agent warm-index campaigns remain available in the current installed package.
 - `v0.4.8` release branch: `release/v0.4.8` (merged to `main`)
@@ -35,7 +36,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
 - Current published release: `v0.7.0` context-window scaling; the previous `v0.6.3` release added four-treatment partial-refresh experiments to `incremental-change-staleness`.
-- Workflow stage: v0.7.0 implementation, documentation reconciliation, readiness, release preparation, and publication are complete; v0.7.0 is current.
+- Workflow stage: v0.7.0 publication is complete. v0.7.1 pre-implementation planning/contract freeze is complete on `feature/v0.7.1-synthetic-large-repository-generator`; Batch 1 implementation has not started.
 - The repository-controlled CodeQL advanced setup in `.github/workflows/codeql.yml` produced exact-SHA JavaScript/TypeScript and Actions analyses for v0.7.0 readiness; both passed and the candidate had zero open applicable alerts. Local optional scanner availability is reported separately.
 - `v0.6.0` status: published; index snapshot evidence and changed-file freshness remain available in the current package.
 - Release evidence for v0.6.0: validated readiness candidate `95542a7954fbbd0169975524c7346eff53c85c99`; ordinary CI run `36014637655`; dedicated readiness run `36017418744`; local full test suite 392 files / 5107 passed / 1 skipped / 0 failed; security blockers 0; packed-package PASS; real published my-dev-kit compatibility smoke PASS; target, installed-package, and packaged-example immutability PASS. Canonical readiness evidence: [docs/reports/v0.6.0-pre-release-readiness.md](reports/v0.6.0-pre-release-readiness.md).
@@ -58,7 +59,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
-- Exact next action: continue with the planned v0.7.1 synthetic large-repository generator milestone.
+- Exact next action: start v0.7.1 Batch 1 from `feature/v0.7.1-synthetic-large-repository-generator`, preserving the frozen generator contract in ROADMAP.md. Batch 1 owns the deterministic generator foundation only; later context-window CLI integration remains a later v0.7.1 batch.
 - ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
 
 ## Implemented
