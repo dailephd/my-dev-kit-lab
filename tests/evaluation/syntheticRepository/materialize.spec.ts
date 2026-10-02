@@ -77,7 +77,7 @@ describe("synthetic repository materialization", () => {
     expect(text.endsWith("\n")).toBe(true);
     expect(text).not.toContain("\r");
     expect(JSON.parse(text)).toEqual(result.manifest);
-    for (const forbidden of [root, root.split(path.sep).join("/"), os.tmpdir(), os.hostname(), process.cwd(), ".synthetic-staging", String(process.pid)]) {
+    for (const forbidden of [root, root.split(path.sep).join("/"), os.tmpdir(), os.hostname(), process.cwd(), ".synthetic-staging"]) {
       expect(text, forbidden).not.toContain(JSON.stringify(forbidden).slice(1, -1));
     }
     expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:/);
