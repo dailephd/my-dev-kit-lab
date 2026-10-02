@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -20,9 +20,10 @@ beforeEach(() => {
   root = makeTempRoot();
 });
 
+// Removing the ~20k-file maximum-bound tree can exceed the default 10 s hook timeout on slow hosted filesystems.
 afterEach(() => {
   removeTempRoot(root);
-});
+}, 120_000);
 
 function planFor(overrides: Partial<SyntheticRepositoryCaseSpecV1> = {}): SyntheticRepositoryPlanV1 {
   return planSyntheticRepositoryCase(makeCase({ id: "mat-case", seed: "mat-seed", ...overrides }));
@@ -49,8 +50,8 @@ describe("synthetic repository materialization", () => {
       const result = materializeSyntheticRepository(plan, root);
       const caseDirectory = path.join(root, plan.caseId);
       expect(result.reusedExistingMaterialization).toBe(false);
-      expect(path.relative(root, result.repositoryRoot).split(path.sep)).toEqual([plan.caseId, "repository"]);
-      expect(path.relative(root, result.manifestPath).split(path.sep)).toEqual([plan.caseId, SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME]);
+      expect(path.relative(realpathSync(root), result.repositoryRoot).split(path.sep)).toEqual([plan.caseId, "repository"]);
+      expect(path.relative(realpathSync(root), result.manifestPath).split(path.sep)).toEqual([plan.caseId, SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME]);
       expect(readdirSync(root)).toEqual([plan.caseId]);
       expect(readdirSync(caseDirectory).sort()).toEqual(["repository", SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME]);
       expect(existsSync(path.join(result.repositoryRoot, SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME))).toBe(false);

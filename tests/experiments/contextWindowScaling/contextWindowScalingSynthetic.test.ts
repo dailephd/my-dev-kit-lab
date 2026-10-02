@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -150,7 +150,7 @@ describe("synthetic input preparation bridge", () => {
       expect(entry.reusedExistingMaterialization).toBe(false);
       expect(entry.generationIdentity).toMatch(/^[0-9a-f]{64}$/);
       expect(entry.repositoryContentIdentity).toMatch(/^[0-9a-f]{64}$/);
-      expect(path.relative(prepared.syntheticOutputRoot, entry.repositoryRoot).split(path.sep)).toEqual([entry.caseId, "repository"]);
+      expect(path.relative(realpathSync(prepared.syntheticOutputRoot), entry.repositoryRoot).split(path.sep)).toEqual([entry.caseId, "repository"]);
       expect(entry.evaluationCase.absoluteTargetRoot).toBe(entry.repositoryRoot);
       expect(entry.evaluationCase.targetRoot).toBe(`synthetic/${entry.caseId}/repository`);
       expect(verifySyntheticRepositoryMaterialization({ manifestPath: entry.manifestPath, repositoryRoot: entry.repositoryRoot }).ok).toBe(true);
