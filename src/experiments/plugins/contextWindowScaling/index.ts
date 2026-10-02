@@ -12,3 +12,4 @@ export * from "./projectProfile.js";
 export * from "./relevantFiles.js";
 export * from "./successEvidence.js";
 export * from "./types.js";
+export * from "./syntheticInputs.js";
