@@ -447,7 +447,7 @@ The `context-window-scaling` plugin is registered with the generic experiment ru
 
 ## Planned synthetic large-repository generation architecture (v0.7.1)
 
-Status: planned and source-reviewed; implementation has not started.
+Status: implemented on the v0.7.1 feature branch and unpublished; package version remains 0.7.0 and documentation reconciliation is not yet complete. Sections below that say "planned" describe the frozen design that the implementation follows.
 
 v0.7.1 extends the existing evaluation/benchmark layer rather than adding a new experiment runner or a fifth experiment plugin. The generated repositories are internal run-owned benchmark subjects for the existing self-only `context-window-scaling` plugin. They are not external user repositories and do not widen the generic experiment target model.
 
@@ -488,7 +488,7 @@ Generated-case identity boundary:
 
 Integration-order invariant:
 
-The current v0.7.0 command loads plugin inputs before it creates the run id and resolves the final output root. v0.7.1 synthetic materialization requires the reverse dependency: parse arguments and execution context -> create run id -> resolve final output root -> load/validate/materialize synthetic inputs -> call the generic runner. This ordering change must preserve the existing explicit/default output-root semantics for every plugin and must be protected by command regression tests.
+Synthetic materialization needs the final output root, so `runExperimentRunCommand` now orders work as: parse arguments and execution context -> create run id -> resolve the output root -> load plugin inputs -> call the generic runner. Explicit `--out` (resolved against the invocation directory) and the installed workspace default are unchanged. For a `--synthetic-config` run without either, the command computes the same `buildDefaultExperimentOutputRoot` value the runner would, and passes that one root both to `prepareSyntheticContextWindowScalingInputs` and to `runExperiment`; runs without `--synthetic-config` keep the runner's own default untouched. `--synthetic-config` is parsed as a command-level field (`syntheticConfigPath`) and is never forwarded to the plugin's `validateConfig`. The command only reads and JSON-parses the file; schema validation stays with the synthetic planner. `--case` is mutually exclusive with `--synthetic-config`: the bundled catalog is the only `--case` domain. v0.7.2 external/local repository experiments and v0.8.0 retrieval precision/recall remain future work.
 
 Determinism boundary:
 

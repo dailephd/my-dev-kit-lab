@@ -45,8 +45,8 @@ export type PreparedSyntheticContextWindowScalingInputs = {
  * repository is written. Repeating the call with the same config and output root reuses the existing
  * materializations (Batch 2 idempotence) and returns the same identities and order.
  *
- * A future public caller must supply the final experiment output root before calling this; the current public
- * command resolves its inputs earlier than the output root, which is intentionally not changed here.
+ * The caller must supply the final experiment output root; the public command resolves it before calling this
+ * and passes the same root to the generic runner.
  */
 export function prepareSyntheticContextWindowScalingInputs(args: {
   syntheticRepositoryConfig: unknown;

@@ -1238,7 +1238,7 @@ Planned public surface:
 * Extend only `experiment run --experiment context-window-scaling` with `--synthetic-config <path>`.
 * Without `--synthetic-config`, the exact released v0.7.0 bundled-catalog behavior remains the default.
 * With `--synthetic-config`, the path is a user-owned input resolved through the existing invocation-CWD/runtime path model; generated repositories are materialized under the experiment output root.
-* `--case` remains the case-selection mechanism and may select ids from the active bundled or synthetic case catalog.
+* `--case` remains the case-selection mechanism for the bundled catalog only; it is mutually exclusive with `--synthetic-config`, whose config owns the generated case set.
 * `--out`, `--context-budgets`, and `--kit-command` retain their existing meanings.
 * `--target`, arbitrary `--cases`, and `--project-profiles` remain unsupported for `context-window-scaling`; external/local repository subjects remain v0.7.2 scope.
 * CLI help, experiment describe examples/usage, `COMMANDS.md`, `WORKFLOWS.md`, and packed-package acceptance must be updated together when the new public surface is completed.
@@ -1276,7 +1276,7 @@ Recommended implementation batches:
 
 3. **Batch 3 — context-window command integration**
    * Add command-level `--synthetic-config <path>`, preserve the existing plugin config and metadata semantics, and reorder command preparation so output-root resolution precedes synthetic materialization.
-   * Select requested synthetic case ids before materialization, generate only selected cases, pass in-memory cases into the existing `context-window-scaling` plugin, and reuse `resolveScalingProjectProfiles`.
+   * Generate every case in the supplied config (`--case` is not combined with `--synthetic-config`), pass in-memory cases into the existing `context-window-scaling` plugin, and reuse `resolveScalingProjectProfiles`.
    * Preserve the bundled v0.7.0 catalog path when `--synthetic-config` is absent and keep `readEvaluationCases` unchanged.
    * Add command/help/describe-example regression tests and integration tests proving existing static behavior is byte/semantics compatible.
 

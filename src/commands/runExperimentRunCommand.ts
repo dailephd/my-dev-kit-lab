@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseAgentCommandTemplate } from "../agents/index.js";
 import { parseAgentId } from "../agents/agentRegistry.js";
@@ -15,6 +16,7 @@ import {
   warmIndexReusePlugin
 } from "../experiments/index.js";
 import type { WarmIndexCampaignPresetId } from "../experiments/index.js";
+import { prepareSyntheticContextWindowScalingInputs } from "../experiments/plugins/contextWindowScaling/index.js";
 import { buildDefaultExperimentOutputRoot } from "../experiments/outputPaths.js";
 import { parsePromptComplexityLevel, parsePromptStrategy } from "../prompts/index.js";
 import { writePluginExperimentReports } from "../report/index.js";
@@ -58,7 +60,7 @@ const DEFAULT_PROJECT_PROFILES_RESOURCE = "benchmarks/contracts/benchmark-projec
 // catalog's package-relative targetRoot, so both resolve from the package root, never the cwd.
 const CONTEXT_WINDOW_SCALING_CASES_RESOURCE = "benchmarks/contracts/context-window-scaling-cases.json";
 // Options the context-window-scaling plugin accepts; every other flag is rejected, not ignored.
-const CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS = ["--experiment", "--out", "--case", "--context-budgets", "--kit-command"];
+const CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS = ["--experiment", "--out", "--case", "--synthetic-config", "--context-budgets", "--kit-command"];
 
 // Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
 // warm-index-reuse, rejects) the fields it does not support.
@@ -72,6 +74,8 @@ type ParsedRunExperimentArgs = {
   experimentId: string;
   targetPath?: string;
   outDir?: string;
+  // Command-only input-source selector for context-window-scaling; never part of the plugin's scientific config.
+  syntheticConfigPath?: string;
   config: ParsedExperimentRunConfig;
 };
 
@@ -100,15 +104,25 @@ export async function runExperimentRunCommandFromArgs(
     const context = options.context ?? createLabExecutionContext();
     const toolRoot = context.packageRoot;
     const registry = createDefaultExperimentPluginRegistry();
-    const inputs = await loadPluginInputs(args, toolRoot, context);
     const runId = generateExperimentRunId(args.experimentId);
-    const outputRoot = resolveOutputRoot(args, {
+    let outputRoot = resolveOutputRoot(args, {
       toolRoot,
       invocationCwd: context.invocationCwd,
       installedDefaultOutputRoot: options.installedDefaultOutputRoot,
       experimentId: args.experimentId,
       runId
     });
+    if (args.syntheticConfigPath !== undefined && outputRoot === undefined) {
+      // Synthetic generation needs the concrete root before the runner runs; use the exact default the
+      // runner itself would compute for this self-targeted invocation.
+      outputRoot = buildDefaultExperimentOutputRoot({
+        toolRoot,
+        pluginId: args.experimentId,
+        target: resolveExperimentTarget(args.targetPath, toolRoot),
+        runId
+      });
+    }
+    const inputs = await loadPluginInputs(args, toolRoot, context, outputRoot);
     const result = await runExperiment({
       pluginId: args.experimentId,
       registry,
@@ -204,6 +218,7 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   let kitCommand: string | undefined;
   let campaignPreset: WarmIndexCampaignPresetId | undefined;
   let contextBudgets: number[] | undefined;
+  let syntheticConfigPath: string | undefined;
   const seenFlags: string[] = [];
   const commandTemplates: Partial<Record<"codex" | "claude", AgentCommandTemplate>> = {};
 
@@ -220,6 +235,11 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       casesPath = readRequiredValue(argv, ++index, "--cases");
     } else if (arg === "--project-profiles") {
       projectProfilesPath = readRequiredValue(argv, ++index, "--project-profiles");
+    } else if (arg === "--synthetic-config") {
+      if (syntheticConfigPath !== undefined) {
+        throw new Error("--synthetic-config may be supplied only once.");
+      }
+      syntheticConfigPath = readRequiredValue(argv, ++index, "--synthetic-config");
     } else if (arg === "--case") {
       caseIds.push(...splitList(readRequiredValue(argv, ++index, "--case")));
     } else if (arg === "--benchmark-project") {
@@ -271,6 +291,9 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   if (contextBudgets !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
     throw new Error(`--context-budgets is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
   }
+  if (syntheticConfigPath !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
+    throw new Error(`--synthetic-config is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
+  }
   if (experimentId === contextWindowScalingPlugin.metadata.id) {
     const unsupported = [...new Set(seenFlags.filter((flag) => !CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS.includes(flag)))];
     if (unsupported.length > 0) {
@@ -280,6 +303,9 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     }
     if (seenFlags.includes("--case") && caseIds.length === 0) {
       throw new Error("--case must list at least one case id.");
+    }
+    if (syntheticConfigPath !== undefined && seenFlags.includes("--case")) {
+      throw new Error("--case and --synthetic-config are mutually exclusive; the synthetic config owns the generated case set.");
     }
   }
   if (kitCommand !== undefined && !KIT_COMMAND_PLUGIN_IDS.includes(experimentId)) {
@@ -304,6 +330,7 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     experimentId,
     targetPath,
     outDir,
+    syntheticConfigPath,
     config: withoutUndefined({
       casesPath,
       projectProfilesPath,
@@ -361,7 +388,8 @@ function generateExperimentRunId(pluginId: string): string {
 async function loadPluginInputs(
   args: ParsedRunExperimentArgs,
   toolRoot: string,
-  context: LabExecutionContext
+  context: LabExecutionContext,
+  outputRoot: string | undefined
 ): Promise<Record<string, unknown> | undefined> {
   if (args.experimentId === contextStrategyComparisonPlugin.metadata.id) {
     const validation = contextStrategyComparisonPlugin.validateConfig(args.config);
@@ -381,7 +409,7 @@ async function loadPluginInputs(
     return loadCasesAndProjectProfiles(args, toolRoot, context);
   }
   if (args.experimentId === contextWindowScalingPlugin.metadata.id) {
-    return loadContextWindowScalingInputs(args, toolRoot, context);
+    return loadContextWindowScalingInputs(args, toolRoot, context, outputRoot);
   }
   return undefined;
 }
@@ -397,11 +425,21 @@ function pluginConfigFor(args: ParsedRunExperimentArgs): ParsedExperimentRunConf
 async function loadContextWindowScalingInputs(
   args: ParsedRunExperimentArgs,
   toolRoot: string,
-  context: LabExecutionContext
+  context: LabExecutionContext,
+  outputRoot: string | undefined
 ): Promise<Record<string, unknown>> {
   const validation = contextWindowScalingPlugin.validateConfig(pluginConfigFor(args));
   if (!validation.valid || !validation.config) {
     throw new Error(`Invalid context window scaling config: ${validation.errors.join("; ")}`);
+  }
+  if (args.syntheticConfigPath !== undefined) {
+    if (outputRoot === undefined) {
+      throw new Error("Internal error: synthetic generation requires a resolved experiment output root.");
+    }
+    const configPath = path.resolve(context.invocationCwd, args.syntheticConfigPath);
+    const syntheticRepositoryConfig = await readSyntheticConfigJson(configPath, args.syntheticConfigPath);
+    const prepared = prepareSyntheticContextWindowScalingInputs({ syntheticRepositoryConfig, outputRoot });
+    return { cases: prepared.cases, projectProfiles: prepared.projectProfiles, env: process.env };
   }
   const catalog = await readEvaluationCases(resolvePackageResource(context, CONTEXT_WINDOW_SCALING_CASES_RESOURCE), toolRoot);
   const requested = args.config.caseIds;
@@ -418,6 +456,21 @@ async function loadContextWindowScalingInputs(
     );
   }
   return { cases: catalog.filter((evaluationCase) => requested.includes(evaluationCase.id)), env: process.env };
+}
+
+// The command only reads and parses the caller-supplied file; schema validation belongs to the synthetic planner.
+async function readSyntheticConfigJson(resolvedPath: string, displayPath: string): Promise<unknown> {
+  let text: string;
+  try {
+    text = await readFile(resolvedPath, "utf8");
+  } catch (error) {
+    throw new Error(`Cannot read --synthetic-config ${displayPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    throw new Error(`--synthetic-config ${displayPath} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 // Shared by both registered plugins: explicit paths resolve against toolRoot, defaults come from

@@ -409,13 +409,15 @@ describe("generated cases through contextWindowScalingPlugin.run (existing produ
   });
 });
 
-describe("public surface is unchanged by the internal bridge", () => {
-  it("keeps the public context-window-scaling config fields and rejects a synthetic selector", () => {
+describe("synthetic selector stays out of the scientific plugin config", () => {
+  it("keeps the plugin config fields and rejects synthetic selectors as plugin config", () => {
     expect(contextWindowScalingConfigDefinition.fields.map((field) => field.name)).toEqual(["contextBudgets", "kitCommand"]);
-    const rejected = validateContextWindowScalingConfig({ syntheticConfig: "x.json" });
-    expect(rejected.valid).toBe(false);
-    expect(validateContextWindowScalingConfig({ syntheticRepositoryConfig: config(SMALL_TS) }).valid).toBe(false);
-    expect(() => parseRunExperimentArgs(["--experiment", "context-window-scaling", "--synthetic-config", "x.json"])).toThrow();
-    expect(renderExperimentRunHelp()).not.toMatch(/synthetic/i);
+    for (const key of ["syntheticConfig", "syntheticRepositoryConfig", "syntheticConfigPath"]) {
+      expect(validateContextWindowScalingConfig({ [key]: "x.json" }).valid).toBe(false);
+    }
+    const parsed = parseRunExperimentArgs(["--experiment", "context-window-scaling", "--synthetic-config", "x.json"]);
+    expect(parsed.syntheticConfigPath).toBe("x.json");
+    expect(parsed.config).toEqual({});
+    expect(renderExperimentRunHelp()).toContain("--synthetic-config <path>");
   });
 });
