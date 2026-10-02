@@ -1194,7 +1194,7 @@ Purpose:
 
 Features:
 
-* Add a reusable synthetic benchmark-generation owner under `src/benchmarks/syntheticRepository/`; do not create a second experiment runner or a new experiment plugin.
+* Add a reusable synthetic benchmark-generation owner under `src/evaluation/syntheticRepository/`, extending the repository's existing evaluation/benchmark layer; do not create a new top-level benchmark runtime, a second experiment runner, or a new experiment plugin.
 * Add deterministic synthetic TypeScript and Python repository generation.
 * Generate configurable source-file count, module depth, internal-import count, symbol count, test-file count, task locality, and repeated-pattern count.
 * Generate one deterministic evaluation case and answer key per synthetic case specification, using the existing `EvaluationCase`, `TaskLocality`, and `BenchmarkTaskAnswerKey` vocabulary.
@@ -1241,7 +1241,12 @@ Planned public surface:
 * `--case` remains the case-selection mechanism and may select ids from the active bundled or synthetic case catalog.
 * `--out`, `--context-budgets`, and `--kit-command` retain their existing meanings.
 * `--target`, arbitrary `--cases`, and `--project-profiles` remain unsupported for `context-window-scaling`; external/local repository subjects remain v0.7.2 scope.
-* CLI help, experiment metadata/describe output, `COMMANDS.md`, `WORKFLOWS.md`, and packed-package acceptance must be updated together when the new public surface is completed.
+* CLI help, experiment describe examples/usage, `COMMANDS.md`, `WORKFLOWS.md`, and packed-package acceptance must be updated together when the new public surface is completed.
+* `--synthetic-config` is a command/input-selection option, not a `ContextWindowScalingConfig` scientific field. The plugin's closed config remains `contextBudgets` plus `kitCommand`, and its treatment IDs/budget semantics remain unchanged.
+* The command owner must resolve `runId` and the final experiment `outputRoot` before synthetic materialization, then prepare plugin inputs. The current v0.7.0 command loads inputs before resolving the output root, so v0.7.1 integration must reorder that preparation without changing existing output-root semantics.
+* A relative `--synthetic-config` path resolves from `invocationCwd` as user-owned read-only input. The bundled static catalog remains package-resource-owned.
+* The existing `readEvaluationCases` owner remains unchanged for bundled/static catalogs: do not widen its package-root containment rule to admit workspace/external repositories. Synthetic generation returns already-resolved in-memory `EvaluationCase` values whose stable logical `targetRoot` is platform-neutral while `absoluteTargetRoot` points at the run-owned generated repository.
+* The existing `resolveScalingProjectProfiles` owner derives missing profiles from each generated case's `absoluteTargetRoot`; generated cases therefore do not require shared-profile contract entries.
 
 Acceptance:
 
@@ -1254,6 +1259,30 @@ Acceptance:
 * Generated repositories do not enter the global mandatory benchmark-profile contract or npm tarball.
 * Unit/domain determinism, generated-repository determinism, context-window integration, installed-package behavior, and expensive end-to-end acceptance are tested separately; determinism tests do not prove their invariant by running the complete expensive experiment twice.
 * Existing static v0.7.0 context-window cases continue to pass unchanged.
+
+Recommended implementation batches:
+
+1. **Batch 1 — deterministic contract and repository plan**
+   * Add `src/evaluation/syntheticRepository/` types, strict config parsing/validation, fixed-field normalization, versioned seed/PRNG contract, generation identity, feasibility validation, and a pure deterministic repository planner.
+   * The pure planner must decide project/file identities, directory depth, symbol allocation, acyclic internal-import edges, repeated-pattern placement, task-locality target selection, and answer-key references before any file is written.
+   * Reuse existing `TaskLocality`, `BenchmarkTaskAnswerKey`, path-normalization conventions, and SHA-256 primitives/patterns where appropriate. Do not make the evaluation layer depend on `src/securityValidation/fuzz`; the existing Mulberry32 fuzz PRNG is security-owned.
+   * No CLI changes, no context-window command integration, no generated repository materialization, no report changes, and no package acceptance changes in Batch 1.
+
+2. **Batch 2 — TypeScript/Python materialization and manifest**
+   * Render the pure repository plan into contained run-owned TypeScript and Python trees using canonical UTF-8/LF bytes.
+   * Write and verify generation manifests, per-file SHA-256 identities, requested-versus-realized dimensions, stable logical project/case identities, and ordinary `EvaluationCase`/answer-key values.
+   * Refuse collisions or unsafe paths; verify idempotent reuse only when generation identity and file hashes match.
+   * Add focused generated-source syntax/shape tests without adding package-manager installs or generated-project dependency installation.
+
+3. **Batch 3 — context-window command integration**
+   * Add command-level `--synthetic-config <path>`, preserve the existing plugin config and metadata semantics, and reorder command preparation so output-root resolution precedes synthetic materialization.
+   * Select requested synthetic case ids before materialization, generate only selected cases, pass in-memory cases into the existing `context-window-scaling` plugin, and reuse `resolveScalingProjectProfiles`.
+   * Preserve the bundled v0.7.0 catalog path when `--synthetic-config` is absent and keep `readEvaluationCases` unchanged.
+   * Add command/help/describe-example regression tests and integration tests proving existing static behavior is byte/semantics compatible.
+
+4. **Batch 4 — installed-package and cross-platform acceptance**
+   * Extend documentation, packed-tarball inventory/installed execution, generation-manifest inspection, immutability checks, and exact Windows/macOS/Linux determinism evidence.
+   * Prove the installed package ships the generator runtime but not generated repositories, and that the frozen v0.7.0 scaling corpus/package remain unchanged.
 
 Explicit exclusions:
 
