@@ -15,7 +15,7 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Released/current version: `v0.7.0` (context-window scaling plugin).
-- Active version: `v0.7.1` (synthetic large-repository generator); pre-implementation planning is complete and Batch 1 has not started.
+- Active planned version: `v0.7.1` (synthetic large-repository generator); pre-implementation planning is complete and Batch 1 has not started.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
