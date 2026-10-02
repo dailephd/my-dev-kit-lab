@@ -2,7 +2,7 @@
 
 This directory contains deterministic benchmark projects used by my-dev-kit-lab.
 
-The current suite mixes baseline Todo fixtures with more complex workflow and analytics projects:
+The shared-profile suite mixes baseline Todo fixtures with more complex workflow and analytics projects:
 
 - `todo-ts`
 - `todo-js`
@@ -10,6 +10,8 @@ The current suite mixes baseline Todo fixtures with more complex workflow and an
 - `todo-mixed-ts-py`
 - `task-workflow-medium-ts`
 - `task-analytics-large-mixed`
+
+The v0.7.0 release also includes `context-window-scaling-fixed-ts` as an experiment-specific, static scaling corpus. It is intentionally not part of the shared `benchmark-project-profiles.json` contract: the `context-window-scaling` plugin derives its project profile in memory. The fixed corpus is frozen v0.7.0 evidence and is not a generator.
 
 The Todo fixtures stay intentionally small so validation and smoke experiments remain cheap. The newer medium and large projects are intentionally more connected so raw full-file context and guided retrieval diverge more meaningfully.
 

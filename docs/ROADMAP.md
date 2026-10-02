@@ -26,7 +26,7 @@ flowchart LR
 
 my-dev-kit-lab is the experiment, evidence, reporting, security-validation, audit, and release-readiness companion for my-dev-kit.
 
-my-dev-kit-lab should remain validation-first, evidence-first, and non-destructive by default. It should not become a project generator, app publisher, signing tool, Play Console uploader, or automatic fixer.
+my-dev-kit-lab should remain validation-first, evidence-first, and non-destructive by default. It should not become a general-purpose user project or application generator, app publisher, signing tool, Play Console uploader, or automatic fixer.
 
 The strongest product thesis remains:
 
