@@ -447,7 +447,7 @@ The `context-window-scaling` plugin is registered with the generic experiment ru
 
 ## Synthetic large-repository generation architecture (v0.7.1)
 
-Status: implemented and unreleased (package version remains 0.7.0; pre-release readiness is not yet complete).
+Status: **published in v0.7.1**.
 
 v0.7.1 extends the existing evaluation/benchmark layer rather than adding a new experiment runner or a fifth experiment plugin. The generated repositories are internal run-owned benchmark subjects for the existing self-only `context-window-scaling` plugin. They are not external user repositories and do not widen the generic experiment target model.
 

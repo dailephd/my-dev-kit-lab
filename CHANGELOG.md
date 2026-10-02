@@ -4,7 +4,9 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-### v0.7.1 — synthetic large-repository generator
+## [0.7.1] - 2026-10-02
+
+### Synthetic large-repository generator
 
 - Added deterministic synthetic TypeScript and Python repository generation under `src/evaluation/syntheticRepository/`: a strict `SyntheticRepositoryConfigV1`, seed- and identity-based pure planning, a versioned generator-owned PRNG, exact source/test/symbol/import/depth/repeated-pattern dimensions, and localized, cross-module, and broad-change task answer keys.
 - Added contained, idempotent materialization with a per-repository generation manifest (deterministic file hashes and metrics) and a read-only manifest verifier, plus an in-memory `EvaluationCase` adapter that reuses the existing raw baseline and scoring.
