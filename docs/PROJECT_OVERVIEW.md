@@ -97,7 +97,7 @@ Version v0.4.3 evaluates stage-specific bounded repository context and workflow 
 
 The v0.6.0 freshness evidence and released v0.6.1 affected-neighborhood evidence (a one-hop baseline graph neighborhood of confirmed changed files and symbols, task overlap, and a categorical reindex recommendation, all observational) are the foundation for incremental-change and staleness experiments (`v0.6.2`, released). Partial-refresh experiments in v0.6.3 extended that plugin to four treatments and remain in the current package. Context-window scaling was released in v0.7.0.
 
-The next planned milestone is v0.7.1 synthetic large-repository generation; retrieval precision and recall, agent success, normalized telemetry, scheduling, prompt hardening, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned.
+v0.7.1 synthetic large-repository generation (deterministic TypeScript/Python benchmark repositories for `context-window-scaling` via `--synthetic-config`) is implemented but unpublished; v0.7.2 real/local external repository experiments is the planned milestone after it; retrieval precision and recall, agent success, normalized telemetry, scheduling, prompt hardening, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned.
 
 These later items remain planned. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 

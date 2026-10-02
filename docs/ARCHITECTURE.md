@@ -442,12 +442,12 @@ The `context-window-scaling` plugin is registered with the generic experiment ru
 
 - Estimated tokens use `ceil(characters / 4)`, a Lab heuristic. Budgets are experiment thresholds, not claims about provider tokenizer output or actual model context-window limits. Utilization is unbounded and can exceed 100 percent.
 - Deterministic fake-agent correctness tests the existing answer-key/evaluation pipeline and is context-independent in this harness; it does not measure semantic model sensitivity to different context content. Success is true only when the context fits and correctness passes. Too-large cells count as unsuccessful in the success-rate denominator; unavailable operational/evaluation evidence is excluded and counted separately.
-- A budget does not physically constrain retrieval or the fake evaluator. There are no provider runs, campaign mode, external targets, or synthetic-repository generator in v0.7.0. Synthetic repository generation remains the planned v0.7.1 scope.
+- A budget does not physically constrain retrieval or the fake evaluator. There are no provider runs, campaign mode, external targets, or synthetic-repository generator in v0.7.0; the v0.7.1 synthetic generator described next is an optional input source for the same plugin.
 - The artifact and report contain measurements and bounded identifiers, not context text. The plugin adds no dedicated screenshot or gallery integration.
 
-## Planned synthetic large-repository generation architecture (v0.7.1)
+## Synthetic large-repository generation architecture (v0.7.1)
 
-Status: implemented on the v0.7.1 feature branch and unpublished; package version remains 0.7.0 and documentation reconciliation is not yet complete. Sections below that say "planned" describe the frozen design that the implementation follows.
+Status: implemented and unreleased (package version remains 0.7.0; pre-release readiness is not yet complete).
 
 v0.7.1 extends the existing evaluation/benchmark layer rather than adding a new experiment runner or a fifth experiment plugin. The generated repositories are internal run-owned benchmark subjects for the existing self-only `context-window-scaling` plugin. They are not external user repositories and do not widen the generic experiment target model.
 
@@ -455,9 +455,9 @@ v0.7.1 extends the existing evaluation/benchmark layer rather than adding a new 
 flowchart TD
   CLI[runExperimentRunCommand] --> Args[parse --synthetic-config / --case]
   Args --> RunRoot[resolve runId + final outputRoot]
-  RunRoot --> Config[read + validate synthetic config from invocationCwd]
+  RunRoot --> Config[read + JSON-parse config from invocationCwd; the planner validates it]
   Config --> Plan[src/evaluation/syntheticRepository pure deterministic plan]
-  Plan --> Materialize[contained generated-repositories subtree]
+  Plan --> Materialize[contained synthetic-repositories subtree]
   Materialize --> Manifest[generation manifest + SHA-256 identities]
   Materialize --> Cases[in-memory EvaluationCase values]
   Cases --> Profiles[resolveScalingProjectProfiles]
@@ -467,10 +467,12 @@ flowchart TD
   Plugin --> Evidence[unchanged V1 scaling evidence / metrics / reports / plots]
 ```
 
-Planned ownership:
+Implemented ownership graph: `SyntheticRepositoryConfigV1` -> pure planner (`planSyntheticRepositories`, identity + PRNG owners) -> deterministic TypeScript/Python renderer -> filesystem materializer (`materializeSyntheticRepository`, staged write, collision/path-safety checks) -> per-repository generation manifest + read-only verifier (`verifySyntheticRepositoryMaterialization`) -> in-memory `EvaluationCase` adapter -> `syntheticInputs.ts` bridge (`prepareSyntheticContextWindowScalingInputs`) -> the existing `context-window-scaling` plugin, execution, scoring, reports, and plots. Each run writes `<experiment-output>/synthetic-repositories/<case-id>/repository/` plus a sibling `synthetic-repository-manifest.json`; the manifest records deterministic generation evidence and is separate from the scientific execution artifact. There is no second retrieval engine, experiment runner, or plugin.
+
+Ownership:
 
 - `src/evaluation/syntheticRepository/` owns the versioned synthetic configuration, strict validation, seed-to-generator identity, deterministic PRNG contract, pure topology/repository planning, TypeScript/Python rendering, contained materialization, generation manifest, file hashes, and generated `EvaluationCase`/answer-key construction.
-- `src/commands/runExperimentRunCommand.ts` owns the public `--synthetic-config <path>` option, invocation-CWD resolution of that read-only user input, case selection, and the preparation order that resolves the run/output root before materialization.
+- `src/commands/runExperimentRunCommand.ts` owns the public `--synthetic-config <path>` option, invocation-CWD resolution of that read-only user input, rejection of `--case` combined with it, and the preparation order that resolves the run/output root before materialization.
 - `src/experiments/plugins/contextWindowScaling/` remains the scientific experiment owner. Its `ContextWindowScalingConfig` stays limited to `contextBudgets` and `kitCommand`; budget validation, treatment IDs, token estimator, context construction, deterministic fake-agent evaluation, metrics, V1 execution evidence, reports, and plot definitions remain unchanged.
 - `src/experiments/plugins/contextWindowScaling/projectProfile.ts` remains the profile adapter: generated cases supply an actual `absoluteTargetRoot`, and missing profiles are derived in memory from the existing `buildProjectFileTree` and `computeProjectComplexityMetrics` owners.
 - `src/evaluation/readEvaluationCases.ts` remains the bundled/static catalog reader. Its repository/package-root containment rule is not widened for v0.7.1.
@@ -479,7 +481,7 @@ Planned ownership:
 
 Generated-case identity boundary:
 
-- Each selected synthetic case specification produces one generated repository and one ordinary in-memory `EvaluationCase`.
+- Each synthetic case specification produces one generated repository and one ordinary in-memory `EvaluationCase`.
 - `EvaluationCase.targetRoot` is a stable platform-neutral logical identity suitable for persisted evidence; `absoluteTargetRoot` is the run-owned physical path used by raw context and my-dev-kit indexing.
 - Generated profiles are never added to `REQUIRED_BENCHMARK_PROJECT_IDS` or `benchmark-project-profiles.json`.
 - The frozen v0.7.0 `context-window-scaling-cases.json` and `context-window-scaling-fixed-ts` tree remain package resources and immutable regression evidence.

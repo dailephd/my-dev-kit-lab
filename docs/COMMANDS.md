@@ -10,7 +10,7 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package. The v0.7.0 `context-window-scaling` command surface is included in the current 0.7.0 package.
+This section describes the current source checkout and published package. The v0.7.0 `context-window-scaling` command surface is included in the current 0.7.0 package; the `--synthetic-config` option documented under `context-window-scaling` belongs to the v0.7.1 work (unpublished) and is not in the 0.7.0 package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -274,7 +274,7 @@ my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
-#### `context-window-scaling` (released in v0.7.0)
+#### `context-window-scaling` (released in v0.7.0; `--synthetic-config` added in v0.7.1, unpublished)
 
 ```text
 my-dev-kit-lab experiment describe --experiment context-window-scaling

@@ -4,6 +4,13 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### v0.7.1 — synthetic large-repository generator
+
+- Added deterministic synthetic TypeScript and Python repository generation under `src/evaluation/syntheticRepository/`: a strict `SyntheticRepositoryConfigV1`, seed- and identity-based pure planning, a versioned generator-owned PRNG, exact source/test/symbol/import/depth/repeated-pattern dimensions, and localized, cross-module, and broad-change task answer keys.
+- Added contained, idempotent materialization with a per-repository generation manifest (deterministic file hashes and metrics) and a read-only manifest verifier, plus an in-memory `EvaluationCase` adapter that reuses the existing raw baseline and scoring.
+- Added `--synthetic-config <path>` to `experiment run --experiment context-window-scaling` so the experiment can run over generated repositories placed beneath the run output; it is a command input selector (mutually exclusive with `--case`), not a plugin config field. Without it, the bundled v0.7.0 fixed corpus is used unchanged.
+- Extended help, `experiment list`/`describe` text, and installed-package acceptance to cover the synthetic input for both languages. The `context-window-scaling` treatments, budget semantics, correctness/success semantics, execution artifact, reports, and plots are unchanged.
+
 ## [0.7.0] - 2026-10-01
 
 ### Context-window scaling
