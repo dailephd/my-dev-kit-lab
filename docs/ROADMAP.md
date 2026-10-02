@@ -1185,22 +1185,85 @@ Implementation status: the v0.7.0 plugin is registered and runs the bundled four
 
 ### v0.7.1 — synthetic large-repository generator
 
-Status: **planned; not implemented**.
+Status: **active planning complete; implementation not started**.
 
 Purpose:
 
-* Generate reproducible repositories with controlled scale and topology.
+* Generate reproducible benchmark repositories with controlled scale and topology.
+* Supply synthetic benchmark cases to the existing `context-window-scaling` experiment without turning my-dev-kit-lab into a general-purpose user project/application generator.
 
 Features:
 
-* Add deterministic benchmark generator for synthetic TypeScript and Python repositories.
-* Generate configurable file count, module depth, internal imports, symbol count, test count, task locality, and repeated patterns.
-* Add answer keys for generated tasks.
+* Add a reusable synthetic benchmark-generation owner under `src/benchmarks/syntheticRepository/`; do not create a second experiment runner or a new experiment plugin.
+* Add deterministic synthetic TypeScript and Python repository generation.
+* Generate configurable source-file count, module depth, internal-import count, symbol count, test-file count, task locality, and repeated-pattern count.
+* Generate one deterministic evaluation case and answer key per synthetic case specification, using the existing `EvaluationCase`, `TaskLocality`, and `BenchmarkTaskAnswerKey` vocabulary.
+* Integrate generated cases additively with the released `context-window-scaling` plugin while preserving the frozen v0.7.0 static corpus and all v0.7.0 budget, token-estimation, correctness, success, report, and plot semantics.
+* Persist bounded generation identity and manifest evidence so a generated repository can be reproduced without packaging the generated repository itself.
+
+Frozen generation contract:
+
+* Configuration schema: `my-dev-kit-lab-synthetic-repository-config-v1`, schema version `1.0.0`.
+* A configuration contains one or more synthetic case specifications. Each case specification owns a stable case id, language (`typescript` or `python`), explicit non-empty seed, `sourceFileCount`, `moduleDepth`, `internalImportCount`, `symbolCount`, `testFileCount`, `taskLocality`, and `repeatedPatternCount`.
+* `sourceFileCount` is the roadmap's file-count control; generated test files and small structural/configuration files are accounted for separately and reported explicitly.
+* Counts are validated as bounded nonnegative/positive safe integers as appropriate, and cross-field constraints fail closed rather than being silently repaired.
+* Generated task locality uses the existing closed values `localized`, `cross-module`, and `broad-change`.
+* Generated cases use ordinary existing answer-key fields: expected files, expected symbols, weighted expected facts, minimum correct facts, and optional notes. No second correctness vocabulary is introduced.
+* Raw context for a generated case is constructed from its generated source/test tree through the existing raw-full-file owner; guided context uses the existing my-dev-kit retrieval owner.
+
+Determinism and identity:
+
+* Generated text is UTF-8 without BOM, uses LF newlines explicitly, and never uses host-native newline defaults.
+* Relative identities stored in manifests/cases use POSIX `/` separators regardless of host OS.
+* File ordering, directory ordering, symbol assignment, import topology, task selection, answer-key ordering, and manifest ordering are deterministic.
+* Random-looking choices must come from an explicitly versioned deterministic seed mechanism; `Math.random()`, current time, process id, host paths, locale, filesystem enumeration order, and other ambient machine state are not generation inputs.
+* A generation identity is derived from the normalized schema/configuration plus seed and is stable across Windows, macOS, and Linux.
+* The generation manifest records normalized configuration, generation identity, deterministic project/case identity, generated file inventory, SHA-256 content identities, requested counts, realized counts, and the existing character/token-size measurement needed to reproduce context-window evidence.
+* Same schema/configuration/seed must produce byte-identical generated source/test content, identical relative paths, identical answer keys, identical manifests apart from explicitly non-identity runtime locations, and identical measured character/token counts on every supported OS.
+
+Lifecycle and ownership:
+
+* Generated repositories are run/workspace-owned disposable evidence, never tracked benchmark source and never written into the installed package directory.
+* Normal context-window execution places generated repositories beneath the selected experiment output root in a dedicated generated-repositories subtree.
+* Generation must use existing path-containment semantics, refuse path traversal and unsafe overlap, and never write outside the caller-owned generation root.
+* Materialization is idempotent by generation identity: an already-materialized matching generation may be reused only after its manifest/content identity is verified; a conflicting existing destination fails rather than being overwritten.
+* The caller owns cleanup of the run/output root. The generator must not add a broad arbitrary-path recursive-delete primitive.
+* Generated repositories are not added to `REQUIRED_BENCHMARK_PROJECT_IDS` or the shared `benchmark-project-profiles.json` contract. Their project profiles are derived in memory from the existing file-tree and complexity owners.
+* `benchmarks/projects/context-window-scaling-fixed-ts/` and `benchmarks/contracts/context-window-scaling-cases.json` remain frozen v0.7.0 evidence and must not be overwritten, regenerated, or silently replaced.
+* Generated repositories and generated run artifacts are excluded from npm package contents. Only the generator runtime required by the installed experiment command ships.
+
+Planned public surface:
+
+* Do not add a new top-level CLI family or a new experiment plugin in v0.7.1.
+* Extend only `experiment run --experiment context-window-scaling` with `--synthetic-config <path>`.
+* Without `--synthetic-config`, the exact released v0.7.0 bundled-catalog behavior remains the default.
+* With `--synthetic-config`, the path is a user-owned input resolved through the existing invocation-CWD/runtime path model; generated repositories are materialized under the experiment output root.
+* `--case` remains the case-selection mechanism and may select ids from the active bundled or synthetic case catalog.
+* `--out`, `--context-budgets`, and `--kit-command` retain their existing meanings.
+* `--target`, arbitrary `--cases`, and `--project-profiles` remain unsupported for `context-window-scaling`; external/local repository subjects remain v0.7.2 scope.
+* CLI help, experiment metadata/describe output, `COMMANDS.md`, `WORKFLOWS.md`, and packed-package acceptance must be updated together when the new public surface is completed.
 
 Acceptance:
 
-* Generated projects can be used in context-window experiments.
-* Generated source is deterministic and maintainable.
+* Generated TypeScript and Python projects can be consumed by the existing context-window experiment pipeline without changing v0.7.0 scientific semantics.
+* Same configuration and seed reproduce the same paths, bytes, SHA-256 identities, structural counts, answer keys, and estimated-token evidence.
+* Windows, macOS, and Linux produce equivalent generation identity and byte-level evidence.
+* Requested source-file, module-depth, internal-import, symbol, test-file, task-locality, and repeated-pattern dimensions are either realized exactly or rejected before partial generation; they are never silently approximated.
+* Generated answer-key files and symbols exist in the generated repository and remain internally consistent with the generated task.
+* Generated output remains contained in the authorized run/workspace root and does not modify the canonical v0.7.0 corpus, the installed package, or unrelated repository files.
+* Generated repositories do not enter the global mandatory benchmark-profile contract or npm tarball.
+* Unit/domain determinism, generated-repository determinism, context-window integration, installed-package behavior, and expensive end-to-end acceptance are tested separately; determinism tests do not prove their invariant by running the complete expensive experiment twice.
+* Existing static v0.7.0 context-window cases continue to pass unchanged.
+
+Explicit exclusions:
+
+* external or arbitrary local repository experiment subjects (v0.7.2)
+* retrieval precision/recall or irrelevant-context scoring (v0.8.0 and later)
+* real-agent context-window campaigns or agent-success/edit-quality scoring
+* a new experiment plugin, treatment ranking, winner, safety score, or composite grade
+* changes to the existing context-window token estimator, context-budget semantics, fake-agent correctness semantics, success semantics, three plot definitions, or report schemas except additive generation provenance where required
+* promotion of generated repositories into the shared mandatory benchmark-profile contract
+* mutation or replacement of the frozen v0.7.0 static scaling corpus
 
 ### v0.7.2 — real-world and local-repository experiments
 
