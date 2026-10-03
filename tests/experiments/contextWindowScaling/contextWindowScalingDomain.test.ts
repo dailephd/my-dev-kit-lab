@@ -21,7 +21,7 @@ describe("context-window-scaling metadata", () => {
     expect(contextWindowScalingMetadata.name).toBe("Context Window Scaling");
     expect(contextWindowScalingMetadata.status).toBe("experimental");
     expect(contextWindowScalingMetadata.schemaVersion).toBe("1.0.0");
-    expect(contextWindowScalingMetadata.supportedTargets).toEqual(["self"]);
+    expect(contextWindowScalingMetadata.supportedTargets).toEqual(["self", "external-local"]);
     expect([...CONTEXT_WINDOW_SCALING_TREATMENT_IDS]).toEqual(["raw-full-file", "my-dev-kit-guided"]);
   });
 

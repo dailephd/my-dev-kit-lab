@@ -66,7 +66,6 @@ describe("context-window-scaling option isolation", () => {
   });
 
   it.each([
-    ["--target", "x"],
     ["--cases", "x.json"],
     ["--project-profiles", "x.json"],
     ["--benchmark-project", "p"],
@@ -129,7 +128,7 @@ describe("public list and describe", () => {
     expect(listed.experiments.at(-1)).toMatchObject({
       id: ID,
       status: "experimental",
-      supportedTargets: ["self"],
+      supportedTargets: ["self", "external-local"],
       supportedVariants: ["raw-full-file", "my-dev-kit-guided"],
       supportedOutputs: ["json", "text", "html", "plot"],
     });
@@ -148,7 +147,7 @@ describe("public list and describe", () => {
       name: "Context Window Scaling",
       status: "experimental",
       schemaVersion: "1.0.0",
-      supportedTargets: ["self"],
+      supportedTargets: ["self", "external-local"],
       supportedOutputs: ["json", "text", "html", "plot"],
     });
     expect(described.supportedVariants).toEqual(["raw-full-file", "my-dev-kit-guided"]);

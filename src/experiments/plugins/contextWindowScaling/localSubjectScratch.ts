@@ -46,6 +46,12 @@ function isSameOrInside(root: string, candidate: string): boolean {
   }
 }
 
+/** True when both paths resolve to the same physical directory (follows links; case-insensitive on Windows). */
+export async function isSamePhysicalDirectory(left: string, right: string): Promise<boolean> {
+  const [physicalLeft, physicalRight] = await Promise.all([resolvePhysicalPath(left), resolvePhysicalPath(right)]);
+  return path.relative(physicalLeft, physicalRight) === "";
+}
+
 /** Rejects a Lab-owned work root that equals or lies inside the target. Performs no writes. */
 export async function assertWorkRootOutsideTarget(workRoot: string, targetRoot: string): Promise<void> {
   const physicalTarget = await resolvePhysicalPath(targetRoot);

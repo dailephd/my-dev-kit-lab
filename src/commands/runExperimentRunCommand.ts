@@ -3,6 +3,8 @@ import path from "node:path";
 import { parseAgentCommandTemplate } from "../agents/index.js";
 import { parseAgentId } from "../agents/agentRegistry.js";
 import { readBenchmarkProjectProfiles, readEvaluationCases } from "../evaluation/index.js";
+import { loadLocalRepositorySubject } from "../evaluation/localRepositorySubject/index.js";
+import type { LocalRepositorySubject } from "../evaluation/localRepositorySubject/index.js";
 import {
   contextStrategyComparisonPlugin,
   contextWindowScalingPlugin,
@@ -17,6 +19,11 @@ import {
 } from "../experiments/index.js";
 import type { WarmIndexCampaignPresetId } from "../experiments/index.js";
 import { prepareSyntheticContextWindowScalingInputs } from "../experiments/plugins/contextWindowScaling/index.js";
+import {
+  projectExternalLocalTarget,
+  projectRunForExternalLocalPersistence,
+} from "../experiments/plugins/contextWindowScaling/localSubjectPrivacy.js";
+import { assertWorkRootOutsideTarget } from "../experiments/plugins/contextWindowScaling/localSubjectScratch.js";
 import { buildDefaultExperimentOutputRoot } from "../experiments/outputPaths.js";
 import { parsePromptComplexityLevel, parsePromptStrategy } from "../prompts/index.js";
 import { writePluginExperimentReports } from "../report/index.js";
@@ -60,7 +67,16 @@ const DEFAULT_PROJECT_PROFILES_RESOURCE = "benchmarks/contracts/benchmark-projec
 // catalog's package-relative targetRoot, so both resolve from the package root, never the cwd.
 const CONTEXT_WINDOW_SCALING_CASES_RESOURCE = "benchmarks/contracts/context-window-scaling-cases.json";
 // Options the context-window-scaling plugin accepts; every other flag is rejected, not ignored.
-const CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS = ["--experiment", "--out", "--case", "--synthetic-config", "--context-budgets", "--kit-command"];
+const CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS = [
+  "--experiment",
+  "--out",
+  "--target",
+  "--case",
+  "--synthetic-config",
+  "--local-subject-config",
+  "--context-budgets",
+  "--kit-command"
+];
 
 // Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
 // warm-index-reuse, rejects) the fields it does not support.
@@ -76,6 +92,9 @@ type ParsedRunExperimentArgs = {
   outDir?: string;
   // Command-only input-source selector for context-window-scaling; never part of the plugin's scientific config.
   syntheticConfigPath?: string;
+  // Command-only input-source selector for context-window-scaling external-local mode (with --target); never part
+  // of the plugin's scientific config. Resolved against the invocation directory, never the target repository.
+  localSubjectConfigPath?: string;
   config: ParsedExperimentRunConfig;
 };
 
@@ -112,8 +131,8 @@ export async function runExperimentRunCommandFromArgs(
       experimentId: args.experimentId,
       runId
     });
-    if (args.syntheticConfigPath !== undefined && outputRoot === undefined) {
-      // Synthetic generation needs the concrete root before the runner runs; use the exact default the
+    if ((args.syntheticConfigPath !== undefined || args.localSubjectConfigPath !== undefined) && outputRoot === undefined) {
+      // Synthetic generation and external-local runs need the concrete root before the runner runs; use the exact default the
       // runner itself would compute for this self-targeted invocation.
       outputRoot = buildDefaultExperimentOutputRoot({
         toolRoot,
@@ -133,22 +152,55 @@ export async function runExperimentRunCommandFromArgs(
       toolRoot,
       runId
     });
+    const localSubject = readLoadedLocalSubject(inputs);
+    // External-local runs persist only a projected run: no target, tool, or output machine-local paths.
+    const persistedRun = localSubject
+      ? projectRunForExternalLocalPersistence(result, projectExternalLocalTarget(localSubject.manifest))
+      : result;
+    if (localSubject && result.status === "failed") {
+      // A failed local run has no execution evidence, so no report is produced and none could be mistaken for a
+      // completed experiment. The safe failure description (codes and kinds only) is the whole outcome.
+      console.log(
+        [
+          `Experiment: ${result.pluginId}`,
+          `Run ID: ${result.runId}`,
+          "Status: failed",
+          "Mode: external-local repository subject",
+          `Subject: ${localSubject.subjectId}`,
+          ...result.failures.map((failure) => `Failure: ${failure.message}`)
+        ].join("\n")
+      );
+      return 1;
+    }
     const reports = await writePluginExperimentReports({
-      run: result,
+      run: persistedRun,
       plugin: registry.describe(result.pluginId),
-      outputRoot: String(result.metadata?.outputRoot ?? "")
+      outputRoot: String(result.metadata?.outputRoot ?? ""),
+      redactOutputRoot: localSubject !== undefined
     });
-    const outputLines = [
-      `Experiment: ${result.pluginId}`,
-      `Run ID: ${result.runId}`,
-      `Status: ${result.status}`,
-      `Mode: ${result.target.isSelf ? "self" : "external target"}`,
-      `Tool root: ${result.target.toolRoot}`,
-      `Target root: ${result.target.targetRoot}`,
-      `Output: ${String(result.metadata?.outputRoot ?? "")}`,
-      `Report JSON: ${reports.outputPaths.jsonPath}`,
-      `Report HTML: ${reports.outputPaths.htmlPath}`
-    ];
+    const outputLines = localSubject
+      ? [
+          `Experiment: ${result.pluginId}`,
+          `Run ID: ${result.runId}`,
+          `Status: ${result.status}`,
+          "Mode: external-local repository subject",
+          `Subject: ${localSubject.subjectId}`,
+          `Output: ${String(result.metadata?.outputRoot ?? "")}`,
+          `Report JSON: ${reports.outputPaths.jsonPath}`,
+          `Report HTML: ${reports.outputPaths.htmlPath}`,
+          ...result.failures.map((failure) => `Failure: ${failure.message}`)
+        ]
+      : [
+          `Experiment: ${result.pluginId}`,
+          `Run ID: ${result.runId}`,
+          `Status: ${result.status}`,
+          `Mode: ${result.target.isSelf ? "self" : "external target"}`,
+          `Tool root: ${result.target.toolRoot}`,
+          `Target root: ${result.target.targetRoot}`,
+          `Output: ${String(result.metadata?.outputRoot ?? "")}`,
+          `Report JSON: ${reports.outputPaths.jsonPath}`,
+          `Report HTML: ${reports.outputPaths.htmlPath}`
+        ];
 
     // Automatic presentation (report already produced above) applies only to warm-index-reuse
     // campaign runs; legacy fake-agent warm-index runs and context-strategy-comparison stay
@@ -219,6 +271,7 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   let campaignPreset: WarmIndexCampaignPresetId | undefined;
   let contextBudgets: number[] | undefined;
   let syntheticConfigPath: string | undefined;
+  let localSubjectConfigPath: string | undefined;
   const seenFlags: string[] = [];
   const commandTemplates: Partial<Record<"codex" | "claude", AgentCommandTemplate>> = {};
 
@@ -240,6 +293,11 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
         throw new Error("--synthetic-config may be supplied only once.");
       }
       syntheticConfigPath = readRequiredValue(argv, ++index, "--synthetic-config");
+    } else if (arg === "--local-subject-config") {
+      if (localSubjectConfigPath !== undefined) {
+        throw new Error("--local-subject-config may be supplied only once.");
+      }
+      localSubjectConfigPath = readRequiredValue(argv, ++index, "--local-subject-config");
     } else if (arg === "--case") {
       caseIds.push(...splitList(readRequiredValue(argv, ++index, "--case")));
     } else if (arg === "--benchmark-project") {
@@ -294,6 +352,9 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   if (syntheticConfigPath !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
     throw new Error(`--synthetic-config is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
   }
+  if (localSubjectConfigPath !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
+    throw new Error(`--local-subject-config is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
+  }
   if (experimentId === contextWindowScalingPlugin.metadata.id) {
     const unsupported = [...new Set(seenFlags.filter((flag) => !CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS.includes(flag)))];
     if (unsupported.length > 0) {
@@ -306,6 +367,23 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     }
     if (syntheticConfigPath !== undefined && seenFlags.includes("--case")) {
       throw new Error("--case and --synthetic-config are mutually exclusive; the synthetic config owns the generated case set.");
+    }
+    // Subject-mode matrix: bundled (no source flags), synthetic (--synthetic-config), external-local
+    // (--target with --local-subject-config). Every other combination is rejected, never given a precedence.
+    if (localSubjectConfigPath !== undefined && syntheticConfigPath !== undefined) {
+      throw new Error("--synthetic-config and --local-subject-config are mutually exclusive; choose one subject source.");
+    }
+    if (localSubjectConfigPath !== undefined && seenFlags.includes("--case")) {
+      throw new Error("--case cannot be combined with --local-subject-config; the local subject config owns the case set.");
+    }
+    if (localSubjectConfigPath !== undefined && targetPath === undefined) {
+      throw new Error(`--local-subject-config requires an external --target for ${experimentId}.`);
+    }
+    if (syntheticConfigPath !== undefined && targetPath !== undefined) {
+      throw new Error("--synthetic-config cannot be combined with --target; synthetic subjects are generated beneath the experiment output directory.");
+    }
+    if (targetPath !== undefined && localSubjectConfigPath === undefined) {
+      throw new Error(`External ${experimentId} targets require --local-subject-config.`);
     }
   }
   if (kitCommand !== undefined && !KIT_COMMAND_PLUGIN_IDS.includes(experimentId)) {
@@ -331,6 +409,7 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     targetPath,
     outDir,
     syntheticConfigPath,
+    localSubjectConfigPath,
     config: withoutUndefined({
       casesPath,
       projectProfilesPath,
@@ -432,6 +511,26 @@ async function loadContextWindowScalingInputs(
   if (!validation.valid || !validation.config) {
     throw new Error(`Invalid context window scaling config: ${validation.errors.join("; ")}`);
   }
+  if (args.localSubjectConfigPath !== undefined) {
+    if (outputRoot === undefined) {
+      throw new Error("Internal error: external-local runs require a resolved experiment output root.");
+    }
+    const target = resolveExperimentTarget(args.targetPath, toolRoot);
+    if (target.isSelf || target.kind !== "external-local") {
+      throw new Error("Local-repository subject mode requires an external-local target; --target must not be the Lab repository.");
+    }
+    // Fail closed before anything is created: the output root (and the private scratch beneath it) must be outside the target.
+    try {
+      await assertWorkRootOutsideTarget(outputRoot, target.targetRoot);
+    } catch {
+      throw new Error("Experiment output root must not be inside the external target project.");
+    }
+    const configPath = path.resolve(context.invocationCwd, args.localSubjectConfigPath);
+    const localSubjectConfig = await readJsonConfigFile("--local-subject-config", configPath, args.localSubjectConfigPath);
+    // The selected --target is the physical root handed to the Batch 1 loader; the config carries no path.
+    const localSubject = await loadLocalRepositorySubject({ config: localSubjectConfig, repositoryPath: target.targetRoot });
+    return { cases: localSubject.evaluationCases, localSubject, env: process.env };
+  }
   if (args.syntheticConfigPath !== undefined) {
     if (outputRoot === undefined) {
       throw new Error("Internal error: synthetic generation requires a resolved experiment output root.");
@@ -460,17 +559,26 @@ async function loadContextWindowScalingInputs(
 
 // The command only reads and parses the caller-supplied file; schema validation belongs to the synthetic planner.
 async function readSyntheticConfigJson(resolvedPath: string, displayPath: string): Promise<unknown> {
+  return readJsonConfigFile("--synthetic-config", resolvedPath, displayPath);
+}
+
+async function readJsonConfigFile(flag: string, resolvedPath: string, displayPath: string): Promise<unknown> {
   let text: string;
   try {
     text = await readFile(resolvedPath, "utf8");
   } catch (error) {
-    throw new Error(`Cannot read --synthetic-config ${displayPath}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Cannot read ${flag} ${displayPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
   try {
     return JSON.parse(text) as unknown;
   } catch (error) {
-    throw new Error(`--synthetic-config ${displayPath} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${flag} ${displayPath} is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+function readLoadedLocalSubject(inputs: Record<string, unknown> | undefined): LocalRepositorySubject | undefined {
+  const value = inputs?.localSubject;
+  return value && typeof value === "object" ? (value as LocalRepositorySubject) : undefined;
 }
 
 // Shared by both registered plugins: explicit paths resolve against toolRoot, defaults come from

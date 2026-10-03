@@ -5,6 +5,7 @@ import { renderIncrementalChangeStalenessHtml } from "./renderIncrementalChangeS
 import { renderContextWindowScalingHtml } from "./renderContextWindowScalingHtml.js";
 
 export function renderPluginExperimentReportHtml(report: PluginExperimentReport): string {
+  const redactedTarget = report.target.privacyProjection === "external-local-redacted";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -51,10 +52,10 @@ export function renderPluginExperimentReportHtml(report: PluginExperimentReport)
       ["Mode", report.target.mode],
       ["Tool root", report.target.toolRoot],
       ["Target root", report.target.targetRoot],
-      ["Target package", report.target.packageName ? `${report.target.packageName}@${report.target.packageVersion ?? "unknown"}` : "unavailable"],
+      ["Target package", redactedTarget ? "redacted" : report.target.packageName ? `${report.target.packageName}@${report.target.packageVersion ?? "unknown"}` : "unavailable"],
       ["Target branch/commit", report.target.hasGit ? `${report.target.branch ?? "unknown"} / ${report.target.commit ?? "unknown"}` : "unavailable"],
-      ["Has package.json", String(report.target.hasPackageJson)],
-      ["Has lockfile", String(report.target.hasLockfile)],
+      ["Has package.json", redactedTarget ? "redacted" : String(report.target.hasPackageJson)],
+      ["Has lockfile", redactedTarget ? "redacted" : String(report.target.hasLockfile)],
       ["Output root", report.metadata.outputRoot ?? "unavailable"],
     ])}
   </section>

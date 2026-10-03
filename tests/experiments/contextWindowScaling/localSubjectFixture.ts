@@ -59,7 +59,7 @@ export function readFixtureFile(root: string, relativePath: string): string {
  * temporary directories for the Lab work root and an outside file used as a symlink target.
  */
 export async function createLocalSubjectFixture(
-  options: { cases?: Record<string, unknown>[]; extraFiles?: Record<string, string> } = {}
+  options: { cases?: Record<string, unknown>[]; extraFiles?: Record<string, string>; hugeFileBytes?: number } = {}
 ): Promise<LocalSubjectFixture> {
   const root = makeTempDir("lrs-b2-repo-");
   const outside = makeTempDir("lrs-b2-outside-");
@@ -68,7 +68,7 @@ export async function createLocalSubjectFixture(
   writeRepositoryFile(root, ".gitignore", "src/ignored.ts\nsrc/gen/\n");
   writeRepositoryFile(root, "src/main.ts", `export const value = 1; // ${MARKERS.eligible}\n`);
   writeRepositoryFile(root, "src/util/helper.ts", "export const helper = 2;\n");
-  writeRepositoryFile(root, "src/huge.ts", `// ${MARKERS.oversized}\n${"x".repeat(FIXTURE_MAX_FILE_BYTES + 100)}\n`);
+  writeRepositoryFile(root, "src/huge.ts", `// ${MARKERS.oversized}\n${"x".repeat(options.hugeFileBytes ?? FIXTURE_MAX_FILE_BYTES + 100)}\n`);
   for (const [relativePath, content] of Object.entries(options.extraFiles ?? {})) {
     writeRepositoryFile(root, relativePath, content);
   }
@@ -100,6 +100,7 @@ export function writeRecordingFakeKit(directory: string): { command: string; scr
       "const argv = process.argv.slice(2);",
       "const value = (flag) => { const index = argv.indexOf(flag); return index >= 0 ? argv[index + 1] : undefined; };",
       "if (process.env.LRS_FAKE_KIT_LOG) fs.appendFileSync(process.env.LRS_FAKE_KIT_LOG, JSON.stringify({ argv, cwd: process.cwd() }) + '\\n');",
+      "if (process.env.LRS_FAKE_KIT_MUTATE && argv[0] === 'index') fs.appendFileSync(process.env.LRS_FAKE_KIT_MUTATE, 'mutated-by-kit\\n');",
       "const command = argv[0];",
       'if (command === "index") {',
       '  const out = value("--out");',

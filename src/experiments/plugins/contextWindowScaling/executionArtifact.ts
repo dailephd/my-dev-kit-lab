@@ -38,6 +38,12 @@ export type TreatmentExecutionEvidenceV1 = {
   relevantFileEvidence: RelevantFileEvidence;
   budgetCells: BudgetCellEvidence[];
   errors: { code: string; message: string }[];
+  /**
+   * Present only for external-local subjects. File lists (observed, expected, omitted) then hold one opaque
+   * placeholder per file instead of repository-relative paths: counts stay exact, an empty list still means "no
+   * files", and a placeholder list means "files existed but their identities are private".
+   */
+  fileIdentityRedaction?: "redacted";
 };
 
 export type CaseExecutionEvidenceV1 = {
