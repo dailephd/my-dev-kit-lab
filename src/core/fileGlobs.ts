@@ -131,7 +131,11 @@ export function selectRelativePathsForGlobs(relativePaths: readonly string[], gl
     if (baseDir.split("/").includes("..") || path.isAbsolute(baseDir)) {
       throw new Error(`Resolved path escapes target root: ${globPattern}`);
     }
-    const normalizedBase = baseDir === "." ? "" : baseDir.replace(/\/+$/, "");
+    // Linear scan for the trailing "/" run (a regular expression here is a polynomial-backtracking risk on
+    // glob text that comes from user configuration).
+    let baseEnd = baseDir.length;
+    while (baseEnd > 0 && baseDir.charCodeAt(baseEnd - 1) === 47) baseEnd -= 1;
+    const normalizedBase = baseDir === "." ? "" : baseDir.slice(0, baseEnd);
 
     for (const relativePath of relativePaths) {
       const normalizedPath = relativePath.replace(/\\/g, "/");

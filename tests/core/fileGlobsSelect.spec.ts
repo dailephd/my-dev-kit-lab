@@ -83,4 +83,15 @@ describe("RSP-002 pure glob selection matches the walking collector", () => {
   it("normalizes Windows separators in the supplied paths", () => {
     expect(selectRelativePathsForGlobs(["src\\a.ts"], ["src/**/*"])).toEqual(["src/a.ts"]);
   });
+
+  it("handles a long run of trailing slashes in the glob base without changing selection behavior", () => {
+    for (const run of [1, 2, 3, 5000]) {
+      for (const glob of [`src${"/".repeat(run)}*.ts`, `src${"/".repeat(run)}**/*.ts`]) {
+        const legacy = collectFilesForGlobs(root, [glob]).map((entry) => entry.relativePath);
+        expect(selectRelativePathsForGlobs(FILES, [glob])).toEqual(legacy);
+      }
+    }
+    expect(selectRelativePathsForGlobs(FILES, [`src${"/".repeat(5000)}*.ts`])).toEqual([]);
+    expect(selectRelativePathsForGlobs(FILES, ["src/*.ts"])).toEqual(["src/a.ts"]);
+  });
 });
