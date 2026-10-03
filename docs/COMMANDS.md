@@ -10,9 +10,9 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.7.1 package.
+This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.7.2 package.
 
-The `--local-subject-config` option and the external local-repository mode described under `context-window-scaling` are implemented in the current source but are unreleased, so they are not in the published package.
+The `--local-subject-config` option and the external local-repository mode described under `context-window-scaling` were added in v0.7.2 and are included in the current package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -276,7 +276,7 @@ my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
-#### `context-window-scaling` (released in v0.7.0; `--synthetic-config` added in v0.7.1; local-repository mode: v0.7.2, unreleased)
+#### `context-window-scaling` (released in v0.7.0; `--synthetic-config` added in v0.7.1; local-repository mode added in v0.7.2)
 
 ```text
 my-dev-kit-lab experiment describe --experiment context-window-scaling

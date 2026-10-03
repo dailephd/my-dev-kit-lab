@@ -4,6 +4,8 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-03
+
 ### Local-repository experiments
 
 - Added explicitly selected local Git repositories as `context-window-scaling` subjects: `experiment run --experiment context-window-scaling --target <repository> --local-subject-config <path>`, with a strict `LocalRepositorySubjectConfigV1`. The experiment, its treatments, budgets, token estimator, correctness, success, plots, and report schemas are unchanged, and bundled and synthetic modes behave as before.
@@ -13,6 +15,7 @@ All notable changes to my-dev-kit-lab are documented here.
 - A failed external-local run exits nonzero with a bounded error and writes no report, execution artifact, or manifest.
 - Fixed a crash in which a local-repository run pointed at a directory past the Windows path-length limit ended with an unhandled stream error instead of a classified error, and made known-file redaction in error text cover backslash-separated paths.
 - Extended help, `experiment describe` text, and the packed-package acceptance gate (`npm run verify:packed-package`) to cover the installed external-local run with the real published my-dev-kit, rejection cases, privacy scanning that includes JSON-escaped Windows paths, and target immutability.
+- Replaced a trailing-slash regular expression in glob base normalization with a linear scan after a CodeQL polynomial-regular-expression finding; glob selection behavior is unchanged.
 - No retrieval precision, recall, ranking, or winner metric was added; those remain planned for v0.8.0.
 
 ## [0.7.1] - 2026-10-02

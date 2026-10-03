@@ -601,7 +601,7 @@ Ownership and boundaries:
 
 See [context-integrity-fixtures.md](context-integrity-fixtures.md) for the frozen fixture pair's full provenance, tracked/excluded-artifact inventory, and hash-verification model, and [context-integrity-report-schema.md](context-integrity-report-schema.md) for the `ContextIntegrityReportV1` JSON/text/HTML report shape.
 
-## Local-repository subject architecture (v0.7.2, implemented; unreleased)
+## Local-repository subject architecture (v0.7.2)
 
 `context-window-scaling` can run over an explicitly selected local Git repository. This is a third subject mode of the existing plugin, not a new plugin or a generic external-repository framework. The subsystem is split by responsibility:
 
@@ -617,7 +617,7 @@ See [context-integrity-fixtures.md](context-integrity-fixtures.md) for the froze
 
 ## Target model
 
-Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project only for commands and plugins that support it. `incremental-change-staleness` rejects an explicit `--target`. `context-window-scaling` rejects an explicit `--target` in bundled and synthetic mode (generated scaling repositories are run-owned inputs within self mode) and accepts one only together with `--local-subject-config`, which selects the external local-repository subject lifecycle described in the local-repository subject section (implemented, unreleased). Experiment outputs remain in lab-controlled output directories by default; security reports use `reports/security` beneath the installed workspace or contributor tool root unless an explicit output directory is provided.
+Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project only for commands and plugins that support it. `incremental-change-staleness` rejects an explicit `--target`. `context-window-scaling` rejects an explicit `--target` in bundled and synthetic mode (generated scaling repositories are run-owned inputs within self mode) and accepts one only together with `--local-subject-config`, which selects the external local-repository subject lifecycle described in the local-repository subject section (v0.7.2). Experiment outputs remain in lab-controlled output directories by default; security reports use `reports/security` beneath the installed workspace or contributor tool root unless an explicit output directory is provided.
 
 `src/core/localProjectTarget.ts` supplies shared local-project metadata. Experiment target resolution lives in `src/experiments/target.ts`; security target resolution lives in `src/securityValidation/validate/resolveTarget.ts`.
 
@@ -894,7 +894,7 @@ Preserved boundaries:
 
 The `page.evaluate` in the real-browser integration test is test instrumentation that wraps the page object; no scenario can reach it, so it is not a scenario capability.
 
-The v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above. Context-window scaling is released in v0.7.0, with optional synthetic input added in v0.7.1. The released v0.6.0 freshness and v0.6.1 affected-neighborhood evidence remain available, and the v0.6.2 incremental-change baseline is extended by released v0.6.3. See the corresponding architecture sections above.
+The v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above. Context-window scaling is released in v0.7.0, with optional synthetic input added in v0.7.1 and local-repository subjects added in v0.7.2. The released v0.6.0 freshness and v0.6.1 affected-neighborhood evidence remain available, and the v0.6.2 incremental-change baseline is extended by released v0.6.3. See the corresponding architecture sections above.
 
 The following layers remain planned and must not be treated as current behavior:
 
