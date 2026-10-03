@@ -6,13 +6,14 @@ Status: **planning / design reference; not implemented**
 
 Owner: **my-dev-kit-lab**
 
-Related coordinated roadmap family: **LAB-AGENT**
+Related design family: **LAB-AGENT** (proposed identifiers, not adopted version reservations)
 
-Historical roadmap relationship:
-- the standalone Lab roadmap originally reserved the agent-success work under `v0.9.0-v0.9.2`;
-- `my-dev-kit/docs/ECOSYSTEM_COORDINATED_ROADMAP.md` later proposes re-sequencing that unimplemented family to `my-dev-kit-lab v0.13.0-v0.13.2 / LAB-AGENT`;
-- this document does not itself change either roadmap or assign a release version;
-- implementation should follow the coordinated roadmap that is current when work begins and preserve the historical mapping rather than rewriting prior plans.
+Roadmap relationship:
+- the adopted Lab roadmap preserves agent-success, provider telemetry/scheduler, and prompt/report/gallery work under their existing `v0.9.0-v0.9.2` assignments;
+- an earlier coordinated-roadmap proposal considered moving this family to `my-dev-kit-lab v0.13.0-v0.13.2 / LAB-AGENT`; ECO-00 adoption on 2026-09-25 superseded that relocation proposal and preserved the existing Lab assignments;
+- `v0.10.0` is the additive `LAB-EVIDENCE-01` reservation, and `v0.13.0` is performance evidence (`LAB-PERF-01`), not an agent-benchmark reservation;
+- this document remains a design reference. Its generalized benchmark, candidate plugin name, contracts, and suggested batches do not themselves amend version scope or establish new prerequisites;
+- implementation follows [ROADMAP.md](ROADMAP.md) and the [adopted ecosystem roadmap](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_COORDINATED_ROADMAP.md). Any additional generalized benchmark scope or changed dependency order requires a separate explicit planning decision.
 
 This document defines the intended architecture and implementation direction for generalized deterministic coding-agent evaluation. It is deliberately separate from `ROADMAP.md` so the design can be refined without turning every design detail into a version commitment.
 
@@ -1230,9 +1231,9 @@ An unavailable agent must never become “agent failed the coding task.”
 
 ### Foundation: LAB-EVIDENCE-01
 
-The coordinated roadmap currently places the generic evidence foundation before the agent family.
+The earlier coordination proposal placed the generic evidence foundation before the agent family. That order is not an adopted release prerequisite: ECO-00 preserves `v0.9.0-v0.9.2` and reserves `LAB-EVIDENCE-01` additively at `v0.10.0`. The capabilities below are design inputs for the generalized benchmark proposal; they must not be used to reorder releases or make the existing v0.9.x scope depend on a later milestone without an explicit planning decision.
 
-Required shared capabilities:
+Proposed shared capabilities for the generalized design:
 
 - `SubjectIdentityV1`
 - `EnvironmentIdentityV1`

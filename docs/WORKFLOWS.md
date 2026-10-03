@@ -661,6 +661,24 @@ Publication includes:
 
 Do not collapse these stages into implementation work.
 
+### Current workflow applicability and validation identity
+
+The planner determines applicable workflows from the checked-in triggers before issuing an execution prompt. The current workflow files define:
+
+| Workflow | Automatic branch pushes | Pull requests | Manual dispatch | Tag pushes |
+|---|---|---|---|---|
+| `ci.yml` | `main`, `feature/**`, `fix/**` | `main` | Yes | None |
+| `pre-release-latest-node-readiness.yml` | `release/**` | None | Yes | None |
+| `codeql.yml` | `main`, `feature/**`, `fix/**`, `release/**`, `validation/**` | `main` | Yes | None |
+
+Readiness requires all three workflow families on the exact candidate; dispatch workflows when the candidate branch has no applicable automatic trigger. Standard CI covers Ubuntu/macOS/Windows on Node 24 and latest; dedicated readiness covers the three operating systems on Node latest; CodeQL covers JavaScript/TypeScript and Actions plus the alert review described above. For release-branch validation, ordinary CI needs dispatch or an applicable PR event rather than a release-branch push. The dedicated readiness workflow has no automatic main trigger. The established release policy records tag CI and a separate main dedicated latest-Node gate as `NOT_APPLICABLE_BY_REPOSITORY_POLICY`; main still requires its ordinary CI matrix and applicable CodeQL checks. If workflow triggers or approved policy change, the planner must reconcile applicability before execution.
+
+When release preparation writes its historical report in a report-only child commit, retain separate identities: `RELEASE_PREPARED_PRODUCT_SHA` owns product validation, while `RELEASE_BRANCH_TIP` identifies the child containing the report. Verify that the child changes only the release-preparation report, merge the child tip so the report reaches main, and never attribute product validation to that child. Exact-main validation belongs to the resulting merged main commit.
+
+For a suspected transient local full-suite timeout, inspect the failed test/job and run the affected file alone before deciding on a retry. Allow exactly one full-suite rerun when that evidence supports a transient load issue. A repeated failure is a blocker; do not rerun until green, increase global timeouts, or add sleeps/retries to hide unfinished asynchronous work.
+
+The publication sequence remains: release preparation -> release PR -> required PR checks -> merge main -> exact-main local and hosted validation -> annotated tag -> tag-specific validation only when defined by repository policy -> GitHub Release -> final release-channel/package parity -> npm publication last. Execution-permission denial is distinct from release authorization and does not change this order.
+
 ### Historical v0.4.4 release preparation and publication procedure
 
 This subsection is preserved as historical release-procedure evidence for v0.4.4. It is not the current release procedure and must not be copied forward as a version-specific template. Current and future releases use the generic release-preparation/publication invariants in this document plus the repository's current release workflow. Completing implementation, correction, or readiness work never authorizes publication.
@@ -711,7 +729,7 @@ After `npm publish` succeeds, only read-only verification commands are allowed:
 - `gh release view <tag>`
 - `git status --short`
 
-No commits, tags, pushes, GitHub Release creation, release-documentation edits, or cleanup commands may happen after `npm publish`. A release workflow must not intentionally publish stale documentation and plan to repair it afterward. If a documentation defect is discovered only after publication, handle it as a new, explicit correction workflow rather than as a planned continuation of the release.
+No commits, tags, pushes, GitHub Release creation or edits, release-documentation edits, cleanup, tests, package packing, installs, or other state-changing commands may happen after `npm publish` within that release workflow. A release workflow must not intentionally publish stale documentation and plan to repair it afterward. If a documentation defect is discovered only after publication, handle it as a new, explicit correction workflow rather than as a planned continuation of the release.
 
 ### Release-channel parity gate
 

@@ -166,7 +166,7 @@ Every command and family also accepts `--help`/`-h` for bounded usage text. `--h
 - absolute path: used as given
 - relative path: resolved against the directory the command was invoked from (not the installed package location)
 
-Commands that have an implicit (no explicit `--out`) writable output — currently `audit` and `security validate` — write that implicit output beneath the workspace. Commands that require an explicit `--out`/output option (`experiment run`, `experiment controlled`, `report render`, `plots generate`, `gallery build`, `demo final`) keep that path's existing resolution behavior unchanged; explicit paths are never redirected under the workspace. The installed package directory and the inspected `--target` project are never used as the default writable location.
+In the installed CLI, commands with an implicit (no explicit `--out`) writable output include `audit`, `security validate`, `experiment run`, and `tutorial run`. They write that default output beneath the workspace; each command's section below gives its directory layout. Commands that require an explicit `--out`/output option (`experiment controlled`, `report render`, `plots generate`, `gallery build`, `demo final`) keep that path's existing resolution behavior unchanged. Explicit output paths for every command are never redirected under the workspace. The installed package directory and the inspected `--target` project are never used as the default writable location.
 
 ### `my-dev-kit-lab security validate`
 
@@ -191,7 +191,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
 
-`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. `context-window-scaling` accepts only `--out`, `--case`, `--context-budgets`, and `--kit-command`; it is self-only and uses its bundled four-case catalog.
+`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget and synthetic-input options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--case`, `--synthetic-config`, `--context-budgets`, and `--kit-command`. It is self-only and uses its bundled four-case catalog by default, or generated repositories with `--synthetic-config`; `--case` and `--synthetic-config` are mutually exclusive.
 
 #### `warm-index-reuse`
 

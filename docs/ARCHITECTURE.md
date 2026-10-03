@@ -603,7 +603,7 @@ See [context-integrity-fixtures.md](context-integrity-fixtures.md) for the froze
 
 ## Target model
 
-Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project. Experiment outputs remain in lab-controlled output directories by default; security reports remain under `reports/security` unless an explicit output directory is provided.
+Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project only for commands and plugins that support it. `context-window-scaling` and `incremental-change-staleness` reject an explicit `--target`; generated scaling repositories are run-owned inputs within self mode. The generic target metadata model does not by itself provide the real/local-repository experiment lifecycle planned for v0.7.2. Experiment outputs remain in lab-controlled output directories by default; security reports use `reports/security` beneath the installed workspace or contributor tool root unless an explicit output directory is provided.
 
 `src/core/localProjectTarget.ts` supplies shared local-project metadata. Experiment target resolution lives in `src/experiments/target.ts`; security target resolution lives in `src/securityValidation/validate/resolveTarget.ts`.
 
@@ -617,7 +617,7 @@ This section documents the current installed-package architecture, shipped in v0
 
 - **packageRoot** — the installed or checked-out my-dev-kit-lab package root. Discovered by `src/runtime/packageRoot.ts` by walking up from the executing module's own location (never from `process.cwd()`) until it finds the `package.json` whose `name` is `@dailephd/my-dev-kit-lab`. Treated as read-only by every command's default behavior.
 - **invocationCwd** — the directory the user launched the command from (`process.cwd()` unless overridden for testing). User-owned relative paths such as `--out`, `--target`, and an explicit relative `--workspace` resolve from the invocation directory according to their command contracts. Experiment resource paths are the deliberate exception: explicit relative `--cases` and `--project-profiles` resolve against the tool/package root so bundled resources such as `benchmarks/contracts/warm-index-benchmark-cases.json` remain addressable from an installed package.
-- **workspaceRoot** — the writable location my-dev-kit-lab owns. Defaults to `<home>/.my-dev-kit-lab`; an explicit `--workspace` overrides it (absolute used as-is, relative resolved against invocationCwd). Commands with an implicit/default writable output (`audit`, `security validate`) root that default under workspaceRoot when running through the installed CLI; the contributor `npm run audit` / `npm run security:validate` scripts keep their existing packageRoot-relative default unchanged.
+- **workspaceRoot** — the writable location my-dev-kit-lab owns. Defaults to `<home>/.my-dev-kit-lab`; an explicit `--workspace` overrides it (absolute used as-is, relative resolved against invocationCwd). The installed `audit`, `security validate`, `experiment run`, and `tutorial run` commands root implicit/default writable output beneath workspaceRoot. The contributor `npm run audit`, `npm run security:validate`, and `npm run experiment:run` scripts keep their existing tool-root-relative defaults; tutorial runs use the tutorial owner's workspace default. Explicit output paths retain their command-specific resolution rules.
 - **resourceRoot** — the root bundled runtime resources are resolved from. Equal to packageRoot in the current package layout, kept as a distinct field because it has a different responsibility. `src/runtime/packageResource.ts` resolves a package-relative resource path against resourceRoot with path-semantics containment (not string-prefix matching), rejecting empty, absolute, or traversal-escaping inputs.
 
 A fifth root, **targetRoot** (the inspected external project, or packageRoot itself in self mode), is unrelated to and never conflated with workspaceRoot — target directories remain non-destructive/read-only by default regardless of workspace configuration.
@@ -880,14 +880,15 @@ Preserved boundaries:
 
 The `page.evaluate` in the real-browser integration test is test instrumentation that wraps the page object; no scenario can reach it, so it is not a scenario capability.
 
+The v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above. Context-window scaling is released in v0.7.0, with optional synthetic input added in v0.7.1. The released v0.6.0 freshness and v0.6.1 affected-neighborhood evidence remain available, and the v0.6.2 incremental-change baseline is extended by released v0.6.3. See the corresponding architecture sections above.
+
 The following layers remain planned and must not be treated as current behavior:
 
 - JVM package/environment rot or Gradle/Maven dependency freshness checks
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
-- the v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above
-- additional experiment plugins: the v0.7.0 context-window-scaling plugin is released; retrieval-quality and agent-success plugins remain planned. The released v0.6.0 freshness and v0.6.1 affected-neighborhood evidence remain available, and the v0.6.2 incremental-change baseline is extended by released v0.6.3. See the corresponding architecture sections above.
+- real/local external repository experiments (v0.7.2), retrieval-quality plugins (v0.8.x), and agent-success plugins (v0.9.x)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
 
