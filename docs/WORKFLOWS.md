@@ -286,7 +286,7 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 ## Context-window scaling experiment (v0.7.0)
 
-**Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in the current v0.7.1 release. By default this plugin uses a bundled four-case catalog and fixed self target; it does not accept an external `--target` or real-agent campaign options.
+**Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in the current v0.7.1 release, and the local-repository mode (v0.7.2) is implemented in the source and unreleased. By default this plugin uses a bundled four-case catalog and fixed self target and does not accept real-agent campaign options; an external `--target` is accepted only together with `--local-subject-config`.
 
 **Goal:** compare the measured raw-full-file and my-dev-kit-guided contexts at the same selected estimated-token budgets, and preserve fit, deterministic correctness/success, and omitted expected relevant-file evidence.
 
@@ -305,6 +305,26 @@ npm run generate-experiment-plots -- `
 ```
 
 To run the same experiment over caller-supplied deterministic synthetic repositories instead of the bundled corpus, add `--synthetic-config <path>` (a `SyntheticRepositoryConfigV1` JSON file; relative paths resolve against the invocation directory; mutually exclusive with `--case`). The synthetic workflow is: config -> deterministic planning -> deterministic materialization -> per-case manifest verification -> `EvaluationCase` construction -> the existing raw-full-file and my-dev-kit-guided context construction -> existing budget evaluation -> the existing artifact, reports, and plots. An invalid or infeasible config or a materialization collision exits 1 before any artifact or report is written. Repositories are generated beneath `<run output>/synthetic-repositories/<case-id>/` (`repository/` plus `synthetic-repository-manifest.json`) and are disposable runtime output (re-running with the same config and output directory reuses an identical materialization and fails on a conflicting one); the bundled fixed corpus is untouched and the scientific semantics below are unchanged. The installed equivalents are `my-dev-kit-lab experiment run --experiment context-window-scaling [--case <ids> | --synthetic-config <path>] [--context-budgets <values>] [--kit-command <command>] [--out <dir>]` and `my-dev-kit-lab plots generate --experiment <run dir> --out <plots dir>`. The default budget set is 8k/16k/32k/64k; positive integer custom values are accepted. Duplicates after normalization are rejected.
+
+**Local-repository workflow (implemented; unreleased):** to run the same experiment over your own local Git repository:
+
+1. Choose a local Git worktree root with at least one commit. The Lab will not modify it.
+2. Write a `LocalRepositorySubjectConfigV1` JSON file with a `subjectId` and one or more cases (see [COMMANDS.md](COMMANDS.md#context-window-scaling-released-in-v070---synthetic-config-added-in-v071-local-repository-mode-v072-unreleased)). Keep it outside the repository.
+3. Choose an output directory outside the repository.
+4. Run the experiment:
+
+```powershell
+my-dev-kit-lab experiment run `
+  --experiment context-window-scaling `
+  --target <local-git-repository> `
+  --local-subject-config <path-to-local-subject-config.json> `
+  --out <run-directory-outside-the-repository>
+```
+
+5. Inspect `local-repository-subject-manifest.json`, `report.json`, `report.txt`, `report.html`, and `context-window-scaling-execution.json`.
+6. Read file identities correctly: `<redacted file N>` means a file identity existed and was intentionally withheld from durable output. It does not mean zero files; counts are exact, an empty list still means no files, and `null` still means unavailable.
+
+**Local-repository failure semantics:** a failed run exits nonzero and prints a bounded error with no repository path or file names. It writes no report, execution artifact, or manifest, and the private scratch state is removed. If the run detects that the repository changed, it fails and does not revert the change, so you can inspect it.
 
 **Expected outputs:** `context-window-scaling-execution.json` and the plugin `report.json`, `report.txt`, and `report.html` beneath the run output. Plot output contains `plot-data.json`, `plots-summary.json`, and exactly `context-window-scaling-context-size.svg`, `context-window-scaling-success-rate-by-budget.svg`, and `context-window-scaling-correctness-by-budget.svg` under `charts/`.
 

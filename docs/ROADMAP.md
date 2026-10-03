@@ -1298,7 +1298,7 @@ Explicit exclusions:
 
 ### v0.7.2 — real-world and local-repository experiments
 
-Status: **planned; not implemented**.
+Status: **implemented; unreleased; pre-release readiness pending**.
 
 Purpose:
 

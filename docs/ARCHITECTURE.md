@@ -601,9 +601,23 @@ Ownership and boundaries:
 
 See [context-integrity-fixtures.md](context-integrity-fixtures.md) for the frozen fixture pair's full provenance, tracked/excluded-artifact inventory, and hash-verification model, and [context-integrity-report-schema.md](context-integrity-report-schema.md) for the `ContextIntegrityReportV1` JSON/text/HTML report shape.
 
+## Local-repository subject architecture (v0.7.2, implemented; unreleased)
+
+`context-window-scaling` can run over an explicitly selected local Git repository. This is a third subject mode of the existing plugin, not a new plugin or a generic external-repository framework. The subsystem is split by responsibility:
+
+- `src/evaluation/localRepositorySubject/` loads and validates a subject. `config.ts` parses `LocalRepositorySubjectConfigV1`; `gitRepository.ts` resolves the physical worktree root and Git identity (full commit, branch or null, dirty state) and classifies ignore status through Git; `inventory.ts` walks the declared source roots into counts and the validated eligible-file list; `loadLocalRepositorySubject.ts` composes them; `manifest.ts` builds and serializes the privacy-safe `local-repository-subject-manifest.json`; `evaluationCase.ts` and `expectedFiles.ts` adapt cases to ordinary `EvaluationCase` values.
+- Logical and physical identity are separate. Persisted evidence uses the logical target root `local-repository:<subjectId>`; the physical repository path exists only at run time.
+- The eligible-file list is the safety boundary. Regular files at most 1 MiB (default), not Git-ignored, not symbolic links, and inside a declared source root are eligible; `.git` is never traversed. Both treatments consume only this list: raw context construction reads eligible files, and the guided treatment passes the complement as exclusions to my-dev-kit and fails a case whose retrieval returns an excluded file.
+- `src/experiments/plugins/contextWindowScaling/localSubjectExecution.ts` owns the lifecycle: capture a target snapshot, create private scratch under the output root, run both treatments, remove the scratch, capture a second snapshot, and compare. Scratch is always removed. `src/evaluation/targetImmutability/` provides the snapshot and comparison; in this mode a file above the size bound is fingerprinted by size and modification time without reading its content, and Git-ignored paths are recorded by name only. That fingerprint is weaker than a content hash: a same-size, same-timestamp rewrite of a large file would not be detected. A detected change fails the run and is not reverted.
+- Output containment is checked before anything is created: an output root equal to or inside the target is rejected, and the exact physical target identity is re-verified before execution.
+- `localSubjectPrivacy.ts` is the privacy projection boundary. Before any report or artifact is serialized it replaces file identity lists with numbered placeholders of the same length, scrubs known private roots and file paths from free text, projects the target to its logical identity, full commit, and branch, and reduces output paths to bare file names. Reports mark the projection with `privacyProjection: "external-local-redacted"` and treatments with `fileIdentityRedaction: "redacted"`.
+- A failed local run persists nothing. The command prints a bounded error (issue codes, case and treatment identifiers, and mutation kinds only) and returns a nonzero exit code.
+- The plugin keeps its scientific semantics unchanged: treatments, budgets, token estimator, correctness, and success are shared with the bundled and synthetic modes. The execution artifact reader and report builders consume the projected artifact without schema changes beyond the additive privacy fields.
+- Installed-package boundary: the compiled local-subject runtime ships in `dist/`, and the packed-package gate exercises the installed CLI against a disposable local repository using the real published my-dev-kit.
+
 ## Target model
 
-Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project only for commands and plugins that support it. `context-window-scaling` and `incremental-change-staleness` reject an explicit `--target`; generated scaling repositories are run-owned inputs within self mode. The generic target metadata model does not by itself provide the real/local-repository experiment lifecycle planned for v0.7.2. Experiment outputs remain in lab-controlled output directories by default; security reports use `reports/security` beneath the installed workspace or contributor tool root unless an explicit output directory is provided.
+Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project only for commands and plugins that support it. `incremental-change-staleness` rejects an explicit `--target`. `context-window-scaling` rejects an explicit `--target` in bundled and synthetic mode (generated scaling repositories are run-owned inputs within self mode) and accepts one only together with `--local-subject-config`, which selects the external local-repository subject lifecycle described in the local-repository subject section (implemented, unreleased). Experiment outputs remain in lab-controlled output directories by default; security reports use `reports/security` beneath the installed workspace or contributor tool root unless an explicit output directory is provided.
 
 `src/core/localProjectTarget.ts` supplies shared local-project metadata. Experiment target resolution lives in `src/experiments/target.ts`; security target resolution lives in `src/securityValidation/validate/resolveTarget.ts`.
 
@@ -888,7 +902,7 @@ The following layers remain planned and must not be treated as current behavior:
 - the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
 - cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
 - a human-led manual pentest workflow after `v1.0.0`
-- real/local external repository experiments (v0.7.2), retrieval-quality plugins (v0.8.x), and agent-success plugins (v0.9.x)
+- retrieval-quality plugins (v0.8.x) and agent-success plugins (v0.9.x)
 - normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
 - later gallery consumption of the canonical tutorial manifest
 

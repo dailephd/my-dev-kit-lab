@@ -4,6 +4,17 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### Local-repository experiments
+
+- Added explicitly selected local Git repositories as `context-window-scaling` subjects: `experiment run --experiment context-window-scaling --target <repository> --local-subject-config <path>`, with a strict `LocalRepositorySubjectConfigV1`. The experiment, its treatments, budgets, token estimator, correctness, success, plots, and report schemas are unchanged, and bundled and synthetic modes behave as before.
+- Contexts for both treatments are built only from regular files inside the declared source roots that Git does not ignore and that are at most 1 MiB; ignored, oversized, symbolic-link, and other unsafe entries are excluded, and the guided treatment fails if retrieval returns an excluded file.
+- The repository is treated as read-only: private scratch state is created outside it and removed, repository state is compared before and after the run, and an output directory equal to or inside the repository is rejected. A detected change fails the run and is not reverted.
+- Durable external-local output omits the repository path, source text, and file names: exact file identities appear as numbered `<redacted file N>` placeholders marked by `fileIdentityRedaction: "redacted"`, and the report target carries `privacyProjection: "external-local-redacted"`. A new `local-repository-subject-manifest.json` records the logical subject ID, full Git commit, branch, dirty state, safety policy, source roots, case IDs, and aggregate size counts.
+- A failed external-local run exits nonzero with a bounded error and writes no report, execution artifact, or manifest.
+- Fixed a crash in which a local-repository run pointed at a directory past the Windows path-length limit ended with an unhandled stream error instead of a classified error, and made known-file redaction in error text cover backslash-separated paths.
+- Extended help, `experiment describe` text, and the packed-package acceptance gate (`npm run verify:packed-package`) to cover the installed external-local run with the real published my-dev-kit, rejection cases, privacy scanning that includes JSON-escaped Windows paths, and target immutability.
+- No retrieval precision, recall, ranking, or winner metric was added; those remain planned for v0.8.0.
+
 ## [0.7.1] - 2026-10-02
 
 ### Synthetic large-repository generator

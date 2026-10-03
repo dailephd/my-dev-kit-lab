@@ -17,7 +17,8 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Released/current version: `v0.7.1` (synthetic large-repository generator).
-- Active planned version: `v0.7.2` (real/local external repository experiments); `v0.8.0` (retrieval precision/recall) remains later planned work.
+- Active planned version: `v0.8.0` (retrieval precision/recall) remains the next planned milestone.
+- Implemented and unreleased: `v0.7.2` (local-repository experiments). Implementation and documentation reconciliation are complete in the candidate branch, Windows local validation and the packed-package external-local acceptance passed, Linux and macOS hosted validation is pending, and the package version is unchanged at 0.7.1.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -62,7 +63,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
-- Exact next action: freeze the v0.7.2 real/local external repository subject contract, source-immutability and privacy rules, command behavior, and acceptance tests from the existing architecture before issuing implementation batches. The generic external-target metadata alone does not complete that milestone.
+- Exact next action: run the separate pre-release readiness workflow for the v0.7.2 candidate, including hosted Linux and macOS validation; release preparation and publication follow only after it passes.
 - ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
 
 ## Implemented
@@ -113,7 +114,7 @@ The repository has one experiment runtime, one audit framework, one standalone s
 
 ## Experimental versus planned
 
-`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling` are registered with experimental status. The v0.7.0 context-window scaling plugin is released. Its estimated-token counts use `ceil(characters / 4)`, its budgets do not represent provider model limits, and its deterministic fake-agent correctness path is context-independent. It is self-only and has no real-agent campaign.
+`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling` are registered with experimental status. The v0.7.0 context-window scaling plugin is released. Its estimated-token counts use `ceil(characters / 4)`, its budgets do not represent provider model limits, and its deterministic fake-agent correctness path is context-independent. In bundled and synthetic mode it runs against the Lab itself; the v0.7.2 source (unreleased) also accepts an explicitly selected local Git repository (`--target` with `--local-subject-config`). It has no real-agent campaign.
 
 `warm-index-reuse` was introduced in `v0.5.0` and is included in published release `v0.5.1` with registry status `experimental`. In the published `v0.5.1` release, its agent evidence comes from the deterministic fake agent only.
 
@@ -143,7 +144,7 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- real/local external repository experiments (`v0.7.2`), retrieval precision/recall (`v0.8.x`), and agent-success experiment plugins (`v0.9.x`)
+- retrieval precision/recall (`v0.8.x`) and agent-success experiment plugins (`v0.9.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
 ## Limitations
@@ -218,4 +219,4 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-`v0.7.1` is the current/latest published release and `v0.7.0` is the previous release. Package version `0.7.1` is current. Context-window scaling and its synthetic large-repository generation input are released and published. v0.7.2 is the planned milestone after it. Readiness, release-branch CI, CodeQL, and publication-state preparation evidence is recorded in [docs/reports/v0.7.1-release-preparation.md](reports/v0.7.1-release-preparation.md).
+`v0.7.1` is the current/latest published release and `v0.7.0` is the previous release. Package version `0.7.1` is current. Context-window scaling and its synthetic large-repository generation input are released and published. v0.7.2 (local-repository experiments: `--target` with `--local-subject-config` for `context-window-scaling`) is implemented in the candidate source and is unreleased; it is not in the published 0.7.1 package. Readiness, release-branch CI, CodeQL, and publication-state preparation evidence is recorded in [docs/reports/v0.7.1-release-preparation.md](reports/v0.7.1-release-preparation.md).
