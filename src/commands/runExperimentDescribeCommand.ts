@@ -152,6 +152,9 @@ function describeTargetBehavior(plugin: ExperimentPlugin): string {
   if (supportsExternal) {
     return "Runs against the current lab repository when --target is omitted, or against an explicit local target project when --target <path> is provided. Outputs stay under lab-controlled output directories by default.";
   }
+  if (plugin.metadata.id === "context-window-scaling") {
+    return "Self-targeted. Uses the bundled fixed scaling corpus by default, or caller-supplied deterministic synthetic repositories when --synthetic-config <path> (a SyntheticRepositoryConfigV1 JSON file, mutually exclusive with --case) is provided; generated repositories are written beneath the experiment output directory.";
+  }
   return "Runs against the current lab repository.";
 }
 
@@ -181,6 +184,11 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
     examples.push(
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --campaign codex-full --include-real-agents --out <dir>`,
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --campaign claude-full --include-real-agents --case warm-medium-complete-idempotent --out <dir>`
+    );
+  }
+  if (plugin.metadata.id === "context-window-scaling") {
+    examples.push(
+      `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --synthetic-config <path-to-config.json> --out <run-dir>`
     );
   }
   return examples;

@@ -11,7 +11,7 @@ export const contextWindowScalingMetadata: ExperimentPluginMetadata = {
   id: CONTEXT_WINDOW_SCALING_PLUGIN_ID,
   name: "Context Window Scaling",
   description:
-    "Measure raw-full-file and my-dev-kit-guided strategies under increasing deterministic estimated-context-token budgets.",
+    "Measure raw-full-file and my-dev-kit-guided strategies under increasing deterministic estimated-context-token budgets, over the bundled fixed scaling corpus or caller-supplied deterministic synthetic repositories (--synthetic-config).",
   schemaVersion: "1.0.0",
   status: "experimental",
   supportedTargets: ["self"],

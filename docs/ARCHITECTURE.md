@@ -442,8 +442,65 @@ The `context-window-scaling` plugin is registered with the generic experiment ru
 
 - Estimated tokens use `ceil(characters / 4)`, a Lab heuristic. Budgets are experiment thresholds, not claims about provider tokenizer output or actual model context-window limits. Utilization is unbounded and can exceed 100 percent.
 - Deterministic fake-agent correctness tests the existing answer-key/evaluation pipeline and is context-independent in this harness; it does not measure semantic model sensitivity to different context content. Success is true only when the context fits and correctness passes. Too-large cells count as unsuccessful in the success-rate denominator; unavailable operational/evaluation evidence is excluded and counted separately.
-- A budget does not physically constrain retrieval or the fake evaluator. There are no provider runs, campaign mode, external targets, or synthetic-repository generator in v0.7.0. Synthetic repository generation remains the planned v0.7.1 scope.
+- A budget does not physically constrain retrieval or the fake evaluator. There are no provider runs, campaign mode, external targets, or synthetic-repository generator in v0.7.0; the v0.7.1 synthetic generator described next is an optional input source for the same plugin.
 - The artifact and report contain measurements and bounded identifiers, not context text. The plugin adds no dedicated screenshot or gallery integration.
+
+## Synthetic large-repository generation architecture (v0.7.1)
+
+Status: **published in v0.7.1**.
+
+v0.7.1 extends the existing evaluation/benchmark layer rather than adding a new experiment runner or a fifth experiment plugin. The generated repositories are internal run-owned benchmark subjects for the existing self-only `context-window-scaling` plugin. They are not external user repositories and do not widen the generic experiment target model.
+
+```mermaid
+flowchart TD
+  CLI[runExperimentRunCommand] --> Args[parse --synthetic-config / --case]
+  Args --> RunRoot[resolve runId + final outputRoot]
+  RunRoot --> Config[read + JSON-parse config from invocationCwd; the planner validates it]
+  Config --> Plan[src/evaluation/syntheticRepository pure deterministic plan]
+  Plan --> Materialize[contained synthetic-repositories subtree]
+  Materialize --> Manifest[generation manifest + SHA-256 identities]
+  Materialize --> Cases[in-memory EvaluationCase values]
+  Cases --> Profiles[resolveScalingProjectProfiles]
+  Profiles --> Plugin[existing context-window-scaling plugin]
+  Plugin --> Raw[existing raw-full-file owner]
+  Plugin --> Guided[existing my-dev-kit retrieval owner]
+  Plugin --> Evidence[unchanged V1 scaling evidence / metrics / reports / plots]
+```
+
+Implemented ownership graph: `SyntheticRepositoryConfigV1` -> pure planner (`planSyntheticRepositories`, identity + PRNG owners) -> deterministic TypeScript/Python renderer -> filesystem materializer (`materializeSyntheticRepository`, staged write, collision/path-safety checks) -> per-repository generation manifest + read-only verifier (`verifySyntheticRepositoryMaterialization`) -> in-memory `EvaluationCase` adapter -> `syntheticInputs.ts` bridge (`prepareSyntheticContextWindowScalingInputs`) -> the existing `context-window-scaling` plugin, execution, scoring, reports, and plots. Each run writes `<experiment-output>/synthetic-repositories/<case-id>/repository/` plus a sibling `synthetic-repository-manifest.json`; the manifest records deterministic generation evidence and is separate from the scientific execution artifact. There is no second retrieval engine, experiment runner, or plugin.
+
+Ownership:
+
+- `src/evaluation/syntheticRepository/` owns the versioned synthetic configuration, strict validation, seed-to-generator identity, deterministic PRNG contract, pure topology/repository planning, TypeScript/Python rendering, contained materialization, generation manifest, file hashes, and generated `EvaluationCase`/answer-key construction.
+- `src/commands/runExperimentRunCommand.ts` owns the public `--synthetic-config <path>` option, invocation-CWD resolution of that read-only user input, rejection of `--case` combined with it, and the preparation order that resolves the run/output root before materialization.
+- `src/experiments/plugins/contextWindowScaling/` remains the scientific experiment owner. Its `ContextWindowScalingConfig` stays limited to `contextBudgets` and `kitCommand`; budget validation, treatment IDs, token estimator, context construction, deterministic fake-agent evaluation, metrics, V1 execution evidence, reports, and plot definitions remain unchanged.
+- `src/experiments/plugins/contextWindowScaling/projectProfile.ts` remains the profile adapter: generated cases supply an actual `absoluteTargetRoot`, and missing profiles are derived in memory from the existing `buildProjectFileTree` and `computeProjectComplexityMetrics` owners.
+- `src/evaluation/readEvaluationCases.ts` remains the bundled/static catalog reader. Its repository/package-root containment rule is not widened for v0.7.1.
+- `src/core/pathSafety.ts` remains the path-containment primitive. The generator adds no general arbitrary-path deletion API.
+- The existing security-fuzz PRNG under `src/securityValidation/fuzz/randomInput.ts` is not a benchmark dependency. v0.7.1 uses a generator-owned, explicitly versioned deterministic PRNG contract so evaluation does not depend on the security-validation subsystem.
+
+Generated-case identity boundary:
+
+- Each synthetic case specification produces one generated repository and one ordinary in-memory `EvaluationCase`.
+- `EvaluationCase.targetRoot` is a stable platform-neutral logical identity suitable for persisted evidence; `absoluteTargetRoot` is the run-owned physical path used by raw context and my-dev-kit indexing.
+- Generated profiles are never added to `REQUIRED_BENCHMARK_PROJECT_IDS` or `benchmark-project-profiles.json`.
+- The frozen v0.7.0 `context-window-scaling-cases.json` and `context-window-scaling-fixed-ts` tree remain package resources and immutable regression evidence.
+- Generated repositories live below the experiment output root, are not package resources, are not tracked benchmark fixtures, and are not included in the npm package.
+- Generation manifests are separate reproducibility artifacts. The v0.7.0 context-window execution schema does not need to be widened merely to represent generator configuration.
+
+Integration-order invariant:
+
+Synthetic materialization needs the final output root, so `runExperimentRunCommand` now orders work as: parse arguments and execution context -> create run id -> resolve the output root -> load plugin inputs -> call the generic runner. Explicit `--out` (resolved against the invocation directory) and the installed workspace default are unchanged. For a `--synthetic-config` run without either, the command computes the same `buildDefaultExperimentOutputRoot` value the runner would, and passes that one root both to `prepareSyntheticContextWindowScalingInputs` and to `runExperiment`; runs without `--synthetic-config` keep the runner's own default untouched. `--synthetic-config` is parsed as a command-level field (`syntheticConfigPath`) and is never forwarded to the plugin's `validateConfig`. The command only reads and JSON-parses the file; schema validation stays with the synthetic planner. `--case` is mutually exclusive with `--synthetic-config`: the bundled catalog is the only `--case` domain. v0.7.2 external/local repository experiments and v0.8.0 retrieval precision/recall remain future work.
+
+Determinism boundary:
+
+- Generation identity excludes timestamps, host paths, platform separators, locale, process state, and filesystem enumeration order.
+- All generated text uses explicit UTF-8/LF bytes.
+- Generated relative paths use POSIX separators.
+- Requested dimensions are checked for feasibility before materialization.
+- The pure planner determines all file identities, directory depth, symbols, import edges, repeated-pattern placement, task-locality target selection, and answer-key references before filesystem writes.
+- Materialization is a rendering/verification stage, not a second source of random or topology decisions.
+- Same configuration + seed must yield the same logical plan, generated bytes, file hashes, answer keys, and character/token measurements across supported operating systems.
 
 ## Expanded warm-index benchmark suite (v0.5.1)
 

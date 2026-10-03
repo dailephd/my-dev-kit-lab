@@ -598,7 +598,7 @@ All six metrics are warm-side only (they are not on the raw-full-file side, beca
 
 ## Context-window scaling evidence (v0.7.0)
 
-Status: **released in v0.7.0**. The `context-window-scaling` plugin compares `raw-full-file` and `my-dev-kit-guided` treatment contexts against selected estimated-token budgets. It runs the bundled case catalog against the fixed self target.
+Status: **released in v0.7.0**. The `context-window-scaling` plugin compares `raw-full-file` and `my-dev-kit-guided` treatment contexts against selected estimated-token budgets. By default it runs the bundled case catalog against the fixed self target; the v0.7.1 `--synthetic-config` input runs the same metrics over deterministic generated repositories without changing any formula below.
 
 ### Measurement and budget-cell semantics
 
@@ -619,6 +619,8 @@ For each budget and treatment, aggregate evidence includes `fitCount`, `contextT
 The generic `ExperimentMetric` projection emits run-level case and budget counts, plus per-budget/per-treatment fit count, too-large count, successful count, success rate, mean correctness, and mean utilization. Per-case treatment outcomes carry context estimated tokens, omitted relevant file count when available, and budget-scoped utilization, correctness score, and success evidence. Unavailable values remain null/unavailable with their evidence status; no value is fabricated as zero.
 
 The report artifact schema is `my-dev-kit-lab-context-window-scaling-report-v1`. It includes run summaries, budget-treatment summaries, per-treatment context measurements, budget cells, relevant-file summary, and fixed interpretation limits. The execution artifact is `context-window-scaling-execution.json` (`my-dev-kit-lab-context-window-scaling-execution-v1`) and does not embed context text.
+
+**Synthetic-repository runs (v0.7.1).** The synthetic input introduces no new scientific metric: fit, utilization, correctness, success, and omitted-relevant-file semantics, the execution artifact schema, the report schema, and the plot set are identical to the bundled-corpus run. Each generated repository's `synthetic-repository-manifest.json` records generation evidence (per-file byte length, character count, SHA-256, generated-content estimated tokens, aggregate totals, and `repositoryContentIdentity`); these are reproducibility measurements, not context-window outcome metrics. The raw-full-file treatment context is measured by the existing baseline, which adds file headers and separators, so its estimated tokens differ from the manifest's generated-content estimate. Retrieval precision/recall remains v0.8.0 scope.
 
 There is no composite score, winner, or ranking. Budgets are experiment thresholds, not assertions about actual provider context-window capacities. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [ARCHITECTURE.md](ARCHITECTURE.md).
 

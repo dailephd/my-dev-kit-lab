@@ -10,7 +10,7 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package. The v0.7.0 `context-window-scaling` command surface is included in the current 0.7.0 package.
+This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.7.1 package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -274,21 +274,48 @@ my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
-#### `context-window-scaling` (released in v0.7.0)
+#### `context-window-scaling` (released in v0.7.0; `--synthetic-config` added in v0.7.1)
 
 ```text
 my-dev-kit-lab experiment describe --experiment context-window-scaling
-my-dev-kit-lab experiment run --experiment context-window-scaling [--out <dir>] [--case <ids>] [--context-budgets <values>] [--kit-command <command>]
+my-dev-kit-lab experiment run --experiment context-window-scaling [--out <dir>] [--case <ids> | --synthetic-config <path>] [--context-budgets <values>] [--kit-command <command>]
 ```
 
-The plugin compares `raw-full-file` and `my-dev-kit-guided` on the bundled self-target case catalog. Its default my-dev-kit command is `npx @dailephd/my-dev-kit@latest`.
+The plugin compares `raw-full-file` and `my-dev-kit-guided` on the bundled self-target case catalog by default, or on caller-supplied deterministic synthetic repositories when `--synthetic-config` is given. Its default my-dev-kit command is `npx @dailephd/my-dev-kit@latest`.
 
 | Option | Allowed value or default |
 |---|---|
 | `--out <dir>` | Optional output directory; when omitted the normal experiment default applies beneath `lab-output/experiments/` in a source checkout or the installed workspace |
-| `--case <ids>` | Optional comma-separated filter over the bundled four-case catalog |
+| `--case <ids>` | Optional comma-separated filter over the bundled four-case catalog; mutually exclusive with `--synthetic-config` |
+| `--synthetic-config <path>` | Optional path to a `SyntheticRepositoryConfigV1` JSON file (read-only user input). A relative path resolves against the invocation directory. May be given once, and is mutually exclusive with `--case` because the config owns the generated case set. Generated repositories are written beneath the selected experiment output directory (see below). Without it, the bundled four-case catalog and fixed project are used unchanged |
 | `--context-budgets <values>` | Optional comma-separated budgets: `8k`, `16k`, `32k`, `64k`, or positive safe integers such as `12000`; defaults to `8k,16k,32k,64k`. Values are normalized, sorted, and duplicate values after normalization are rejected |
 | `--kit-command <command>` | Optional command for my-dev-kit-guided retrieval; defaults to `npx @dailephd/my-dev-kit@latest` |
+
+`--synthetic-config` is a command input selector, not a plugin config field: the plugin's own config remains `contextBudgets` and `kitCommand`, and `--synthetic-config` is rejected for every other experiment. An invalid, unreadable, or infeasible config, or a materialization collision, fails with exit code 1 before any execution artifact or report is written. With `--synthetic-config`, generated repositories live under `<experiment-output>/synthetic-repositories/<case-id>/` as `repository/` plus `synthetic-repository-manifest.json`. They are disposable runtime output, are not benchmark-project-profile entries, and the manifest is separate from the execution artifact (whose V1 schema is unchanged). A minimal config:
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "cases": [
+    {
+      "id": "synth-ts",
+      "language": "typescript",
+      "seed": "example",
+      "sourceFileCount": 6,
+      "moduleDepth": 3,
+      "internalImportCount": 6,
+      "symbolCount": 12,
+      "testFileCount": 3,
+      "taskLocality": "cross-module",
+      "repeatedPatternCount": 3
+    }
+  ]
+}
+```
+
+```text
+my-dev-kit-lab experiment run --experiment context-window-scaling --synthetic-config <path-to-config.json> [--out <run-dir>]
+```
 
 The plugin is self-only and rejects external targets and unrelated common/plugin options. Budgets classify the estimated size of each constructed context; they do not truncate/rebuild contexts or configure a provider model window. Correctness comes from one deterministic fake-agent evaluation per treatment and is context-independent in the current harness. The execution artifact and reports contain bounded evidence, never context text. See [WORKFLOWS.md](WORKFLOWS.md#context-window-scaling-experiment-v070) and [METRICS.md](METRICS.md#context-window-scaling-evidence-v070).
 

@@ -47,7 +47,8 @@
         "manual pentest",
         "tutorial",
         "Chromium",
-        "incremental-change-staleness"
+        "incremental-change-staleness",
+        "--synthetic-config"
       ]
     },
     "docs/PROJECT_OVERVIEW.md": {
@@ -143,7 +144,10 @@
         "src/experiments/plugins/warmIndexReuse",
         "affected-neighborhood",
         "src/experiments/plugins/incrementalChangeStaleness",
-        "incremental-change-staleness"
+        "incremental-change-staleness",
+        "SyntheticRepositoryConfigV1",
+        "synthetic-repositories",
+        "syntheticInputs"
       ]
     },
     "docs/COMMANDS.md": {
@@ -176,7 +180,10 @@
         "--kit-command",
         "--campaign",
         "--include-real-agents",
-        "incremental-change-staleness"
+        "incremental-change-staleness",
+        "--synthetic-config",
+        "SyntheticRepositoryConfigV1",
+        "synthetic-repositories"
       ]
     },
     "docs/WORKFLOWS.md": {
@@ -210,7 +217,9 @@
         "tutorial",
         "Chromium",
         "--campaign",
-        "incremental-change-staleness"
+        "incremental-change-staleness",
+        "--synthetic-config",
+        "synthetic-repositories"
       ]
     },
     "docs/TUTORIAL.md": {
@@ -239,7 +248,8 @@
       "requiredTopics": [
         "affected-neighborhood",
         "reindexRecommendation",
-        "incremental-change-staleness"
+        "incremental-change-staleness",
+        "synthetic-repository-manifest"
       ]
     },
     "docs/GALLERY.md": {
@@ -398,13 +408,14 @@
       "0.6.1",
       "0.6.2",
       "0.6.3",
-      "0.7.0"
+      "0.7.0",
+      "0.7.1"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.7.0",
+    "latestPublishedVersion": "0.7.1",
     "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.7.1",
+    "nextPlannedVersion": "0.7.2",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",

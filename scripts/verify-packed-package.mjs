@@ -109,6 +109,15 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/experiments/plugins/contextWindowScaling/cliBudgets.js",
   "dist/src/experiments/plugins/contextWindowScaling/executionArtifactReader.js",
   "dist/src/experiments/plugins/contextWindowScaling/metrics.js",
+  // v0.7.1 -- synthetic repository planning, materialization, manifest, verification, case adapter, and the
+  // context-window-scaling synthetic input bridge.
+  "dist/src/experiments/plugins/contextWindowScaling/syntheticInputs.js",
+  "dist/src/evaluation/syntheticRepository/index.js",
+  "dist/src/evaluation/syntheticRepository/planning.js",
+  "dist/src/evaluation/syntheticRepository/materialize.js",
+  "dist/src/evaluation/syntheticRepository/manifest.js",
+  "dist/src/evaluation/syntheticRepository/manifestVerification.js",
+  "dist/src/evaluation/syntheticRepository/evaluationCase.js",
   "dist/src/report/experiments/buildContextWindowScalingReport.js",
   "dist/src/plots/buildContextWindowScalingPlotData.js",
   "benchmarks/contracts/context-window-scaling-cases.json",
@@ -1602,6 +1611,137 @@ async function main() {
     console.log("CONTEXT_WINDOW_SCALING_REPORTS: PASS (report.json, report.txt, report.html)");
     console.log("CONTEXT_WINDOW_SCALING_PLOTS: PASS (exactly three SVG plots; null correctness skipped; custom budgets preserved)");
     console.log("CONTEXT_WINDOW_SCALING_IMMUTABILITY: PASS (bundled fixed project and case contract unchanged)");
+
+    // -----------------------------------------------------------------
+    // 9c-4b. v0.7.1 context-window-scaling --synthetic-config installed-package
+    // acceptance. The SMALL TypeScript + Python config is authored here, inside
+    // the disposable workspace (never sourced from the checkout), and the run goes
+    // through the installed bin. Inputs and outputs live under paths containing
+    // spaces. The legacy bundled-corpus run above is retained unchanged.
+    // -----------------------------------------------------------------
+    const SYNTHETIC_CASE_SPECS = [
+      { id: "pack-ts", language: "typescript", seed: "packed", sourceFileCount: 6, moduleDepth: 3, internalImportCount: 6, symbolCount: 12, testFileCount: 3, taskLocality: "cross-module", repeatedPatternCount: 3 },
+      { id: "pack-py", language: "python", seed: "packed", sourceFileCount: 6, moduleDepth: 3, internalImportCount: 6, symbolCount: 12, testFileCount: 3, taskLocality: "localized", repeatedPatternCount: 3 }
+    ];
+    const SYNTHETIC_CASE_IDS = ["pack-py-task", "pack-ts-task"];
+    const syntheticRunHelp = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--help"], envWithBin);
+    const syntheticHelpText = (syntheticRunHelp.stdout ?? "").replace(/\s+/g, " ");
+    if (
+      syntheticRunHelp.status !== 0 ||
+      !syntheticHelpText.includes("--synthetic-config <path>") ||
+      !syntheticHelpText.includes("SyntheticRepositoryConfigV1") ||
+      !syntheticHelpText.includes("Mutually exclusive with --case") ||
+      !syntheticHelpText.includes("bundled four-case catalog")
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_HELP", "Installed `experiment run --help` does not document --synthetic-config, its mutual exclusion with --case, and the bundled default.", describeChildResult(syntheticRunHelp));
+    }
+    const syntheticDescribeResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "describe", "--experiment", SCALING_ID, "--json"], envWithBin);
+    const syntheticDescribed = parseJsonOutput(syntheticDescribeResult, "CONTEXT_WINDOW_SCALING_SYNTHETIC_DESCRIBE");
+    const syntheticListed = knownExperiments.filter((entry) => entry.id === SCALING_ID);
+    if (
+      syntheticDescribeResult.status !== 0 ||
+      JSON.stringify((syntheticDescribed.optionalConfigFields ?? []).map((field) => field.name)) !== JSON.stringify(["contextBudgets", "kitCommand"]) ||
+      (syntheticDescribed.requiredConfigFields ?? []).length !== 0 ||
+      !(syntheticDescribed.examples ?? []).some((example) => example.includes("--synthetic-config")) ||
+      !String(syntheticDescribed.targetBehavior ?? "").includes("--synthetic-config") ||
+      syntheticListed.length !== 1
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_DESCRIBE", `Installed describe/list does not expose --synthetic-config as a command input selector (config fields must stay contextBudgets, kitCommand): ${syntheticDescribeResult.stdout}`);
+    }
+    console.log("CONTEXT_WINDOW_SCALING_SYNTHETIC_HELP: PASS (--synthetic-config, mutual exclusion with --case, bundled default documented)");
+    console.log("CONTEXT_WINDOW_SCALING_SYNTHETIC_DESCRIBE: PASS (selector exposed as command input; config fields stay contextBudgets, kitCommand; one list entry)");
+
+    const syntheticInputDir = path.join(dirs.workspace, "synthetic input dir");
+    mkdirSync(syntheticInputDir, { recursive: true });
+    const syntheticConfigPath = path.join(syntheticInputDir, "synthetic config.json");
+    writeFileSync(syntheticConfigPath, JSON.stringify({ schemaVersion: "1.0.0", cases: SYNTHETIC_CASE_SPECS }, null, 2), "utf8");
+    const syntheticConfigBefore = readFileSync(syntheticConfigPath, "utf8");
+    const syntheticFakeKitScript = path.join(dirs.fakeKit, "fake-synthetic-kit.cjs");
+    writeFileSync(syntheticFakeKitScript, readFileSync(path.join(REPO_ROOT, "tests", "fixtures", "fake-synthetic-kit-cli.cjs"), "utf8"), "utf8");
+    const syntheticKitCommand = `"${process.execPath}" "${syntheticFakeKitScript}"`;
+    const syntheticOut = path.join(dirs.workspace, "synthetic run out");
+    const syntheticSourceCorpus = [
+      path.join(REPO_ROOT, "benchmarks", "projects", "context-window-scaling-fixed-ts"),
+      path.join(REPO_ROOT, "benchmarks", "contracts")
+    ];
+    const syntheticSourceBefore = await Promise.all(syntheticSourceCorpus.map((root) => snapshotDirectory(root)));
+    const syntheticInstalledBefore = [await snapshotDirectory(scalingProjectRoot), await snapshotDirectory(scalingContractsRoot)];
+
+    const rejectedMix = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["experiment", "run", "--experiment", SCALING_ID, "--synthetic-config", syntheticConfigPath, "--case", "ctx-scale-a-8k-16k", "--kit-command", syntheticKitCommand, "--out", syntheticOut],
+      envWithBin
+    );
+    if (rejectedMix.status === 0 || existsSync(syntheticOut)) {
+      fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_RUN", "Installed run accepted --case together with --synthetic-config.", describeChildResult(rejectedMix));
+    }
+
+    const syntheticRun = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["experiment", "run", "--experiment", SCALING_ID, "--synthetic-config", syntheticConfigPath, "--context-budgets", "8k,16k", "--kit-command", syntheticKitCommand, "--out", syntheticOut],
+      envWithBin
+    );
+    if (syntheticRun.status !== 0) {
+      fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_RUN", "Installed context-window-scaling --synthetic-config run did not exit 0.", describeChildResult(syntheticRun));
+    }
+    assertOutputOutsidePackage(syntheticOut, installedPackageRoot, "context-window-scaling synthetic run");
+    for (const name of ["context-window-scaling-execution.json", "report.json", "report.txt", "report.html"]) {
+      requireNonEmptyFile(path.join(syntheticOut, name), "CONTEXT_WINDOW_SCALING_SYNTHETIC_RUN");
+    }
+    const syntheticArtifactText = readFileSync(path.join(syntheticOut, "context-window-scaling-execution.json"), "utf8");
+    const syntheticArtifact = JSON.parse(syntheticArtifactText);
+    if (
+      syntheticArtifact.schemaVersion !== "my-dev-kit-lab-context-window-scaling-execution-v1" ||
+      JSON.stringify(syntheticArtifact.contextBudgets) !== JSON.stringify([8192, 16384]) ||
+      JSON.stringify(syntheticArtifact.cases.map((entry) => entry.caseId)) !== JSON.stringify(SYNTHETIC_CASE_IDS)
+    ) {
+      fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_RUN", "Installed synthetic execution artifact is not the V1 schema over the two generated cases in normalized order.");
+    }
+    for (const hostPath of [dirs.workspace, dirs.consumer, syntheticOut, syntheticConfigPath, installedPackageRoot, tempRoot]) {
+      if (syntheticArtifactText.includes(hostPath) || syntheticArtifactText.includes(JSON.stringify(hostPath).slice(1, -1))) {
+        fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_RUN", `Execution artifact leaks host path ${hostPath}.`);
+      }
+    }
+    for (const entry of syntheticArtifact.cases) {
+      const guided = entry.treatments.find((treatment) => treatment.variantId === "my-dev-kit-guided");
+      if (guided?.context?.status !== "available") {
+        fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_RUN", `Guided treatment for ${entry.caseId} did not produce available context with the deterministic fake kit.`);
+      }
+    }
+    console.log("CONTEXT_WINDOW_SCALING_SYNTHETIC_RUN: PASS (installed bin, space-containing paths, TypeScript + Python cases, V1 artifact, reports, no host paths)");
+
+    const installedSyntheticModule = await import(
+      pathToFileURL(path.join(installedPackageRoot, "dist", "src", "evaluation", "syntheticRepository", "index.js")).href
+    );
+    for (const spec of SYNTHETIC_CASE_SPECS) {
+      const caseDir = path.join(syntheticOut, "synthetic-repositories", spec.id);
+      const repositoryRoot = path.join(caseDir, "repository");
+      const manifestPath = path.join(caseDir, "synthetic-repository-manifest.json");
+      if (!existsSync(repositoryRoot) || !existsSync(manifestPath)) {
+        fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_MANIFESTS", `Generated ${spec.language} repository or manifest is missing for ${spec.id}.`);
+      }
+      if (path.relative(installedPackageRoot, repositoryRoot).startsWith("..") === false) {
+        fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_MANIFESTS", `Generated repository ${spec.id} is inside the installed package tree.`);
+      }
+      const verification = installedSyntheticModule.verifySyntheticRepositoryMaterialization({ manifestPath, repositoryRoot });
+      if (!verification.ok || verification.issues.length > 0) {
+        fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_MANIFESTS", `Installed verifier rejected ${spec.id}: ${verification.issues.join("; ")}`);
+      }
+    }
+    console.log("CONTEXT_WINDOW_SCALING_SYNTHETIC_MANIFESTS: PASS (TypeScript and Python repositories + manifests verified by the installed compiled verifier, outside the package tree)");
+
+    const syntheticSourceAfter = await Promise.all(syntheticSourceCorpus.map((root) => snapshotDirectory(root)));
+    const syntheticInstalledAfter = [await snapshotDirectory(scalingProjectRoot), await snapshotDirectory(scalingContractsRoot)];
+    const syntheticChanges = [
+      ...syntheticSourceBefore.flatMap((before, index) => diffSnapshots(before, syntheticSourceAfter[index])),
+      ...syntheticInstalledBefore.flatMap((before, index) => diffSnapshots(before, syntheticInstalledAfter[index]))
+    ];
+    if (syntheticChanges.length > 0 || readFileSync(syntheticConfigPath, "utf8") !== syntheticConfigBefore) {
+      fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_IMMUTABILITY", `Frozen corpus or synthetic input changed during the synthetic run: ${syntheticChanges.join(", ")}`);
+    }
+    console.log("CONTEXT_WINDOW_SCALING_SYNTHETIC_IMMUTABILITY: PASS (input config, frozen corpus in checkout and installed package unchanged; whole-run package diff checked later)");
 
     // -----------------------------------------------------------------
     // 9c-3. v0.6.2 incremental-change-staleness installed-package acceptance
