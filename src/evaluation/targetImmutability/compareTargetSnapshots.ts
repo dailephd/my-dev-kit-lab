@@ -103,6 +103,21 @@ export function compareTargetSnapshots(
     }
   }
 
+  if (
+    (before.git.ignoredPaths !== undefined || after.git.ignoredPaths !== undefined) &&
+    !isDeepStrictEqual(before.git.ignoredPaths ?? null, after.git.ignoredPaths ?? null)
+  ) {
+    mutations.push(
+      mutation(
+        "git.ignored-paths",
+        "git-ignored-paths",
+        "git.ignoredPaths",
+        (before.git.ignoredPaths ?? null) as unknown as JsonValue,
+        (after.git.ignoredPaths ?? null) as unknown as JsonValue
+      )
+    );
+  }
+
   const afterConfiguredByPath = new Map(after.configuredFiles.map((entry) => [entry.relativePath, entry]));
   for (const beforeEntry of before.configuredFiles) {
     const afterEntry = afterConfiguredByPath.get(beforeEntry.relativePath);

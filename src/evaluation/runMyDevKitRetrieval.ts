@@ -194,6 +194,12 @@ export async function buildMyDevKitIndex(options: {
   commandsDir: string;
   requireKit: boolean;
   mode?: MyDevKitIndexBuildMode;
+  /**
+   * Exact repository-relative file or directory paths passed as repeated `--exclude` arguments. Absent or empty
+   * adds no argument. Callers must pass paths, never bare names, because a bare name excludes every directory of
+   * that name.
+   */
+  excludePaths?: readonly string[];
 }): Promise<MyDevKitIndexBuildResult> {
   const warnings: string[] = [];
   const mode: MyDevKitIndexBuildMode = options.mode ?? { kind: "full" };
@@ -207,6 +213,7 @@ export async function buildMyDevKitIndex(options: {
       "--root",
       options.target.absoluteTargetRoot,
       ...options.target.sourceRoots.flatMap((sourceRoot) => ["--src", sourceRoot]),
+      ...(options.excludePaths ?? []).flatMap((excludePath) => ["--exclude", excludePath]),
       "--out",
       options.indexDir,
       ...(mode.kind === "incremental" ? ["--incremental", "--refresh-scope", mode.refreshScope] : []),
@@ -392,6 +399,8 @@ export async function runMyDevKitRetrieval(options: {
   kitCommand: string;
   outputDir: string;
   requireKit: boolean;
+  /** See `buildMyDevKitIndex`; applied only to the index command. */
+  excludePaths?: readonly string[];
 }): Promise<MyDevKitRetrievalResult> {
   const started = Date.now();
   const commandsDir = path.join(options.outputDir, "commands", options.evaluationCase.id);
@@ -402,7 +411,8 @@ export async function runMyDevKitRetrieval(options: {
     kitCommand: options.kitCommand,
     indexDir,
     commandsDir,
-    requireKit: options.requireKit
+    requireKit: options.requireKit,
+    excludePaths: options.excludePaths
   });
   if (!index.ok) {
     return skippedRetrieval(options.evaluationCase.id, [...index.warnings], [index.command], Date.now() - started);

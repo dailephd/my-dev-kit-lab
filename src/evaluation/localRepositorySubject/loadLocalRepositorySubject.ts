@@ -12,6 +12,7 @@ import { buildLocalRepositorySubjectManifest } from "./manifest.js";
 import {
   DEFAULT_LOCAL_REPOSITORY_SUBJECT_MAX_FILE_BYTES,
   LocalRepositorySubjectConfigError,
+  compareCodeUnits,
   logicalTargetRootForSubject,
 } from "./types.js";
 import type { LocalRepositorySubject } from "./types.js";
@@ -66,5 +67,9 @@ export async function loadLocalRepositorySubject(options: LoadLocalRepositorySub
     manifest,
     evaluationCases: buildLocalRepositorySubjectEvaluationCases(config, repositoryRoot),
     eligibleFiles: inventory.eligibleFiles.map((file) => file.path),
+    runtimeSafetyExclusions: {
+      gitIgnoredFiles: [...inventory.ignoredFiles].sort(compareCodeUnits),
+      oversizedFiles: [...inventory.oversizedFiles].sort(compareCodeUnits),
+    },
   };
 }

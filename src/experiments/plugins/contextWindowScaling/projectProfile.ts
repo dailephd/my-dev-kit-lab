@@ -12,9 +12,18 @@ import type { BenchmarkProjectProfile, EvaluationCase } from "../../../evaluatio
  * existing prompt owner requires a profile per case, so a missing one is derived in memory from
  * the existing file-tree and complexity owners. Supplied profiles always win; nothing is written.
  */
+export type ScalingProjectProfileOptions = {
+  /**
+   * Repository-relative regular files that are the only files the derived profiles may list or open (a local
+   * subject's Batch 1 eligible files). Absent for bundled and synthetic subjects, which keep the legacy walk.
+   */
+  eligibleFiles?: readonly string[];
+};
+
 export function resolveScalingProjectProfiles(
   cases: readonly EvaluationCase[],
-  supplied: readonly BenchmarkProjectProfile[]
+  supplied: readonly BenchmarkProjectProfile[],
+  options: ScalingProjectProfileOptions = {}
 ): BenchmarkProjectProfile[] {
   const profiles = [...supplied];
   const known = new Set(profiles.map((profile) => profile.projectId));
@@ -22,7 +31,7 @@ export function resolveScalingProjectProfiles(
     const profileId = evaluationCase.projectProfileRef ?? evaluationCase.benchmarkProject;
     if (known.has(profileId)) continue;
     known.add(profileId);
-    profiles.push(deriveProfile(profileId, evaluationCase, cases));
+    profiles.push(deriveProfile(profileId, evaluationCase, cases, options));
   }
   return profiles;
 }
@@ -30,10 +39,14 @@ export function resolveScalingProjectProfiles(
 function deriveProfile(
   profileId: string,
   evaluationCase: EvaluationCase,
-  cases: readonly EvaluationCase[]
+  cases: readonly EvaluationCase[],
+  options: ScalingProjectProfileOptions
 ): BenchmarkProjectProfile {
   const siblings = cases.filter((candidate) => (candidate.projectProfileRef ?? candidate.benchmarkProject) === profileId);
-  const fileTree = buildProjectFileTree(evaluationCase.absoluteTargetRoot);
+  const fileTree = buildProjectFileTree(
+    evaluationCase.absoluteTargetRoot,
+    options.eligibleFiles === undefined ? {} : { allowedRelativeFiles: options.eligibleFiles }
+  );
   const average = (values: number[]) => (values.length === 0 ? 0 : values.reduce((a, b) => a + b, 0) / values.length);
   const complexityMetrics = computeProjectComplexityMetrics(evaluationCase.absoluteTargetRoot, fileTree, {
     taskCount: siblings.length,

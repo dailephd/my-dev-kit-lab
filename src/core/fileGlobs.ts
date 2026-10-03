@@ -113,3 +113,41 @@ export function collectFilesForGlobs(targetRoot: string, globs: string[]): { abs
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([relativePath, absolutePath]) => ({ relativePath, absolutePath }));
 }
+
+/**
+ * Pure counterpart of `collectFilesForGlobs` for a caller-supplied, already validated list of repository-relative
+ * file paths. It applies the same glob matching and the same walk exclusions (excluded directory names below the
+ * glob base directory, temp files) and the same ordering, but never touches the filesystem, so the caller decides
+ * which files may be opened at all. Unlike the walking variant it does not require the base directory to exist.
+ */
+export function selectRelativePathsForGlobs(relativePaths: readonly string[], globs: readonly string[]): string[] {
+  const selected = new Set<string>();
+
+  for (const globPattern of globs) {
+    if (!globPattern || typeof globPattern !== "string") {
+      throw new Error("Invalid glob pattern.");
+    }
+    const baseDir = baseDirectoryFromGlob(globPattern);
+    if (baseDir.split("/").includes("..") || path.isAbsolute(baseDir)) {
+      throw new Error(`Resolved path escapes target root: ${globPattern}`);
+    }
+    const normalizedBase = baseDir === "." ? "" : baseDir.replace(/\/+$/, "");
+
+    for (const relativePath of relativePaths) {
+      const normalizedPath = relativePath.replace(/\\/g, "/");
+      if (normalizedPath === normalizedBase) {
+        // An exact file base is used as-is by the walking variant (no walk exclusions apply).
+        if (matchesGlob(normalizedPath, globPattern)) selected.add(normalizedPath);
+        continue;
+      }
+      if (normalizedBase !== "" && !normalizedPath.startsWith(`${normalizedBase}/`)) continue;
+      const belowBase = normalizedBase === "" ? normalizedPath : normalizedPath.slice(normalizedBase.length + 1);
+      const directorySegments = belowBase.split("/").slice(0, -1);
+      if (directorySegments.some((segment) => excludedDirNames.has(segment))) continue;
+      if (isTempFile(normalizedPath)) continue;
+      if (matchesGlob(normalizedPath, globPattern)) selected.add(normalizedPath);
+    }
+  }
+
+  return [...selected].sort((a, b) => a.localeCompare(b));
+}

@@ -127,6 +127,15 @@ export type LocalRepositorySubjectManifestV1 = {
   };
 };
 
+/**
+ * Runtime-only exclusion evidence for safe execution (for example exact guided-index exclusions). Exact private
+ * repository-relative paths; never part of the manifest and never to be persisted or serialized into artifacts.
+ */
+export type LocalRepositorySubjectRuntimeSafetyExclusions = {
+  gitIgnoredFiles: readonly string[];
+  oversizedFiles: readonly string[];
+};
+
 /** Runtime-only object: carries the physical repository root and eligible file paths; never persist directly. */
 export type LocalRepositorySubject = {
   subjectId: string;
@@ -135,6 +144,7 @@ export type LocalRepositorySubject = {
   manifest: LocalRepositorySubjectManifestV1;
   evaluationCases: EvaluationCase[];
   eligibleFiles: string[];
+  runtimeSafetyExclusions: LocalRepositorySubjectRuntimeSafetyExclusions;
 };
 
 export function logicalTargetRootForSubject(subjectId: string): string {
