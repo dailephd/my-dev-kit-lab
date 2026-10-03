@@ -119,6 +119,26 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/evaluation/syntheticRepository/manifestVerification.js",
   "dist/src/evaluation/syntheticRepository/evaluationCase.js",
   "dist/src/report/experiments/buildContextWindowScalingReport.js",
+  // v0.7.2 -- local-repository subject, safe execution lifecycle, privacy projection, and target immutability owners.
+  "dist/src/evaluation/localRepositorySubject/index.js",
+  "dist/src/evaluation/localRepositorySubject/config.js",
+  "dist/src/evaluation/localRepositorySubject/gitRepository.js",
+  "dist/src/evaluation/localRepositorySubject/inventory.js",
+  "dist/src/evaluation/localRepositorySubject/loadLocalRepositorySubject.js",
+  "dist/src/evaluation/localRepositorySubject/manifest.js",
+  "dist/src/evaluation/localRepositorySubject/evaluationCase.js",
+  "dist/src/evaluation/localRepositorySubject/expectedFiles.js",
+  "dist/src/evaluation/targetImmutability/index.js",
+  "dist/src/evaluation/targetImmutability/captureTargetSnapshot.js",
+  "dist/src/evaluation/targetImmutability/compareTargetSnapshots.js",
+  "dist/src/experiments/plugins/contextWindowScaling/localSubjectExecution.js",
+  "dist/src/experiments/plugins/contextWindowScaling/localSubjectScratch.js",
+  "dist/src/experiments/plugins/contextWindowScaling/localSubjectExclusions.js",
+  "dist/src/experiments/plugins/contextWindowScaling/localSubjectErrors.js",
+  "dist/src/experiments/plugins/contextWindowScaling/localSubjectPrivacy.js",
+  "dist/src/experiments/plugins/contextWindowScaling/executionArtifact.js",
+  "dist/src/report/experiments/writePluginExperimentReports.js",
+  "dist/src/report/experiments/renderPluginExperimentReportHtml.js",
   "dist/src/plots/buildContextWindowScalingPlotData.js",
   "benchmarks/contracts/context-window-scaling-cases.json",
   "benchmarks/projects/context-window-scaling-fixed-ts/src/tasks/shippingQuote.ts",
@@ -383,6 +403,14 @@ const PUBLIC_ROUTE_HELP_SMOKES = [
 // dynamically from dist/ here since this script only ever runs after a
 // build (see the dist/scripts/cli.js check in main()).
 // ---------------------------------------------------------------------------
+
+async function loadPrivacyScan() {
+  const modulePath = path.join(REPO_ROOT, "dist", "scripts", "externalLocalPrivacyScan.js");
+  if (!existsSync(modulePath)) {
+    fail("BUILD_REQUIRED", `Compiled module not found: ${path.relative(REPO_ROOT, modulePath)}. Run "npm run build" before "npm run verify:packed-package".`);
+  }
+  return import(pathToFileURL(modulePath).href);
+}
 
 async function loadHelpers() {
   const modulePath = path.join(REPO_ROOT, "dist", "scripts", "verifyPackedPackageHelpers.js");
@@ -1476,7 +1504,7 @@ async function main() {
       scalingListed[0].status !== "experimental" ||
       JSON.stringify(scalingListed[0].supportedVariants) !== JSON.stringify(SCALING_VARIANTS) ||
       JSON.stringify(scalingListed[0].supportedOutputs) !== JSON.stringify(SCALING_OUTPUTS) ||
-      JSON.stringify(scalingListed[0].supportedTargets) !== JSON.stringify(["self"])
+      JSON.stringify(scalingListed[0].supportedTargets) !== JSON.stringify(["self", "external-local"])
     ) {
       fail("CONTEXT_WINDOW_SCALING_DISCOVERY", `Installed experiment list lacks the expected context-window-scaling entry: ${JSON.stringify(scalingListed)}`);
     }
@@ -1488,7 +1516,7 @@ async function main() {
     if (
       scalingDescribed.metadata?.id !== SCALING_ID ||
       scalingDescribed.metadata?.status !== "experimental" ||
-      JSON.stringify(scalingDescribed.metadata?.supportedTargets) !== JSON.stringify(["self"]) ||
+      JSON.stringify(scalingDescribed.metadata?.supportedTargets) !== JSON.stringify(["self", "external-local"]) ||
       JSON.stringify(scalingDescribed.metadata?.supportedOutputs) !== JSON.stringify(SCALING_OUTPUTS) ||
       JSON.stringify(scalingDescribed.supportedVariants) !== JSON.stringify(SCALING_VARIANTS)
     ) {
@@ -1605,7 +1633,7 @@ async function main() {
     if (scalingProjectChanges.length > 0 || scalingContractsChanges.length > 0) {
       fail("CONTEXT_WINDOW_SCALING_IMMUTABILITY", `Bundled benchmark resources changed during execution: ${[...scalingProjectChanges, ...scalingContractsChanges].join(", ")}`);
     }
-    console.log("CONTEXT_WINDOW_SCALING_DISCOVERY: PASS (listed and described as experimental, self-only, json/text/html/plot)");
+    console.log("CONTEXT_WINDOW_SCALING_DISCOVERY: PASS (listed and described as experimental, self + external-local targets, json/text/html/plot)");
     console.log("CONTEXT_WINDOW_SCALING_RUN: PASS (installed bin, cwd outside checkout and package, fake kit, bundled case catalog and fixed project)");
     console.log("CONTEXT_WINDOW_SCALING_ARTIFACT: PASS (V1 schema; standard and custom budgets; case filter)");
     console.log("CONTEXT_WINDOW_SCALING_REPORTS: PASS (report.json, report.txt, report.html)");
@@ -1742,6 +1770,183 @@ async function main() {
       fail("CONTEXT_WINDOW_SCALING_SYNTHETIC_IMMUTABILITY", `Frozen corpus or synthetic input changed during the synthetic run: ${syntheticChanges.join(", ")}`);
     }
     console.log("CONTEXT_WINDOW_SCALING_SYNTHETIC_IMMUTABILITY: PASS (input config, frozen corpus in checkout and installed package unchanged; whole-run package diff checked later)");
+
+    // -----------------------------------------------------------------
+    // 9c-4c. v0.7.2 installed-package external-local repository acceptance.
+    // The INSTALLED bin runs context-window-scaling against a disposable
+    // local Git repository (paths with spaces, nested sources, an ignored
+    // private file and an oversized file) with the REAL published my-dev-kit
+    // resolved above (realKitCommand) -- never a fake kit and never a
+    // source-checkout import. It proves command compatibility, safe
+    // exclusions, completion, cleanup, target immutability and privacy-safe
+    // durable output; it asserts no retrieval winner and no quality metric.
+    // -----------------------------------------------------------------
+    {
+      const gate = "CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT";
+      const privacyScan = await loadPrivacyScan();
+      const LOCAL_MARKERS = {
+        eligible: "PACKED_ELIGIBLE_MARKER_4c1d",
+        ignoredFile: "PACKED_IGNORED_MARKER_8e20",
+        ignoredDirectory: "PACKED_IGNORED_DIR_MARKER_b7a3",
+        oversized: "PACKED_OVERSIZED_MARKER_61f9"
+      };
+      const localArea = path.join(tempRoot, "local subject area");
+      const localTarget = path.join(localArea, "target repo", "inner project");
+      const localConfigPath = path.join(localArea, "config dir", "local subject.json");
+      const localOut = path.join(dirs.workspace, "local subject out", "run");
+      const gitEnv = { ...process.env, GIT_OPTIONAL_LOCKS: "0" };
+      for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX"]) delete gitEnv[key];
+      const localGit = (...args) => {
+        const result = spawnSync(
+          "git",
+          ["-c", "user.name=Packed Gate", "-c", "user.email=packed-gate@example.invalid", "-c", "commit.gpgsign=false", ...args],
+          { cwd: localTarget, encoding: "utf8", env: gitEnv }
+        );
+        if (result.status !== 0) fail(gate, `git ${args[0]} failed while preparing the disposable local subject.`, describeChildResult(result));
+        return result.stdout;
+      };
+      const localWrite = (relative, content) => {
+        const absolute = path.join(localTarget, ...relative.split("/"));
+        mkdirSync(path.dirname(absolute), { recursive: true });
+        writeFileSync(absolute, content, "utf8");
+      };
+      mkdirSync(localTarget, { recursive: true });
+      localGit("init", "-q", "-b", "main");
+      localWrite(".gitignore", "src/private notes.ts\nsrc/gen/\n");
+      localWrite("src/app/main.ts", `export function computeTotal(values: number[]): number { return values.reduce((sum, value) => sum + value, 0); } // ${LOCAL_MARKERS.eligible}\n`);
+      localWrite("src/app/util/helper.ts", "export const helper = 2;\n");
+      localWrite("src/huge file.ts", `// ${LOCAL_MARKERS.oversized}\n${"x".repeat(1_048_576 + 100)}\n`);
+      localGit("add", "-A");
+      localGit("commit", "-q", "-m", "packed fixture");
+      localWrite("src/private notes.ts", `export const privateNotes = 1; // ${LOCAL_MARKERS.ignoredFile}\n`);
+      localWrite("src/gen/out.ts", `export const generated = 1; // ${LOCAL_MARKERS.ignoredDirectory}\n`);
+      mkdirSync(path.dirname(localConfigPath), { recursive: true });
+      writeFileSync(
+        localConfigPath,
+        JSON.stringify({
+          schemaVersion: "1.0.0",
+          subjectId: "packed-local-subject",
+          cases: [
+            {
+              id: "compute-total",
+              title: "Find computeTotal",
+              sourceRoots: ["src"],
+              query: "Where is computeTotal defined?",
+              expectedFiles: ["src/app/main.ts"],
+              expectedSymbols: ["computeTotal"],
+              rawIncludeGlobs: ["src/**/*"]
+            }
+          ]
+        }),
+        "utf8"
+      );
+      const localConfigBefore = readFileSync(localConfigPath, "utf8");
+      const localTargetBefore = await snapshotDirectory(localTarget);
+      const localStatusBefore = localGit("status", "--porcelain=v1", "--ignored");
+      const localHeadBefore = localGit("rev-parse", "HEAD").trim();
+      const localArgs = (extra) => ["experiment", "run", "--experiment", SCALING_ID, ...extra];
+
+      // Installed-package negative boundary cases: every one must exit nonzero, create no output and leave the target untouched.
+      const unsafeInside = path.join(localTarget, "lab-out");
+      const plainDirectory = path.join(localArea, "plain directory");
+      mkdirSync(plainDirectory, { recursive: true });
+      const dummySyntheticConfig = path.join(localArea, "dummy synthetic.json");
+      writeFileSync(dummySyntheticConfig, "{}", "utf8");
+      const negativeCases = [
+        ["out-equals-target", ["--target", localTarget, "--local-subject-config", localConfigPath, "--out", localTarget], null],
+        ["out-inside-target", ["--target", localTarget, "--local-subject-config", localConfigPath, "--out", unsafeInside], unsafeInside],
+        ["missing-local-subject-config", ["--target", localTarget, "--out", localOut], localOut],
+        ["config-without-external-target", ["--local-subject-config", localConfigPath, "--out", localOut], localOut],
+        ["synthetic-and-local-subject", ["--synthetic-config", dummySyntheticConfig, "--local-subject-config", localConfigPath, "--out", localOut], localOut],
+        ["synthetic-with-target", ["--target", localTarget, "--synthetic-config", dummySyntheticConfig, "--out", localOut], localOut],
+        ["non-worktree-root-target", ["--target", path.join(localTarget, "src"), "--local-subject-config", localConfigPath, "--out", localOut], localOut],
+        ["non-git-target", ["--target", plainDirectory, "--local-subject-config", localConfigPath, "--out", localOut], localOut]
+      ];
+      for (const [label, args, mustNotExist] of negativeCases) {
+        const result = runInstalledCli(cliCommand, dirs.consumer, localArgs([...args, "--kit-command", realKitCommand]), envWithBin);
+        if (result.status === 0) fail(gate, `Installed negative case ${label} exited 0.`, describeChildResult(result));
+        if (mustNotExist && existsSync(mustNotExist)) fail(gate, `Installed negative case ${label} created output at the rejected location.`);
+        if (existsSync(path.dirname(localOut)) && readdirSync(path.dirname(localOut)).length > 0) {
+          fail(gate, `Installed negative case ${label} left output beneath the Lab work root.`);
+        }
+        const diff = diffSnapshots(localTargetBefore, await snapshotDirectory(localTarget));
+        if (diff.length > 0) fail(gate, `Installed negative case ${label} mutated the target: ${diff.join(", ")}`);
+        const failureLeaks = privacyScan.scanDurableArtifactText(
+          [{ name: `${label}-stderr`, text: `${result.stdout ?? ""}\n${result.stderr ?? ""}` }],
+          [{ label: "target", value: localTarget, kind: "path" }, ...Object.values(LOCAL_MARKERS).map((value) => ({ label: "marker", value, kind: "text" }))]
+        );
+        if (failureLeaks.length > 0) fail(gate, `Installed negative case ${label} printed a private value: ${JSON.stringify(failureLeaks)}`);
+      }
+      console.log(`CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_REJECTIONS: PASS (${negativeCases.length} installed boundary cases: nonzero exit, no output, target unchanged)`);
+
+      const localRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        localArgs(["--target", localTarget, "--local-subject-config", localConfigPath, "--context-budgets", "8k,16k", "--kit-command", realKitCommand, "--out", localOut]),
+        envWithBin
+      );
+      if (localRun.status !== 0) {
+        fail(gate, "Installed external-local context-window-scaling run with the real my-dev-kit did not exit 0.", describeChildResult(localRun));
+      }
+      assertOutputOutsidePackage(localOut, installedPackageRoot, "context-window-scaling external-local run");
+      if (!path.relative(localTarget, localOut).startsWith("..")) fail(gate, "Lab output was written inside the inspected target.");
+      const localExpectedFiles = ["context-window-scaling-execution.json", "local-repository-subject-manifest.json", "report.html", "report.json", "report.txt"];
+      const localOutEntries = readdirSync(localOut).sort();
+      if (JSON.stringify(localOutEntries) !== JSON.stringify(localExpectedFiles)) {
+        fail(gate, `External-local output is not exactly the durable artifact set (scratch not removed or extra output): ${localOutEntries.join(", ")}`);
+      }
+      for (const name of localExpectedFiles) requireNonEmptyFile(path.join(localOut, name), gate);
+      const localArtifact = readJsonFile(path.join(localOut, "context-window-scaling-execution.json"), gate);
+      const localSubjectManifest = readJsonFile(path.join(localOut, "local-repository-subject-manifest.json"), gate);
+      const localReport = readJsonFile(path.join(localOut, "report.json"), gate);
+      if (
+        localArtifact.schemaVersion !== "my-dev-kit-lab-context-window-scaling-execution-v1" ||
+        JSON.stringify(localArtifact.contextBudgets) !== JSON.stringify([8192, 16384]) ||
+        localSubjectManifest.schemaId !== "my-dev-kit-lab-local-repository-subject-manifest-v1" ||
+        localSubjectManifest.subjectId !== "packed-local-subject" ||
+        localSubjectManifest.repository?.commit !== localHeadBefore ||
+        localReport.report?.plugin?.id !== SCALING_ID ||
+        localReport.report?.target?.kind !== "external-local" ||
+        localReport.report?.target?.privacyProjection !== "external-local-redacted"
+      ) {
+        fail(gate, "Installed external-local artifacts do not carry the expected schema, subject identity, Git commit and privacy projection.");
+      }
+      const localTreatments = localArtifact.cases?.[0]?.treatments ?? [];
+      if (JSON.stringify(localTreatments.map((treatment) => treatment.variantId)) !== JSON.stringify(["raw-full-file", "my-dev-kit-guided"])) {
+        fail(gate, "Installed external-local run did not execute exactly the raw and guided treatments.");
+      }
+      for (const treatment of localTreatments) {
+        if (treatment.status === "failed" || treatment.context?.status !== "available" || treatment.budgetCells?.length !== 2) {
+          fail(gate, `Treatment ${treatment.variantId} did not produce available context and two budget cells (status=${treatment.status}).`);
+        }
+      }
+      const redactionProblems = privacyScan.checkRedactionTruthfulness(localArtifact);
+      if (redactionProblems.length > 0) fail(gate, `External-local redaction is not truthful: ${redactionProblems.join("; ")}`);
+      const localSentinels = [
+        ...[localTarget, localArea, path.dirname(localConfigPath), localOut, path.dirname(localOut), dirs.workspace, dirs.consumer, dirs.upstream, installedPackageRoot, tempRoot, os.tmpdir(), os.homedir(), REPO_ROOT].map(
+          (value) => ({ label: "private path", value, kind: "path" })
+        ),
+        ...Object.entries(LOCAL_MARKERS).map(([label, value]) => ({ label: `marker ${label}`, value, kind: "text" })),
+        ...["private notes.ts", "huge file.ts", "gen/out", "src/app/main.ts", "helper.ts", "indexes"].map((value) => ({ label: `file ${value}`, value, kind: "text" }))
+      ];
+      const localLeaks = privacyScan.scanDurableOutputDirectory(localOut, localSentinels);
+      if (localLeaks.length > 0) fail(gate, `Durable external-local output leaks private values: ${JSON.stringify(localLeaks)}`);
+      const localTargetChanges = diffSnapshots(localTargetBefore, await snapshotDirectory(localTarget));
+      if (
+        localTargetChanges.length > 0 ||
+        localGit("status", "--porcelain=v1", "--ignored") !== localStatusBefore ||
+        localGit("rev-parse", "HEAD").trim() !== localHeadBefore ||
+        readFileSync(localConfigPath, "utf8") !== localConfigBefore
+      ) {
+        fail(gate, `External-local run changed the target or its config: ${localTargetChanges.join(", ")}`);
+      }
+      for (const forbidden of [".my-dev-kit", ".my-dev-kit-lab", "lab-output", "lab-out"]) {
+        if (existsSync(path.join(localTarget, forbidden))) fail(gate, `Lab artifacts appeared inside the target: ${forbidden}`);
+      }
+      console.log(`CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_RUN: PASS (installed bin; real ${UPSTREAM_MY_DEV_KIT_SPEC}; raw + guided; space-containing target/config/output; output path length ${localOut.length})`);
+      console.log("CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_PRIVACY: PASS (raw, separator, JSON-escaped and HTML-escaped path forms; markers; ignored/oversized names; redaction truthful)");
+      console.log("CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_IMMUTABILITY: PASS (target tree, Git status/HEAD and config unchanged; scratch removed; no Lab output in target)");
+    }
 
     // -----------------------------------------------------------------
     // 9c-3. v0.6.2 incremental-change-staleness installed-package acceptance
@@ -2477,6 +2682,10 @@ async function main() {
         "CONTEXT_WINDOW_SCALING_REPORTS: PASS",
         "CONTEXT_WINDOW_SCALING_PLOTS: PASS",
         "CONTEXT_WINDOW_SCALING_IMMUTABILITY: PASS",
+        "CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_REJECTIONS: PASS",
+        "CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_RUN: PASS",
+        "CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_PRIVACY: PASS",
+        "CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_IMMUTABILITY: PASS",
         "SOURCE_CHECKOUT_RUNTIME_DEPENDENCY: NONE_OBSERVED"
       ].join("\n")
     );

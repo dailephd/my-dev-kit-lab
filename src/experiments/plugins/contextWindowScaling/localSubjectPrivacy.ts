@@ -18,7 +18,8 @@ export function redactKnownPaths(text: string, knownFiles: readonly string[], pr
   let redacted = redactPrivatePaths(text, privateRoots);
   for (const file of [...knownFiles].sort((left, right) => right.length - left.length)) {
     if (file.length === 0) continue;
-    redacted = redacted.split(file).join(REDACTED_FILE_TEXT);
+    // Native tool errors on Windows may spell a repository-relative path with backslashes.
+    for (const variant of new Set([file, file.replace(/\//g, "\\")])) redacted = redacted.split(variant).join(REDACTED_FILE_TEXT);
   }
   return redacted;
 }

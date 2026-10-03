@@ -52,8 +52,11 @@ function runGit(cwd: string, args: readonly string[], input?: string): Promise<G
         resolve({ exitCode: 0, stdout: String(stdout ?? "") });
       }
     );
+    // When the process cannot be started (for example a working directory beyond the Windows path limit), Node can
+    // still emit an error on the never-connected stdio sockets; without listeners that becomes an uncaught exception
+    // instead of the classified rejection above.
+    for (const stream of [child.stdin, child.stdout, child.stderr]) stream?.on("error", () => undefined);
     if (input !== undefined) {
-      child.stdin?.on("error", () => undefined);
       child.stdin?.end(input);
     }
   });
