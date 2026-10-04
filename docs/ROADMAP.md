@@ -1309,7 +1309,7 @@ Features:
 * Add support for external benchmark subject paths.
 * Add safety checks for ignored files and large files.
 * Add no-commit/no-modification policy for external source.
-* Add report metadata for external repo name, commit, and size.
+* Add privacy-safe report metadata for the logical subject ID (`subjectId`), full Git commit, branch, and safe eligible repository size (`eligibleFileCount` and `eligibleByteCount`), without persisting the physical directory basename, Git remote identity, private repository name, or total disk usage.
 * Add privacy-safe artifact policies.
 
 Acceptance:
