@@ -20,7 +20,7 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:net";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -457,6 +457,18 @@ class PackedPackageGateError extends Error {
     this.gate = gate;
     this.details = details;
   }
+}
+
+// Physical-root containment for the external retrieval-precision-recall scratch check. The product resolves the work
+// root with realpath.native before creating private scratch, so on Windows the logged index path can use a different
+// (for example 8.3 short) spelling of the same directory than the lexical output path. Compare against the physical root.
+// Returns the segments of `candidate` beneath `root`, [] for the root itself, or null when it is outside the root.
+function segmentsBeneathRoot(root, candidate) {
+  const relative = path.relative(root, candidate);
+  if (relative === "") return [];
+  if (path.isAbsolute(relative)) return null;
+  const segments = relative.split(path.sep);
+  return segments[0] === ".." ? null : segments;
 }
 
 function fail(gate, message, details) {
@@ -2282,6 +2294,7 @@ async function main() {
       }
       const rprRedactionProblems = privacyScan.checkRetrievalRedactionTruthfulness(rprArtifact);
       if (rprRedactionProblems.length > 0) fail(`${gate}_EXTERNAL`, `External-local retrieval redaction is not truthful: ${rprRedactionProblems.join("; ")}`);
+      const rprPhysicalOut = realpathSync.native(rprOut);
       const rprIndexCalls = readKitCalls(rprLog).filter((call) => call.argv[0] === "index");
       const rprSourceRoots = rprIndexCalls.map((call) => call.argv.flatMap((value, index) => (value === "--src" ? [call.argv[index + 1]] : [])));
       if (rprIndexCalls.length !== 2 || JSON.stringify(rprSourceRoots) !== JSON.stringify([["src"], ["src/app/util"]])) {
@@ -2293,7 +2306,8 @@ async function main() {
           if (!excluded.includes(required)) fail(`${gate}_EXTERNAL`, `A case index did not receive the exact exclusion ${required}.`);
         }
         const indexOut = call.argv[call.argv.indexOf("--out") + 1];
-        if (!path.relative(rprOut, indexOut).split(path.sep)[0].startsWith("s-")) fail(`${gate}_EXTERNAL`, "A case index was not built inside the private scratch.");
+        const indexSegments = segmentsBeneathRoot(rprPhysicalOut, indexOut);
+        if (indexSegments === null || indexSegments.length < 2 || !indexSegments[0].startsWith("s-")) fail(`${gate}_EXTERNAL`, "A case index was not built inside the private scratch.");
         rprSentinels.push({ label: "private index path", value: indexOut, kind: "path" }, { label: "private scratch path", value: path.dirname(indexOut), kind: "path" });
       }
       const rprLeaks = privacyScan.scanDurableOutputDirectory(rprOut, rprSentinels);

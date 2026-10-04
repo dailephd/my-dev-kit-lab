@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ExperimentRun } from "../../../src/experiments/index.js";
 import {
@@ -54,13 +55,16 @@ function buildRun(overrides: (run: RetrievalPrecisionRecallRun) => void = () => 
     target,
     caseEvidence,
     aggregate: aggregateRetrievalPrecisionRecall(caseEvidence),
-    artifactPath: "C:\\out\\retrieval-precision-recall-execution.json"
+    artifactPath: NATIVE_ARTIFACT_PATH
   });
   overrides(run);
   return run;
 }
 
-const reportFor = (run: ExperimentRun) => buildPluginExperimentReport({ run, plugin: retrievalPrecisionRecallMetadata, outputRoot: "C:\\out", generatedAt: "2026-01-01T00:02:00.000Z" });
+// Report paths are native runtime paths, so the fixture must be native to the platform running the test (it need not exist).
+const NATIVE_OUTPUT_ROOT = path.resolve("rpr-report-fixture-out");
+const NATIVE_ARTIFACT_PATH = path.join(NATIVE_OUTPUT_ROOT, "retrieval-precision-recall-execution.json");
+const reportFor = (run: ExperimentRun) => buildPluginExperimentReport({ run, plugin: retrievalPrecisionRecallMetadata, outputRoot: NATIVE_OUTPUT_ROOT, generatedAt: "2026-01-01T00:02:00.000Z" });
 
 describe("retrieval-precision-recall report", () => {
   it("TST-B3-027 carries a typed specialized section and leaves other plugins null", () => {

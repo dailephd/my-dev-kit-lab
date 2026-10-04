@@ -359,7 +359,14 @@ describe("retrieval-precision-recall plugin external-local boundary", () => {
     });
     expect(result.artifacts.map((artifact) => artifact.id)).toEqual(["retrieval-precision-recall-execution", "local-repository-subject-manifest"]);
     expect(result.artifacts[1]).toMatchObject({ kind: "artifact", mimeType: "application/json" });
-    const serialized = JSON.stringify(result) + readFileSync(path.join(outputRoot, "retrieval-precision-recall-execution.json"), "utf8");
+    // The raw in-memory run is runtime state and may carry the physical output root; the privacy boundary applies to the
+    // durable files the plugin wrote and to the already-projected target, which are asserted below.
+    expect(result.metadata?.outputRoot).toBe(outputRoot);
+    expect(JSON.stringify(result.target)).not.toContain(fixture.root);
+    expect(JSON.stringify(result.target)).not.toContain(outputRoot);
+    const serialized =
+      readFileSync(path.join(outputRoot, "retrieval-precision-recall-execution.json"), "utf8") +
+      readFileSync(path.join(outputRoot, "local-repository-subject-manifest.json"), "utf8");
     for (const forbidden of [fixture.root, outputRoot, RPR_MARKERS.title, RPR_MARKERS.symbol, RPR_MARKERS.fact, RPR_MARKERS.warning, "src/main.ts", "helper.ts"]) {
       expect(serialized.includes(forbidden), forbidden).toBe(false);
     }
