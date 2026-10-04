@@ -96,3 +96,70 @@ export type BuildRetrievalEvidenceInput = {
   commands: readonly RetrievalEvidenceCommandInput[];
   selection?: RetrievalEvidenceSelection;
 };
+
+/**
+ * Per-case retrieval-quality metrics (V1). Pure comparison of retrieval-evidence-v1 against answer-key
+ * expectations. Observation and calculation only: no ranking, no composite score, no winner, no threshold.
+ */
+
+/**
+ * `available`: complete trustworthy inputs and a defined nonzero denominator (a computed 0 is a real zero).
+ * `unavailable`: required observation or expectation evidence is missing, partial, malformed, inconsistent or unsafe.
+ * `not-applicable`: inputs are trustworthy but the metric has no meaningful denominator.
+ */
+export type RetrievalQualityMetricAvailability = "available" | "unavailable" | "not-applicable";
+
+export type RetrievalQualityRatioMetricV1 = {
+  availability: RetrievalQualityMetricAvailability;
+  numerator: number | null;
+  denominator: number | null;
+  /** Unrounded canonical ratio in [0, 1]; null unless available. */
+  value: number | null;
+  /** Bounded fixed-vocabulary reason; null when available. */
+  reason: string | null;
+};
+
+export type RetrievalQualityExpectationStatusV1 = {
+  availability: "available" | "unavailable";
+  reason: string | null;
+};
+
+export type RetrievalQualityMetricsV1 = {
+  schemaVersion: "retrieval-quality-metrics-v1";
+  caseId: string;
+  /** Status of the observed retrieval evidence; `missing` means the retrieval result carried none. */
+  evidence: { availability: RetrievalEvidenceAvailability | "missing"; reason: string | null };
+  expectations: {
+    files: RetrievalQualityExpectationStatusV1;
+    symbols: RetrievalQualityExpectationStatusV1;
+  };
+  /** Identity lists are sorted in code-unit order, or null when they cannot be computed. */
+  file: {
+    relevantRetrievedFiles: string[] | null;
+    irrelevantRetrievedFiles: string[] | null;
+    missedFiles: string[] | null;
+    missedFileCount: number | null;
+    precision: RetrievalQualityRatioMetricV1;
+    recall: RetrievalQualityRatioMetricV1;
+  };
+  /** Scored at exact unique symbol-name granularity, matching the answer-key contract. */
+  symbol: {
+    relevantRetrievedSymbols: string[] | null;
+    irrelevantRetrievedSymbols: string[] | null;
+    missedSymbols: string[] | null;
+    missedSymbolCount: number | null;
+    precision: RetrievalQualityRatioMetricV1;
+    recall: RetrievalQualityRatioMetricV1;
+  };
+  fact: {
+    coveredFactIds: string[] | null;
+    uncoveredFactIds: string[] | null;
+    uncoveredFactCount: number | null;
+    coverage: RetrievalQualityRatioMetricV1;
+  };
+  /** irrelevant retrieved files / retrieved files, over the file-identity universe only. */
+  irrelevantContextRatio: RetrievalQualityRatioMetricV1;
+  /** Existing measured `totalEstimatedTokens`; null when the retrieval result carried no valid count. */
+  retrievedTokenCount: number | null;
+  tokenCountMethod: string | null;
+};

@@ -273,6 +273,11 @@ export type ExpectedContextTarget = {
   file: string;
   symbols?: string[];
   required?: boolean;
+  /**
+   * Ids of `expectedFacts` this target supports. Explicit mapping that lets retrieval fact coverage be computed
+   * deterministically; targets without it remain valid but carry no fact-coverage evidence.
+   */
+  factIds?: string[];
 };
 
 export type BenchmarkTaskAnswerKey = {
