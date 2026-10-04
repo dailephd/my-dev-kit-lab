@@ -29,6 +29,7 @@ src/
     plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session (carrying the v0.6.0 index snapshot and the v0.6.1 baseline graph evidence), execution (with the v0.6.0 per-task freshness assessment and the v0.6.1 per-task affected-neighborhood assessment), bounded execution artifact, fake-agent evaluation, metrics
     plugins/incrementalChangeStaleness/      v0.6.2 plugin; four-treatment V2 execution and report extension in released v0.6.3
     plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
+    plugins/retrievalPrecisionRecall/         v0.8.0 plugin (unreleased): bundled and external-local retrieval-quality execution, aggregation, execution artifact, external privacy projection
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released; retained): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released; retained): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
@@ -128,7 +129,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers four plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and the released v0.7.0 `context-window-scaling`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers five plugins in the current source: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, and the unreleased v0.8.0 `retrieval-precision-recall`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -490,7 +491,7 @@ Generated-case identity boundary:
 
 Integration-order invariant:
 
-Synthetic materialization needs the final output root, so `runExperimentRunCommand` now orders work as: parse arguments and execution context -> create run id -> resolve the output root -> load plugin inputs -> call the generic runner. Explicit `--out` (resolved against the invocation directory) and the installed workspace default are unchanged. For a `--synthetic-config` run without either, the command computes the same `buildDefaultExperimentOutputRoot` value the runner would, and passes that one root both to `prepareSyntheticContextWindowScalingInputs` and to `runExperiment`; runs without `--synthetic-config` keep the runner's own default untouched. `--synthetic-config` is parsed as a command-level field (`syntheticConfigPath`) and is never forwarded to the plugin's `validateConfig`. The command only reads and JSON-parses the file; schema validation stays with the synthetic planner. `--case` is mutually exclusive with `--synthetic-config`: the bundled catalog is the only `--case` domain. v0.7.2 external/local repository experiments and v0.8.0 retrieval precision/recall remain future work.
+Synthetic materialization needs the final output root, so `runExperimentRunCommand` now orders work as: parse arguments and execution context -> create run id -> resolve the output root -> load plugin inputs -> call the generic runner. Explicit `--out` (resolved against the invocation directory) and the installed workspace default are unchanged. For a `--synthetic-config` run without either, the command computes the same `buildDefaultExperimentOutputRoot` value the runner would, and passes that one root both to `prepareSyntheticContextWindowScalingInputs` and to `runExperiment`; runs without `--synthetic-config` keep the runner's own default untouched. `--synthetic-config` is parsed as a command-level field (`syntheticConfigPath`) and is never forwarded to the plugin's `validateConfig`. The command only reads and JSON-parses the file; schema validation stays with the synthetic planner. `--case` is mutually exclusive with `--synthetic-config`: the bundled catalog is the only `--case` domain. The v0.7.2 external-local mode and the v0.8.0 retrieval precision/recall plugin are described in their own sections below.
 
 Determinism boundary:
 
@@ -615,6 +616,71 @@ See [context-integrity-fixtures.md](context-integrity-fixtures.md) for the froze
 - The plugin keeps its scientific semantics unchanged: treatments, budgets, token estimator, correctness, and success are shared with the bundled and synthetic modes. The execution artifact reader and report builders consume the projected artifact without schema changes beyond the additive privacy fields.
 - Installed-package boundary: the compiled local-subject runtime ships in `dist/`, and the packed-package gate exercises the installed CLI against a disposable local repository using the real published my-dev-kit.
 
+## Retrieval precision/recall architecture (v0.8.0)
+
+Status: implemented; unreleased.
+
+`retrieval-precision-recall` measures whether the existing my-dev-kit retrieval lifecycle returns the required files, symbols, and facts without returning irrelevant files. It is a plugin on the existing experiment runtime, not a second runner, and it invokes no agent.
+
+### Ownership
+
+- Retrieval observation: `src/evaluation/retrievalQuality/`. `buildRetrievalEvidence` normalizes recorded search, lookup, slice, and source command output into `retrieval-evidence-v1` (retrieved files and symbols, per-command provenance, and `available`, `partial`, or `unavailable` status). Parsing fails closed, paths must be safe repository-relative paths, and source bodies are never scraped. `corpusCompleteness.ts` and `factContextTargets.ts` validate ground truth and interpret the explicit `factIds`-to-context mappings.
+- Retrieval execution: `src/evaluation/runMyDevKitRetrieval.ts` (`runMyDevKitRetrievalFromIndex`) runs the existing search, lookup, slice, and source commands against a prepared index. The lifecycle expands only the top search candidate.
+- Scientific metric calculation: `calculateRetrievalQualityMetrics` in `src/evaluation/retrievalQuality/metrics.ts` is a pure comparison of retrieval evidence with the answer key. It performs no I/O and no ranking.
+- Experiment owner: `src/experiments/plugins/retrievalPrecisionRecall/` (metadata, config, `execution.ts`, `localSubjectExecution.ts`, `localSubjectPrivacy.ts`, `executionArtifact.ts`). One variant, `my-dev-kit-retrieval`.
+- Aggregation owner: `aggregateRetrievalPrecisionRecall` computes macro means over available per-case values only and counts unavailable and not-applicable cases separately.
+- Reporting: the existing plugin-aware report architecture in `src/report/experiments/` with a typed retrieval precision/recall section (`buildRetrievalPrecisionRecallReport`, with HTML and text renderers). It renders only persisted evidence.
+- External subject owner: `src/evaluation/localRepositorySubject/` and the existing local-subject scratch, exclusion, privacy, and immutability helpers (`assertWorkRootOutsideTarget`, `deriveGuidedIndexExclusions`, `captureTargetSnapshot`, `compareTargetSnapshots`). No second subject loader or config schema exists.
+- Command boundary: `runExperimentRunCommand` parses and routes, enforces the plugin's flag set and ground-truth completeness, and delegates execution to the plugin.
+
+### Bundled flow
+
+```text
+bundled cases (frozen 12-case warm-index corpus)
+  -> group by benchmark project
+  -> one index per project
+  -> one retrieval per case
+  -> retrieval-evidence-v1
+  -> deterministic metric engine
+  -> aggregate
+  -> execution artifact
+  -> generic and specialized reports
+```
+
+### External-local flow
+
+```text
+explicit target + LocalRepositorySubjectConfigV1
+  -> load subject and validate ground truth
+  -> output root checked to be outside the target
+  -> before snapshot
+  -> private scratch outside the target
+  -> one index per case from its exact sourceRoots (Git-ignored and oversized files excluded)
+  -> retrieval
+  -> eligible-universe gate
+  -> metrics
+  -> after snapshot and comparison
+  -> scratch cleanup
+  -> privacy projection
+  -> artifact + manifest + reports
+```
+
+This is the existing local-subject lifecycle applied to retrieval quality, not another experiment runtime. Retrieval that exposes any file outside the eligible file universe fails the case, and a detected target change fails the run.
+
+### Privacy boundary
+
+Runtime-only evidence in external mode: the physical target root, eligible file names, source text, raw command stdout and stderr, scratch and index paths, and the real file, symbol, and fact identities. Durable evidence: the logical subject identity, the Git metadata the manifest allows, counts, numeric metrics, numbered placeholders (`<redacted file N>`, `<redacted symbol N>`, `<redacted fact N>`, a fixed redacted case title, and warning placeholders), and a fixed identity-redaction marker. Counts and exact numeric evidence are preserved. The process still observes real identities in memory and in private scratch while it runs; the guarantee covers durable scientific output, not console output (a successful run can print the physical output directory).
+
+Failure is atomic: a safety or execution failure writes no normal artifact, report, or manifest family, and private scratch is removed.
+
+### Packed-package boundary
+
+The compiled runtime ships in `dist/`. The exact-tarball gate proves installed plugin discovery and description, bundled execution, external-local execution, privacy, failure paths, and package and target immutability.
+
+### Non-goals
+
+Outside v0.8.0: ranked retrieval metrics (such as MRR or NDCG), retrieval-strategy comparison, context packs, real-agent evaluation, winner selection, and automatic strategy selection. These remain later roadmap work (v0.8.1 and later).
+
 ## Target model
 
 Experiment and security commands distinguish the tool root from the target root. Omitting `--target` selects self mode. Supplying `--target <path>` selects an external local project only for commands and plugins that support it. `incremental-change-staleness` rejects an explicit `--target`. `context-window-scaling` rejects an explicit `--target` in bundled and synthetic mode (generated scaling repositories are run-owned inputs within self mode) and accepts one only together with `--local-subject-config`, which selects the external local-repository subject lifecycle described in the local-repository subject section (v0.7.2). Experiment outputs remain in lab-controlled output directories by default; security reports use `reports/security` beneath the installed workspace or contributor tool root unless an explicit output directory is provided.
@@ -648,7 +714,7 @@ The contributor `scripts/*.ts` npm-script entrypoints are thin adapters over the
 
 ### Packed-package acceptance boundary
 
-`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, all four experiment plugins are registered, `experiment describe --experiment warm-index-reuse` and `experiment run --help` document the warm-index surface, an installed `warm-index-reuse` run (using a temporary test-owned fake my-dev-kit script, never packaged) produces its execution artifact and reports, `plots generate` produces the four warm-index charts and the context-window-scaling charts from its V1 execution artifact, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
+`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, all five experiment plugins (including the v0.8.0 `retrieval-precision-recall`, with its installed bundled and external-local execution, privacy, failure-path, and immutability checks) are registered, `experiment describe --experiment warm-index-reuse` and `experiment run --help` document the warm-index surface, an installed `warm-index-reuse` run (using a temporary test-owned fake my-dev-kit script, never packaged) produces its execution artifact and reports, `plots generate` produces the four warm-index charts and the context-window-scaling charts from its V1 execution artifact, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
 
 ## Automated security-validation architecture
 

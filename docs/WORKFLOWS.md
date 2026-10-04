@@ -334,6 +334,63 @@ my-dev-kit-lab experiment run `
 
 **Completion:** review fit and unavailable counts, per-budget success/correctness/utilization, omitted-file evidence and fixed limitations in the report. Confirm all three plots exist and treat their values as scoped deterministic benchmark evidence.
 
+## Retrieval precision/recall experiment (v0.8.0)
+
+**Status:** implemented in v0.8.0; unreleased. This workflow is available from the source checkout and the packed candidate, not from the published 0.7.2 package.
+
+**Goal:** measure, without any agent, whether my-dev-kit retrieval returns the files, symbols, and facts a case requires and how much irrelevant context it returns with them.
+
+**Bundled workflow (source checkout):**
+
+1. Optionally choose case or benchmark-project filters (`--case`, `--benchmark-project`); the default is the bundled 12-case corpus over two benchmark projects.
+2. The run builds one my-dev-kit index per benchmark project.
+3. For each case it executes the existing search, lookup, slice, and source lifecycle for the top search candidate.
+4. It compares the retrieved files and symbols with the case answer key.
+5. It calculates the deterministic metrics (file and symbol precision and recall, fact coverage, irrelevant context ratio, retrieved token count, and the missed files, symbols, and facts).
+6. It aggregates the available per-case evidence.
+7. It writes `retrieval-precision-recall-execution.json`.
+8. It renders `report.json`, `report.html`, and `report.txt` from that persisted evidence.
+
+```powershell
+npm run experiment:run -- `
+  --experiment retrieval-precision-recall `
+  --kit-command "npx @dailephd/my-dev-kit@latest" `
+  --out lab-output/retrieval-precision-recall
+```
+
+No agent is invoked, so the result does not depend on a provider. For a deterministic offline check, pass `--kit-command "node tests/fixtures/fake-my-dev-kit-cli.js"` and one `--case`; that confirms the command and output shape, not retrieval quality.
+
+**External-local workflow:** to run the same measurement over your own local Git repository, write a `LocalRepositorySubjectConfigV1` file whose cases carry a complete answer key (see [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080-implemented-unreleased)) and run:
+
+```powershell
+npm run experiment:run -- `
+  --experiment retrieval-precision-recall `
+  --target <local-git-repository> `
+  --local-subject-config <path-to-local-subject-config.json> `
+  --out <run-directory-outside-the-repository>
+```
+
+The run proceeds in this order:
+
+1. Load the subject and validate each case's ground truth.
+2. Check that the output root is outside the repository.
+3. Capture a before snapshot of the eligible files.
+4. Create private scratch outside the repository and derive safe index exclusions (Git-ignored and oversized files).
+5. Build one index per case from its exact `sourceRoots`.
+6. Run the retrieval lifecycle.
+7. Check that retrieval stayed inside the eligible file universe.
+8. Calculate the metrics.
+9. Capture an after snapshot and compare it with the first.
+10. Remove the private scratch.
+11. Project durable output to redacted identities.
+12. Persist the execution artifact, `local-repository-subject-manifest.json`, and the reports.
+
+**Failure semantics:** if any case fails a safety or execution check, the entire run fails and exits nonzero; no normal artifact, report, or manifest family is written, and the scratch is removed. The repository is never modified, and a detected change fails the run and is not reverted.
+
+**Interpretation and limits:** the measures are set-based, not ranked. They are evidence about the executed cases only. The lifecycle expands only the top search candidate. No retrieval-strategy comparison, ranking, winner, or composite score exists in v0.8.0. In external-local output, `<redacted file N>`, `<redacted symbol N>`, and `<redacted fact N>` mean an identity existed and was withheld, not that the list is empty. The console summary of a successful run can still show the physical output directory even though durable files redact it. Very long platform paths can fail cleanly instead of running.
+
+**Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080) for exact definitions.
+
 ## Real-agent warm-index campaign (v0.5.2)
 
 Available in the installed v0.5.2 CLI. This is a distinct campaign path through the `warm-index-reuse` plugin, separate from the generic `context-strategy-comparison` campaign described in "Real-agent campaign" above; it reuses the warm-index runtime described in "Warm-index reuse experiment" above rather than the agent-matrix path.

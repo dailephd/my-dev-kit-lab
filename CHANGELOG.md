@@ -4,6 +4,17 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### Retrieval precision/recall (v0.8.0, implemented; not yet released)
+
+- Added `retrieval-evidence-v1`, a deterministic observation of the existing my-dev-kit search, lookup, slice, and source lifecycle (retrieved files and symbols with `available`, `partial`, or `unavailable` status, safe repository-relative paths, fail-closed parsing, and no source-body scraping).
+- Added a deterministic retrieval-quality metric engine: file precision and recall, symbol precision and recall, fact coverage from explicit `factIds`-to-context mappings, irrelevant context ratio, retrieved token count, and the missed files, missed symbols, and uncovered fact IDs, with explicit `available`, `unavailable`, and `not-applicable` states. It produces no ranking or winner.
+- Added the `retrieval-precision-recall` experiment plugin with one `my-dev-kit-retrieval` variant and a bundled 12-case corpus (the warm-index benchmark cases, with explicit fact mappings) over two benchmark projects, one index per project and one retrieval per case. No agent is invoked. `experiment run --experiment retrieval-precision-recall` accepts `--out`, `--case`, `--benchmark-project`, and `--kit-command`.
+- Added the `retrieval-precision-recall-execution.json` artifact and specialized deterministic JSON, HTML, and text reports.
+- Added external-local support through the existing `LocalRepositorySubject` architecture: `--target <repository>` with `--local-subject-config <path>` runs one private index per configured case from its exact source roots, excludes Git-ignored and oversized files, enforces the eligible file universe, treats the repository as read-only, removes private scratch before persistence, and writes `local-repository-subject-manifest.json`. A failed external run writes no normal artifact, report, or manifest family.
+- Durable external-local output redacts the repository path, tool and output roots, file, symbol, and fact identities, case titles, and retrieval warning text, and preserves exact numeric evidence.
+- Extended the packed-package acceptance gate (`npm run verify:packed-package`) to cover installed plugin discovery, bundled and external-local execution, privacy, failure paths, and package and target immutability.
+- Not included: ranked retrieval metrics, retrieval-strategy comparison, strategy ranking or winner selection, context packs, and real-agent evaluation.
+
 ## [0.7.2] - 2026-10-04
 
 ### Local-repository experiments
