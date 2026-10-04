@@ -9,7 +9,9 @@ export type LocalSubjectExecutionErrorCode =
   | "AFTER_SNAPSHOT_FAILED"
   | "SCRATCH_CLEANUP_FAILED"
   | "GUIDED_EXCLUSION_LIMIT"
-  | "GUIDED_EXCLUSION_UNREPRESENTABLE";
+  | "GUIDED_EXCLUSION_UNREPRESENTABLE"
+  | "GROUND_TRUTH_INVALID"
+  | "RETRIEVAL_OUTSIDE_ELIGIBLE_UNIVERSE";
 
 export type LocalSubjectExecutionIssue = {
   code: LocalSubjectExecutionErrorCode;

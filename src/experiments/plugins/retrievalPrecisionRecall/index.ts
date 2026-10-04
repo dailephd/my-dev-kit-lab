@@ -1,5 +1,7 @@
 export * from "./config.js";
 export * from "./execution.js";
+export * from "./localSubjectExecution.js";
+export * from "./localSubjectPrivacy.js";
 export * from "./executionArtifact.js";
 export * from "./metadata.js";
 export * from "./metrics.js";

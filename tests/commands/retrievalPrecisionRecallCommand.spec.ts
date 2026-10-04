@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -76,7 +76,7 @@ describe("experiment npm scripts for retrieval-precision-recall", () => {
       "Retrieval Precision/Recall",
       "Status: experimental",
       "Schema version: 1.0.0",
-      "Supported targets: self",
+      "Supported targets: self, external-local",
       "Supported outputs: json, html, text, artifact",
       "Supported variants: my-dev-kit-retrieval",
       "outDir (string)",
@@ -126,7 +126,7 @@ describe("experiment:run argument contract for retrieval-precision-recall", () =
       expect(() => parseRunExperimentArgs(["--experiment", ID, ...extra]), extra[0]).toThrow();
     }
     expect(() => parseRunExperimentArgs(["--experiment", ID, "--target", "x"])).toThrow(
-      `--target is not supported for --experiment ${ID}; supported options: --experiment, --out, --case, --benchmark-project, --kit-command.`
+      `External ${ID} targets require --local-subject-config.`
     );
     expect(() => parseRunExperimentArgs(["--experiment", ID, "--cases", "x", "--agents", "fake-agent"])).toThrow(/--cases, --agents are not supported/);
   });
@@ -179,6 +179,34 @@ describe("experiment:run for retrieval-precision-recall over the bundled corpus"
     expect(result.exitCode, result.stderr).toBe(0);
     const artifact = JSON.parse(readFileSync(path.join(out, "retrieval-precision-recall-execution.json"), "utf8"));
     expect(artifact.cases.map((entry: { caseId: string }) => entry.caseId)).toEqual(corpus.slice(0, 3).map((entry: { id: string }) => entry.id));
+  }, 60000);
+
+  it("TST-B4-030/044/046 keeps bundled mode unredacted: real identities, no marker, still 12 cases and 2 indexes", async () => {
+    const dir = tempDir("rpr-cmd-");
+    const { kitCommand, log } = writeEmptySearchKit(dir);
+    const out = path.join(dir, "out");
+    const result = await runCommand(["--experiment", ID, "--out", out, "--kit-command", kitCommand]);
+    expect(result.exitCode, result.stderr).toBe(0);
+    const calls = callsOf(log);
+    expect(calls.filter((call) => call === "index")).toHaveLength(2);
+    expect(calls.filter((call) => call === "search")).toHaveLength(12);
+
+    const artifact = JSON.parse(readFileSync(path.join(out, "retrieval-precision-recall-execution.json"), "utf8"));
+    expect(artifact.cases).toHaveLength(12);
+    for (const entry of artifact.cases) {
+      expect("identityRedaction" in entry).toBe(false);
+      expect(entry.caseName).not.toBe("<redacted case title>");
+      expect(JSON.stringify(entry.quality.file.missedFiles)).not.toContain("<redacted");
+    }
+    // Real benchmark identities are intentionally visible: this is the frozen public corpus, not a private subject.
+    expect(artifact.cases[0].quality.file.missedFiles).toContain("src/services/importTasks.ts");
+    const report = JSON.parse(readFileSync(path.join(out, "report.json"), "utf8")).report;
+    expect(report.target.isSelf).toBe(true);
+    expect(report.target.privacyProjection).toBeUndefined();
+    for (const entry of report.retrievalPrecisionRecall.cases) expect(entry.identityRedaction).toBeNull();
+    expect(readFileSync(path.join(out, "report.txt"), "utf8")).not.toContain("Identity Redaction:");
+    expect(readFileSync(path.join(out, "report.html"), "utf8")).not.toContain("Identity redaction.");
+    expect(existsSync(path.join(out, "local-repository-subject-manifest.json"))).toBe(false);
   }, 60000);
 
   it("applies --case and --benchmark-project filters in corpus order", async () => {

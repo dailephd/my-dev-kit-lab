@@ -54,7 +54,7 @@ function failedCase(
   };
 }
 
-function summarizeRetrieval(result: MyDevKitRetrievalResult): RetrievalPrecisionRecallRetrievalSummaryV1 {
+export function summarizeRetrieval(result: MyDevKitRetrievalResult): RetrievalPrecisionRecallRetrievalSummaryV1 {
   const evidence = result.retrievalEvidence;
   return {
     skipped: result.skipped,
@@ -171,6 +171,18 @@ async function executeCase(args: {
     return failedCase(evaluationCase, "retrieval-failed", boundedRetrievalSafeMessage(errorText(error), args.knownRoots));
   }
 
+  return buildCaseEvidenceFromRetrieval(evaluationCase, retrieval);
+}
+
+/**
+ * The single place a returned retrieval becomes bounded case evidence: Batch 2 metrics are calculated here and the
+ * case is COMPLETED only when the retrieval evidence is available, otherwise PARTIAL. Shared by the bundled and the
+ * external-local execution paths so neither duplicates the status rule or the metric call.
+ */
+export function buildCaseEvidenceFromRetrieval(
+  evaluationCase: EvaluationCase,
+  retrieval: MyDevKitRetrievalResult
+): RetrievalPrecisionRecallCaseEvidenceV1 {
   const quality = calculateRetrievalQualityMetrics({ evaluationCase, retrieval });
   const status: ExperimentRunStatus = retrieval.retrievalEvidence?.availability === "available" ? "completed" : "partial";
   const errors: RetrievalPrecisionRecallErrorV1[] = [];

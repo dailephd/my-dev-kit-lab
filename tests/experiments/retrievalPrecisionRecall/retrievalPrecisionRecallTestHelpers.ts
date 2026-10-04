@@ -96,7 +96,7 @@ function measuredCommand(commandId: string): MeasuredCommandResult {
 export function retrievalResultOf(
   evaluationCase: EvaluationCase,
   retrievalEvidence: RetrievalEvidenceV1 | undefined,
-  options: { tokens?: number; skipped?: boolean; warnings?: string[] } = {}
+  options: { tokens?: number; skipped?: boolean; warnings?: string[]; selectedFile?: string } = {}
 ): MyDevKitRetrievalResult {
   return {
     caseId: evaluationCase.id,
@@ -106,10 +106,10 @@ export function retrievalResultOf(
     totalEstimatedTokens: options.tokens ?? 100,
     tokenCountMethod: "estimated_chars_div_4",
     contextText: SOURCE_SENTINEL,
-    filesRead: ["src/a.ts"],
+    filesRead: [options.selectedFile ?? "src/a.ts"],
     commands: ["search", "lookup", "slice", "source"].map(measuredCommand),
     selectedNodeId: "n1",
-    selectedFile: "src/a.ts",
+    selectedFile: options.selectedFile ?? "src/a.ts",
     selectedSymbol: "A",
     retrievalEvidence,
     durationMs: 5

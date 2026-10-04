@@ -111,3 +111,15 @@ export function validateRetrievalPrecisionRecallCorpus(cases: readonly Pick<Eval
   }
   return errors;
 }
+
+/**
+ * Per-case issue counts without any identity text. Use this, never the detailed messages, when reporting about an
+ * external private subject: the detailed messages may name expected facts.
+ */
+export function summarizeRetrievalGroundTruthIssuesSafely(
+  cases: readonly Pick<EvaluationCaseInput, "id" | "expectedFiles" | "expectedSymbols" | "answerKey">[]
+): { caseId: string; issueCount: number }[] {
+  return cases
+    .map((evaluationCase) => ({ caseId: evaluationCase.id, issueCount: validateRetrievalPrecisionRecallCase(evaluationCase).length }))
+    .filter((entry) => entry.issueCount > 0);
+}

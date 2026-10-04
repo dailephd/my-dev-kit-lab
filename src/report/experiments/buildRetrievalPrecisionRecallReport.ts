@@ -78,7 +78,8 @@ export function buildRetrievalPrecisionRecallReport(run: ExperimentRun): Retriev
       missedSymbols: boundedList(quality?.symbol.missedSymbols ?? null),
       irrelevantRetrievedSymbols: boundedList(quality?.symbol.irrelevantRetrievedSymbols ?? null),
       uncoveredFactIds: boundedList(quality?.fact.uncoveredFactIds ?? null),
-      errors: entry.errors.map((error) => `${error.code}: ${error.message}`)
+      errors: entry.errors.map((error) => `${error.code}: ${error.message}`),
+      identityRedaction: entry.identityRedaction ? { ...entry.identityRedaction } : null
     };
   });
 

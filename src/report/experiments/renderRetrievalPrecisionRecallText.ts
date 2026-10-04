@@ -26,6 +26,10 @@ export function formatRetrievalMetric(metric: RetrievalPrecisionRecallReportMetr
   return `${metric.availability}${metric.reason ? ` (${metric.reason})` : ""}`;
 }
 
+/** Explains the placeholders; shown only when at least one case was externally projected. */
+export const RETRIEVAL_IDENTITY_REDACTION_EXPLANATION =
+  "External-local run: file, symbol and fact identities, warning text and case titles are withheld. A placeholder such as <redacted file 1> stands for exactly one withheld identity; it is not a file name and not an absence of files. Counts and metric values are exact.";
+
 export function formatRetrievalMean(value: number | null): string {
   return value === null ? "unavailable" : value.toFixed(4);
 }
@@ -52,6 +56,9 @@ export function renderRetrievalPrecisionRecallTextLines(section: RetrievalPrecis
   const lines: string[] = [];
   lines.push(`Schema: ${clean(section.schemaVersion)}`);
   lines.push(`Token Count Method: ${clean(section.tokenCountMethod ?? "unavailable")}`);
+  if (section.cases.some((entry) => entry.identityRedaction !== null)) {
+    lines.push(`Identity Redaction: ${RETRIEVAL_IDENTITY_REDACTION_EXPLANATION}`);
+  }
 
   lines.push("Run Summary:");
   for (const [label, value] of Object.entries(section.runSummary)) {
@@ -118,6 +125,7 @@ export function renderRetrievalPrecisionRecallTextLines(section: RetrievalPrecis
   lines.push("Per-Case Missed And Irrelevant Context (displayed lists are bounded; totals are exact):");
   for (const entry of section.cases) {
     lines.push(`Case ${clean(entry.caseId)} (${clean(entry.status)})`);
+    if (entry.identityRedaction !== null) lines.push("  Identity redaction: files, symbols, facts, warnings and case title withheld");
     const lists: Array<[string, RetrievalPrecisionRecallReportBoundedListV1 | null]> = [
       ["Missed Files", entry.missedFiles],
       ["Irrelevant Retrieved Files", entry.irrelevantRetrievedFiles],

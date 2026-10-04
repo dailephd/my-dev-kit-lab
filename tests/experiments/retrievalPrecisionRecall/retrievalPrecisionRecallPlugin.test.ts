@@ -79,7 +79,7 @@ describe("retrieval-precision-recall plugin contract", () => {
       description: "Measure deterministic file, symbol, fact and irrelevant-context retrieval quality for the existing my-dev-kit retrieval lifecycle without agents.",
       schemaVersion: "1.0.0",
       status: "experimental",
-      supportedTargets: ["self"],
+      supportedTargets: ["self", "external-local"],
       supportedOutputs: ["json", "html", "text", "artifact"]
     });
   });
@@ -138,11 +138,13 @@ describe("retrieval-precision-recall plugin contract", () => {
     }
   });
 
-  it("TST-B3-023 fails closed for a non-self target even when invoked outside the CLI", async () => {
+  it("TST-B3-023 fails closed for an external target without a loaded subject even when invoked outside the CLI (Batch 4: no bundled fallback)", async () => {
     const external = tempDir();
     const result = await run({ targetPath: external });
     expect(result.status).toBe("failed");
-    expect(result.failures).toEqual([{ code: "experiment-run-failed", message: "retrieval-precision-recall currently supports only the bundled self target.", recoverable: false }]);
+    expect(result.failures).toEqual([
+      { code: "experiment-run-failed", message: "External-local retrieval-precision-recall targets require a loaded local repository subject (--local-subject-config).", recoverable: false }
+    ]);
     expect(result.cases).toEqual([]);
   });
 });

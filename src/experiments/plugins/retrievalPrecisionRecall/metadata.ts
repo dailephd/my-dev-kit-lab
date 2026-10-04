@@ -14,7 +14,7 @@ export const retrievalPrecisionRecallMetadata: ExperimentPluginMetadata = {
     "Measure deterministic file, symbol, fact and irrelevant-context retrieval quality for the existing my-dev-kit retrieval lifecycle without agents.",
   schemaVersion: "1.0.0",
   status: "experimental",
-  supportedTargets: ["self"],
+  supportedTargets: ["self", "external-local"],
   supportedOutputs: ["json", "html", "text", "artifact"]
 };
 

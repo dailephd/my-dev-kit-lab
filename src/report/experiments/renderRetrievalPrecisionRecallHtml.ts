@@ -3,6 +3,7 @@ import {
 } from "../../experiments/plugins/retrievalPrecisionRecall/types.js";
 import type { RetrievalPrecisionRecallReportBoundedListV1, RetrievalPrecisionRecallReportV1 } from "./retrievalPrecisionRecallReportModel.js";
 import {
+  RETRIEVAL_IDENTITY_REDACTION_EXPLANATION,
   formatRetrievalCount,
   formatRetrievalList,
   formatRetrievalMean,
@@ -27,6 +28,7 @@ export function renderRetrievalPrecisionRecallHtml(section: RetrievalPrecisionRe
       ["Token count method", section.tokenCountMethod ?? "unavailable"],
       ...Object.entries(section.runSummary).map(([label, value]): string[] => [label, String(value)])
     ])}
+    ${section.cases.some((entry) => entry.identityRedaction !== null) ? `<p><strong>Identity redaction.</strong> ${escapeHtml(RETRIEVAL_IDENTITY_REDACTION_EXPLANATION)}</p>` : ""}
     <h3>Macro Averages</h3>
     <p class="muted">Mean over available per-case values only. Unavailable and not-applicable cases are counted separately and are never treated as zero.</p>
     ${table(
@@ -86,6 +88,7 @@ export function renderRetrievalPrecisionRecallHtml(section: RetrievalPrecisionRe
           ["Uncovered fact IDs", entry.uncoveredFactIds]
         ];
         return `<h4><code>${escapeHtml(entry.caseId)}</code> (${escapeHtml(entry.status)})</h4>
+    ${entry.identityRedaction !== null ? `<p class="muted">Identity redaction: files, symbols, facts, warnings and case title withheld.</p>` : ""}
     ${lists
       .map(([label, list]) => `<p>${escapeHtml(label)}: ${escapeHtml(formatRetrievalList(list))}</p>${list && list.displayed.length > 0 ? listHtml(list.displayed) : ""}`)
       .join("\n    ")}${entry.errors.length > 0 ? `\n    ${listHtml(entry.errors)}` : ""}`;

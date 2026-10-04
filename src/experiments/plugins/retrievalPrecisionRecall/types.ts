@@ -38,6 +38,18 @@ export type RetrievalPrecisionRecallRetrievalSummaryV1 = {
  * COMPLETED: retrieval evidence available and metrics calculated. PARTIAL: retrieval returned but its evidence
  * was partial/unavailable/missing. FAILED: no retrieval measurement exists (index, ground truth, or execution error).
  */
+/**
+ * Present only on external-local durable case evidence: states which identity classes were withheld, so a consumer
+ * reading "<redacted file 1>" knows it is one withheld identity, not a literal file name and not "no file".
+ */
+export type RetrievalPrecisionRecallIdentityRedactionV1 = {
+  fileIdentities: "redacted";
+  symbolIdentities: "redacted";
+  factIdentities: "redacted";
+  warningText: "redacted";
+  caseTitle: "redacted";
+};
+
 export type RetrievalPrecisionRecallCaseEvidenceV1 = {
   caseId: string;
   caseName: string;
@@ -47,6 +59,8 @@ export type RetrievalPrecisionRecallCaseEvidenceV1 = {
   retrieval: RetrievalPrecisionRecallRetrievalSummaryV1 | null;
   quality: RetrievalQualityMetricsV1 | null;
   errors: RetrievalPrecisionRecallErrorV1[];
+  /** Absent for bundled cases, which keep their real benchmark identities. */
+  identityRedaction?: RetrievalPrecisionRecallIdentityRedactionV1;
 };
 
 export type RetrievalPrecisionRecallRatioAggregateV1 = {

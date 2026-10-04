@@ -125,3 +125,56 @@ export function checkRedactionTruthfulness(artifact: unknown): string[] {
   });
   return problems;
 }
+
+function numberedPlaceholderProblems(list: unknown, kind: "file" | "symbol" | "fact" | "warning", at: string): string[] {
+  if (list === null) return [];
+  if (!Array.isArray(list)) return [`${at} is neither a list nor null`];
+  const problems: string[] = [];
+  list.forEach((entry, index) => {
+    if (entry !== `<redacted ${kind} ${index + 1}>`) problems.push(`${at}[${index}] is not <redacted ${kind} ${index + 1}>`);
+  });
+  return problems;
+}
+
+/**
+ * Checks that the redaction of an external-local retrieval-precision-recall execution artifact stays truthful: the
+ * explicit identityRedaction marker is present, case titles are the fixed placeholder, every file, symbol, fact and
+ * warning identity is a numbered placeholder, null still means "unavailable", and list lengths equal the exact counts
+ * (so [] still means "none" and a redacted list never hides a count).
+ */
+export function checkRetrievalRedactionTruthfulness(artifact: unknown): string[] {
+  const cases = (artifact as { cases?: unknown })?.cases;
+  if (!Array.isArray(cases) || cases.length === 0) return ["artifact has no cases"];
+  const problems: string[] = [];
+  cases.forEach((entry: any, index: number) => {
+    const at = `cases[${index}]`;
+    const marker = entry?.identityRedaction;
+    for (const key of ["fileIdentities", "symbolIdentities", "factIdentities", "warningText", "caseTitle"]) {
+      if (marker?.[key] !== "redacted") problems.push(`${at}.identityRedaction.${key} is not "redacted"`);
+    }
+    if (entry?.caseName !== "<redacted case title>") problems.push(`${at}.caseName is not the fixed placeholder`);
+    problems.push(...numberedPlaceholderProblems(entry?.retrieval?.warnings ?? [], "warning", `${at}.retrieval.warnings`));
+    const quality = entry?.quality;
+    if (quality === null || quality === undefined) return;
+    for (const key of ["relevantRetrievedFiles", "irrelevantRetrievedFiles", "missedFiles"]) {
+      problems.push(...numberedPlaceholderProblems(quality.file?.[key], "file", `${at}.quality.file.${key}`));
+    }
+    for (const key of ["relevantRetrievedSymbols", "irrelevantRetrievedSymbols", "missedSymbols"]) {
+      problems.push(...numberedPlaceholderProblems(quality.symbol?.[key], "symbol", `${at}.quality.symbol.${key}`));
+    }
+    for (const key of ["coveredFactIds", "uncoveredFactIds"]) {
+      problems.push(...numberedPlaceholderProblems(quality.fact?.[key], "fact", `${at}.quality.fact.${key}`));
+    }
+    const lengthMatches = (list: unknown, count: unknown, label: string): void => {
+      if (list === null) {
+        if (count !== null) problems.push(`${label} is null but its count is ${String(count)}`);
+      } else if (Array.isArray(list) && list.length !== count) {
+        problems.push(`${label} length ${list.length} differs from its count ${String(count)}`);
+      }
+    };
+    lengthMatches(quality.file?.missedFiles, quality.file?.missedFileCount, `${at}.quality.file.missedFiles`);
+    lengthMatches(quality.symbol?.missedSymbols, quality.symbol?.missedSymbolCount, `${at}.quality.symbol.missedSymbols`);
+    lengthMatches(quality.fact?.uncoveredFactIds, quality.fact?.uncoveredFactCount, `${at}.quality.fact.uncoveredFactIds`);
+  });
+  return problems;
+}

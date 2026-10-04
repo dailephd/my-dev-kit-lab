@@ -138,6 +138,30 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/experiments/plugins/contextWindowScaling/localSubjectPrivacy.js",
   "dist/src/experiments/plugins/contextWindowScaling/executionArtifact.js",
   "dist/src/report/experiments/writePluginExperimentReports.js",
+  // v0.8.0 -- retrieval-quality evidence/metric/fact-mapping/corpus-completeness owners, the retrieval-precision-recall
+  // plugin (bundled and external-local execution, privacy projection), and its specialized report owners.
+  "dist/src/evaluation/retrievalQuality/index.js",
+  "dist/src/evaluation/retrievalQuality/types.js",
+  "dist/src/evaluation/retrievalQuality/buildRetrievalEvidence.js",
+  "dist/src/evaluation/retrievalQuality/metrics.js",
+  "dist/src/evaluation/retrievalQuality/factContextTargets.js",
+  "dist/src/evaluation/retrievalQuality/corpusCompleteness.js",
+  "dist/src/evaluation/runMyDevKitRetrieval.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/index.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/config.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/metadata.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/execution.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/executionArtifact.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/metrics.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/plugin.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/types.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/localSubjectExecution.js",
+  "dist/src/experiments/plugins/retrievalPrecisionRecall/localSubjectPrivacy.js",
+  "dist/src/experiments/plugins/warmIndexReuse/selection.js",
+  "dist/src/report/experiments/buildRetrievalPrecisionRecallReport.js",
+  "dist/src/report/experiments/retrievalPrecisionRecallReportModel.js",
+  "dist/src/report/experiments/renderRetrievalPrecisionRecallHtml.js",
+  "dist/src/report/experiments/renderRetrievalPrecisionRecallText.js",
   "dist/src/report/experiments/renderPluginExperimentReportHtml.js",
   "dist/src/plots/buildContextWindowScalingPlotData.js",
   "benchmarks/contracts/context-window-scaling-cases.json",
@@ -155,7 +179,7 @@ const REQUIRED_TARBALL_PATHS = [
   "examples/tutorial-browser/scenario.json"
 ];
 
-const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling"];
+const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall"];
 const INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS_LOCAL = ["U1", "L2", "E1", "P1", "I1", "T1"];
 
 const WARM_INDEX_CHARTS = [
@@ -1949,6 +1973,345 @@ async function main() {
     }
 
     // -----------------------------------------------------------------
+    // 9c-5. v0.8.0 installed-package retrieval-precision-recall acceptance.
+    // The INSTALLED bin proves discovery, one bundled run over the packaged
+    // corpus, and an external-local run against a disposable Git repository.
+    // Both use a deterministic, upstream-shaped fake my-dev-kit copied from
+    // the repository test fixtures at verification time (never packaged, no
+    // network), so the gate is offline and never imports the source checkout.
+    // It asserts no retrieval-quality threshold.
+    // -----------------------------------------------------------------
+    {
+      const gate = "RETRIEVAL_PRECISION_RECALL";
+      const RPR_ID = "retrieval-precision-recall";
+      const RPR_OUTPUTS = ["json", "html", "text", "artifact"];
+      const RPR_DURABLE_FAMILY = ["local-repository-subject-manifest.json", "report.html", "report.json", "report.txt", "retrieval-precision-recall-execution.json"];
+      const privacyScan = await loadPrivacyScan();
+
+      const rprListed = knownExperiments.filter((entry) => entry.id === RPR_ID);
+      if (
+        rprListed.length !== 1 ||
+        rprListed[0].status !== "experimental" ||
+        JSON.stringify(rprListed[0].supportedVariants) !== JSON.stringify(["my-dev-kit-retrieval"]) ||
+        JSON.stringify(rprListed[0].supportedOutputs) !== JSON.stringify(RPR_OUTPUTS) ||
+        JSON.stringify(rprListed[0].supportedTargets) !== JSON.stringify(["self", "external-local"])
+      ) {
+        fail(`${gate}_DISCOVERY`, `Installed experiment list lacks the expected retrieval-precision-recall entry: ${JSON.stringify(rprListed)}`);
+      }
+      const rprDescribeResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "describe", "--experiment", RPR_ID, "--json"], envWithBin);
+      if (rprDescribeResult.status !== 0) fail(`${gate}_DISCOVERY`, "Installed experiment describe for retrieval-precision-recall did not exit 0.", describeChildResult(rprDescribeResult));
+      const rprDescribed = parseJsonOutput(rprDescribeResult, `${gate}_DISCOVERY`);
+      if (
+        rprDescribed.metadata?.id !== RPR_ID ||
+        rprDescribed.metadata?.status !== "experimental" ||
+        rprDescribed.metadata?.schemaVersion !== "1.0.0" ||
+        JSON.stringify(rprDescribed.metadata?.supportedTargets) !== JSON.stringify(["self", "external-local"]) ||
+        JSON.stringify(rprDescribed.metadata?.supportedOutputs) !== JSON.stringify(RPR_OUTPUTS) ||
+        JSON.stringify(rprDescribed.supportedVariants) !== JSON.stringify(["my-dev-kit-retrieval"]) ||
+        JSON.stringify((rprDescribed.requiredConfigFields ?? []).map((field) => field.name)) !== JSON.stringify(["outDir"]) ||
+        JSON.stringify((rprDescribed.optionalConfigFields ?? []).map((field) => field.name)) !== JSON.stringify(["kitCommand", "caseIds", "benchmarkProjects"])
+      ) {
+        fail(`${gate}_DISCOVERY`, `Installed describe output is not the expected retrieval-precision-recall contract: ${rprDescribeResult.stdout}`);
+      }
+      console.log("RETRIEVAL_PRECISION_RECALL_DISCOVERY: PASS (installed list and describe: experimental, 1.0.0, self + external-local, json/html/text/artifact, one variant, closed config)");
+
+      if (path.resolve(dirs.consumer) === path.resolve(installedPackageRoot) || path.resolve(dirs.consumer) === REPO_ROOT) {
+        fail(`${gate}_RESOURCE_RESOLUTION`, "The consumer working directory must differ from the installed package root and the source checkout.");
+      }
+      const rprKitScript = path.join(dirs.fakeKit, "fake-upstream-shaped-kit.mjs");
+      writeFileSync(rprKitScript, readFileSync(path.join(REPO_ROOT, "tests", "fixtures", "fake-upstream-shaped-kit-cli.js"), "utf8"), "utf8");
+      const rprKitCommand = `"${process.execPath}" "${rprKitScript}"`;
+      const RPR_MARKERS = {
+        source: "PACKED_RPR_SOURCE_BODY_MARKER_5a21",
+        stdout: "PACKED_RPR_RAW_STDOUT_MARKER_c7d0",
+        stderr: "PACKED_RPR_RAW_STDERR_MARKER_93be",
+        title: "PACKED RPR PRIVATE TITLE MARKER",
+        titleTwo: "PACKED RPR SECOND PRIVATE TITLE MARKER",
+        symbol: "PackedRprPrivateSymbolAlpha",
+        symbolTwo: "PackedRprPrivateSymbolBeta",
+        fact: "packed-rpr-private-fact-one",
+        factTwo: "packed-rpr-private-fact-two",
+        factThree: "packed-rpr-private-fact-three"
+      };
+      const rprKitEnv = (extra = {}) => ({
+        ...envWithBin,
+        RPR_KIT_SOURCE_TEXT: RPR_MARKERS.source,
+        RPR_KIT_STDOUT_TEXT: RPR_MARKERS.stdout,
+        RPR_KIT_STDERR_TEXT: RPR_MARKERS.stderr,
+        ...extra
+      });
+      const readKitCalls = (logFile) =>
+        existsSync(logFile)
+          ? readFileSync(logFile, "utf8")
+              .split("\n")
+              .filter(Boolean)
+              .map((line) => JSON.parse(line))
+          : [];
+
+      // --- Bundled run over the packaged corpus (one case, deterministic evidence) ---
+      const rprBundledOut = path.join(dirs.workspace, "rpr-bundled", "run");
+      const rprBundledLog = path.join(tempRoot, "rpr-bundled-kit.log");
+      const rprBundledRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        ["experiment", "run", "--experiment", RPR_ID, "--case", "warm-medium-complete-idempotent", "--kit-command", rprKitCommand, "--out", rprBundledOut],
+        rprKitEnv({
+          RPR_KIT_LOG: rprBundledLog,
+          RPR_KIT_FILES: "src/services/completeTask.ts,src/store/taskStore.ts",
+          RPR_KIT_SYMBOLS: "completeTask@src/services/completeTask.ts"
+        })
+      );
+      if (rprBundledRun.status !== 0) fail(`${gate}_BUNDLED`, "Installed bundled retrieval-precision-recall run did not exit 0.", describeChildResult(rprBundledRun));
+      assertOutputOutsidePackage(rprBundledOut, installedPackageRoot, "retrieval-precision-recall bundled run");
+      for (const name of ["retrieval-precision-recall-execution.json", "report.json", "report.txt", "report.html"]) requireNonEmptyFile(path.join(rprBundledOut, name), `${gate}_BUNDLED`);
+      const rprBundledArtifact = readJsonFile(path.join(rprBundledOut, "retrieval-precision-recall-execution.json"), `${gate}_BUNDLED`);
+      const rprBundledReport = readJsonFile(path.join(rprBundledOut, "report.json"), `${gate}_BUNDLED`);
+      const bundledCase = rprBundledArtifact.cases?.[0];
+      if (
+        rprBundledArtifact.schemaVersion !== "my-dev-kit-lab-retrieval-precision-recall-execution-v1" ||
+        rprBundledArtifact.cases?.length !== 1 ||
+        bundledCase?.caseId !== "warm-medium-complete-idempotent" ||
+        bundledCase?.status !== "completed" ||
+        bundledCase?.identityRedaction !== undefined ||
+        bundledCase?.quality?.file?.precision?.value !== 1 ||
+        bundledCase?.quality?.file?.recall?.value !== 1 ||
+        !bundledCase?.quality?.file?.relevantRetrievedFiles?.includes("src/services/completeTask.ts") ||
+        bundledCase?.quality?.fact?.coverage?.availability !== "available" ||
+        rprBundledReport.report?.plugin?.id !== RPR_ID ||
+        rprBundledReport.report?.target?.isSelf !== true ||
+        rprBundledReport.report?.retrievalPrecisionRecall?.cases?.[0]?.identityRedaction !== null
+      ) {
+        fail(`${gate}_BUNDLED`, `Installed bundled run did not produce the expected unredacted, packaged-corpus evidence: ${JSON.stringify(bundledCase)?.slice(0, 600)}`);
+      }
+      if (readKitCalls(rprBundledLog).filter((call) => call.argv[0] === "index").length !== 1) {
+        fail(`${gate}_BUNDLED`, "The bundled run did not build exactly one index for the one selected benchmark project.");
+      }
+      const rprBundledSerialized = ["retrieval-precision-recall-execution.json", "report.json", "report.txt", "report.html"].map((name) => readFileSync(path.join(rprBundledOut, name), "utf8")).join("\n");
+      for (const marker of [RPR_MARKERS.source, RPR_MARKERS.stdout, RPR_MARKERS.stderr]) {
+        if (rprBundledSerialized.includes(marker)) fail(`${gate}_BUNDLED`, "Installed bundled output serialized raw source, stdout or stderr marker text.");
+      }
+      console.log("RETRIEVAL_PRECISION_RECALL_BUNDLED: PASS (installed bin; packaged corpus and profiles; offline upstream-shaped kit; unredacted benchmark identities; no raw output persisted)");
+
+      // --- External-local: disposable Git repository outside the installed package ---
+      const RPR_LOCAL = {
+        eligible: "PACKED_RPR_ELIGIBLE_MARKER_1f9a",
+        ignoredFile: "PACKED_RPR_IGNORED_MARKER_44c8",
+        ignoredDirectory: "PACKED_RPR_IGNORED_DIR_MARKER_e03b",
+        oversized: "PACKED_RPR_OVERSIZED_MARKER_7b52"
+      };
+      const rprArea = path.join(tempRoot, "rpr local subject area");
+      const rprTarget = path.join(rprArea, "target repo", "inner project");
+      const rprConfigPath = path.join(rprArea, "config dir", "local subject.json");
+      const rprOut = path.join(dirs.workspace, "rpr local out", "run");
+      const rprLog = path.join(tempRoot, "rpr-local-kit.log");
+      const rprGitEnv = { ...process.env, GIT_OPTIONAL_LOCKS: "0" };
+      for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX"]) delete rprGitEnv[key];
+      const rprGit = (...args) => {
+        const result = spawnSync("git", ["-c", "user.name=Packed Gate", "-c", "user.email=packed-gate@example.invalid", "-c", "commit.gpgsign=false", ...args], { cwd: rprTarget, encoding: "utf8", env: rprGitEnv });
+        if (result.status !== 0) fail(gate, `git ${args[0]} failed while preparing the disposable retrieval subject.`, describeChildResult(result));
+        return result.stdout;
+      };
+      const rprWrite = (relative, content) => {
+        const absolute = path.join(rprTarget, ...relative.split("/"));
+        mkdirSync(path.dirname(absolute), { recursive: true });
+        writeFileSync(absolute, content, "utf8");
+      };
+      mkdirSync(rprTarget, { recursive: true });
+      rprGit("init", "-q", "-b", "main");
+      rprWrite(".gitignore", "src/private notes.ts\nsrc/gen/\n");
+      rprWrite("src/app/main.ts", `export function ${RPR_MARKERS.symbol}(): string { return "${RPR_LOCAL.eligible}"; }\n`);
+      rprWrite("src/app/util/helper.ts", `export function ${RPR_MARKERS.symbolTwo}(value: number): number { return value + 1; }\n`);
+      rprWrite("src/huge file.ts", `// ${RPR_LOCAL.oversized}\n${"x".repeat(1_048_576 + 100)}\n`);
+      rprGit("add", "-A");
+      rprGit("commit", "-q", "-m", "packed fixture");
+      rprWrite("src/private notes.ts", `export const privateNotes = 1; // ${RPR_LOCAL.ignoredFile}\n`);
+      rprWrite("src/gen/out.ts", `export const generated = 1; // ${RPR_LOCAL.ignoredDirectory}\n`);
+      const rprAnswerKey = (files, symbols, facts, targets) => ({
+        expectedFiles: files,
+        expectedSymbols: symbols,
+        expectedFacts: facts.map((id) => ({ id, text: "private fact text that is never persisted", weight: 1, required: true })),
+        expectedContextTargets: targets,
+        minimumCorrectFacts: 1
+      });
+      mkdirSync(path.dirname(rprConfigPath), { recursive: true });
+      writeFileSync(
+        rprConfigPath,
+        JSON.stringify({
+          schemaVersion: "1.0.0",
+          subjectId: "packed-rpr-subject",
+          cases: [
+            {
+              id: "packed-case-one",
+              title: RPR_MARKERS.title,
+              sourceRoots: ["src"],
+              query: "Where are the private symbols defined?",
+              expectedFiles: ["src/app/main.ts", "src/app/util/helper.ts"],
+              expectedSymbols: [RPR_MARKERS.symbol, RPR_MARKERS.symbolTwo],
+              rawIncludeGlobs: ["src/**/*"],
+              answerKey: rprAnswerKey(
+                ["src/app/main.ts", "src/app/util/helper.ts"],
+                [RPR_MARKERS.symbol, RPR_MARKERS.symbolTwo],
+                [RPR_MARKERS.fact, RPR_MARKERS.factTwo],
+                [
+                  { file: "src/app/main.ts", symbols: [RPR_MARKERS.symbol], required: true, factIds: [RPR_MARKERS.fact] },
+                  { file: "src/app/util/helper.ts", symbols: [RPR_MARKERS.symbolTwo], required: true, factIds: [RPR_MARKERS.factTwo] }
+                ]
+              )
+            },
+            {
+              id: "packed-case-two",
+              title: RPR_MARKERS.titleTwo,
+              sourceRoots: ["src/app/util"],
+              query: "Where is the helper defined?",
+              expectedFiles: ["src/app/util/helper.ts"],
+              expectedSymbols: [RPR_MARKERS.symbolTwo],
+              rawIncludeGlobs: ["src/app/util/**/*"],
+              answerKey: rprAnswerKey(
+                ["src/app/util/helper.ts"],
+                [RPR_MARKERS.symbolTwo],
+                [RPR_MARKERS.factThree],
+                [{ file: "src/app/util/helper.ts", symbols: [RPR_MARKERS.symbolTwo], required: true, factIds: [RPR_MARKERS.factThree] }]
+              )
+            }
+          ]
+        }),
+        "utf8"
+      );
+      const rprConfigBefore = readFileSync(rprConfigPath, "utf8");
+      const rprTargetBefore = await snapshotDirectory(rprTarget);
+      const rprStatusBefore = rprGit("status", "--porcelain=v1", "--ignored");
+      const rprHeadBefore = rprGit("rev-parse", "HEAD").trim();
+      const rprRunArgs = (extra) => ["experiment", "run", "--experiment", RPR_ID, ...extra];
+      const rprLocalEnv = (extra = {}) =>
+        rprKitEnv({ RPR_KIT_LOG: rprLog, RPR_KIT_FILES: "src/app/main.ts,src/app/util/helper.ts", RPR_KIT_SYMBOLS: `${RPR_MARKERS.symbol}@src/app/main.ts`, ...extra });
+      const rprSentinels = [
+        ...[rprTarget, rprArea, path.dirname(rprConfigPath), rprOut, path.dirname(rprOut), dirs.workspace, dirs.consumer, dirs.fakeKit, installedPackageRoot, tempRoot, os.tmpdir(), os.homedir(), REPO_ROOT].map(
+          (value) => ({ label: "private path", value, kind: "path" })
+        ),
+        ...Object.entries({ ...RPR_MARKERS, ...RPR_LOCAL }).map(([label, value]) => ({ label: `marker ${label}`, value, kind: "text" })),
+        ...["private notes.ts", "huge file.ts", "gen/out", "src/app/main.ts", "src/app/util/helper.ts", "main.ts", "helper.ts", "inner project", "target repo", "fake-upstream-shaped-kit"].map((value) => ({ label: `name ${value}`, value, kind: "text" }))
+      ];
+      const expectTargetUntouched = async (label) => {
+        const diff = diffSnapshots(rprTargetBefore, await snapshotDirectory(rprTarget));
+        if (diff.length > 0) fail(`${gate}_IMMUTABILITY`, `${label} mutated the target: ${diff.join(", ")}`);
+        if (rprGit("status", "--porcelain=v1", "--ignored") !== rprStatusBefore || rprGit("rev-parse", "HEAD").trim() !== rprHeadBefore || readFileSync(rprConfigPath, "utf8") !== rprConfigBefore) {
+          fail(`${gate}_IMMUTABILITY`, `${label} changed the target Git state or its config.`);
+        }
+      };
+
+      // Mode-matrix rejections and an output-inside-target rejection: nonzero, no output, target untouched, nothing private printed.
+      const rprUnsafeInside = path.join(rprTarget, "lab-out");
+      const rprNegativeCases = [
+        ["target-without-config", ["--target", rprTarget, "--out", rprOut]],
+        ["config-without-target", ["--local-subject-config", rprConfigPath, "--out", rprOut]],
+        ["case-in-external-mode", ["--target", rprTarget, "--local-subject-config", rprConfigPath, "--case", "packed-case-one", "--out", rprOut]],
+        ["benchmark-project-in-external-mode", ["--target", rprTarget, "--local-subject-config", rprConfigPath, "--benchmark-project", "packed-rpr-subject", "--out", rprOut]],
+        ["output-inside-target", ["--target", rprTarget, "--local-subject-config", rprConfigPath, "--out", rprUnsafeInside]],
+        ["output-equals-target", ["--target", rprTarget, "--local-subject-config", rprConfigPath, "--out", rprTarget]]
+      ];
+      for (const [label, args] of rprNegativeCases) {
+        const result = runInstalledCli(cliCommand, dirs.consumer, rprRunArgs([...args, "--kit-command", rprKitCommand]), rprLocalEnv());
+        if (result.status === 0) fail(`${gate}_REJECTIONS`, `Installed negative case ${label} exited 0.`, describeChildResult(result));
+        if (existsSync(rprUnsafeInside) || (existsSync(path.dirname(rprOut)) && readdirSync(path.dirname(rprOut)).length > 0)) {
+          fail(`${gate}_REJECTIONS`, `Installed negative case ${label} created output.`);
+        }
+        const leaks = privacyScan.scanDurableArtifactText([{ name: `${label}-console`, text: `${result.stdout ?? ""}\n${result.stderr ?? ""}` }], rprSentinels.filter((sentinel) => sentinel.kind === "path" && sentinel.value !== os.tmpdir() && sentinel.value !== os.homedir() && sentinel.value !== tempRoot && sentinel.value !== REPO_ROOT).concat(rprSentinels.filter((sentinel) => sentinel.kind === "text" && sentinel.label.startsWith("marker"))));
+        if (leaks.length > 0) fail(`${gate}_REJECTIONS`, `Installed negative case ${label} printed a private value: ${JSON.stringify(leaks)}`);
+        await expectTargetUntouched(`Installed negative case ${label}`);
+      }
+      if (readKitCalls(rprLog).length > 0) fail(`${gate}_REJECTIONS`, "A rejected installed run still invoked my-dev-kit.");
+      console.log(`RETRIEVAL_PRECISION_RECALL_EXTERNAL_REJECTIONS: PASS (${rprNegativeCases.length} installed boundary cases: nonzero exit, no output, no my-dev-kit call, target unchanged)`);
+
+      // Installed failure path: an unsafe retrieved identity must fail closed with no normal durable family.
+      const rprFailureOut = path.join(dirs.workspace, "rpr local failure out", "run");
+      const rprFailure = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        rprRunArgs(["--target", rprTarget, "--local-subject-config", rprConfigPath, "--kit-command", rprKitCommand, "--out", rprFailureOut]),
+        rprLocalEnv({ RPR_KIT_FILES: "src/private notes.ts" })
+      );
+      if (rprFailure.status === 0) fail(`${gate}_EXTERNAL_FAILURE`, "Installed run that retrieved an ignored file exited 0.", describeChildResult(rprFailure));
+      const failureText = `${rprFailure.stdout ?? ""}\n${rprFailure.stderr ?? ""}`;
+      if (!failureText.includes("RETRIEVAL_OUTSIDE_ELIGIBLE_UNIVERSE") || !failureText.includes("Status: failed")) {
+        fail(`${gate}_EXTERNAL_FAILURE`, "Installed unsafe-identity failure did not report the bounded safe code.", describeChildResult(rprFailure));
+      }
+      for (const forbidden of ["private notes", "ignored", rprTarget, rprArea, ...Object.values(RPR_LOCAL), ...Object.values(RPR_MARKERS)]) {
+        if (failureText.includes(forbidden)) fail(`${gate}_EXTERNAL_FAILURE`, `Installed failure output contains a private value (${forbidden.length > 40 ? `${forbidden.slice(0, 20)}...` : forbidden}).`);
+      }
+      if (existsSync(rprFailureOut) && readdirSync(rprFailureOut).length > 0) {
+        fail(`${gate}_EXTERNAL_FAILURE`, `Installed failure wrote files to the output directory: ${readdirSync(rprFailureOut).join(", ")}`);
+      }
+      await expectTargetUntouched("Installed unsafe-identity failure");
+      console.log("RETRIEVAL_PRECISION_RECALL_EXTERNAL_FAILURE: PASS (installed bin; unsafe retrieved identity: nonzero, bounded safe code, no normal durable family, target unchanged)");
+
+      // Installed external-local success. The failure run above built (and discarded) one private index before stopping, so the
+      // call log is reset to count exactly the indexes of this run.
+      writeFileSync(rprLog, "", "utf8");
+      const rprRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        rprRunArgs(["--target", rprTarget, "--local-subject-config", rprConfigPath, "--kit-command", rprKitCommand, "--out", rprOut]),
+        rprLocalEnv()
+      );
+      if (rprRun.status !== 0) fail(`${gate}_EXTERNAL`, "Installed external-local retrieval-precision-recall run did not exit 0.", describeChildResult(rprRun));
+      assertOutputOutsidePackage(rprOut, installedPackageRoot, "retrieval-precision-recall external-local run");
+      if (!path.relative(rprTarget, rprOut).startsWith("..")) fail(`${gate}_EXTERNAL`, "Lab output was written inside the inspected target.");
+      const rprEntries = readdirSync(rprOut).sort();
+      if (JSON.stringify(rprEntries) !== JSON.stringify(RPR_DURABLE_FAMILY)) {
+        fail(`${gate}_EXTERNAL`, `External-local output is not exactly the approved durable family (scratch, index or command files remained): ${rprEntries.join(", ")}`);
+      }
+      for (const name of RPR_DURABLE_FAMILY) requireNonEmptyFile(path.join(rprOut, name), `${gate}_EXTERNAL`);
+      const rprArtifact = readJsonFile(path.join(rprOut, "retrieval-precision-recall-execution.json"), `${gate}_EXTERNAL`);
+      const rprManifest = readJsonFile(path.join(rprOut, "local-repository-subject-manifest.json"), `${gate}_EXTERNAL`);
+      const rprReport = readJsonFile(path.join(rprOut, "report.json"), `${gate}_EXTERNAL`);
+      if (
+        rprArtifact.schemaVersion !== "my-dev-kit-lab-retrieval-precision-recall-execution-v1" ||
+        JSON.stringify(rprArtifact.cases?.map((entry) => entry.caseId)) !== JSON.stringify(["packed-case-one", "packed-case-two"]) ||
+        rprArtifact.aggregate?.runSummary?.completedCaseCount !== 2 ||
+        rprManifest.schemaId !== "my-dev-kit-lab-local-repository-subject-manifest-v1" ||
+        rprManifest.subjectId !== "packed-rpr-subject" ||
+        rprManifest.repository?.commit !== rprHeadBefore ||
+        rprReport.report?.plugin?.id !== RPR_ID ||
+        rprReport.report?.target?.kind !== "external-local" ||
+        rprReport.report?.target?.targetRoot !== "local-repository:packed-rpr-subject" ||
+        rprReport.report?.target?.toolRoot !== "[redacted]" ||
+        rprReport.report?.target?.privacyProjection !== "external-local-redacted" ||
+        rprReport.report?.metadata?.outputRoot !== "[redacted]"
+      ) {
+        fail(`${gate}_EXTERNAL`, "Installed external-local artifacts do not carry the expected schema, subject identity, Git commit and privacy projection.");
+      }
+      const rprRedactionProblems = privacyScan.checkRetrievalRedactionTruthfulness(rprArtifact);
+      if (rprRedactionProblems.length > 0) fail(`${gate}_EXTERNAL`, `External-local retrieval redaction is not truthful: ${rprRedactionProblems.join("; ")}`);
+      const rprIndexCalls = readKitCalls(rprLog).filter((call) => call.argv[0] === "index");
+      const rprSourceRoots = rprIndexCalls.map((call) => call.argv.flatMap((value, index) => (value === "--src" ? [call.argv[index + 1]] : [])));
+      if (rprIndexCalls.length !== 2 || JSON.stringify(rprSourceRoots) !== JSON.stringify([["src"], ["src/app/util"]])) {
+        fail(`${gate}_EXTERNAL`, `Expected one private index per configured case with exactly that case's source roots, got ${JSON.stringify(rprSourceRoots)}.`);
+      }
+      for (const call of rprIndexCalls) {
+        const excluded = call.argv.flatMap((value, index) => (value === "--exclude" ? [call.argv[index + 1]] : []));
+        for (const required of ["src/gen", "src/huge file.ts", "src/private notes.ts"]) {
+          if (!excluded.includes(required)) fail(`${gate}_EXTERNAL`, `A case index did not receive the exact exclusion ${required}.`);
+        }
+        const indexOut = call.argv[call.argv.indexOf("--out") + 1];
+        if (!path.relative(rprOut, indexOut).split(path.sep)[0].startsWith("s-")) fail(`${gate}_EXTERNAL`, "A case index was not built inside the private scratch.");
+        rprSentinels.push({ label: "private index path", value: indexOut, kind: "path" }, { label: "private scratch path", value: path.dirname(indexOut), kind: "path" });
+      }
+      const rprLeaks = privacyScan.scanDurableOutputDirectory(rprOut, rprSentinels);
+      if (rprLeaks.length > 0) fail(`${gate}_PRIVACY`, `Durable installed external-local output leaks private values: ${JSON.stringify(rprLeaks)}`);
+      const rprHtml = readFileSync(path.join(rprOut, "report.html"), "utf8");
+      if (!rprHtml.includes("&lt;redacted file 1&gt;") || /<redacted [a-z]+ \d+>/.test(rprHtml)) {
+        fail(`${gate}_PRIVACY`, "Installed report.html does not escape the redaction placeholders.");
+      }
+      await expectTargetUntouched("Installed external-local run");
+      for (const forbidden of [".my-dev-kit", ".my-dev-kit-lab", "lab-output", "lab-out"]) {
+        if (existsSync(path.join(rprTarget, forbidden))) fail(`${gate}_IMMUTABILITY`, `Lab artifacts appeared inside the target: ${forbidden}`);
+      }
+      console.log(`RETRIEVAL_PRECISION_RECALL_EXTERNAL: PASS (installed bin; offline upstream-shaped kit; one private index per case with exact roots and exclusions; space-containing paths; output path length ${rprOut.length})`);
+      console.log("RETRIEVAL_PRECISION_RECALL_PRIVACY: PASS (raw, separator, JSON-escaped and HTML-escaped path forms; markers; file, symbol, fact and title identities; scratch and index paths; redaction truthful)");
+      console.log("RETRIEVAL_PRECISION_RECALL_IMMUTABILITY: PASS (target tree, Git status/HEAD and config unchanged; scratch removed; no Lab output in target)");
+    }
+
+    // -----------------------------------------------------------------
     // 9c-3. v0.6.2 incremental-change-staleness installed-package acceptance
     // (Batch 6). Consumer A (dirs.consumer) proves clean install/identity/
     // CLI/plugin discovery only and never runs the six-scenario workflow, so
@@ -2686,6 +3049,13 @@ async function main() {
         "CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_RUN: PASS",
         "CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_PRIVACY: PASS",
         "CONTEXT_WINDOW_SCALING_LOCAL_SUBJECT_IMMUTABILITY: PASS",
+        "RETRIEVAL_PRECISION_RECALL_DISCOVERY: PASS",
+        "RETRIEVAL_PRECISION_RECALL_BUNDLED: PASS",
+        "RETRIEVAL_PRECISION_RECALL_EXTERNAL_REJECTIONS: PASS",
+        "RETRIEVAL_PRECISION_RECALL_EXTERNAL_FAILURE: PASS",
+        "RETRIEVAL_PRECISION_RECALL_EXTERNAL: PASS",
+        "RETRIEVAL_PRECISION_RECALL_PRIVACY: PASS",
+        "RETRIEVAL_PRECISION_RECALL_IMMUTABILITY: PASS",
         "SOURCE_CHECKOUT_RUNTIME_DEPENDENCY: NONE_OBSERVED"
       ].join("\n")
     );

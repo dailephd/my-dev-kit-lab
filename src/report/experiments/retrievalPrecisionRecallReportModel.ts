@@ -1,5 +1,6 @@
 import type {
   RetrievalPrecisionRecallAggregateV1,
+  RetrievalPrecisionRecallIdentityRedactionV1,
   RetrievalPrecisionRecallRatioKey
 } from "../../experiments/plugins/retrievalPrecisionRecall/types.js";
 import type { RetrievalEvidenceAvailability, RetrievalQualityMetricAvailability } from "../../evaluation/retrievalQuality/index.js";
@@ -42,6 +43,11 @@ export type RetrievalPrecisionRecallReportCaseV1 = {
   irrelevantRetrievedSymbols: RetrievalPrecisionRecallReportBoundedListV1 | null;
   uncoveredFactIds: RetrievalPrecisionRecallReportBoundedListV1 | null;
   errors: string[];
+  /**
+   * Set only for external-local cases: identity lists then hold numbered placeholders such as "<redacted file 1>",
+   * each standing for exactly one withheld identity. Null for bundled cases, which carry real benchmark identities.
+   */
+  identityRedaction: RetrievalPrecisionRecallIdentityRedactionV1 | null;
 };
 
 export type RetrievalPrecisionRecallReportV1 = {

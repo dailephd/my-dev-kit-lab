@@ -3,7 +3,7 @@ import path from "node:path";
 import { parseAgentCommandTemplate } from "../agents/index.js";
 import { parseAgentId } from "../agents/agentRegistry.js";
 import { readBenchmarkProjectProfiles, readEvaluationCases } from "../evaluation/index.js";
-import { validateRetrievalPrecisionRecallCorpus } from "../evaluation/retrievalQuality/index.js";
+import { summarizeRetrievalGroundTruthIssuesSafely, validateRetrievalPrecisionRecallCorpus } from "../evaluation/retrievalQuality/index.js";
 import { loadLocalRepositorySubject } from "../evaluation/localRepositorySubject/index.js";
 import type { LocalRepositorySubject } from "../evaluation/localRepositorySubject/index.js";
 import {
@@ -84,6 +84,9 @@ const CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS = [
 // both resolved from the package root, never the cwd. It accepts only these options; every other flag is rejected.
 const RETRIEVAL_PRECISION_RECALL_CASES_RESOURCE = "benchmarks/contracts/warm-index-benchmark-cases.json";
 const RETRIEVAL_PRECISION_RECALL_ALLOWED_FLAGS = ["--experiment", "--out", "--case", "--benchmark-project", "--kit-command"];
+// External-local mode (--target with --local-subject-config) is a different subject source: the local-subject config owns
+// the case set, so the bundled corpus filters are not accepted there.
+const RETRIEVAL_PRECISION_RECALL_EXTERNAL_ALLOWED_FLAGS = ["--experiment", "--out", "--target", "--local-subject-config", "--kit-command"];
 
 // Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
 // warm-index-reuse, rejects) the fields it does not support.
@@ -355,10 +358,22 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     retrievalPrecisionRecallPlugin.metadata.id
   ];
   if (experimentId === retrievalPrecisionRecallPlugin.metadata.id) {
-    const unsupported = [...new Set(seenFlags.filter((flag) => !RETRIEVAL_PRECISION_RECALL_ALLOWED_FLAGS.includes(flag)))];
+    // Mode matrix, no precedence rules: neither flag = bundled; both = external-local; exactly one is rejected.
+    if (targetPath !== undefined && localSubjectConfigPath === undefined) {
+      throw new Error(`External ${experimentId} targets require --local-subject-config.`);
+    }
+    if (localSubjectConfigPath !== undefined && targetPath === undefined) {
+      throw new Error(`--local-subject-config requires an external --target for ${experimentId}.`);
+    }
+    const externalMode = targetPath !== undefined;
+    if (externalMode && (seenFlags.includes("--case") || seenFlags.includes("--benchmark-project"))) {
+      throw new Error("--case and --benchmark-project cannot be combined with --local-subject-config; the local subject config owns the case set.");
+    }
+    const allowedFlags = externalMode ? RETRIEVAL_PRECISION_RECALL_EXTERNAL_ALLOWED_FLAGS : RETRIEVAL_PRECISION_RECALL_ALLOWED_FLAGS;
+    const unsupported = [...new Set(seenFlags.filter((flag) => !allowedFlags.includes(flag)))];
     if (unsupported.length > 0) {
       throw new Error(
-        `${unsupported.join(", ")} ${unsupported.length === 1 ? "is" : "are"} not supported for --experiment ${experimentId}; supported options: ${RETRIEVAL_PRECISION_RECALL_ALLOWED_FLAGS.join(", ")}.`
+        `${unsupported.join(", ")} ${unsupported.length === 1 ? "is" : "are"} not supported for --experiment ${experimentId}${externalMode ? " in external-local mode" : ""}; supported options: ${allowedFlags.join(", ")}.`
       );
     }
     if (seenFlags.includes("--case") && caseIds.length === 0) {
@@ -374,8 +389,14 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   if (syntheticConfigPath !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
     throw new Error(`--synthetic-config is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
   }
-  if (localSubjectConfigPath !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
-    throw new Error(`--local-subject-config is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
+  if (
+    localSubjectConfigPath !== undefined &&
+    experimentId !== contextWindowScalingPlugin.metadata.id &&
+    experimentId !== retrievalPrecisionRecallPlugin.metadata.id
+  ) {
+    throw new Error(
+      `--local-subject-config is only supported for --experiment ${contextWindowScalingPlugin.metadata.id} or ${retrievalPrecisionRecallPlugin.metadata.id}.`
+    );
   }
   if (experimentId === contextWindowScalingPlugin.metadata.id) {
     const unsupported = [...new Set(seenFlags.filter((flag) => !CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS.includes(flag)))];
@@ -513,9 +534,51 @@ async function loadPluginInputs(
     return loadContextWindowScalingInputs(args, toolRoot, context, outputRoot);
   }
   if (args.experimentId === retrievalPrecisionRecallPlugin.metadata.id) {
-    return loadRetrievalPrecisionRecallInputs(args, toolRoot, context);
+    return args.localSubjectConfigPath !== undefined
+      ? loadRetrievalPrecisionRecallLocalSubjectInputs(args, toolRoot, context, outputRoot)
+      : loadRetrievalPrecisionRecallInputs(args, toolRoot, context);
   }
   return undefined;
+}
+
+// External-local retrieval-precision-recall: the existing local-subject loader owns the repository, inventory and case
+// adapter. The only additions are the physical output-root check before anything is created and a ground-truth gate
+// whose message carries logical case ids and counts only (an external subject may have private fact ids and names).
+async function loadRetrievalPrecisionRecallLocalSubjectInputs(
+  args: ParsedRunExperimentArgs,
+  toolRoot: string,
+  context: LabExecutionContext,
+  outputRoot: string | undefined
+): Promise<Record<string, unknown>> {
+  const validation = retrievalPrecisionRecallPlugin.validateConfig(args.config);
+  if (!validation.valid || !validation.config) {
+    throw new Error(`Invalid retrieval precision/recall config: ${validation.errors.join("; ")}`);
+  }
+  if (outputRoot === undefined || args.localSubjectConfigPath === undefined) {
+    throw new Error("Internal error: external-local runs require a resolved experiment output root and config path.");
+  }
+  const target = resolveExperimentTarget(args.targetPath, toolRoot);
+  if (target.isSelf || target.kind !== "external-local") {
+    throw new Error("Local-repository subject mode requires an external-local target; --target must not be the Lab repository.");
+  }
+  // Fail closed before anything is created: the output root (and the private scratch beneath it) must be physically outside the target.
+  try {
+    await assertWorkRootOutsideTarget(outputRoot, target.targetRoot);
+  } catch {
+    throw new Error("Experiment output root must not be inside the external target project.");
+  }
+  const configPath = path.resolve(context.invocationCwd, args.localSubjectConfigPath);
+  const localSubjectConfig = await readJsonConfigFile("--local-subject-config", configPath, args.localSubjectConfigPath);
+  const localSubject = await loadLocalRepositorySubject({ config: localSubjectConfig, repositoryPath: target.targetRoot });
+  const groundTruthIssues = summarizeRetrievalGroundTruthIssuesSafely(localSubject.evaluationCases);
+  if (groundTruthIssues.length > 0) {
+    throw new Error(
+      `Invalid retrieval-precision-recall ground truth for the local subject (${groundTruthIssues
+        .map((issue) => `case ${issue.caseId}: ${issue.issueCount} issue${issue.issueCount === 1 ? "" : "s"}`)
+        .join("; ")}); details withheld.`
+    );
+  }
+  return { cases: localSubject.evaluationCases, localSubject, env: process.env };
 }
 
 // The frozen bundled corpus is read through the established resource resolver and validation path, then must satisfy
