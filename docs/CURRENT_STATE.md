@@ -10,7 +10,7 @@ This document records the repository's operational state. It is the source of tr
 - Package version: `0.7.2`
 - Latest release: `v0.7.2` (local-repository experiments)
 - Current release: `v0.7.2` (published/current; released)
-- Release date: `2026-10-03`
+- Release date: `2026-10-04`
 - Previous release: `v0.7.1` (synthetic large-repository generator)
 - v0.7.1 publication (historical), verified on `2026-10-03`: npm contained `@dailephd/my-dev-kit-lab@0.7.1` and `latest` resolved to `0.7.1` at that time; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.7.1) is non-draft and non-prerelease. Annotated tag object `3117578e6a4cb551b757f90d5b3887a8f6272454` points to release commit `b9ddb3c4c15036e2983740e0a45f0374c14275f5`, merged through PR #43. This is release identity evidence; later documentation corrections do not move the tag or change the published package.
 - `v0.5.0` status: published; it is a historical release. The release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.

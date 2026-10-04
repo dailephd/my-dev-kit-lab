@@ -4,7 +4,7 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-## [0.7.2] - 2026-10-03
+## [0.7.2] - 2026-10-04
 
 ### Local-repository experiments
 
