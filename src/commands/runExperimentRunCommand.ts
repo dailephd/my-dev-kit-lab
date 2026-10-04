@@ -3,6 +3,7 @@ import path from "node:path";
 import { parseAgentCommandTemplate } from "../agents/index.js";
 import { parseAgentId } from "../agents/agentRegistry.js";
 import { readBenchmarkProjectProfiles, readEvaluationCases } from "../evaluation/index.js";
+import { validateRetrievalPrecisionRecallCorpus } from "../evaluation/retrievalQuality/index.js";
 import { loadLocalRepositorySubject } from "../evaluation/localRepositorySubject/index.js";
 import type { LocalRepositorySubject } from "../evaluation/localRepositorySubject/index.js";
 import {
@@ -14,6 +15,7 @@ import {
   parseContextBudgetsCliValue,
   parseWarmIndexCampaignPresetId,
   resolveExperimentTarget,
+  retrievalPrecisionRecallPlugin,
   runExperiment,
   warmIndexReusePlugin
 } from "../experiments/index.js";
@@ -77,6 +79,11 @@ const CONTEXT_WINDOW_SCALING_ALLOWED_FLAGS = [
   "--context-budgets",
   "--kit-command"
 ];
+
+// retrieval-precision-recall owns one frozen bundled corpus (the warm-index benchmark cases) and its project profiles,
+// both resolved from the package root, never the cwd. It accepts only these options; every other flag is rejected.
+const RETRIEVAL_PRECISION_RECALL_CASES_RESOURCE = "benchmarks/contracts/warm-index-benchmark-cases.json";
+const RETRIEVAL_PRECISION_RECALL_ALLOWED_FLAGS = ["--experiment", "--out", "--case", "--benchmark-project", "--kit-command"];
 
 // Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
 // warm-index-reuse, rejects) the fields it does not support.
@@ -344,8 +351,23 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   const KIT_COMMAND_PLUGIN_IDS = [
     warmIndexReusePlugin.metadata.id,
     incrementalChangeStalenessPlugin.metadata.id,
-    contextWindowScalingPlugin.metadata.id
+    contextWindowScalingPlugin.metadata.id,
+    retrievalPrecisionRecallPlugin.metadata.id
   ];
+  if (experimentId === retrievalPrecisionRecallPlugin.metadata.id) {
+    const unsupported = [...new Set(seenFlags.filter((flag) => !RETRIEVAL_PRECISION_RECALL_ALLOWED_FLAGS.includes(flag)))];
+    if (unsupported.length > 0) {
+      throw new Error(
+        `${unsupported.join(", ")} ${unsupported.length === 1 ? "is" : "are"} not supported for --experiment ${experimentId}; supported options: ${RETRIEVAL_PRECISION_RECALL_ALLOWED_FLAGS.join(", ")}.`
+      );
+    }
+    if (seenFlags.includes("--case") && caseIds.length === 0) {
+      throw new Error("--case must list at least one case id.");
+    }
+    if (seenFlags.includes("--benchmark-project") && benchmarkProjects.length === 0) {
+      throw new Error("--benchmark-project must list at least one benchmark project id.");
+    }
+  }
   if (contextBudgets !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
     throw new Error(`--context-budgets is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
   }
@@ -490,7 +512,33 @@ async function loadPluginInputs(
   if (args.experimentId === contextWindowScalingPlugin.metadata.id) {
     return loadContextWindowScalingInputs(args, toolRoot, context, outputRoot);
   }
+  if (args.experimentId === retrievalPrecisionRecallPlugin.metadata.id) {
+    return loadRetrievalPrecisionRecallInputs(args, toolRoot, context);
+  }
   return undefined;
+}
+
+// The frozen bundled corpus is read through the established resource resolver and validation path, then must satisfy
+// the retrieval-precision-recall ground-truth completeness rules. Selection filters are applied by the plugin.
+async function loadRetrievalPrecisionRecallInputs(
+  args: ParsedRunExperimentArgs,
+  toolRoot: string,
+  context: LabExecutionContext
+): Promise<Record<string, unknown>> {
+  const validation = retrievalPrecisionRecallPlugin.validateConfig(args.config);
+  if (!validation.valid || !validation.config) {
+    throw new Error(`Invalid retrieval precision/recall config: ${validation.errors.join("; ")}`);
+  }
+  const projectProfiles = await readBenchmarkProjectProfiles(resolvePackageResource(context, DEFAULT_PROJECT_PROFILES_RESOURCE), toolRoot);
+  const cases = await readEvaluationCases(resolvePackageResource(context, RETRIEVAL_PRECISION_RECALL_CASES_RESOURCE), toolRoot, {
+    projectProfiles,
+    requireProjectProfileRef: true
+  });
+  const corpusErrors = validateRetrievalPrecisionRecallCorpus(cases);
+  if (corpusErrors.length > 0) {
+    throw new Error(`Invalid retrieval-precision-recall corpus: ${corpusErrors.join(" ")}`);
+  }
+  return { cases };
 }
 
 // --case is a selection over the frozen bundled catalog (catalog order, not argument order);

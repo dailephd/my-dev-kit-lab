@@ -3,6 +3,7 @@ import { renderContextStrategyComparisonV043Html } from "./renderContextStrategy
 import { renderWarmIndexReuseHtml } from "./renderWarmIndexReuseHtml.js";
 import { renderIncrementalChangeStalenessHtml } from "./renderIncrementalChangeStalenessHtml.js";
 import { renderContextWindowScalingHtml } from "./renderContextWindowScalingHtml.js";
+import { renderRetrievalPrecisionRecallHtml } from "./renderRetrievalPrecisionRecallHtml.js";
 
 export function renderPluginExperimentReportHtml(report: PluginExperimentReport): string {
   const redactedTarget = report.target.privacyProjection === "external-local-redacted";
@@ -107,6 +108,8 @@ export function renderPluginExperimentReportHtml(report: PluginExperimentReport)
   ${renderIncrementalChangeStalenessHtml(report.incrementalChangeStaleness)}
 
   ${renderContextWindowScalingHtml(report.contextWindowScaling)}
+
+  ${renderRetrievalPrecisionRecallHtml(report.retrievalPrecisionRecall ?? null)}
 
   <section>
     <h2>Warnings, Skips, And Failures</h2>

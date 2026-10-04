@@ -41,6 +41,32 @@
           "required": true
         }
       ],
+      "expectedContextTargets": [
+        {
+          "file": "src/services/importTasks.ts",
+          "symbols": ["importTasks"],
+          "required": true,
+          "factIds": ["warm-medium-import-validates-title-and-project", "warm-medium-import-skips-duplicates-by-project-and-normalized-title", "warm-medium-import-keeps-deterministic-task-sequences"]
+        },
+        {
+          "file": "src/validation/taskValidation.ts",
+          "symbols": ["validateImportInput"],
+          "required": true,
+          "factIds": ["warm-medium-import-validates-title-and-project"]
+        },
+        {
+          "file": "src/store/taskStore.ts",
+          "symbols": ["findDuplicate"],
+          "required": true,
+          "factIds": ["warm-medium-import-skips-duplicates-by-project-and-normalized-title"]
+        },
+        {
+          "file": "src/store/taskStore.ts",
+          "symbols": ["createTask"],
+          "required": true,
+          "factIds": ["warm-medium-import-keeps-deterministic-task-sequences"]
+        }
+      ],
       "minimumCorrectFacts": 3,
       "notes": "Cross-module retrieval spanning the import service, validation, and store logic."
     },
@@ -117,6 +143,44 @@
           "required": true
         }
       ],
+      "expectedContextTargets": [
+        {
+          "file": "src/services/createTask.ts",
+          "symbols": ["createTask"],
+          "required": true,
+          "factIds": ["warm-medium-create-validates-title", "warm-medium-create-validates-project-before-storing", "warm-medium-create-normalizes-tags", "warm-medium-create-starts-incomplete"]
+        },
+        {
+          "file": "src/validation/taskValidation.ts",
+          "symbols": ["validateTaskTitle"],
+          "required": true,
+          "factIds": ["warm-medium-create-validates-title"]
+        },
+        {
+          "file": "src/validation/taskValidation.ts",
+          "symbols": ["validateProjectId"],
+          "required": true,
+          "factIds": ["warm-medium-create-validates-project-before-storing"]
+        },
+        {
+          "file": "src/store/taskStore.ts",
+          "symbols": ["TaskWorkflowStore"],
+          "required": true,
+          "factIds": ["warm-medium-create-validates-project-before-storing", "warm-medium-create-uses-deterministic-sequence"]
+        },
+        {
+          "file": "src/validation/taskValidation.ts",
+          "symbols": ["normalizeTags"],
+          "required": true,
+          "factIds": ["warm-medium-create-normalizes-tags"]
+        },
+        {
+          "file": "src/utils/deterministicId.ts",
+          "symbols": ["createDeterministicId"],
+          "required": true,
+          "factIds": ["warm-medium-create-uses-deterministic-sequence"]
+        }
+      ],
       "minimumCorrectFacts": 4,
       "notes": "Cross-module: the create service composes validation, the store, and the deterministic id utility."
     },
@@ -161,6 +225,20 @@
           "text": "An unknown task id throws \"Unknown task id: <id>\" from TaskWorkflowStore.updateTask.",
           "weight": 1,
           "required": true
+        }
+      ],
+      "expectedContextTargets": [
+        {
+          "file": "src/services/completeTask.ts",
+          "symbols": ["completeTask"],
+          "required": true,
+          "factIds": ["warm-medium-complete-targets-task-by-id", "warm-medium-complete-sets-completed-at", "warm-medium-complete-is-idempotent"]
+        },
+        {
+          "file": "src/store/taskStore.ts",
+          "symbols": ["TaskWorkflowStore"],
+          "required": true,
+          "factIds": ["warm-medium-complete-targets-task-by-id", "warm-medium-complete-unknown-task-throws"]
         }
       ],
       "minimumCorrectFacts": 3,
@@ -213,6 +291,26 @@
           "text": "filterTasks only reads store.listTasks(), which returns task copies sorted by task id, and returns the matches in that order without mutating the store.",
           "weight": 1,
           "required": true
+        }
+      ],
+      "expectedContextTargets": [
+        {
+          "file": "src/services/filterTasks.ts",
+          "symbols": ["filterTasks"],
+          "required": true,
+          "factIds": ["warm-medium-filter-combines-active-predicates", "warm-medium-filter-project", "warm-medium-filter-completed-priority-tag", "warm-medium-filter-text-query", "warm-medium-filter-read-only-ordering"]
+        },
+        {
+          "file": "src/models/task.ts",
+          "symbols": ["TaskFilter"],
+          "required": true,
+          "factIds": ["warm-medium-filter-combines-active-predicates"]
+        },
+        {
+          "file": "src/store/taskStore.ts",
+          "symbols": ["TaskWorkflowStore"],
+          "required": true,
+          "factIds": ["warm-medium-filter-read-only-ordering"]
         }
       ],
       "minimumCorrectFacts": 4,
@@ -269,6 +367,32 @@
           "text": "summarizeTasks reads copies from store.listTasks() and store.listProjects() and does not mutate stored tasks.",
           "weight": 1,
           "required": true
+        }
+      ],
+      "expectedContextTargets": [
+        {
+          "file": "src/services/summarizeTasks.ts",
+          "symbols": ["summarizeTasks"],
+          "required": true,
+          "factIds": ["warm-medium-summary-total-open-completed", "warm-medium-summary-by-project", "warm-medium-summary-high-priority-open", "warm-medium-summary-read-only"]
+        },
+        {
+          "file": "src/models/task.ts",
+          "symbols": ["TaskSummary"],
+          "required": true,
+          "factIds": ["warm-medium-summary-total-open-completed"]
+        },
+        {
+          "file": "src/store/taskStore.ts",
+          "symbols": ["TaskWorkflowStore"],
+          "required": true,
+          "factIds": ["warm-medium-summary-by-project", "warm-medium-summary-read-only"]
+        },
+        {
+          "file": "src/models/project.ts",
+          "symbols": ["WorkflowProject"],
+          "required": true,
+          "factIds": ["warm-medium-summary-by-project"]
         }
       ],
       "minimumCorrectFacts": 3,
@@ -356,6 +480,50 @@
         }
       ],
       "forbiddenWrongClaims": ["importTasks calls the createTask service to insert imported tasks."],
+      "expectedContextTargets": [
+        {
+          "file": "src/services/createTask.ts",
+          "symbols": ["createTask"],
+          "required": true,
+          "factIds": ["warm-medium-broad-shared-storage"]
+        },
+        {
+          "file": "src/services/importTasks.ts",
+          "symbols": ["importTasks"],
+          "required": true,
+          "factIds": ["warm-medium-broad-shared-storage", "warm-medium-broad-import-adds-dedupe"]
+        },
+        {
+          "file": "src/store/taskStore.ts",
+          "symbols": ["TaskWorkflowStore"],
+          "required": true,
+          "factIds": ["warm-medium-broad-shared-storage", "warm-medium-broad-import-adds-dedupe", "warm-medium-broad-filter-read-only", "warm-medium-broad-complete-targeted", "warm-medium-broad-summary-aggregates"]
+        },
+        {
+          "file": "src/validation/taskValidation.ts",
+          "symbols": ["validateImportInput"],
+          "required": true,
+          "factIds": ["warm-medium-broad-import-adds-dedupe"]
+        },
+        {
+          "file": "src/services/filterTasks.ts",
+          "symbols": ["filterTasks"],
+          "required": true,
+          "factIds": ["warm-medium-broad-filter-read-only"]
+        },
+        {
+          "file": "src/services/completeTask.ts",
+          "symbols": ["completeTask"],
+          "required": true,
+          "factIds": ["warm-medium-broad-complete-targeted"]
+        },
+        {
+          "file": "src/services/summarizeTasks.ts",
+          "symbols": ["summarizeTasks"],
+          "required": true,
+          "factIds": ["warm-medium-broad-summary-aggregates"]
+        }
+      ],
       "minimumCorrectFacts": 4,
       "notes": "Deliberately wide-scope negative control spanning every workflow service; it is not expected to fit a small localized context."
     },
@@ -426,6 +594,26 @@
           "required": true
         }
       ],
+      "expectedContextTargets": [
+        {
+          "file": "ts/src/services/buildAnalyticsSnapshot.ts",
+          "symbols": ["buildAnalyticsSnapshot"],
+          "required": true,
+          "factIds": ["warm-large-snapshot-computes-completion-rate", "warm-large-snapshot-counts-stale-open-tasks"]
+        },
+        {
+          "file": "py/task_analytics/quality.py",
+          "symbols": ["determine_quality_label"],
+          "required": true,
+          "factIds": ["warm-large-python-quality-labels-healthy-watch-risk", "warm-large-python-reporting-renders-quality-lines"]
+        },
+        {
+          "file": "py/task_analytics/reporting.py",
+          "symbols": ["build_health_report"],
+          "required": true,
+          "factIds": ["warm-large-python-reporting-renders-quality-lines"]
+        }
+      ],
       "minimumCorrectFacts": 3,
       "notes": "Cross-module retrieval spanning TypeScript snapshot building and Python quality reporting."
     },
@@ -488,6 +676,32 @@
           "required": true
         }
       ],
+      "expectedContextTargets": [
+        {
+          "file": "ts/src/services/buildAnalyticsSnapshot.ts",
+          "symbols": ["buildAnalyticsSnapshot"],
+          "required": true,
+          "factIds": ["warm-large-snapshot-per-project-counts", "warm-large-snapshot-completion-rate-formula", "warm-large-snapshot-stale-condition", "warm-large-snapshot-empty-project", "warm-large-snapshot-totals-aggregate"]
+        },
+        {
+          "file": "ts/src/services/listTasksByProject.ts",
+          "symbols": ["listTasksByProject"],
+          "required": true,
+          "factIds": ["warm-large-snapshot-per-project-counts"]
+        },
+        {
+          "file": "ts/src/store/taskStore.ts",
+          "symbols": ["AnalyticsTaskStore"],
+          "required": true,
+          "factIds": ["warm-large-snapshot-per-project-counts"]
+        },
+        {
+          "file": "ts/src/models/analyticsSnapshot.ts",
+          "symbols": ["ProjectSnapshot"],
+          "required": true,
+          "factIds": ["warm-large-snapshot-per-project-counts", "warm-large-snapshot-empty-project", "warm-large-snapshot-totals-aggregate"]
+        }
+      ],
       "minimumCorrectFacts": 4,
       "notes": "Cross-module: the snapshot service composes the task-listing service, the task store, and the snapshot model."
     },
@@ -532,6 +746,14 @@
           "text": "Each line is formatted as \"<rank>. <projectId> (<completionRate>% complete, <staleTasks> stale)\" with ranks starting at 1.",
           "weight": 1,
           "required": true
+        }
+      ],
+      "expectedContextTargets": [
+        {
+          "file": "ts/src/reporting/buildProjectLeaderboard.ts",
+          "symbols": ["buildProjectLeaderboard"],
+          "required": true,
+          "factIds": ["warm-large-leaderboard-completion-rate-descending", "warm-large-leaderboard-stale-ascending", "warm-large-leaderboard-project-id-final", "warm-large-leaderboard-one-based-ranks"]
         }
       ],
       "minimumCorrectFacts": 3,
@@ -584,6 +806,32 @@
           "text": "average_story_points is the mean story_points rounded with round(..., 2), or 0.0 when a project has no tasks.",
           "weight": 1,
           "required": true
+        }
+      ],
+      "expectedContextTargets": [
+        {
+          "file": "py/task_analytics/parser.py",
+          "symbols": ["parse_task_rows"],
+          "required": true,
+          "factIds": ["warm-large-python-parser-task-record"]
+        },
+        {
+          "file": "py/task_analytics/models.py",
+          "symbols": ["TaskRecord"],
+          "required": true,
+          "factIds": ["warm-large-python-parser-task-record"]
+        },
+        {
+          "file": "py/task_analytics/metrics.py",
+          "symbols": ["calculate_project_metrics"],
+          "required": true,
+          "factIds": ["warm-large-python-metrics-grouped-by-project", "warm-large-python-metrics-counts", "warm-large-python-metrics-completion-rate", "warm-large-python-metrics-average-story-points"]
+        },
+        {
+          "file": "py/task_analytics/models.py",
+          "symbols": ["ProjectMetrics"],
+          "required": true,
+          "factIds": ["warm-large-python-metrics-grouped-by-project"]
         }
       ],
       "minimumCorrectFacts": 4,
@@ -660,6 +908,38 @@
           "text": "pipeline.py only composes parse_task_rows, calculate_project_metrics, and build_health_report; quality rules stay in quality.py and are reached through reporting.",
           "weight": 1,
           "required": true
+        }
+      ],
+      "expectedContextTargets": [
+        {
+          "file": "py/task_analytics/pipeline.py",
+          "symbols": ["build_report_from_rows"],
+          "required": true,
+          "factIds": ["warm-large-pipeline-parses-first", "warm-large-pipeline-metrics-before-report", "warm-large-pipeline-composes-owners"]
+        },
+        {
+          "file": "py/task_analytics/parser.py",
+          "symbols": ["parse_task_rows"],
+          "required": true,
+          "factIds": ["warm-large-pipeline-parses-first", "warm-large-pipeline-composes-owners"]
+        },
+        {
+          "file": "py/task_analytics/metrics.py",
+          "symbols": ["calculate_project_metrics"],
+          "required": true,
+          "factIds": ["warm-large-pipeline-metrics-before-report", "warm-large-pipeline-composes-owners"]
+        },
+        {
+          "file": "py/task_analytics/reporting.py",
+          "symbols": ["build_health_report"],
+          "required": true,
+          "factIds": ["warm-large-pipeline-metrics-before-report", "warm-large-pipeline-quality-label-in-report", "warm-large-pipeline-deterministic-output", "warm-large-pipeline-composes-owners"]
+        },
+        {
+          "file": "py/task_analytics/quality.py",
+          "symbols": ["determine_quality_label"],
+          "required": true,
+          "factIds": ["warm-large-pipeline-quality-label-in-report"]
         }
       ],
       "minimumCorrectFacts": 4,
@@ -754,6 +1034,56 @@
         "The TypeScript implementation invokes the Python analytics pipeline.",
         "Python is a runtime backend for the TypeScript analytics implementation.",
         "The TypeScript or Python implementation directly imports or calls the other."
+      ],
+      "expectedContextTargets": [
+        {
+          "file": "ts/src/services/buildAnalyticsSnapshot.ts",
+          "symbols": ["buildAnalyticsSnapshot"],
+          "required": true,
+          "factIds": ["warm-large-broad-typescript-side", "warm-large-broad-comparable-evidence", "warm-large-broad-independent-implementations", "warm-large-broad-no-cross-invocation"]
+        },
+        {
+          "file": "ts/src/reporting/formatTaskHealthReport.ts",
+          "symbols": ["formatTaskHealthReport"],
+          "required": true,
+          "factIds": ["warm-large-broad-typescript-side", "warm-large-broad-no-cross-invocation"]
+        },
+        {
+          "file": "ts/src/reporting/buildProjectLeaderboard.ts",
+          "symbols": ["buildProjectLeaderboard"],
+          "required": true,
+          "factIds": ["warm-large-broad-typescript-side", "warm-large-broad-no-cross-invocation"]
+        },
+        {
+          "file": "py/task_analytics/parser.py",
+          "symbols": ["parse_task_rows"],
+          "required": true,
+          "factIds": ["warm-large-broad-python-side", "warm-large-broad-no-cross-invocation"]
+        },
+        {
+          "file": "py/task_analytics/metrics.py",
+          "symbols": ["calculate_project_metrics"],
+          "required": true,
+          "factIds": ["warm-large-broad-python-side", "warm-large-broad-comparable-evidence", "warm-large-broad-no-cross-invocation"]
+        },
+        {
+          "file": "py/task_analytics/quality.py",
+          "symbols": ["determine_quality_label"],
+          "required": true,
+          "factIds": ["warm-large-broad-python-side", "warm-large-broad-no-cross-invocation"]
+        },
+        {
+          "file": "py/task_analytics/reporting.py",
+          "symbols": ["build_health_report"],
+          "required": true,
+          "factIds": ["warm-large-broad-python-side", "warm-large-broad-no-cross-invocation"]
+        },
+        {
+          "file": "py/task_analytics/pipeline.py",
+          "symbols": ["build_report_from_rows"],
+          "required": true,
+          "factIds": ["warm-large-broad-python-side", "warm-large-broad-independent-implementations", "warm-large-broad-no-cross-invocation"]
+        }
       ],
       "minimumCorrectFacts": 4,
       "notes": "Deliberately wide-scope negative control spanning both language implementations; it is not expected to fit a small localized context."

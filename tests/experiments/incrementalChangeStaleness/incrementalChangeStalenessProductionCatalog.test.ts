@@ -134,10 +134,11 @@ describe("production incremental-change-staleness scenario catalog", () => {
     }
   });
 
-  it("keeps the existing warm-index benchmark catalog byte-for-byte unchanged (TST-B1-025)", () => {
+  it("pins the warm-index benchmark catalog bytes (TST-B1-025; v0.8.0 added only answerKey.expectedContextTargets fact mappings)", () => {
     const sha = sha256OfFile(WARM_INDEX_BENCHMARK_CASES_PATH);
-    // Recorded before this batch's implementation began; see FINAL REPORT item 24.
-    expect(sha).toBe("f3fc9a6cac68c4d14d27eb5cc7d83944b6064a9edde6206357b2f6c2ceaef4c7");
+    // Re-recorded for v0.8.0 Batch 3, which added only answerKey.expectedContextTargets; a test in
+    // tests/evaluation/retrievalQuality proves every original field is unchanged.
+    expect(sha).toBe("076c6bf443f0705186644bc0eaba1f31b5083538c98a84999961c1874c73f48d");
   });
 
   it("keeps every selected canonical benchmark source/test file byte-for-byte unchanged (TST-B1-016, TST-B1-030)", async () => {
