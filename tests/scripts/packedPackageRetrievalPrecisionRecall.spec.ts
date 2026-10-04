@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const verifierSource = readFileSync(path.resolve("scripts/verify-packed-package.mjs"), "utf8");
-const packageJson = JSON.parse(readFileSync(path.resolve("package.json"), "utf8")) as { files: string[]; version: string };
+const packageJson = JSON.parse(readFileSync(path.resolve("package.json"), "utf8")) as { files: string[] };
 
 const retrievalPaths = [...verifierSource.matchAll(/"(dist\/src\/[^"]+)\.js"/g)]
   .map((match) => match[1])
@@ -43,12 +43,12 @@ describe("packed-package acceptance for retrieval-precision-recall", () => {
   });
 
   it("keeps the bundled resources the installed run depends on in the published allowlist and the verifier path list", () => {
+    // The packed-runtime resource gate is intentionally version-agnostic so release version bumps do not invalidate it.
     expect(packageJson.files).toEqual(expect.arrayContaining(["dist/src/", "benchmarks/"]));
     for (const resource of ["benchmarks/contracts/warm-index-benchmark-cases.json", "benchmarks/contracts/benchmark-project-profiles.json"]) {
       expect(existsSync(path.resolve(resource)), resource).toBe(true);
       expect(verifierSource).toContain(`"${resource}"`);
     }
-    expect(packageJson.version).toBe("0.7.2");
   });
 
   it("requires retrieval-precision-recall in the installed experiment list", () => {
