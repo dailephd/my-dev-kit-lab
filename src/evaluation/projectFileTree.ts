@@ -51,8 +51,62 @@ export function countFileLines(filePath: string): number {
   return content.split(/\r?\n/).length;
 }
 
-export function buildProjectFileTree(projectRoot: string): ProjectFileTree {
+export type ProjectFileTreeOptions = {
+  /**
+   * Repository-relative regular files that are the only files allowed to appear in, or be opened for, the tree
+   * (for example a local subject's Batch 1 eligible files). When supplied the target is not walked.
+   */
+  allowedRelativeFiles?: readonly string[];
+};
+
+type AllowedTreeNode = { children: Map<string, AllowedTreeNode>; isFile: boolean };
+
+function buildAllowedFileTree(root: string, allowedRelativeFiles: readonly string[]): ProjectFileTree {
+  const top: AllowedTreeNode = { children: new Map(), isFile: false };
+  for (const allowed of allowedRelativeFiles) {
+    const relativePath = allowed.replace(/\\/g, "/");
+    if (isExcludedProjectPath(relativePath)) continue;
+    let node = top;
+    const segments = relativePath.split("/");
+    segments.forEach((segment, index) => {
+      let child = node.children.get(segment);
+      if (!child) {
+        child = { children: new Map(), isFile: index === segments.length - 1 };
+        node.children.set(segment, child);
+      }
+      node = child;
+    });
+  }
+
+  const entries: ProjectFileTreeEntry[] = [];
+  const walk = (node: AllowedTreeNode, prefix: string): void => {
+    const names = [...node.children.keys()].sort((a, b) => a.localeCompare(b));
+    for (const name of names) {
+      const child = node.children.get(name) as AllowedTreeNode;
+      const relativePath = prefix === "" ? name : `${prefix}/${name}`;
+      if (child.isFile) {
+        entries.push({
+          path: relativePath,
+          kind: "file",
+          role: inferFileRole(relativePath, "file"),
+          language: inferFileLanguage(relativePath),
+          lines: countFileLines(path.join(root, ...relativePath.split("/")))
+        });
+      } else {
+        entries.push({ path: relativePath, kind: "directory", role: inferFileRole(relativePath, "directory") });
+        walk(child, relativePath);
+      }
+    }
+  };
+  walk(top, "");
+  return { entries };
+}
+
+export function buildProjectFileTree(projectRoot: string, options: ProjectFileTreeOptions = {}): ProjectFileTree {
   const root = path.resolve(projectRoot);
+  if (options.allowedRelativeFiles !== undefined) {
+    return buildAllowedFileTree(root, options.allowedRelativeFiles);
+  }
   const entries: ProjectFileTreeEntry[] = [];
 
   function walk(currentDir: string) {

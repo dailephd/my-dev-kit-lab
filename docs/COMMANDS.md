@@ -10,7 +10,9 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.7.1 package.
+This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.7.2 package.
+
+The `--local-subject-config` option and the external local-repository mode described under `context-window-scaling` were added in v0.7.2 and are included in the current package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -191,7 +193,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
 
-`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget and synthetic-input options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--case`, `--synthetic-config`, `--context-budgets`, and `--kit-command`. It is self-only and uses its bundled four-case catalog by default, or generated repositories with `--synthetic-config`; `--case` and `--synthetic-config` are mutually exclusive.
+`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget and synthetic-input options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--target`, `--case`, `--synthetic-config`, `--local-subject-config`, `--context-budgets`, and `--kit-command`. It uses its bundled four-case catalog against the Lab itself by default, generated repositories with `--synthetic-config`, or an explicitly selected local Git repository with `--target` plus `--local-subject-config`; the three subject modes are mutually exclusive.
 
 #### `warm-index-reuse`
 
@@ -274,20 +276,22 @@ my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
-#### `context-window-scaling` (released in v0.7.0; `--synthetic-config` added in v0.7.1)
+#### `context-window-scaling` (released in v0.7.0; `--synthetic-config` added in v0.7.1; local-repository mode added in v0.7.2)
 
 ```text
 my-dev-kit-lab experiment describe --experiment context-window-scaling
-my-dev-kit-lab experiment run --experiment context-window-scaling [--out <dir>] [--case <ids> | --synthetic-config <path>] [--context-budgets <values>] [--kit-command <command>]
+my-dev-kit-lab experiment run --experiment context-window-scaling [--out <dir>] [--case <ids> | --synthetic-config <path> | --target <repository> --local-subject-config <path>] [--context-budgets <values>] [--kit-command <command>]
 ```
 
-The plugin compares `raw-full-file` and `my-dev-kit-guided` on the bundled self-target case catalog by default, or on caller-supplied deterministic synthetic repositories when `--synthetic-config` is given. Its default my-dev-kit command is `npx @dailephd/my-dev-kit@latest`.
+The plugin compares `raw-full-file` and `my-dev-kit-guided` on the bundled self-target case catalog by default, on caller-supplied deterministic synthetic repositories when `--synthetic-config` is given, or on an explicitly selected local Git repository when `--target` and `--local-subject-config` are given. Its default my-dev-kit command is `npx @dailephd/my-dev-kit@latest`.
 
 | Option | Allowed value or default |
 |---|---|
 | `--out <dir>` | Optional output directory; when omitted the normal experiment default applies beneath `lab-output/experiments/` in a source checkout or the installed workspace |
 | `--case <ids>` | Optional comma-separated filter over the bundled four-case catalog; mutually exclusive with `--synthetic-config` |
 | `--synthetic-config <path>` | Optional path to a `SyntheticRepositoryConfigV1` JSON file (read-only user input). A relative path resolves against the invocation directory. May be given once, and is mutually exclusive with `--case` because the config owns the generated case set. Generated repositories are written beneath the selected experiment output directory (see below). Without it, the bundled four-case catalog and fixed project are used unchanged |
+| `--target <repository>` | Only for external local-repository mode: the root of a local Git worktree. Without `--local-subject-config`, an explicit external `--target` is rejected; bundled and synthetic modes always run against the Lab itself |
+| `--local-subject-config <path>` | Only with an external `--target`: path to a `LocalRepositorySubjectConfigV1` JSON file (read-only user input; a relative path resolves against the invocation directory; may be given once). Mutually exclusive with `--case` and `--synthetic-config` |
 | `--context-budgets <values>` | Optional comma-separated budgets: `8k`, `16k`, `32k`, `64k`, or positive safe integers such as `12000`; defaults to `8k,16k,32k,64k`. Values are normalized, sorted, and duplicate values after normalization are rejected |
 | `--kit-command <command>` | Optional command for my-dev-kit-guided retrieval; defaults to `npx @dailephd/my-dev-kit@latest` |
 
@@ -317,7 +321,43 @@ The plugin compares `raw-full-file` and `my-dev-kit-guided` on the bundled self-
 my-dev-kit-lab experiment run --experiment context-window-scaling --synthetic-config <path-to-config.json> [--out <run-dir>]
 ```
 
-The plugin is self-only and rejects external targets and unrelated common/plugin options. Budgets classify the estimated size of each constructed context; they do not truncate/rebuild contexts or configure a provider model window. Correctness comes from one deterministic fake-agent evaluation per treatment and is context-independent in the current harness. The execution artifact and reports contain bounded evidence, never context text. See [WORKFLOWS.md](WORKFLOWS.md#context-window-scaling-experiment-v070) and [METRICS.md](METRICS.md#context-window-scaling-evidence-v070).
+**Subject modes.** Exactly one applies per run:
+
+| Mode | How it is selected | Notes |
+|---|---|---|
+| Bundled | no `--target`, no `--synthetic-config`, no `--local-subject-config` | The bundled four-case catalog and fixed project, run against the Lab itself; `--case` may filter it |
+| Synthetic | `--synthetic-config <path>` | Generated repositories beneath the output directory; `--target` and `--case` are rejected |
+| External local repository | `--target <repository> --local-subject-config <path>` | A local Git worktree; `--case` and `--synthetic-config` are rejected |
+
+Incompatible combinations exit with code 1 before any output is created: `--local-subject-config` without an external `--target`; an external `--target` without `--local-subject-config`; `--synthetic-config` together with `--target` or `--local-subject-config`; `--case` together with `--synthetic-config` or `--local-subject-config`; and a repeated `--local-subject-config`.
+
+**External local-repository mode.** `--target` must be the root of a Git worktree with at least one commit (a subdirectory, a non-Git directory, or a repository without a commit is rejected, as is a target that is the Lab itself). The output directory must be outside the repository: an `--out` equal to or inside the target is rejected before anything is created. The repository is treated as read-only. Contexts are built only from regular files inside each case's `sourceRoots` that Git does not ignore (Git decides ignore status) and that are at most 1 MiB; ignored files, oversized files, symbolic links, and other special entries are excluded from both the raw and the my-dev-kit-guided treatments. The guided treatment uses the real my-dev-kit through the existing `--kit-command` (default `npx @dailephd/my-dev-kit@latest`), indexing the repository into private scratch state that is removed after the run. The repository state is compared before and after the run; a detected change fails the run and is not reverted.
+
+A minimal `LocalRepositorySubjectConfigV1` file:
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "subjectId": "my-project",
+  "cases": [
+    {
+      "id": "find-total",
+      "title": "Find where the total is computed",
+      "sourceRoots": ["src"],
+      "query": "Where is the order total computed?",
+      "expectedFiles": ["src/orders/total.ts"],
+      "expectedSymbols": ["computeTotal"],
+      "rawIncludeGlobs": ["src/**/*.ts"]
+    }
+  ]
+}
+```
+
+`subjectId` is the logical name that appears in reports in place of the repository path. Optional case fields are `answerKey`, `expectedFacts`, `taskLocality`, `promptComplexityHint`, `projectComplexityRelevance`, and `notes`.
+
+A successful external-local run writes `context-window-scaling-execution.json`, `report.json`, `report.txt`, `report.html`, and `local-repository-subject-manifest.json` to the output directory. Durable output omits the repository path, source text, and file names: exact file identities appear as numbered placeholders (`<redacted file 1>`, `<redacted file 2>`, ...), the artifact marks them with `fileIdentityRedaction: "redacted"`, the report target carries `privacyProjection: "external-local-redacted"`, and the report's output paths are bare file names with the output directory itself redacted. A placeholder means a file identity existed and was intentionally withheld; counts stay exact, an empty list still means no files, and `null` still means unavailable. The manifest records the logical subject ID, the full Git commit, the branch (or `null`), whether the working tree was dirty, the safety policy, the source roots, case IDs, and aggregate counts (eligible files and bytes, Git-ignored, oversized, symbolic-link, and other excluded entries, and an extension summary). A failed external-local run exits nonzero and prints a bounded error without paths or file names; it writes no report, execution artifact, or manifest.
+
+The bundled and synthetic modes reject an external `--target` and unrelated common/plugin options. Budgets classify the estimated size of each constructed context; they do not truncate/rebuild contexts or configure a provider model window. Correctness comes from one deterministic fake-agent evaluation per treatment and is context-independent in the current harness. The execution artifact and reports contain bounded evidence, never context text. See [WORKFLOWS.md](WORKFLOWS.md#context-window-scaling-experiment-v070) and [METRICS.md](METRICS.md#context-window-scaling-evidence-v070).
 
 ### `my-dev-kit-lab experiment controlled [options]`
 

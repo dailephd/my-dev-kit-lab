@@ -7,9 +7,11 @@ import type {
   V043TargetFileSnapshotState,
   V043TargetFileSnapshotV1,
   V043TargetGitSnapshotV1,
+  V043TargetContentFingerprintV1,
   V043TargetImmutabilityConfigV1,
   V043TargetSnapshotErrorCode,
   V043TargetSnapshotFailure,
+  V043TargetSnapshotOptionsV1,
   V043TargetSnapshotResult,
   V043TargetUntrackedFileSnapshotV1
 } from "./types.js";
@@ -38,9 +40,10 @@ interface PathEntrySnapshot {
   state: V043TargetFileSnapshotState;
   sha256: string | null;
   symbolicLinkTarget: string | null;
+  contentFingerprint?: V043TargetContentFingerprintV1;
 }
 
-async function snapshotPathEntry(resolvedPath: string): Promise<PathEntrySnapshot> {
+async function snapshotPathEntry(resolvedPath: string, maxHashedFileBytes?: number): Promise<PathEntrySnapshot> {
   let stats;
   try {
     stats = await lstat(resolvedPath);
@@ -59,6 +62,15 @@ async function snapshotPathEntry(resolvedPath: string): Promise<PathEntrySnapsho
     return { state: "directory", sha256: null, symbolicLinkTarget: null };
   }
   if (stats.isFile()) {
+    if (maxHashedFileBytes !== undefined && stats.size > maxHashedFileBytes) {
+      // Safe mode: a file above the bound is fingerprinted by metadata and its contents are never read.
+      return {
+        state: "file",
+        sha256: null,
+        symbolicLinkTarget: null,
+        contentFingerprint: { sizeBytes: stats.size, mtimeMs: stats.mtimeMs }
+      };
+    }
     const contents = await readFile(resolvedPath);
     return { state: "file", sha256: sha256Hex(contents), symbolicLinkTarget: null };
   }
@@ -97,8 +109,12 @@ async function runRequiredGit(
   return { ok: false, code, targetRootPath, message };
 }
 
-export async function captureTargetSnapshot(config: V043TargetImmutabilityConfigV1): Promise<V043TargetSnapshotResult> {
+export async function captureTargetSnapshot(
+  config: V043TargetImmutabilityConfigV1,
+  options: V043TargetSnapshotOptionsV1 = {}
+): Promise<V043TargetSnapshotResult> {
   const resolvedTargetRootPath = path.resolve(config.targetRootPath);
+  const maxHashedFileBytes = options.externalLocalSafe?.maxHashedFileBytes;
 
   let rootStats;
   try {
@@ -142,13 +158,14 @@ export async function captureTargetSnapshot(config: V043TargetImmutabilityConfig
       };
     }
     try {
-      const entry = await snapshotPathEntry(resolvedPath);
+      const entry = await snapshotPathEntry(resolvedPath, maxHashedFileBytes);
       configuredFiles.push({
         relativePath,
         resolvedPath,
         state: entry.state,
         sha256: entry.sha256,
-        symbolicLinkTarget: entry.symbolicLinkTarget
+        symbolicLinkTarget: entry.symbolicLinkTarget,
+        ...(entry.contentFingerprint ? { contentFingerprint: entry.contentFingerprint } : {})
       });
     } catch (error) {
       return {
@@ -229,14 +246,28 @@ export async function captureTargetSnapshot(config: V043TargetImmutabilityConfig
   const untrackedFiles: V043TargetUntrackedFileSnapshotV1[] = [];
   for (const untrackedRelativePath of untrackedPaths) {
     const resolvedPath = path.resolve(resolvedTargetRootPath, untrackedRelativePath);
-    const entry = await snapshotPathEntry(resolvedPath);
+    const entry = await snapshotPathEntry(resolvedPath, maxHashedFileBytes);
     const state = entry.state === "directory" ? "other" : entry.state;
     untrackedFiles.push({
       path: untrackedRelativePath,
       state,
       sha256: entry.sha256,
-      symbolicLinkTarget: entry.symbolicLinkTarget
+      symbolicLinkTarget: entry.symbolicLinkTarget,
+      ...(entry.contentFingerprint ? { contentFingerprint: entry.contentFingerprint } : {})
     });
+  }
+
+  let ignoredPaths: string[] | undefined;
+  if (maxHashedFileBytes !== undefined) {
+    // Safe mode: Lab-created files in ignored locations (for example a stray index directory) are invisible to
+    // `git status`, so record the ignored path set by name. Contents are never read.
+    const ignoredOutcome = await runRequiredGit(
+      resolvedTargetRootPath,
+      ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"],
+      config.targetRootPath
+    );
+    if (!ignoredOutcome.ok) return ignoredOutcome;
+    ignoredPaths = ignoredOutcome.stdout.split("\0").filter((entry) => entry.length > 0).sort();
   }
 
   const git: V043TargetGitSnapshotV1 = {
@@ -246,7 +277,8 @@ export async function captureTargetSnapshot(config: V043TargetImmutabilityConfig
     statusEntries,
     worktreeDiffSha256,
     stagedDiffSha256,
-    untrackedFiles
+    untrackedFiles,
+    ...(ignoredPaths !== undefined ? { ignoredPaths } : {})
   };
 
   return {

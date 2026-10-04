@@ -7,17 +7,17 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.7.1`
-- Latest release: `v0.7.1` (synthetic large-repository generator)
-- Current release: `v0.7.1` (published/current; released)
-- Release date: `2026-10-02`
-- Previous release: `v0.7.0` (context-window scaling plugin)
-- Publication verified on `2026-10-03`: npm contains `@dailephd/my-dev-kit-lab@0.7.1` and `latest` resolves to `0.7.1`; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.7.1) is non-draft and non-prerelease. Annotated tag object `3117578e6a4cb551b757f90d5b3887a8f6272454` points to release commit `b9ddb3c4c15036e2983740e0a45f0374c14275f5`, merged through PR #43. This is release identity evidence; later documentation corrections do not move the tag or change the published package.
+- Package version: `0.7.2`
+- Latest release: `v0.7.2` (local-repository experiments)
+- Current release: `v0.7.2` (published/current; released)
+- Release date: `2026-10-03`
+- Previous release: `v0.7.1` (synthetic large-repository generator)
+- v0.7.1 publication (historical), verified on `2026-10-03`: npm contained `@dailephd/my-dev-kit-lab@0.7.1` and `latest` resolved to `0.7.1` at that time; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.7.1) is non-draft and non-prerelease. Annotated tag object `3117578e6a4cb551b757f90d5b3887a8f6272454` points to release commit `b9ddb3c4c15036e2983740e0a45f0374c14275f5`, merged through PR #43. This is release identity evidence; later documentation corrections do not move the tag or change the published package.
 - `v0.5.0` status: published; it is a historical release. The release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
-- Released/current version: `v0.7.1` (synthetic large-repository generator).
-- Active planned version: `v0.7.2` (real/local external repository experiments); `v0.8.0` (retrieval precision/recall) remains later planned work.
+- Released/current version: `v0.7.2` (local-repository experiments).
+- Active planned version: `v0.8.0` (retrieval precision/recall) remains the next planned milestone.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -28,6 +28,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 ## Operational state
 
 - Release channel/current branch: `main`.
+- v0.7.2 historical implementation branch: `feature/v0.7.2-local-repository-subject-foundation` (completed).
 - v0.7.1 historical implementation branch: `feature/v0.7.1-synthetic-large-repository-generator` (completed), created from documentation-reconciled `main` commit `b90f79a185f56625086b72449ea0d24cb27b2bd2`.
 - `v0.5.1` status: published; the expanded warm-index benchmark suite is included in the package and release channels.
 - `v0.5.2` status: published historical release; real-agent warm-index campaigns remain available in the current installed package.
@@ -37,8 +38,8 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.5.2` release branch: `release/v0.5.2` (historical release branch merged to `main`).
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
-- Current published release: `v0.7.1` synthetic large-repository generator; the previous `v0.7.0` release added the context-window scaling plugin.
-- Workflow stage: v0.7.1 implementation, documentation reconciliation, readiness, and release preparation are complete; v0.7.1 is the current release, and `experiment run --experiment context-window-scaling --synthetic-config <path>` is part of the current package.
+- Current published release: `v0.7.2` local-repository experiments; the previous `v0.7.1` release added the synthetic large-repository generator.
+- Workflow stage: v0.7.2 implementation, documentation reconciliation, readiness, and release preparation are complete; v0.7.2 is the current release, and `experiment run --experiment context-window-scaling --target <repository> --local-subject-config <path>` is part of the current package.
 - v0.7.1 implementation validation summary (historical; exact implementation commit `f51d6ed7c5ba3c20d7e821d1733b9f421e699962`): the six-cell ordinary CI matrix (Ubuntu, macOS, Windows × Node 24/latest) passed on that exact commit, including `verify:packed-package`; the dedicated latest-Node workflow passed on Ubuntu, macOS, and Windows; CodeQL analysis completed for `javascript-typescript` and `actions`. The deterministic synthetic golden tests executed and passed on all three operating systems. Local clean-install `docs:check`, `typecheck`, `build`, focused suites, `test:evaluation`, `verify`, the full test suite (450 files, 5984 passed, 2 skipped), and `verify:packed-package` passed on that commit; the packed-package gate exercises installed TypeScript and Python `--synthetic-config` runs. CodeQL alert review was not performed at that stage; it was completed during pre-release readiness. Evidence is recorded in [docs/reports/v0.7.1-documentation-reconciliation-completeness-audit.md](reports/v0.7.1-documentation-reconciliation-completeness-audit.md).
 - The repository-controlled CodeQL advanced setup in `.github/workflows/codeql.yml` produced exact-SHA JavaScript/TypeScript and Actions analyses for v0.7.1 readiness; both passed and the candidate had zero open applicable alerts. Local optional scanner availability is reported separately.
 - `v0.6.0` status: published; index snapshot evidence and changed-file freshness remain available in the current package.
@@ -62,7 +63,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
-- Exact next action: freeze the v0.7.2 real/local external repository subject contract, source-immutability and privacy rules, command behavior, and acceptance tests from the existing architecture before issuing implementation batches. The generic external-target metadata alone does not complete that milestone.
+- Exact next action: continue with the planned v0.8.0 retrieval precision/recall milestone.
 - ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
 
 ## Implemented
@@ -113,7 +114,7 @@ The repository has one experiment runtime, one audit framework, one standalone s
 
 ## Experimental versus planned
 
-`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling` are registered with experimental status. The v0.7.0 context-window scaling plugin is released. Its estimated-token counts use `ceil(characters / 4)`, its budgets do not represent provider model limits, and its deterministic fake-agent correctness path is context-independent. It is self-only and has no real-agent campaign.
+`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling` are registered with experimental status. The v0.7.0 context-window scaling plugin is released. Its estimated-token counts use `ceil(characters / 4)`, its budgets do not represent provider model limits, and its deterministic fake-agent correctness path is context-independent. In bundled and synthetic mode it runs against the Lab itself; v0.7.2 also accepts an explicitly selected local Git repository (`--target` with `--local-subject-config`). It has no real-agent campaign.
 
 `warm-index-reuse` was introduced in `v0.5.0` and is included in published release `v0.5.1` with registry status `experimental`. In the published `v0.5.1` release, its agent evidence comes from the deterministic fake agent only.
 
@@ -143,7 +144,7 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- real/local external repository experiments (`v0.7.2`), retrieval precision/recall (`v0.8.x`), and agent-success experiment plugins (`v0.9.x`)
+- retrieval precision/recall (`v0.8.x`) and agent-success experiment plugins (`v0.9.x`)
 - normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
 
 ## Limitations
@@ -218,4 +219,4 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-`v0.7.1` is the current/latest published release and `v0.7.0` is the previous release. Package version `0.7.1` is current. Context-window scaling and its synthetic large-repository generation input are released and published. v0.7.2 is the planned milestone after it. Readiness, release-branch CI, CodeQL, and publication-state preparation evidence is recorded in [docs/reports/v0.7.1-release-preparation.md](reports/v0.7.1-release-preparation.md).
+`v0.7.2` is the current/latest published release and `v0.7.1` is the previous release. Package version `0.7.2` is current. Context-window scaling, its synthetic large-repository generation input, and its local-repository mode (`--target` with `--local-subject-config`) are released and published. v0.8.0 is the planned milestone after it. Readiness, release-branch CI, CodeQL, and publication-state preparation evidence is recorded in [docs/reports/v0.7.2-release-preparation.md](reports/v0.7.2-release-preparation.md).

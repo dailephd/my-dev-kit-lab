@@ -120,7 +120,7 @@ describe("--synthetic-config parsing", () => {
   });
 
   it("keeps the other context-window-scaling flags unsupported", () => {
-    for (const flag of ["--target", "--cases", "--project-profiles", "--benchmark-project", "--campaign", "--agents", "--include-real-agents", "--strategies", "--complexities", "--timeout-ms", "--max-runs", "--require-agents"]) {
+    for (const flag of ["--cases", "--project-profiles", "--benchmark-project", "--campaign", "--agents", "--include-real-agents", "--strategies", "--complexities", "--timeout-ms", "--max-runs", "--require-agents"]) {
       const extra = ["--include-real-agents", "--require-agents"].includes(flag) ? [] : [flag === "--campaign" ? "codex-full" : flag === "--agents" ? "fake-agent" : flag === "--strategies" ? "raw-full-file" : flag === "--complexities" ? "short" : flag === "--timeout-ms" || flag === "--max-runs" ? "5" : "x"];
       expect(() => parse("--synthetic-config", "c.json", flag, ...extra)).toThrow(new RegExp(`${flag} is not supported`));
     }

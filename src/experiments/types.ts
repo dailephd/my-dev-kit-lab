@@ -61,6 +61,11 @@ export type ExperimentTarget = {
   commit: string | null;
   hasGit: boolean;
   isSelf: boolean;
+  /**
+   * Set only on a target projected for durable persistence of an external-local run. Path, package and lockfile
+   * fields then hold redacted or unknown placeholders rather than facts about the repository.
+   */
+  privacyProjection?: "external-local-redacted";
 };
 
 export type ExperimentMetric = {

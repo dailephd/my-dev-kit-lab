@@ -1185,7 +1185,7 @@ Implementation status: the v0.7.0 plugin is registered and runs the bundled four
 
 ### v0.7.1 — synthetic large-repository generator
 
-Status: **published/current (2026-10-02)**.
+Status: **published (2026-10-02); previous release**.
 
 Implementation result: `context-window-scaling` accepts `--synthetic-config <path>` and runs over deterministic, disposable TypeScript/Python repositories generated beneath the experiment output root, with a per-repository generation manifest. `--case` remains bundled-catalog selection and is mutually exclusive with the new option; the plugin's scientific config, execution artifact, reports, plots, and the frozen v0.7.0 corpus are unchanged. External/local repository subjects remain v0.7.2 and retrieval precision/recall remains v0.8.0.
 
@@ -1298,7 +1298,7 @@ Explicit exclusions:
 
 ### v0.7.2 — real-world and local-repository experiments
 
-Status: **planned; not implemented**.
+Status: **published/current (2026-10-03)**.
 
 Purpose:
 

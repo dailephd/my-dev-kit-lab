@@ -36,12 +36,27 @@ export type V043TargetImmutabilityConfigValidationResult =
 
 export type V043TargetFileSnapshotState = "file" | "missing" | "directory" | "symbolic-link" | "other";
 
+/**
+ * Size and modification time recorded instead of a content hash when external-local safe mode refuses to read a
+ * file larger than its bound. Weaker than a hash: a same-size, same-mtime rewrite is not detected.
+ */
+export interface V043TargetContentFingerprintV1 {
+  sizeBytes: number;
+  mtimeMs: number;
+}
+
+export interface V043TargetSnapshotOptionsV1 {
+  /** External-local safe mode: never read files above the bound, and record ignored paths by name only. */
+  externalLocalSafe?: { maxHashedFileBytes: number };
+}
+
 export interface V043TargetFileSnapshotV1 {
   relativePath: string;
   resolvedPath: string;
   state: V043TargetFileSnapshotState;
   sha256: string | null;
   symbolicLinkTarget: string | null;
+  contentFingerprint?: V043TargetContentFingerprintV1;
 }
 
 export type V043TargetGitAvailability = "available" | "not-repository";
@@ -51,6 +66,7 @@ export interface V043TargetUntrackedFileSnapshotV1 {
   state: "file" | "missing" | "symbolic-link" | "other";
   sha256: string | null;
   symbolicLinkTarget: string | null;
+  contentFingerprint?: V043TargetContentFingerprintV1;
 }
 
 export interface V043TargetGitSnapshotV1 {
@@ -61,6 +77,8 @@ export interface V043TargetGitSnapshotV1 {
   worktreeDiffSha256: string | null;
   stagedDiffSha256: string | null;
   untrackedFiles: V043TargetUntrackedFileSnapshotV1[];
+  /** Safe mode only: sorted Git-ignored file paths (names only; contents are never read). */
+  ignoredPaths?: string[];
 }
 
 export interface V043TargetSnapshotV1 {
@@ -101,6 +119,7 @@ export type V043TargetMutationKind =
   | "git-worktree-diff"
   | "git-staged-diff"
   | "git-untracked-file"
+  | "git-ignored-paths"
   | "configured-file";
 
 export interface V043TargetMutationV1 {
