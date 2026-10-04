@@ -2,6 +2,7 @@ import path from "node:path";
 import { countEstimatedTokens, countTextChars, tokenCountMethod } from "../core/countTokens.js";
 import { runMeasuredCommand, type MeasuredCommandResult } from "../core/runMeasuredCommand.js";
 import { interpretToolVersionOutput, type IndexSnapshotToolV1 } from "./indexSnapshot.js";
+import { buildRetrievalEvidenceFromCommands } from "./retrievalQuality/buildRetrievalEvidence.js";
 import type {
   EvaluationCase,
   MyDevKitAppliedRefreshScope,
@@ -72,6 +73,7 @@ function skippedRetrieval(
     contextText: "",
     filesRead: [],
     commands,
+    retrievalEvidence: buildRetrievalEvidenceFromCommands(commands),
     durationMs
   };
 }
@@ -386,6 +388,7 @@ export async function runMyDevKitRetrievalFromIndex(options: {
     selectedNodeId,
     selectedFile,
     selectedSymbol,
+    retrievalEvidence: buildRetrievalEvidenceFromCommands(commands, { nodeId: selectedNodeId, file: selectedFile }),
     durationMs: Date.now() - started
   };
 }
