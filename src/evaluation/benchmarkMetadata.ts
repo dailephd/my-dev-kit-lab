@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PROJECT_COMPLEXITY_FORMULA, calculateProjectComplexityScore, roundToTwo } from "./projectComplexity.js";
+import { hasFactMapping, interpretFactContextTarget } from "./retrievalQuality/factContextTargets.js";
 import { TASK_LOCALITIES } from "./types.js";
 import type {
   BenchmarkProjectProfile,
@@ -107,6 +108,19 @@ export function validateAnswerKey(answerKey: unknown, label: string): string[] {
     if (requiredFactCount > 0 && candidate.minimumCorrectFacts > requiredFactCount + (candidate.expectedFacts.length - requiredFactCount)) {
       errors.push(`${label}: answerKey.minimumCorrectFacts is not satisfiable.`);
     }
+  }
+  if (Array.isArray(candidate.expectedContextTargets) && Array.isArray(candidate.expectedFacts)) {
+    // Only targets that opt into fact mapping with `factIds` are validated here; legacy targets stay valid as-is.
+    const knownFactIds = new Set(
+      candidate.expectedFacts.flatMap((fact) => (fact && typeof fact === "object" && typeof fact.id === "string" && fact.id.length > 0 ? [fact.id] : []))
+    );
+    candidate.expectedContextTargets.forEach((target, index) => {
+      if (!hasFactMapping(target)) return;
+      const interpretation = interpretFactContextTarget(target, knownFactIds);
+      if (!interpretation.ok) {
+        errors.push(`${label}: answerKey.expectedContextTargets[${index}]: ${interpretation.problem}.`);
+      }
+    });
   }
   if (Array.isArray(candidate.expectedFiles) && candidate.expectedFiles.length === 0) {
     errors.push(`${label}: answerKey.expectedFiles must not be empty.`);

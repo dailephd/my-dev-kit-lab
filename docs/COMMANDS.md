@@ -10,9 +10,11 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.7.2 package.
+This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.8.0 package.
 
 The `--local-subject-config` option and the external local-repository mode described under `context-window-scaling` were added in v0.7.2 and are included in the current package.
+
+The `retrieval-precision-recall` command surface (v0.8.0), documented below, is included in the current 0.8.0 package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -180,7 +182,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), and `context-window-scaling` (released in v0.7.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (released in v0.7.0), and `retrieval-precision-recall` (released in v0.8.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -193,7 +195,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
 
-`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget and synthetic-input options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--target`, `--case`, `--synthetic-config`, `--local-subject-config`, `--context-budgets`, and `--kit-command`. It uses its bundled four-case catalog against the Lab itself by default, generated repositories with `--synthetic-config`, or an explicitly selected local Git repository with `--target` plus `--local-subject-config`; the three subject modes are mutually exclusive.
+`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget and synthetic-input options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--target`, `--case`, `--synthetic-config`, `--local-subject-config`, `--context-budgets`, and `--kit-command`. It uses its bundled four-case catalog against the Lab itself by default, generated repositories with `--synthetic-config`, or an explicitly selected local Git repository with `--target` plus `--local-subject-config`; the three subject modes are mutually exclusive. In the v0.8.0 source, `--experiment retrieval-precision-recall` accepts `--out`, `--case`, `--benchmark-project`, and `--kit-command` in bundled mode, and `--out`, `--target`, `--local-subject-config`, and `--kit-command` in external mode.
 
 #### `warm-index-reuse`
 
@@ -359,6 +361,39 @@ A successful external-local run writes `context-window-scaling-execution.json`, 
 
 The bundled and synthetic modes reject an external `--target` and unrelated common/plugin options. Budgets classify the estimated size of each constructed context; they do not truncate/rebuild contexts or configure a provider model window. Correctness comes from one deterministic fake-agent evaluation per treatment and is context-independent in the current harness. The execution artifact and reports contain bounded evidence, never context text. See [WORKFLOWS.md](WORKFLOWS.md#context-window-scaling-experiment-v070) and [METRICS.md](METRICS.md#context-window-scaling-evidence-v070).
 
+#### `retrieval-precision-recall` (v0.8.0)
+
+This surface is included in the current 0.8.0 package.
+
+```text
+my-dev-kit-lab experiment describe --experiment retrieval-precision-recall
+my-dev-kit-lab experiment run --experiment retrieval-precision-recall [--out <dir>] [--case <ids>] [--benchmark-project <ids>] [--kit-command <command>]
+my-dev-kit-lab experiment run --experiment retrieval-precision-recall --target <repository> --local-subject-config <path> [--out <dir>] [--kit-command <command>]
+```
+
+The plugin has one variant, `my-dev-kit-retrieval`. For each case it runs my-dev-kit search, then lookup, slice, and source for the top search candidate, and compares the retrieved files and symbols with the case answer key. No agent is invoked. Its default my-dev-kit command is `npx @dailephd/my-dev-kit@latest`.
+
+**Bundled mode** (no `--target`) runs the frozen bundled 12-case corpus (`benchmarks/contracts/warm-index-benchmark-cases.json`, two benchmark projects) against the Lab itself, with one index per project and one retrieval per case.
+
+| Option | Allowed value or default |
+|---|---|
+| `--out <dir>` | Optional output directory; the normal experiment default applies when omitted |
+| `--case <ids>` | Optional comma-separated filter over the bundled case IDs; corpus order is preserved |
+| `--benchmark-project <ids>` | Optional comma-separated filter over the bundled benchmark project IDs |
+| `--kit-command <command>` | Optional my-dev-kit command; defaults to `npx @dailephd/my-dev-kit@latest` |
+
+The production corpus and its project profiles are bundled and frozen: `--cases` and `--project-profiles` are not accepted for this plugin.
+
+**External-local mode** runs the same lifecycle over an explicitly selected local Git repository. `--target <repository>` and `--local-subject-config <path>` (a `LocalRepositorySubjectConfigV1` file, the same schema described above for `context-window-scaling`) are required together; either one alone is rejected. `--case` and `--benchmark-project` are rejected in this mode because the config owns the case set. The output directory must be outside the repository, and the repository is treated as read-only.
+
+Each case used for retrieval precision and recall needs deterministic ground truth: nonempty `expectedFiles` and `expectedSymbols`, and an `answerKey` whose `expectedFiles` and `expectedSymbols` agree with them, whose `expectedFacts` have unique IDs, and whose `expectedContextTargets` map those fact IDs to the files and symbols that must be retrieved (`factIds`), so fact coverage can be calculated without matching text. Cases with incomplete ground truth are rejected before execution. Each case's `sourceRoots` are indexed exactly as configured, with one private index per case.
+
+A successful bundled run writes `retrieval-precision-recall-execution.json`, `report.json`, `report.html`, and `report.txt` to the output directory. A successful external-local run writes the same four files plus `local-repository-subject-manifest.json`. Runtime indexes and command stdout and stderr are private scratch state and are removed rather than kept in the final output.
+
+A safety or execution failure in an external-local run exits nonzero and writes no normal artifact, report, or manifest family; partial private artifacts are not kept for inspection. One failing case fails the whole run. Durable external output redacts the repository path, file, symbol, and fact identities, case titles, and retrieval warning text, and keeps the numeric metrics. The console summary of a successful run can still show the physical output directory, so treat console output as local. Very long output or target paths can fail cleanly under platform path limits.
+
+See [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080) and [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080).
+
 ### `my-dev-kit-lab experiment controlled [options]`
 
 Runs the `context-strategy-comparison` plugin's legacy controlled-experiment path directly (not through the generic plugin runner). Options:
@@ -491,6 +526,7 @@ Current implemented commands:
 - `npm run experiment:run -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment warm-index-reuse`
 - `npm run experiment:run -- --experiment incremental-change-staleness` (introduced in v0.6.2; four-treatment behavior in v0.6.3)
+- `npm run experiment:run -- --experiment retrieval-precision-recall` (v0.8.0)
 - `npm run run-controlled-experiment`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`
@@ -511,6 +547,12 @@ npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\
 ```bash
 npm run experiment:describe -- --experiment warm-index-reuse
 npm run experiment:run -- --experiment warm-index-reuse --cases benchmarks/contracts/warm-index-benchmark-cases.json --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/warm-index-reuse
+```
+
+Deterministic one-case `retrieval-precision-recall` run from a source checkout, using the repository's fake my-dev-kit fixture (the case ID is one of the bundled warm-index cases):
+
+```bash
+npm run experiment:run -- --experiment retrieval-precision-recall --case warm-medium-import-dedupe --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/retrieval-precision-recall
 ```
 
 `experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above. `experiment:run` options for `incremental-change-staleness` are `--out`, `--case`, and `--kit-command` only; see [`incremental-change-staleness`](#incremental-change-staleness-v062) above.
@@ -537,7 +579,7 @@ npm run experiment:run -- --experiment warm-index-reuse --cases benchmarks/contr
 
 Current behavior:
 
-- `context-strategy-comparison`, `warm-index-reuse`, and `incremental-change-staleness` are the registered plugins
+- `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, and `retrieval-precision-recall` are the registered plugins
 - `context-strategy-comparison` and ordinary `warm-index-reuse` runs support optional `--target`; omitting it uses self mode
 - `incremental-change-staleness` does not accept `--target` and always uses the bundled benchmark projects
 - when a plugin supports an explicit target, experiment execution does not modify that target project

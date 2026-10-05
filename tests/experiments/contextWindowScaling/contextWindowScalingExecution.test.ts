@@ -408,13 +408,14 @@ describe("context-window-scaling plugin with production owners and the fake kit"
     expect(await read(secondOutputRoot)).toEqual(await read(firstOutputRoot));
   });
 
-  it("requires cases input and is registered last in the public default registry", async () => {
+  it("requires cases input and is registered in the public default registry (retrieval-precision-recall follows it)", async () => {
     await expect(contextWindowScalingPlugin.run(contextFor(await tempDir(), "x", {}))).rejects.toThrow("non-empty cases input");
     expect(createDefaultExperimentPluginRegistry().list().map((m) => m.id)).toEqual([
       "context-strategy-comparison",
       "warm-index-reuse",
       "incremental-change-staleness",
       "context-window-scaling",
+      "retrieval-precision-recall",
     ]);
   });
 });

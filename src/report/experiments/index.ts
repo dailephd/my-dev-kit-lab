@@ -25,3 +25,8 @@ export * from "./contextWindowScalingReportModel.js";
 export { buildContextWindowScalingReport, CONTEXT_WINDOW_SCALING_INTERPRETATION } from "./buildContextWindowScalingReport.js";
 export { renderContextWindowScalingHtml } from "./renderContextWindowScalingHtml.js";
 export { renderContextWindowScalingTextLines } from "./renderContextWindowScalingText.js";
+
+export * from "./retrievalPrecisionRecallReportModel.js";
+export { buildRetrievalPrecisionRecallReport, RETRIEVAL_PRECISION_RECALL_LIMITATIONS } from "./buildRetrievalPrecisionRecallReport.js";
+export { renderRetrievalPrecisionRecallHtml } from "./renderRetrievalPrecisionRecallHtml.js";
+export { renderRetrievalPrecisionRecallTextLines } from "./renderRetrievalPrecisionRecallText.js";

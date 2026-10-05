@@ -1298,7 +1298,7 @@ Explicit exclusions:
 
 ### v0.7.2 — real-world and local-repository experiments
 
-Status: **published/current (2026-10-04)**.
+Status: **published (2026-10-04); previous release**.
 
 Purpose:
 
@@ -1319,7 +1319,7 @@ Acceptance:
 
 ### v0.8.0 — retrieval precision/recall plugin
 
-Status: **planned; not implemented**.
+Status: **published/current (2026-10-04)**.
 
 Purpose:
 
@@ -1337,6 +1337,17 @@ Acceptance:
 * Experiment does not require real agents.
 * Retrieval metrics are deterministic.
 * Reports identify missed files/symbols and irrelevant retrieved context.
+
+Implemented scope:
+
+* The `retrieval-precision-recall` plugin with one `my-dev-kit-retrieval` variant. For each case it runs the existing search, lookup, slice, and source lifecycle and records the observed retrieved files and symbols as deterministic retrieval evidence.
+* Deterministic answer-key comparison: file precision, file recall, symbol precision, symbol recall, fact coverage (from explicit fact-to-context mappings), irrelevant context ratio, retrieved token count, and the missed files, missed symbols, and uncovered facts. These are set-based measures with explicit available, unavailable, and not-applicable states; there is no ranking, winner, or composite score.
+* A bundled 12-case corpus over two benchmark projects (the warm-index benchmark cases), with one index per project and one retrieval per case. No agent is invoked.
+* A versioned execution artifact plus deterministic JSON, HTML, and text reports.
+* External-local repository subjects through the existing `LocalRepositorySubject` architecture (`--target` with `--local-subject-config`): one private index per configured case, Git-ignored and oversized files excluded, retrieval limited to the eligible file universe, repository immutability checks, and durable output that redacts repository paths and file, symbol, and fact identities while keeping the numeric evidence.
+* Exact installed-package proof of bundled and external-local execution in the packed-package gate.
+
+Not part of v0.8.0: ranked retrieval metrics, retrieval-strategy comparison, strategy rankings or winners, context packs, and real-agent evaluation. These remain in the later versions below.
 
 ### v0.8.1 — retrieval query strategy comparison
 

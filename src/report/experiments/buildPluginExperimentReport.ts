@@ -20,10 +20,15 @@ import type { WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
 import { buildIncrementalChangeStalenessPluginReport } from "./buildIncrementalChangeStalenessPluginReport.js";
 import { buildContextWindowScalingReport } from "./buildContextWindowScalingReport.js";
 import type { ContextWindowScalingReportV1 } from "./contextWindowScalingReportModel.js";
+import { buildRetrievalPrecisionRecallReport } from "./buildRetrievalPrecisionRecallReport.js";
+import type { RetrievalPrecisionRecallReportV1 } from "./retrievalPrecisionRecallReportModel.js";
 
 // Bulk context-window-scaling evidence is presented by the typed report section; the complete
 // evidence stays in context-window-scaling-execution.json.
 const CONTEXT_WINDOW_SCALING_BULK_KEYS = ["executionEvidence", "aggregate"] as const;
+
+// Same for retrieval-precision-recall: the typed section presents the evidence; the execution artifact keeps all of it.
+const RETRIEVAL_PRECISION_RECALL_BULK_KEYS = ["caseExecutionEvidence", "aggregate"] as const;
 
 const V043_BULK_ARRAY_KEYS = [
   "v043StageContextExecutions",
@@ -43,12 +48,18 @@ export function buildPluginExperimentReport(args: {
   const warmIndexReuse = buildWarmIndexReuseReport(args.run);
   const incrementalChangeStaleness = buildIncrementalChangeStalenessPluginReport(args.run);
   const contextWindowScaling = buildContextWindowScalingReport(args.run);
+  const retrievalPrecisionRecall = buildRetrievalPrecisionRecallReport(args.run);
   const rawRun: ExperimentRun = { ...args.run, artifacts: relativizeArtifacts(args.run.artifacts, outputRoot) };
   for (const key of V043_BULK_ARRAY_KEYS) {
     delete (rawRun as Record<string, unknown>)[key];
   }
   if (contextWindowScaling) {
     for (const key of CONTEXT_WINDOW_SCALING_BULK_KEYS) {
+      delete (rawRun as Record<string, unknown>)[key];
+    }
+  }
+  if (retrievalPrecisionRecall) {
+    for (const key of RETRIEVAL_PRECISION_RECALL_BULK_KEYS) {
       delete (rawRun as Record<string, unknown>)[key];
     }
   }
@@ -78,8 +89,9 @@ export function buildPluginExperimentReport(args: {
     warmIndexReuse,
     incrementalChangeStaleness,
     contextWindowScaling,
+    retrievalPrecisionRecall,
     contextStrategyComparisonV043,
-    interpretation: buildInterpretation(args.run, contextStrategyComparisonV043, warmIndexReuse, contextWindowScaling),
+    interpretation: buildInterpretation(args.run, contextStrategyComparisonV043, warmIndexReuse, contextWindowScaling, retrievalPrecisionRecall),
     rawRun,
   };
 }
@@ -177,8 +189,20 @@ function buildInterpretation(
   run: ExperimentRun,
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null,
   warmIndexReuse: WarmIndexReuseReportV1 | null,
-  contextWindowScaling: ContextWindowScalingReportV1 | null
+  contextWindowScaling: ContextWindowScalingReportV1 | null,
+  retrievalPrecisionRecall: RetrievalPrecisionRecallReportV1 | null
 ): PluginExperimentReport["interpretation"] {
+  if (retrievalPrecisionRecall) {
+    const summary = retrievalPrecisionRecall.runSummary;
+    return {
+      summary:
+        `Retrieval quality was measured over ${summary.caseCount} case${summary.caseCount === 1 ? "" : "s"} (${summary.completedCaseCount} completed, ${summary.partialCaseCount} partial, ${summary.failedCaseCount} failed). ` +
+        "Available case-level file, symbol and fact metrics are summarized without ranking strategies. " +
+        "Unavailable and not-applicable evidence is excluded from macro means rather than treated as zero.",
+      recommendedNextStep:
+        "Review per-case missed and irrelevant context together with availability before drawing conclusions."
+    };
+  }
   if (contextWindowScaling) {
     const summary = contextWindowScaling.runSummary;
     return {

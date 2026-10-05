@@ -2,6 +2,7 @@ import type { LabReportInput } from "../report/types.js";
 import type { MeasuredCommandResult } from "../core/runMeasuredCommand.js";
 import type { tokenCountMethod } from "../core/countTokens.js";
 import type { ScreenshotCaptureResult } from "../screenshot/types.js";
+import type { RetrievalEvidenceV1 } from "./retrievalQuality/types.js";
 
 export const TASK_LOCALITIES = ["localized", "cross-module", "broad-change"] as const;
 
@@ -57,6 +58,12 @@ export type MyDevKitRetrievalResult = {
   selectedNodeId?: string;
   selectedFile?: string;
   selectedSymbol?: string;
+  /**
+   * Normalized observation of the files and symbols the search/lookup/slice/source commands surfaced.
+   * Additive and internal: it holds no source text, raw output, or machine-local paths. No artifact writer is
+   * changed to emit it; any future durable use of it for external-local subjects needs privacy projection.
+   */
+  retrievalEvidence?: RetrievalEvidenceV1;
   durationMs: number;
 };
 
@@ -266,6 +273,11 @@ export type ExpectedContextTarget = {
   file: string;
   symbols?: string[];
   required?: boolean;
+  /**
+   * Ids of `expectedFacts` this target supports. Explicit mapping that lets retrieval fact coverage be computed
+   * deterministically; targets without it remain valid but carry no fact-coverage evidence.
+   */
+  factIds?: string[];
 };
 
 export type BenchmarkTaskAnswerKey = {

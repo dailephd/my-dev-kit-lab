@@ -26,6 +26,7 @@ import { isV2ReportSection } from "./buildIncrementalChangeStalenessReportV2.js"
 import { renderIncrementalChangeStalenessSectionV2 } from "./renderIncrementalChangeStalenessTextV2.js";
 import { REINDEX_RECOMMENDATION_EXPLANATIONS } from "./buildWarmIndexReuseReport.js";
 import { renderContextWindowScalingTextLines } from "./renderContextWindowScalingText.js";
+import { renderRetrievalPrecisionRecallTextLines } from "./renderRetrievalPrecisionRecallText.js";
 
 function sanitizeScalar(value: unknown): string {
   const text = String(value);
@@ -768,6 +769,14 @@ export function renderPluginExperimentReportText(report: PluginExperimentReport)
     lines.push("Not applicable to this plugin.");
   } else {
     lines.push(...renderContextWindowScalingTextLines(report.contextWindowScaling));
+  }
+
+  pushSection(lines, "Retrieval Precision/Recall");
+  const retrievalPrecisionRecall = report.retrievalPrecisionRecall ?? null;
+  if (retrievalPrecisionRecall === null) {
+    lines.push("Not applicable to this plugin.");
+  } else {
+    lines.push(...renderRetrievalPrecisionRecallTextLines(retrievalPrecisionRecall));
   }
 
   pushSection(lines, "Warnings, Skips, And Failures");

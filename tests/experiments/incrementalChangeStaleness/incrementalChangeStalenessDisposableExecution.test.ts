@@ -33,7 +33,7 @@ function sha256OfFile(absolutePath: string): string {
 const repoRoot = process.cwd();
 
 const CANONICAL_HASHES: Record<string, string> = {
-  "benchmarks/contracts/warm-index-benchmark-cases.json": "f3fc9a6cac68c4d14d27eb5cc7d83944b6064a9edde6206357b2f6c2ceaef4c7",
+  "benchmarks/contracts/warm-index-benchmark-cases.json": "076c6bf443f0705186644bc0eaba1f31b5083538c98a84999961c1874c73f48d",
   "benchmarks/contracts/incremental-change-staleness-scenarios.json": "08e3d440a79708a1f4817017f24821cae423326d3764092866ba7ee6b31d2ae7",
   "benchmarks/projects/task-analytics-large-mixed/py/task_analytics/quality.py": "5faab1bf018de6e647a11a2edffd641a51c0c05b399cb6f58a2c22b0ff035554",
   "benchmarks/projects/task-analytics-large-mixed/py/task_analytics/metrics.py": "da2bfce46ec51016f87b3456a201e69a9d71721002e1781b44fdc59a96650e91",

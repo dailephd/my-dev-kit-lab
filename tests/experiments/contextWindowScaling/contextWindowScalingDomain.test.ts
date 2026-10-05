@@ -25,11 +25,11 @@ describe("context-window-scaling metadata", () => {
     expect([...CONTEXT_WINDOW_SCALING_TREATMENT_IDS]).toEqual(["raw-full-file", "my-dev-kit-guided"]);
   });
 
-  it("is publicly registered last in the default registry", () => {
+  it("is publicly registered in the default registry, followed by retrieval-precision-recall", () => {
     const ids = createDefaultExperimentPluginRegistry()
       .list()
       .map((plugin) => plugin.id);
-    expect(ids).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling"]);
+    expect(ids).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall"]);
   });
 });
 

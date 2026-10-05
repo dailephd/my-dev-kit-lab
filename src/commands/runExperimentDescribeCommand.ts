@@ -152,6 +152,9 @@ function describeTargetBehavior(plugin: ExperimentPlugin): string {
   if (plugin.metadata.id === "context-window-scaling") {
     return "Three subject modes. Bundled (default): the bundled fixed scaling corpus against the Lab itself. Synthetic: caller-supplied deterministic synthetic repositories via --synthetic-config <path> (a SyntheticRepositoryConfigV1 JSON file, mutually exclusive with --case) written beneath the experiment output directory. External local repository: an explicitly selected local Git worktree via --target <path> together with --local-subject-config <path> (a LocalRepositorySubjectConfigV1 JSON file); the repository is never modified, the output directory must be outside it, and durable output omits the repository path, source text, and file names. Operational context-fit measurement only; no retrieval precision, recall, or ranking quality is measured.";
   }
+  if (plugin.metadata.id === "retrieval-precision-recall") {
+    return "Two subject modes. Bundled (default): the frozen bundled 12-case warm-index corpus against the Lab itself, filterable with --case and --benchmark-project. External local repository: an explicitly selected local Git worktree via --target <path> together with --local-subject-config <path> (a LocalRepositorySubjectConfigV1 JSON file whose cases carry a complete retrieval answer key with explicit fact-to-context mappings); the repository is never modified, the output directory must be outside it, one private index is built per configured case, and durable output withholds the repository path, source text, and file, symbol and fact identities. Bundled filters are not accepted in external mode.";
+  }
   if (supportsExternal) {
     return "Runs against the current lab repository when --target is omitted, or against an explicit local target project when --target <path> is provided. Outputs stay under lab-controlled output directories by default.";
   }
@@ -177,7 +180,11 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
     `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id}${agentOptions}`
   ];
   // Only advertise an explicit --target example for plugins that support external targets.
-  if (plugin.metadata.supportedTargets.includes("external-local") && plugin.metadata.id !== "context-window-scaling") {
+  if (
+    plugin.metadata.supportedTargets.includes("external-local") &&
+    plugin.metadata.id !== "context-window-scaling" &&
+    plugin.metadata.id !== "retrieval-precision-recall"
+  ) {
     examples.push(
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1"${agentOptions}${screenshotOption}`
     );
@@ -187,6 +194,12 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
     examples.push(
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --campaign codex-full --include-real-agents --out <dir>`,
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --campaign claude-full --include-real-agents --case warm-medium-complete-idempotent --out <dir>`
+    );
+  }
+  if (plugin.metadata.id === "retrieval-precision-recall") {
+    examples.push(
+      `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --case <case-id> --out <run-dir>`,
+      `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target <local-git-repository> --local-subject-config <path-to-local-subject-config.json> --out <run-dir-outside-the-repository>`
     );
   }
   if (plugin.metadata.id === "context-window-scaling") {
