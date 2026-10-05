@@ -4,6 +4,8 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-05
+
 ### Retrieval query strategy comparison
 
 - Added the experimental `retrieval-query-strategy-comparison` plugin with seven fixed variants: `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided`. It runs no coding agent.

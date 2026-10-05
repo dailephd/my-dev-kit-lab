@@ -30,7 +30,7 @@ src/
     plugins/incrementalChangeStaleness/      v0.6.2 plugin; four-treatment V2 execution and report extension in released v0.6.3
     plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
     plugins/retrievalPrecisionRecall/         v0.8.0 plugin: bundled and external-local retrieval-quality execution, aggregation, execution artifact, external privacy projection
-    plugins/retrievalQueryStrategyComparison/ v0.8.1 plugin (implemented; unreleased): seven-strategy matched execution, scientific analysis, separate execution and analysis artifacts, external-local safety lifecycle and privacy projection
+    plugins/retrievalQueryStrategyComparison/ v0.8.1 plugin: seven-strategy matched execution, scientific analysis, separate execution and analysis artifacts, external-local safety lifecycle and privacy projection
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released; retained): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released; retained): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
@@ -130,7 +130,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers six plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, and the implemented, unreleased v0.8.1 `retrieval-query-strategy-comparison`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers six plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, and the released v0.8.1 `retrieval-query-strategy-comparison`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -680,11 +680,11 @@ The compiled runtime ships in `dist/`. The exact-tarball gate proves installed p
 
 ### Non-goals
 
-Outside v0.8.0: ranked retrieval metrics (such as MRR or NDCG), retrieval-strategy comparison, context packs, real-agent evaluation, winner selection, and automatic strategy selection. Retrieval-strategy comparison was later added by the separate v0.8.1 plugin described below (implemented; unreleased); the other items remain later roadmap work.
+Outside v0.8.0: ranked retrieval metrics (such as MRR or NDCG), retrieval-strategy comparison, context packs, real-agent evaluation, winner selection, and automatic strategy selection. Retrieval-strategy comparison was later added by the separate v0.8.1 plugin described below; the other items remain later roadmap work.
 
-## Retrieval query strategy comparison architecture (v0.8.1, implemented; unreleased)
+## Retrieval query strategy comparison architecture (v0.8.1)
 
-Status: implemented; unreleased.
+Status: released (v0.8.1).
 
 `retrieval-query-strategy-comparison` compares seven fixed retrieval strategies for each case using deterministic my-dev-kit workflows. It is a plugin on the existing experiment runtime, not a second runner, and it invokes no agent. It reuses the v0.8.0 retrieval-quality evidence semantics and the existing `LocalRepositorySubject` architecture instead of duplicating either.
 

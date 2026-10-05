@@ -10,13 +10,13 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.8.0 package.
+This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current package.
 
 The `--local-subject-config` option and the external local-repository mode described under `context-window-scaling` were added in v0.7.2 and are included in the current package.
 
-The `retrieval-precision-recall` command surface (v0.8.0), documented below, is included in the current 0.8.0 package.
+The `retrieval-precision-recall` command surface (v0.8.0), documented below, is included in the current package (released in v0.8.0).
 
-The `retrieval-query-strategy-comparison` command surface (v0.8.1), documented below, is implemented in the current checkout and unreleased; it is not part of the published 0.8.0 package.
+The `retrieval-query-strategy-comparison` command surface (v0.8.1), documented below, is included in the current 0.8.1 package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -184,7 +184,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (released in v0.7.0), `retrieval-precision-recall` (released in v0.8.0), and `retrieval-query-strategy-comparison` (implemented in v0.8.1; unreleased), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (released in v0.7.0), `retrieval-precision-recall` (released in v0.8.0), and `retrieval-query-strategy-comparison` (released in v0.8.1), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -197,7 +197,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
 
-`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget and synthetic-input options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--target`, `--case`, `--synthetic-config`, `--local-subject-config`, `--context-budgets`, and `--kit-command`. It uses its bundled four-case catalog against the Lab itself by default, generated repositories with `--synthetic-config`, or an explicitly selected local Git repository with `--target` plus `--local-subject-config`; the three subject modes are mutually exclusive. In the v0.8.0 source, `--experiment retrieval-precision-recall` accepts `--out`, `--case`, `--benchmark-project`, and `--kit-command` in bundled mode, and `--out`, `--target`, `--local-subject-config`, and `--kit-command` in external mode. `--experiment retrieval-query-strategy-comparison` (implemented in v0.8.1; unreleased) accepts exactly the same bundled and external option sets as `retrieval-precision-recall`, plus the `--kit-command` override; it has no strategy option.
+`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget and synthetic-input options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--target`, `--case`, `--synthetic-config`, `--local-subject-config`, `--context-budgets`, and `--kit-command`. It uses its bundled four-case catalog against the Lab itself by default, generated repositories with `--synthetic-config`, or an explicitly selected local Git repository with `--target` plus `--local-subject-config`; the three subject modes are mutually exclusive. In the v0.8.0 source, `--experiment retrieval-precision-recall` accepts `--out`, `--case`, `--benchmark-project`, and `--kit-command` in bundled mode, and `--out`, `--target`, `--local-subject-config`, and `--kit-command` in external mode. `--experiment retrieval-query-strategy-comparison` (released in v0.8.1) accepts exactly the same bundled and external option sets as `retrieval-precision-recall`, plus the `--kit-command` override; it has no strategy option.
 
 #### `warm-index-reuse`
 
@@ -365,7 +365,7 @@ The bundled and synthetic modes reject an external `--target` and unrelated comm
 
 #### `retrieval-precision-recall` (v0.8.0)
 
-This surface is included in the current 0.8.0 package.
+This surface is included in the current package (released in v0.8.0).
 
 ```text
 my-dev-kit-lab experiment describe --experiment retrieval-precision-recall
@@ -396,9 +396,9 @@ A safety or execution failure in an external-local run exits nonzero and writes 
 
 See [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080) and [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080).
 
-#### `retrieval-query-strategy-comparison` (v0.8.1, implemented; unreleased)
+#### `retrieval-query-strategy-comparison` (v0.8.1)
 
-This surface is implemented in the current checkout and is not part of the published 0.8.0 package.
+This surface is included in the current 0.8.1 package.
 
 ```text
 my-dev-kit-lab experiment list
@@ -428,11 +428,11 @@ Each configured case needs the same complete ground truth as `retrieval-precisio
 
 **Outputs.** A successful bundled run writes `retrieval-query-strategy-comparison-execution.json` (execution evidence only), `retrieval-query-strategy-comparison-analysis.json` (the calculated scientific analysis), `report.json`, `report.txt`, and `report.html`. A successful external-local run writes the same five files plus `local-repository-subject-manifest.json`. No plots or screenshots are produced. Runtime indexes and command stdout and stderr are private scratch state and are removed rather than kept.
 
-**Interpretation.** The report presents four task-type scopes in this order: `overall`, `localized`, `cross-module`, and `broad-change`. Each scope is labeled `unique-best` (exactly one nondominated strategy), `tradeoff` (several strategies remain nondominated and there is no single best), or `unavailable` (no matched complete cases). The Pareto-front list follows canonical strategy order and is not a ranking. See [METRICS.md](METRICS.md#retrieval-query-strategy-comparison-metrics-v081-implementedunreleased) for the definitions.
+**Interpretation.** The report presents four task-type scopes in this order: `overall`, `localized`, `cross-module`, and `broad-change`. Each scope is labeled `unique-best` (exactly one nondominated strategy), `tradeoff` (several strategies remain nondominated and there is no single best), or `unavailable` (no matched complete cases). The Pareto-front list follows canonical strategy order and is not a ranking. See [METRICS.md](METRICS.md#retrieval-query-strategy-comparison-metrics-v081) for the definitions.
 
 **Failure behavior.** A safety, privacy, or execution failure in an external-local run exits nonzero, prints a bounded safe description (codes, counts, and mutation kinds only), and writes no normal artifact, report, or manifest family. One failing case fails the whole run, although a single failed or partial strategy treatment is recorded as measurement evidence rather than failing the run. Durable external output withholds the repository path, file, symbol, and fact identities, semantic node IDs, warning text, and case titles while preserving the numeric results. The console summary of a successful run can still show the physical output directory, so treat console output as local.
 
-See [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v081-implemented-unreleased) and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-query-strategy-comparison-architecture-v081-implemented-unreleased).
+See [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v081) and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-query-strategy-comparison-architecture-v081).
 
 ### `my-dev-kit-lab experiment controlled [options]`
 
@@ -567,7 +567,7 @@ Current implemented commands:
 - `npm run experiment:run -- --experiment warm-index-reuse`
 - `npm run experiment:run -- --experiment incremental-change-staleness` (introduced in v0.6.2; four-treatment behavior in v0.6.3)
 - `npm run experiment:run -- --experiment retrieval-precision-recall` (v0.8.0)
-- `npm run experiment:run -- --experiment retrieval-query-strategy-comparison` (v0.8.1; implemented, unreleased)
+- `npm run experiment:run -- --experiment retrieval-query-strategy-comparison` (v0.8.1)
 - `npm run run-controlled-experiment`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`

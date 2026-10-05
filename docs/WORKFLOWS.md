@@ -238,7 +238,7 @@ Released in v0.6.1. It extends the warm-index workflow above without any new com
 
 ## Incremental-change and staleness experiment (introduced in v0.6.2; four-treatment workflow in v0.6.3)
 
-This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 release added two treatments, and the current v0.8.0 package continues to run all four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
+This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 release added two treatments, and the current package continues to run all four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
 
 **Goal:** compare matched `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, and `full-refresh` treatment evidence after the same deterministic controlled source change, using the six frozen scenario families, without changing the released `warm-index-reuse` experiment. `full-refresh` is a comparison reference, not a preferred treatment.
 
@@ -286,7 +286,7 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 ## Context-window scaling experiment (v0.7.0)
 
-**Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in v0.7.1, and the local-repository mode was added in v0.7.2 and remains available in the current v0.8.0 release. By default this plugin uses a bundled four-case catalog and fixed self target and does not accept real-agent campaign options; an external `--target` is accepted only together with `--local-subject-config`.
+**Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in v0.7.1, and the local-repository mode was added in v0.7.2 and remains available in the current release. By default this plugin uses a bundled four-case catalog and fixed self target and does not accept real-agent campaign options; an external `--target` is accepted only together with `--local-subject-config`.
 
 **Goal:** compare the measured raw-full-file and my-dev-kit-guided contexts at the same selected estimated-token budgets, and preserve fit, deterministic correctness/success, and omitted expected relevant-file evidence.
 
@@ -336,7 +336,7 @@ my-dev-kit-lab experiment run `
 
 ## Retrieval precision/recall experiment (v0.8.0)
 
-**Status:** released in v0.8.0. This workflow is available from the source checkout and the installed 0.8.0 package.
+**Status:** released in v0.8.0. This workflow is available from the source checkout and the installed package.
 
 **Goal:** measure, without any agent, whether my-dev-kit retrieval returns the files, symbols, and facts a case requires and how much irrelevant context it returns with them.
 
@@ -391,9 +391,9 @@ The run proceeds in this order:
 
 **Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080) for exact definitions.
 
-## Retrieval query strategy comparison experiment (v0.8.1, implemented; unreleased)
+## Retrieval query strategy comparison experiment (v0.8.1)
 
-**Status:** implemented in the current checkout; unreleased. It is available from a source checkout and is not part of the published 0.8.0 package.
+**Status:** released in v0.8.1. This workflow is available from the source checkout and the installed 0.8.1 package.
 
 **Goal:** compare deterministic ways of asking my-dev-kit for relevant repository context without invoking coding agents, using the `retrieval-query-strategy-comparison` plugin.
 
@@ -423,7 +423,7 @@ npm run experiment:run -- `
 
 No agent is invoked, so the result does not depend on a provider.
 
-**External-local workflow:** to run the same comparison over your own local Git repository, write a `LocalRepositorySubjectConfigV1` file whose cases carry a complete answer key (see [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081-implemented-unreleased)) and run:
+**External-local workflow:** to run the same comparison over your own local Git repository, write a `LocalRepositorySubjectConfigV1` file whose cases carry a complete answer key (see [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081)) and run:
 
 ```powershell
 npm run experiment:run -- `
@@ -461,9 +461,9 @@ External mode differs from bundled mode in one important way: it builds one base
 
 The Pareto-front list is in canonical strategy order. Do not treat the first entry as the best strategy. The measures are evidence about the executed cases only; the retrieved token count is a context-size estimate.
 
-**Validation boundary:** the v0.8.1 implementation and its release-transition proof are complete. The next repository workflow is standardized pre-release readiness, which runs after documentation reconciliation passes; this experiment workflow and the documentation reconciliation are not themselves readiness.
+**Validation boundary:** the v0.8.1 implementation, its release-transition proof, pre-release readiness, and release preparation are complete. This experiment workflow is a measurement procedure, not a release gate.
 
-**Completion:** review the per-scope interpretation, the Pareto fronts, the matched and excluded case counts, and the per-case treatment metrics in the report. See [METRICS.md](METRICS.md#retrieval-query-strategy-comparison-metrics-v081-implementedunreleased) for exact definitions.
+**Completion:** review the per-scope interpretation, the Pareto fronts, the matched and excluded case counts, and the per-case treatment metrics in the report. See [METRICS.md](METRICS.md#retrieval-query-strategy-comparison-metrics-v081) for exact definitions.
 
 ## Real-agent warm-index campaign (v0.5.2)
 

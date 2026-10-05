@@ -722,9 +722,9 @@ Status: released (v0.8.0). The `retrieval-precision-recall` plugin measures one 
 
 See [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080), [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-precisionrecall-architecture-v080).
 
-## Retrieval query strategy comparison metrics (v0.8.1, implemented/unreleased)
+## Retrieval query strategy comparison metrics (v0.8.1)
 
-Status: implemented; unreleased. The `retrieval-query-strategy-comparison` plugin runs seven fixed retrieval strategies for each case, with no agent, and compares them. This section is the authoritative definition of its scientific values. Every value is calculated once by the plugin's analysis and persisted in `retrieval-query-strategy-comparison-analysis.json`; reports and generic metrics present those precomputed values and never recalculate them.
+Status: released (v0.8.1). The `retrieval-query-strategy-comparison` plugin runs seven fixed retrieval strategies for each case, with no agent, and compares them. This section is the authoritative definition of its scientific values. Every value is calculated once by the plugin's analysis and persisted in `retrieval-query-strategy-comparison-analysis.json`; reports and generic metrics present those precomputed values and never recalculate them.
 
 The seven strategies, in canonical order, are `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided`.
 
@@ -840,4 +840,4 @@ Retrieved token count is `ceil(character count / 4)` through the existing estima
 
 `retrieval-query-strategy-comparison-execution.json` holds execution evidence only. `retrieval-query-strategy-comparison-analysis.json` is the scientific truth owner for the metrics, objective vectors, matched scopes, Pareto fronts, and best-strategy interpretation. `report.json`, `report.html`, and `report.txt` present the precomputed analysis and do not recalculate it. The generic experiment metrics (per-treatment values and per-scope objective means) are projections of the same precomputed values.
 
-See [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081-implemented-unreleased), [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v081-implemented-unreleased), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-query-strategy-comparison-architecture-v081-implemented-unreleased).
+See [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081), [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v081), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-query-strategy-comparison-architecture-v081).

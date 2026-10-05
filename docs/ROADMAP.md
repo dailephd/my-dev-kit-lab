@@ -1298,7 +1298,7 @@ Explicit exclusions:
 
 ### v0.7.2 — real-world and local-repository experiments
 
-Status: **published (2026-10-04); previous release**.
+Status: **published (2026-10-04)**.
 
 Purpose:
 
@@ -1319,7 +1319,7 @@ Acceptance:
 
 ### v0.8.0 — retrieval precision/recall plugin
 
-Status: **published/current (2026-10-04)**.
+Status: **published (2026-10-04); previous release**.
 
 Purpose:
 
@@ -1351,7 +1351,7 @@ Not part of v0.8.0: ranked retrieval metrics, retrieval-strategy comparison, str
 
 ### v0.8.1 — retrieval query strategy comparison
 
-Status: **implemented; unreleased; pre-release readiness pending**.
+Status: **published/current (2026-10-05)**.
 
 Purpose:
 
