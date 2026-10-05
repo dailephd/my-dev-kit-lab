@@ -238,7 +238,7 @@ Released in v0.6.1. It extends the warm-index workflow above without any new com
 
 ## Incremental-change and staleness experiment (introduced in v0.6.2; four-treatment workflow in v0.6.3)
 
-This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 release added two treatments, and the current v0.7.2 release continues to run all four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
+This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 release added two treatments, and the current v0.8.0 package continues to run all four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
 
 **Goal:** compare matched `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, and `full-refresh` treatment evidence after the same deterministic controlled source change, using the six frozen scenario families, without changing the released `warm-index-reuse` experiment. `full-refresh` is a comparison reference, not a preferred treatment.
 
@@ -286,7 +286,7 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 ## Context-window scaling experiment (v0.7.0)
 
-**Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in v0.7.1, and the local-repository mode was added in the current v0.7.2 release. By default this plugin uses a bundled four-case catalog and fixed self target and does not accept real-agent campaign options; an external `--target` is accepted only together with `--local-subject-config`.
+**Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in v0.7.1, and the local-repository mode was added in v0.7.2 and remains available in the current v0.8.0 release. By default this plugin uses a bundled four-case catalog and fixed self target and does not accept real-agent campaign options; an external `--target` is accepted only together with `--local-subject-config`.
 
 **Goal:** compare the measured raw-full-file and my-dev-kit-guided contexts at the same selected estimated-token budgets, and preserve fit, deterministic correctness/success, and omitted expected relevant-file evidence.
 
