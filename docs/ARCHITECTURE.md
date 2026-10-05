@@ -30,6 +30,7 @@ src/
     plugins/incrementalChangeStaleness/      v0.6.2 plugin; four-treatment V2 execution and report extension in released v0.6.3
     plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
     plugins/retrievalPrecisionRecall/         v0.8.0 plugin: bundled and external-local retrieval-quality execution, aggregation, execution artifact, external privacy projection
+    plugins/retrievalQueryStrategyComparison/ v0.8.1 plugin (implemented; unreleased): seven-strategy matched execution, scientific analysis, separate execution and analysis artifacts, external-local safety lifecycle and privacy projection
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released; retained): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released; retained): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
@@ -129,7 +130,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers five plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, and the released v0.8.0 `retrieval-precision-recall`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers six plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, and the implemented, unreleased v0.8.1 `retrieval-query-strategy-comparison`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -679,7 +680,101 @@ The compiled runtime ships in `dist/`. The exact-tarball gate proves installed p
 
 ### Non-goals
 
-Outside v0.8.0: ranked retrieval metrics (such as MRR or NDCG), retrieval-strategy comparison, context packs, real-agent evaluation, winner selection, and automatic strategy selection. These remain later roadmap work (v0.8.1 and later).
+Outside v0.8.0: ranked retrieval metrics (such as MRR or NDCG), retrieval-strategy comparison, context packs, real-agent evaluation, winner selection, and automatic strategy selection. Retrieval-strategy comparison was later added by the separate v0.8.1 plugin described below (implemented; unreleased); the other items remain later roadmap work.
+
+## Retrieval query strategy comparison architecture (v0.8.1, implemented; unreleased)
+
+Status: implemented; unreleased.
+
+`retrieval-query-strategy-comparison` compares seven fixed retrieval strategies for each case using deterministic my-dev-kit workflows. It is a plugin on the existing experiment runtime, not a second runner, and it invokes no agent. It reuses the v0.8.0 retrieval-quality evidence semantics and the existing `LocalRepositorySubject` architecture instead of duplicating either.
+
+### Ownership
+
+The plugin lives in `src/experiments/plugins/retrievalQueryStrategyComparison/`:
+
+- `metadata.ts` owns the plugin identity and the seven variants in canonical order.
+- `config.ts` owns the closed plugin configuration (`outDir`, `kitCommand`, `caseIds`, `benchmarkProjects`); there is no strategy field.
+- `execution.ts` owns the matched seven-treatment execution, including `executeRetrievalQueryStrategyComparison` (bundled grouping and base-index preparation) and `executeRetrievalQueryStrategyCaseFromPreparedIndex`, the single owner of the per-case seven-treatment loop that both bundled and external-local modes delegate to.
+- `executionArtifact.ts` owns the execution-only artifact.
+- `analysis.ts` owns the scientific calculation: per-treatment quality, balanced F1, matched-complete-case scope aggregation, Pareto dominance, and the unique-best rule.
+- `analysisTypes.ts` owns the analysis contracts: scopes, treatment and case analyses, objective vectors, and scope interpretation.
+- `analysisArtifact.ts` owns the scientific-analysis artifact and the single shared methodology constant used by both the artifact and the report.
+- `metrics.ts` owns only the projection of already-calculated values onto generic `ExperimentMetric` objects; it contains no formulas.
+- `localSubjectExecution.ts` owns the external-local safety lifecycle.
+- `localSubjectPrivacy.ts` owns the durable identity and privacy projection and its leak assertion.
+- `plugin.ts` owns orchestration: execution, then analysis, then persistence, then mapping onto `ExperimentRun`.
+
+Supporting owners outside the plugin directory: `src/evaluation/retrievalQueryStrategies.ts` (the strategy identifiers and their canonical order), `src/evaluation/retrievalQueryStrategyEvidence.ts` (the strategy-neutral `RetrievalQueryStrategyEvidenceV1`), `src/evaluation/runMyDevKitRetrieval.ts` (`runMyDevKitRetrievalStrategyFromIndex` for the five core strategies), `src/evaluation/runSemanticRetrievalStrategy.ts` (`runSemanticRetrievalStrategyFromIndex` for the two semantic strategies), `src/evaluation/retrievalQuality/metrics.ts` (the single metric owner), and `src/report/experiments/` (the typed report section).
+
+### Retrieval execution flow
+
+```text
+EvaluationCase
+  -> prepared base index
+  -> five core search / lookup / slice / source strategy treatments (keyword-search, symbol-lookup, graph-neighborhood, source-slice, combined-graph-guided)
+  -> two isolated semantic strategy copies of the base index (data-model-graph, model-view-lineage)
+  -> RetrievalQueryStrategyEvidenceV1
+  -> execution artifact
+```
+
+The core strategies run through `runMyDevKitRetrievalStrategyFromIndex`; the semantic strategies run through `runSemanticRetrievalStrategyFromIndex` and use `data-model` commands. The seven strategies do not all use the same command family. In bundled mode the plugin builds one base index per benchmark project; in external-local mode it builds one private base index per configured case, because each case owns its exact `sourceRoots`. The semantic strategies receive a fresh recursive copy of the case's base index because the upstream `data-model` command writes derived artifacts into the index directory; a cleanup failure of such a copy is recorded as a path-free warning when a measurement exists and as a fixed error when none does.
+
+### Scientific analysis flow
+
+```text
+RetrievalQueryStrategyEvidenceV1
+  -> generic RetrievalQualityIdentityEvidence
+  -> calculateRetrievalQualityMetricsFromIdentityEvidence
+  -> balanced file / symbol F1
+  -> per-case treatment analysis
+  -> matched complete-case scope aggregation
+  -> Pareto front
+  -> analysis artifact
+  -> report projection
+```
+
+`calculateRetrievalQualityMetrics` (v0.8.0) is now a thin adapter over `calculateRetrievalQualityMetricsFromIdentityEvidence`, so both evidence contracts are scored by one metric owner and command provenance never changes a formula. The report does not recalculate science: `buildRetrievalQueryStrategyComparisonReport` copies the precomputed analysis and reads persisted execution status and evidence availability only.
+
+### Execution and analysis separation
+
+`retrieval-query-strategy-comparison-execution.json` holds bounded treatment execution evidence (statuses, strategy-neutral identities, steps, errors, and token estimates) and no scientific ranking. `retrieval-query-strategy-comparison-analysis.json` holds the calculated per-treatment metrics, objective vectors, matched scopes, Pareto fronts, and `bestStrategyId` where unique. Neither artifact contains raw source, context text, stdout, or stderr.
+
+### External-local flow
+
+```text
+validate subject / work root
+  -> exact exclusions
+  -> validate ground truth
+  -> before snapshot
+  -> private scratch
+  -> one base index per configured case
+  -> seven treatments
+  -> eligible-universe check
+  -> after snapshot
+  -> immutability comparison
+  -> scratch cleanup
+  -> scientific analysis using real identities
+  -> privacy projection
+  -> privacy assertion
+  -> durable execution artifact
+  -> durable analysis artifact
+  -> manifest
+  -> reports
+```
+
+This is the existing local-subject lifecycle applied to the seven-strategy comparison. No durable output is written before every safety and privacy gate has succeeded; a target mutation is never reverted, and a run-level scratch cleanup failure is a safety failure.
+
+### Privacy boundary
+
+Durable external-local output withholds the physical repository root, physical output and scratch paths, file identities, symbol identities, fact IDs, semantic node IDs, warning text, case titles, raw source, and raw stdout and stderr. It preserves strategy IDs, logical case and subject IDs, numeric metrics, task locality, scope counts, objective vectors, Pareto fronts, `bestStrategyId`, and the Git identity that the existing manifest allows. Because the analysis runs on real identities before projection, privacy placeholders are never used to calculate any metric.
+
+### Packed-package boundary
+
+The compiled runtime ships in `dist/`. The exact-tarball gate proves installed plugin discovery and description (seven variants, closed config), a bundled run with one index, seven ordered treatments, and semantic `data-model` commands, the execution and analysis artifacts and typed reports, the external-local rejection and failure paths, external-local execution with privacy redaction and target immutability, and compatibility with the real published `@dailephd/my-dev-kit@1.12.5` on an external Git repository. The deterministic fake my-dev-kit used for the bundled run and the failure injection is test infrastructure and is never packaged.
+
+### Non-goals
+
+v0.8.1 does not add context packs (v0.8.2), coding agents, learned judges, automatic retrieval selection, a scalar or composite score, an ordinal ranking, MRR, NDCG, MAP, or plots and screenshots.
 
 ## Target model
 
@@ -714,7 +809,7 @@ The contributor `scripts/*.ts` npm-script entrypoints are thin adapters over the
 
 ### Packed-package acceptance boundary
 
-`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, all five experiment plugins (including the v0.8.0 `retrieval-precision-recall`, with its installed bundled and external-local execution, privacy, failure-path, and immutability checks) are registered, `experiment describe --experiment warm-index-reuse` and `experiment run --help` document the warm-index surface, an installed `warm-index-reuse` run (using a temporary test-owned fake my-dev-kit script, never packaged) produces its execution artifact and reports, `plots generate` produces the four warm-index charts and the context-window-scaling charts from its V1 execution artifact, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
+`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, all six experiment plugins (including the v0.8.0 `retrieval-precision-recall` and the v0.8.1 `retrieval-query-strategy-comparison`, each with its installed bundled and external-local execution, privacy, failure-path, and immutability checks) are registered, `experiment describe --experiment warm-index-reuse` and `experiment run --help` document the warm-index surface, an installed `warm-index-reuse` run (using a temporary test-owned fake my-dev-kit script, never packaged) produces its execution artifact and reports, `plots generate` produces the four warm-index charts and the context-window-scaling charts from its V1 execution artifact, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
 
 ## Automated security-validation architecture
 
@@ -983,7 +1078,7 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | Plugin and result types | `src/experiments/types.ts` |
 | Plugin registry | `src/experiments/registry.ts` |
 | Generic runner | `src/experiments/runner.ts` |
-| Current plugins | `src/experiments/plugins/contextStrategyComparison/plugin.ts`, `src/experiments/plugins/warmIndexReuse/plugin.ts` |
+| Current plugins | `src/experiments/plugins/contextStrategyComparison/plugin.ts`, `src/experiments/plugins/warmIndexReuse/plugin.ts`, `src/experiments/plugins/retrievalQueryStrategyComparison/plugin.ts` |
 | Plugin report model | `src/report/experiments/experimentReportModel.ts` |
 | Controlled experiment types | `src/evaluation/controlledExperimentTypes.ts` |
 | Shared local target metadata | `src/core/localProjectTarget.ts` |

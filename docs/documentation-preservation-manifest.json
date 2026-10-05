@@ -416,14 +416,15 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.8.0",
-    "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.8.1",
+    "currentImplementedUnreleasedVersion": "0.8.1",
+    "nextPlannedVersion": "0.8.2",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",
       "incremental-change-staleness",
       "context-window-scaling",
-      "retrieval-precision-recall"
+      "retrieval-precision-recall",
+      "retrieval-query-strategy-comparison"
     ],
     "experimentPluginDocuments": [
       "README.md",

@@ -158,10 +158,10 @@ describe("CLI mode matrix for retrieval-precision-recall", () => {
     expect(() => parse("--target", "repo", "--local-subject-config", "a.json", "--local-subject-config", "b.json")).toThrow(/may be supplied only once/);
   });
 
-  it("limits --local-subject-config to the two plugins that support it", () => {
+  it("limits --local-subject-config to the three plugins that support it", () => {
     for (const experiment of ["warm-index-reuse", "incremental-change-staleness", "context-strategy-comparison"]) {
       expect(() => parseRunExperimentArgs(["--experiment", experiment, "--local-subject-config", "c.json"])).toThrow(
-        "--local-subject-config is only supported for --experiment context-window-scaling or retrieval-precision-recall."
+        "--local-subject-config is only supported for --experiment context-window-scaling, retrieval-precision-recall, or retrieval-query-strategy-comparison."
       );
     }
   });

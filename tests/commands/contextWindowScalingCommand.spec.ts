@@ -115,7 +115,7 @@ describe("context-window-scaling option isolation", () => {
     const help = renderExperimentRunHelp();
     expect(help).toContain("context-window-scaling only:");
     expect(help).toContain("--context-budgets <values>");
-    expect(help).toContain("warm-index-reuse, incremental-change-staleness, and context-window-scaling");
+    expect(help).toContain("warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison");
   });
 });
 
@@ -124,7 +124,7 @@ describe("public list and describe", () => {
     const output = capture();
     expect(await runExperimentListCommandFromArgs(["--json"])).toBe(0);
     const listed = JSON.parse(output.stdout()) as { experiments: Array<Record<string, unknown>> };
-    expect(listed.experiments.map((e) => e.id)).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", ID, "retrieval-precision-recall"]);
+    expect(listed.experiments.map((e) => e.id)).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", ID, "retrieval-precision-recall", "retrieval-query-strategy-comparison"]);
     expect(listed.experiments.find((e) => e.id === ID)).toMatchObject({
       id: ID,
       status: "experimental",

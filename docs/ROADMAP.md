@@ -1351,7 +1351,7 @@ Not part of v0.8.0: ranked retrieval metrics, retrieval-strategy comparison, str
 
 ### v0.8.1 — retrieval query strategy comparison
 
-Status: **planned; not implemented**.
+Status: **implemented; unreleased; pre-release readiness pending**.
 
 Purpose:
 
@@ -1366,6 +1366,20 @@ Features:
 Acceptance:
 
 * Lab can compare multiple my-dev-kit retrieval workflows without running coding agents.
+* Met by the implementation: all seven treatments execute through the installed plugin surface, reports show overall and task-locality Pareto interpretation, and the external-local privacy, immutability, and installed-package gates pass.
+
+Implemented scope:
+
+* The `retrieval-query-strategy-comparison` plugin with seven fixed strategy variants: `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided`. No agent is invoked.
+* Strategy-neutral retrieval evidence scored by the same identity-evidence metric owner as v0.8.0, so the inherited file, symbol, fact-coverage, irrelevant-context, and token measures are unchanged.
+* Bundled execution over the same frozen 12-case corpus, with every selected case receiving all seven treatments (filters narrow cases or projects, never strategies), one base index per benchmark project, and isolated copies of the index for the semantic strategies.
+* External-local execution with one private base index per configured case.
+* Balanced file and symbol F1, matched-complete-case macro means, the existing `taskLocality` scopes (`overall`, `localized`, `cross-module`, `broad-change`), and four-objective Pareto dominance; a unique best strategy only for a single-member Pareto front, a tradeoff otherwise, with no composite score or ranking.
+* Execution evidence and scientific analysis kept as separate artifacts, with a deterministic JSON, HTML, and text report section that presents the precomputed analysis.
+* `LocalRepositorySubject` privacy, immutability, and failure-atomicity boundaries.
+* Installed-package acceptance, including real `@dailephd/my-dev-kit@1.12.5` external-local compatibility.
+
+Not part of v0.8.1: context packs (v0.8.2), coding-agent evaluation (v0.9.x), automatic strategy selection, scalar or composite scoring, ordinal ranking, plots, and screenshots.
 
 ### v0.8.2 — context-pack generation experiments
 

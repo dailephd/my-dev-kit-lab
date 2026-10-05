@@ -3,6 +3,7 @@ import type { EvaluationCaseInput } from "../types.js";
 import { normalizeRetrievedRepositoryPath } from "./buildRetrievalEvidence.js";
 import { hasFactMapping, interpretFactContextTarget, type InterpretedFactContextTarget } from "./factContextTargets.js";
 import type {
+  RetrievalEvidenceAvailability,
   RetrievalEvidenceV1,
   RetrievalQualityExpectationStatusV1,
   RetrievalQualityMetricsV1,
@@ -13,6 +14,23 @@ export type CalculateRetrievalQualityMetricsInput = {
   evaluationCase: Pick<EvaluationCaseInput, "id" | "expectedFiles" | "expectedSymbols" | "answerKey">;
   retrieval: {
     retrievalEvidence?: RetrievalEvidenceV1;
+    totalEstimatedTokens: number;
+    tokenCountMethod: string;
+  };
+};
+
+/** Already-normalized file/symbol identities; carries no command provenance and no strategy meaning. */
+export type RetrievalQualityIdentityEvidence = {
+  availability: RetrievalEvidenceAvailability;
+  availabilityReason?: string;
+  files: readonly string[];
+  symbols: readonly { name: string; file?: string }[];
+};
+
+export type CalculateRetrievalQualityMetricsFromIdentityEvidenceInput = {
+  evaluationCase: Pick<EvaluationCaseInput, "id" | "expectedFiles" | "expectedSymbols" | "answerKey">;
+  retrieval: {
+    identityEvidence?: RetrievalQualityIdentityEvidence;
     totalEstimatedTokens: number;
     tokenCountMethod: string;
   };
@@ -85,7 +103,7 @@ type FactCoverageOutcome =
   | { kind: "computed"; covered: string[]; uncovered: string[]; total: number };
 
 /** Symbol name -> normalized files it was retrieved from. Symbols without file identity cannot satisfy a file-specific target. */
-function symbolFilesByName(evidence: RetrievalEvidenceV1): Map<string, Set<string>> {
+function symbolFilesByName(evidence: RetrievalQualityIdentityEvidence): Map<string, Set<string>> {
   const byName = new Map<string, Set<string>>();
   for (const symbol of evidence.symbols) {
     if (symbol.file === undefined) continue;
@@ -96,7 +114,7 @@ function symbolFilesByName(evidence: RetrievalEvidenceV1): Map<string, Set<strin
   return byName;
 }
 
-function calculateFactCoverage(answerKey: EvaluationCaseInput["answerKey"], evidence: RetrievalEvidenceV1, retrievedFiles: ReadonlySet<string>): FactCoverageOutcome {
+function calculateFactCoverage(answerKey: EvaluationCaseInput["answerKey"], evidence: RetrievalQualityIdentityEvidence, retrievedFiles: ReadonlySet<string>): FactCoverageOutcome {
   if (!answerKey || typeof answerKey !== "object") return { kind: "unavailable", reason: "answer-key-missing" };
   const facts: unknown = answerKey.expectedFacts;
   if (!Array.isArray(facts)) return { kind: "unavailable", reason: "expected-facts-invalid" };
@@ -144,7 +162,7 @@ function calculateFactCoverage(answerKey: EvaluationCaseInput["answerKey"], evid
   };
 }
 
-function evidenceReason(evidence: RetrievalEvidenceV1 | undefined): string | null {
+function evidenceReason(evidence: RetrievalQualityIdentityEvidence | undefined): string | null {
   if (evidence === undefined) return "retrieval-evidence-missing";
   if (evidence.availability === "partial") return "retrieval-evidence-partial";
   if (evidence.availability === "unavailable") return "retrieval-evidence-unavailable";
@@ -160,8 +178,37 @@ function evidenceReason(evidence: RetrievalEvidenceV1 | undefined): string | nul
  * Unavailable or not-applicable results are never converted to zero.
  */
 export function calculateRetrievalQualityMetrics(input: CalculateRetrievalQualityMetricsInput): RetrievalQualityMetricsV1 {
+  const evidence = input.retrieval.retrievalEvidence;
+  return calculateRetrievalQualityMetricsFromIdentityEvidence({
+    evaluationCase: input.evaluationCase,
+    retrieval: {
+      identityEvidence:
+        evidence === undefined
+          ? undefined
+          : {
+              availability: evidence.availability,
+              ...(evidence.availabilityReason !== undefined ? { availabilityReason: evidence.availabilityReason } : {}),
+              files: evidence.files.map((file) => file.path),
+              symbols: evidence.symbols.map((symbol) => ({
+                name: symbol.name,
+                ...(symbol.file !== undefined ? { file: symbol.file } : {})
+              }))
+            },
+      totalEstimatedTokens: input.retrieval.totalEstimatedTokens,
+      tokenCountMethod: input.retrieval.tokenCountMethod
+    }
+  });
+}
+
+/**
+ * Single mathematical owner for retrieval-quality calculation. Applies the v0.8.0 formulas and availability
+ * semantics to already-normalized identity evidence, so any evidence contract can be scored identically.
+ */
+export function calculateRetrievalQualityMetricsFromIdentityEvidence(
+  input: CalculateRetrievalQualityMetricsFromIdentityEvidenceInput
+): RetrievalQualityMetricsV1 {
   const { evaluationCase, retrieval } = input;
-  const evidence = retrieval.retrievalEvidence;
+  const evidence = retrieval.identityEvidence;
   const evidenceBlocked = evidenceReason(evidence);
   const answerKey = evaluationCase.answerKey;
   const hasAnswerKey = answerKey !== undefined && answerKey !== null && typeof answerKey === "object";
@@ -182,7 +229,7 @@ export function calculateRetrievalQualityMetrics(input: CalculateRetrievalQualit
   );
 
   const usable = evidenceBlocked === null && evidence !== undefined ? evidence : undefined;
-  const retrievedFiles = usable ? sortedUnique(usable.files.map((file) => file.path)) : undefined;
+  const retrievedFiles = usable ? sortedUnique(usable.files) : undefined;
   const retrievedSymbols = usable ? sortedUnique(usable.symbols.map((symbol) => symbol.name)) : undefined;
 
   // ---- files

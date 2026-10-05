@@ -1,6 +1,6 @@
 # Metrics
 
-This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports across the registered experiment plugins (`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, and `retrieval-precision-recall`).
+This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports across the registered experiment plugins (`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, and `retrieval-query-strategy-comparison`).
 
 Related documentation:
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how metrics flow through the pipeline
@@ -716,8 +716,128 @@ Status: released (v0.8.0). The `retrieval-precision-recall` plugin measures one 
 
 **External-local runs.** Numeric values and counts are identical in external-local mode. File, symbol, and fact identity lists are replaced by numbered placeholders of the same length (`<redacted file N>`, `<redacted symbol N>`, `<redacted fact N>`), case titles and retrieval warning text are replaced by fixed placeholders, and the artifact carries a fixed identity-redaction marker. A placeholder is a withheld identity, not an empty result.
 
-**Not implemented in v0.8.0.** Ranked retrieval metrics such as MRR, NDCG, MAP, and ranked precision; retrieval-strategy comparison and winners; and query-strategy comparison. Those remain future scope.
+**Not implemented in v0.8.0.** Ranked retrieval metrics such as MRR, NDCG, MAP, and ranked precision; retrieval-strategy comparison and winners; and query-strategy comparison. Strategy comparison was later added by the separate `retrieval-query-strategy-comparison` plugin documented below; ranked metrics remain outside the Lab's scope.
 
 **Sources.** Standard set-based precision and recall come from established information-retrieval evaluation: Manning, Raghavan, and Schütze, *Introduction to Information Retrieval*, "Evaluation of unranked retrieval sets" (Stanford online edition, <https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-of-unranked-retrieval-sets-1.html>), and the National Institute of Standards and Technology's Text REtrieval Conference (TREC) material on relevance judgments, which treats relevance as a judged, answer-key property of a test collection (<https://trec.nist.gov/data/reljudge_eng.html>; program overview at <https://trec.nist.gov/>). Applying those formulas to file identities and exact symbol-name identities is this Lab's deterministic operationalization. Fact coverage (through the Lab's explicit `factIds` mapping contract) and irrelevant context ratio are Lab-specific deterministic diagnostics, not standardized TREC ranking metrics, and neither source defines the `factIds` contract.
 
 See [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080), [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-precisionrecall-architecture-v080).
+
+## Retrieval query strategy comparison metrics (v0.8.1, implemented/unreleased)
+
+Status: implemented; unreleased. The `retrieval-query-strategy-comparison` plugin runs seven fixed retrieval strategies for each case, with no agent, and compares them. This section is the authoritative definition of its scientific values. Every value is calculated once by the plugin's analysis and persisted in `retrieval-query-strategy-comparison-analysis.json`; reports and generic metrics present those precomputed values and never recalculate them.
+
+The seven strategies, in canonical order, are `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided`.
+
+### Inherited retrieval-quality metrics
+
+v0.8.1 reuses, without change, the v0.8.0 definitions (see [Retrieval precision/recall evidence](#retrieval-precisionrecall-evidence-v080)):
+
+- File precision `|R_file ∩ E_file| / |R_file|` and file recall `|R_file ∩ E_file| / |E_file|`.
+- Symbol precision `|R_symbol ∩ E_symbol| / |R_symbol|` and symbol recall `|R_symbol ∩ E_symbol| / |E_symbol|`, over exact, case-sensitive unique symbol names.
+- Fact coverage: covered expected facts divided by expected facts, using only the answer key's explicit `factIds`-to-context mappings.
+- Irrelevant context ratio `|R_file - E_file| / |R_file|`.
+- Retrieved token count: the measured retrieval payload size, `ceil(character count / 4)` through the existing estimator.
+
+The strategy-neutral retrieval evidence is adapted to the same generic identity-evidence metric owner that scores the v0.8.0 retrieval evidence, so no command provenance changes any numerator, denominator, identity definition, fact mapping, zero-denominator rule, or availability rule. The ratio metrics keep the `available`, `unavailable`, and `not-applicable` states; unavailable and not-applicable values are never converted to zero.
+
+### Balanced file F1
+
+Let `TP_file` be the number of relevant retrieved files, `FP_file` the number of irrelevant retrieved files, and `FN_file` the number of missed files. Then:
+
+```text
+F1_file = 2 * TP_file / (2 * TP_file + FP_file + FN_file)
+```
+
+Availability: if any of the three identity sets is unavailable, F1 is `unavailable` with the reason `quality-identity-sets-unavailable`. If the denominator is zero (no relevant, irrelevant, or missed files at all), F1 is `not-applicable` with the reason `no-positive-or-retrieved-identities`. Otherwise it is `available`, with the numerator `2 * TP_file` and the denominator `2 * TP_file + FP_file + FN_file`.
+
+An important edge case: when nothing is retrieved and the expected relevant set is nonempty, `TP = 0`, `FP = 0`, and `FN > 0`, so `F1 = 0` as an available value. It is not `not-applicable`, because retrieval performance against a nonempty relevant set is measurable. The Lab computes F1 from these counts, not by averaging stored precision and recall.
+
+### Balanced symbol F1
+
+```text
+F1_symbol = 2 * TP_symbol / (2 * TP_symbol + FP_symbol + FN_symbol)
+```
+
+`TP_symbol`, `FP_symbol`, and `FN_symbol` are the numbers of relevant retrieved, irrelevant retrieved, and missed symbols, with the identical availability rules and the exact unique symbol-name identity inherited from v0.8.0. There is no fuzzy name matching, semantic matching, node-ID matching, alias handling, or case folding.
+
+**Source for F1.** Manning, Christopher D.; Raghavan, Prabhakar; Schütze, Hinrich. *Introduction to Information Retrieval*. Cambridge University Press. Chapter 8, "Evaluation in information retrieval." <https://nlp.stanford.edu/IR-book/pdf/08eval.pdf>. The source establishes that balanced F1 is the harmonic mean of precision and recall, `F1 = 2PR / (P + R)`. The count form above is the equivalent implementation form the Lab uses so that an empty retrieval against a nonempty relevant set is well defined. The source does not specify the Lab's `unavailable` and `not-applicable` policy, which is project-owned.
+
+### Matched complete cases
+
+A case participates in cross-strategy aggregation for a scope only when all seven strategies have all four primary objectives available: file F1, symbol F1, fact coverage, and a valid retrieved token count. If any strategy lacks any one of them, the case is excluded from every strategy's aggregate for that scope, so no strategy averages over more cases than another. A treatment's own scientific evidence is still retained when its case is excluded; the rule applies only to cross-strategy aggregation and best-strategy interpretation.
+
+### Macro means
+
+For each scope and strategy, over the matched comparison cases only:
+
+```text
+meanFileF1              = sum(case file F1)           / matched comparison case count
+meanSymbolF1            = sum(case symbol F1)         / matched comparison case count
+meanFactCoverage        = sum(case fact coverage)     / matched comparison case count
+meanRetrievedTokenCount = sum(case retrieved tokens)  / matched comparison case count
+```
+
+Stored values are not rounded. Every included task contributes equally: there is no denominator weighting, no micro averaging, and no weighting by expected files, expected symbols, facts, token count, or task locality.
+
+### Task-type scopes
+
+The scopes, in report order, are `overall`, `localized`, `cross-module`, and `broad-change`. `overall` contains every selected case; the other three reuse the existing `taskLocality` metadata (`localized`, `cross-module`, `broad-change`). A case with null or unknown `taskLocality` participates only in `overall`. The Lab does not infer task type from query text.
+
+### Primary objective vector
+
+For a strategy in a scope the objective vector is:
+
+```text
+O(strategy, scope) = {
+  meanFileF1: maximize,
+  meanSymbolF1: maximize,
+  meanFactCoverage: maximize,
+  meanRetrievedTokenCount: minimize
+}
+```
+
+Only these four objectives determine dominance. File and symbol precision, recall, irrelevant context ratio, duration, and missed counts remain visible diagnostic metrics but are not additional dominance dimensions: F1 already combines precision and recall, and the irrelevant context ratio is algebraically coupled to file precision when both are defined.
+
+### Pareto dominance
+
+Strategy A dominates strategy B if and only if all of the following hold:
+
+```text
+A.meanFileF1 >= B.meanFileF1
+AND A.meanSymbolF1 >= B.meanSymbolF1
+AND A.meanFactCoverage >= B.meanFactCoverage
+AND A.meanRetrievedTokenCount <= B.meanRetrievedTokenCount
+AND at least one of those comparisons is strict
+```
+
+There is no epsilon, no tolerance band, no rounding, and no weighting. Two strategies with identical vectors do not dominate each other. The Pareto front of a scope is every strategy that no other strategy dominates.
+
+**Source for Pareto dominance.** Emmerich, Michael T. M.; Deutz, André H. "A tutorial on multiobjective optimization: fundamentals and evolutionary methods." *Natural Computing* 17, 585–609 (2018). DOI 10.1007/s11047-018-9685-y. <https://link.springer.com/article/10.1007/s11047-018-9685-y>. It is cited only for the general multiobjective and Pareto framework. The Lab's exact four objectives and its unique-best interpretation are project-owned design choices.
+
+### Best-strategy interpretation
+
+This rule is project-owned:
+
+- `comparisonCaseCount = 0`: the interpretation is `unavailable`, the Pareto front is empty, and `bestStrategyId` is `null`.
+- The Pareto front has exactly one strategy: the interpretation is `unique-best` and `bestStrategyId` is that strategy.
+- The Pareto front has more than one strategy: the interpretation is `tradeoff` and `bestStrategyId` is `null`.
+
+No hidden tie breaker exists: token count, F1, strategy order, alphabetical order, and task locality never select a winner. "No single best strategy" is a valid result.
+
+### No composite score or ranking
+
+The plugin does not calculate a weighted composite score, a scalar winner score, a total ordinal ranking, MRR, NDCG, MAP, a statistical significance test, or a confidence interval. No scientifically justified weights exist for combining the four objectives, so the Lab exposes tradeoffs instead of hiding them in an arbitrary scalar. The Pareto-front array is emitted in canonical strategy order for deterministic serialization; that order is not a performance order, and the first entry is not the best strategy.
+
+### External-local runs: science before redaction
+
+In external-local mode the scientific analysis runs first, on the real in-memory file, symbol, and fact identities. Only afterward are file, symbol, fact, semantic-node, warning, and case-title identities replaced for persistence. Privacy placeholders are therefore never used to calculate precision, recall, F1, fact coverage, means, Pareto fronts, or `bestStrategyId`, and every numeric value and strategy interpretation is identical to the unredacted analysis.
+
+### Token caveat
+
+Retrieved token count is `ceil(character count / 4)` through the existing estimator. It is context-size evidence. It is not provider billing telemetry, not tokenizer-exact model usage, and not a relevant-token attribution.
+
+### Where each value lives
+
+`retrieval-query-strategy-comparison-execution.json` holds execution evidence only. `retrieval-query-strategy-comparison-analysis.json` is the scientific truth owner for the metrics, objective vectors, matched scopes, Pareto fronts, and best-strategy interpretation. `report.json`, `report.html`, and `report.txt` present the precomputed analysis and do not recalculate it. The generic experiment metrics (per-treatment values and per-scope objective means) are projections of the same precomputed values.
+
+See [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081-implemented-unreleased), [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v081-implemented-unreleased), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-query-strategy-comparison-architecture-v081-implemented-unreleased).

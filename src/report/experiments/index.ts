@@ -30,3 +30,7 @@ export * from "./retrievalPrecisionRecallReportModel.js";
 export { buildRetrievalPrecisionRecallReport, RETRIEVAL_PRECISION_RECALL_LIMITATIONS } from "./buildRetrievalPrecisionRecallReport.js";
 export { renderRetrievalPrecisionRecallHtml } from "./renderRetrievalPrecisionRecallHtml.js";
 export { renderRetrievalPrecisionRecallTextLines } from "./renderRetrievalPrecisionRecallText.js";
+export * from "./retrievalQueryStrategyComparisonReportModel.js";
+export { buildRetrievalQueryStrategyComparisonReport, RETRIEVAL_QUERY_STRATEGY_COMPARISON_LIMITATIONS } from "./buildRetrievalQueryStrategyComparisonReport.js";
+export { renderRetrievalQueryStrategyComparisonHtml } from "./renderRetrievalQueryStrategyComparisonHtml.js";
+export { renderRetrievalQueryStrategyComparisonTextLines } from "./renderRetrievalQueryStrategyComparisonText.js";

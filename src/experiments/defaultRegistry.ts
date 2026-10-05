@@ -3,6 +3,7 @@ import { contextStrategyComparisonPlugin } from "./plugins/contextStrategyCompar
 import { contextWindowScalingPlugin } from "./plugins/contextWindowScaling/index.js";
 import { incrementalChangeStalenessPlugin } from "./plugins/incrementalChangeStaleness/index.js";
 import { retrievalPrecisionRecallPlugin } from "./plugins/retrievalPrecisionRecall/index.js";
+import { retrievalQueryStrategyComparisonPlugin } from "./plugins/retrievalQueryStrategyComparison/index.js";
 import { warmIndexReusePlugin } from "./plugins/warmIndexReuse/index.js";
 
 export function createDefaultExperimentPluginRegistry(): ExperimentPluginRegistry {
@@ -12,5 +13,6 @@ export function createDefaultExperimentPluginRegistry(): ExperimentPluginRegistr
   registry.register(incrementalChangeStalenessPlugin);
   registry.register(contextWindowScalingPlugin);
   registry.register(retrievalPrecisionRecallPlugin);
+  registry.register(retrievalQueryStrategyComparisonPlugin);
   return registry;
 }

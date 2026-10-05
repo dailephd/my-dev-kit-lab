@@ -4,6 +4,22 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### Retrieval query strategy comparison
+
+- Added the experimental `retrieval-query-strategy-comparison` plugin with seven fixed variants: `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided`. It runs no coding agent.
+- Bundled mode reuses the frozen 12-case warm-index corpus; every selected case runs all seven strategies, and `--case` and `--benchmark-project` narrow cases or projects, never strategies.
+- Added strategy-neutral identity evidence and preserved the v0.8.0 retrieval-quality formulas through one generic identity-evidence metric owner.
+- Added balanced file and symbol F1: `2TP / (2TP + FP + FN)`.
+- Added matched-complete-case macro aggregation across the `overall`, `localized`, `cross-module`, and `broad-change` scopes.
+- Added four-objective Pareto comparison: maximize mean file F1, maximize mean symbol F1, maximize mean fact coverage, and minimize mean retrieved tokens.
+- A unique best strategy exists only for a single-member Pareto front; otherwise the report shows a tradeoff. There is no composite score and no total ranking.
+- Added `retrieval-query-strategy-comparison-execution.json` and `retrieval-query-strategy-comparison-analysis.json`, plus a typed `report.json`, `report.txt`, and `report.html` presentation of the precomputed analysis.
+- Added external-local `LocalRepositorySubject` execution: a private index per configured case, exact exclusions, isolated semantic copies, an eligible-universe check, target immutability, failure atomicity, science before redaction, and privacy-safe durable output.
+- Registered list, describe, and run support in the installed CLI with exact bundled and external-local argument boundaries.
+- Extended packed-package acceptance to cover discovery, bundled execution, reports, rejection and failure paths, privacy, immutability, and real `@dailephd/my-dev-kit@1.12.5` external-local compatibility.
+- Validated the legitimate 0.8.0 to 0.8.1 package metadata transition in a disposable candidate copy with no transition defects.
+- Not included: context packs, coding-agent evaluation, automatic strategy selection, scalar or composite scoring, ordinal ranking, and plots or screenshots.
+
 ## [0.8.0] - 2026-10-04
 
 ### Retrieval precision/recall

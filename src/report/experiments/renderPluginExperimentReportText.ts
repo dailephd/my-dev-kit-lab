@@ -27,6 +27,7 @@ import { renderIncrementalChangeStalenessSectionV2 } from "./renderIncrementalCh
 import { REINDEX_RECOMMENDATION_EXPLANATIONS } from "./buildWarmIndexReuseReport.js";
 import { renderContextWindowScalingTextLines } from "./renderContextWindowScalingText.js";
 import { renderRetrievalPrecisionRecallTextLines } from "./renderRetrievalPrecisionRecallText.js";
+import { renderRetrievalQueryStrategyComparisonTextLines } from "./renderRetrievalQueryStrategyComparisonText.js";
 
 function sanitizeScalar(value: unknown): string {
   const text = String(value);
@@ -777,6 +778,14 @@ export function renderPluginExperimentReportText(report: PluginExperimentReport)
     lines.push("Not applicable to this plugin.");
   } else {
     lines.push(...renderRetrievalPrecisionRecallTextLines(retrievalPrecisionRecall));
+  }
+
+  pushSection(lines, "Retrieval Query Strategy Comparison");
+  const retrievalQueryStrategyComparison = report.retrievalQueryStrategyComparison ?? null;
+  if (retrievalQueryStrategyComparison === null) {
+    lines.push("Not applicable to this plugin.");
+  } else {
+    lines.push(...renderRetrievalQueryStrategyComparisonTextLines(retrievalQueryStrategyComparison));
   }
 
   pushSection(lines, "Warnings, Skips, And Failures");

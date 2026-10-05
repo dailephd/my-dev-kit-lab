@@ -416,6 +416,7 @@ describe("context-window-scaling plugin with production owners and the fake kit"
       "incremental-change-staleness",
       "context-window-scaling",
       "retrieval-precision-recall",
+      "retrieval-query-strategy-comparison",
     ]);
   });
 });

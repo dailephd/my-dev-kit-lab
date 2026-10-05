@@ -391,6 +391,80 @@ The run proceeds in this order:
 
 **Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080) for exact definitions.
 
+## Retrieval query strategy comparison experiment (v0.8.1, implemented; unreleased)
+
+**Status:** implemented in the current checkout; unreleased. It is available from a source checkout and is not part of the published 0.8.0 package.
+
+**Goal:** compare deterministic ways of asking my-dev-kit for relevant repository context without invoking coding agents, using the `retrieval-query-strategy-comparison` plugin.
+
+**Bundled workflow (source checkout):**
+
+1. Optionally choose case or benchmark-project filters (`--case`, `--benchmark-project`); the default is the bundled 12-case corpus. Filters narrow cases or projects and preserve corpus order; they never narrow strategies, and there is no `--strategies` option.
+2. The run selects the bundled cases and groups them by benchmark project.
+3. It builds one base index per benchmark project.
+4. For each case it executes all seven strategies in canonical order: `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided`.
+5. The two semantic treatments (`data-model-graph`, `model-view-lineage`) each use a private copy of the project's base index, so one treatment cannot change another's index.
+6. It collects strategy-neutral identity evidence for every treatment.
+7. It calculates retrieval quality and balanced F1 for each treatment.
+8. It requires matched complete cases for any aggregate comparison: a case contributes only if all seven strategies have file F1, symbol F1, fact coverage, and a token count.
+9. It aggregates by the `overall`, `localized`, `cross-module`, and `broad-change` scopes.
+10. It calculates the Pareto front for each scope.
+11. It writes `retrieval-query-strategy-comparison-execution.json`.
+12. It writes `retrieval-query-strategy-comparison-analysis.json`.
+13. It writes `report.json`, `report.txt`, and `report.html` from the already-calculated analysis.
+
+```powershell
+npm run experiment:run -- `
+  --experiment retrieval-query-strategy-comparison `
+  --case warm-medium-complete-idempotent `
+  --kit-command "npx @dailephd/my-dev-kit@latest" `
+  --out lab-output/retrieval-query-strategy-comparison
+```
+
+No agent is invoked, so the result does not depend on a provider.
+
+**External-local workflow:** to run the same comparison over your own local Git repository, write a `LocalRepositorySubjectConfigV1` file whose cases carry a complete answer key (see [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081-implemented-unreleased)) and run:
+
+```powershell
+npm run experiment:run -- `
+  --experiment retrieval-query-strategy-comparison `
+  --target <local-git-repository> `
+  --local-subject-config <path-to-local-subject-config.json> `
+  --out <run-directory-outside-the-repository>
+```
+
+The run proceeds in this order:
+
+1. Validate the subject and the output root, which must be outside the repository.
+2. Derive the exact exclusions (Git-ignored and oversized files).
+3. Validate each case's ground truth.
+4. Capture a before snapshot of the eligible files.
+5. Create private scratch outside the repository.
+6. Build one private base index per configured case from that case's exact `sourceRoots`.
+7. Execute the seven treatments for that case from its base index; the semantic treatments use isolated copies.
+8. Check that every exposed file identity is inside the eligible file universe.
+9. Capture an after snapshot and compare it with the first.
+10. Remove the private scratch.
+11. Calculate the scientific analysis using the real identities.
+12. Project the durable evidence to redacted identities and assert that no private value survived.
+13. Persist the execution artifact, the analysis artifact, and `local-repository-subject-manifest.json`, then render the reports.
+
+External mode differs from bundled mode in one important way: it builds one base index per configured case, not one per project, because each case owns its exact `sourceRoots`. Cases are never grouped by subject or project name.
+
+**Failure semantics:** if any safety, immutability, or privacy gate fails, the run exits nonzero with a bounded safe description and writes no normal artifact, report, or manifest family; the scratch is removed, the repository is never modified, and a detected change is not reverted. A single treatment that fails or returns partial evidence is recorded as measurement evidence and does not fail the run.
+
+**Interpreting results:** each scope receives one interpretation.
+
+- `unique-best`: exactly one strategy is the only nondominated strategy on the four primary objectives (mean file F1, mean symbol F1, mean fact coverage, and mean retrieved tokens).
+- `tradeoff`: several strategies remain nondominated, so there is no single best strategy. Compare them on the four objectives instead.
+- `unavailable`: the scope has no matched complete cases.
+
+The Pareto-front list is in canonical strategy order. Do not treat the first entry as the best strategy. The measures are evidence about the executed cases only; the retrieved token count is a context-size estimate.
+
+**Validation boundary:** the v0.8.1 implementation and its release-transition proof are complete. The next repository workflow is standardized pre-release readiness, which runs after documentation reconciliation passes; this experiment workflow and the documentation reconciliation are not themselves readiness.
+
+**Completion:** review the per-scope interpretation, the Pareto fronts, the matched and excluded case counts, and the per-case treatment metrics in the report. See [METRICS.md](METRICS.md#retrieval-query-strategy-comparison-metrics-v081-implementedunreleased) for exact definitions.
+
 ## Real-agent warm-index campaign (v0.5.2)
 
 Available in the installed v0.5.2 CLI. This is a distinct campaign path through the `warm-index-reuse` plugin, separate from the generic `context-strategy-comparison` campaign described in "Real-agent campaign" above; it reuses the warm-index runtime described in "Warm-index reuse experiment" above rather than the agent-matrix path.

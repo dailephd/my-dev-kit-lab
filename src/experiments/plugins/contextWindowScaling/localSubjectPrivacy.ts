@@ -90,6 +90,7 @@ export function projectRunForExternalLocalPersistence(run: ExperimentRun, target
   const metadata: Record<string, unknown> = { ...(run.metadata ?? {}) };
   if ("outputRoot" in metadata) metadata.outputRoot = EXTERNAL_LOCAL_REDACTED_VALUE;
   if (typeof metadata.executionArtifactPath === "string") metadata.executionArtifactPath = path.basename(metadata.executionArtifactPath);
+  if (typeof metadata.analysisArtifactPath === "string") metadata.analysisArtifactPath = path.basename(metadata.analysisArtifactPath);
   return { ...run, target, metadata: metadata as ExperimentRun["metadata"] };
 }
 
