@@ -336,7 +336,7 @@ my-dev-kit-lab experiment run `
 
 ## Retrieval precision/recall experiment (v0.8.0)
 
-**Status:** implemented in v0.8.0; unreleased. This workflow is available from the source checkout and the packed candidate, not from the published 0.7.2 package.
+**Status:** released in v0.8.0. This workflow is available from the source checkout and the installed 0.8.0 package.
 
 **Goal:** measure, without any agent, whether my-dev-kit retrieval returns the files, symbols, and facts a case requires and how much irrelevant context it returns with them.
 
@@ -360,7 +360,7 @@ npm run experiment:run -- `
 
 No agent is invoked, so the result does not depend on a provider. For a deterministic offline check, pass `--kit-command "node tests/fixtures/fake-my-dev-kit-cli.js"` and one `--case`; that confirms the command and output shape, not retrieval quality.
 
-**External-local workflow:** to run the same measurement over your own local Git repository, write a `LocalRepositorySubjectConfigV1` file whose cases carry a complete answer key (see [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080-implemented-unreleased)) and run:
+**External-local workflow:** to run the same measurement over your own local Git repository, write a `LocalRepositorySubjectConfigV1` file whose cases carry a complete answer key (see [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080)) and run:
 
 ```powershell
 npm run experiment:run -- `

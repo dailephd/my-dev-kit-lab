@@ -29,7 +29,7 @@ src/
     plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session (carrying the v0.6.0 index snapshot and the v0.6.1 baseline graph evidence), execution (with the v0.6.0 per-task freshness assessment and the v0.6.1 per-task affected-neighborhood assessment), bounded execution artifact, fake-agent evaluation, metrics
     plugins/incrementalChangeStaleness/      v0.6.2 plugin; four-treatment V2 execution and report extension in released v0.6.3
     plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
-    plugins/retrievalPrecisionRecall/         v0.8.0 plugin (unreleased): bundled and external-local retrieval-quality execution, aggregation, execution artifact, external privacy projection
+    plugins/retrievalPrecisionRecall/         v0.8.0 plugin: bundled and external-local retrieval-quality execution, aggregation, execution artifact, external privacy projection
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released; retained): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released; retained): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
@@ -129,7 +129,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers five plugins in the current source: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, and the unreleased v0.8.0 `retrieval-precision-recall`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers five plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, and the released v0.8.0 `retrieval-precision-recall`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -618,7 +618,7 @@ See [context-integrity-fixtures.md](context-integrity-fixtures.md) for the froze
 
 ## Retrieval precision/recall architecture (v0.8.0)
 
-Status: implemented; unreleased.
+Status: released (v0.8.0).
 
 `retrieval-precision-recall` measures whether the existing my-dev-kit retrieval lifecycle returns the required files, symbols, and facts without returning irrelevant files. It is a plugin on the existing experiment runtime, not a second runner, and it invokes no agent.
 

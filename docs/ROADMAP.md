@@ -1298,7 +1298,7 @@ Explicit exclusions:
 
 ### v0.7.2 — real-world and local-repository experiments
 
-Status: **published/current (2026-10-04)**.
+Status: **published (2026-10-04); previous release**.
 
 Purpose:
 
@@ -1319,7 +1319,7 @@ Acceptance:
 
 ### v0.8.0 — retrieval precision/recall plugin
 
-Status: **implemented; unreleased; pre-release readiness pending**.
+Status: **published/current (2026-10-04)**.
 
 Purpose:
 

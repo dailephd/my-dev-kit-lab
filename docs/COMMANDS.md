@@ -10,11 +10,11 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.7.2 package.
+This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current 0.8.0 package.
 
 The `--local-subject-config` option and the external local-repository mode described under `context-window-scaling` were added in v0.7.2 and are included in the current package.
 
-**Published surface versus unreleased source.** The published 0.7.2 package registers four experiment plugins and does not include `retrieval-precision-recall`. The `retrieval-precision-recall` syntax documented below is the v0.8.0 surface in the current source tree and its packed candidate; it is implemented but unreleased, and it becomes available through the installed CLI only after a release is published.
+The `retrieval-precision-recall` command surface (v0.8.0), documented below, is included in the current 0.8.0 package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -182,7 +182,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (released in v0.7.0), and `retrieval-precision-recall` (implemented in v0.8.0; unreleased, so absent from the published package listing), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (released in v0.7.0), and `retrieval-precision-recall` (released in v0.8.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -361,9 +361,9 @@ A successful external-local run writes `context-window-scaling-execution.json`, 
 
 The bundled and synthetic modes reject an external `--target` and unrelated common/plugin options. Budgets classify the estimated size of each constructed context; they do not truncate/rebuild contexts or configure a provider model window. Correctness comes from one deterministic fake-agent evaluation per treatment and is context-independent in the current harness. The execution artifact and reports contain bounded evidence, never context text. See [WORKFLOWS.md](WORKFLOWS.md#context-window-scaling-experiment-v070) and [METRICS.md](METRICS.md#context-window-scaling-evidence-v070).
 
-#### `retrieval-precision-recall` (v0.8.0; implemented, unreleased)
+#### `retrieval-precision-recall` (v0.8.0)
 
-This surface is in the current source and packed candidate; it is not in the published 0.7.2 package.
+This surface is included in the current 0.8.0 package.
 
 ```text
 my-dev-kit-lab experiment describe --experiment retrieval-precision-recall
@@ -526,7 +526,7 @@ Current implemented commands:
 - `npm run experiment:run -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment warm-index-reuse`
 - `npm run experiment:run -- --experiment incremental-change-staleness` (introduced in v0.6.2; four-treatment behavior in v0.6.3)
-- `npm run experiment:run -- --experiment retrieval-precision-recall` (v0.8.0; implemented in the source checkout, unreleased)
+- `npm run experiment:run -- --experiment retrieval-precision-recall` (v0.8.0)
 - `npm run run-controlled-experiment`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`
@@ -579,7 +579,7 @@ npm run experiment:run -- --experiment retrieval-precision-recall --case warm-me
 
 Current behavior:
 
-- `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, and `retrieval-precision-recall` are the registered plugins in the current source (the last is unreleased)
+- `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, and `retrieval-precision-recall` are the registered plugins
 - `context-strategy-comparison` and ordinary `warm-index-reuse` runs support optional `--target`; omitting it uses self mode
 - `incremental-change-staleness` does not accept `--target` and always uses the bundled benchmark projects
 - when a plugin supports an explicit target, experiment execution does not modify that target project

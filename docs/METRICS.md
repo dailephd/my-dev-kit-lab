@@ -694,7 +694,7 @@ Availability: the first three are always present for a validated incremental tre
 
 ## Retrieval precision/recall evidence (v0.8.0)
 
-Status: implemented; unreleased. The `retrieval-precision-recall` plugin measures one retrieval per case (the existing my-dev-kit search, lookup, slice, and source lifecycle) against a deterministic answer key. It invokes no agent, and every value below is calculated by `calculateRetrievalQualityMetrics` and persisted in `retrieval-precision-recall-execution.json`; reports render only the persisted values.
+Status: released (v0.8.0). The `retrieval-precision-recall` plugin measures one retrieval per case (the existing my-dev-kit search, lookup, slice, and source lifecycle) against a deterministic answer key. It invokes no agent, and every value below is calculated by `calculateRetrievalQualityMetrics` and persisted in `retrieval-precision-recall-execution.json`; reports render only the persisted values.
 
 **Availability.** Each ratio metric is in exactly one of three states. `available` carries a numerator, denominator, and value. `not-applicable` means the denominator is zero, so the metric does not describe that case. `unavailable` means required evidence was missing, partial, or invalid, and carries a fixed reason. Unavailable and not-applicable are never converted to zero, and an `available` zero is a real measured zero.
 
@@ -720,4 +720,4 @@ Status: implemented; unreleased. The `retrieval-precision-recall` plugin measure
 
 **Sources.** Standard set-based precision and recall come from established information-retrieval evaluation: Manning, Raghavan, and Schütze, *Introduction to Information Retrieval*, "Evaluation of unranked retrieval sets" (Stanford online edition, <https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-of-unranked-retrieval-sets-1.html>), and the National Institute of Standards and Technology's Text REtrieval Conference (TREC) material on relevance judgments, which treats relevance as a judged, answer-key property of a test collection (<https://trec.nist.gov/data/reljudge_eng.html>; program overview at <https://trec.nist.gov/>). Applying those formulas to file identities and exact symbol-name identities is this Lab's deterministic operationalization. Fact coverage (through the Lab's explicit `factIds` mapping contract) and irrelevant context ratio are Lab-specific deterministic diagnostics, not standardized TREC ranking metrics, and neither source defines the `factIds` contract.
 
-See [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080-implemented-unreleased), [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-precisionrecall-architecture-v080).
+See [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080), [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-precisionrecall-architecture-v080).
