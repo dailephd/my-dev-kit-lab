@@ -359,7 +359,7 @@ v0.6.2 preserves all of these released contracts:
 - redefinition of `changedSymbolCount`
 - automatic reindex policy
 - treatment selection driven by `reindexRecommendation`
-- retrieval precision/recall metrics planned for v0.8.0
+- retrieval precision/recall metrics (outside v0.6.2; later released in v0.8.0)
 - coding-agent edit-quality scoring
 - universal stale-risk scoring
 - mandatory real-agent campaigns
