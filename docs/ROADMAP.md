@@ -1119,7 +1119,7 @@ Explicit exclusions:
 
 ### v0.6.3 — partial-refresh experiments
 
-Status: **published (2026-09-30); previous release**.
+Status: **published (2026-09-30); historical release**.
 
 Purpose:
 
@@ -1156,7 +1156,7 @@ Explicit exclusions (unchanged, not implemented):
 
 ### v0.7.0 — context-window scaling plugin
 
-Status: **published (2026-10-01); previous release**.
+Status: **published (2026-10-01); historical release**.
 
 Purpose:
 
@@ -1185,7 +1185,7 @@ Implementation status: the v0.7.0 plugin is registered and runs the bundled four
 
 ### v0.7.1 — synthetic large-repository generator
 
-Status: **published (2026-10-02); previous release**.
+Status: **published (2026-10-02); historical release**.
 
 Implementation result: `context-window-scaling` accepts `--synthetic-config <path>` and runs over deterministic, disposable TypeScript/Python repositories generated beneath the experiment output root, with a per-repository generation manifest. `--case` remains bundled-catalog selection and is mutually exclusive with the new option; the plugin's scientific config, execution artifact, reports, plots, and the frozen v0.7.0 corpus are unchanged. External/local repository subjects remain v0.7.2 and retrieval precision/recall remains v0.8.0.
 
