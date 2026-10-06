@@ -24,6 +24,9 @@ import { buildRetrievalPrecisionRecallReport } from "./buildRetrievalPrecisionRe
 import type { RetrievalPrecisionRecallReportV1 } from "./retrievalPrecisionRecallReportModel.js";
 import { buildRetrievalQueryStrategyComparisonReport } from "./buildRetrievalQueryStrategyComparisonReport.js";
 import type { RetrievalQueryStrategyComparisonReportV1 } from "./retrievalQueryStrategyComparisonReportModel.js";
+import type { ContextPack } from "../../experiments/plugins/contextPackGeneration/types.js";
+import { buildContextPackGenerationReport } from "./buildContextPackGenerationReport.js";
+import type { ContextPackGenerationReportV1 } from "./contextPackGenerationReportModel.js";
 
 // Bulk context-window-scaling evidence is presented by the typed report section; the complete
 // evidence stays in context-window-scaling-execution.json.
@@ -34,6 +37,9 @@ const RETRIEVAL_PRECISION_RECALL_BULK_KEYS = ["caseExecutionEvidence", "aggregat
 
 // Same for retrieval-query-strategy-comparison: the typed section presents execution evidence and analysis.
 const RETRIEVAL_QUERY_STRATEGY_COMPARISON_BULK_KEYS = ["caseExecutionEvidence", "analysis"] as const;
+
+// Same for context-pack-generation: the typed section presents execution evidence and analysis.
+const CONTEXT_PACK_GENERATION_BULK_KEYS = ["caseExecutionEvidence", "analysis"] as const;
 
 const V043_BULK_ARRAY_KEYS = [
   "v043StageContextExecutions",
@@ -46,6 +52,8 @@ export function buildPluginExperimentReport(args: {
   plugin: ExperimentPluginMetadata;
   outputRoot?: string;
   generatedAt?: string;
+  /** Persisted per-case context packs (loaded by the writer) used only for the bounded display preview. */
+  contextPacks?: ReadonlyMap<string, ContextPack>;
 }): PluginExperimentReport {
   const outputRoot = args.outputRoot ?? readString(args.run.metadata?.outputRoot) ?? null;
   const allOutcomes = args.run.cases.flatMap((experimentCase) => experimentCase.outcomes);
@@ -55,6 +63,7 @@ export function buildPluginExperimentReport(args: {
   const contextWindowScaling = buildContextWindowScalingReport(args.run);
   const retrievalPrecisionRecall = buildRetrievalPrecisionRecallReport(args.run);
   const retrievalQueryStrategyComparison = buildRetrievalQueryStrategyComparisonReport(args.run);
+  const contextPackGeneration = buildContextPackGenerationReport(args.run, args.contextPacks);
   const rawRun: ExperimentRun = { ...args.run, artifacts: relativizeArtifacts(args.run.artifacts, outputRoot) };
   for (const key of V043_BULK_ARRAY_KEYS) {
     delete (rawRun as Record<string, unknown>)[key];
@@ -71,6 +80,11 @@ export function buildPluginExperimentReport(args: {
   }
   if (retrievalQueryStrategyComparison) {
     for (const key of RETRIEVAL_QUERY_STRATEGY_COMPARISON_BULK_KEYS) {
+      delete (rawRun as Record<string, unknown>)[key];
+    }
+  }
+  if (contextPackGeneration) {
+    for (const key of CONTEXT_PACK_GENERATION_BULK_KEYS) {
       delete (rawRun as Record<string, unknown>)[key];
     }
   }
@@ -102,6 +116,7 @@ export function buildPluginExperimentReport(args: {
     contextWindowScaling,
     retrievalPrecisionRecall,
     retrievalQueryStrategyComparison,
+    contextPackGeneration,
     contextStrategyComparisonV043,
     interpretation: buildInterpretation(
       args.run,
@@ -109,7 +124,8 @@ export function buildPluginExperimentReport(args: {
       warmIndexReuse,
       contextWindowScaling,
       retrievalPrecisionRecall,
-      retrievalQueryStrategyComparison
+      retrievalQueryStrategyComparison,
+      contextPackGeneration
     ),
     rawRun,
   };
@@ -210,8 +226,22 @@ function buildInterpretation(
   warmIndexReuse: WarmIndexReuseReportV1 | null,
   contextWindowScaling: ContextWindowScalingReportV1 | null,
   retrievalPrecisionRecall: RetrievalPrecisionRecallReportV1 | null,
-  retrievalQueryStrategyComparison: RetrievalQueryStrategyComparisonReportV1 | null
+  retrievalQueryStrategyComparison: RetrievalQueryStrategyComparisonReportV1 | null,
+  contextPackGeneration: ContextPackGenerationReportV1 | null = null
 ): PluginExperimentReport["interpretation"] {
+  if (contextPackGeneration) {
+    const overall = contextPackGeneration.scopes.find((scope) => scope.scopeId === "overall");
+    const saved = overall?.tokenSavings;
+    const deltas = overall?.pairedDeltas;
+    const summary =
+      overall && saved && deltas
+        ? `Overall matched comparison over ${overall.includedCaseCount} of ${overall.caseCount} case(s): the context pack used a mean of ${saved.meanTokensSaved} fewer estimated tokens than raw full-file context (${saved.percentSavedOfMeans}% of the raw mean; a negative value means more tokens); mean fact coverage delta ${deltas.meanFactCoverageDelta}, mean file F1 delta ${deltas.meanFileF1Delta}, mean symbol F1 delta ${deltas.meanSymbolF1Delta}. The treatments are reported side by side without a composite score.`
+        : "No matched complete-case context-pack comparison was available for the overall scope. Review treatment availability and excluded cases before drawing conclusions.";
+    return {
+      summary,
+      recommendedNextStep: "Review per-case coverage and size, the scope aggregates, and the bounded pack preview; unavailable values are never treated as zero."
+    };
+  }
   if (retrievalQueryStrategyComparison) {
     const overall = retrievalQueryStrategyComparison.scopes.find((scope) => scope.scopeId === "overall");
     const taskTypes = "Task-type results are reported separately for localized, cross-module, and broad-change cases.";

@@ -291,6 +291,43 @@ describe("bundled run through the public command", () => {
     expect(await run(["--out", out, "--benchmark-project", "no-such-project"])).not.toBe(0);
   });
 
+  it("writes the typed contextPackGeneration section into the generic reports without altering the evidence artifacts", async () => {
+    const out = path.join(parent, "out");
+    expect(await run(["--out", out, "--case", "warm-medium-project-summary,warm-medium-import-dedupe"])).toBe(0);
+
+    const report = JSON.parse(readFileSync(path.join(out, "report.json"), "utf8")).report;
+    const section = report.contextPackGeneration;
+    expect(section).not.toBeNull();
+    expect(section.schemaVersion).toBe("my-dev-kit-lab-context-pack-generation-report-v1");
+    expect(section.treatmentOrder).toEqual(["raw-full-file", "context-pack"]);
+    expect(section.cases.map((entry: { caseId: string }) => entry.caseId)).toEqual(["warm-medium-import-dedupe", "warm-medium-project-summary"]);
+    expect(section.scopes.map((scope: { scopeId: string }) => scope.scopeId)).toEqual(["overall", "localized", "cross-module", "broad-change"]);
+    expect(report.retrievalQueryStrategyComparison).toBeNull();
+
+    // The section copies the persisted analysis exactly; reporting recalculated nothing.
+    const analysis = JSON.parse(readFileSync(path.join(out, "context-pack-generation-analysis.json"), "utf8")).analysis;
+    expect(section.scopes).toEqual(analysis.scopes);
+    expect(section.cases.map((entry: { comparison: unknown }) => entry.comparison)).toEqual(analysis.cases.map((entry: { comparison: unknown }) => entry.comparison));
+
+    // Previews come from the persisted pack artifacts, bounded, and without machine-local paths.
+    for (const preview of section.previews) {
+      expect(preview.status).toBe("available");
+      expect(preview.files.items.length).toBeLessThanOrEqual(5);
+      expect(preview.sourceSlices.items.length).toBeLessThanOrEqual(3);
+    }
+    expect(JSON.stringify(section)).not.toContain(parent.replaceAll("\\", "\\\\"));
+
+    expect(readFileSync(path.join(out, "report.txt"), "utf8")).toContain("Context Pack Preview");
+    expect(readFileSync(path.join(out, "report.html"), "utf8")).toContain("<h2>Context Pack Generation</h2>");
+
+    // Evidence artifacts hold no report section: reporting only reads them.
+    const execution = JSON.parse(readFileSync(path.join(out, "context-pack-generation-execution.json"), "utf8"));
+    expect(execution).not.toHaveProperty("contextPackGeneration");
+    expect(JSON.parse(readFileSync(path.join(out, "context-pack-generation-analysis.json"), "utf8"))).not.toHaveProperty("contextPackGeneration");
+    const pack = JSON.parse(readFileSync(path.join(out, "packs", "warm-medium-import-dedupe.context-pack.json"), "utf8"));
+    expect(pack.schemaVersion).toBe("my-dev-kit-lab-context-pack-experiment-v1");
+  });
+
   it("refuses --target and --local-subject-config at the command surface without running anything", async () => {
     const out = path.join(parent, "out");
     for (const extra of [["--target", parent], ["--local-subject-config", path.join(parent, "cfg.json")]]) {

@@ -3,6 +3,7 @@ import path from "node:path";
 import { resolveWithinRoot } from "../../core/pathSafety.js";
 import type { ExperimentPluginMetadata, ExperimentRun } from "../../experiments/index.js";
 import { buildPluginExperimentReport } from "./buildPluginExperimentReport.js";
+import { loadContextPackArtifacts } from "./loadContextPackArtifacts.js";
 import { renderPluginExperimentReportHtml } from "./renderPluginExperimentReportHtml.js";
 import { renderPluginExperimentReportText } from "./renderPluginExperimentReportText.js";
 import type { PluginExperimentReport } from "./experimentReportModel.js";
@@ -47,6 +48,7 @@ export async function writePluginExperimentReports(args: {
     plugin: args.plugin,
     outputRoot: outputPaths.outDir,
     generatedAt: args.generatedAt,
+    contextPacks: await loadContextPackArtifacts(args.run, outputPaths.outDir),
   });
   const report: PluginExperimentReport = args.redactOutputRoot
     ? { ...builtReport, metadata: { ...builtReport.metadata, outputRoot: "[redacted]" } }

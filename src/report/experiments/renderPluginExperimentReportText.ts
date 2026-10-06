@@ -28,6 +28,7 @@ import { REINDEX_RECOMMENDATION_EXPLANATIONS } from "./buildWarmIndexReuseReport
 import { renderContextWindowScalingTextLines } from "./renderContextWindowScalingText.js";
 import { renderRetrievalPrecisionRecallTextLines } from "./renderRetrievalPrecisionRecallText.js";
 import { renderRetrievalQueryStrategyComparisonTextLines } from "./renderRetrievalQueryStrategyComparisonText.js";
+import { renderContextPackGenerationTextLines } from "./renderContextPackGenerationText.js";
 
 function sanitizeScalar(value: unknown): string {
   const text = String(value);
@@ -786,6 +787,13 @@ export function renderPluginExperimentReportText(report: PluginExperimentReport)
     lines.push("Not applicable to this plugin.");
   } else {
     lines.push(...renderRetrievalQueryStrategyComparisonTextLines(retrievalQueryStrategyComparison));
+  }
+
+  // Additive: other plugins keep their existing text output unchanged.
+  const contextPackGeneration = report.contextPackGeneration ?? null;
+  if (contextPackGeneration !== null) {
+    pushSection(lines, "Context Pack Generation");
+    lines.push(...renderContextPackGenerationTextLines(contextPackGeneration));
   }
 
   pushSection(lines, "Warnings, Skips, And Failures");
