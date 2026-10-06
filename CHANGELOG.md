@@ -4,7 +4,7 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-## [0.8.1] - 2026-10-05
+## [0.8.1] - 2026-10-06
 
 ### Retrieval query strategy comparison
 
