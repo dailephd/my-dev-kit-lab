@@ -86,10 +86,10 @@ async function runPlugin(options: { failOn?: (filePath: string) => boolean; exis
 }
 
 describe("plugin runtime (bundled)", () => {
-  it("is not registered in the default registry, and the seven v0.8.1 strategies are unchanged", () => {
+  it("is registered exactly once in the default registry (Batch 3), and the seven v0.8.1 strategies are unchanged", () => {
     const registry = createDefaultExperimentPluginRegistry();
-    expect(registry.find("context-pack-generation")).toBeUndefined();
-    expect(registry.list().map((entry) => entry.id)).not.toContain("context-pack-generation");
+    expect(registry.find("context-pack-generation")).toBe(contextPackGenerationPlugin);
+    expect(registry.list().filter((entry) => entry.id === "context-pack-generation")).toHaveLength(1);
     expect(RETRIEVAL_QUERY_STRATEGY_IDS).toHaveLength(7);
   });
 

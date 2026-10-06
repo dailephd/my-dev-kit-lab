@@ -158,6 +158,9 @@ function describeTargetBehavior(plugin: ExperimentPlugin): string {
   if (plugin.metadata.id === "retrieval-query-strategy-comparison") {
     return "Two subject modes. Bundled (default): the frozen 12-case warm-index corpus compares all seven retrieval query strategies and may be narrowed with --case and --benchmark-project. External local repository: an explicitly selected local Git worktree via --target <path> together with --local-subject-config <path>; the local-subject config owns the case set, one private base index is built per configured case, core strategies share that base, semantic strategies use isolated copies, the repository is never modified, and durable output withholds private file, symbol, fact, semantic-node, warning and case-title identities while preserving numeric scientific results. Bundled filters are not accepted in external-local mode.";
   }
+  if (plugin.metadata.id === "context-pack-generation") {
+    return "Bundled/self mode only in the current implementation path: the frozen 12-case warm-index corpus against the Lab itself, narrowable with --case and --benchmark-project. Both treatments (raw-full-file and context-pack) always run for every case; there is no treatment, strategy, or selection-policy option. External-local execution is not available yet and --target and --local-subject-config are rejected for this experiment.";
+  }
   if (supportsExternal) {
     return "Runs against the current lab repository when --target is omitted, or against an explicit local target project when --target <path> is provided. Outputs stay under lab-controlled output directories by default.";
   }
@@ -187,7 +190,8 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
     plugin.metadata.supportedTargets.includes("external-local") &&
     plugin.metadata.id !== "context-window-scaling" &&
     plugin.metadata.id !== "retrieval-precision-recall" &&
-    plugin.metadata.id !== "retrieval-query-strategy-comparison"
+    plugin.metadata.id !== "retrieval-query-strategy-comparison" &&
+    plugin.metadata.id !== "context-pack-generation"
   ) {
     examples.push(
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target "Z:\\Users\\newuser\\Projects\\my-dev-kit-v1"${agentOptions}${screenshotOption}`
@@ -211,6 +215,9 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --case <case-id> --out <run-dir>`,
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target <local-git-repository> --local-subject-config <path-to-local-subject-config.json> --out <run-dir-outside-the-repository>`
     );
+  }
+  if (plugin.metadata.id === "context-pack-generation") {
+    examples.push(`my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --case <case-id> --out <run-dir>`);
   }
   if (plugin.metadata.id === "context-window-scaling") {
     examples.push(

@@ -128,7 +128,7 @@ describe("experiment run --kit-command", () => {
   it("rejects --kit-command for context-strategy-comparison and a missing value", () => {
     expect(() =>
       parseRunExperimentArgs(["--experiment", "context-strategy-comparison", "--kit-command", "kit"])
-    ).toThrow("--kit-command is only supported for --experiment warm-index-reuse or incremental-change-staleness or context-window-scaling or retrieval-precision-recall or retrieval-query-strategy-comparison.");
+    ).toThrow("--kit-command is only supported for --experiment warm-index-reuse or incremental-change-staleness or context-window-scaling or retrieval-precision-recall or retrieval-query-strategy-comparison or context-pack-generation.");
     expect(() => parseRunExperimentArgs(["--experiment", "warm-index-reuse", "--kit-command"])).toThrow(
       "--kit-command requires a value."
     );
@@ -353,7 +353,8 @@ describe("experiment list/describe with warm-index-reuse", () => {
       [
         "retrieval-query-strategy-comparison",
         ["keyword-search", "symbol-lookup", "graph-neighborhood", "source-slice", "data-model-graph", "model-view-lineage", "combined-graph-guided"]
-      ]
+      ],
+      ["context-pack-generation", ["raw-full-file", "context-pack"]]
     ]);
   });
 

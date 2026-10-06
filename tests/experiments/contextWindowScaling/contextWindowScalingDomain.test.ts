@@ -29,7 +29,7 @@ describe("context-window-scaling metadata", () => {
     const ids = createDefaultExperimentPluginRegistry()
       .list()
       .map((plugin) => plugin.id);
-    expect(ids).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison"]);
+    expect(ids).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation"]);
   });
 });
 

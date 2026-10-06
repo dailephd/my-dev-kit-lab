@@ -1,5 +1,6 @@
 import { ExperimentPluginRegistry } from "./registry.js";
 import { contextStrategyComparisonPlugin } from "./plugins/contextStrategyComparison/index.js";
+import { contextPackGenerationPlugin } from "./plugins/contextPackGeneration/index.js";
 import { contextWindowScalingPlugin } from "./plugins/contextWindowScaling/index.js";
 import { incrementalChangeStalenessPlugin } from "./plugins/incrementalChangeStaleness/index.js";
 import { retrievalPrecisionRecallPlugin } from "./plugins/retrievalPrecisionRecall/index.js";
@@ -14,5 +15,6 @@ export function createDefaultExperimentPluginRegistry(): ExperimentPluginRegistr
   registry.register(contextWindowScalingPlugin);
   registry.register(retrievalPrecisionRecallPlugin);
   registry.register(retrievalQueryStrategyComparisonPlugin);
+  registry.register(contextPackGenerationPlugin);
   return registry;
 }
