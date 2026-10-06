@@ -3,6 +3,7 @@ import type { MeasuredCommandResult } from "../core/runMeasuredCommand.js";
 import type { tokenCountMethod } from "../core/countTokens.js";
 import type { ScreenshotCaptureResult } from "../screenshot/types.js";
 import type { RetrievalEvidenceV1 } from "./retrievalQuality/types.js";
+import type { RetrievalQueryStrategyEvidenceV1 } from "./retrievalQueryStrategyEvidence.js";
 
 export const TASK_LOCALITIES = ["localized", "cross-module", "broad-change"] as const;
 
@@ -64,6 +65,11 @@ export type MyDevKitRetrievalResult = {
    * changed to emit it; any future durable use of it for external-local subjects needs privacy projection.
    */
   retrievalEvidence?: RetrievalEvidenceV1;
+  /**
+   * Additive strategy-neutral identity evidence (`retrieval-query-strategy-evidence-v1`). Populated by the
+   * core query-strategy executor; absent on historical callers. Internal only, like `retrievalEvidence`.
+   */
+  queryStrategyEvidence?: RetrievalQueryStrategyEvidenceV1;
   durationMs: number;
 };
 

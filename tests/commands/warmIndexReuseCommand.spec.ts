@@ -128,7 +128,7 @@ describe("experiment run --kit-command", () => {
   it("rejects --kit-command for context-strategy-comparison and a missing value", () => {
     expect(() =>
       parseRunExperimentArgs(["--experiment", "context-strategy-comparison", "--kit-command", "kit"])
-    ).toThrow("--kit-command is only supported for --experiment warm-index-reuse or incremental-change-staleness or context-window-scaling or retrieval-precision-recall.");
+    ).toThrow("--kit-command is only supported for --experiment warm-index-reuse or incremental-change-staleness or context-window-scaling or retrieval-precision-recall or retrieval-query-strategy-comparison.");
     expect(() => parseRunExperimentArgs(["--experiment", "warm-index-reuse", "--kit-command"])).toThrow(
       "--kit-command requires a value."
     );
@@ -350,6 +350,10 @@ describe("experiment list/describe with warm-index-reuse", () => {
       ["incremental-change-staleness", ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"]],
       ["context-window-scaling", ["raw-full-file", "my-dev-kit-guided"]],
       ["retrieval-precision-recall", ["my-dev-kit-retrieval"]],
+      [
+        "retrieval-query-strategy-comparison",
+        ["keyword-search", "symbol-lookup", "graph-neighborhood", "source-slice", "data-model-graph", "model-view-lineage", "combined-graph-guided"]
+      ]
     ]);
   });
 
@@ -407,7 +411,7 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     const { code, text } = await help(["experiment", "run", "--help"]);
     expect(code).toBe(0);
     const common = text.indexOf("Common options (all plugins):");
-    const kitCommand = text.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, and context-window-scaling):");
+    const kitCommand = text.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison):");
     const warm = text.indexOf("warm-index-reuse only:");
     const context = text.indexOf("context-strategy-comparison only:");
     expect(common).toBeGreaterThan(-1);

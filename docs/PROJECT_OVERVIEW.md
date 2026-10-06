@@ -16,19 +16,23 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The latest release is v0.8.0 (retrieval precision/recall); v0.7.2 (local-repository experiments) is the previous release. The package and installed CLI are version 0.8.0. The `retrieval-precision-recall` plugin and the `context-window-scaling` plugin, including its optional synthetic-repository input and local-repository mode, are released and available in the current package. Earlier releases added the tutorial actions and warm-index campaign capabilities described below. The `incremental-change-staleness` plugin compares controlled stale-index, changed-files partial refresh, affected-neighborhood partial refresh, and full-refresh treatments after deterministic source changes across six scenario families. Full refresh is a comparison reference, not a winner. Partial refresh extended that plugin from two treatments to four; it did not add another plugin. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational details, [CHANGELOG.md](../CHANGELOG.md) for release history, and [ROADMAP.md](ROADMAP.md) for the detailed future scope.
+The latest release is v0.8.1 (retrieval query strategy comparison); v0.8.0 (retrieval precision/recall) is the previous release. The package and installed CLI are version 0.8.1. The `retrieval-query-strategy-comparison` plugin, the `retrieval-precision-recall` plugin, and the `context-window-scaling` plugin, including its optional synthetic-repository input and local-repository mode, are released and available in the current package. Earlier releases added the tutorial actions and warm-index campaign capabilities described below. The `incremental-change-staleness` plugin compares controlled stale-index, changed-files partial refresh, affected-neighborhood partial refresh, and full-refresh treatments after deterministic source changes across six scenario families. Full refresh is a comparison reference, not a winner. Partial refresh extended that plugin from two treatments to four; it did not add another plugin. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational details, [CHANGELOG.md](../CHANGELOG.md) for release history, and [ROADMAP.md](ROADMAP.md) for the detailed future scope.
 
-v0.8.1 (retrieval query strategy comparison) is the next planned milestone.
+v0.8.1 (retrieval query strategy comparison) is the latest release. It added the `retrieval-query-strategy-comparison` plugin as the sixth experiment plugin. It compares seven deterministic my-dev-kit retrieval workflows without running any coding agent, keeps execution evidence and scientific analysis in separate artifacts, and in external-local mode preserves the read-only and privacy boundaries of the local-repository subject model.
+
+v0.8.2 (context-pack generation experiments) is the next planned milestone.
 
 Context-integrity evaluation compares condition-aware producer evidence against orchestrator run-integrity evidence for a fixed request, target, and index identity, reporting agreement or contradiction between them rather than re-deriving either project's own verdict. It runs deterministically against a frozen, hash-verified regression fixture pair and produces bounded reports; it introduces no CLI, no live workflow replay, and no composite score, grade, ranking, or winner.
 
-The generic experiment-plugin runtime has five registered plugins. `context-strategy-comparison` compares raw-full-file and my-dev-kit-guided strategies through a common runner and supports deterministic fake-agent runs, optional Codex or Claude campaigns, self-validation, and explicit local-project targets.
+The generic experiment-plugin runtime has six registered plugins. `context-strategy-comparison` compares raw-full-file and my-dev-kit-guided strategies through a common runner and supports deterministic fake-agent runs, optional Codex or Claude campaigns, self-validation, and explicit local-project targets.
 
 `warm-index-reuse`, shipped in v0.5.0 and expanded in v0.5.1, evaluates the case where my-dev-kit is expected to pay off most: it builds one my-dev-kit index per benchmark project, reuses that index across several tasks, and pairs every task with a matched raw-full-file baseline. It separates the one-time index-build cost from per-task retrieval cost and shows how that fixed cost is amortized as more tasks reuse the index. In the published v0.5.1 release, correctness and token totals come from the deterministic fake agent and are simulated harness evidence, not real-model or provider measurements; estimated context tokens stay a separate context-size estimate. The v0.5.1 release adds a dedicated six-plus-six task benchmark corpus for observing that amortization as task count grows; its results remain scoped fake-agent benchmark evidence, not universal performance claims. See [METRICS.md](METRICS.md) for the warm-index metrics.
 
 `context-window-scaling` is included in the released package (v0.7.0, with `--synthetic-config` added in v0.7.1 and `--local-subject-config` in v0.7.2) and registered as an experimental plugin that runs against the Lab itself in bundled and synthetic mode. It runs the `raw-full-file` and `my-dev-kit-guided` treatments against standard 8k/16k/32k/64k or custom positive-integer estimated-token budgets. It records context fit, budget utilization, existing deterministic correctness and derived success evidence, plus benchmark-expected files omitted from each treatment's observed context. It writes a versioned execution artifact and JSON/text/HTML reports; the existing `plots generate` command recognizes that artifact and writes exactly three context-window plot families. Estimated tokens use the Lab's character-divided-by-four heuristic, and the current fake-agent correctness path is context-independent, so results do not model provider tokenizers or semantic model sensitivity. In bundled and synthetic mode it accepts no external target; v0.7.2 adds an explicitly selected local Git repository mode (`--target` with `--local-subject-config`). It has no real-agent campaign or dedicated gallery integration. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [METRICS.md](METRICS.md).
 
-`retrieval-precision-recall` (released in v0.8.0) measures retrieval quality without any agent. For each case it runs the existing my-dev-kit search, lookup, slice, and source lifecycle and compares the retrieved files and symbols with a deterministic answer key, reporting file and symbol precision and recall, fact coverage from explicit fact-to-context mappings, irrelevant context ratio, estimated retrieved tokens, and the missed files and symbols. The default run uses a bundled 12-case corpus over two benchmark projects; it can also run over an explicitly selected local Git repository (`--target` with `--local-subject-config`) with the repository treated as read-only and its path and file, symbol, and fact identities redacted from durable output. These are set-based measures with no ranking, winner, or composite score, and comparing retrieval strategies is later planned work. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [METRICS.md](METRICS.md).
+`retrieval-precision-recall` (released in v0.8.0) measures retrieval quality without any agent. For each case it runs the existing my-dev-kit search, lookup, slice, and source lifecycle and compares the retrieved files and symbols with a deterministic answer key, reporting file and symbol precision and recall, fact coverage from explicit fact-to-context mappings, irrelevant context ratio, estimated retrieved tokens, and the missed files and symbols. The default run uses a bundled 12-case corpus over two benchmark projects; it can also run over an explicitly selected local Git repository (`--target` with `--local-subject-config`) with the repository treated as read-only and its path and file, symbol, and fact identities redacted from durable output. These are set-based measures with no ranking, winner, or composite score, and comparing retrieval strategies is provided separately by the v0.8.1 plugin described next (released in v0.8.1). See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [METRICS.md](METRICS.md).
+
+`retrieval-query-strategy-comparison` (released in v0.8.1) compares seven fixed retrieval strategies — `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided` — over the same frozen 12-case corpus, without any agent. Every selected case receives all seven strategies. Retrieval quality reuses the inherited file, symbol, and fact-coverage measures, adds balanced file and symbol F1, and compares strategies as macro means over matched complete cases for the overall scope and for the existing localized, cross-module, and broad-change task-locality scopes. Strategies are compared by Pareto dominance; a best strategy is named only when exactly one strategy is nondominated, and otherwise the result is an explicit tradeoff. There is no composite score and no total ranking. The execution evidence and the scientific analysis are written as two separate artifacts, with typed JSON, text, and HTML reports. The plugin can also run over an explicitly selected local Git repository with the same read-only, privacy-redacted boundary as the other local-repository plugins. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [METRICS.md](METRICS.md).
 
 Selectable Codex/Claude real-agent warm-index campaigns, with their own report/plots/screenshot/gallery presentation, are current installed-CLI capabilities.
 
@@ -58,11 +62,13 @@ flowchart LR
   Experiment --> StalenessPlugin[incremental-change-staleness: controlled refresh treatments]
   Experiment --> ScalingPlugin[context-window-scaling: context fit by estimated-token budget]
   Experiment --> RetrievalPlugin[retrieval-precision-recall: file, symbol, and fact retrieval quality]
+  Experiment --> StrategyPlugin[retrieval-query-strategy-comparison: seven retrieval strategies, Pareto comparison]
   Plugin --> Agents[Fake or real agent adapters]
   WarmPlugin --> FakeAgent[Deterministic fake agent]
   StalenessPlugin --> Evidence
   ScalingPlugin --> Evidence
   RetrievalPlugin --> Evidence
+  StrategyPlugin --> Evidence
   FakeAgent --> Evidence
   WarmPlugin --> IndexSnapshotFreshness[Index snapshot + per-task freshness evidence]
   IndexSnapshotFreshness --> Evidence
@@ -80,6 +86,36 @@ flowchart LR
   Target --> Tutorial[Declarative browser tutorial runtime]
   Tutorial --> TutorialEvidence[WebM, screenshots, subtitles, Markdown, manifest]
 ```
+
+The `retrieval-query-strategy-comparison` path (v0.8.1) in bundled mode:
+
+```text
+task + answer key
+  -> one prepared index state
+  -> seven retrieval treatments
+  -> strategy-neutral identity evidence
+  -> inherited v0.8.0 retrieval-quality metrics
+  -> balanced F1
+  -> matched-complete-case scope aggregation
+  -> Pareto interpretation
+  -> execution artifact + analysis artifact
+  -> JSON / text / HTML report
+```
+
+For an external local subject the same plugin adds the safety lifecycle:
+
+```text
+local-subject configuration
+  -> safe inventory and exclusions
+  -> private per-case index
+  -> isolated semantic copies
+  -> target immutability
+  -> science before redaction
+  -> privacy projection
+  -> durable artifacts and reports
+```
+
+No source text is persisted in either mode.
 
 ## Users
 
@@ -105,7 +141,9 @@ The v0.6.0 freshness evidence and released v0.6.1 affected-neighborhood evidence
 
 v0.7.1 synthetic large-repository generation (deterministic TypeScript/Python benchmark repositories for `context-window-scaling` via `--synthetic-config`) is released in v0.7.1; v0.7.2 adds explicitly selected local Git repositories as `context-window-scaling` subjects and is released in v0.7.2 (the Lab treats the repository as read-only and keeps its path, source text, and file names out of durable artifacts; operational compatibility is not a retrieval-quality claim).
 
-v0.8.0 retrieval precision/recall is released. Retrieval query strategy comparison (v0.8.1), context-pack generation experiments (v0.8.2), agent success, normalized telemetry, scheduling, prompt hardening, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned.
+v0.8.0 retrieval precision/recall is released. v0.8.1 retrieval query strategy comparison is released. Context-pack generation experiments (v0.8.2), agent success, normalized telemetry, scheduling, prompt hardening, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned.
+
+The next planned version is v0.8.2, context-pack generation experiments.
 
 These later items remain planned. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 

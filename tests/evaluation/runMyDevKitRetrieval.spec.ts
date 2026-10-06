@@ -8,8 +8,15 @@ import { countEstimatedTokens, countTextChars } from "../../src/core/countTokens
 import {
   buildMyDevKitIndex,
   runMyDevKitRetrieval,
-  runMyDevKitRetrievalFromIndex
+  runMyDevKitRetrievalFromIndex,
+  runMyDevKitRetrievalStrategyFromIndex
 } from "../../src/evaluation/runMyDevKitRetrieval.js";
+import {
+  CORE_GRAPH_RETRIEVAL_QUERY_STRATEGY_IDS,
+  RETRIEVAL_QUERY_STRATEGY_IDS,
+  isCoreGraphRetrievalQueryStrategyId,
+  type CoreGraphRetrievalQueryStrategyId
+} from "../../src/evaluation/retrievalQueryStrategies.js";
 import type { EvaluationCase, MyDevKitIndexBuildMode } from "../../src/evaluation/types.js";
 
 const fakeKitPath = path.resolve(process.cwd(), "tests/fixtures/fake-my-dev-kit-cli.js");
@@ -498,5 +505,177 @@ describe("buildMyDevKitIndex build modes", () => {
     expect(result.mode).toEqual(neighborhood);
     expect(result.incrementalRefresh).toBeNull();
     expect(result.warnings).toEqual(["my-dev-kit index command was unavailable or failed."]);
+  });
+});
+
+describe("retrieval query strategy contract", () => {
+  it("TST-081-001: exposes the exact ordered strategy identities", () => {
+    expect(RETRIEVAL_QUERY_STRATEGY_IDS).toEqual([
+      "keyword-search",
+      "symbol-lookup",
+      "graph-neighborhood",
+      "source-slice",
+      "data-model-graph",
+      "model-view-lineage",
+      "combined-graph-guided"
+    ]);
+    expect(CORE_GRAPH_RETRIEVAL_QUERY_STRATEGY_IDS).toEqual([
+      "keyword-search",
+      "symbol-lookup",
+      "graph-neighborhood",
+      "source-slice",
+      "combined-graph-guided"
+    ]);
+    for (const id of CORE_GRAPH_RETRIEVAL_QUERY_STRATEGY_IDS) {
+      expect(isCoreGraphRetrievalQueryStrategyId(id)).toBe(true);
+    }
+    expect(isCoreGraphRetrievalQueryStrategyId("data-model-graph")).toBe(false);
+    expect(isCoreGraphRetrievalQueryStrategyId("model-view-lineage")).toBe(false);
+  });
+});
+
+describe("runMyDevKitRetrievalStrategyFromIndex", () => {
+  const expectedCommands: Record<CoreGraphRetrievalQueryStrategyId, string[]> = {
+    "keyword-search": ["search"],
+    "symbol-lookup": ["search", "lookup"],
+    "graph-neighborhood": ["search", "slice"],
+    "source-slice": ["search", "source"],
+    "combined-graph-guided": ["search", "lookup", "slice", "source"]
+  };
+  const strategies = CORE_GRAPH_RETRIEVAL_QUERY_STRATEGY_IDS;
+
+  async function prepare() {
+    const outDir = mkdtempSync(path.join(os.tmpdir(), "kit-strategy-"));
+    tempDirs.push(outDir);
+    const indexDir = path.join(outDir, "indexes", baseCase.id);
+    await buildMyDevKitIndex({
+      target: baseCase,
+      kitCommand: fakeKitCommand,
+      indexDir,
+      commandsDir: path.join(outDir, "index-commands"),
+      requireKit: true
+    });
+    return { outDir, indexDir, commandsDir: path.join(outDir, "commands", baseCase.id) };
+  }
+
+  async function run(
+    strategyId: CoreGraphRetrievalQueryStrategyId,
+    prepared: { indexDir: string; commandsDir: string },
+    kitCommand = fakeKitCommand,
+    requireKit = true
+  ) {
+    return runMyDevKitRetrievalStrategyFromIndex({
+      strategyId,
+      evaluationCase: baseCase,
+      kitCommand,
+      indexDir: prepared.indexDir,
+      commandsDir: prepared.commandsDir,
+      requireKit
+    });
+  }
+
+  it.each(strategies)("TST-081-002: %s runs exactly its command sequence on the prepared index", async (strategyId) => {
+    const prepared = await prepare();
+    const result = await run(strategyId, prepared);
+    expect(result.commands.map((command) => command.commandId)).toEqual(expectedCommands[strategyId]);
+    for (const command of result.commands) {
+      expect(command.args).not.toContain("index");
+      expect(command.args[command.args.indexOf("--index") + 1]).toBe(prepared.indexDir);
+    }
+  });
+
+  it("TST-081-003: applies the planner-defined context precedence", async () => {
+    const prepared = await prepare();
+    const keyword = await run("keyword-search", prepared);
+    expect(keyword.contextText).toBe(keyword.commands[0].stdout);
+    const lookup = await run("symbol-lookup", prepared);
+    expect(lookup.contextText).toBe(lookup.commands[1].stdout);
+    const slice = await run("graph-neighborhood", prepared);
+    expect(slice.contextText).toBe(slice.commands[1].stdout);
+    const source = await run("source-slice", prepared);
+    expect(source.contextText).toBe(fakeCreateTaskSource);
+    expect(source.contextText).toBe(source.commands[1].stdout);
+    const combined = await run("combined-graph-guided", prepared);
+    expect(combined.contextText).toBe(fakeCreateTaskSource);
+  });
+
+  it.each([
+    { strategyId: "symbol-lookup", failOn: "lookup", commands: ["search", "lookup"] },
+    { strategyId: "graph-neighborhood", failOn: "slice", commands: ["search", "slice"] },
+    { strategyId: "source-slice", failOn: "source", commands: ["search", "source"] }
+  ] as const)("TST-081-004: $strategyId falls back to search when $failOn fails without throwing", async ({ strategyId, failOn, commands }) => {
+    const prepared = await prepare();
+    const kitCommand = writeFakeKitVariant(prepared.outDir, { failOn });
+    const result = await run(strategyId, prepared, kitCommand, true);
+    expect(result.commands.map((command) => command.commandId)).toEqual(commands);
+    expect(result.warnings).toEqual([`my-dev-kit ${failOn} command failed.`]);
+    expect(result.contextText).toBe(result.commands[0].stdout);
+    expect(result.skipped).toBe(false);
+  });
+
+  it.each(strategies)("TST-081-005: %s handles a search candidate without a node id", async (strategyId) => {
+    const prepared = await prepare();
+    const kitCommand = writeFakeKitVariant(prepared.outDir, { searchWithoutNode: true });
+    const result = await run(strategyId, prepared, kitCommand);
+    expect(result.commands.map((command) => command.commandId)).toEqual(["search"]);
+    expect(result.warnings).toEqual(strategyId === "keyword-search" ? [] : ["No my-dev-kit node id was available after search."]);
+    expect(result.contextText).toBe(result.commands[0].stdout);
+    expect(result.selectedFile).toBe("src/taskService.ts");
+  });
+
+  it.each(strategies)("TST-081-006: %s evidence contains only executed command families", async (strategyId) => {
+    const prepared = await prepare();
+    const result = await run(strategyId, prepared);
+    expect(result.retrievalEvidence?.commands.map((command) => command.family)).toEqual(expectedCommands[strategyId]);
+  });
+
+  it("TST-081-007: runMyDevKitRetrievalFromIndex is a combined-graph-guided compatibility wrapper", async () => {
+    const prepared = await prepare();
+    const wrapped = await runMyDevKitRetrievalFromIndex({
+      evaluationCase: baseCase,
+      kitCommand: fakeKitCommand,
+      indexDir: prepared.indexDir,
+      commandsDir: prepared.commandsDir,
+      requireKit: true
+    });
+    const direct = await run("combined-graph-guided", prepared);
+    const { durationMs: _a, commands: wrappedCommands, ...wrappedRest } = wrapped;
+    const { durationMs: _b, commands: directCommands, ...directRest } = direct;
+    expect(wrappedRest).toEqual(directRest);
+    const shape = (commands: typeof wrappedCommands) =>
+      commands.map((command) => ({ commandId: command.commandId, args: command.args, ok: command.ok }));
+    expect(shape(wrappedCommands)).toEqual(shape(directCommands));
+  });
+
+  it.each(strategies)("TST-081-009: %s preserves search failure semantics", async (strategyId) => {
+    const prepared = await prepare();
+    const kitCommand = writeFakeKitVariant(prepared.outDir, { failOn: "search" });
+    const skipped = await run(strategyId, prepared, kitCommand, false);
+    expect(skipped.skipped).toBe(true);
+    expect(skipped.warnings).toEqual(["my-dev-kit search command failed."]);
+    expect(skipped.commands.map((command) => command.commandId)).toEqual(["search"]);
+    await expect(run(strategyId, prepared, kitCommand, true)).rejects.toThrow();
+  });
+
+  it.each(strategies)("TST-081-010: %s selects candidates[0] regardless of the answer key", async (strategyId) => {
+    const prepared = await prepare();
+    const scriptPath = path.join(prepared.outDir, "fake-kit-two-candidates.mjs");
+    writeFileSync(
+      scriptPath,
+      [
+        `const command = process.argv[2];`,
+        `if (command === "search") { console.log(JSON.stringify({ results: [`,
+        `  { nodeId: "other:first", file: "src/unrelated.ts", symbol: "firstHit" },`,
+        `  { nodeId: "todo-ts:createTask", file: "src/taskService.ts", symbol: "createTask" } ] })); process.exit(0); }`,
+        `await import(${JSON.stringify(pathToFileURL(fakeKitPath).href)});`
+      ].join("\n")
+    );
+    const result = await run(strategyId, prepared, `node ${scriptPath}`);
+    expect(result.selectedNodeId).toBe("other:first");
+    expect(result.selectedFile).toBe("src/unrelated.ts");
+    expect(result.selectedSymbol).toBe("firstHit");
+    for (const command of result.commands.slice(1)) {
+      expect(command.args[command.args.indexOf("--node") + 1]).toBe("other:first");
+    }
   });
 });

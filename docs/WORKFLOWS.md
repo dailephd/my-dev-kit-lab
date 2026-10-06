@@ -238,7 +238,7 @@ Released in v0.6.1. It extends the warm-index workflow above without any new com
 
 ## Incremental-change and staleness experiment (introduced in v0.6.2; four-treatment workflow in v0.6.3)
 
-This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 release added two treatments, and the current v0.8.0 package continues to run all four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
+This is the current source workflow. The v0.6.2 release ran two treatments (`stale-index`, `full-refresh`); the v0.6.3 release added two treatments, and the current package continues to run all four. See [ROADMAP.md](ROADMAP.md) for the preserved scope.
 
 **Goal:** compare matched `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, and `full-refresh` treatment evidence after the same deterministic controlled source change, using the six frozen scenario families, without changing the released `warm-index-reuse` experiment. `full-refresh` is a comparison reference, not a preferred treatment.
 
@@ -286,7 +286,7 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 ## Context-window scaling experiment (v0.7.0)
 
-**Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in v0.7.1, and the local-repository mode was added in v0.7.2 and remains available in the current v0.8.0 release. By default this plugin uses a bundled four-case catalog and fixed self target and does not accept real-agent campaign options; an external `--target` is accepted only together with `--local-subject-config`.
+**Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in v0.7.1, and the local-repository mode was added in v0.7.2 and remains available in the current release. By default this plugin uses a bundled four-case catalog and fixed self target and does not accept real-agent campaign options; an external `--target` is accepted only together with `--local-subject-config`.
 
 **Goal:** compare the measured raw-full-file and my-dev-kit-guided contexts at the same selected estimated-token budgets, and preserve fit, deterministic correctness/success, and omitted expected relevant-file evidence.
 
@@ -336,7 +336,7 @@ my-dev-kit-lab experiment run `
 
 ## Retrieval precision/recall experiment (v0.8.0)
 
-**Status:** released in v0.8.0. This workflow is available from the source checkout and the installed 0.8.0 package.
+**Status:** released in v0.8.0. This workflow is available from the source checkout and the installed package.
 
 **Goal:** measure, without any agent, whether my-dev-kit retrieval returns the files, symbols, and facts a case requires and how much irrelevant context it returns with them.
 
@@ -390,6 +390,80 @@ The run proceeds in this order:
 **Interpretation and limits:** the measures are set-based, not ranked. They are evidence about the executed cases only. The lifecycle expands only the top search candidate. No retrieval-strategy comparison, ranking, winner, or composite score exists in v0.8.0. In external-local output, `<redacted file N>`, `<redacted symbol N>`, and `<redacted fact N>` mean an identity existed and was withheld, not that the list is empty. The console summary of a successful run can still show the physical output directory even though durable files redact it. Very long platform paths can fail cleanly instead of running.
 
 **Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080) for exact definitions.
+
+## Retrieval query strategy comparison experiment (v0.8.1)
+
+**Status:** released in v0.8.1. This workflow is available from the source checkout and the installed 0.8.1 package.
+
+**Goal:** compare deterministic ways of asking my-dev-kit for relevant repository context without invoking coding agents, using the `retrieval-query-strategy-comparison` plugin.
+
+**Bundled workflow (source checkout):**
+
+1. Optionally choose case or benchmark-project filters (`--case`, `--benchmark-project`); the default is the bundled 12-case corpus. Filters narrow cases or projects and preserve corpus order; they never narrow strategies, and there is no `--strategies` option.
+2. The run selects the bundled cases and groups them by benchmark project.
+3. It builds one base index per benchmark project.
+4. For each case it executes all seven strategies in canonical order: `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided`.
+5. The two semantic treatments (`data-model-graph`, `model-view-lineage`) each use a private copy of the project's base index, so one treatment cannot change another's index.
+6. It collects strategy-neutral identity evidence for every treatment.
+7. It calculates retrieval quality and balanced F1 for each treatment.
+8. It requires matched complete cases for any aggregate comparison: a case contributes only if all seven strategies have file F1, symbol F1, fact coverage, and a token count.
+9. It aggregates by the `overall`, `localized`, `cross-module`, and `broad-change` scopes.
+10. It calculates the Pareto front for each scope.
+11. It writes `retrieval-query-strategy-comparison-execution.json`.
+12. It writes `retrieval-query-strategy-comparison-analysis.json`.
+13. It writes `report.json`, `report.txt`, and `report.html` from the already-calculated analysis.
+
+```powershell
+npm run experiment:run -- `
+  --experiment retrieval-query-strategy-comparison `
+  --case warm-medium-complete-idempotent `
+  --kit-command "npx @dailephd/my-dev-kit@latest" `
+  --out lab-output/retrieval-query-strategy-comparison
+```
+
+No agent is invoked, so the result does not depend on a provider.
+
+**External-local workflow:** to run the same comparison over your own local Git repository, write a `LocalRepositorySubjectConfigV1` file whose cases carry a complete answer key (see [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081)) and run:
+
+```powershell
+npm run experiment:run -- `
+  --experiment retrieval-query-strategy-comparison `
+  --target <local-git-repository> `
+  --local-subject-config <path-to-local-subject-config.json> `
+  --out <run-directory-outside-the-repository>
+```
+
+The run proceeds in this order:
+
+1. Validate the subject and the output root, which must be outside the repository.
+2. Derive the exact exclusions (Git-ignored and oversized files).
+3. Validate each case's ground truth.
+4. Capture a before snapshot of the eligible files.
+5. Create private scratch outside the repository.
+6. Build one private base index per configured case from that case's exact `sourceRoots`.
+7. Execute the seven treatments for that case from its base index; the semantic treatments use isolated copies.
+8. Check that every exposed file identity is inside the eligible file universe.
+9. Capture an after snapshot and compare it with the first.
+10. Remove the private scratch.
+11. Calculate the scientific analysis using the real identities.
+12. Project the durable evidence to redacted identities and assert that no private value survived.
+13. Persist the execution artifact, the analysis artifact, and `local-repository-subject-manifest.json`, then render the reports.
+
+External mode differs from bundled mode in one important way: it builds one base index per configured case, not one per project, because each case owns its exact `sourceRoots`. Cases are never grouped by subject or project name.
+
+**Failure semantics:** if any safety, immutability, or privacy gate fails, the run exits nonzero with a bounded safe description and writes no normal artifact, report, or manifest family; the scratch is removed, the repository is never modified, and a detected change is not reverted. A single treatment that fails or returns partial evidence is recorded as measurement evidence and does not fail the run.
+
+**Interpreting results:** each scope receives one interpretation.
+
+- `unique-best`: exactly one strategy is the only nondominated strategy on the four primary objectives (mean file F1, mean symbol F1, mean fact coverage, and mean retrieved tokens).
+- `tradeoff`: several strategies remain nondominated, so there is no single best strategy. Compare them on the four objectives instead.
+- `unavailable`: the scope has no matched complete cases.
+
+The Pareto-front list is in canonical strategy order. Do not treat the first entry as the best strategy. The measures are evidence about the executed cases only; the retrieved token count is a context-size estimate.
+
+**Validation boundary:** the v0.8.1 implementation, its release-transition proof, pre-release readiness, and release preparation are complete. This experiment workflow is a measurement procedure, not a release gate.
+
+**Completion:** review the per-scope interpretation, the Pareto fronts, the matched and excluded case counts, and the per-case treatment metrics in the report. See [METRICS.md](METRICS.md#retrieval-query-strategy-comparison-metrics-v081) for exact definitions.
 
 ## Real-agent warm-index campaign (v0.5.2)
 

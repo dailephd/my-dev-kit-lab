@@ -22,6 +22,8 @@ import { buildContextWindowScalingReport } from "./buildContextWindowScalingRepo
 import type { ContextWindowScalingReportV1 } from "./contextWindowScalingReportModel.js";
 import { buildRetrievalPrecisionRecallReport } from "./buildRetrievalPrecisionRecallReport.js";
 import type { RetrievalPrecisionRecallReportV1 } from "./retrievalPrecisionRecallReportModel.js";
+import { buildRetrievalQueryStrategyComparisonReport } from "./buildRetrievalQueryStrategyComparisonReport.js";
+import type { RetrievalQueryStrategyComparisonReportV1 } from "./retrievalQueryStrategyComparisonReportModel.js";
 
 // Bulk context-window-scaling evidence is presented by the typed report section; the complete
 // evidence stays in context-window-scaling-execution.json.
@@ -29,6 +31,9 @@ const CONTEXT_WINDOW_SCALING_BULK_KEYS = ["executionEvidence", "aggregate"] as c
 
 // Same for retrieval-precision-recall: the typed section presents the evidence; the execution artifact keeps all of it.
 const RETRIEVAL_PRECISION_RECALL_BULK_KEYS = ["caseExecutionEvidence", "aggregate"] as const;
+
+// Same for retrieval-query-strategy-comparison: the typed section presents execution evidence and analysis.
+const RETRIEVAL_QUERY_STRATEGY_COMPARISON_BULK_KEYS = ["caseExecutionEvidence", "analysis"] as const;
 
 const V043_BULK_ARRAY_KEYS = [
   "v043StageContextExecutions",
@@ -49,6 +54,7 @@ export function buildPluginExperimentReport(args: {
   const incrementalChangeStaleness = buildIncrementalChangeStalenessPluginReport(args.run);
   const contextWindowScaling = buildContextWindowScalingReport(args.run);
   const retrievalPrecisionRecall = buildRetrievalPrecisionRecallReport(args.run);
+  const retrievalQueryStrategyComparison = buildRetrievalQueryStrategyComparisonReport(args.run);
   const rawRun: ExperimentRun = { ...args.run, artifacts: relativizeArtifacts(args.run.artifacts, outputRoot) };
   for (const key of V043_BULK_ARRAY_KEYS) {
     delete (rawRun as Record<string, unknown>)[key];
@@ -60,6 +66,11 @@ export function buildPluginExperimentReport(args: {
   }
   if (retrievalPrecisionRecall) {
     for (const key of RETRIEVAL_PRECISION_RECALL_BULK_KEYS) {
+      delete (rawRun as Record<string, unknown>)[key];
+    }
+  }
+  if (retrievalQueryStrategyComparison) {
+    for (const key of RETRIEVAL_QUERY_STRATEGY_COMPARISON_BULK_KEYS) {
       delete (rawRun as Record<string, unknown>)[key];
     }
   }
@@ -90,8 +101,16 @@ export function buildPluginExperimentReport(args: {
     incrementalChangeStaleness,
     contextWindowScaling,
     retrievalPrecisionRecall,
+    retrievalQueryStrategyComparison,
     contextStrategyComparisonV043,
-    interpretation: buildInterpretation(args.run, contextStrategyComparisonV043, warmIndexReuse, contextWindowScaling, retrievalPrecisionRecall),
+    interpretation: buildInterpretation(
+      args.run,
+      contextStrategyComparisonV043,
+      warmIndexReuse,
+      contextWindowScaling,
+      retrievalPrecisionRecall,
+      retrievalQueryStrategyComparison
+    ),
     rawRun,
   };
 }
@@ -190,8 +209,23 @@ function buildInterpretation(
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null,
   warmIndexReuse: WarmIndexReuseReportV1 | null,
   contextWindowScaling: ContextWindowScalingReportV1 | null,
-  retrievalPrecisionRecall: RetrievalPrecisionRecallReportV1 | null
+  retrievalPrecisionRecall: RetrievalPrecisionRecallReportV1 | null,
+  retrievalQueryStrategyComparison: RetrievalQueryStrategyComparisonReportV1 | null
 ): PluginExperimentReport["interpretation"] {
+  if (retrievalQueryStrategyComparison) {
+    const overall = retrievalQueryStrategyComparison.scopes.find((scope) => scope.scopeId === "overall");
+    const taskTypes = "Task-type results are reported separately for localized, cross-module, and broad-change cases.";
+    const summary =
+      overall?.interpretation === "unique-best"
+        ? `Overall matched comparison: ${overall.bestStrategyId} is the unique nondominated strategy across ${overall.comparisonCaseCount} matched case(s). ${taskTypes}`
+        : overall?.interpretation === "tradeoff"
+          ? `Overall matched comparison has no single best strategy across ${overall.comparisonCaseCount} matched case(s); the Pareto front is ${overall.paretoFrontStrategyIds.join(", ")}. ${taskTypes}`
+          : "No matched complete-case retrieval-strategy comparison was available for the overall scope. Review treatment availability and excluded cases before drawing conclusions.";
+    return {
+      summary,
+      recommendedNextStep: "Review the task-type scope table, Pareto fronts, and per-case treatment metrics; do not treat Pareto-front order as a ranking."
+    };
+  }
   if (retrievalPrecisionRecall) {
     const summary = retrievalPrecisionRecall.runSummary;
     return {

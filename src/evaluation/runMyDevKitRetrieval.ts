@@ -3,6 +3,8 @@ import { countEstimatedTokens, countTextChars, tokenCountMethod } from "../core/
 import { runMeasuredCommand, type MeasuredCommandResult } from "../core/runMeasuredCommand.js";
 import { interpretToolVersionOutput, type IndexSnapshotToolV1 } from "./indexSnapshot.js";
 import { buildRetrievalEvidenceFromCommands } from "./retrievalQuality/buildRetrievalEvidence.js";
+import type { CoreGraphRetrievalQueryStrategyId } from "./retrievalQueryStrategies.js";
+import { buildQueryStrategyEvidenceFromRetrievalEvidence } from "./retrievalQueryStrategyEvidence.js";
 import type {
   EvaluationCase,
   MyDevKitAppliedRefreshScope,
@@ -278,11 +280,38 @@ export async function probeMyDevKitVersion(options: { kitCommand: string; comman
   }
 }
 
+function selectRetrievalStrategyContextText(
+  strategyId: CoreGraphRetrievalQueryStrategyId,
+  outputs: { search: string; lookup: string; slice: string; source: string }
+): string {
+  const ordered: string[] =
+    strategyId === "keyword-search"
+      ? [outputs.search]
+      : strategyId === "symbol-lookup"
+        ? [outputs.lookup, outputs.search]
+        : strategyId === "graph-neighborhood"
+          ? [outputs.slice, outputs.search]
+          : strategyId === "source-slice"
+            ? [outputs.source, outputs.search]
+            : [outputs.source, outputs.slice, outputs.lookup, outputs.search];
+  return ordered.find((text) => text && text.trim().length > 0) ?? "";
+}
+
+const STRATEGY_DOWNSTREAM_COMMANDS: Record<CoreGraphRetrievalQueryStrategyId, readonly ("lookup" | "slice" | "source")[]> = {
+  "keyword-search": [],
+  "symbol-lookup": ["lookup"],
+  "graph-neighborhood": ["slice"],
+  "source-slice": ["source"],
+  "combined-graph-guided": ["lookup", "slice", "source"]
+};
+
 /**
- * Runs search -> lookup -> slice -> source against an already prepared index. Never invokes
- * `index`; `durationMs` covers retrieval only.
+ * Executes exactly one core retrieval query strategy against an already prepared index. Every
+ * strategy starts with `search` and expands at most the first candidate. Never invokes `index`;
+ * `durationMs` covers retrieval only.
  */
-export async function runMyDevKitRetrievalFromIndex(options: {
+export async function runMyDevKitRetrievalStrategyFromIndex(options: {
+  strategyId: CoreGraphRetrievalQueryStrategyId;
   evaluationCase: EvaluationCase;
   kitCommand: string;
   indexDir: string;
@@ -322,58 +351,38 @@ export async function runMyDevKitRetrievalFromIndex(options: {
   const selectedNodeId = candidate.nodeId;
   const selectedFile = candidate.file;
   const selectedSymbol = candidate.symbol;
-  let lookupOutput = "";
-  let sliceOutput = "";
-  let sourceOutput = "";
+  const outputs = { search: searchCommand.stdout, lookup: "", slice: "", source: "" };
+  const downstream = STRATEGY_DOWNSTREAM_COMMANDS[options.strategyId];
 
-  if (selectedNodeId) {
-    const lookupCommand = await runMeasuredCommand({
-      commandId: "lookup",
-      commandString: options.kitCommand,
-      cwd: process.cwd(),
-      outDir: commandsDir,
-      extraArgs: ["lookup", "--index", indexDir, "--node", selectedNodeId, "--json"]
-    });
-    commands.push(lookupCommand);
-    if (lookupCommand.ok) {
-      lookupOutput = lookupCommand.stdout;
+  if (downstream.length > 0) {
+    if (selectedNodeId) {
+      for (const commandId of downstream) {
+        const extraArgs =
+          commandId === "source"
+            ? ["source", "--index", indexDir, "--node", selectedNodeId, "--max-lines", "160", "--format", "numbered"]
+            : [commandId, "--index", indexDir, "--node", selectedNodeId, "--json"];
+        const command = await runMeasuredCommand({
+          commandId,
+          commandString: options.kitCommand,
+          cwd: process.cwd(),
+          outDir: commandsDir,
+          extraArgs
+        });
+        commands.push(command);
+        if (command.ok) {
+          outputs[commandId] = command.stdout;
+        } else {
+          warnings.push(`my-dev-kit ${commandId} command failed.`);
+        }
+      }
     } else {
-      warnings.push("my-dev-kit lookup command failed.");
+      warnings.push("No my-dev-kit node id was available after search.");
     }
-
-    const sliceCommand = await runMeasuredCommand({
-      commandId: "slice",
-      commandString: options.kitCommand,
-      cwd: process.cwd(),
-      outDir: commandsDir,
-      extraArgs: ["slice", "--index", indexDir, "--node", selectedNodeId, "--json"]
-    });
-    commands.push(sliceCommand);
-    if (sliceCommand.ok) {
-      sliceOutput = sliceCommand.stdout;
-    } else {
-      warnings.push("my-dev-kit slice command failed.");
-    }
-
-    const sourceCommand = await runMeasuredCommand({
-      commandId: "source",
-      commandString: options.kitCommand,
-      cwd: process.cwd(),
-      outDir: commandsDir,
-      extraArgs: ["source", "--index", indexDir, "--node", selectedNodeId, "--max-lines", "160", "--format", "numbered"]
-    });
-    commands.push(sourceCommand);
-    if (sourceCommand.ok) {
-      sourceOutput = sourceCommand.stdout;
-    } else {
-      warnings.push("my-dev-kit source command failed.");
-    }
-  } else {
-    warnings.push("No my-dev-kit node id was available after search.");
   }
 
-  const contextText = [sourceOutput, sliceOutput, lookupOutput, searchCommand.stdout].find((text) => text && text.trim().length > 0) ?? "";
+  const contextText = selectRetrievalStrategyContextText(options.strategyId, outputs);
   const filesRead = selectedFile ? [selectedFile] : [];
+  const retrievalEvidence = buildRetrievalEvidenceFromCommands(commands, { nodeId: selectedNodeId, file: selectedFile });
 
   return {
     caseId: options.evaluationCase.id,
@@ -388,9 +397,24 @@ export async function runMyDevKitRetrievalFromIndex(options: {
     selectedNodeId,
     selectedFile,
     selectedSymbol,
-    retrievalEvidence: buildRetrievalEvidenceFromCommands(commands, { nodeId: selectedNodeId, file: selectedFile }),
+    retrievalEvidence,
+    queryStrategyEvidence: buildQueryStrategyEvidenceFromRetrievalEvidence(options.strategyId, retrievalEvidence),
     durationMs: Date.now() - started
   };
+}
+
+/**
+ * v0.8.0 compatibility entrypoint: the historical search -> lookup -> slice -> source lifecycle,
+ * delegating to the `combined-graph-guided` strategy. Never invokes `index`.
+ */
+export async function runMyDevKitRetrievalFromIndex(options: {
+  evaluationCase: EvaluationCase;
+  kitCommand: string;
+  indexDir: string;
+  commandsDir: string;
+  requireKit: boolean;
+}): Promise<MyDevKitRetrievalResult> {
+  return runMyDevKitRetrievalStrategyFromIndex({ ...options, strategyId: "combined-graph-guided" });
 }
 
 /**

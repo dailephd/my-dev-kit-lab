@@ -199,11 +199,11 @@ describe("fixed-corpus plots from a real ContextWindowScalingRun", () => {
 });
 
 describe("plugin metadata and registration", () => {
-  it("advertises plot without screenshot and is registered before retrieval-precision-recall", () => {
+  it("advertises plot without screenshot and is registered before retrieval-precision-recall and retrieval-query-strategy-comparison", () => {
     expect(contextWindowScalingMetadata.supportedOutputs).toEqual(["json", "text", "html", "plot"]);
     const registry = createDefaultExperimentPluginRegistry();
-    expect(registry.list()).toHaveLength(5);
-    expect(registry.list().map((p) => p.id).at(-2)).toBe("context-window-scaling");
-    expect(registry.list().map((p) => p.id).at(-1)).toBe("retrieval-precision-recall");
+    expect(registry.list()).toHaveLength(6);
+    expect(registry.list().map((p) => p.id).at(-3)).toBe("context-window-scaling");
+    expect(registry.list().map((p) => p.id).slice(-2)).toEqual(["retrieval-precision-recall", "retrieval-query-strategy-comparison"]);
   });
 });

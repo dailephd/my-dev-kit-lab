@@ -160,6 +160,26 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/experiments/plugins/warmIndexReuse/selection.js",
   "dist/src/report/experiments/buildRetrievalPrecisionRecallReport.js",
   "dist/src/report/experiments/retrievalPrecisionRecallReportModel.js",
+  "dist/src/evaluation/retrievalQueryStrategies.js",
+  "dist/src/evaluation/retrievalQueryStrategyEvidence.js",
+  "dist/src/evaluation/runSemanticRetrievalStrategy.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/index.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/metadata.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/config.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/types.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/execution.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/executionArtifact.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/analysisTypes.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/analysis.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/analysisArtifact.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/metrics.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/localSubjectExecution.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/localSubjectPrivacy.js",
+  "dist/src/experiments/plugins/retrievalQueryStrategyComparison/plugin.js",
+  "dist/src/report/experiments/retrievalQueryStrategyComparisonReportModel.js",
+  "dist/src/report/experiments/buildRetrievalQueryStrategyComparisonReport.js",
+  "dist/src/report/experiments/renderRetrievalQueryStrategyComparisonHtml.js",
+  "dist/src/report/experiments/renderRetrievalQueryStrategyComparisonText.js",
   "dist/src/report/experiments/renderRetrievalPrecisionRecallHtml.js",
   "dist/src/report/experiments/renderRetrievalPrecisionRecallText.js",
   "dist/src/report/experiments/renderPluginExperimentReportHtml.js",
@@ -179,7 +199,7 @@ const REQUIRED_TARBALL_PATHS = [
   "examples/tutorial-browser/scenario.json"
 ];
 
-const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall"];
+const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison"];
 const INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS_LOCAL = ["U1", "L2", "E1", "P1", "I1", "T1"];
 
 const WARM_INDEX_CHARTS = [
@@ -848,7 +868,7 @@ async function main() {
 
     const runHelpResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--help"], envWithBin);
     const runHelp = runHelpResult.stdout ?? "";
-    const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, and context-window-scaling):");
+    const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison):");
     const warmHelpStart = runHelp.indexOf("warm-index-reuse only:");
     const contextHelpStart = runHelp.indexOf("context-strategy-comparison only:");
     const warmCampaignHelp = warmHelpStart >= 0 && contextHelpStart > warmHelpStart
@@ -1985,6 +2005,482 @@ async function main() {
     }
 
     // -----------------------------------------------------------------
+    // 9c-2b. v0.8.1 retrieval-query-strategy-comparison installed-package
+    // acceptance. Discovery, a bundled run and the full external-local safety
+    // matrix use the deterministic upstream-shaped fake my-dev-kit copied from
+    // the repository test fixtures at verification time (never packaged, no
+    // network). The SUCCESSFUL external-local compatibility proof uses the REAL
+    // published upstream my-dev-kit installed above (realKitCommand), never the
+    // fake. No retrieval-quality threshold is asserted; valid measurements or
+    // truthful partial evidence are both acceptable.
+    // -----------------------------------------------------------------
+    {
+      const gate = "RETRIEVAL_QUERY_STRATEGY_COMPARISON";
+      const RQS_ID = "retrieval-query-strategy-comparison";
+      const RQS_OUTPUTS = ["json", "html", "text", "artifact"];
+      const RQS_STRATEGIES = ["keyword-search", "symbol-lookup", "graph-neighborhood", "source-slice", "data-model-graph", "model-view-lineage", "combined-graph-guided"];
+      const RQS_SCOPES = ["overall", "localized", "cross-module", "broad-change"];
+      const RQS_EXECUTION_FILE = "retrieval-query-strategy-comparison-execution.json";
+      const RQS_ANALYSIS_FILE = "retrieval-query-strategy-comparison-analysis.json";
+      const RQS_DURABLE_FAMILY = ["local-repository-subject-manifest.json", "report.html", "report.json", "report.txt", RQS_ANALYSIS_FILE, RQS_EXECUTION_FILE];
+      const RQS_BUNDLED_FAMILY = [RQS_EXECUTION_FILE, RQS_ANALYSIS_FILE, "report.json", "report.html", "report.txt"];
+      const privacyScan = await loadPrivacyScan();
+
+      // --- Discovery ---
+      const rqsListed = knownExperiments.filter((entry) => entry.id === RQS_ID);
+      if (
+        rqsListed.length !== 1 ||
+        rqsListed[0].status !== "experimental" ||
+        rqsListed[0].schemaVersion !== "1.0.0" ||
+        JSON.stringify(rqsListed[0].supportedVariants) !== JSON.stringify(RQS_STRATEGIES) ||
+        JSON.stringify(rqsListed[0].supportedOutputs) !== JSON.stringify(RQS_OUTPUTS) ||
+        JSON.stringify(rqsListed[0].supportedTargets) !== JSON.stringify(["self", "external-local"])
+      ) {
+        fail(`${gate}_DISCOVERY`, `Installed experiment list lacks the expected ${RQS_ID} entry: ${JSON.stringify(rqsListed)}`);
+      }
+      const rqsDescribeResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "describe", "--experiment", RQS_ID, "--json"], envWithBin);
+      if (rqsDescribeResult.status !== 0) fail(`${gate}_DISCOVERY`, `Installed experiment describe for ${RQS_ID} did not exit 0.`, describeChildResult(rqsDescribeResult));
+      const rqsDescribed = parseJsonOutput(rqsDescribeResult, `${gate}_DISCOVERY`);
+      if (
+        rqsDescribed.metadata?.id !== RQS_ID ||
+        rqsDescribed.metadata?.status !== "experimental" ||
+        rqsDescribed.metadata?.schemaVersion !== "1.0.0" ||
+        JSON.stringify(rqsDescribed.metadata?.supportedTargets) !== JSON.stringify(["self", "external-local"]) ||
+        JSON.stringify(rqsDescribed.metadata?.supportedOutputs) !== JSON.stringify(RQS_OUTPUTS) ||
+        JSON.stringify(rqsDescribed.supportedVariants) !== JSON.stringify(RQS_STRATEGIES) ||
+        JSON.stringify((rqsDescribed.requiredConfigFields ?? []).map((field) => field.name)) !== JSON.stringify(["outDir"]) ||
+        JSON.stringify((rqsDescribed.optionalConfigFields ?? []).map((field) => field.name)) !== JSON.stringify(["kitCommand", "caseIds", "benchmarkProjects"]) ||
+        JSON.stringify(rqsDescribed).includes('"strategies"')
+      ) {
+        fail(`${gate}_DISCOVERY`, `Installed describe output is not the expected ${RQS_ID} contract: ${rqsDescribeResult.stdout}`);
+      }
+      console.log("RETRIEVAL_QUERY_STRATEGY_COMPARISON_DISCOVERY: PASS (installed list and describe: experimental, 1.0.0, self + external-local, json/html/text/artifact, seven strategies, closed config without a strategy option)");
+
+      if (path.resolve(dirs.consumer) === path.resolve(installedPackageRoot) || path.resolve(dirs.consumer) === REPO_ROOT) {
+        fail(`${gate}_RESOURCE_RESOLUTION`, "The consumer working directory must differ from the installed package root and the source checkout.");
+      }
+      const rqsKitScript = path.join(dirs.fakeKit, "fake-upstream-shaped-kit-rqs.mjs");
+      writeFileSync(rqsKitScript, readFileSync(path.join(REPO_ROOT, "tests", "fixtures", "fake-upstream-shaped-kit-cli.js"), "utf8"), "utf8");
+      const rqsKitCommand = `"${process.execPath}" "${rqsKitScript}"`;
+      const RQS_MARKERS = {
+        source: "PACKED_RQS_SOURCE_BODY_MARKER_2e61",
+        stdout: "PACKED_RQS_RAW_STDOUT_MARKER_90ad",
+        stderr: "PACKED_RQS_RAW_STDERR_MARKER_f4b7",
+        title: "PACKED RQS PRIVATE TITLE MARKER",
+        titleTwo: "PACKED RQS SECOND PRIVATE TITLE MARKER",
+        symbol: "PackedRqsPrivateModelAlpha",
+        symbolTwo: "formatPackedRqsPrivateBeta",
+        fact: "packed-rqs-private-fact-one",
+        factTwo: "packed-rqs-private-fact-two",
+        factThree: "packed-rqs-private-fact-three"
+      };
+      const rqsKitEnv = (extra = {}) => ({
+        ...envWithBin,
+        RPR_KIT_SOURCE_TEXT: RQS_MARKERS.source,
+        RPR_KIT_STDOUT_TEXT: RQS_MARKERS.stdout,
+        RPR_KIT_STDERR_TEXT: RQS_MARKERS.stderr,
+        ...extra
+      });
+      const rqsReadKitCalls = (logFile) =>
+        existsSync(logFile)
+          ? readFileSync(logFile, "utf8")
+              .split("\n")
+              .filter(Boolean)
+              .map((line) => JSON.parse(line))
+          : [];
+      const rqsForbiddenPropertyNames = ["score", "compositeScore", "winnerScore", "rank", "ranking"];
+      const rqsCollectPropertyNames = (value, into = new Set()) => {
+        if (Array.isArray(value)) value.forEach((entry) => rqsCollectPropertyNames(entry, into));
+        else if (value !== null && typeof value === "object") {
+          for (const [key, child] of Object.entries(value)) {
+            into.add(key);
+            rqsCollectPropertyNames(child, into);
+          }
+        }
+        return into;
+      };
+
+      // --- Bundled run over the packaged corpus: one case, seven treatments, semantic data-model commands ---
+      const rqsBundledOut = path.join(dirs.workspace, "rqs-bundled", "run");
+      const rqsBundledLog = path.join(tempRoot, "rqs-bundled-kit.log");
+      const rqsBundledRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        ["experiment", "run", "--experiment", RQS_ID, "--case", "warm-medium-complete-idempotent", "--kit-command", rqsKitCommand, "--out", rqsBundledOut],
+        rqsKitEnv({
+          RPR_KIT_LOG: rqsBundledLog,
+          RPR_KIT_FILES: "src/services/completeTask.ts,src/store/taskStore.ts",
+          RPR_KIT_SYMBOLS: "completeTask@src/services/completeTask.ts",
+          RPR_KIT_DATA_MODEL_ENTITY: "task"
+        })
+      );
+      if (rqsBundledRun.status !== 0) fail(`${gate}_BUNDLED`, `Installed bundled ${RQS_ID} run did not exit 0.`, describeChildResult(rqsBundledRun));
+      assertOutputOutsidePackage(rqsBundledOut, installedPackageRoot, `${RQS_ID} bundled run`);
+      for (const name of RQS_BUNDLED_FAMILY) requireNonEmptyFile(path.join(rqsBundledOut, name), `${gate}_BUNDLED`);
+      const rqsBundledExecution = readJsonFile(path.join(rqsBundledOut, RQS_EXECUTION_FILE), `${gate}_BUNDLED`);
+      const rqsBundledAnalysis = readJsonFile(path.join(rqsBundledOut, RQS_ANALYSIS_FILE), `${gate}_BUNDLED`);
+      const rqsBundledReport = readJsonFile(path.join(rqsBundledOut, "report.json"), `${gate}_BUNDLED`);
+      if (
+        rqsBundledExecution.schemaVersion !== "my-dev-kit-lab-retrieval-query-strategy-comparison-execution-v1" ||
+        rqsBundledExecution.cases?.length !== 1 ||
+        rqsBundledExecution.cases[0].caseId !== "warm-medium-complete-idempotent" ||
+        JSON.stringify(rqsBundledExecution.cases[0].treatments?.map((treatment) => treatment.strategyId)) !== JSON.stringify(RQS_STRATEGIES) ||
+        rqsBundledExecution.cases[0].identityRedaction !== undefined ||
+        Object.keys(rqsBundledExecution).includes("analysis")
+      ) {
+        fail(`${gate}_BUNDLED`, `Installed bundled execution artifact is not the expected execution-only, seven-treatment, unredacted evidence: ${JSON.stringify(rqsBundledExecution.cases?.[0])?.slice(0, 500)}`);
+      }
+      const rqsOverall = rqsBundledAnalysis.analysis?.scopes?.[0];
+      if (
+        rqsBundledAnalysis.schemaVersion !== "my-dev-kit-lab-retrieval-query-strategy-comparison-analysis-v1" ||
+        JSON.stringify(rqsBundledAnalysis.analysis?.scopes?.map((scope) => scope.scopeId)) !== JSON.stringify(RQS_SCOPES) ||
+        rqsOverall?.comparisonCaseCount !== 1 ||
+        JSON.stringify(rqsOverall?.strategySummaries?.map((summary) => summary.strategyId)) !== JSON.stringify(RQS_STRATEGIES) ||
+        rqsBundledAnalysis.methodology?.aggregation !== "matched-complete-case-macro-mean" ||
+        rqsBundledAnalysis.methodology?.fileF1 !== "balanced-f1" ||
+        rqsBundledAnalysis.methodology?.multiObjectiveComparison !== "pareto-dominance" ||
+        rqsBundledAnalysis.methodology?.uniqueBestRule !== "single-member-pareto-front"
+      ) {
+        fail(`${gate}_BUNDLED`, `Installed bundled analysis artifact is not the expected four-scope, one-matched-case, Pareto analysis: ${JSON.stringify(rqsOverall)?.slice(0, 500)}`);
+      }
+      const rqsPropertyNames = rqsCollectPropertyNames(rqsBundledAnalysis);
+      for (const forbidden of rqsForbiddenPropertyNames) {
+        if (rqsPropertyNames.has(forbidden)) fail(`${gate}_BUNDLED`, `Installed analysis artifact carries a composite score or ranking property: ${forbidden}`);
+      }
+      const rqsCalls = rqsReadKitCalls(rqsBundledLog);
+      if (rqsCalls.filter((call) => call.argv[0] === "index").length !== 1) {
+        fail(`${gate}_BUNDLED`, "The bundled run did not build exactly one index for the one selected benchmark project.");
+      }
+      if (rqsCalls.filter((call) => call.argv[0] === "data-model").length === 0) {
+        fail(`${gate}_BUNDLED`, "The bundled run did not execute the semantic data-model treatments.");
+      }
+      const rqsBundledSerialized = RQS_BUNDLED_FAMILY.map((name) => readFileSync(path.join(rqsBundledOut, name), "utf8")).join("\n");
+      for (const marker of [RQS_MARKERS.source, RQS_MARKERS.stdout, RQS_MARKERS.stderr]) {
+        if (rqsBundledSerialized.includes(marker)) fail(`${gate}_BUNDLED`, "Installed bundled output serialized raw source, stdout or stderr marker text.");
+      }
+      console.log("RETRIEVAL_QUERY_STRATEGY_COMPARISON_BUNDLED: PASS (installed bin; packaged corpus and profiles; offline upstream-shaped kit; one index, seven ordered treatments, semantic data-model commands; execution and analysis artifacts separate; no composite score or ranking)");
+
+      const rqsReportSection = rqsBundledReport.report?.retrievalQueryStrategyComparison;
+      const rqsHtml = readFileSync(path.join(rqsBundledOut, "report.html"), "utf8");
+      const rqsText = readFileSync(path.join(rqsBundledOut, "report.txt"), "utf8");
+      if (
+        rqsReportSection?.schemaVersion !== "my-dev-kit-lab-retrieval-query-strategy-comparison-report-v1" ||
+        JSON.stringify(rqsReportSection?.scopes?.map((scope) => scope.scopeId)) !== JSON.stringify(RQS_SCOPES) ||
+        !rqsReportSection?.scopes?.some((scope) => scope.scopeId === "localized") ||
+        rqsReportSection?.methodology?.aggregation !== "matched-complete-case-macro-mean" ||
+        !Array.isArray(rqsReportSection?.scopes?.[0]?.paretoFrontStrategyIds) ||
+        rqsReportSection?.cases?.[0]?.treatments?.length !== 7 ||
+        rqsReportSection?.cases?.[0]?.treatments?.[0]?.fileF1 === undefined ||
+        rqsReportSection?.identityRedaction !== null ||
+        Object.keys(rqsBundledReport.report?.rawRun ?? {}).includes("analysis") ||
+        Object.keys(rqsBundledReport.report?.rawRun ?? {}).includes("caseExecutionEvidence")
+      ) {
+        fail(`${gate}_REPORT`, `Installed report.json lacks the expected typed retrieval-query-strategy-comparison section: ${JSON.stringify(rqsReportSection)?.slice(0, 400)}`);
+      }
+      for (const [label, output] of [["report.html", rqsHtml], ["report.txt", rqsText]]) {
+        for (const required of ["Retrieval Query Strategy Comparison", "Task-Type Comparison", "localized", "Pareto"]) {
+          if (!output.includes(required)) fail(`${gate}_REPORT`, `Installed ${label} does not contain "${required}".`);
+        }
+      }
+      console.log("RETRIEVAL_QUERY_STRATEGY_COMPARISON_REPORT: PASS (installed report.json typed section, report.html and report.txt: four task-type scopes, methodology, Pareto data, per-case treatment metrics)");
+
+      // --- External-local: one disposable Git repository outside the installed package ---
+      const RQS_LOCAL = {
+        eligible: "PACKED_RQS_ELIGIBLE_MARKER_8a3c",
+        ignoredFile: "PACKED_RQS_IGNORED_MARKER_5d19",
+        ignoredDirectory: "PACKED_RQS_IGNORED_DIR_MARKER_b620",
+        oversized: "PACKED_RQS_OVERSIZED_MARKER_0f77"
+      };
+      const rqsArea = path.join(tempRoot, "rqs local subject area");
+      const rqsTarget = path.join(rqsArea, "target repo", "inner project");
+      const rqsConfigPath = path.join(rqsArea, "config dir", "local subject.json");
+      const rqsLog = path.join(tempRoot, "rqs-local-kit.log");
+      const rqsGitEnv = { ...process.env, GIT_OPTIONAL_LOCKS: "0" };
+      for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX"]) delete rqsGitEnv[key];
+      const rqsGit = (...args) => {
+        const result = spawnSync("git", ["-c", "user.name=Packed Gate", "-c", "user.email=packed-gate@example.invalid", "-c", "commit.gpgsign=false", ...args], { cwd: rqsTarget, encoding: "utf8", env: rqsGitEnv });
+        if (result.status !== 0) fail(gate, `git ${args[0]} failed while preparing the disposable retrieval subject.`, describeChildResult(result));
+        return result.stdout;
+      };
+      const rqsWrite = (relative, content) => {
+        const absolute = path.join(rqsTarget, ...relative.split("/"));
+        mkdirSync(path.dirname(absolute), { recursive: true });
+        writeFileSync(absolute, content, "utf8");
+      };
+      mkdirSync(rqsTarget, { recursive: true });
+      rqsGit("init", "-q", "-b", "main");
+      rqsWrite(".gitignore", "src/private notes.ts\nsrc/gen/\n");
+      rqsWrite(
+        "src/app/taskModel.ts",
+        `export interface ${RQS_MARKERS.symbol} {\n  id: string;\n  title: string;\n  done: boolean;\n}\n\nexport function createPackedRqsTask(title: string): ${RQS_MARKERS.symbol} {\n  return { id: "${RQS_LOCAL.eligible}", title, done: false };\n}\n`
+      );
+      rqsWrite(
+        "src/app/util/format.ts",
+        `import type { ${RQS_MARKERS.symbol} } from "../taskModel";\n\nexport function ${RQS_MARKERS.symbolTwo}(task: ${RQS_MARKERS.symbol}): string {\n  return task.title + ":" + String(task.done);\n}\n`
+      );
+      rqsWrite("src/huge file.ts", `// ${RQS_LOCAL.oversized}\n${"x".repeat(1_048_576 + 100)}\n`);
+      rqsGit("add", "-A");
+      rqsGit("commit", "-q", "-m", "packed fixture");
+      rqsWrite("src/private notes.ts", `export const privateNotes = 1; // ${RQS_LOCAL.ignoredFile}\n`);
+      rqsWrite("src/gen/out.ts", `export const generated = 1; // ${RQS_LOCAL.ignoredDirectory}\n`);
+      const rqsAnswerKey = (files, symbols, facts, targets) => ({
+        expectedFiles: files,
+        expectedSymbols: symbols,
+        expectedFacts: facts.map((id) => ({ id, text: "private fact text that is never persisted", weight: 1, required: true })),
+        expectedContextTargets: targets,
+        minimumCorrectFacts: 1
+      });
+      mkdirSync(path.dirname(rqsConfigPath), { recursive: true });
+      writeFileSync(
+        rqsConfigPath,
+        JSON.stringify({
+          schemaVersion: "1.0.0",
+          subjectId: "packed-rqs-subject",
+          cases: [
+            {
+              id: "packed-rqs-case-one",
+              title: RQS_MARKERS.title,
+              sourceRoots: ["src"],
+              query: `Where are ${RQS_MARKERS.symbol} and ${RQS_MARKERS.symbolTwo} defined?`,
+              expectedFiles: ["src/app/taskModel.ts", "src/app/util/format.ts"],
+              expectedSymbols: [RQS_MARKERS.symbol, RQS_MARKERS.symbolTwo],
+              rawIncludeGlobs: ["src/**/*"],
+              taskLocality: "cross-module",
+              answerKey: rqsAnswerKey(
+                ["src/app/taskModel.ts", "src/app/util/format.ts"],
+                [RQS_MARKERS.symbol, RQS_MARKERS.symbolTwo],
+                [RQS_MARKERS.fact, RQS_MARKERS.factTwo],
+                [
+                  { file: "src/app/taskModel.ts", symbols: [RQS_MARKERS.symbol], required: true, factIds: [RQS_MARKERS.fact] },
+                  { file: "src/app/util/format.ts", symbols: [RQS_MARKERS.symbolTwo], required: true, factIds: [RQS_MARKERS.factTwo] }
+                ]
+              )
+            },
+            {
+              id: "packed-rqs-case-two",
+              title: RQS_MARKERS.titleTwo,
+              sourceRoots: ["src/app/util"],
+              query: `Where is ${RQS_MARKERS.symbolTwo} defined?`,
+              expectedFiles: ["src/app/util/format.ts"],
+              expectedSymbols: [RQS_MARKERS.symbolTwo],
+              rawIncludeGlobs: ["src/app/util/**/*"],
+              taskLocality: "localized",
+              answerKey: rqsAnswerKey(
+                ["src/app/util/format.ts"],
+                [RQS_MARKERS.symbolTwo],
+                [RQS_MARKERS.factThree],
+                [{ file: "src/app/util/format.ts", symbols: [RQS_MARKERS.symbolTwo], required: true, factIds: [RQS_MARKERS.factThree] }]
+              )
+            }
+          ]
+        }),
+        "utf8"
+      );
+      const rqsConfigBefore = readFileSync(rqsConfigPath, "utf8");
+      const rqsTargetBefore = await snapshotDirectory(rqsTarget);
+      const rqsStatusBefore = rqsGit("status", "--porcelain=v1", "--ignored");
+      const rqsHeadBefore = rqsGit("rev-parse", "HEAD").trim();
+      const rqsRunArgs = (extra) => ["experiment", "run", "--experiment", RQS_ID, ...extra];
+      const rqsLocalEnv = (extra = {}) =>
+        rqsKitEnv({
+          RPR_KIT_LOG: rqsLog,
+          RPR_KIT_FILES: "src/app/taskModel.ts,src/app/util/format.ts",
+          RPR_KIT_SYMBOLS: `${RQS_MARKERS.symbol}@src/app/taskModel.ts`,
+          RPR_KIT_DATA_MODEL_ENTITY: RQS_MARKERS.symbol,
+          ...extra
+        });
+      const rqsOut = path.join(dirs.workspace, "rqs local out", "run");
+      const rqsRealOut = path.join(dirs.workspace, "rqs real out", "run");
+      const rqsSentinels = [
+        ...[rqsTarget, rqsArea, path.dirname(rqsConfigPath), rqsOut, path.dirname(rqsOut), rqsRealOut, path.dirname(rqsRealOut), dirs.workspace, dirs.consumer, dirs.fakeKit, installedPackageRoot, tempRoot, os.tmpdir(), os.homedir(), REPO_ROOT].map(
+          (value) => ({ label: "private path", value, kind: "path" })
+        ),
+        ...Object.entries({ ...RQS_MARKERS, ...RQS_LOCAL }).map(([label, value]) => ({ label: `marker ${label}`, value, kind: "text" })),
+        ...["private notes.ts", "huge file.ts", "gen/out", "src/app/taskModel.ts", "src/app/util/format.ts", "taskModel.ts", "format.ts", "inner project", "target repo", "fake-upstream-shaped-kit"].map((value) => ({ label: `name ${value}`, value, kind: "text" }))
+      ];
+      const expectRqsTargetUntouched = async (label) => {
+        const diff = diffSnapshots(rqsTargetBefore, await snapshotDirectory(rqsTarget));
+        if (diff.length > 0) fail(`${gate}_IMMUTABILITY`, `${label} mutated the target: ${diff.join(", ")}`);
+        if (rqsGit("status", "--porcelain=v1", "--ignored") !== rqsStatusBefore || rqsGit("rev-parse", "HEAD").trim() !== rqsHeadBefore || readFileSync(rqsConfigPath, "utf8") !== rqsConfigBefore) {
+          fail(`${gate}_IMMUTABILITY`, `${label} changed the target Git state or its config.`);
+        }
+      };
+
+      // Mode-matrix rejections and output-boundary rejections: nonzero, no output, no my-dev-kit call, target untouched.
+      const rqsUnsafeInside = path.join(rqsTarget, "lab-out");
+      const rqsNegativeCases = [
+        ["target-without-config", ["--target", rqsTarget, "--out", rqsOut]],
+        ["config-without-target", ["--local-subject-config", rqsConfigPath, "--out", rqsOut]],
+        ["case-in-external-mode", ["--target", rqsTarget, "--local-subject-config", rqsConfigPath, "--case", "packed-rqs-case-one", "--out", rqsOut]],
+        ["benchmark-project-in-external-mode", ["--target", rqsTarget, "--local-subject-config", rqsConfigPath, "--benchmark-project", "packed-rqs-subject", "--out", rqsOut]],
+        ["output-inside-target", ["--target", rqsTarget, "--local-subject-config", rqsConfigPath, "--out", rqsUnsafeInside]],
+        ["output-equals-target", ["--target", rqsTarget, "--local-subject-config", rqsConfigPath, "--out", rqsTarget]]
+      ];
+      for (const [label, args] of rqsNegativeCases) {
+        const result = runInstalledCli(cliCommand, dirs.consumer, rqsRunArgs([...args, "--kit-command", rqsKitCommand]), rqsLocalEnv());
+        if (result.status === 0) fail(`${gate}_EXTERNAL_REJECTIONS`, `Installed negative case ${label} exited 0.`, describeChildResult(result));
+        if (existsSync(rqsUnsafeInside) || (existsSync(path.dirname(rqsOut)) && readdirSync(path.dirname(rqsOut)).length > 0)) {
+          fail(`${gate}_EXTERNAL_REJECTIONS`, `Installed negative case ${label} created output.`);
+        }
+        const consoleLeaks = privacyScan.scanDurableArtifactText(
+          [{ name: `${label}-console`, text: `${result.stdout ?? ""}\n${result.stderr ?? ""}` }],
+          rqsSentinels
+            .filter((sentinel) => sentinel.kind === "path" && sentinel.value !== os.tmpdir() && sentinel.value !== os.homedir() && sentinel.value !== tempRoot && sentinel.value !== REPO_ROOT && sentinel.value !== dirs.workspace)
+            .concat(rqsSentinels.filter((sentinel) => sentinel.kind === "text" && sentinel.label.startsWith("marker")))
+        );
+        if (consoleLeaks.length > 0) fail(`${gate}_EXTERNAL_REJECTIONS`, `Installed negative case ${label} printed a private value: ${JSON.stringify(consoleLeaks)}`);
+        await expectRqsTargetUntouched(`Installed negative case ${label}`);
+      }
+      if (rqsReadKitCalls(rqsLog).length > 0) fail(`${gate}_EXTERNAL_REJECTIONS`, "A rejected installed run still invoked my-dev-kit.");
+      console.log(`RETRIEVAL_QUERY_STRATEGY_COMPARISON_EXTERNAL_REJECTIONS: PASS (${rqsNegativeCases.length} installed boundary cases: nonzero exit, no output, no my-dev-kit call, target unchanged)`);
+
+      // Installed failure path (deterministic fake kit): an unsafe retrieved identity must fail closed with no durable family.
+      const rqsFailureOut = path.join(dirs.workspace, "rqs local failure out", "run");
+      const rqsFailure = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        rqsRunArgs(["--target", rqsTarget, "--local-subject-config", rqsConfigPath, "--kit-command", rqsKitCommand, "--out", rqsFailureOut]),
+        rqsLocalEnv({ RPR_KIT_FILES: "src/private notes.ts" })
+      );
+      if (rqsFailure.status === 0) fail(`${gate}_EXTERNAL_FAILURE`, "Installed run that retrieved an ignored file exited 0.", describeChildResult(rqsFailure));
+      const rqsFailureText = `${rqsFailure.stdout ?? ""}\n${rqsFailure.stderr ?? ""}`;
+      if (!rqsFailureText.includes("RETRIEVAL_OUTSIDE_ELIGIBLE_UNIVERSE") || !rqsFailureText.includes("Status: failed")) {
+        fail(`${gate}_EXTERNAL_FAILURE`, "Installed unsafe-identity failure did not report the bounded safe code.", describeChildResult(rqsFailure));
+      }
+      for (const forbidden of ["private notes", rqsTarget, rqsArea, ...Object.values(RQS_LOCAL), ...Object.values(RQS_MARKERS)]) {
+        if (rqsFailureText.includes(forbidden)) fail(`${gate}_EXTERNAL_FAILURE`, `Installed failure output contains a private value (${forbidden.length > 40 ? `${forbidden.slice(0, 20)}...` : forbidden}).`);
+      }
+      if (existsSync(rqsFailureOut) && readdirSync(rqsFailureOut).length > 0) {
+        fail(`${gate}_EXTERNAL_FAILURE`, `Installed failure wrote files to the output directory: ${readdirSync(rqsFailureOut).join(", ")}`);
+      }
+      await expectRqsTargetUntouched("Installed unsafe-identity failure");
+      console.log("RETRIEVAL_QUERY_STRATEGY_COMPARISON_EXTERNAL_FAILURE: PASS (installed bin; unsafe retrieved identity: nonzero, bounded safe code, no durable family, target unchanged)");
+
+      // Installed external-local success with the deterministic fake kit: observable index/exclusion/scratch behavior.
+      writeFileSync(rqsLog, "", "utf8");
+      const rqsFakeRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        rqsRunArgs(["--target", rqsTarget, "--local-subject-config", rqsConfigPath, "--kit-command", rqsKitCommand, "--out", rqsOut]),
+        rqsLocalEnv()
+      );
+      if (rqsFakeRun.status !== 0) fail(`${gate}_EXTERNAL`, "Installed external-local run with the deterministic kit did not exit 0.", describeChildResult(rqsFakeRun));
+      assertOutputOutsidePackage(rqsOut, installedPackageRoot, `${RQS_ID} external-local fake-kit run`);
+      const rqsFakeEntries = readdirSync(rqsOut).sort();
+      if (JSON.stringify(rqsFakeEntries) !== JSON.stringify(RQS_DURABLE_FAMILY)) {
+        fail(`${gate}_EXTERNAL`, `External-local output is not exactly the approved durable family (scratch, index or command files remained): ${rqsFakeEntries.join(", ")}`);
+      }
+      const rqsPhysicalOut = realpathSync.native(rqsOut);
+      const rqsIndexCalls = rqsReadKitCalls(rqsLog).filter((call) => call.argv[0] === "index");
+      const rqsSourceRoots = rqsIndexCalls.map((call) => call.argv.flatMap((value, index) => (value === "--src" ? [call.argv[index + 1]] : [])));
+      if (rqsIndexCalls.length !== 2 || JSON.stringify(rqsSourceRoots) !== JSON.stringify([["src"], ["src/app/util"]])) {
+        fail(`${gate}_EXTERNAL`, `Expected one private base index per configured case with exactly that case's source roots, got ${JSON.stringify(rqsSourceRoots)}.`);
+      }
+      for (const call of rqsIndexCalls) {
+        const excluded = call.argv.flatMap((value, index) => (value === "--exclude" ? [call.argv[index + 1]] : []));
+        for (const required of ["src/gen", "src/huge file.ts", "src/private notes.ts"]) {
+          if (!excluded.includes(required)) fail(`${gate}_EXTERNAL`, `A case index did not receive the exact exclusion ${required}.`);
+        }
+        if (call.argv.includes("--call-graph")) fail(`${gate}_EXTERNAL`, "An external-local base index requested --call-graph.");
+        const indexOut = call.argv[call.argv.indexOf("--out") + 1];
+        const indexSegments = segmentsBeneathRoot(rqsPhysicalOut, indexOut);
+        if (indexSegments === null || indexSegments.length < 3 || !indexSegments[0].startsWith("s-") || !/^i\d+$/.test(indexSegments[1]) || indexSegments[2] !== "base") {
+          fail(`${gate}_EXTERNAL`, "A case base index was not built at <scratch>/i<N>/base inside the private scratch.");
+        }
+        rqsSentinels.push({ label: "private index path", value: indexOut, kind: "path" }, { label: "private scratch path", value: path.dirname(path.dirname(indexOut)), kind: "path" });
+      }
+      const rqsDataModelCalls = rqsReadKitCalls(rqsLog).filter((call) => call.argv[0] === "data-model");
+      if (rqsDataModelCalls.length === 0) fail(`${gate}_EXTERNAL`, "The external-local run did not execute the semantic data-model treatments.");
+      const rqsSemanticIndexes = new Set(rqsDataModelCalls.map((call) => call.argv[call.argv.indexOf("--index") + 1]));
+      if ([...rqsSemanticIndexes].some((indexPath) => !/[\\/]i\d+[\\/](base|strategies[\\/](data-model-graph|model-view-lineage))$/.test(indexPath))) {
+        fail(`${gate}_EXTERNAL`, `A semantic strategy used an index outside the case base or its isolated strategy copy: ${[...rqsSemanticIndexes].join(", ")}`);
+      }
+      const rqsFakeLeaks = privacyScan.scanDurableOutputDirectory(rqsOut, rqsSentinels);
+      if (rqsFakeLeaks.length > 0) fail(`${gate}_PRIVACY`, `Durable installed external-local output (deterministic kit) leaks private values: ${JSON.stringify(rqsFakeLeaks)}`);
+      await expectRqsTargetUntouched("Installed external-local run with the deterministic kit");
+
+      // --- REAL published my-dev-kit: the successful external-local compatibility proof ---
+      if (!realKitCommand.includes(upstreamBin)) {
+        fail(`${gate}_REAL_MY_DEV_KIT`, `Kit command is not the installed real published upstream binary: ${realKitCommand}`);
+      }
+      const rqsRealRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        rqsRunArgs(["--target", rqsTarget, "--local-subject-config", rqsConfigPath, "--kit-command", realKitCommand, "--out", rqsRealOut]),
+        envWithBin
+      );
+      if (rqsRealRun.status !== 0) fail(`${gate}_REAL_MY_DEV_KIT`, `Installed external-local run with the real ${UPSTREAM_MY_DEV_KIT_SPEC} did not exit 0.`, describeChildResult(rqsRealRun));
+      assertOutputOutsidePackage(rqsRealOut, installedPackageRoot, `${RQS_ID} external-local real-kit run`);
+      if (!path.relative(rqsTarget, rqsRealOut).startsWith("..")) fail(`${gate}_EXTERNAL`, "Lab output was written inside the inspected target.");
+      const rqsRealEntries = readdirSync(rqsRealOut).sort();
+      if (JSON.stringify(rqsRealEntries) !== JSON.stringify(RQS_DURABLE_FAMILY)) {
+        fail(`${gate}_REAL_MY_DEV_KIT`, `Real-kit external-local output is not exactly the approved durable family: ${rqsRealEntries.join(", ")}`);
+      }
+      for (const name of RQS_DURABLE_FAMILY) requireNonEmptyFile(path.join(rqsRealOut, name), `${gate}_REAL_MY_DEV_KIT`);
+      const rqsRealExecution = readJsonFile(path.join(rqsRealOut, RQS_EXECUTION_FILE), `${gate}_REAL_MY_DEV_KIT`);
+      const rqsRealAnalysis = readJsonFile(path.join(rqsRealOut, RQS_ANALYSIS_FILE), `${gate}_REAL_MY_DEV_KIT`);
+      const rqsRealManifest = readJsonFile(path.join(rqsRealOut, "local-repository-subject-manifest.json"), `${gate}_REAL_MY_DEV_KIT`);
+      const rqsRealReport = readJsonFile(path.join(rqsRealOut, "report.json"), `${gate}_REAL_MY_DEV_KIT`);
+      const rqsRealSection = rqsRealReport.report?.retrievalQueryStrategyComparison;
+      if (
+        rqsRealExecution.schemaVersion !== "my-dev-kit-lab-retrieval-query-strategy-comparison-execution-v1" ||
+        JSON.stringify(rqsRealExecution.cases?.map((entry) => entry.caseId)) !== JSON.stringify(["packed-rqs-case-one", "packed-rqs-case-two"]) ||
+        rqsRealExecution.cases?.some((entry) => JSON.stringify(entry.treatments?.map((treatment) => treatment.strategyId)) !== JSON.stringify(RQS_STRATEGIES) || entry.caseName !== "<redacted case title>" || entry.identityRedaction?.semanticNodeIds !== "redacted") ||
+        rqsRealAnalysis.schemaVersion !== "my-dev-kit-lab-retrieval-query-strategy-comparison-analysis-v1" ||
+        JSON.stringify(rqsRealAnalysis.analysis?.scopes?.map((scope) => scope.scopeId)) !== JSON.stringify(RQS_SCOPES) ||
+        rqsRealAnalysis.analysis?.scopes?.[0]?.caseCount !== 2 ||
+        rqsRealAnalysis.analysis?.scopes?.[1]?.caseCount !== 1 ||
+        rqsRealAnalysis.analysis?.scopes?.[2]?.caseCount !== 1 ||
+        rqsRealManifest.schemaId !== "my-dev-kit-lab-local-repository-subject-manifest-v1" ||
+        rqsRealManifest.subjectId !== "packed-rqs-subject" ||
+        rqsRealManifest.repository?.commit !== rqsHeadBefore ||
+        rqsRealReport.report?.plugin?.id !== RQS_ID ||
+        rqsRealReport.report?.target?.kind !== "external-local" ||
+        rqsRealReport.report?.target?.targetRoot !== "local-repository:packed-rqs-subject" ||
+        rqsRealReport.report?.target?.toolRoot !== "[redacted]" ||
+        rqsRealReport.report?.target?.privacyProjection !== "external-local-redacted" ||
+        rqsRealReport.report?.metadata?.outputRoot !== "[redacted]" ||
+        rqsRealSection?.identityRedaction !== "external-local-redacted" ||
+        !rqsRealSection?.cases?.flatMap((entry) => entry.treatments).some((treatment) => typeof treatment.retrievedTokenCount === "number")
+      ) {
+        fail(`${gate}_REAL_MY_DEV_KIT`, "Real-kit external-local artifacts do not carry the expected schemas, matched seven treatments, subject identity, Git commit, privacy projection and numeric scientific values.");
+      }
+      // Structural redaction proof (substring search would collide with short identifiers).
+      for (const entry of rqsRealExecution.cases) {
+        for (const treatment of entry.treatments) {
+          for (const symbol of treatment.evidence?.symbols ?? []) {
+            if (!/^<redacted symbol \d+>$/.test(symbol.name) || symbol.nodeId !== null) fail(`${gate}_PRIVACY`, "A real-kit external symbol identity or semantic node ID was not redacted.");
+          }
+          for (const file of treatment.evidence?.files ?? []) {
+            if (!/^<redacted file \d+>$/.test(file.path)) fail(`${gate}_PRIVACY`, "A real-kit external file identity was not redacted.");
+          }
+        }
+      }
+      for (const entry of rqsRealAnalysis.analysis.cases) {
+        for (const treatment of entry.treatments) {
+          const quality = treatment.quality;
+          if (!quality) continue;
+          for (const list of [quality.symbol.relevantRetrievedSymbols, quality.symbol.irrelevantRetrievedSymbols, quality.symbol.missedSymbols]) {
+            for (const item of list ?? []) if (!/^<redacted symbol \d+>$/.test(item)) fail(`${gate}_PRIVACY`, "A real-kit quality symbol identity was not redacted.");
+          }
+          for (const list of [quality.fact.coveredFactIds, quality.fact.uncoveredFactIds]) {
+            for (const item of list ?? []) if (!/^<redacted fact \d+>$/.test(item)) fail(`${gate}_PRIVACY`, "A real-kit quality fact identity was not redacted.");
+          }
+        }
+      }
+      const rqsRealLeaks = privacyScan.scanDurableOutputDirectory(rqsRealOut, rqsSentinels);
+      if (rqsRealLeaks.length > 0) fail(`${gate}_PRIVACY`, `Durable installed external-local output (real my-dev-kit) leaks private values: ${JSON.stringify(rqsRealLeaks)}`);
+      await expectRqsTargetUntouched("Installed external-local run with the real my-dev-kit");
+      for (const forbidden of [".my-dev-kit", ".my-dev-kit-lab", "lab-output", "lab-out"]) {
+        if (existsSync(path.join(rqsTarget, forbidden))) fail(`${gate}_IMMUTABILITY`, `Lab artifacts appeared inside the target: ${forbidden}`);
+      }
+      console.log(`RETRIEVAL_QUERY_STRATEGY_COMPARISON_EXTERNAL: PASS (installed bin; one private base index per case with exact roots and exclusions at <scratch>/i<N>/base; isolated semantic copies; space-containing paths; output path length ${rqsOut.length})`);
+      console.log(`RETRIEVAL_QUERY_STRATEGY_COMPARISON_REAL_MY_DEV_KIT: PASS (installed bin; real ${UPSTREAM_MY_DEV_KIT_SPEC}; two cases x seven treatments; matched analysis and report written; redacted durable family)`);
+      console.log("RETRIEVAL_QUERY_STRATEGY_COMPARISON_PRIVACY: PASS (raw, separator, JSON-escaped and HTML-escaped path forms; markers; file, symbol, fact, semantic-node and title identities; scratch and index paths; deterministic and real my-dev-kit outputs)");
+      console.log("RETRIEVAL_QUERY_STRATEGY_COMPARISON_IMMUTABILITY: PASS (target tree, Git status/HEAD and config unchanged after rejections, failure, deterministic and real runs; scratch removed; no Lab output in target)");
+    }
+
+    // -----------------------------------------------------------------
     // 9c-5. v0.8.0 installed-package retrieval-precision-recall acceptance.
     // The INSTALLED bin proves discovery, one bundled run over the packaged
     // corpus, and an external-local run against a disposable Git repository.
@@ -3070,6 +3566,15 @@ async function main() {
         "RETRIEVAL_PRECISION_RECALL_EXTERNAL: PASS",
         "RETRIEVAL_PRECISION_RECALL_PRIVACY: PASS",
         "RETRIEVAL_PRECISION_RECALL_IMMUTABILITY: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_DISCOVERY: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_BUNDLED: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_REPORT: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_EXTERNAL_REJECTIONS: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_EXTERNAL_FAILURE: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_EXTERNAL: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_PRIVACY: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_IMMUTABILITY: PASS",
+        "RETRIEVAL_QUERY_STRATEGY_COMPARISON_REAL_MY_DEV_KIT: PASS",
         "SOURCE_CHECKOUT_RUNTIME_DEPENDENCY: NONE_OBSERVED"
       ].join("\n")
     );
