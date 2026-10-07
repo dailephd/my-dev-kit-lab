@@ -51,7 +51,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
 - Current published release: `v0.8.2` context-pack generation experiments; the previous `v0.8.1` release added retrieval query strategy comparison.
-- Release-preparation state: v0.8.2 is prepared on `release/v0.8.2`; the package, docs, and exact-SHA release validation are complete.
+- v0.8.2 release validation: local gates, all six CI cells, the three-OS latest-Node workflow, both CodeQL analyses, and applicable alert review passed on the release commit.
 - v0.8.2 plugin contract: `context-pack-generation` always runs `raw-full-file` and `context-pack`; its report presents existing retrieval coverage and estimated size plus paired token savings and objective deltas, without a composite winner or ranking. External-local science uses real identities before redaction, persists no pack body, and renders a redacted preview.
 - Workflow stage (published release): v0.8.0 implementation, documentation reconciliation, readiness, and release preparation are complete; v0.8.0 is the previous release, and `experiment run --experiment retrieval-precision-recall` is part of the current package.
 - Workflow stage (published release): v0.7.2 implementation, documentation reconciliation, readiness, and release preparation are complete; v0.7.2 is an earlier historical release, and `experiment run --experiment context-window-scaling --target <repository> --local-subject-config <path>` is part of the current package.
