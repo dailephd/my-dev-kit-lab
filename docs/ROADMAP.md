@@ -73,7 +73,7 @@ Completed scope:
 * Correct target-project execution of `test:security` during external-target validation, including installed-package execution.
 * Documentation synchronized with the implemented plugin and security-validation architecture.
 * Fortification continues after this baseline without changing the backward-compatible `security:validate` command.
-* The v0.2.1 package baseline was not the final security, audit, mobile, or pentest architecture.
+* The historical v0.2.1 package baseline was not the final security, audit, mobile, or pentest architecture.
 
 Dependencies:
 
