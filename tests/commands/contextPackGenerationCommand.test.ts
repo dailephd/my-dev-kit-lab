@@ -210,8 +210,8 @@ describe("argument contract", () => {
       expect(section, phrase).toContain(phrase);
     }
     expect(section).not.toMatch(/--strateg(y|ies) </);
-    // The existing kit-command heading is unchanged.
-    expect(help).toContain("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison):");
+    // The kit-command heading enumerates this experiment.
+    expect(help).toContain("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, and context-pack-generation):");
   });
 });
 

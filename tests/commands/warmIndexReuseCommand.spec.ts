@@ -412,7 +412,7 @@ describe("installed CLI help for warm-index-reuse and plots", () => {
     const { code, text } = await help(["experiment", "run", "--help"]);
     expect(code).toBe(0);
     const common = text.indexOf("Common options (all plugins):");
-    const kitCommand = text.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison):");
+    const kitCommand = text.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, and context-pack-generation):");
     const warm = text.indexOf("warm-index-reuse only:");
     const context = text.indexOf("context-strategy-comparison only:");
     expect(common).toBeGreaterThan(-1);

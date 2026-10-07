@@ -115,7 +115,7 @@ describe("context-window-scaling option isolation", () => {
     const help = renderExperimentRunHelp();
     expect(help).toContain("context-window-scaling only:");
     expect(help).toContain("--context-budgets <values>");
-    expect(help).toContain("warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison");
+    expect(help).toContain("warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, and context-pack-generation");
   });
 });
 

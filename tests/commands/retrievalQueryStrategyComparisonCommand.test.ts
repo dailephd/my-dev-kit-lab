@@ -145,7 +145,7 @@ describe("help", () => {
   it("TST-081-113 documents the plugin without advertising a strategy option", () => {
     const help = renderExperimentRunHelp();
     expect(help).toContain("retrieval-query-strategy-comparison only:");
-    expect(help).toContain("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison):");
+    expect(help).toContain("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, and context-pack-generation):");
     const start = help.indexOf("retrieval-query-strategy-comparison only:");
     const section = help.slice(start, help.indexOf("warm-index-reuse only:"));
     for (const phrase of ["seven retrieval", "no strategy", "option", "--local-subject-config", "Pareto front has a single member", "tradeoff", "No scalar score or total", "ranking exists"]) {

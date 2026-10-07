@@ -70,7 +70,7 @@ describe("packed-package acceptance for retrieval-query-strategy-comparison", ()
     }
   });
 
-  it("requires the plugin in the installed experiment list, appended after the earlier ids", () => {
+  it("requires the plugin in the installed experiment list, appended after the earlier ids (v0.8.2 appends context-pack-generation)", () => {
     const required = /const REQUIRED_EXPERIMENT_IDS = \[([^\]]*)\]/.exec(verifierSource)?.[1] ?? "";
     const ids = required.split(",").map((entry) => entry.trim().replace(/"/g, ""));
     expect(ids).toEqual([
@@ -79,7 +79,8 @@ describe("packed-package acceptance for retrieval-query-strategy-comparison", ()
       "incremental-change-staleness",
       "context-window-scaling",
       "retrieval-precision-recall",
-      "retrieval-query-strategy-comparison"
+      "retrieval-query-strategy-comparison",
+      "context-pack-generation"
     ]);
   });
 

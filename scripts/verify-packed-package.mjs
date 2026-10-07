@@ -182,6 +182,31 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/report/experiments/renderRetrievalQueryStrategyComparisonText.js",
   "dist/src/report/experiments/renderRetrievalPrecisionRecallHtml.js",
   "dist/src/report/experiments/renderRetrievalPrecisionRecallText.js",
+  "dist/src/experiments/plugins/contextPackGeneration/analysis.js",
+  "dist/src/experiments/plugins/contextPackGeneration/analysisArtifact.js",
+  "dist/src/experiments/plugins/contextPackGeneration/analysisTypes.js",
+  "dist/src/experiments/plugins/contextPackGeneration/buildContextPack.js",
+  "dist/src/experiments/plugins/contextPackGeneration/config.js",
+  "dist/src/experiments/plugins/contextPackGeneration/execution.js",
+  "dist/src/experiments/plugins/contextPackGeneration/executionArtifact.js",
+  "dist/src/experiments/plugins/contextPackGeneration/executionTypes.js",
+  "dist/src/experiments/plugins/contextPackGeneration/identityEvidence.js",
+  "dist/src/experiments/plugins/contextPackGeneration/index.js",
+  "dist/src/experiments/plugins/contextPackGeneration/localSubjectExecution.js",
+  "dist/src/experiments/plugins/contextPackGeneration/localSubjectPrivacy.js",
+  "dist/src/experiments/plugins/contextPackGeneration/metadata.js",
+  "dist/src/experiments/plugins/contextPackGeneration/metrics.js",
+  "dist/src/experiments/plugins/contextPackGeneration/packArtifact.js",
+  "dist/src/experiments/plugins/contextPackGeneration/packEvidence.js",
+  "dist/src/experiments/plugins/contextPackGeneration/packSelectionPolicy.js",
+  "dist/src/experiments/plugins/contextPackGeneration/plugin.js",
+  "dist/src/experiments/plugins/contextPackGeneration/renderContextPack.js",
+  "dist/src/experiments/plugins/contextPackGeneration/types.js",
+  "dist/src/report/experiments/contextPackGenerationReportModel.js",
+  "dist/src/report/experiments/buildContextPackGenerationReport.js",
+  "dist/src/report/experiments/loadContextPackArtifacts.js",
+  "dist/src/report/experiments/renderContextPackGenerationHtml.js",
+  "dist/src/report/experiments/renderContextPackGenerationText.js",
   "dist/src/report/experiments/renderPluginExperimentReportHtml.js",
   "dist/src/plots/buildContextWindowScalingPlotData.js",
   "benchmarks/contracts/context-window-scaling-cases.json",
@@ -199,7 +224,7 @@ const REQUIRED_TARBALL_PATHS = [
   "examples/tutorial-browser/scenario.json"
 ];
 
-const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison"];
+const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation"];
 const INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS_LOCAL = ["U1", "L2", "E1", "P1", "I1", "T1"];
 
 const WARM_INDEX_CHARTS = [
@@ -868,7 +893,7 @@ async function main() {
 
     const runHelpResult = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--help"], envWithBin);
     const runHelp = runHelpResult.stdout ?? "";
-    const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison):");
+    const kitCommandHelpStart = runHelp.indexOf("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, and context-pack-generation):");
     const warmHelpStart = runHelp.indexOf("warm-index-reuse only:");
     const contextHelpStart = runHelp.indexOf("context-strategy-comparison only:");
     const warmCampaignHelp = warmHelpStart >= 0 && contextHelpStart > warmHelpStart
@@ -3058,6 +3083,506 @@ async function main() {
     console.log(`INCREMENTAL_CHANGE_STALENESS_EVIDENCE: ${icsEvidencePath}`);
 
     // -----------------------------------------------------------------
+    // 9c-6. v0.8.2 context-pack-generation installed-package acceptance.
+    // The INSTALLED bin proves discovery, flag validation, a bundled run over
+    // the packaged corpus, and an external-local run against a disposable Git
+    // repository. The deterministic safety matrix uses a stand-in my-dev-kit
+    // copied from the repository test fixtures at verification time (never
+    // packaged, no network). The compatibility proof uses the REAL published
+    // upstream my-dev-kit installed above (realKitCommand). No retrieval-quality
+    // threshold is asserted: valid measurements or truthful partial evidence
+    // are both acceptable, and context-pack need not outperform raw.
+    // -----------------------------------------------------------------
+    {
+      const gate = "CONTEXT_PACK_GENERATION";
+      const CPG_ID = "context-pack-generation";
+      const CPG_TREATMENTS = ["raw-full-file", "context-pack"];
+      const CPG_SCOPES = ["overall", "localized", "cross-module", "broad-change"];
+      const CPG_SCHEMAS = {
+        pack: "my-dev-kit-lab-context-pack-experiment-v1",
+        execution: "my-dev-kit-lab-context-pack-generation-execution-v1",
+        analysis: "my-dev-kit-lab-context-pack-generation-analysis-v1",
+        report: "my-dev-kit-lab-context-pack-generation-report-v1"
+      };
+      const CPG_EXECUTION_FILE = "context-pack-generation-execution.json";
+      const CPG_ANALYSIS_FILE = "context-pack-generation-analysis.json";
+      const CPG_MANIFEST_FILE = "local-repository-subject-manifest.json";
+      const CPG_EXTERNAL_FAMILY = [CPG_ANALYSIS_FILE, CPG_EXECUTION_FILE, CPG_MANIFEST_FILE, "report.html", "report.json", "report.txt"];
+      const CPG_BUNDLED_CASE = "warm-medium-complete-idempotent";
+      const CPG_PREVIEW_LIMITS = { files: 5, symbols: 5, sourceSlices: 3, callRelationships: 5, tests: 5, evidenceNotes: 5, linesPerSlice: 12 };
+      const privacyScan = await loadPrivacyScan();
+
+      // --- Discovery (installed list and describe) ---
+      const cpgListed = knownExperiments.filter((entry) => entry.id === CPG_ID);
+      if (
+        cpgListed.length !== 1 ||
+        cpgListed[0].name !== "Context Pack Generation" ||
+        cpgListed[0].status !== "experimental" ||
+        JSON.stringify(cpgListed[0].supportedVariants) !== JSON.stringify(CPG_TREATMENTS) ||
+        JSON.stringify(cpgListed[0].supportedTargets) !== JSON.stringify(["self", "external-local"]) ||
+        JSON.stringify(cpgListed[0].supportedOutputs) !== JSON.stringify(["json", "html", "text", "artifact"])
+      ) {
+        fail(`${gate}_DISCOVERY`, `Installed experiment list lacks the expected ${CPG_ID} entry: ${JSON.stringify(cpgListed)}`);
+      }
+      if (JSON.stringify(knownExperimentIds.slice(0, REQUIRED_EXPERIMENT_IDS.length)) !== JSON.stringify(REQUIRED_EXPERIMENT_IDS)) {
+        fail(`${gate}_DISCOVERY`, `Installed registry order differs from the required trailing order: ${knownExperimentIds.join(", ")}`);
+      }
+      const cpgDescribeJson = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "describe", "--experiment", CPG_ID, "--json"], envWithBin);
+      if (cpgDescribeJson.status !== 0) fail(`${gate}_DISCOVERY`, `Installed experiment describe for ${CPG_ID} did not exit 0.`, describeChildResult(cpgDescribeJson));
+      const cpgDescribed = parseJsonOutput(cpgDescribeJson, `${gate}_DISCOVERY`);
+      if (
+        cpgDescribed.metadata?.id !== CPG_ID ||
+        cpgDescribed.metadata?.name !== "Context Pack Generation" ||
+        cpgDescribed.metadata?.status !== "experimental" ||
+        JSON.stringify(cpgDescribed.supportedVariants) !== JSON.stringify(CPG_TREATMENTS) ||
+        JSON.stringify((cpgDescribed.requiredConfigFields ?? []).map((field) => field.name)) !== JSON.stringify(["outDir"]) ||
+        JSON.stringify((cpgDescribed.optionalConfigFields ?? []).map((field) => field.name)) !== JSON.stringify(["kitCommand", "caseIds", "benchmarkProjects"]) ||
+        /"(strategies|treatments|selectionPolicy)"/.test(JSON.stringify(cpgDescribed))
+      ) {
+        fail(`${gate}_DISCOVERY`, `Installed describe output is not the expected ${CPG_ID} contract: ${cpgDescribeJson.stdout}`);
+      }
+      const cpgDescribeText = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "describe", "--experiment", CPG_ID], envWithBin);
+      const cpgDescribeTextOut = cpgDescribeText.stdout ?? "";
+      if (
+        cpgDescribeText.status !== 0 ||
+        !cpgDescribeTextOut.includes(`ID: ${CPG_ID}`) ||
+        !cpgDescribeTextOut.includes("Context Pack Generation") ||
+        !cpgDescribeTextOut.includes("Status: experimental") ||
+        !cpgDescribeTextOut.includes("Supported variants: raw-full-file, context-pack")
+      ) {
+        fail(`${gate}_DISCOVERY`, "Installed text describe does not show the expected ID, name, status and ordered variants.", describeChildResult(cpgDescribeText));
+      }
+      console.log("CONTEXT_PACK_GENERATION_DISCOVERY: PASS (installed list and describe: experimental, raw-full-file then context-pack, self + external-local, closed config without a treatment or policy option; earlier experiments keep their order)");
+
+      // --- Deterministic stand-in kit (test fixture copied at verification time; never packaged) ---
+      const cpgKitScript = path.join(dirs.fakeKit, "fake-context-pack-kit.mjs");
+      writeFileSync(cpgKitScript, readFileSync(path.join(REPO_ROOT, "tests", "experiments", "contextPackGeneration", "fakeContextPackKit.mjs"), "utf8"), "utf8");
+      const cpgKitCommand = `"${process.execPath}" "${cpgKitScript}"`;
+      const cpgReadKitCalls = (logFile) =>
+        existsSync(logFile)
+          ? readFileSync(logFile, "utf8")
+              .split("\n")
+              .filter(Boolean)
+              .map((line) => JSON.parse(line))
+          : [];
+      const CPG_MARKERS = {
+        title: "PACKED CPG PRIVATE TITLE MARKER",
+        titleTwo: "PACKED CPG SECOND PRIVATE TITLE MARKER",
+        symbol: "packedCpgPrivateAlpha",
+        symbolTwo: "formatPackedCpgPrivateBeta",
+        fact: "packed-cpg-private-fact-one",
+        factTwo: "packed-cpg-private-fact-two",
+        factThree: "packed-cpg-private-fact-three",
+        queryPhrase: "packed cpg private query phrase"
+      };
+      const CPG_LOCAL = {
+        eligible: "PACKED_CPG_ELIGIBLE_SOURCE_MARKER_8a3c",
+        testSource: "PACKED_CPG_TEST_SOURCE_MARKER_71de",
+        ignoredFile: "PACKED_CPG_IGNORED_MARKER_5d19",
+        oversized: "PACKED_CPG_OVERSIZED_MARKER_0f77"
+      };
+      const cpgCollectPropertyNames = (value, into = new Set()) => {
+        if (Array.isArray(value)) value.forEach((entry) => cpgCollectPropertyNames(entry, into));
+        else if (value !== null && typeof value === "object") {
+          for (const [key, child] of Object.entries(value)) {
+            into.add(key);
+            cpgCollectPropertyNames(child, into);
+          }
+        }
+        return into;
+      };
+      // Scientific artifacts and the report minus its display-only previews (a preview legitimately carries a file `rank`).
+      const cpgAssertNoRankingOrWinner = (label, value) => {
+        for (const name of cpgCollectPropertyNames(value)) {
+          if (/winner|^rank$|ranking|bestTreatment|composite|pareto|^score$/i.test(name)) fail(`${gate}_BUNDLED`, `${label} introduces a ranking, winner, composite score or Pareto property: ${name}`);
+        }
+      };
+      const cpgAssertSchemasAndOrder = (execution, analysis, caseIds, label, stage) => {
+        if (execution.schemaVersion !== CPG_SCHEMAS.execution) fail(stage, `${label} execution schema is ${execution.schemaVersion}.`);
+        if (analysis.schemaVersion !== CPG_SCHEMAS.analysis) fail(stage, `${label} analysis schema is ${analysis.schemaVersion}.`);
+        if (JSON.stringify(execution.treatmentOrder) !== JSON.stringify(CPG_TREATMENTS)) fail(stage, `${label} execution treatment order is ${JSON.stringify(execution.treatmentOrder)}.`);
+        if (JSON.stringify(execution.cases?.map((entry) => entry.caseId)) !== JSON.stringify(caseIds)) fail(stage, `${label} execution case ids are ${JSON.stringify(execution.cases?.map((entry) => entry.caseId))}.`);
+        for (const entry of execution.cases) {
+          if (JSON.stringify(entry.treatments?.map((treatment) => treatment.treatmentId)) !== JSON.stringify(CPG_TREATMENTS)) fail(stage, `${label} case ${entry.caseId} treatments are not raw-full-file then context-pack.`);
+        }
+        if (JSON.stringify(analysis.analysis?.scopes?.map((scope) => scope.scopeId)) !== JSON.stringify(CPG_SCOPES)) fail(stage, `${label} analysis scopes are not overall, localized, cross-module, broad-change.`);
+        if (analysis.methodology?.aggregation !== "matched-complete-case-macro-mean" || analysis.methodology?.treatmentComparison !== "paired-descriptive-delta") fail(stage, `${label} analysis methodology is not the frozen one.`);
+      };
+      // Report section agrees with the persisted analysis (the verifier never recomputes the science).
+      const cpgAssertReportAgrees = (section, execution, analysis, label, stage) => {
+        if (
+          section?.schemaVersion !== CPG_SCHEMAS.report ||
+          JSON.stringify(section.treatmentOrder) !== JSON.stringify(CPG_TREATMENTS) ||
+          JSON.stringify(section.scopes) !== JSON.stringify(analysis.analysis.scopes) ||
+          JSON.stringify(section.methodology) !== JSON.stringify(analysis.methodology) ||
+          JSON.stringify(section.cases?.map((entry) => entry.caseId)) !== JSON.stringify(execution.cases.map((entry) => entry.caseId)) ||
+          section.cases.some((entry, index) => JSON.stringify(entry.comparison) !== JSON.stringify(analysis.analysis.cases[index].comparison))
+        ) {
+          fail(stage, `${label} report section does not agree with the persisted execution and analysis artifacts.`);
+        }
+      };
+
+      // --- Installed flag validation (bundled mode): nonzero, no output, no my-dev-kit call ---
+      const cpgRejectLog = path.join(tempRoot, "cpg-reject-kit.log");
+      const cpgRejectOut = path.join(dirs.workspace, "cpg-reject", "run");
+      const cpgSyntheticConfig = path.join(tempRoot, "cpg-synthetic.json");
+      writeFileSync(cpgSyntheticConfig, "{}", "utf8");
+      const cpgBadFlagSets = [
+        ["--synthetic-config", cpgSyntheticConfig],
+        ["--context-budgets", "8k,16k"],
+        ["--campaign-preset", "codex-full"],
+        ["--include-real-agents"],
+        ["--strategy", "context-pack"],
+        ["--strategies", "raw-full-file,context-pack"],
+        ["--treatment", "context-pack"],
+        ["--treatments", "context-pack"],
+        ["--selection-policy", "bounded-multiseed-v1"],
+        ["--agents", "fake"]
+      ];
+      for (const badArgs of cpgBadFlagSets) {
+        const result = runInstalledCli(cliCommand, dirs.consumer, ["experiment", "run", "--experiment", CPG_ID, "--kit-command", cpgKitCommand, ...badArgs, "--out", cpgRejectOut], { ...envWithBin, CPG_KIT_LOG: cpgRejectLog });
+        if (result.status === 0) fail(`${gate}_FLAGS`, `Installed ${CPG_ID} accepted unsupported flag ${badArgs[0]}.`, describeChildResult(result));
+        if (existsSync(path.dirname(cpgRejectOut))) fail(`${gate}_FLAGS`, `Rejected flag ${badArgs[0]} still created output.`);
+      }
+      if (cpgReadKitCalls(cpgRejectLog).length > 0) fail(`${gate}_FLAGS`, "A rejected installed flag combination still invoked my-dev-kit.");
+      console.log(`CONTEXT_PACK_GENERATION_FLAGS: PASS (installed bin rejected ${cpgBadFlagSets.length} unsupported flag sets: nonzero exit, no output, no my-dev-kit call)`);
+
+      // --- Bundled run over the packaged corpus with the deterministic kit ---
+      const cpgBundledOut = path.join(dirs.workspace, "cpg-bundled", "run");
+      const cpgBundledLog = path.join(tempRoot, "cpg-bundled-kit.log");
+      const cpgBundledRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        ["experiment", "run", "--experiment", CPG_ID, "--case", CPG_BUNDLED_CASE, "--kit-command", cpgKitCommand, "--out", cpgBundledOut],
+        { ...envWithBin, CPG_KIT_LOG: cpgBundledLog }
+      );
+      if (cpgBundledRun.status !== 0) fail(`${gate}_BUNDLED`, `Installed bundled ${CPG_ID} run did not exit 0.`, describeChildResult(cpgBundledRun));
+      assertOutputOutsidePackage(cpgBundledOut, installedPackageRoot, `${CPG_ID} bundled run`);
+      const cpgPackRelative = `packs/${CPG_BUNDLED_CASE}.context-pack.json`;
+      for (const name of [CPG_EXECUTION_FILE, CPG_ANALYSIS_FILE, "report.json", "report.html", "report.txt", cpgPackRelative]) requireNonEmptyFile(path.join(cpgBundledOut, ...name.split("/")), `${gate}_BUNDLED`);
+      const cpgBundledExecution = readJsonFile(path.join(cpgBundledOut, CPG_EXECUTION_FILE), `${gate}_BUNDLED`);
+      const cpgBundledAnalysis = readJsonFile(path.join(cpgBundledOut, CPG_ANALYSIS_FILE), `${gate}_BUNDLED`);
+      const cpgBundledReport = readJsonFile(path.join(cpgBundledOut, "report.json"), `${gate}_BUNDLED`);
+      const cpgBundledPack = readJsonFile(path.join(cpgBundledOut, ...cpgPackRelative.split("/")), `${gate}_BUNDLED`);
+      cpgAssertSchemasAndOrder(cpgBundledExecution, cpgBundledAnalysis, [CPG_BUNDLED_CASE], "Installed bundled", `${gate}_BUNDLED`);
+      if (cpgBundledPack.schemaVersion !== CPG_SCHEMAS.pack || cpgBundledPack.caseId !== CPG_BUNDLED_CASE) fail(`${gate}_BUNDLED`, `Installed bundled pack artifact schema is ${cpgBundledPack.schemaVersion}.`);
+      if (cpgBundledExecution.cases[0].identityRedaction !== undefined) fail(`${gate}_BUNDLED`, "Bundled execution evidence carries an external-local redaction marker.");
+      const cpgBundledCalls = cpgReadKitCalls(cpgBundledLog);
+      if (cpgBundledCalls.filter((call) => call.argv[0] === "index").length !== 1 || cpgBundledCalls.filter((call) => call.argv[0] === "search").length !== 1) {
+        fail(`${gate}_BUNDLED`, "The bundled run did not build exactly one index and run exactly one search for the one selected case.");
+      }
+      if (!cpgBundledCalls.some((call) => call.argv[0] === "index" && call.argv.includes("--call-graph"))) fail(`${gate}_BUNDLED`, "The bundled run did not request a call-graph index for context-pack retrieval.");
+      cpgAssertNoRankingOrWinner("Installed bundled analysis artifact", cpgBundledAnalysis);
+      console.log("CONTEXT_PACK_GENERATION_BUNDLED: PASS (installed bin; packaged corpus; one index and one search; execution, analysis and pack artifacts with the exact schemas; raw-full-file then context-pack; no ranking, winner or composite score)");
+
+      // --- Installed reports (bundled) ---
+      const cpgSection = cpgBundledReport.report?.contextPackGeneration;
+      cpgAssertNoRankingOrWinner("Installed bundled report section", { ...cpgSection, previews: undefined });
+      cpgAssertReportAgrees(cpgSection, cpgBundledExecution, cpgBundledAnalysis, "Installed bundled", `${gate}_REPORT`);
+      const cpgHtml = readFileSync(path.join(cpgBundledOut, "report.html"), "utf8");
+      const cpgText = readFileSync(path.join(cpgBundledOut, "report.txt"), "utf8");
+      for (const [label, output] of [["report.html", cpgHtml], ["report.txt", cpgText]]) {
+        for (const required of ["Context Pack Generation", "raw-full-file", "context-pack", "localized", CPG_BUNDLED_CASE]) {
+          if (!output.includes(required)) fail(`${gate}_REPORT`, `Installed ${label} does not contain "${required}".`);
+        }
+      }
+      for (const required of ["Per-Case Treatments", "Scope Aggregates", "Context Pack Preview", "Interpretation Limits", "estimatedTokens", "factCoverage"]) {
+        if (!cpgText.includes(required)) fail(`${gate}_REPORT`, `Installed report.txt does not contain "${required}".`);
+      }
+      if (cpgSection.previews?.length !== 1 || cpgSection.previews[0].status !== "available" || cpgSection.previews[0].caseId !== CPG_BUNDLED_CASE) {
+        fail(`${gate}_REPORT`, `Installed bundled report does not carry one available pack preview: ${JSON.stringify(cpgSection.previews?.map((preview) => preview.status))}`);
+      }
+      const cpgPreview = cpgSection.previews[0];
+      for (const [list, limit] of [["files", CPG_PREVIEW_LIMITS.files], ["symbols", CPG_PREVIEW_LIMITS.symbols], ["sourceSlices", CPG_PREVIEW_LIMITS.sourceSlices], ["callRelationships", CPG_PREVIEW_LIMITS.callRelationships], ["tests", CPG_PREVIEW_LIMITS.tests], ["evidenceNotes", CPG_PREVIEW_LIMITS.evidenceNotes]]) {
+        const shown = cpgPreview[list];
+        if (!shown || shown.items.length > limit || shown.items.length + shown.omittedCount !== shown.totalCount) fail(`${gate}_REPORT`, `Installed preview list ${list} is not bounded (limit ${limit}): ${JSON.stringify({ shown: shown?.items?.length, total: shown?.totalCount, omitted: shown?.omittedCount })}`);
+      }
+      for (const slice of cpgPreview.sourceSlices.items) {
+        if (slice.previewLineCount > CPG_PREVIEW_LIMITS.linesPerSlice || slice.previewText.split("\n").length > CPG_PREVIEW_LIMITS.linesPerSlice) fail(`${gate}_REPORT`, "Installed preview source slice exceeds the display line limit.");
+      }
+      if (cpgPreview.sourceSlices.totalCount !== cpgBundledPack.sourceSlices.length) fail(`${gate}_REPORT`, "Installed preview source-slice total disagrees with the persisted pack artifact.");
+      if (cpgBundledPack.size === null || cpgBundledPack.size === undefined) fail(`${gate}_REPORT`, "Installed pack artifact has no size evidence.");
+      // HTML escaping through the installed renderer: any previewed source line containing HTML-significant characters must appear escaped only.
+      const cpgHtmlEscape = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      const cpgSpecialLines = cpgPreview.sourceSlices.items.flatMap((slice) => slice.previewText.split("\n")).filter((line) => /[<>&"']/.test(line) && line.trim().length > 0);
+      for (const line of cpgSpecialLines) {
+        if (!cpgHtml.includes(cpgHtmlEscape(line))) fail(`${gate}_REPORT`, "Installed report.html did not contain the HTML-escaped form of a previewed source line.");
+        if (/[<>]/.test(line) && cpgHtml.includes(line)) fail(`${gate}_REPORT`, "Installed report.html contains a previewed source line unescaped.");
+      }
+      if (cpgSection === null || cpgSection === undefined) fail(`${gate}_REPORT`, "Installed report.json contextPackGeneration section is null.");
+      console.log(`CONTEXT_PACK_GENERATION_REPORT: PASS (installed report.json typed section agrees with persisted analysis; report.txt and report.html present; bounded preview within limits; ${cpgSpecialLines.length} previewed lines with HTML-significant characters checked for escaping)`);
+
+      // --- External-local: one disposable Git repository outside the installed package ---
+      const cpgArea = path.join(tempRoot, "cpg local subject area");
+      const cpgTarget = path.join(cpgArea, "target repo", "inner project");
+      const cpgConfigPath = path.join(cpgArea, "config dir", "local subject.json");
+      const cpgLog = path.join(tempRoot, "cpg-local-kit.log");
+      const cpgGitEnv = { ...process.env, GIT_OPTIONAL_LOCKS: "0" };
+      for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX"]) delete cpgGitEnv[key];
+      const cpgGit = (...args) => {
+        const result = spawnSync("git", ["-c", "user.name=Packed Gate", "-c", "user.email=packed-gate@example.invalid", "-c", "commit.gpgsign=false", ...args], { cwd: cpgTarget, encoding: "utf8", env: cpgGitEnv });
+        if (result.status !== 0) fail(gate, `git ${args[0]} failed while preparing the disposable context-pack subject.`, describeChildResult(result));
+        return result.stdout;
+      };
+      const cpgWrite = (relative, content) => {
+        const absolute = path.join(cpgTarget, ...relative.split("/"));
+        mkdirSync(path.dirname(absolute), { recursive: true });
+        writeFileSync(absolute, content, "utf8");
+      };
+      mkdirSync(cpgTarget, { recursive: true });
+      cpgGit("init", "-q", "-b", "main");
+      cpgWrite(".gitignore", "src/private notes.ts\n");
+      cpgWrite(
+        "src/app/taskModel.ts",
+        `export function ${CPG_MARKERS.symbol}(title: string): string {\n  // ${CPG_LOCAL.eligible}\n  return title.trim();\n}\n`
+      );
+      cpgWrite(
+        "src/app/util/format.ts",
+        `import { ${CPG_MARKERS.symbol} } from "../taskModel";\n\nexport function ${CPG_MARKERS.symbolTwo}(title: string): string {\n  return ${CPG_MARKERS.symbol}(title) + ":done";\n}\n`
+      );
+      cpgWrite(
+        "src/app/taskModel.test.ts",
+        `import { ${CPG_MARKERS.symbol} } from "./taskModel";\n\nexport function packedCpgPrivateTest(): boolean {\n  // ${CPG_LOCAL.testSource}\n  return ${CPG_MARKERS.symbol}(" x ") === "x";\n}\n`
+      );
+      cpgWrite("src/huge file.ts", `// ${CPG_LOCAL.oversized}\n${"x".repeat(1_048_576 + 100)}\n`);
+      cpgGit("add", "-A");
+      cpgGit("commit", "-q", "-m", "packed fixture");
+      cpgWrite("src/private notes.ts", `export const privateNotes = 1; // ${CPG_LOCAL.ignoredFile}\n`);
+      const cpgAnswerKey = (files, symbols, facts, targets) => ({
+        expectedFiles: files,
+        expectedSymbols: symbols,
+        expectedFacts: facts.map((id) => ({ id, text: "private fact text that is never persisted", weight: 1, required: true })),
+        expectedContextTargets: targets,
+        minimumCorrectFacts: 1
+      });
+      mkdirSync(path.dirname(cpgConfigPath), { recursive: true });
+      writeFileSync(
+        cpgConfigPath,
+        JSON.stringify({
+          schemaVersion: "1.0.0",
+          subjectId: "packed-cpg-subject",
+          cases: [
+            {
+              id: "packed-cpg-case-one",
+              title: CPG_MARKERS.title,
+              sourceRoots: ["src"],
+              query: `Where are ${CPG_MARKERS.symbol} and ${CPG_MARKERS.symbolTwo} defined? ${CPG_MARKERS.queryPhrase}`,
+              expectedFiles: ["src/app/taskModel.ts", "src/app/util/format.ts"],
+              expectedSymbols: [CPG_MARKERS.symbol, CPG_MARKERS.symbolTwo],
+              rawIncludeGlobs: ["src/**/*"],
+              taskLocality: "cross-module",
+              answerKey: cpgAnswerKey(
+                ["src/app/taskModel.ts", "src/app/util/format.ts"],
+                [CPG_MARKERS.symbol, CPG_MARKERS.symbolTwo],
+                [CPG_MARKERS.fact, CPG_MARKERS.factTwo],
+                [
+                  { file: "src/app/taskModel.ts", symbols: [CPG_MARKERS.symbol], required: true, factIds: [CPG_MARKERS.fact] },
+                  { file: "src/app/util/format.ts", symbols: [CPG_MARKERS.symbolTwo], required: true, factIds: [CPG_MARKERS.factTwo] }
+                ]
+              )
+            },
+            {
+              id: "packed-cpg-case-two",
+              title: CPG_MARKERS.titleTwo,
+              sourceRoots: ["src/app/util"],
+              query: `Where is ${CPG_MARKERS.symbolTwo} defined?`,
+              expectedFiles: ["src/app/util/format.ts"],
+              expectedSymbols: [CPG_MARKERS.symbolTwo],
+              rawIncludeGlobs: ["src/app/util/**/*"],
+              taskLocality: "localized",
+              answerKey: cpgAnswerKey(
+                ["src/app/util/format.ts"],
+                [CPG_MARKERS.symbolTwo],
+                [CPG_MARKERS.factThree],
+                [{ file: "src/app/util/format.ts", symbols: [CPG_MARKERS.symbolTwo], required: true, factIds: [CPG_MARKERS.factThree] }]
+              )
+            }
+          ]
+        }),
+        "utf8"
+      );
+      const cpgConfigBefore = readFileSync(cpgConfigPath, "utf8");
+      const cpgTargetBefore = await snapshotDirectory(cpgTarget);
+      const cpgStatusBefore = cpgGit("status", "--porcelain=v1", "--ignored");
+      const cpgHeadBefore = cpgGit("rev-parse", "HEAD").trim();
+      const cpgRunArgs = (extra) => ["experiment", "run", "--experiment", CPG_ID, ...extra];
+      const cpgOut = path.join(dirs.workspace, "cpg local out", "run");
+      const cpgRealOut = path.join(dirs.workspace, "cpg real out", "run");
+      const cpgSentinels = [
+        ...[cpgTarget, cpgArea, path.dirname(cpgConfigPath), cpgOut, path.dirname(cpgOut), cpgRealOut, path.dirname(cpgRealOut), dirs.workspace, dirs.consumer, dirs.fakeKit, installedPackageRoot, tempRoot, os.tmpdir(), os.homedir(), REPO_ROOT].map(
+          (value) => ({ label: "private path", value, kind: "path" })
+        ),
+        ...Object.entries({ ...CPG_MARKERS, ...CPG_LOCAL }).map(([label, value]) => ({ label: `marker ${label}`, value, kind: "text" })),
+        ...["private notes.ts", "huge file.ts", "src/app/taskModel.ts", "src/app/util/format.ts", "src/app/taskModel.test.ts", "taskModel.ts", "taskModel.test.ts", "format.ts", "packedCpgPrivateTest", "inner project", "target repo", "fake-context-pack-kit", "symbol:src/", "file:src/"].map((value) => ({ label: `name ${value}`, value, kind: "text" }))
+      ];
+      const expectCpgTargetUntouched = async (label) => {
+        const diff = diffSnapshots(cpgTargetBefore, await snapshotDirectory(cpgTarget));
+        if (diff.length > 0) fail(`${gate}_IMMUTABILITY`, `${label} mutated the target: ${diff.join(", ")}`);
+        if (cpgGit("status", "--porcelain=v1", "--ignored") !== cpgStatusBefore || cpgGit("rev-parse", "HEAD").trim() !== cpgHeadBefore || readFileSync(cpgConfigPath, "utf8") !== cpgConfigBefore) {
+          fail(`${gate}_IMMUTABILITY`, `${label} changed the target Git state or its config.`);
+        }
+      };
+
+      // Mode-matrix and output-boundary rejections: nonzero, no output, no my-dev-kit call, target untouched.
+      const cpgUnsafeInside = path.join(cpgTarget, "lab-out");
+      const cpgNegativeCases = [
+        ["target-without-config", ["--target", cpgTarget, "--out", cpgOut]],
+        ["config-without-target", ["--local-subject-config", cpgConfigPath, "--out", cpgOut]],
+        ["case-in-external-mode", ["--target", cpgTarget, "--local-subject-config", cpgConfigPath, "--case", "packed-cpg-case-one", "--out", cpgOut]],
+        ["benchmark-project-in-external-mode", ["--target", cpgTarget, "--local-subject-config", cpgConfigPath, "--benchmark-project", "packed-cpg-subject", "--out", cpgOut]],
+        ["output-inside-target", ["--target", cpgTarget, "--local-subject-config", cpgConfigPath, "--out", cpgUnsafeInside]],
+        ["output-equals-target", ["--target", cpgTarget, "--local-subject-config", cpgConfigPath, "--out", cpgTarget]]
+      ];
+      for (const [label, args] of cpgNegativeCases) {
+        const result = runInstalledCli(cliCommand, dirs.consumer, cpgRunArgs([...args, "--kit-command", cpgKitCommand]), { ...envWithBin, CPG_KIT_LOG: cpgLog });
+        if (result.status === 0) fail(`${gate}_EXTERNAL_REJECTIONS`, `Installed negative case ${label} exited 0.`, describeChildResult(result));
+        if (existsSync(cpgUnsafeInside) || (existsSync(path.dirname(cpgOut)) && readdirSync(path.dirname(cpgOut)).length > 0)) {
+          fail(`${gate}_EXTERNAL_REJECTIONS`, `Installed negative case ${label} created output.`);
+        }
+        await expectCpgTargetUntouched(`Installed negative case ${label}`);
+      }
+      if (cpgReadKitCalls(cpgLog).length > 0) fail(`${gate}_EXTERNAL_REJECTIONS`, "A rejected installed run still invoked my-dev-kit.");
+      console.log(`CONTEXT_PACK_GENERATION_EXTERNAL_REJECTIONS: PASS (${cpgNegativeCases.length} installed boundary cases: nonzero exit, no output, no my-dev-kit call, target unchanged)`);
+
+      // Shared external-local assertions for the deterministic-kit run and the real-kit run.
+      const cpgAssertExternalOutput = (out, label, stage) => {
+        const entries = readdirSync(out).sort();
+        if (JSON.stringify(entries) !== JSON.stringify(CPG_EXTERNAL_FAMILY)) fail(stage, `${label} output is not exactly the approved durable family (pack, scratch or index files remained): ${entries.join(", ")}`);
+        for (const name of CPG_EXTERNAL_FAMILY) requireNonEmptyFile(path.join(out, name), stage);
+        const execution = readJsonFile(path.join(out, CPG_EXECUTION_FILE), stage);
+        const analysis = readJsonFile(path.join(out, CPG_ANALYSIS_FILE), stage);
+        const manifest = readJsonFile(path.join(out, CPG_MANIFEST_FILE), stage);
+        const report = readJsonFile(path.join(out, "report.json"), stage);
+        cpgAssertSchemasAndOrder(execution, analysis, ["packed-cpg-case-one", "packed-cpg-case-two"], label, stage);
+        if (execution.cases.some((entry) => entry.caseName !== "<redacted case title>" || entry.identityRedaction?.semanticNodeIds !== "redacted" || entry.identityRedaction?.sourceText !== "redacted")) fail(stage, `${label} execution evidence lacks the external-local redaction marker.`);
+        if (execution.cases.some((entry) => entry.treatments.some((treatment) => treatment.packArtifactPath !== null || (treatment.includedFiles ?? []).length > 0 || treatment.identityEvidence != null))) fail(stage, `${label} execution evidence carries a pack path or identity lists.`);
+        if (analysis.analysis.scopes[0].caseCount !== 2 || analysis.analysis.scopes[1].caseCount !== 1 || analysis.analysis.scopes[2].caseCount !== 1) fail(stage, `${label} analysis scope case counts do not match the two configured cases.`);
+        if (manifest.schemaId !== "my-dev-kit-lab-local-repository-subject-manifest-v1" || manifest.subjectId !== "packed-cpg-subject" || manifest.repository?.commit !== cpgHeadBefore) fail(stage, `${label} subject manifest is not the expected privacy-safe manifest.`);
+        const section = report.report?.contextPackGeneration;
+        cpgAssertReportAgrees(section, execution, analysis, label, stage);
+        if (report.report?.plugin?.id !== CPG_ID || report.report?.target?.kind !== "external-local" || report.report?.target?.targetRoot !== "local-repository:packed-cpg-subject" || report.report?.target?.toolRoot !== "[redacted]" || report.report?.metadata?.outputRoot !== "[redacted]") {
+          fail(stage, `${label} report does not carry the redacted external-local target and output roots.`);
+        }
+        // Absence of a pack body is intentional: the preview is redacted, never "pack-artifact-unavailable".
+        if (section.previews?.length !== 2 || section.previews.some((preview) => preview.status !== "redacted-external-local" || preview.packArtifactPath !== null || preview.task !== null || preview.files !== null || preview.symbols !== null || preview.sourceSlices !== null)) {
+          fail(stage, `${label} report previews are not the redacted external-local previews: ${JSON.stringify(section.previews?.map((preview) => preview.status))}`);
+        }
+        const html = readFileSync(path.join(out, "report.html"), "utf8");
+        const text = readFileSync(path.join(out, "report.txt"), "utf8");
+        for (const [name, output] of [["report.json", JSON.stringify(report)], ["report.html", html], ["report.txt", text]]) {
+          if (output.includes("pack-artifact-unavailable")) fail(stage, `${label} ${name} renders the intentional absence of a pack body as pack-artifact-unavailable.`);
+        }
+        for (const [name, output] of [["report.html", html], ["report.txt", text]]) {
+          for (const required of ["Context Pack Generation", "redacted-external-local", "title and summary redacted", "identities redacted", "content redacted"]) {
+            if (!output.includes(required)) fail(stage, `${label} ${name} does not contain the fixed redaction wording "${required}".`);
+          }
+        }
+        return { execution, analysis, report, section };
+      };
+
+      // External-local success with the deterministic kit: observable index/exclusion/scratch behavior.
+      writeFileSync(cpgLog, "", "utf8");
+      const cpgFakeRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        cpgRunArgs(["--target", cpgTarget, "--local-subject-config", cpgConfigPath, "--kit-command", cpgKitCommand, "--out", cpgOut]),
+        { ...envWithBin, CPG_KIT_LOG: cpgLog }
+      );
+      if (cpgFakeRun.status !== 0) fail(`${gate}_EXTERNAL`, "Installed external-local run with the deterministic kit did not exit 0.", describeChildResult(cpgFakeRun));
+      assertOutputOutsidePackage(cpgOut, installedPackageRoot, `${CPG_ID} external-local deterministic-kit run`);
+      if (!path.relative(cpgTarget, cpgOut).startsWith("..")) fail(`${gate}_EXTERNAL`, "Lab output was written inside the inspected target.");
+      cpgAssertExternalOutput(cpgOut, "Deterministic-kit external-local", `${gate}_EXTERNAL`);
+      const cpgIndexCalls = cpgReadKitCalls(cpgLog).filter((call) => call.argv[0] === "index");
+      const cpgSourceRoots = cpgIndexCalls.map((call) => call.argv.flatMap((value, index) => (value === "--src" ? [call.argv[index + 1]] : [])));
+      if (cpgIndexCalls.length !== 2 || JSON.stringify(cpgSourceRoots) !== JSON.stringify([["src"], ["src/app/util"]])) {
+        fail(`${gate}_EXTERNAL`, `Expected one private base index per configured case with exactly that case's source roots, got ${JSON.stringify(cpgSourceRoots)}.`);
+      }
+      const cpgPhysicalOut = realpathSync.native(cpgOut);
+      for (const call of cpgIndexCalls) {
+        const excluded = call.argv.flatMap((value, index) => (value === "--exclude" ? [call.argv[index + 1]] : []));
+        for (const required of ["src/huge file.ts", "src/private notes.ts"]) {
+          if (!excluded.includes(required)) fail(`${gate}_EXTERNAL`, `A case index did not receive the exact exclusion ${required}.`);
+        }
+        const indexOut = call.argv[call.argv.indexOf("--out") + 1];
+        // Scratch lives beneath the output root only while the run is in progress; it must be gone afterward (checked below and by the exact family).
+        if (segmentsBeneathRoot(cpgPhysicalOut, indexOut) === null) fail(`${gate}_EXTERNAL`, "A private index was not built in private scratch beneath the run output root.");
+        if (!path.relative(cpgTarget, indexOut).startsWith("..")) fail(`${gate}_EXTERNAL`, "A private index was built inside the inspected target.");
+        if (existsSync(indexOut)) fail(`${gate}_EXTERNAL`, "A private scratch index remained after the run.");
+        cpgSentinels.push({ label: "private index path", value: indexOut, kind: "path" }, { label: "private scratch path", value: path.dirname(indexOut), kind: "path" });
+      }
+      const cpgFakeLeaks = privacyScan.scanDurableOutputDirectory(cpgOut, cpgSentinels);
+      if (cpgFakeLeaks.length > 0) fail(`${gate}_PRIVACY`, `Durable installed external-local output (deterministic kit) leaks private values: ${JSON.stringify(cpgFakeLeaks)}`);
+      await expectCpgTargetUntouched("Installed external-local run with the deterministic kit");
+      for (const forbidden of [".my-dev-kit", ".my-dev-kit-lab", "lab-output", "lab-out"]) {
+        if (existsSync(path.join(cpgTarget, forbidden))) fail(`${gate}_IMMUTABILITY`, `Lab artifacts appeared inside the target: ${forbidden}`);
+      }
+      console.log(`CONTEXT_PACK_GENERATION_EXTERNAL: PASS (installed bin; deterministic kit; one private base index per case with exact roots and exclusions outside target and output; exact durable family; redacted previews; space-containing paths; output path length ${cpgOut.length})`);
+
+      // --- REAL published my-dev-kit: bounded compatibility smoke (bundled and external-local) ---
+      if (!realKitCommand.includes(upstreamBin)) fail(`${gate}_REAL_MY_DEV_KIT`, `Kit command is not the installed real published upstream binary: ${realKitCommand}`);
+      const cpgRealBundledOut = path.join(dirs.workspace, "cpg real bundled", "run");
+      const cpgRealBundled = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        cpgRunArgs(["--case", CPG_BUNDLED_CASE, "--kit-command", realKitCommand, "--out", cpgRealBundledOut]),
+        envWithBin
+      );
+      if (cpgRealBundled.status !== 0) fail(`${gate}_REAL_MY_DEV_KIT`, `Installed bundled run with the real ${UPSTREAM_MY_DEV_KIT_SPEC} did not exit 0.`, describeChildResult(cpgRealBundled));
+      assertOutputOutsidePackage(cpgRealBundledOut, installedPackageRoot, `${CPG_ID} bundled real-kit run`);
+      const cpgRealBundledExecution = readJsonFile(path.join(cpgRealBundledOut, CPG_EXECUTION_FILE), `${gate}_REAL_MY_DEV_KIT`);
+      const cpgRealBundledAnalysis = readJsonFile(path.join(cpgRealBundledOut, CPG_ANALYSIS_FILE), `${gate}_REAL_MY_DEV_KIT`);
+      cpgAssertSchemasAndOrder(cpgRealBundledExecution, cpgRealBundledAnalysis, [CPG_BUNDLED_CASE], "Real-kit bundled", `${gate}_REAL_MY_DEV_KIT`);
+      const cpgRealBundledPackTreatment = cpgRealBundledExecution.cases[0].treatments[1];
+      const cpgRealStepKinds = (treatment) => new Set(treatment.steps.filter((step) => step.succeeded).map((step) => step.kind));
+      if (!["completed", "partial"].includes(cpgRealBundledPackTreatment.status) || !cpgRealStepKinds(cpgRealBundledPackTreatment).has("search") || !cpgRealStepKinds(cpgRealBundledPackTreatment).has("source") || cpgRealBundledPackTreatment.size === null) {
+        fail(`${gate}_REAL_MY_DEV_KIT`, `Real-kit bundled context-pack treatment did not complete index, search and bounded source retrieval: ${JSON.stringify({ status: cpgRealBundledPackTreatment.status, steps: [...cpgRealStepKinds(cpgRealBundledPackTreatment)] })}`);
+      }
+      const cpgRealBundledPack = readJsonFile(path.join(cpgRealBundledOut, ...cpgPackRelative.split("/")), `${gate}_REAL_MY_DEV_KIT`);
+      if (cpgRealBundledPack.schemaVersion !== CPG_SCHEMAS.pack) fail(`${gate}_REAL_MY_DEV_KIT`, "Real-kit bundled pack artifact has the wrong schema.");
+      const cpgRealBundledReport = readJsonFile(path.join(cpgRealBundledOut, "report.json"), `${gate}_REAL_MY_DEV_KIT`);
+      cpgAssertReportAgrees(cpgRealBundledReport.report?.contextPackGeneration, cpgRealBundledExecution, cpgRealBundledAnalysis, "Real-kit bundled", `${gate}_REAL_MY_DEV_KIT`);
+
+      const cpgRealRun = runInstalledCli(
+        cliCommand,
+        dirs.consumer,
+        cpgRunArgs(["--target", cpgTarget, "--local-subject-config", cpgConfigPath, "--kit-command", realKitCommand, "--out", cpgRealOut]),
+        envWithBin
+      );
+      if (cpgRealRun.status !== 0) fail(`${gate}_REAL_MY_DEV_KIT`, `Installed external-local run with the real ${UPSTREAM_MY_DEV_KIT_SPEC} did not exit 0.`, describeChildResult(cpgRealRun));
+      assertOutputOutsidePackage(cpgRealOut, installedPackageRoot, `${CPG_ID} external-local real-kit run`);
+      if (!path.relative(cpgTarget, cpgRealOut).startsWith("..")) fail(`${gate}_EXTERNAL`, "Lab output was written inside the inspected target.");
+      const cpgReal = cpgAssertExternalOutput(cpgRealOut, "Real-kit external-local", `${gate}_REAL_MY_DEV_KIT`);
+      for (const entry of cpgReal.execution.cases) {
+        const packTreatment = entry.treatments[1];
+        if (!["completed", "partial"].includes(packTreatment.status) || !cpgRealStepKinds(packTreatment).has("search") || packTreatment.size === null) {
+          fail(`${gate}_REAL_MY_DEV_KIT`, `Real-kit external-local context-pack treatment for ${entry.caseId} did not complete retrieval: ${packTreatment.status}`);
+        }
+      }
+      // Structural redaction proof (substring search would collide with short identifiers).
+      for (const entry of cpgReal.analysis.analysis.cases) {
+        for (const treatment of entry.treatments) {
+          const quality = treatment.quality;
+          if (!quality) continue;
+          for (const list of [quality.symbol?.relevantRetrievedSymbols, quality.symbol?.irrelevantRetrievedSymbols, quality.symbol?.missedSymbols]) {
+            for (const item of list ?? []) if (!/^<redacted symbol \d+>$/.test(item)) fail(`${gate}_PRIVACY`, "A real-kit quality symbol identity was not redacted.");
+          }
+          for (const list of [quality.fact?.coveredFactIds, quality.fact?.uncoveredFactIds]) {
+            for (const item of list ?? []) if (!/^<redacted fact \d+>$/.test(item)) fail(`${gate}_PRIVACY`, "A real-kit quality fact identity was not redacted.");
+          }
+        }
+      }
+      const cpgRealLeaks = privacyScan.scanDurableOutputDirectory(cpgRealOut, cpgSentinels);
+      if (cpgRealLeaks.length > 0) fail(`${gate}_PRIVACY`, `Durable installed external-local output (real my-dev-kit) leaks private values: ${JSON.stringify(cpgRealLeaks)}`);
+      await expectCpgTargetUntouched("Installed external-local run with the real my-dev-kit");
+      for (const forbidden of [".my-dev-kit", ".my-dev-kit-lab", "lab-output", "lab-out"]) {
+        if (existsSync(path.join(cpgTarget, forbidden))) fail(`${gate}_IMMUTABILITY`, `Lab artifacts appeared inside the target: ${forbidden}`);
+      }
+      console.log(`CONTEXT_PACK_GENERATION_REAL_MY_DEV_KIT: PASS (installed bin; real ${UPSTREAM_MY_DEV_KIT_SPEC}; bundled one-case run with index, search, bounded source and pack artifact; external-local two-case run with redacted durable family and no pack body; no quality threshold asserted)`);
+      console.log("CONTEXT_PACK_GENERATION_PRIVACY: PASS (every durable external-local file scanned: raw, separator, JSON-escaped and HTML-escaped path forms; markers; file, symbol, node-id, test, fact, task and title identities; source text; scratch and index paths; deterministic and real my-dev-kit outputs)");
+      console.log("CONTEXT_PACK_GENERATION_IMMUTABILITY: PASS (target tree, Git status/HEAD and config unchanged after rejections, deterministic and real runs; scratch removed; no Lab output in target)");
+    }
+
+    // -----------------------------------------------------------------
     // 9d. v0.5.2 real-agent campaign acceptance. Deterministic local fake
     // Codex/Claude providers only -- no real provider is ever invoked. Every
     // scenario runs inside the same installed-package-immutability window
@@ -3575,6 +4100,15 @@ async function main() {
         "RETRIEVAL_QUERY_STRATEGY_COMPARISON_PRIVACY: PASS",
         "RETRIEVAL_QUERY_STRATEGY_COMPARISON_IMMUTABILITY: PASS",
         "RETRIEVAL_QUERY_STRATEGY_COMPARISON_REAL_MY_DEV_KIT: PASS",
+        "CONTEXT_PACK_GENERATION_DISCOVERY: PASS",
+        "CONTEXT_PACK_GENERATION_FLAGS: PASS",
+        "CONTEXT_PACK_GENERATION_BUNDLED: PASS",
+        "CONTEXT_PACK_GENERATION_REPORT: PASS",
+        "CONTEXT_PACK_GENERATION_EXTERNAL_REJECTIONS: PASS",
+        "CONTEXT_PACK_GENERATION_EXTERNAL: PASS",
+        "CONTEXT_PACK_GENERATION_PRIVACY: PASS",
+        "CONTEXT_PACK_GENERATION_IMMUTABILITY: PASS",
+        "CONTEXT_PACK_GENERATION_REAL_MY_DEV_KIT: PASS",
         "SOURCE_CHECKOUT_RUNTIME_DEPENDENCY: NONE_OBSERVED"
       ].join("\n")
     );

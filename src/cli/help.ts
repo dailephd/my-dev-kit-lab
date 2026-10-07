@@ -162,7 +162,7 @@ export function renderExperimentRunHelp(): string {
     "  --case <ids>                                       Comma-separated case ids to run",
     "  --benchmark-project <ids>                          Comma-separated benchmark project ids to run",
     "",
-    "my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison):",
+    "my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, and context-pack-generation):",
     "  --kit-command <command>                            my-dev-kit command used by the selected experiment plugin",
     "                                                      (defaults: warm-index-reuse and context-window-scaling use",
     "                                                      npx @dailephd/my-dev-kit@latest;",
