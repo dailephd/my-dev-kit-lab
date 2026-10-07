@@ -60,7 +60,7 @@ Acceptance:
 
 * Plugin and legacy workflows produce compatible artifacts, explicit local targets remain non-destructive, and existing security validation remains available.
 
-### v0.2.1 — previous package baseline
+### v0.2.1 — historical package baseline
 
 Status: **the npm registry lists `0.2.1`**; no matching Git tag or GitHub Release was found during this recovery.
 
@@ -73,7 +73,7 @@ Completed scope:
 * Correct target-project execution of `test:security` during external-target validation, including installed-package execution.
 * Documentation synchronized with the implemented plugin and security-validation architecture.
 * Fortification continues after this baseline without changing the backward-compatible `security:validate` command.
-* The current package baseline is not the final security, audit, mobile, or pentest architecture.
+* The v0.2.1 package baseline was not the final security, audit, mobile, or pentest architecture.
 
 Dependencies:
 
@@ -430,7 +430,7 @@ Status: **published** (2026-08-01).
 
 Purpose:
 
-* Extend the producer-readiness bridge to consume the exact current local my-dev-kit v1.10.4 condition-aware producer contract (role-condition coverage, allocation/spillover diagnostics, required-versus-optional omission) and the exact current local my-dev-kit-orchestrator v1.2.3 run-integrity contract (readiness, prompt authorization, judge integrity, correction routing, final-report eligibility, lifecycle), and calculate bounded agreement across both systems without reimplementing either upstream's policy.
+* Extend the producer-readiness bridge to consume the exact then-current local my-dev-kit v1.10.4 condition-aware producer contract (role-condition coverage, allocation/spillover diagnostics, required-versus-optional omission) and the exact then-current local my-dev-kit-orchestrator v1.2.3 run-integrity contract (readiness, prompt authorization, judge integrity, correction routing, final-report eligibility, lifecycle), and calculate bounded agreement across both systems without reimplementing either upstream's policy.
 * Preserve a permanent, byte-exact regression fixture for the real my-dev-kit v1.11.0 Batch 1 context-readiness false-negative failure, paired with a corrected-contract replay for the same request/target/index identity, so the failure class cannot silently regress.
 
 Ownership boundaries approved for this patch (unchanged from `v0.4.3`/`v0.4.4`): my-dev-kit-lab parses exact upstream evidence, compares producer and orchestrator claims, and reports agreement/contradiction/unavailable; it never derives an expected judge verdict, selects a correction destination, authorizes a final report, marks a stage complete, or replaces either upstream verdict.
@@ -1319,7 +1319,7 @@ Acceptance:
 
 ### v0.8.0 — retrieval precision/recall plugin
 
-Status: **published (2026-10-04); previous release**.
+Status: **published (2026-10-04); historical release**.
 
 Purpose:
 
@@ -1351,7 +1351,7 @@ Not part of v0.8.0: ranked retrieval metrics, retrieval-strategy comparison, str
 
 ### v0.8.1 — retrieval query strategy comparison
 
-Status: **published/current (2026-10-06)**.
+Status: **published (2026-10-06); previous release**.
 
 Purpose:
 
