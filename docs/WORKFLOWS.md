@@ -467,7 +467,7 @@ The Pareto-front list is in canonical strategy order. Do not treat the first ent
 
 ## Context-pack generation experiment
 
-**Status:** implemented but unreleased in v0.8.2. Repository package metadata remains at 0.8.1 until release preparation.
+**Status:** released in v0.8.2 and available in the current package.
 
 **Goal:** measure reproducible, auditable task-specific context packs against raw full-file context using the registered `context-pack-generation` experiment plugin. Both treatments (`raw-full-file`, `context-pack`) always run in that order for every selected case.
 
@@ -507,7 +507,7 @@ validate safe seam
 
 The repository remains read-only. Privacy projection happens after metrics are calculated on real identities. External-local runs persist no pack body; durable output and report previews redact private identities. A safety, execution, immutability, or privacy failure fails the run without writing the normal durable artifact/report family.
 
-**Interpretation:** coverage uses the existing fact, file, and symbol measures; estimated tokens are a context-size estimate. The report compares paired raw and pack size and objectives without a composite winner or ranking. Tests and call relationships are descriptive because the frozen answer key does not provide expected test or call-edge identities. See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082-implemented-unreleased) and [METRICS.md](METRICS.md#context-pack-generation-metrics-v082).
+**Interpretation:** coverage uses the existing fact, file, and symbol measures; estimated tokens are a context-size estimate. The report compares paired raw and pack size and objectives without a composite winner or ranking. Tests and call relationships are descriptive because the frozen answer key does not provide expected test or call-edge identities. See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082) and [METRICS.md](METRICS.md#context-pack-generation-metrics-v082).
 
 ## Real-agent warm-index campaign (v0.5.2)
 

@@ -16,11 +16,11 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The latest published release is v0.8.1 (retrieval query strategy comparison); v0.8.0 (retrieval precision/recall) is the previous release. The repository package version remains 0.8.1. v0.8.2 (context-pack generation experiments) is implemented but unreleased and is not published. The `retrieval-query-strategy-comparison`, `retrieval-precision-recall`, and `context-window-scaling` plugins, including its optional synthetic-repository input and local-repository mode, are released and available in the current published package. Earlier releases added the tutorial actions and warm-index campaign capabilities described below. The `incremental-change-staleness` plugin compares controlled stale-index, changed-files partial refresh, affected-neighborhood partial refresh, and full-refresh treatments after deterministic source changes across six scenario families. Full refresh is a comparison reference, not a winner. Partial refresh extended that plugin from two treatments to four; it did not add another plugin. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational details, [CHANGELOG.md](../CHANGELOG.md) for release history, and [ROADMAP.md](ROADMAP.md) for the detailed future scope.
+The latest published release is v0.8.2 (context-pack generation experiments); v0.8.1 (retrieval query strategy comparison) is the previous release. The repository package version is 0.8.2. The `retrieval-query-strategy-comparison`, `retrieval-precision-recall`, and `context-window-scaling` plugins, including its optional synthetic-repository input and local-repository mode, are released and available in the current published package. Earlier releases added the tutorial actions and warm-index campaign capabilities described below. The `incremental-change-staleness` plugin compares controlled stale-index, changed-files partial refresh, affected-neighborhood partial refresh, and full-refresh treatments after deterministic source changes across six scenario families. Full refresh is a comparison reference, not a winner. Partial refresh extended that plugin from two treatments to four; it did not add another plugin. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational details, [CHANGELOG.md](../CHANGELOG.md) for release history, and [ROADMAP.md](ROADMAP.md) for the detailed future scope.
 
-v0.8.1 (retrieval query strategy comparison) is the latest published release. It added the `retrieval-query-strategy-comparison` plugin as the sixth experiment plugin. It compares seven deterministic my-dev-kit retrieval workflows without running any coding agent, keeps execution evidence and scientific analysis in separate artifacts, and in external-local mode preserves the read-only and privacy boundaries of the local-repository subject model.
+The v0.8.1 release added the `retrieval-query-strategy-comparison` plugin as the sixth experiment plugin. It compares seven deterministic my-dev-kit retrieval workflows without running any coding agent, keeps execution evidence and scientific analysis in separate artifacts, and in external-local mode preserves the read-only and privacy boundaries of the local-repository subject model.
 
-v0.8.2 (context-pack generation experiments) is the current implemented unreleased milestone. It adds the `context-pack-generation` plugin as the seventh experiment plugin. Both `raw-full-file` and `context-pack` always run. The pack contains a task summary, relevant files and symbols, bounded source slices, call relationships, tests, and evidence notes. Analysis reuses retrieval-quality metrics, estimates context size, and reports paired token savings and objective deltas without a composite winner or ranking. Bundled runs persist packs; external-local runs analyze real identities before redaction, persist no pack body, and present a redacted preview.
+v0.8.2 (context-pack generation experiments) is the current release. It adds the `context-pack-generation` plugin as the seventh experiment plugin. Both `raw-full-file` and `context-pack` always run. The pack contains a task summary, relevant files and symbols, bounded source slices, call relationships, tests, and evidence notes. Analysis reuses retrieval-quality metrics, estimates context size, and reports paired token savings and objective deltas without a composite winner or ranking. Bundled runs persist packs; external-local runs analyze real identities before redaction, persist no pack body, and present a redacted preview.
 
 Context-integrity evaluation compares condition-aware producer evidence against orchestrator run-integrity evidence for a fixed request, target, and index identity, reporting agreement or contradiction between them rather than re-deriving either project's own verdict. It runs deterministically against a frozen, hash-verified regression fixture pair and produces bounded reports; it introduces no CLI, no live workflow replay, and no composite score, grade, ranking, or winner.
 
@@ -118,7 +118,7 @@ local-subject configuration
 
 No source text is persisted in either mode.
 
-The `context-pack-generation` path (implemented unreleased v0.8.2) runs both `raw-full-file` and `context-pack` for each selected case, then calculates retrieval coverage, estimated size, paired token savings, and objective deltas. Bundled runs persist the pack artifact and a bounded report preview. External-local runs calculate science on real identities, redact before persistence, omit the durable pack body, and show only a redacted preview. See [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment).
+The `context-pack-generation` path (released in v0.8.2) runs both `raw-full-file` and `context-pack` for each selected case, then calculates retrieval coverage, estimated size, paired token savings, and objective deltas. Bundled runs persist the pack artifact and a bounded report preview. External-local runs calculate science on real identities, redact before persistence, omit the durable pack body, and show only a redacted preview. See [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment).
 
 ## Users
 
@@ -146,9 +146,9 @@ v0.7.1 synthetic large-repository generation (deterministic TypeScript/Python be
 
 v0.8.0 retrieval precision/recall and v0.8.1 retrieval query strategy comparison are published.
 
-Context-pack generation experiments are implemented but unreleased in v0.8.2. Agent success, normalized telemetry, scheduling, prompt hardening, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned.
+Context-pack generation experiments shipped in v0.8.2.
 
-The next planned version after implemented v0.8.2 is v0.9.0, the agent-success-rate plugin.
+The next planned version after v0.8.2 is v0.9.0, the agent-success-rate plugin.
 
 Agent success, normalized telemetry, scheduling, prompt hardening, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 

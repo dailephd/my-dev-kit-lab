@@ -844,7 +844,7 @@ See [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081), [WORKFL
 
 ## Context-pack generation metrics (v0.8.2)
 
-Status: implemented, unreleased. The `context-pack-generation` plugin runs the fixed paired treatments `raw-full-file` and `context-pack`. It calculates each treatment once and persists the execution and analysis artifacts; reports present those values without recalculating them.
+Status: released in v0.8.2. The `context-pack-generation` plugin runs the fixed paired treatments `raw-full-file` and `context-pack`. It calculates each treatment once and persists the execution and analysis artifacts; reports present those values without recalculating them.
 
 ### Reused retrieval-quality measures
 
@@ -867,4 +867,4 @@ There is no composite score, winner, or ranking. Tests and call relationships ma
 
 In external-local mode, analysis uses real identities before the privacy projection. Redacted placeholders never enter metric calculations. Durable external-local output has no pack body; the report preview presents redacted identities.
 
-See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082-implemented-unreleased), [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment), and [ARCHITECTURE.md](ARCHITECTURE.md#context-pack-generation-architecture-v082).
+See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082), [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment), and [ARCHITECTURE.md](ARCHITECTURE.md#context-pack-generation-architecture-v082).

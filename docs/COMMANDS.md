@@ -186,7 +186,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (published in v0.7.0), `retrieval-precision-recall` (published in v0.8.0), and `retrieval-query-strategy-comparison` (published in v0.8.1), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
-The source registry includes `context-pack-generation` as the implemented unreleased plugin. Repository package metadata remains at 0.8.1 until release preparation.
+The source registry and published 0.8.2 package include `context-pack-generation` as an experimental plugin.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -400,7 +400,7 @@ See [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080) and 
 
 #### `retrieval-query-strategy-comparison` (v0.8.1)
 
-This surface is included in the current 0.8.1 package.
+This surface is included in the current 0.8.2 package.
 
 ```text
 my-dev-kit-lab experiment list
@@ -436,9 +436,9 @@ Each configured case needs the same complete ground truth as `retrieval-precisio
 
 See [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v081) and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-query-strategy-comparison-architecture-v081).
 
-#### `context-pack-generation` (v0.8.2, implemented unreleased)
+#### `context-pack-generation` (v0.8.2)
 
-The plugin is implemented in the repository but is not part of the published 0.8.1 package. `experiment list` and `experiment describe --experiment context-pack-generation` expose it as experimental, schema 1.0.0, with `self` and `external-local` targets, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed variants: `raw-full-file`, then `context-pack`.
+The plugin is included in the published 0.8.2 package. `experiment list` and `experiment describe --experiment context-pack-generation` expose it as experimental, schema 1.0.0, with `self` and `external-local` targets, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed variants: `raw-full-file`, then `context-pack`.
 
 ```text
 my-dev-kit-lab experiment list

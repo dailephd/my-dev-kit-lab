@@ -131,7 +131,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers seven plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, the released v0.8.1 `retrieval-query-strategy-comparison`, and the implemented unreleased v0.8.2 `context-pack-generation`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers seven plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, the released v0.8.1 `retrieval-query-strategy-comparison`, and the released v0.8.2 `context-pack-generation`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -779,7 +779,7 @@ v0.8.1 did not add context packs; the separate v0.8.2 experimental plugin is des
 
 ## Context-pack generation architecture (v0.8.2)
 
-Status: implemented, unreleased.
+Status: released in v0.8.2.
 
 `context-pack-generation` is an experimental Lab plugin on the existing experiment runtime. It is not a replacement production context API. The Lab owns experimental context-pack composition policy, the controlled `raw-full-file` versus `context-pack` experiment, scientific measurement, experimental artifacts, report presentation, and the external-local privacy projection. `my-dev-kit` continues to own production indexing, source retrieval, graph evidence, and production context capabilities. `my-dev-kit-orchestrator` continues to own workflow orchestration.
 
