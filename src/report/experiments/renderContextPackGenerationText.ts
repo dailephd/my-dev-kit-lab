@@ -1,5 +1,6 @@
 import { formatRetrievalQueryStrategyMetric, formatRetrievalQueryStrategyNumber } from "./renderRetrievalQueryStrategyComparisonText.js";
 import type {
+  ContextPackGenerationRedactedPreviewV1,
   ContextPackGenerationReportPreviewV1,
   ContextPackGenerationReportV1,
   ContextPackPreviewListV1
@@ -9,7 +10,41 @@ const formatMean = (value: number | undefined | null): string => (value === unde
 export const formatContextPackNumber = (value: number | null | undefined): string => formatRetrievalQueryStrategyNumber(value ?? null);
 const omitted = (list: ContextPackPreviewListV1<unknown>): string => `shown=${list.items.length} total=${list.totalCount} omitted=${list.omittedCount}`;
 
+const REDACTED_SECTION_LABELS: Record<string, { label: string; what: string } | undefined> = {
+  files: { label: "Relevant files", what: "identities redacted" },
+  symbols: { label: "Relevant symbols", what: "identities redacted" },
+  sourceSlices: { label: "Source slices", what: "content redacted" },
+  callRelationships: { label: "Call relationships", what: "identities redacted" },
+  tests: { label: "Tests", what: "identities redacted" },
+  evidenceNotes: { label: "Evidence notes", what: "counts only" }
+};
+
+/**
+ * Literal, fixed-text lines for an external-local preview, generated from persisted safe counts only. Shared by the text
+ * and HTML renderers so both show identical wording; no identity or source text can reach this function.
+ */
+export function redactedPreviewDisplayLines(preview: ContextPackGenerationRedactedPreviewV1): string[] {
+  const lines = ["Task: title and summary redacted"];
+  for (const section of preview.sections) {
+    const entry = REDACTED_SECTION_LABELS[section.id];
+    if (!entry) continue;
+    const truncated = section.truncatedCount !== null ? `, ${section.truncatedCount} truncated by experiment policy` : "";
+    lines.push(`${entry.label}: ${section.itemCount} ${section.itemCount === 1 ? "item" : "items"}${truncated} — ${entry.what}`);
+  }
+  return lines;
+}
+
+function redactedPreviewLines(preview: ContextPackGenerationRedactedPreviewV1): string[] {
+  const lines = [`Pack preview: case=${preview.caseId} status=${preview.status} packAvailability=${preview.packAvailability ?? "unavailable"}`];
+  for (const section of preview.sections) {
+    lines.push(`  section ${section.id}: availability=${section.availability} items=${section.itemCount} estimatedTokens=${section.estimatedTokens}${section.reason ? ` reason=${section.reason}` : ""}`);
+  }
+  for (const [index, line] of redactedPreviewDisplayLines(preview).entries()) lines.push(`  ${index + 1}. ${line}`);
+  return lines;
+}
+
 function previewLines(preview: ContextPackGenerationReportPreviewV1): string[] {
+  if (preview.status === "redacted-external-local") return redactedPreviewLines(preview);
   const lines = [`Pack preview: case=${preview.caseId} status=${preview.status} packAvailability=${preview.packAvailability ?? "unavailable"}`];
   for (const section of preview.sections) {
     lines.push(`  section ${section.id}: availability=${section.availability} items=${section.itemCount} estimatedTokens=${section.estimatedTokens}${section.reason ? ` reason=${section.reason}` : ""}`);

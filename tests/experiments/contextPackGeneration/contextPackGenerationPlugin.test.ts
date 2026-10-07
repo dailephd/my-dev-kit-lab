@@ -188,12 +188,12 @@ describe("plugin runtime (bundled)", () => {
     expect(run.artifacts).toHaveLength(2);
   });
 
-  it("refuses non-self targets and local subjects without executing anything", async () => {
+  it("refuses an external target without a loaded subject, and a subject with a self target, without executing anything", async () => {
     const events: string[] = [];
     const harness = makeHarness({ world: standardWorld(), symbolIndex: STANDARD_SYMBOL_INDEX, events });
     const external: ExperimentTarget = { ...selfTarget, kind: "external-local", isSelf: false };
-    await expect(contextPackGenerationPlugin.run(contextOf({ cases: twoCases(), contextPackDependencies: harness.dependencies }, external))).rejects.toThrow(/bundled self target/);
-    await expect(contextPackGenerationPlugin.run(contextOf({ cases: twoCases(), localSubject: {}, contextPackDependencies: harness.dependencies }))).rejects.toThrow(/bundled self target/);
+    await expect(contextPackGenerationPlugin.run(contextOf({ cases: twoCases(), contextPackDependencies: harness.dependencies }, external))).rejects.toThrow(/require a loaded local repository subject/);
+    await expect(contextPackGenerationPlugin.run(contextOf({ cases: twoCases(), localSubject: {}, contextPackDependencies: harness.dependencies }))).rejects.toThrow(/requires an external-local target/);
     expect(events).toEqual([]);
   });
 

@@ -133,7 +133,7 @@ describe("argument contract", () => {
 
   it("limits --local-subject-config and --kit-command to supporting plugins only", () => {
     expect(() => parseRunExperimentArgs(["--experiment", "warm-index-reuse", "--local-subject-config", "c.json"])).toThrow(
-      "--local-subject-config is only supported for --experiment context-window-scaling, retrieval-precision-recall, or retrieval-query-strategy-comparison."
+      "--local-subject-config is only supported for --experiment context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, or context-pack-generation."
     );
     expect(() => parseRunExperimentArgs(["--experiment", "context-strategy-comparison", "--kit-command", "k"])).toThrow(
       "retrieval-precision-recall or retrieval-query-strategy-comparison or context-pack-generation."

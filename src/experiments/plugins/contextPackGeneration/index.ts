@@ -7,6 +7,8 @@ export * from "./execution.js";
 export * from "./executionArtifact.js";
 export * from "./executionTypes.js";
 export * from "./identityEvidence.js";
+export * from "./localSubjectExecution.js";
+export * from "./localSubjectPrivacy.js";
 export * from "./metadata.js";
 export * from "./metrics.js";
 export * from "./packArtifact.js";

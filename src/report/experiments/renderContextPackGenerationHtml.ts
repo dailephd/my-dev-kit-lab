@@ -1,5 +1,5 @@
 import type { ContextPackGenerationReportPreviewV1, ContextPackGenerationReportV1 } from "./contextPackGenerationReportModel.js";
-import { formatContextPackNumber } from "./renderContextPackGenerationText.js";
+import { formatContextPackNumber, redactedPreviewDisplayLines } from "./renderContextPackGenerationText.js";
 import { formatRetrievalQueryStrategyMetric } from "./renderRetrievalQueryStrategyComparisonText.js";
 
 const formatMean = (value: number | undefined | null): string => (value === undefined || value === null ? "unavailable" : value.toFixed(4));
@@ -92,6 +92,15 @@ export function renderContextPackGenerationHtml(section: ContextPackGenerationRe
 }
 
 function previewHtml(preview: ContextPackGenerationReportPreviewV1): string {
+  if (preview.status === "redacted-external-local") {
+    return `<h4>${escapeHtml(preview.caseId)}</h4>
+    <p>Status ${escapeHtml(preview.status)}; pack availability ${escapeHtml(preview.packAvailability ?? "unavailable")}.</p>
+    ${table(
+      ["Section", "Availability", "Items", "Estimated Tokens"],
+      preview.sections.map((s) => [s.id, s.availability, String(s.itemCount), String(s.estimatedTokens)])
+    )}
+    ${listHtml(redactedPreviewDisplayLines(preview))}`;
+  }
   const head = `<h4>${escapeHtml(preview.caseId)}</h4>
     <p>Status ${escapeHtml(preview.status)}; pack availability ${escapeHtml(preview.packAvailability ?? "unavailable")}.</p>
     ${table(

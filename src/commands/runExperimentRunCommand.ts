@@ -97,12 +97,11 @@ const RETRIEVAL_QUERY_STRATEGY_COMPARISON_ALLOWED_FLAGS = ["--experiment", "--ou
 const RETRIEVAL_QUERY_STRATEGY_COMPARISON_EXTERNAL_ALLOWED_FLAGS = ["--experiment", "--out", "--target", "--local-subject-config", "--kit-command"];
 
 // context-pack-generation (v0.8.2) reuses the same frozen bundled corpus. Both treatments (raw-full-file and context-pack)
-// always run, so there is no treatment or strategy option. Only the bundled/self path is wired; external-local execution
-// arrives in a later batch and is rejected explicitly until then rather than being routed to bundled mode.
+// always run, so there is no treatment or strategy option. External-local mode (--target with --local-subject-config) is a
+// different subject source: the local-subject config owns the case set, so the bundled corpus filters are not accepted there.
 const CONTEXT_PACK_GENERATION_CASES_RESOURCE = "benchmarks/contracts/warm-index-benchmark-cases.json";
 const CONTEXT_PACK_GENERATION_ALLOWED_FLAGS = ["--experiment", "--out", "--case", "--benchmark-project", "--kit-command"];
-export const CONTEXT_PACK_GENERATION_EXTERNAL_LOCAL_UNAVAILABLE_MESSAGE =
-  "External-local execution for context-pack-generation is not available in the current implementation path; --target and --local-subject-config are not supported for this experiment yet.";
+const CONTEXT_PACK_GENERATION_EXTERNAL_ALLOWED_FLAGS = ["--experiment", "--out", "--target", "--local-subject-config", "--kit-command"];
 
 // Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
 // warm-index-reuse, rejects) the fields it does not support.
@@ -430,13 +429,22 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     }
   }
   if (experimentId === contextPackGenerationPlugin.metadata.id) {
-    if (targetPath !== undefined || localSubjectConfigPath !== undefined) {
-      throw new Error(CONTEXT_PACK_GENERATION_EXTERNAL_LOCAL_UNAVAILABLE_MESSAGE);
+    // Mode matrix, no precedence rules: neither flag = bundled; both = external-local; exactly one is rejected.
+    if (targetPath !== undefined && localSubjectConfigPath === undefined) {
+      throw new Error(`External ${experimentId} targets require --local-subject-config.`);
     }
-    const unsupported = [...new Set(seenFlags.filter((flag) => !CONTEXT_PACK_GENERATION_ALLOWED_FLAGS.includes(flag)))];
+    if (localSubjectConfigPath !== undefined && targetPath === undefined) {
+      throw new Error(`--local-subject-config requires an external --target for ${experimentId}.`);
+    }
+    const externalMode = targetPath !== undefined;
+    if (externalMode && (seenFlags.includes("--case") || seenFlags.includes("--benchmark-project"))) {
+      throw new Error("--case and --benchmark-project cannot be combined with --local-subject-config; the local subject config owns the case set.");
+    }
+    const allowedFlags = externalMode ? CONTEXT_PACK_GENERATION_EXTERNAL_ALLOWED_FLAGS : CONTEXT_PACK_GENERATION_ALLOWED_FLAGS;
+    const unsupported = [...new Set(seenFlags.filter((flag) => !allowedFlags.includes(flag)))];
     if (unsupported.length > 0) {
       throw new Error(
-        `${unsupported.join(", ")} ${unsupported.length === 1 ? "is" : "are"} not supported for --experiment ${experimentId}; supported options: ${CONTEXT_PACK_GENERATION_ALLOWED_FLAGS.join(", ")}.`
+        `${unsupported.join(", ")} ${unsupported.length === 1 ? "is" : "are"} not supported for --experiment ${experimentId}${externalMode ? " in external-local mode" : ""}; supported options: ${allowedFlags.join(", ")}.`
       );
     }
     if (seenFlags.includes("--case") && caseIds.length === 0) {
@@ -456,10 +464,11 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     localSubjectConfigPath !== undefined &&
     experimentId !== contextWindowScalingPlugin.metadata.id &&
     experimentId !== retrievalPrecisionRecallPlugin.metadata.id &&
-    experimentId !== retrievalQueryStrategyComparisonPlugin.metadata.id
+    experimentId !== retrievalQueryStrategyComparisonPlugin.metadata.id &&
+    experimentId !== contextPackGenerationPlugin.metadata.id
   ) {
     throw new Error(
-      `--local-subject-config is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}, ${retrievalPrecisionRecallPlugin.metadata.id}, or ${retrievalQueryStrategyComparisonPlugin.metadata.id}.`
+      `--local-subject-config is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}, ${retrievalPrecisionRecallPlugin.metadata.id}, ${retrievalQueryStrategyComparisonPlugin.metadata.id}, or ${contextPackGenerationPlugin.metadata.id}.`
     );
   }
   if (experimentId === contextWindowScalingPlugin.metadata.id) {
@@ -603,7 +612,9 @@ async function loadPluginInputs(
       : loadRetrievalPrecisionRecallInputs(args, toolRoot, context);
   }
   if (args.experimentId === contextPackGenerationPlugin.metadata.id) {
-    return loadContextPackGenerationInputs(args, toolRoot, context);
+    return args.localSubjectConfigPath !== undefined
+      ? loadContextPackGenerationLocalSubjectInputs(args, toolRoot, context, outputRoot)
+      : loadContextPackGenerationInputs(args, toolRoot, context);
   }
   if (args.experimentId === retrievalQueryStrategyComparisonPlugin.metadata.id) {
     return args.localSubjectConfigPath !== undefined
@@ -634,6 +645,44 @@ async function loadContextPackGenerationInputs(
     throw new Error(`Invalid context-pack-generation corpus: ${corpusErrors.join(" ")}`);
   }
   return { cases };
+}
+
+// External-local context-pack-generation: same loader and safety order as the other external-local retrieval experiments,
+// with the plugin's own config validation. Ground-truth issues carry logical case ids and counts only.
+async function loadContextPackGenerationLocalSubjectInputs(
+  args: ParsedRunExperimentArgs,
+  toolRoot: string,
+  context: LabExecutionContext,
+  outputRoot: string | undefined
+): Promise<Record<string, unknown>> {
+  const validation = contextPackGenerationPlugin.validateConfig(args.config);
+  if (!validation.valid || !validation.config) {
+    throw new Error(`Invalid context pack generation config: ${validation.errors.join("; ")}`);
+  }
+  if (outputRoot === undefined || args.localSubjectConfigPath === undefined) {
+    throw new Error("Internal error: external-local runs require a resolved experiment output root and config path.");
+  }
+  const target = resolveExperimentTarget(args.targetPath, toolRoot);
+  if (target.isSelf || target.kind !== "external-local") {
+    throw new Error("Local-repository subject mode requires an external-local target; --target must not be the Lab repository.");
+  }
+  try {
+    await assertWorkRootOutsideTarget(outputRoot, target.targetRoot);
+  } catch {
+    throw new Error("Experiment output root must not be inside the external target project.");
+  }
+  const configPath = path.resolve(context.invocationCwd, args.localSubjectConfigPath);
+  const localSubjectConfig = await readJsonConfigFile("--local-subject-config", configPath, args.localSubjectConfigPath);
+  const localSubject = await loadLocalRepositorySubject({ config: localSubjectConfig, repositoryPath: target.targetRoot });
+  const groundTruthIssues = summarizeRetrievalGroundTruthIssuesSafely(localSubject.evaluationCases);
+  if (groundTruthIssues.length > 0) {
+    throw new Error(
+      `Invalid context-pack-generation ground truth for the local subject (${groundTruthIssues
+        .map((issue) => `case ${issue.caseId}: ${issue.issueCount} issue${issue.issueCount === 1 ? "" : "s"}`)
+        .join("; ")}); details withheld.`
+    );
+  }
+  return { cases: localSubject.evaluationCases, localSubject, env: process.env };
 }
 
 // External-local retrieval-query-strategy-comparison: same loader and safety order as retrieval-precision-recall, with

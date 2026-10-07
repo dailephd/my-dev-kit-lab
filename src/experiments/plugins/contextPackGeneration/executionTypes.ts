@@ -42,6 +42,30 @@ export type ContextPackExecutionStepV1 = {
   reason: string | null;
 };
 
+/** Fixed schema of the external-local identity-redaction marker. */
+export const CONTEXT_PACK_IDENTITY_REDACTION_SCHEMA_VERSION = "my-dev-kit-lab-context-pack-identity-redaction-v1";
+
+/**
+ * Stamped on every externally projected case (external-local runs only). Every class named here is absent from durable
+ * output; bundled/self evidence carries no marker.
+ */
+export type ContextPackIdentityRedactionV1 = {
+  schemaVersion: typeof CONTEXT_PACK_IDENTITY_REDACTION_SCHEMA_VERSION;
+  fileIdentities: "redacted";
+  symbolIdentities: "redacted";
+  sourceText: "redacted";
+  callRelationships: "redacted";
+  testIdentities: "redacted";
+  factIdentities: "redacted";
+  taskText: "redacted";
+  warningText: "redacted";
+  semanticNodeIds: "redacted";
+  caseTitle: "redacted";
+};
+
+/** Section summary; `truncatedCount` is present only on externally projected evidence where it is meaningful. */
+export type ContextPackSectionEvidenceV1 = ContextPackSectionSummary & { truncatedCount?: number };
+
 export type ContextPackGenerationTreatmentEvidenceV1 = {
   treatmentId: ContextPackGenerationTreatmentId;
   status: ExperimentRunStatus;
@@ -52,9 +76,11 @@ export type ContextPackGenerationTreatmentEvidenceV1 = {
   identityEvidence: RetrievalQualityIdentityEvidence | null;
   /** Raw: files included in the baseline. Context pack: files selected for the pack. */
   includedFiles: string[];
+  /** Externally projected evidence only: identity counts replacing the withheld identity lists. */
+  identityCounts?: { files: number; symbols: number; includedFiles: number } | null;
   steps: ContextPackExecutionStepV1[];
   /** Context-pack treatment only. */
-  sections: ContextPackSectionSummary[] | null;
+  sections: ContextPackSectionEvidenceV1[] | null;
   evidenceNotes: ContextPackEvidenceNoteCode[];
   /** Relative path of the bundled per-case pack artifact; null when no pack was produced. */
   packArtifactPath: string | null;
@@ -68,6 +94,8 @@ export type ContextPackGenerationCaseEvidenceV1 = {
   benchmarkProject: string;
   taskLocality: TaskLocality | null;
   treatments: ContextPackGenerationTreatmentEvidenceV1[];
+  /** Present only on externally projected (external-local) evidence. */
+  identityRedaction?: ContextPackIdentityRedactionV1;
 };
 
 /** In-memory case result. The pack body (source text) never rides on the durable evidence. */

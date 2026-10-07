@@ -2,11 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderExperimentRunHelp } from "../../src/cli/help.js";
-import {
-  CONTEXT_PACK_GENERATION_EXTERNAL_LOCAL_UNAVAILABLE_MESSAGE,
-  parseRunExperimentArgs,
-  runExperimentRunCommandFromArgs
-} from "../../src/commands/runExperimentRunCommand.js";
+import { parseRunExperimentArgs, runExperimentRunCommandFromArgs } from "../../src/commands/runExperimentRunCommand.js";
 import { runExperimentDescribeCommandFromArgs } from "../../src/commands/runExperimentDescribeCommand.js";
 import { runExperimentListCommandFromArgs } from "../../src/commands/runExperimentListCommand.js";
 import { RETRIEVAL_QUERY_STRATEGY_IDS } from "../../src/evaluation/retrievalQueryStrategies.js";
@@ -123,15 +119,16 @@ describe("registry, list and describe", () => {
     expect(description.supportedVariants).toEqual(["raw-full-file", "context-pack"]);
     expect(description.requiredConfigFields.map((field: { name: string }) => field.name)).toEqual(["outDir"]);
     expect(description.optionalConfigFields.map((field: { name: string }) => field.name)).toEqual(["kitCommand", "caseIds", "benchmarkProjects"]);
-    expect(description.targetBehavior).toContain("Bundled/self mode only");
-    expect(description.targetBehavior).toContain("External-local execution is not available yet");
+    expect(description.targetBehavior).toContain("Two subject modes");
+    expect(description.targetBehavior).toContain("External local repository");
+    expect(description.targetBehavior).toContain("no context-pack body is written externally");
     expect(description.examples).toEqual([
       `my-dev-kit-lab experiment describe --experiment ${ID}`,
       `my-dev-kit-lab experiment run --experiment ${ID}`,
-      `my-dev-kit-lab experiment run --experiment ${ID} --case <case-id> --out <run-dir>`
+      `my-dev-kit-lab experiment run --experiment ${ID} --case <case-id> --out <run-dir>`,
+      `my-dev-kit-lab experiment run --experiment ${ID} --target <local-git-repository> --local-subject-config <path-to-local-subject-config.json> --out <run-dir-outside-the-repository>`
     ]);
     expect(JSON.stringify(description)).not.toMatch(/--strateg|--treatment|--max-files|--max-symbols|--graph-depth|--source-lines/);
-    expect((description.examples as string[]).some((example) => example.includes("--target"))).toBe(false);
   });
 
   it("keeps unknown-experiment describe behavior unchanged", async () => {
@@ -180,15 +177,21 @@ describe("argument contract", () => {
     expect(() => parseRunExperimentArgs(["--experiment", ID, "--benchmark-project", ","])).toThrow("--benchmark-project must list at least one benchmark project id.");
   });
 
-  it("rejects --target and --local-subject-config with a fixed message instead of routing to bundled mode", () => {
-    expect(CONTEXT_PACK_GENERATION_EXTERNAL_LOCAL_UNAVAILABLE_MESSAGE).toContain("External-local execution for context-pack-generation is not available");
-    for (const extra of [
-      ["--target", "C:\\some\\repo"],
-      ["--local-subject-config", "cfg.json"],
-      ["--target", "C:\\some\\repo", "--local-subject-config", "cfg.json"]
-    ]) {
-      expect(() => parseRunExperimentArgs(["--experiment", ID, ...extra]), extra.join(" ")).toThrow(CONTEXT_PACK_GENERATION_EXTERNAL_LOCAL_UNAVAILABLE_MESSAGE);
-    }
+  it("accepts the external-local combination and rejects exactly-one-of --target/--local-subject-config", () => {
+    const parsed = parseRunExperimentArgs(["--experiment", ID, "--target", "C:\\some\\repo", "--local-subject-config", "cfg.json", "--out", "o", "--kit-command", "k"]);
+    expect(parsed.targetPath).toBe("C:\\some\\repo");
+    expect(parsed.localSubjectConfigPath).toBe("cfg.json");
+    expect(parsed.config).toEqual({ kitCommand: "k" });
+    expect(() => parseRunExperimentArgs(["--experiment", ID, "--target", "C:\\some\\repo"])).toThrow(`External ${ID} targets require --local-subject-config.`);
+    expect(() => parseRunExperimentArgs(["--experiment", ID, "--local-subject-config", "cfg.json"])).toThrow(`--local-subject-config requires an external --target for ${ID}.`);
+  });
+
+  it("rejects bundled filters and every other flag in external-local mode, matching the sibling experiments", () => {
+    const base = ["--experiment", ID, "--target", "C:\\some\\repo", "--local-subject-config", "cfg.json"];
+    expect(() => parseRunExperimentArgs([...base, "--case", "x"])).toThrow("--case and --benchmark-project cannot be combined with --local-subject-config");
+    expect(() => parseRunExperimentArgs([...base, "--benchmark-project", "x"])).toThrow("--case and --benchmark-project cannot be combined with --local-subject-config");
+    expect(() => parseRunExperimentArgs([...base, "--synthetic-config", "s.json"])).toThrow("not supported for --experiment context-pack-generation in external-local mode");
+    expect(() => parseRunExperimentArgs([...base, "--context-budgets", "8k"])).toThrow();
   });
 
   it("leaves other plugins' accepted flags unchanged", () => {
@@ -198,12 +201,12 @@ describe("argument contract", () => {
     expect([...RETRIEVAL_QUERY_STRATEGY_IDS]).toHaveLength(7);
   });
 
-  it("documents the experiment in help without a strategy option or an external-local claim", () => {
+  it("documents the experiment in help including the external-local mode, without a strategy option", () => {
     const help = renderExperimentRunHelp();
     const start = help.indexOf("context-pack-generation only:");
     expect(start).toBeGreaterThan(-1);
     const section = help.slice(start, help.indexOf("warm-index-reuse only:")).replace(/\s+/g, " ");
-    for (const phrase of ["frozen 12-case corpus", "--out, --case, --benchmark-project and --kit-command", "raw-full-file", "context-pack", "no treatment, strategy, or selection-policy option", "not available for this experiment yet"]) {
+    for (const phrase of ["frozen 12-case corpus", "--out, --case, --benchmark-project and --kit-command", "raw-full-file", "context-pack", "no treatment, strategy, or selection-policy option", "External-local mode requires --target together with --local-subject-config", "no context-pack body is written for an external run"]) {
       expect(section, phrase).toContain(phrase);
     }
     expect(section).not.toMatch(/--strateg(y|ies) </);
@@ -328,12 +331,15 @@ describe("bundled run through the public command", () => {
     expect(pack.schemaVersion).toBe("my-dev-kit-lab-context-pack-experiment-v1");
   });
 
-  it("refuses --target and --local-subject-config at the command surface without running anything", async () => {
+  it("refuses exactly one of --target and --local-subject-config at the command surface without running anything", async () => {
     const out = path.join(parent, "out");
-    for (const extra of [["--target", parent], ["--local-subject-config", path.join(parent, "cfg.json")]]) {
+    for (const [extra, message] of [
+      [["--target", parent], `External ${ID} targets require --local-subject-config.`],
+      [["--local-subject-config", path.join(parent, "cfg.json")], `--local-subject-config requires an external --target for ${ID}.`]
+    ] as const) {
       const output = capture();
       expect(await run(["--out", out, ...extra])).toBe(1);
-      expect(output.stderr()).toContain(CONTEXT_PACK_GENERATION_EXTERNAL_LOCAL_UNAVAILABLE_MESSAGE);
+      expect(output.stderr()).toContain(message);
       vi.restoreAllMocks();
     }
     expect(readLog(logPath)).toEqual([]);

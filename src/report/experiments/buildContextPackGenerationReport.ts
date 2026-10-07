@@ -2,7 +2,7 @@ import path from "node:path";
 import type { RetrievalQualityRatioMetricV1 } from "../../evaluation/retrievalQuality/index.js";
 import type { ExperimentRun } from "../../experiments/index.js";
 import { CONTEXT_PACK_GENERATION_METHODOLOGY } from "../../experiments/plugins/contextPackGeneration/analysisArtifact.js";
-import type { ContextPackGenerationCaseEvidenceV1 } from "../../experiments/plugins/contextPackGeneration/executionTypes.js";
+import type { ContextPackGenerationCaseEvidenceV1, ContextPackIdentityRedactionV1 } from "../../experiments/plugins/contextPackGeneration/executionTypes.js";
 import { CONTEXT_PACK_GENERATION_PLUGIN_ID, CONTEXT_PACK_GENERATION_TREATMENT_IDS } from "../../experiments/plugins/contextPackGeneration/metadata.js";
 import type { ContextPackGenerationRun } from "../../experiments/plugins/contextPackGeneration/plugin.js";
 import type { ContextPack } from "../../experiments/plugins/contextPackGeneration/types.js";
@@ -66,7 +66,35 @@ function previewSlice(slice: ContextPack["sourceSlices"][number]): ContextPackPr
   };
 }
 
+/** External-local evidence carries a redaction marker and no pack body; the preview is counts and availability only. */
+function buildRedactedPreview(entry: ContextPackGenerationCaseEvidenceV1, redaction: ContextPackIdentityRedactionV1): ContextPackGenerationReportPreviewV1 {
+  const packTreatment = entry.treatments.find((treatment) => treatment.treatmentId === "context-pack");
+  return {
+    caseId: entry.caseId,
+    status: "redacted-external-local",
+    packArtifactPath: null,
+    packAvailability: packTreatment?.availability ?? null,
+    sections: (packTreatment?.sections ?? []).map((section) => ({
+      id: section.id,
+      availability: section.availability,
+      reason: section.reason,
+      itemCount: section.itemCount,
+      estimatedTokens: section.estimatedTokens,
+      truncatedCount: section.truncatedCount ?? null
+    })),
+    task: null,
+    files: null,
+    symbols: null,
+    sourceSlices: null,
+    callRelationships: null,
+    tests: null,
+    evidenceNotes: null,
+    redaction: { ...redaction }
+  };
+}
+
 function buildPreview(entry: ContextPackGenerationCaseEvidenceV1, pack: ContextPack | undefined): ContextPackGenerationReportPreviewV1 {
+  if (entry.identityRedaction) return buildRedactedPreview(entry, entry.identityRedaction);
   const packTreatment = entry.treatments.find((treatment) => treatment.treatmentId === "context-pack");
   const packArtifactPath = packTreatment?.packArtifactPath ?? null;
   const base = {

@@ -1,9 +1,13 @@
 import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
+import { serializeLocalRepositorySubjectManifest, type LocalRepositorySubject } from "../../../evaluation/localRepositorySubject/index.js";
 import type { EvaluationCase } from "../../../evaluation/types.js";
 import { summarizeExperimentRun } from "../../results.js";
 import type { ExperimentCase, ExperimentOutcome, ExperimentPlugin, ExperimentRun, ExperimentRunStatus } from "../../types.js";
+import { LocalSubjectExecutionError } from "../contextWindowScaling/localSubjectErrors.js";
+import { projectExternalLocalTarget } from "../contextWindowScaling/localSubjectPrivacy.js";
+import { isSamePhysicalDirectory } from "../contextWindowScaling/localSubjectScratch.js";
 import { selectWarmIndexCases } from "../warmIndexReuse/selection.js";
 import { analyzeContextPackGeneration } from "./analysis.js";
 import { buildContextPackGenerationAnalysisArtifact, CONTEXT_PACK_GENERATION_ANALYSIS_ARTIFACT_FILE } from "./analysisArtifact.js";
@@ -19,10 +23,24 @@ import { buildContextPackGenerationExecutionArtifact, CONTEXT_PACK_GENERATION_EX
 import type { ContextPackGenerationCaseEvidenceV1, ContextPackGenerationCaseResult, ContextPackGenerationTreatmentEvidenceV1 } from "./executionTypes.js";
 import { CONTEXT_PACK_GENERATION_PLUGIN_ID, CONTEXT_PACK_GENERATION_VARIANTS, contextPackGenerationMetadata } from "./metadata.js";
 import { toContextPackGenerationCaseComparisonMetrics, toContextPackGenerationOutcomeMetrics, toContextPackGenerationRunMetrics } from "./metrics.js";
+import { executeLocalRepositorySubjectContextPackGeneration } from "./localSubjectExecution.js";
+import {
+  assertContextPackExternalProjectionIsPrivate,
+  collectContextPackExternalPrivateValues,
+  CONTEXT_PACK_EXTERNAL_PERSISTENCE_FAILURE_MESSAGE,
+  CONTEXT_PACK_PRIVACY_FAILURE_MESSAGE,
+  CONTEXT_PACK_UNEXPECTED_EXTERNAL_FAILURE_MESSAGE,
+  describeContextPackLocalSubjectFailureForPersistence,
+  projectContextPackAnalysisForExternalLocalPersistence,
+  projectContextPackExecutionForExternalLocalPersistence
+} from "./localSubjectPrivacy.js";
 import { contextPackArtifactRelativePath, serializeContextPackArtifact } from "./packArtifact.js";
 
-/** Batch 2 supports bundled/self execution only. */
-export const CONTEXT_PACK_GENERATION_SELF_ONLY_MESSAGE = "context-pack-generation currently supports only the bundled self target.";
+/** An external target must always arrive with a loaded local repository subject; the bundled corpus never runs against it. */
+export const CONTEXT_PACK_GENERATION_SELF_ONLY_MESSAGE =
+  "External-local context-pack-generation targets require a loaded local repository subject (--local-subject-config).";
+/** Privacy-safe subject manifest persisted beside the artifacts for external-local runs (same file as the other local-subject plugins). */
+export const CONTEXT_PACK_GENERATION_LOCAL_SUBJECT_MANIFEST_FILE = "local-repository-subject-manifest.json";
 export const CONTEXT_PACK_GENERATION_PERSISTENCE_FAILURE_MESSAGE = "Context pack generation artifact persistence failed.";
 export const CONTEXT_PACK_GENERATION_ARTIFACT_STATE_MESSAGE = "Context pack generation artifact state was inconsistent; nothing was written.";
 
@@ -65,8 +83,10 @@ export const contextPackGenerationPlugin: ExperimentPlugin<ContextPackGeneration
   async run(context) {
     const startedAt = context.startedAt.toISOString();
     const inputs = context.inputs;
+    const localSubject = readLocalSubjectInput(inputs);
+    if (localSubject) return runLocalSubject(context, localSubject, startedAt);
     // The runner does not enforce supportedTargets; never run the bundled corpus against another target.
-    if (inputs?.localSubject || context.target.kind !== "self" || context.target.isSelf !== true) {
+    if (context.target.kind !== "self" || context.target.isSelf !== true) {
       throw new Error(CONTEXT_PACK_GENERATION_SELF_ONLY_MESSAGE);
     }
     const cases = selectWarmIndexCases(readCasesInput(inputs), context.config);
@@ -134,6 +154,125 @@ export const contextPackGenerationPlugin: ExperimentPlugin<ContextPackGeneration
     return result.summary ?? summarizeExperimentRun(result);
   }
 };
+
+function readLocalSubjectInput(inputs: Record<string, unknown> | undefined): LocalRepositorySubject | undefined {
+  const value = inputs?.localSubject;
+  return value && typeof value === "object" ? (value as LocalRepositorySubject) : undefined;
+}
+
+/**
+ * External-local path. The safe seam owns execution, immutability and scratch cleanup and either returns real in-memory
+ * results or throws. Science is calculated from the real, unprojected identities; only then is the evidence
+ * privacy-projected and asserted private. Nothing durable is written before every gate has passed, and then in this
+ * order: execution artifact, analysis artifact, manifest. No context-pack body is ever written.
+ */
+async function runLocalSubject(
+  context: Parameters<ExperimentPlugin<ContextPackGenerationConfig, ContextPackGenerationRun>["run"]>[0],
+  subject: LocalRepositorySubject,
+  startedAt: string
+): Promise<ContextPackGenerationRun> {
+  if (context.target.isSelf || context.target.kind !== "external-local") {
+    throw new Error("Local-repository subject mode requires an external-local target.");
+  }
+  if (context.config.caseIds !== undefined || context.config.benchmarkProjects !== undefined) {
+    throw new Error("Case and benchmark-project filters are not supported for an external local repository subject; the subject config owns the case set.");
+  }
+  if (!(await isSamePhysicalDirectory(context.target.targetRoot, subject.repositoryRoot))) {
+    throw new Error("The selected --target is not the repository the local subject was loaded from.");
+  }
+  const outDir = context.outputRoot;
+  if (!outDir) throw new Error("Local-repository subject mode requires an experiment output directory.");
+  const io = readArtifactIo(context.inputs);
+
+  let local;
+  try {
+    local = await executeLocalRepositorySubjectContextPackGeneration({
+      subject,
+      kitCommand: context.config.kitCommand,
+      workRoot: outDir,
+      dependencies: readDependenciesInput(context.inputs)
+    });
+  } catch (error) {
+    if (error instanceof LocalSubjectExecutionError) throw new Error(describeContextPackLocalSubjectFailureForPersistence(error));
+    throw new Error(CONTEXT_PACK_UNEXPECTED_EXTERNAL_FAILURE_MESSAGE);
+  }
+
+  // Science first, on real identities; placeholders are never scientific identities.
+  const realEvidence = local.results.map((result) => result.evidence);
+  let analysis: ContextPackGenerationAnalysisV1;
+  try {
+    analysis = analyzeContextPackGeneration(subject.evaluationCases, realEvidence);
+  } catch {
+    throw new Error(CONTEXT_PACK_UNEXPECTED_EXTERNAL_FAILURE_MESSAGE);
+  }
+
+  let projectedExecution: ContextPackGenerationCaseEvidenceV1[];
+  let projectedAnalysis: ContextPackGenerationAnalysisV1;
+  try {
+    projectedExecution = projectContextPackExecutionForExternalLocalPersistence(local.results);
+    projectedAnalysis = projectContextPackAnalysisForExternalLocalPersistence(analysis);
+  } catch {
+    throw new Error(CONTEXT_PACK_PRIVACY_FAILURE_MESSAGE);
+  }
+  const privateValues = collectContextPackExternalPrivateValues({ subject, results: local.results, outputRoot: outDir });
+  const manifestText = serializeLocalRepositorySubjectManifest(subject.manifest);
+  assertContextPackExternalProjectionIsPrivate(projectedExecution, privateValues);
+  assertContextPackExternalProjectionIsPrivate(projectedAnalysis, privateValues);
+  assertContextPackExternalProjectionIsPrivate(manifestText, privateValues);
+
+  const completedAt = new Date().toISOString();
+  const common = { runId: context.runId, pluginId: contextPackGenerationMetadata.id, pluginSchemaVersion: contextPackGenerationMetadata.schemaVersion, startedAt, completedAt };
+  const executionArtifact = buildContextPackGenerationExecutionArtifact({ ...common, cases: projectedExecution });
+  const analysisArtifact = buildContextPackGenerationAnalysisArtifact({ ...common, analysis: projectedAnalysis });
+  const executionText = `${JSON.stringify(executionArtifact, null, 2)}\n`;
+  const analysisText = `${JSON.stringify(analysisArtifact, null, 2)}\n`;
+  // The run carries only relative artifact names and the projected logical target; pack bodies never exist externally.
+  const run = mapContextPackGenerationToRun({
+    runId: context.runId,
+    startedAt,
+    completedAt,
+    target: projectExternalLocalTarget(subject.manifest),
+    caseEvidence: projectedExecution,
+    analysis: projectedAnalysis,
+    executionArtifactPath: CONTEXT_PACK_GENERATION_EXECUTION_ARTIFACT_FILE,
+    analysisArtifactPath: CONTEXT_PACK_GENERATION_ANALYSIS_ARTIFACT_FILE,
+    packArtifactPaths: []
+  });
+  run.artifacts.push({
+    id: "local-repository-subject-manifest",
+    label: "Privacy-safe local repository subject manifest",
+    path: CONTEXT_PACK_GENERATION_LOCAL_SUBJECT_MANIFEST_FILE,
+    kind: "artifact",
+    mimeType: "application/json",
+    description: "Privacy-safe logical subject, Git, safety and aggregate inventory metadata without source or private identity lists."
+  });
+  for (const payload of [executionText, analysisText, run]) assertContextPackExternalProjectionIsPrivate(payload, privateValues);
+
+  // Durable phase: execution, analysis, then the manifest last. Only files this attempt created are removed on failure.
+  const created: string[] = [];
+  const write = async (relativePath: string, content: string): Promise<void> => {
+    const filePath = resolveWithinRoot(outDir, relativePath);
+    const existed = await io.exists(filePath);
+    await io.writeFile(filePath, content);
+    if (!existed) created.push(filePath);
+  };
+  try {
+    await io.ensureDirectory(outDir);
+    await write(CONTEXT_PACK_GENERATION_EXECUTION_ARTIFACT_FILE, executionText);
+    await write(CONTEXT_PACK_GENERATION_ANALYSIS_ARTIFACT_FILE, analysisText);
+    await write(CONTEXT_PACK_GENERATION_LOCAL_SUBJECT_MANIFEST_FILE, manifestText);
+  } catch {
+    for (const filePath of created.reverse()) {
+      try {
+        await io.removeFile(filePath);
+      } catch {
+        // best effort: the failure below is the outcome
+      }
+    }
+    throw new Error(CONTEXT_PACK_EXTERNAL_PERSISTENCE_FAILURE_MESSAGE);
+  }
+  return run;
+}
 
 type PackFile = { caseId: string; relativePath: string; absolutePath: string; content: string };
 

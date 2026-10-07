@@ -5,6 +5,7 @@ import type {
   ContextPackGenerationScopeAnalysisV1
 } from "../../experiments/plugins/contextPackGeneration/analysisTypes.js";
 import type { ContextPackGenerationMethodologyV1 } from "../../experiments/plugins/contextPackGeneration/analysisArtifact.js";
+import type { ContextPackIdentityRedactionV1 } from "../../experiments/plugins/contextPackGeneration/executionTypes.js";
 import type { ContextPackGenerationTreatmentId } from "../../experiments/plugins/contextPackGeneration/metadata.js";
 import type {
   ContextPackAvailability,
@@ -77,7 +78,8 @@ export type ContextPackPreviewSourceSliceV1 = {
 /** Why a preview body is absent. Section summaries still come from persisted execution evidence. */
 export type ContextPackPreviewStatus = "available" | "no-pack-produced" | "pack-artifact-unavailable";
 
-export type ContextPackGenerationReportPreviewV1 = {
+/** Bundled/self preview: bounded identities and source text from the persisted per-case pack artifact. */
+export type ContextPackGenerationBundledPreviewV1 = {
   caseId: string;
   status: ContextPackPreviewStatus;
   packArtifactPath: string | null;
@@ -92,6 +94,39 @@ export type ContextPackGenerationReportPreviewV1 = {
   tests: ContextPackPreviewListV1<{ path: string; how: ContextPackTestOrigin }> | null;
   evidenceNotes: ContextPackPreviewListV1<ContextPackEvidenceNoteCode> | null;
 };
+
+/** One section of an external-local preview: counts and availability only. */
+export type ContextPackRedactedPreviewSectionV1 = ContextPackPreviewSectionSummaryV1 & {
+  /** Slices truncated by experiment policy; null where the persisted evidence has no such count. */
+  truncatedCount: number | null;
+};
+
+/**
+ * External-local preview. There is intentionally no pack body to load, so absence of a pack artifact is not an error here.
+ * It carries no identity, no source text and no placeholder arrays; the presentation layer derives literal placeholders
+ * from the persisted safe counts.
+ */
+export type ContextPackGenerationRedactedPreviewV1 = {
+  caseId: string;
+  status: "redacted-external-local";
+  /** Always null: an external-local run persists no pack body. */
+  packArtifactPath: null;
+  packAvailability: ContextPackAvailability | null;
+  /** Section order: task, files, symbols, sourceSlices, callRelationships, tests, evidenceNotes. */
+  sections: ContextPackRedactedPreviewSectionV1[];
+  /** The body fields below keep the bundled preview's property names and are always null: nothing is withheld by omission. */
+  task: null;
+  files: null;
+  symbols: null;
+  sourceSlices: null;
+  callRelationships: null;
+  tests: null;
+  evidenceNotes: null;
+  redaction: ContextPackIdentityRedactionV1;
+};
+
+/** Discriminated by `status`: `redacted-external-local` versus the three bundled statuses. */
+export type ContextPackGenerationReportPreviewV1 = ContextPackGenerationBundledPreviewV1 | ContextPackGenerationRedactedPreviewV1;
 
 export type ContextPackGenerationReportArtifactRefV1 = { id: string; path: string | null; caseId: string | null };
 
