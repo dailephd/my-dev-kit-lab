@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe("registry, list and describe", () => {
-  it("TST-081-108 registers the plugin exactly once, last, preserving earlier order", () => {
+  it("TST-081-108 registers the plugin exactly once, preserving earlier order (v0.8.2 appends context-pack-generation after it)", () => {
     const ids = createDefaultExperimentPluginRegistry().list().map((plugin) => plugin.id);
     expect(ids).toEqual([
       "context-strategy-comparison",
@@ -43,7 +43,8 @@ describe("registry, list and describe", () => {
       "incremental-change-staleness",
       "context-window-scaling",
       "retrieval-precision-recall",
-      ID
+      ID,
+      "context-pack-generation"
     ]);
     expect(ids.filter((id) => id === ID)).toHaveLength(1);
   });
@@ -132,10 +133,10 @@ describe("argument contract", () => {
 
   it("limits --local-subject-config and --kit-command to supporting plugins only", () => {
     expect(() => parseRunExperimentArgs(["--experiment", "warm-index-reuse", "--local-subject-config", "c.json"])).toThrow(
-      "--local-subject-config is only supported for --experiment context-window-scaling, retrieval-precision-recall, or retrieval-query-strategy-comparison."
+      "--local-subject-config is only supported for --experiment context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, or context-pack-generation."
     );
     expect(() => parseRunExperimentArgs(["--experiment", "context-strategy-comparison", "--kit-command", "k"])).toThrow(
-      "retrieval-precision-recall or retrieval-query-strategy-comparison."
+      "retrieval-precision-recall or retrieval-query-strategy-comparison or context-pack-generation."
     );
   });
 });
@@ -144,7 +145,7 @@ describe("help", () => {
   it("TST-081-113 documents the plugin without advertising a strategy option", () => {
     const help = renderExperimentRunHelp();
     expect(help).toContain("retrieval-query-strategy-comparison only:");
-    expect(help).toContain("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, and retrieval-query-strategy-comparison):");
+    expect(help).toContain("my-dev-kit command override (warm-index-reuse, incremental-change-staleness, context-window-scaling, retrieval-precision-recall, retrieval-query-strategy-comparison, and context-pack-generation):");
     const start = help.indexOf("retrieval-query-strategy-comparison only:");
     const section = help.slice(start, help.indexOf("warm-index-reuse only:"));
     for (const phrase of ["seven retrieval", "no strategy", "option", "--local-subject-config", "Pareto front has a single member", "tradeoff", "No scalar score or total", "ranking exists"]) {

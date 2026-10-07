@@ -243,6 +243,7 @@ function baseReport(overrides: Partial<PluginExperimentReport> = {}): PluginExpe
     contextWindowScaling: null,
     retrievalPrecisionRecall: null,
     retrievalQueryStrategyComparison: null,
+    contextPackGeneration: null,
     contextStrategyComparisonV043: null,
     interpretation: { summary: "summary", recommendedNextStep: "next step" },
     rawRun: {} as PluginExperimentReport["rawRun"],

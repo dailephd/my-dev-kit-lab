@@ -4,6 +4,15 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-07
+
+### Context-pack generation experiments
+
+- Added the experimental `context-pack-generation` plugin, which always compares the fixed `raw-full-file` and `context-pack` treatments using reproducible, bounded task-specific context packs.
+- Reused retrieval-quality coverage metrics and estimated context-size semantics, with paired token savings, percent savings, and objective deltas; reports include bounded JSON, text, and HTML pack previews without a composite winner or ranking.
+- Added external-local execution that calculates science on real identities before privacy projection, persists redacted reports, and writes no durable context-pack body.
+- Extended installed-package acceptance and verified compatibility with the published `@dailephd/my-dev-kit@1.12.5` package.
+
 ## [0.8.1] - 2026-10-06
 
 ### Retrieval query strategy comparison

@@ -16,7 +16,7 @@ The `--local-subject-config` option and the external local-repository mode descr
 
 The `retrieval-precision-recall` command surface (v0.8.0), documented below, is included in the current package (released in v0.8.0).
 
-The `retrieval-query-strategy-comparison` command surface (v0.8.1), documented below, is included in the current 0.8.1 package.
+The `retrieval-query-strategy-comparison` command surface (v0.8.1), documented below, is included in the published 0.8.1 package.
 
 Invoking the installed `my-dev-kit-lab` binary (installed globally, via `npx`, or as a local project dependency) exposes this command tree:
 
@@ -184,7 +184,9 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (released in v0.7.0), `retrieval-precision-recall` (released in v0.8.0), and `retrieval-query-strategy-comparison` (released in v0.8.1), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (published in v0.7.0), `retrieval-precision-recall` (published in v0.8.0), and `retrieval-query-strategy-comparison` (published in v0.8.1), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+
+The source registry and published 0.8.2 package include `context-pack-generation` as an experimental plugin.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -398,7 +400,7 @@ See [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080) and 
 
 #### `retrieval-query-strategy-comparison` (v0.8.1)
 
-This surface is included in the current 0.8.1 package.
+This surface is included in the current 0.8.2 package.
 
 ```text
 my-dev-kit-lab experiment list
@@ -433,6 +435,23 @@ Each configured case needs the same complete ground truth as `retrieval-precisio
 **Failure behavior.** A safety, privacy, or execution failure in an external-local run exits nonzero, prints a bounded safe description (codes, counts, and mutation kinds only), and writes no normal artifact, report, or manifest family. One failing case fails the whole run, although a single failed or partial strategy treatment is recorded as measurement evidence rather than failing the run. Durable external output withholds the repository path, file, symbol, and fact identities, semantic node IDs, warning text, and case titles while preserving the numeric results. The console summary of a successful run can still show the physical output directory, so treat console output as local.
 
 See [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v081) and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-query-strategy-comparison-architecture-v081).
+
+#### `context-pack-generation` (v0.8.2)
+
+The plugin is included in the published 0.8.2 package. `experiment list` and `experiment describe --experiment context-pack-generation` expose it as experimental, schema 1.0.0, with `self` and `external-local` targets, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed variants: `raw-full-file`, then `context-pack`.
+
+```text
+my-dev-kit-lab experiment list
+my-dev-kit-lab experiment describe --experiment context-pack-generation
+my-dev-kit-lab experiment run --experiment context-pack-generation [--out <dir>] [--case <ids>] [--benchmark-project <ids>] [--kit-command <command>]
+my-dev-kit-lab experiment run --experiment context-pack-generation --target <local-git-repository> --local-subject-config <path> [--out <dir>] [--kit-command <command>]
+```
+
+Bundled/self mode uses the frozen bundled 12-case corpus. `--case` and `--benchmark-project` narrow the cases and project selection; both treatments always run for each selected case. The only accepted bundled options are `--out`, `--case`, `--benchmark-project`, and `--kit-command` (default `npx @dailephd/my-dev-kit@latest`). The corpus and project profiles are fixed. Both treatments use the existing raw baseline and the bounded context-pack composition from the same indexed evidence. A pack contains a task summary, relevant files and symbols, bounded source slices, call relationships, tests, and evidence notes.
+
+External-local mode requires `--target` and `--local-subject-config` together. It accepts only `--out`, `--target`, `--local-subject-config`, and `--kit-command`; `--case` and `--benchmark-project` are rejected because the local-subject config supplies the case set. A configured case requires the same complete deterministic retrieval answer key as `retrieval-precision-recall`. The output directory must be outside the repository, which is read-only. Science is calculated on real identities before redaction; durable output contains no context-pack body, and report previews use redacted identities.
+
+The command rejects unsupported policy and selection flags, including `--treatment`, `--strategy`, `--max-files`, `--max-symbols`, and `--graph-depth`. It writes execution and analysis artifacts plus JSON, text, and HTML reports; bundled runs also write one pack artifact per case. See [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment) and [METRICS.md](METRICS.md#context-pack-generation-metrics-v082).
 
 ### `my-dev-kit-lab experiment controlled [options]`
 

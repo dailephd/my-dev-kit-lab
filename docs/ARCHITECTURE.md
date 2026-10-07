@@ -31,6 +31,7 @@ src/
     plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
     plugins/retrievalPrecisionRecall/         v0.8.0 plugin: bundled and external-local retrieval-quality execution, aggregation, execution artifact, external privacy projection
     plugins/retrievalQueryStrategyComparison/ v0.8.1 plugin: seven-strategy matched execution, scientific analysis, separate execution and analysis artifacts, external-local safety lifecycle and privacy projection
+    plugins/contextPackGeneration/           v0.8.2 plugin: fixed raw-versus-pack execution, retrieval-quality analysis, pack artifact, report preview, external-local privacy projection
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released; retained): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released; retained): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
@@ -130,7 +131,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers six plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, and the released v0.8.1 `retrieval-query-strategy-comparison`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers seven plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, the released v0.8.1 `retrieval-query-strategy-comparison`, and the released v0.8.2 `context-pack-generation`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -774,7 +775,21 @@ The compiled runtime ships in `dist/`. The exact-tarball gate proves installed p
 
 ### Non-goals
 
-v0.8.1 does not add context packs (v0.8.2), coding agents, learned judges, automatic retrieval selection, a scalar or composite score, an ordinal ranking, MRR, NDCG, MAP, or plots and screenshots.
+v0.8.1 did not add context packs; the separate v0.8.2 experimental plugin is described below. It did not add coding agents, learned judges, automatic retrieval selection, a scalar or composite score, an ordinal ranking, MRR, NDCG, MAP, plots, or screenshots.
+
+## Context-pack generation architecture (v0.8.2)
+
+Status: released in v0.8.2.
+
+`context-pack-generation` is an experimental Lab plugin on the existing experiment runtime. It is not a replacement production context API. The Lab owns experimental context-pack composition policy, the controlled `raw-full-file` versus `context-pack` experiment, scientific measurement, experimental artifacts, report presentation, and the external-local privacy projection. `my-dev-kit` continues to own production indexing, source retrieval, graph evidence, and production context capabilities. `my-dev-kit-orchestrator` continues to own workflow orchestration.
+
+The plugin composes packs from existing my-dev-kit index, retrieval, and graph evidence, with bounded source slices and task-specific evidence notes. The shared `buildMyDevKitIndex` helper has an additive `callGraph` option used here to request call-relationship evidence for the experiment; this remains an index-build input, not a new upstream ownership boundary.
+
+Bundled execution loads the frozen corpus, builds a call-graph-enabled index per benchmark project, runs both fixed treatments for every selected case, calculates analysis, then persists artifacts and reports. The paired analysis reuses existing retrieval coverage metrics and estimated-token semantics, adds raw-versus-pack savings and objective deltas, and has no composite winner or ranking. The report preview reads the persisted experimental pack artifact within fixed presentation bounds.
+
+External-local execution uses the existing local repository subject safety boundary. It snapshots the target, stages private scratch, calculates science with real identities, checks the eligible universe and target immutability, projects identities for privacy, asserts the projection, and then persists projected artifacts and redacted report previews. It never persists a durable external-local pack body. A failure in safety or privacy checks prevents normal durable output.
+
+The frozen answer key has no expected call-edge or test identities. Accordingly, call relationships and tests may appear descriptively in a pack; v0.8.2 does not score call-edge coverage or test coverage.
 
 ## Target model
 
@@ -809,7 +824,7 @@ The contributor `scripts/*.ts` npm-script entrypoints are thin adapters over the
 
 ### Packed-package acceptance boundary
 
-`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate proving the sequence a real consumer experiences: build → real `npm pack` (not `--dry-run`) → locate the single generated tarball and hash it → install that exact tarball into a clean temporary consumer project (no source-checkout copy, no `npm link`) → resolve and execute the consumer-local installed binary → verify default (no `--workspace`) output lands under a temporary fake home's `.my-dev-kit-lab` directory, all six experiment plugins (including the v0.8.0 `retrieval-precision-recall` and the v0.8.1 `retrieval-query-strategy-comparison`, each with its installed bundled and external-local execution, privacy, failure-path, and immutability checks) are registered, `experiment describe --experiment warm-index-reuse` and `experiment run --help` document the warm-index surface, an installed `warm-index-reuse` run (using a temporary test-owned fake my-dev-kit script, never packaged) produces its execution artifact and reports, `plots generate` produces the four warm-index charts and the context-window-scaling charts from its V1 execution artifact, explicit `--workspace` output lands under that workspace, and neither the inspected target nor the installed package directory changes (recursive SHA-256 snapshot before/after, compared for exact equality) → clean up. It does not require `tsx`, TypeScript, Vitest, or Playwright to be present for the routes it exercises; if a public route unexpectedly required one, that would be a real runtime-boundary defect, not a tolerated gap.
+`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate that builds, packs, installs the exact tarball into a clean temporary consumer, invokes the consumer-local binary, and checks package and target immutability. It proves all seven plugins are registered, exercises installed context-pack discovery, description, bundled and external-local runs, report preview, privacy, unsupported-flag rejection, and immutability, and checks real published my-dev-kit 1.12.5 compatibility. It also retains the established installed-package checks for prior experiment, audit, security, workspace, plot, and tutorial routes. The gate does not require `tsx`, TypeScript, Vitest, or Playwright in the consumer for the routes it exercises.
 
 ## Automated security-validation architecture
 

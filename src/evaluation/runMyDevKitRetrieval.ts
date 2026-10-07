@@ -204,6 +204,11 @@ export async function buildMyDevKitIndex(options: {
    * that name.
    */
   excludePaths?: readonly string[];
+  /**
+   * Adds `--call-graph` so the index carries `calls` edges (upstream emits them only for call-graph indexes). Absent or
+   * false keeps the exact legacy command; only `true` changes it. Applies to the index command only.
+   */
+  callGraph?: boolean;
 }): Promise<MyDevKitIndexBuildResult> {
   const warnings: string[] = [];
   const mode: MyDevKitIndexBuildMode = options.mode ?? { kind: "full" };
@@ -220,6 +225,7 @@ export async function buildMyDevKitIndex(options: {
       ...(options.excludePaths ?? []).flatMap((excludePath) => ["--exclude", excludePath]),
       "--out",
       options.indexDir,
+      ...(options.callGraph === true ? ["--call-graph"] : []),
       ...(mode.kind === "incremental" ? ["--incremental", "--refresh-scope", mode.refreshScope] : []),
       "--json"
     ]

@@ -16,6 +16,7 @@ import type { IncrementalChangeStalenessReportV2 } from "./incrementalChangeStal
 import type { ContextWindowScalingReportV1 } from "./contextWindowScalingReportModel.js";
 import type { RetrievalPrecisionRecallReportV1 } from "./retrievalPrecisionRecallReportModel.js";
 import type { RetrievalQueryStrategyComparisonReportV1 } from "./retrievalQueryStrategyComparisonReportModel.js";
+import type { ContextPackGenerationReportV1 } from "./contextPackGenerationReportModel.js";
 
 export type PluginExperimentReportMetadata = {
   generatedAt: string;
@@ -84,6 +85,8 @@ export type PluginExperimentReport = {
   retrievalPrecisionRecall: RetrievalPrecisionRecallReportV1 | null;
   /** Populated only for retrieval-query-strategy-comparison runs; null for every other plugin. */
   retrievalQueryStrategyComparison: RetrievalQueryStrategyComparisonReportV1 | null;
+  /** Populated only for context-pack-generation runs; null for every other plugin. */
+  contextPackGeneration: ContextPackGenerationReportV1 | null;
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null;
   interpretation: {
     summary: string;

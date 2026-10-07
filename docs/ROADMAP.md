@@ -1383,7 +1383,9 @@ Not part of v0.8.1: context packs (v0.8.2), coding-agent evaluation (v0.9.x), au
 
 ### v0.8.2 — context-pack generation experiments
 
-Status: **planned; not implemented**.
+Status: **published in v0.8.2**.
+
+Shipped scope: `context-pack-generation` is registered in the experiment runtime for bundled/self and external-local targets. It always runs `raw-full-file` and `context-pack`, persists bundled pack artifacts, reports existing retrieval coverage and estimated size with paired raw-versus-pack token savings and objective deltas, and provides a bounded pack preview. External-local execution calculates science on real identities, redacts before persistence, writes no durable pack body, and renders a redacted preview.
 
 Purpose:
 
@@ -1398,8 +1400,8 @@ Features:
 
 Acceptance:
 
-* Context pack artifacts are generated.
-* Reports show context pack coverage and size.
+* [x] Context-pack artifacts are generated.
+* [x] Reports show context-pack coverage and size.
 
 ### v0.9.0 — agent-success-rate plugin
 

@@ -1,6 +1,6 @@
 # Metrics
 
-This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports across the registered experiment plugins (`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, and `retrieval-query-strategy-comparison`).
+This document is the canonical metric glossary for my-dev-kit-lab. It defines every metric that appears in benchmark profiles, prompt variants, controlled experiment artifacts, and rendered reports across the registered experiment plugins (`context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, `retrieval-query-strategy-comparison`, and `context-pack-generation`).
 
 Related documentation:
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how metrics flow through the pipeline
@@ -841,3 +841,30 @@ Retrieved token count is `ceil(character count / 4)` through the existing estima
 `retrieval-query-strategy-comparison-execution.json` holds execution evidence only. `retrieval-query-strategy-comparison-analysis.json` is the scientific truth owner for the metrics, objective vectors, matched scopes, Pareto fronts, and best-strategy interpretation. `report.json`, `report.html`, and `report.txt` present the precomputed analysis and do not recalculate it. The generic experiment metrics (per-treatment values and per-scope objective means) are projections of the same precomputed values.
 
 See [COMMANDS.md](COMMANDS.md#retrieval-query-strategy-comparison-v081), [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v081), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-query-strategy-comparison-architecture-v081).
+
+## Context-pack generation metrics (v0.8.2)
+
+Status: released in v0.8.2. The `context-pack-generation` plugin runs the fixed paired treatments `raw-full-file` and `context-pack`. It calculates each treatment once and persists the execution and analysis artifacts; reports present those values without recalculating them.
+
+### Reused retrieval-quality measures
+
+The plugin reuses the v0.8.0 identity-based measures and availability semantics:
+
+- fact coverage from the answer key's explicit fact-to-context mappings;
+- file precision, recall, and balanced F1;
+- symbol precision, recall, and balanced F1; and
+- irrelevant-context ratio where the existing retrieval-quality calculation applies.
+
+Precision, recall, F1, fact coverage, and irrelevant-context ratio retain their existing numerator, denominator, unavailable, and not-applicable behavior. There is no new composite quality score.
+
+### Estimated size and paired comparison
+
+Both treatments report estimated context size using the existing estimated-token semantics (`ceil(character count / 4)`), not a provider tokenizer or billing measurement. For each matched case, `tokensSaved = rawEstimatedTokens - packEstimatedTokens`; `percentSaved = tokensSaved / rawEstimatedTokens * 100`, with zero when the raw estimate is zero. Negative savings are valid and are not clamped.
+
+For each case, the analysis reports pack-minus-raw objective deltas for file F1, symbol F1, fact coverage, and estimated tokens. A case contributes to scope means only when both treatments have all four required measures available. Scope summaries report included and excluded case counts, treatment objective means, mean tokens saved, and percent saved from the means. Existing task-locality scopes are `overall`, `localized`, `cross-module`, and `broad-change`.
+
+There is no composite score, winner, or ranking. Tests and call relationships may be included descriptively in a context pack, but the frozen answer key does not provide expected test or call-edge identities; v0.8.2 therefore defines no test-coverage or call-edge-coverage score.
+
+In external-local mode, analysis uses real identities before the privacy projection. Redacted placeholders never enter metric calculations. Durable external-local output has no pack body; the report preview presents redacted identities.
+
+See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082), [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment), and [ARCHITECTURE.md](ARCHITECTURE.md#context-pack-generation-architecture-v082).
