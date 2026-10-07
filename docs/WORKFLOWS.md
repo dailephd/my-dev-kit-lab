@@ -465,6 +465,50 @@ The Pareto-front list is in canonical strategy order. Do not treat the first ent
 
 **Completion:** review the per-scope interpretation, the Pareto fronts, the matched and excluded case counts, and the per-case treatment metrics in the report. See [METRICS.md](METRICS.md#retrieval-query-strategy-comparison-metrics-v081) for exact definitions.
 
+## Context-pack generation experiment
+
+**Status:** implemented but unreleased in v0.8.2. Repository package metadata remains at 0.8.1 until release preparation.
+
+**Goal:** measure reproducible, auditable task-specific context packs against raw full-file context using the registered `context-pack-generation` experiment plugin. Both treatments (`raw-full-file`, `context-pack`) always run in that order for every selected case.
+
+**Bundled workflow:**
+
+1. Load the frozen 12-case corpus and selected benchmark project profiles; `--case` and `--benchmark-project` only narrow the cases.
+2. Build a call-graph-enabled my-dev-kit index per benchmark project.
+3. Run the raw-full-file baseline for each selected case.
+4. Retrieve bounded evidence and compose the context pack from task summary, relevant files and symbols, bounded source slices, call relationships, tests, and evidence notes.
+5. Calculate existing retrieval coverage metrics, estimated context size, and paired raw-versus-pack tokens saved, percent saved, and objective deltas.
+6. Persist execution and analysis artifacts, per-case context-pack artifacts, and JSON/text/HTML reports with a bounded pack preview.
+
+Example:
+
+```powershell
+npm run experiment:run -- `
+  --experiment context-pack-generation `
+  --case warm-medium-complete-idempotent `
+  --kit-command "npx @dailephd/my-dev-kit@latest" `
+  --out lab-output/context-pack-generation
+```
+
+**External-local workflow:** supply `--target <local-git-repository>` and `--local-subject-config <path>` together; output must be outside the target repository. The configured cases provide their ground truth. Execution follows this order:
+
+```text
+validate safe seam
+  -> target snapshot
+  -> private scratch
+  -> real-identity science
+  -> eligible-universe check
+  -> target immutability check
+  -> privacy projection
+  -> privacy assertion
+  -> projected persistence
+  -> redacted report preview
+```
+
+The repository remains read-only. Privacy projection happens after metrics are calculated on real identities. External-local runs persist no pack body; durable output and report previews redact private identities. A safety, execution, immutability, or privacy failure fails the run without writing the normal durable artifact/report family.
+
+**Interpretation:** coverage uses the existing fact, file, and symbol measures; estimated tokens are a context-size estimate. The report compares paired raw and pack size and objectives without a composite winner or ranking. Tests and call relationships are descriptive because the frozen answer key does not provide expected test or call-edge identities. See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082-implemented-unreleased) and [METRICS.md](METRICS.md#context-pack-generation-metrics-v082).
+
 ## Real-agent warm-index campaign (v0.5.2)
 
 Available in the installed v0.5.2 CLI. This is a distinct campaign path through the `warm-index-reuse` plugin, separate from the generic `context-strategy-comparison` campaign described in "Real-agent campaign" above; it reuses the warm-index runtime described in "Warm-index reuse experiment" above rather than the agent-matrix path.
