@@ -393,7 +393,7 @@ The run proceeds in this order:
 
 ## Retrieval query strategy comparison experiment (v0.8.1)
 
-**Status:** released in v0.8.1. This workflow is available from the source checkout and the installed 0.8.1 package.
+**Status:** released in v0.8.1. This workflow is available from the source checkout and remains available in the current installed package.
 
 **Goal:** compare deterministic ways of asking my-dev-kit for relevant repository context without invoking coding agents, using the `retrieval-query-strategy-comparison` plugin.
 
