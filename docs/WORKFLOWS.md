@@ -526,7 +526,7 @@ select preset (codex-full | claude-full | codex-timeout-isolation)
   -> preset resolves corpus, single agent, and timeout policy
   -> per project: build exactly one index (unchanged v0.5.0 execution layer)
   -> per task side with context evidence: one real-agent evaluation (Codex JSONL / Claude JSON stdin transport)
-  -> outcome classification (completed / token-unavailable / failed / invalid-output / agent-unavailable / agent-limit-reached / timeout)
+  -> outcome classification (completed / failed / invalid-output / agent-unavailable / agent-limit-reached / timeout)
   -> metrics calculated once (unchanged metrics owner)
   -> on a completed run: report -> plots -> screenshot -> gallery presentation
 ```
@@ -541,7 +541,7 @@ Use `--campaign claude-full` for the Claude preset, or `--campaign codex-timeout
 
 **Expected outputs:** the same `warm-index-execution.json`, `indexes/<project>/`, `commands/<project>/`, and plugin reports as an ordinary warm-index run, plus — only when the run status is `completed` — the standard report/plots/screenshot pipeline and a bounded 3-item campaign gallery (report, plots, bounded `warm-index-execution.json` evidence) with relative paths and no raw agent stdout/stderr/telemetry. The report screenshot is best-effort presentation evidence: when captured, it is attached to the report gallery item; when skipped or failed, no screenshot path is claimed and the warning/error is retained.
 
-**Failure handling:** each task side's agent outcome is classified explicitly; `token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, and `timeout` are all reported rather than defaulted to success or silently dropped. A `partial` or `failed` run status does not trigger presentation (report/plots/screenshot/gallery); presentation runs only for a `completed` run. Screenshot status remains `captured`, `skipped`, or `failed`; skipped or failed screenshot capture is nonfatal by itself and does not change an otherwise successful campaign's exit code. A failed capture remains visibly failed with its error preserved and no fabricated PNG. Report, plot, gallery, execution, or campaign failures remain fatal.
+**Failure handling:** each task side's agent outcome is classified explicitly; `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, and `timeout` are all reported rather than defaulted to success or silently dropped, and unavailable or partial token evidence is reported separately from the outcome status. A `partial` or `failed` run status does not trigger presentation (report/plots/screenshot/gallery); presentation runs only for a `completed` run. Screenshot status remains `captured`, `skipped`, or `failed`; skipped or failed screenshot capture is nonfatal by itself and does not change an otherwise successful campaign's exit code. A failed capture remains visibly failed with its error preserved and no fabricated PNG. Report, plot, gallery, execution, or campaign failures remain fatal.
 
 **Completion:** the run reports `completed`, the warm-index section and campaign agent evidence are present in the report, and — for a completed run — the campaign gallery exists with its three expected items.
 

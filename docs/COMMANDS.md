@@ -184,9 +184,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (published in v0.7.0), `retrieval-precision-recall` (published in v0.8.0), and `retrieval-query-strategy-comparison` (published in v0.8.1), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
-
-The source registry and published 0.8.2 package include `context-pack-generation` as an experimental plugin.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (published in v0.7.0), `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), and `context-pack-generation` (published in v0.8.2), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -247,7 +245,7 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign codex-ful
 my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign claude-full --include-real-agents --case warm-medium-complete-idempotent --out <dir>
 ```
 
-A `--campaign` run requires a locally configured Codex or Claude provider CLI matching the selected preset's agent; it reports partial outcomes (`token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) explicitly rather than treating them as success, and — on a completed run — additionally produces the campaign report/plots/screenshot/gallery presentation described in [ARCHITECTURE.md](ARCHITECTURE.md#real-agent-warm-index-campaign-architecture-v052-released) and [GALLERY.md](GALLERY.md).
+A `--campaign` run requires a locally configured Codex or Claude provider CLI matching the selected preset's agent; it reports partial outcomes (`failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) and unavailable or partial token evidence explicitly rather than treating them as success, and — on a completed run — additionally produces the campaign report/plots/screenshot/gallery presentation described in [ARCHITECTURE.md](ARCHITECTURE.md#real-agent-warm-index-campaign-architecture-v052-released) and [GALLERY.md](GALLERY.md).
 
 See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#real-agent-warm-index-campaign-v052) for the real-agent campaign procedure.
 
