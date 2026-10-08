@@ -1,0 +1,2 @@
+# Keep checked-out bytes identical on every platform so reference patches apply deterministically.
+* text eol=lf
