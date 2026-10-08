@@ -124,7 +124,7 @@ describe("public list and describe", () => {
     const output = capture();
     expect(await runExperimentListCommandFromArgs(["--json"])).toBe(0);
     const listed = JSON.parse(output.stdout()) as { experiments: Array<Record<string, unknown>> };
-    expect(listed.experiments.map((e) => e.id)).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", ID, "retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation"]);
+    expect(listed.experiments.map((e) => e.id)).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", ID, "retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation", "agent-success-rate"]);
     expect(listed.experiments.find((e) => e.id === ID)).toMatchObject({
       id: ID,
       status: "experimental",

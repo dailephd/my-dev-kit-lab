@@ -44,7 +44,8 @@ describe("registry, list and describe", () => {
       "context-window-scaling",
       "retrieval-precision-recall",
       ID,
-      "context-pack-generation"
+      "context-pack-generation",
+      "agent-success-rate"
     ]);
     expect(ids.filter((id) => id === ID)).toHaveLength(1);
   });

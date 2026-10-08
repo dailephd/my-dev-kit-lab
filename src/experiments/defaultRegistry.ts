@@ -1,4 +1,5 @@
 import { ExperimentPluginRegistry } from "./registry.js";
+import { agentSuccessRatePlugin } from "./plugins/agentSuccessRate/index.js";
 import { contextStrategyComparisonPlugin } from "./plugins/contextStrategyComparison/index.js";
 import { contextPackGenerationPlugin } from "./plugins/contextPackGeneration/index.js";
 import { contextWindowScalingPlugin } from "./plugins/contextWindowScaling/index.js";
@@ -16,5 +17,6 @@ export function createDefaultExperimentPluginRegistry(): ExperimentPluginRegistr
   registry.register(retrievalPrecisionRecallPlugin);
   registry.register(retrievalQueryStrategyComparisonPlugin);
   registry.register(contextPackGenerationPlugin);
+  registry.register(agentSuccessRatePlugin);
   return registry;
 }

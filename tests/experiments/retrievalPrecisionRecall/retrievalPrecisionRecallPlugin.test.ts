@@ -69,7 +69,7 @@ describe("retrieval-precision-recall plugin contract", () => {
   it("TST-B3-013 is registered exactly once", () => {
     const ids = createDefaultExperimentPluginRegistry().list().map((entry) => entry.id);
     expect(ids.filter((id) => id === "retrieval-precision-recall")).toHaveLength(1);
-    expect(ids).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation"]);
+    expect(ids).toEqual(["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation", "agent-success-rate"]);
   });
 
   it("TST-B3-014 declares the frozen metadata without plot or screenshot outputs", () => {
