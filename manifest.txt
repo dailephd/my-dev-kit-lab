@@ -1,0 +1,383 @@
+MY-DEV-KIT-LAB REPOSITORY PLACEMENT AND AGENT SAFETY MANIFEST
+=========================================================
+Document role: tracked repository-structure governance for coding agents
+Repository: https://github.com/dailephd/my-dev-kit-lab
+Repository root: resolve from the current Git checkout; never assume a local absolute path.
+Inspected branch: GitHub main
+Inspected Git tree: 2cd3a3d351221b956bf7f9bd3e4334a2be1815ab
+Inspected package: @dailephd/my-dev-kit-lab 0.8.2
+Inspection date: 2026-10-08
+Coverage: 420 tracked directories, 1,624 tracked files (Git tree, not local/ignored files)
+Status: proposed operating contract; not an authorized file-migration plan
+
+READ THIS FIRST — MANDATORY AGENT INTAKE
+----------------------------------------
+1. Before inspecting or editing a project task, read this complete manifest.txt AND whichever existing local agent-instruction files apply: agents.txt, claude.txt, AGENTS.md, CLAUDE.md, or nested agent files. Do not assume a filename is automatically loaded by your coding-agent platform. The invocation/bootstrap instructions must explicitly tell the agent to read this file.
+2. Also consult docs/ARCHITECTURE.md for detailed subsystem boundaries, docs/CURRENT_STATE.md for operational state, docs/ROADMAP.md for fixed planned scope, docs/DOCUMENTATION_PRESERVATION_POLICY.md for retention rules, and the actual code/tests/config relevant to the task. Read only what is relevant after this intake.
+3. Take inventory: git branch --show-current; git rev-parse HEAD; git status --short --untracked-files=all; inspect .gitignore, .npmignore, package.json files, and the relevant owner/tests before edits.
+4. State the existing OWNER DIRECTORY, OWNER MODULE, CLOSEST TEST LOCATION, REQUIRED OUTPUT LOCATION, and MINIMAL EDIT SET. If ownership is uncertain, inspect imports, registries, tests, and callers; use bounded my-dev-kit search/lookup/source when available. Never invent an owner from a feature name.
+5. Extend the existing implementation owner. Never add a parallel runner, CLI router, report writer, validation system, shared utility folder, experiment registry, or test framework merely because a new task is being implemented.
+6. No new top-level directory, unrelated cleanup, relocation, deletion, archive, unrequested file, or version-scope change is authorized by reading this manifest. Propose structural changes with evidence and a migration plan; implement only under an explicit task authorization.
+7. Preserve local/user/ignored content. Do not run git clean/reset/restore/stash/rebase, destructive moves, force-push, or blanket git add. Do not commit/push, release, tag, or publish unless explicitly authorized.
+8. Run work silently on Windows: no visible shell, Explorer, browser, editor, GUI, or extra console windows. Browser tests, when required, are headless.
+9. Before declaring completion, show the files created/moved/deleted, where they belong in this manifest, why existing owners were reused, focused tests, docs/structure checks, git diff --check, and any unresolved placement issue.
+10. If an agent file conflicts with this manifest, source evidence, or explicit user scope, do not silently pick the convenient interpretation. Respect the explicit task and protected public/private boundaries; report the conflict.
+
+DOCUMENT AUTHORITY AND PRIVATE/PUBLIC BOUNDARY
+---------------------------------------------
+- This file specifies placement and agent behavior, not live implementation status or future roadmap scope.
+- Executable truth: source implementation, command parsers, package metadata, tests, and actual CLI behavior.
+- Current/published status: Git/npm/release evidence, then docs/CURRENT_STATE.md.
+- Future scope: explicitly approved docs/ROADMAP.md and later explicit decisions.
+- Architecture and ownership explanations: docs/ARCHITECTURE.md, cross-checked against source.
+- Document removal/preservation: docs/DOCUMENTATION_PRESERVATION_POLICY.md and docs/documentation-preservation-manifest.json; this manifest MUST NOT replace those.
+- Existing convention: public human-facing documentation is tracked Markdown; agents.txt, claude.txt, AGENTS.md, CLAUDE.md are ignored local agent instructions. By explicit owner instruction, manifest.txt is a tracked governance exception; it is excluded from npm package contents by .npmignore and the package.json files allowlist. It is not automatically loaded by coding agents: their bootstrap instructions must explicitly require reading it.
+- Do not put tokens, credentials, private work, local absolute paths, or confidential research into public docs/README, package artifacts, examples, or tracked manifests.
+- Existing package.json files allowlist controls what ships; .npmignore supplements exclusions. Do not assume a tracked file is publishable.
+
+REPOSITORY TREE AND DIRECTORY OWNERS
+------------------------------------
+Notation: a path ending /** assigns the same responsibility to all otherwise unnamed descendants; an explicit child entry overrides the parent. Exact paths below were found on the inspected Git tree. Fixture implementation paths replicate target-project file trees on purpose; they do not establish Lab implementation owners.
+
+ROOT /
+  package.json: package identity, CLI bin, scripts, packaging allowlist, engines, dependencies.
+  package-lock.json: exact npm resolution; change only with authorized dependency/version work.
+  tsconfig.json, vitest.config.ts: compiler/test framework configuration.
+  README.md: public orientation, quickstart, capabilities and limitations.
+  CHANGELOG.md: historical user-facing releases (append-preserving).
+  LICENSE: legal license; do not rewrite incidentally.
+  .gitignore, .npmignore, .gitattributes: SCM and package-hygiene controls.
+  .semgrep.yml: repository static-analysis configuration.
+  NEW root files: forbidden without evidence that they cannot live in an established owner and explicit structural authorization.
+
+.github/ — GitHub-only repository configuration; not runtime code.
+  .github/workflows/ — CI, hosted CodeQL, latest-Node pre-release checks. Amend existing workflow first; no duplicate CI pipelines.
+  .github/codeql/ — CodeQL configuration.
+  .github/FUNDING.yml — sponsor/support metadata.
+
+benchmarks/ — tracked deterministic experiment inputs, NOT generated benchmark results.
+  benchmarks/contracts/ — frozen case catalogs, scenario catalogs, project profiles, behavior contracts and answer keys. Treat compatibility, ordering and identity as protected test contracts.
+  benchmarks/projects/ — complete self-contained sample repositories; see its README.md before modifications.
+    benchmarks/projects/todo-ts/ — small TypeScript Todo sample; src/ implementation, tests/ verification.
+    benchmarks/projects/todo-js/ — small JavaScript Todo sample; src/ and tests/.
+    benchmarks/projects/todo-python/ — small Python Todo sample; src/ and tests/.
+    benchmarks/projects/todo-mixed-ts-py/ — cross-language Todo sample; src/ TypeScript, python/ Python, tests/ cross-language checks.
+    benchmarks/projects/task-workflow-medium-ts/ — medium TypeScript workflow sample; src/models/, src/services/, src/store/, src/utils/, src/validation/, and tests/ define model, domain behavior, storage, helpers, validation and checks.
+    benchmarks/projects/task-analytics-large-mixed/ — larger mixed TypeScript/Python analytics sample.
+      py/task_analytics/ — Python application modules; py/tests/ — Python tests.
+      ts/src/models/ — TypeScript entity models and types.
+      ts/src/services/ — TypeScript domain services.
+      ts/src/store/ — TypeScript storage layer.
+      ts/src/validation/ — TypeScript validation.
+      ts/src/reporting/ — the SAMPLE application's reporting, not Lab reporting.
+      ts/tests/ — sample application's TypeScript tests.
+    benchmarks/projects/context-window-scaling-fixed-ts/ — frozen large static context corpus, separate from shared benchmark-project-profiles.json.
+      src/filler/tier-1/ through src/filler/tier-4/ — intentionally tiered context-padding/source evidence; do not clean or compress as redundant.
+      src/tasks/ — relevant task-local code for scaling cases.
+      tests/tasks/ — fixed task verifiers.
+  benchmarks/projects/**/src/, tests/, python/, py/, ts/ — OWNED BY INDIVIDUAL SAMPLE PROJECTS, not primary Lab product code. Preserve their internal path structure.
+
+examples/ — small public/static example inputs for users and safe demos, not production generated outputs.
+  examples/tutorial-browser/ — generic browser tutorial sample: scenario, page and server/prepare entrypoints. Product-specific demos belong outside Lab.
+
+lab-output/ — deliberately present output-root marker; only .gitkeep is tracked. Runtime results beneath it are generated/ignored. Do not add source or durable docs here.
+
+docs/ — tracked maintained public documentation, NOT a dumping ground for agent scratch notes.
+  docs/ARCHITECTURE.md — implemented module ownership, contracts, extension points and boundaries.
+  docs/COMMANDS.md — actual command syntax, flags, defaults and exit behavior.
+  docs/WORKFLOWS.md — procedures, preconditions, failure handling and outcomes.
+  docs/CURRENT_STATE.md — current version, release and validation state.
+  docs/PROJECT_OVERVIEW.md — project thesis, subsystems, audiences, limits.
+  docs/ROADMAP.md — agreed future work, by individual version; no reassignment by an agent.
+  docs/METRICS.md — metrics and exact interpretation/caveats.
+  docs/TUTORIAL.md — user first-use walkthrough.
+  docs/GALLERY.md — visualization/gallery use and interpretation.
+  docs/security-validation-framework.md — security boundaries, evidence, check semantics and limitations.
+  docs/context-integrity-fixtures.md — frozen context-integrity fixture documentation.
+  docs/context-integrity-report-schema.md — context-integrity report contract.
+  docs/CODING_AGENT_ENGINEERING_BENCHMARK_PLAN.md — planning/design reference, explicitly NOT an implemented plugin or a version override.
+  docs/DOCUMENTATION_PRESERVATION_POLICY.md — non-deletion and relocation authority.
+  docs/documentation-preservation-manifest.json — document-completeness check input; not this repository-placement manifest.
+  docs/v0.7.0-documentation-reconciliation-completeness-audit.md — historical documented audit; keep until disposition is authorized.
+  docs/reports/ — TRACKED historical version-specific implementation/release/readiness evidence (30 Markdown files at inspection). New generated run reports normally go to ignored reports/, not here. Do not automatically delete, move, summarize, or rename historical records.
+
+scripts/ — thin executable/adaptor entrypoints; main parsing/routing and reusable behavior live in src/commands/, src/cli/, or subsystem owners.
+  scripts/cli.ts — installed package binary entrypoint only.
+  scripts/experiments/ — source-checkout experiment:list, experiment:describe, experiment:run adapters.
+  scripts/audits/ — audit command adapter.
+  scripts/security/ — security validate adapter and source-checkout-only dependency/package/CodeQL/Semgrep/fuzz helpers; resolveToolRoot.ts helps maintain tool/target separation.
+  scripts/check-docs.mjs — existing canonical docs-preservation checker; extend this rather than building a competing checker.
+  scripts/verify-packed-package.mjs — installed-tarball consumer acceptance.
+  scripts/verify-benchmarks.ts — deterministic corpus acceptance.
+  scripts/clean-dist.mjs — build-output maintenance.
+  scripts/* (other root entrypoints) — command adapters for experiments, agent runs, tutorial, report, plots, gallery, demos, evaluation and context-integrity smoke; verify matching src/commands/ owner before adding logic.
+
+src/ — THE source implementation. Do not put test fixtures, local reports or informal notes here.
+  src/index.ts — top-level public export surface; change only for intentional supported API exposure.
+  src/core/ — shared process, path containment, file/glob, token counting, safe target and command-line primitives. Do not add domain-specific helpers here merely to reuse them once.
+  src/runtime/ — package/resource/workspace identity, execution context and managed process primitives; keep installed package separate from writable Lab workspace and external target.
+  src/cli/ — installed CLI route selection and help; no duplicate business logic or script-specific implementation.
+  src/commands/ — authoritative reusable CLI command handlers: parsing, path/target/output resolution, orchestrating owned capabilities, exit codes. Reuse from both src/cli and scripts.
+  src/agents/ — agent registry, prompt execution, token/telemetry parsing and agent interfaces.
+    src/agents/adapters/ — mutually distinct fake-agent, Codex and Claude adapters. New provider adapters belong here ONLY when formally in scope.
+  src/prompts/ — prompt construction, raw and guided variants, complexity measurement.
+  src/browser/ — Playwright/browser execution infrastructure; not product-specific scenario code.
+  src/tutorial/ — generic declarative tutorial scenario, validation, actions, subtitles, recordings and artifacts; reuse browser runtime.
+  src/experiments/ — SINGLE experiment plugin contracts, default registry, targeting, config, runner, result and output-path model.
+    src/experiments/plugins/ — registered plugin implementations; an experiment goes here only when registered through the existing shared runtime.
+      contextStrategyComparison/ — raw-full-file versus guided strategy comparison; historical six stage-context strategies and exact fixture loading.
+      warmIndexReuse/ — one index per project, paired raw/warm tasks, freshness/neighborhood observation, deterministic or selected real-agent campaigns and metrics.
+      incrementalChangeStaleness/ — controlled source changes, disposable targets, four refresh treatments, comparisons and V1/V2 compatibility.
+      contextWindowScaling/ — context budget profiles, fixed/synthetic/local repository subjects, estimates, omissions, evaluation and artifacts.
+      retrievalPrecisionRecall/ — matched retrieval and answer-key set metrics, privacy projection for external local targets.
+      retrievalQueryStrategyComparison/ — seven fixed retrieval strategies, matched analysis and comparison artifacts, privacy-safe external-local runs.
+      contextPackGeneration/ — raw-full-file versus evidence-pack experiment, pack builder, preview/redaction, analysis and outputs.
+    src/experiments/plugins/*/ — plugin-owned config, selection, execution, artifact, plugin registration, metrics and domain types; general interfaces stay in src/experiments.
+  src/evaluation/ — SHARED trial creation, retrieval lifecycle, benchmark metadata, scoring, token/timing comparison, index snapshot/freshness and affected-neighborhood algorithms.
+    ecosystemFixtures/ — frozen ecosystem fixture manifests, hash verification and loader.
+    localRepositorySubject/ — safe Git local-subject inventory, identity/config, evaluation case and expected files; external-local privacy and non-mutation contract.
+    retrievalQuality/ — shared answer-key, file/symbol/fact matching and retrieval metrics; do not clone metrics into plugin reports.
+    stageContextDeterminism/ — stable canonicalization, repeated-run digests and determinism checks.
+    stageContextExpectations/ — expectation fixture schemas, readers, validation, producer readiness expectations.
+    stageContextMetrics/ — centrally owned owner/allocation/coverage/context-size/criticality/readiness agreement metrics.
+    stageContextSelectors/ — selectors and consistency diagnostics over upstream producer/orchestrator contracts.
+    syntheticRepository/ — deterministic synthetic repository configuration, materialization, identity, manifest and evaluation cases.
+    targetImmutability/ — before/after target snapshots, comparison and read-only safeguards.
+    upstreamArtifacts/ — exact external artifact contract readers, types and schema validation; do not silently normalize foreign contracts.
+  src/audits/ — SINGLE generic audit registry, execution and report system; no parallel audit framework.
+    core/ — audit target, configuration, registry, runner, issue types, source-fact and language analyzers, inventory and exit-code policy.
+    codeRot/ — code-rot audit registration and composition.
+      detectors/ — ten detector families including architecture drift, duplicate implementation, docs/code mismatches, cross-platform, dependency/environment, release/package and dead-code candidates.
+      utils/ — bounded reads, shared issue creation, doc/command parsing, JVM facts, source-fact lookups and text helpers.
+    security/ — security-validation-to-audit adapter and Android audit integration; keep candidate and confirmed finding types distinct.
+    report/ — audit-specific model, sanitization, JSON/text renderers and writer.
+  src/securityValidation/ — SINGLE security validation system, independent of the generic audit report adapter.
+    attackScenarios/ — attack contract, profiles, scenario runner, bounded source scanning, artifacts and payload corpus.
+      profiles/ — Android, local-tool, Node CLI and npm package threat profiles.
+      scenarios/ — injection, path traversal, package/output boundary, poisoning, network, secrets and other attack scenarios.
+    cliAdversarial/ — bounded path, read-only, malformed-artifact, subprocess, JSON stdout and volume probes.
+    dependencies/ — npm audit/list/outdated and OSV check integration.
+    fuzz/ — bounded deterministic fuzz generators, targets and harness.
+    packageChecks/ — pack contents, expected/excluded file validation.
+    staticScans/ — CodeQL and Semgrep adapters.
+    validate/ — options/target resolution, suite composition and overall verdict.
+    report/ — security-specific evidence model, text/JSON renderer and writer.
+  src/mobile/ — mobile-family contracts and exports; no automatic assumption of other platforms.
+    android/ — Android target detection, Gradle and AndroidManifest evidence, static Android security, optional operations, report and verdict.
+      detect/ — project existence/classification, safe discovery, settings modules, path traversal and source evidence.
+      manifest/ — Android manifest model and parse entrypoint.
+        xml/ — XML parsing primitive.
+      gradle/ — read-only Gradle metadata, module/plugin/release information.
+        validate/ — OPTIONAL executable Gradle operation planner/executor, opt-in checks and mutation guards.
+      audit/ — exported components, intent filters, deep links and permission checks.
+      advancedSecurity/ — Android-specific static/security evidence with shared candidate model and redaction.
+        backupConfiguration/ — Android backup configuration and XML rules.
+        clipboard/ — clipboard exposure/evidence checks.
+        externalTools/ — bounded opt-in external tool runner, safe environment, artifacts and mutation evidence.
+          androidLint/ — Android Lint result readers/checks.
+          dependencyCheck/ — Dependency-Check invocation/JSON reader.
+          osv/ — OSV invocation/JSON reader.
+          semgrep/ — Semgrep invocation/JSON reader/rules.
+        fileProvider/ — FileProvider exposure and URI security checks.
+        firebaseGoogle/ — Firebase / Google Services artifact and rules analysis.
+        networkSecurity/ — network-security config, manifest linkage and effective policy.
+        releaseConfiguration/ — release build/configuration security.
+        secretCandidates/ — bounded candidate scanning and masking, NOT confirmed secrets automatically.
+        sensitiveData/ — shared sensitive-data identification and expression utilities.
+        sensitiveLogging/ — logging of sensitive values.
+        sensitiveStorage/ — stored sensitive data and related evidence.
+        signingConfiguration/ — signing metadata / keystore candidate checks.
+        webview/ — WebView exposure and configuration.
+      report/ — Android report model, renderer and files.
+      validate/ — main Android validation orchestration, verdict and Play readiness checklists.
+      validation/ — SHARED Android check-result/result types; DISTINCT from validate/ command orchestration.
+  src/report/ — shared experiment and legacy JSON/text/HTML evidence models/renderers/writers; no security-specific findings here.
+    experiments/ — plugin-specific REPORT ADAPTERS/builders/readers/render sections, including context integrity. Current flat directory is intentionally the shared presentation owner; reorganize only with proven dependencies/tests.
+  src/plots/ — data-to-plot mapping and SVG graph artifact rendering, no experimental inference itself.
+  src/screenshot/ — screenshots of existing evidence/artifacts, headless browser capture and result model.
+  src/gallery/ — evidence-gallery metadata, manifest and warm-index campaign gallery composition.
+  src/visualizationDemos/ — running and recording my-dev-kit visualization demos, separate from browser tutorial scenarios.
+
+TEST TREE: tests/ — production behavior and safety verification; NEVER production helpers imported at runtime.
+  tests/agents/ — agent adapters, telemetry and execution tests.
+  tests/audits/ — generic audit runners, CLI, source facts and integration tests.
+    codeRot/ — individual code-rot detectors and registry validation.
+    security/ — generic audit security adapter, issue mapping and Android integration tests.
+  tests/benchmarks/ — frozen benchmark contracts/profiles/parity/corpus tests.
+  tests/browser/ — Playwright runtime and process lifecycle tests.
+  tests/cli/ — installed CLI route and help tests.
+  tests/commands/ — reusable command-handler and input/exit/output contract tests.
+  tests/core/ — shared process/target/path/token utility tests.
+  tests/e2e/ — whole-system/end-user outcome checks; not the default level for local behavior.
+  tests/evaluation/ — shared scoring, retrieval, benchmark, target/graph and trial machinery tests.
+    ecosystemFixtures/ — frozen fixture integrity, determinism, checkout portability and replay tests.
+    localRepositorySubject/ — local Git inventory, safety, identity and config tests.
+    retrievalQuality/ — shared retrieval and fact coverage tests.
+    stageContextDeterminism/ — canonicalization/repeatability tests.
+    stageContextExpectations/ — exact expectation contracts, validation tests.
+    stageContextMetrics/ — metric/calculator and readiness-bridge tests.
+    stageContextSelectors/ — external artifact selectors, consistency tests.
+    syntheticRepository/ — config, deterministic generation, identity, oracle and integration tests.
+    targetImmutability/ — target snapshot/read-only enforcement tests.
+    upstreamArtifacts/ — exact upstream reader/type/version conformance tests.
+  tests/experiments/ — plugin registry, lifecycle and shared experiment contract tests.
+    contextPackGeneration/ — pack generation, analysis, privacy, execution and plugin tests.
+    contextStrategyComparison/ — strategy selection, stage-context, readiness and fixture tests.
+    contextWindowScaling/ — budget/synthetic/local fixed-corpus and report evidence tests.
+    incrementalChangeStaleness/ — mutation scenarios, four-treatment comparison and V1/V2 artifact tests.
+    retrievalPrecisionRecall/ — retrieval evidence, scoring, local target privacy and plugin tests.
+    warmIndexReuse/ — index session, freshness, neighborhood, agent and metric tests.
+    NOTE: retrievalQueryStrategyComparison tests also occur directly in tests/experiments/; honor the existing location before deciding to add a new subdirectory.
+  tests/fixtures/ — tracked deterministic fake inputs; intentionally contains miniature projects with their OWN src/, tests/, Gradle and res/ hierarchies. NEVER treat these as misplaced Lab production files.
+    Full fixture roots: tests/fixtures/android/, tests/fixtures/audits/, tests/fixtures/ecosystem/, tests/fixtures/upstream-artifacts/, tests/fixtures/affected-neighborhood/, tests/fixtures/stage-context-expectations/, tests/fixtures/full-workflow-library/, tests/fixtures/tutorial-browser/, tests/fixtures/warm-index-reuse/.
+    affected-neighborhood/ — frozen my-dev-kit affected-neighborhood fixture by kit version/project profile.
+      task-workflow-medium-ts-1.12.4/ — version-specific graph/retrieval expectation data.
+    android/ — Android detection, Gradle, manifest, advanced-security and platform-boundary fixtures.
+      advanced-security-fixtures/ — adversarial mini-project layouts for specific Android findings.
+        backup-configuration/ — multi-module Android backup-rule resolution fixtures.
+        network-security/ — multi-module XML/policy effective network fixtures.
+        release-configuration/ — Android release-build configuration fixtures.
+        resource-resolution/ — multi-module Android resource reference/precedence fixtures.
+        secret-candidates-bounds/ — scanning limit/bounds fixtures.
+        secret-candidates/ — candidate secret matching fixtures.
+        signing-configuration/ — signing/keystore and module configuration fixtures.
+      compose-app/ — Jetpack Compose minimal project; app/src/main/java/** package tree; gradle/wrapper/ is target wrapper metadata.
+      gradle-metadata-fixtures/ — Gradle configuration variations including catalog-only-plugin/gradle/.
+      java-app/ — Java minimal Android app; app/src/main/java/** and gradle/wrapper/.
+      library/ — Android library project; mylibrary/src/** and gradle/wrapper/.
+      manifest-audit-fixtures/ — manifest component/permission/deep-link cases.
+      multi-module/ — app/, core/, feature-login/ module hierarchies; app/src/androidTest/** and app/src/test/** remain target tests; gradle/wrapper/ target wrapper metadata.
+      non-android-gradle/ — negative Gradle detector fixture; core/src/main/java/** and gradle/wrapper/.
+      partial/ — intentionally incomplete Android project to test degraded handling; app/ retained.
+      xml-view-app/ — Android Views example; app/src/main/kotlin/** and app/src/main/res/layout/; gradle/wrapper/.
+      android/**/src/main/, src/test/, src/androidTest/, res/xml/, res/layout/, java/, kotlin/, com/, example/, gradle/wrapper/, app/, module-a/, module-b/ — standard nested target-project scaffold or namespaced resources. KEEP intact unless the fixture contract explicitly changes.
+    audits/ — mixed-language audit fixture corpora.
+      mixed-language/ — multiple language and generated/vendor boundary samples.
+        mixed-docs-claims/ — Java/Kotlin source linked to doc claims.
+        mixed-generated-vendor/ — generated/, vendor/, src/ boundary handling.
+        mixed-java-kotlin/ — java/kotlin and test trees.
+        mixed-python-ts/ — Python/TypeScript interaction.
+        mixed-ts-js/ — TypeScript/JavaScript interaction.
+        mixed-ts-python-jvm/ — TypeScript, Python, JVM mixed source/test paths.
+      audits/**/src/, src/main/java/, src/main/kotlin/, src/test/, pytests/, tests/, generated/, vendor/, com/example/ — deliberately embedded audited-project roots.
+    ecosystem/ — frozen cross-tool evidence corpus.
+      context-integrity/v0.4.5/ — pinned upstream, failed-run/corrected-replay, producer, derived, artifacts, reports, tool-versions, manifests: keep immutable until intentional fixture update.
+    full-workflow-library/ — frozen workflow strategy library JSONs and forward-compatible variants.
+    stage-context-expectations/ — expectation fixtures plus invalid/ negative cases.
+    tutorial-browser/ — declarative browser tutorial fixture helper.
+    upstream-artifacts/ — exact serialized external my-dev-kit/orchestrator artifacts, schema-version layouts, invalid cases; never casually normalize or overwrite.
+      my-dev-kit-1.10.2-identity/ — compatibility identity sample.
+      my-dev-kit/1.10.2/ and 1.10.4/ — exact context-capsule and retrieval-audit-record fixtures.
+      my-dev-kit-orchestrator/1.2.1/ and 1.2.3/ — workflow-instruction-packet and run-integrity artifacts.
+    warm-index-reuse/ — deterministic multi-task warm index corpus.
+    tests/fixtures/** beyond named folders — preserve nested source, build, test, namespace, version and resource path hierarchy; the paths themselves are test inputs.
+  tests/fuzz/ — deterministic fuzz-smoke tests (production harness under src/securityValidation/fuzz/).
+  tests/gallery/ — gallery manifest and grouping tests.
+  tests/integration/ — multi-module command/runtime integration tests.
+  tests/mobile/ — Android detector, validation, Gradle, manifest and audit tests.
+    advancedSecurity/ — Android advanced security integration and cross-family tests.
+      backupConfiguration/, clipboard/, fileProvider/, firebaseGoogle/, networkSecurity/, releaseConfiguration/, secretCandidates/, sensitiveLogging/, sensitiveStorage/, signingConfiguration/, webview/ — category-specific analyzer/check tests; matched to src/mobile/android/advancedSecurity/ ownership.
+      externalTools/ — opt-in tool runner and safety tests.
+        androidLint/, dependencyCheck/, osv/, semgrep/ — format and command boundary tests for each tool adapter.
+    audit/ — exported component, intent filter, permission and deep-link tests.
+    detect/ — Android target/classification/module discovery tests.
+    gradle/ — static Gradle metadata and opt-in execution tests.
+      validate/ — optional Gradle planner/operations/mutation tests.
+    manifest/ — Android manifest and XML parser tests.
+    validate/ — Android result/verdict/checklist/integration tests.
+  tests/plots/ — data series and SVG plot writer tests.
+  tests/prompts/ — prompt builder and variant contracts.
+  tests/report/ — shared report schema, HTML/text and artifacts tests.
+    experiments/ — experiment-specific report builders/rendering/parity tests.
+  tests/runtime/ — execution context, process, package resource and installed-root tests.
+  tests/screenshot/ — browser screenshot capture tests.
+  tests/scripts/ — docs checker, package-script contract, benchmarks and packed consumer acceptance tests.
+  tests/security/ — full standalone security suite/CLI/check contracts.
+    attackScenarios/ — profiles, payloads, scenario runner and per-scenario tests.
+  tests/tutorial/ — declarative browser tutorial actions, validation, artifacts, subtitles, recorder tests.
+  tests/visualizationDemos/ — visualization command and artifact tests.
+
+IGNORED/GENERATED/PRIVATE OUTPUT POLICY
+---------------------------------------
+- reports/ (including reports/security/ and reports/documentation-drift/): generated local audit/security/validation evidence; ignored.
+- reports/generated/: explicitly ignored derived content; do not treat as public docs.
+- lab-output/ outputs: generated experiment/run products; ignored except .gitkeep.
+- dist/, build/, coverage/, node_modules/, .vitest/, playwright-report/, test-results/, screenshots/, .cache/, tmp/, temp/, .my-dev-kit/, .my-dev-kit-context/: build, dependencies, test, browser or retrieval artifacts; not source and not tracked.
+- .env*, credentials, secrets, keys, service accounts: private; never log or commit.
+- agents.txt, claude.txt, AGENTS.md, CLAUDE.md, .claude/: currently ignored private instructions.
+- Do not add new generated-output roots if an existing output owner can be used. Output destinations must be resolved via LabExecutionContext / existing command paths; never write into inspected target or installed package by default.
+- Security scanners / Gradle / browser/network external operations must preserve each subsystem's opt-in and non-destructive behavior.
+
+MANDATORY FILE-PLACEMENT DECISION BEFORE EACH CHANGE
+----------------------------------------------------
+A. Is this end-user capability logic? Place in existing src/<owner>/, not scripts/, docs/, tests/, benchmarks/.
+B. Is this installed CLI routing/help? src/cli/. Is it a reusable CLI command? src/commands/. Is it an npm script entrypoint? scripts/ only, delegating to src/commands/.
+C. Is this a NEW experiment family? Extend src/experiments/plugins/ through the existing registry and generic runner, ONLY if the approved version explicitly adds the family. Core experiment runtime changes belong in src/experiments/.
+D. Is this shared scientific/evaluation logic? src/evaluation/<existing owner>/; do not bury it in a report renderer or clone it into another plugin.
+E. Is this a security validation check? src/securityValidation/<specific existing category>/; Android-specific static analyzer? src/mobile/android/advancedSecurity/<specific category>/; generic audit? src/audits/. Use src/audits/security/ ONLY for conversion and summary.
+F. Is this a report? Shared experiment report src/report/experiments/; standalone audit report src/audits/report/; standalone security report src/securityValidation/report/; Android report src/mobile/android/report/. Distinguish render logic from experimental computation.
+G. Is this a user-facing document? Update the existing docs/<responsibility>.md rather than creating docs/<feature-name>-notes.md. Historical release state belongs in CHANGELOG.md or a specifically authorized archival record.
+H. Is this an experiment answer key/fixed corpus? benchmarks/contracts/ and benchmarks/projects/. Is this a fake target for automated regression? tests/fixtures/. Never mix these simply because both look like samples.
+I. Is this a test? Mirror the existing production owner in tests/<matching path>; prefer modifying established tests. Test fixtures go under the established tests/fixtures/<domain>/.
+J. Is this an output? Already approved ignored lab-output/, reports/, screenshot, or runtime-resolved output; never into src/, benchmarks/, docs/reports/ or an external target by convenience.
+K. For any proposed new directory: (1) prove no owner exists; (2) state bounded responsibility, input/output, public/internal exposure and nearest tests; (3) show why a file under an existing directory cannot serve; (4) get explicit scope approval; (5) update this manifest and applicable architecture/CI checks in the same authorized change.
+
+NON-NEGOTIABLE STRUCTURAL INVARIANTS
+----------------------------------
+- ONE installed CLI router, ONE owner per command, ONE plugin runtime/registry, ONE generic audit framework, ONE security-validation framework, ONE existing documentation checker.
+- Keep experiment calculations, rendering, execution and fixtures separate.
+- Treat bench project paths and tests/fixtures/** nested language/Gradle trees as data: do not 'tidy' meaningful source hierarchy.
+- Never conflate src/mobile/android/validate/ (orchestration) and src/mobile/android/validation/ (result contracts), or src/audits/security/ (adapter) and src/securityValidation/ (source evidence).
+- No silent future-feature promotion, no version bump/release tasks inside normal implementation, no unsanctioned public API/CLI flags/schema changes.
+- Historical roadmap, changelog, frozen corpus and released output contract are protected. Any move requires provenance, exact old/new map and behavior-preservation tests.
+- No new generic utils/, common/, shared/, helpers/, services/, temp/, backups/, old/, v2/, or misc/ directory without real ownership proof. Avoid files named final, fixed, new, copy, old, and near-duplicate *V2 unless compatibility explicitly demands parallel artifact readers.
+- Avoid heavy generated media, external model campaigns, unrequested real-agent runs or GPU work during documentation/structural cleanup.
+
+REPOSITORY CLEANUP PROGRAM — AUDIT, THEN BOUNDED APPROVED MIGRATIONS
+-------------------------------------------------------------------
+Phase 0 — evidence and freeze (READ-ONLY): record main HEAD, local HEAD/status, git ls-files, all current tracked directories and their contents, path counts, package include/exclude rules, source imports, test locations, exact release contracts. Inspect source docs, local agents.txt/claude.txt and previous release/handoff only as applicable. Detect ignored/untracked pollution without deleting it.
+Phase 1 — owner/placement report (READ-ONLY): for every suspect folder/file emit CURRENT_PATH, VERIFIED_OWNER, EXPECTED_HOME, EVIDENCE (imports/tests/docs), ACTION (KEEP/REVIEW/MOVE/MERGE/REMOVE), CONTRACT_RISK, AFFECTED_TESTS. Baseline all folder/subfolder owners in this manifest. Distinguish a suspect name from a proven defect.
+Phase 2 — safe quick wins (SEPARATE AUTHORIZED TASK): update agent bootstraps to require manifest reading; verify manifest.txt remains tracked and excluded from npm; align .gitignore/.npmignore/package allowlist when package policy changes; document output locations; add structure/placement lint to the existing checker (or a narrowly compatible existing owner) and regression tests. Do not duplicate docs checks.
+Phase 3 — structural refactor candidates (SEPARATE USER-APPROVED BATCHES): audit docs/reports/ historical location versus preservation; audit the flat src/report/experiments/ ownership and whether bounded per-plugin views improve navigation; audit version/batch-named tests; audit shared-versus-domain helpers; audit script business-logic leakage; audit root and public package contents. Move only an explicitly approved, behavior-neutral set at a time and update imports/exports/tests/docs together. Preserve old interfaces when required.
+Phase 4 — verify each approved batch: run relevant tests; npm run docs:check; npm run typecheck; npm run build; npm test and npm run verify when code moves warrant them; npm run verify:packed-package when packaged files or installed routes change; git diff --check; compare output identity/contracts; inspect npm pack --dry-run when packaging changes. Record all SKIPPED/NOT_APPLICABLE gates honestly.
+Phase 5 — protect future structure: maintain a checker that can flag unexplained top-level additions, misplaced generated artifacts, missing tests for new owners, scripts with new business logic, unapproved public docs, forbidden package contents and new duplicate systems. Use review-required warnings for cases that cannot be decided statically. CI enforcement must be bounded, cross-platform and not block intentional fixtures or historically necessary compatibility files.
+
+NO CLEANUP BATCH MAY: delete historical records, rewrite the roadmap, alter scientific metrics/results, revise published artifact schema or command behavior, rewrite frozen fixtures, auto-fix security results, move public commands, modify external targets, or publish/releases, unless independently authorized with explicit acceptance criteria.
+
+SMALL REQUIRED AGENT-BOOTSTRAP BLOCK (ADD TO EACH LOCAL AGENT FILE)
+------------------------------------------------------------------
+Before any repository analysis, implementation, refactor, test, cleanup, or documentation edit in my-dev-kit-lab: read the complete root manifest.txt together with this agent instruction file. Read docs/ARCHITECTURE.md and task-relevant policy/owner files before choosing an edit path. For each new or modified file, identify its manifest owner and nearest tests. Do not create new directories, relocate content, introduce parallel modules, or write generated outputs outside authorized roots without explicit task approval. If manifest.txt is absent or stale relative to the live directory tree, perform read-only inventory and report the mismatch; do not invent structure. Follow the manifest's stop conditions, safety boundaries, testing requirements, and private/public policy. Report every deviation.
+
+PRE-EDIT CHECKLIST — AGENT MUST ANSWER
+--------------------------------------
+[ ] Agent instructions and manifest.txt both read (state exact paths).
+[ ] Current branch/HEAD/working tree captured and unrelated work protected.
+[ ] Change authorized by the requested version/stage/task; no later roadmap items.
+[ ] Existing source owner, contracts, extension points and nearest tests found.
+[ ] Required document update belongs in its existing document.
+[ ] No redundant directory, framework, registry, command, runner or report writer created.
+[ ] New file/move/rename justified and reviewed against manifest path table.
+[ ] Generated files, private inputs, indexes and reports confined to proper ignored locations.
+[ ] Appropriate behavior-derived tests and validations selected.
+[ ] No unauthorized commit, push, tag, publish, release, destructive operation or GUI popup.
+
+FINAL REPORT — REQUIRED
+-----------------------
+VERDICT: PASS | NEEDS_CORRECTION | BLOCKED
+REPOSITORY / BRANCH / STARTING_SHA / FINAL_SHA:
+AGENT_INSTRUCTION_PATHS_READ:
+MANIFEST_PATH_AND_REVISION_READ:
+FOLDER_OWNERS_AND_TEST_PATHS_CONFIRMED:
+FILE_PLACEMENT_DECISIONS:
+NEW_DIRECTORIES_AND_JUSTIFICATION (or none):
+FILES_CREATED / MODIFIED / MOVED / DELETED:
+ARCHITECTURE_AND_PUBLIC_CONTRACTS_PRESERVED:
+GENERATED/PRIVATE/IGNORED FILES EXCLUDED:
+VALIDATION_COMMANDS_WITH_EXIT_CODES:
+DIFF/WORKTREE AND PACKAGE CONTENTS RESULT:
+UNCERTAINTY / DEVIATIONS / REMAINING RISKS:
+EXACT_NEXT_ACTION:
+
+MAINTENANCE OF THIS MANIFEST
+----------------------------
+Regenerate an evidence-based folder inventory before structural revisions and after approved changes. The explicit owner map above applies to the inspected Git tree; do not invent a role for a new path. Keep this document short enough to read as an intake but comprehensive enough to choose the correct owner. Fixture wildcard rules intentionally cover deeply nested Android/JVM/Python/TypeScript sample directory scaffolding. Update the owner map and nearest-test map at the same time as an approved structural refactor. This file does not itself authorize editing the repository, GitHub, or the user's local checkout.
