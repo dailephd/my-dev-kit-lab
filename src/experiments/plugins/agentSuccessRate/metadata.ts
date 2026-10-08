@@ -6,8 +6,13 @@ export const AGENT_SUCCESS_RATE_TREATMENT_IDS = ["raw-full-file", "context-pack"
 
 export type AgentSuccessRateTreatmentId = (typeof AGENT_SUCCESS_RATE_TREATMENT_IDS)[number];
 
-/** Batch 2 executes deterministic fixture patches only; no coding agent runs. */
+/** Deterministic-fixture mode executes fixture patches only; no coding agent runs. It is the default mode. */
 export const AGENT_SUCCESS_RATE_EXECUTION_MODE = "deterministic-fixture" as const;
+
+/** Real-agent mode runs exactly one provider attempt per case/treatment and evaluates the patch it generates. */
+export const AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE = "real-agent" as const;
+
+export type AgentSuccessExecutionMode = typeof AGENT_SUCCESS_RATE_EXECUTION_MODE | typeof AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE;
 
 export const agentSuccessRateMetadata: ExperimentPluginMetadata = {
   id: AGENT_SUCCESS_RATE_PLUGIN_ID,

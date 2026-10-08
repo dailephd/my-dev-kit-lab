@@ -1,6 +1,6 @@
 import { AGENT_SUCCESS_METRIC_IDS, type AgentSuccessRateAnalysisV1 } from "./analysisTypes.js";
 import type { AgentSuccessRateExecutionArtifactV1 } from "./executionArtifact.js";
-import { AGENT_SUCCESS_RATE_PLUGIN_ID, AGENT_SUCCESS_RATE_TREATMENT_IDS } from "./metadata.js";
+import { AGENT_SUCCESS_RATE_PLUGIN_ID, AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE, AGENT_SUCCESS_RATE_TREATMENT_IDS } from "./metadata.js";
 import { validateAgentSuccessMetric } from "./metrics.js";
 
 export const AGENT_SUCCESS_RATE_ANALYSIS_ARTIFACT_FILE = "agent-success-rate-analysis.json";
@@ -12,7 +12,7 @@ export type AgentSuccessRateMethodologyV1 = {
   factSatisfaction: "all-referenced-post-edit-checks-passed";
   verificationGranularity: "command-check-level";
   aggregation: "matched-case-unweighted-mean";
-  treatmentComparison: "pipeline-diagnostic-only";
+  treatmentComparison: "pipeline-diagnostic-only" | "descriptive-matched-case";
   relativeChurnDenominator: "baseline-text-line-count";
 };
 
@@ -52,7 +52,10 @@ export function buildAgentSuccessRateAnalysisArtifact(args: {
     pluginSchemaVersion: args.pluginSchemaVersion,
     startedAt: args.startedAt,
     completedAt: args.completedAt,
-    methodology: { ...AGENT_SUCCESS_RATE_METHODOLOGY },
+    methodology: {
+      ...AGENT_SUCCESS_RATE_METHODOLOGY,
+      ...(args.analysis.executionMode === AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE ? { treatmentComparison: "descriptive-matched-case" as const } : {})
+    },
     analysis: structuredClone(args.analysis)
   };
 }
@@ -63,7 +66,14 @@ export function validateAgentSuccessRateAnalysisArtifact(artifact: AgentSuccessR
   if (artifact.schemaVersion !== AGENT_SUCCESS_RATE_ANALYSIS_SCHEMA_VERSION) problems.push("analysis artifact schemaVersion is not recognized.");
   if (artifact.pluginId !== AGENT_SUCCESS_RATE_PLUGIN_ID) problems.push("analysis artifact pluginId does not match.");
   const { analysis } = artifact;
-  if (analysis.contextEffectEvaluated !== false) problems.push("analysis must state contextEffectEvaluated=false.");
+  if (analysis.executionMode === AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE) {
+    if (!analysis.comparison) problems.push("real-agent analysis is missing the matched-case comparison.");
+    else if (analysis.contextEffectEvaluated !== analysis.comparison.matchedCaseIds.length > 0) problems.push("analysis contextEffectEvaluated disagrees with the matched cases.");
+    if (artifact.methodology.treatmentComparison !== "descriptive-matched-case") problems.push("real-agent analysis must use the descriptive matched-case methodology.");
+  } else {
+    if (analysis.contextEffectEvaluated !== false) problems.push("analysis must state contextEffectEvaluated=false.");
+    if (analysis.comparison !== undefined) problems.push("deterministic-fixture analysis must not carry a comparison.");
+  }
   if (analysis.treatmentOrder.join(",") !== AGENT_SUCCESS_RATE_TREATMENT_IDS.join(",")) problems.push("analysis treatmentOrder is not the fixed order.");
   for (const entry of analysis.cases) {
     if (entry.treatments.map((t) => t.treatmentId).join(",") !== AGENT_SUCCESS_RATE_TREATMENT_IDS.join(",")) problems.push(`analysis case ${entry.caseId} does not hold both treatments in fixed order.`);
@@ -87,6 +97,8 @@ export function validateAgentSuccessRateArtifactFamily(execution: AgentSuccessRa
   const problems: string[] = [];
   if (execution.runId !== analysis.runId) problems.push("execution and analysis runId differ.");
   if (execution.pluginSchemaVersion !== analysis.pluginSchemaVersion) problems.push("execution and analysis pluginSchemaVersion differ.");
+  if (execution.executionMode !== analysis.analysis.executionMode) problems.push("execution and analysis executionMode differ.");
+  if (execution.contextEffectEvaluated !== analysis.analysis.contextEffectEvaluated) problems.push("execution and analysis contextEffectEvaluated differ.");
   if (execution.cases.length !== analysis.analysis.cases.length) problems.push("execution and analysis case counts differ.");
   execution.cases.forEach((entry, index) => {
     const counterpart = analysis.analysis.cases[index];

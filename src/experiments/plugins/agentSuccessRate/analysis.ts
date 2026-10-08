@@ -3,6 +3,7 @@ import {
   AGENT_SUCCESS_MEAN_SOURCES,
   AGENT_SUCCESS_METRIC_IDS,
   type AgentSuccessCaseAnalysisV1,
+  type AgentSuccessComparisonV1,
   type AgentSuccessMeanId,
   type AgentSuccessMeanV1,
   type AgentSuccessMetricId,
@@ -11,7 +12,7 @@ import {
   type AgentSuccessTreatmentAnalysisV1
 } from "./analysisTypes.js";
 import type { AgentSuccessCaseEvidenceV1, AgentSuccessTreatmentEvidenceV1, AgentSuccessVerificationCheckEvidenceV1 } from "./executionTypes.js";
-import { AGENT_SUCCESS_RATE_EXECUTION_MODE, AGENT_SUCCESS_RATE_TREATMENT_IDS } from "./metadata.js";
+import { AGENT_SUCCESS_RATE_EXECUTION_MODE, AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE, AGENT_SUCCESS_RATE_TREATMENT_IDS, type AgentSuccessExecutionMode } from "./metadata.js";
 import { availableMetric, notApplicableMetric, ratioMetric, triMetric, unavailableMetric } from "./metrics.js";
 import type { AgentSuccessMetricUnit, AgentSuccessMetricV1, Tri } from "./types.js";
 
@@ -23,11 +24,22 @@ export const AGENT_SUCCESS_RATE_LIMITATIONS: readonly string[] = [
   "No weighted score, ranking, winner or significance claim is produced."
 ];
 
-type EvaluationState = "infrastructure-failure" | "baseline-invalid" | "no-evidence" | "patch-failed" | "patched";
+export const AGENT_SUCCESS_RATE_REAL_AGENT_LIMITATIONS: readonly string[] = [
+  "Real-agent mode gives each treatment exactly one provider attempt; the provider generated its own patch from only the supplied treatment context.",
+  "Task success is derived from trusted checks on the actual changed repository state; agent prose is never evidence of success.",
+  "Matched-case comparisons are descriptive. A single run supports no causal, ranking, winner or statistical-significance claim.",
+  "Estimated context tokens are size estimates of the supplied context and are not provider-reported token usage.",
+  "Cases with an unavailable treatment verdict are excluded from matched metrics and reported separately.",
+  "Verification counts are command/check level; individual test counts are not inferred from command output.",
+  "No weighted score, ranking, winner or significance claim is produced."
+];
+
+type EvaluationState = "infrastructure-failure" | "baseline-invalid" | "no-answer" | "no-evidence" | "patch-failed" | "patched";
 
 const STATE_REASON: Record<Exclude<EvaluationState, "patched">, string> = {
   "infrastructure-failure": "execution infrastructure failed before the attempt could be evaluated.",
   "baseline-invalid": "the benchmark baseline is not evaluable, so no implementation attempt was evaluated.",
+  "no-answer": "the provider produced no usable answer, so no implementation attempt was evaluated.",
   "no-evidence": "required execution evidence is missing.",
   "patch-failed": "the fixture patch was not applied, so post-edit verification did not run."
 };
@@ -41,7 +53,7 @@ function and3(...values: Tri[]): Tri {
 function stateOf(evidence: AgentSuccessTreatmentEvidenceV1): EvaluationState {
   if (evidence.availability === "infrastructure-failure") return "infrastructure-failure";
   if (evidence.baselineAssessment === null || evidence.availability === "baseline-invalid" || !evidence.baselineAssessment.evaluable) return "baseline-invalid";
-  if (!evidence.patch.attempted || evidence.patch.outcome === null) return "no-evidence";
+  if (!evidence.patch.attempted || evidence.patch.outcome === null) return evidence.realAgent ? "no-answer" : "no-evidence";
   return evidence.patch.outcome === "success" ? "patched" : "patch-failed";
 }
 
@@ -74,7 +86,8 @@ function duration(id: AgentSuccessMetricId, value: number | null): AgentSuccessM
  */
 export function analyzeAgentSuccessTreatment(task: AgentSuccessTaskV1, evidence: AgentSuccessTreatmentEvidenceV1): AgentSuccessTreatmentAnalysisV1 {
   const state = stateOf(evidence);
-  const gate = state === "patched" ? null : STATE_REASON[state];
+  const gate =
+    state === "patched" ? null : state === "patch-failed" && evidence.realAgent ? "the provider patch was not applied, so post-edit verification did not run." : STATE_REASON[state];
   const m: Partial<Record<AgentSuccessMetricId, AgentSuccessMetricV1>> = {};
   const un = (id: AgentSuccessMetricId, unit: AgentSuccessMetricUnit, reason: string): AgentSuccessMetricV1 => unavailableMetric(id, unit, reason);
 
@@ -115,7 +128,7 @@ export function analyzeAgentSuccessTreatment(task: AgentSuccessTaskV1, evidence:
     m.requiredFactsSatisfied = triMetric("requiredFactsSatisfied", requiredTri, reasonFor("a required fact's check evidence was missing or indeterminate."));
   }
   m.protectedIntegrity =
-    state === "baseline-invalid" || state === "infrastructure-failure" || state === "no-evidence"
+    state === "baseline-invalid" || state === "infrastructure-failure" || state === "no-evidence" || state === "no-answer"
       ? un("protectedIntegrity", "boolean", gate as string)
       : triMetric("protectedIntegrity", integrityTri, "protected-file integrity could not be proven.");
 
@@ -236,8 +249,22 @@ export function analyzeAgentSuccessTreatment(task: AgentSuccessTaskV1, evidence:
     : un("attemptedProtectedEditCount", "count", "no patch was attempted.");
 
   // --- time and tokens ---
-  m.agentDurationMs = un("agentDurationMs", "ms", "deterministic-fixture mode runs no agent.");
-  m.agentTotalTokens = un("agentTotalTokens", "tokens", "deterministic-fixture mode has no provider token usage.");
+  const real = evidence.realAgent;
+  if (!real) {
+    m.agentDurationMs = un("agentDurationMs", "ms", "deterministic-fixture mode runs no agent.");
+    m.agentTotalTokens = un("agentTotalTokens", "tokens", "deterministic-fixture mode has no provider token usage.");
+  } else {
+    m.agentDurationMs = real.providerInvoked ? duration("agentDurationMs", evidence.timing.agentDurationMs) : un("agentDurationMs", "ms", "no provider attempt ran.");
+    const usage = evidence.agentTokenUsage;
+    m.agentTotalTokens =
+      usage !== null && usage.totalTokens !== null
+        ? availableMetric("agentTotalTokens", usage.totalTokens, "tokens")
+        : un(
+            "agentTotalTokens",
+            "tokens",
+            usage === null ? "no provider attempt ran." : `the provider reported no total token usage (source: ${usage.source}, reliability: ${usage.reliability}).`
+          );
+  }
   m.baselineVerificationDurationMs = duration("baselineVerificationDurationMs", evidence.timing.baselineVerificationDurationMs);
   m.patchPipelineDurationMs = duration("patchPipelineDurationMs", evidence.timing.patchPipelineDurationMs);
   m.postEditVerificationDurationMs = duration("postEditVerificationDurationMs", evidence.timing.postEditVerificationDurationMs);
@@ -267,7 +294,11 @@ function mean(id: AgentSuccessMeanId, caseIds: readonly string[], treatment: rea
  * Per-case analysis plus unweighted aggregates. Means are taken over matched cases only (available for every
  * treatment); unavailable values are never converted to zero. No composite, ranking or winner is produced.
  */
-export function analyzeAgentSuccessRate(tasks: readonly AgentSuccessTaskV1[], caseEvidence: readonly AgentSuccessCaseEvidenceV1[]): AgentSuccessRateAnalysisV1 {
+export function analyzeAgentSuccessRate(
+  tasks: readonly AgentSuccessTaskV1[],
+  caseEvidence: readonly AgentSuccessCaseEvidenceV1[],
+  executionMode: AgentSuccessExecutionMode = AGENT_SUCCESS_RATE_EXECUTION_MODE
+): AgentSuccessRateAnalysisV1 {
   if (tasks.length !== caseEvidence.length || tasks.some((task, index) => caseEvidence[index]?.caseId !== task.id)) {
     throw new Error("Agent success analysis requires case evidence in the same order as the selected tasks.");
   }
@@ -301,6 +332,19 @@ export function analyzeAgentSuccessRate(tasks: readonly AgentSuccessTaskV1[], ca
     };
   });
 
+  if (executionMode === AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE) {
+    const comparison = buildComparison(cases);
+    return {
+      executionMode,
+      contextEffectEvaluated: comparison.matchedCaseIds.length > 0,
+      treatmentOrder: [...AGENT_SUCCESS_RATE_TREATMENT_IDS],
+      caseCount: cases.length,
+      cases,
+      aggregates,
+      limitations: [...AGENT_SUCCESS_RATE_REAL_AGENT_LIMITATIONS],
+      comparison
+    };
+  }
   return {
     executionMode: AGENT_SUCCESS_RATE_EXECUTION_MODE,
     contextEffectEvaluated: false,
@@ -310,4 +354,26 @@ export function analyzeAgentSuccessRate(tasks: readonly AgentSuccessTaskV1[], ca
     aggregates,
     limitations: [...AGENT_SUCCESS_RATE_LIMITATIONS]
   };
+}
+
+/** Descriptive matched-case accounting: only cases with a determinate verdict for every treatment are matched. */
+function buildComparison(cases: readonly AgentSuccessCaseAnalysisV1[]): AgentSuccessComparisonV1 {
+  const matchedCaseIds: string[] = [];
+  const incompleteCases: AgentSuccessComparisonV1["incompleteCases"] = [];
+  const pairedOutcomes = { bothSucceeded: 0, onlyRawFullFileSucceeded: 0, onlyContextPackSucceeded: 0, neitherSucceeded: 0 };
+  for (const entry of cases) {
+    const unavailableTreatmentIds = entry.treatments.filter((t) => t.metrics.taskSuccess.availability !== "available").map((t) => t.treatmentId);
+    if (unavailableTreatmentIds.length > 0) {
+      incompleteCases.push({ caseId: entry.caseId, unavailableTreatmentIds });
+      continue;
+    }
+    matchedCaseIds.push(entry.caseId);
+    const raw = entry.treatments[0]!.metrics.taskSuccess.value === true;
+    const pack = entry.treatments[1]!.metrics.taskSuccess.value === true;
+    if (raw && pack) pairedOutcomes.bothSucceeded += 1;
+    else if (raw) pairedOutcomes.onlyRawFullFileSucceeded += 1;
+    else if (pack) pairedOutcomes.onlyContextPackSucceeded += 1;
+    else pairedOutcomes.neitherSucceeded += 1;
+  }
+  return { basis: "matched-evaluable-cases", matchedCaseIds, incompleteCases, pairedOutcomes };
 }

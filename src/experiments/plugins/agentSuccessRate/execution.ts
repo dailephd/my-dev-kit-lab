@@ -33,6 +33,7 @@ import type {
   AgentSuccessChangeEvidenceV1,
   AgentSuccessPatchEvidenceV1,
   AgentSuccessPatchFile,
+  AgentSuccessProposalSource,
   AgentSuccessProtectedIntegrityEvidenceV1,
   AgentSuccessTreatmentEvidenceV1,
   AgentSuccessTreatmentResult,
@@ -78,7 +79,8 @@ export const defaultAgentSuccessRateDependencies: AgentSuccessRateDependencies =
  * Validates every candidate with the Batch 1 validator before anything touches the filesystem. Fails closed: there is
  * no default catalog, and no task is inferred from retrieval EvaluationCase objects.
  */
-export function readAgentSuccessTasksInput(inputs: Record<string, unknown> | undefined): AgentSuccessTaskV1[] {
+export function readAgentSuccessTasksInput(inputs: Record<string, unknown> | undefined, options: { requireFixture?: boolean } = {}): AgentSuccessTaskV1[] {
+  const requireFixture = options.requireFixture !== false;
   const value = inputs?.agentSuccessTasks;
   if (value === undefined) throw new AgentSuccessRateInputError(AGENT_SUCCESS_RATE_MISSING_INPUT_MESSAGE);
   if (!Array.isArray(value)) throw new AgentSuccessRateInputError("agentSuccessTasks input must be an array of AgentSuccessTaskV1.");
@@ -97,7 +99,7 @@ export function readAgentSuccessTasksInput(inputs: Record<string, unknown> | und
     const task = result.task;
     if (seen.has(task.id)) throw new AgentSuccessRateInputError(`Duplicate agent-success task id: ${task.id}`);
     seen.add(task.id);
-    if (!task.deterministicFixture) {
+    if (requireFixture && !task.deterministicFixture) {
       throw new AgentSuccessRateInputError(`Task ${task.id} has no deterministicFixture; deterministic-fixture mode requires one.`);
     }
     tasks.push(task);
@@ -293,11 +295,14 @@ export async function executeAgentSuccessTreatment(args: {
   runtimeRoot: string;
   privateRoots: readonly string[];
   dependencies?: Partial<AgentSuccessRateDependencies>;
+  /** Real-agent mode: supplies the proposal instead of the deterministic fixture, which is then never consulted. */
+  proposalSource?: AgentSuccessProposalSource;
 }): Promise<AgentSuccessTreatmentResult> {
   const deps = { ...defaultAgentSuccessRateDependencies, ...args.dependencies };
   const { task, treatmentId } = args;
   const privateRoots = [args.runtimeRoot, args.canonicalProjectRoot, ...args.privateRoots];
-  const fixture = task.deterministicFixture;
+  const proposalSource = args.proposalSource;
+  const fixture = proposalSource ? undefined : task.deterministicFixture;
   const sandboxId = deriveAgentSuccessSandboxId(args.runId, task.id, treatmentId);
   const started = Date.now();
 
@@ -322,14 +327,25 @@ export async function executeAgentSuccessTreatment(args: {
     errors: []
   };
   const patchFiles: AgentSuccessPatchFile[] = [];
+  const contextFiles: AgentSuccessPatchFile[] = [];
   const addError = (code: string, message: string): void => {
     evidence.errors.push({ code, message: boundMessage(message, privateRoots) });
   };
 
-  if (!fixture) {
+  if (!proposalSource && !fixture) {
     addError("FIXTURE_MISSING", `Task ${task.id} has no deterministicFixture.`);
-    return { evidence, patchFiles };
+    return { evidence, patchFiles, contextFiles };
   }
+  /** Records that no provider ran, so real-agent evidence is never absent for a treatment. */
+  const recordNotInvoked = async (reason: string): Promise<void> => {
+    if (!proposalSource || evidence.realAgent) return;
+    try {
+      const skipped = await proposalSource({ treatmentId, invoke: false, notInvokedReason: reason });
+      evidence.realAgent = skipped.realAgent;
+    } catch {
+      // The treatment already carries its own failure evidence.
+    }
+  };
 
   let sandbox: BenchmarkSandbox;
   try {
@@ -337,7 +353,8 @@ export async function executeAgentSuccessTreatment(args: {
   } catch (error) {
     addError(error instanceof BenchmarkSandboxError ? `SANDBOX_${error.code}` : "SANDBOX_CREATION_FAILED", error instanceof Error ? error.message : String(error));
     evidence.timing.evaluationDurationMs = Date.now() - started;
-    return { evidence, patchFiles };
+    await recordNotInvoked("sandbox-unavailable");
+    return { evidence, patchFiles, contextFiles };
   }
 
   let changes: ChangeSetV1 | null = null;
@@ -356,15 +373,44 @@ export async function executeAgentSuccessTreatment(args: {
       evidence.status = "skipped";
       evidence.availability = "baseline-invalid";
       evidence.protectedIntegrity = await evaluateProtectedIntegrity(sandbox, task, null);
+      await recordNotInvoked("baseline-not-evaluable");
     } else {
+      // Exactly one proposal per treatment: the deterministic fixture, or one provider attempt (never both).
+      let proposalText: string | null = null;
+      let cwdCleanupFailed = false;
+      if (proposalSource) {
+        const proposal = await proposalSource({ treatmentId, invoke: true });
+        evidence.realAgent = proposal.realAgent;
+        evidence.timing.agentDurationMs = proposal.agentDurationMs;
+        evidence.agentTokenUsage = proposal.agentTokenUsage;
+        evidence.errors.push(...proposal.errors);
+        if (proposal.contextFile) contextFiles.push(proposal.contextFile);
+        if (!proposal.realAgent.cwdCleanup.removed && proposal.realAgent.cwdCleanup.attempted) {
+          cwdCleanupFailed = true;
+          addError("AGENT_CWD_CLEANUP_FAILED", proposal.realAgent.cwdCleanup.reason ?? "provider working directory cleanup failed.");
+        }
+        proposalText = proposal.kind === "proposal" ? proposal.text : null;
+      } else {
+        proposalText = fixture!.patch;
+      }
+
+      if (proposalText === null) {
+        // No usable provider answer: nothing is applied, scored or fabricated.
+        evidence.protectedIntegrity = await evaluateProtectedIntegrity(sandbox, task, null);
+        if (evidence.protectedIntegrity.status === "unproven") addError("PROTECTED_INTEGRITY_UNPROVEN", "Protected-file integrity could not be proven.");
+        evidence.status = "partial";
+        evidence.availability = "incomplete";
+        return { evidence, patchFiles, contextFiles };
+      }
+
       const proposedPath = agentSuccessPatchArtifactPath(task.benchmarkProject, task.id, treatmentId, "proposed");
-      patchFiles.push({ relativePath: proposedPath, content: fixture.patch });
+      patchFiles.push({ relativePath: proposedPath, content: proposalText });
       evidence.proposedPatchPath = proposedPath;
       evidence.patch.attempted = true;
-      evidence.patch.proposedPatchBytes = Buffer.byteLength(fixture.patch, "utf8");
+      evidence.patch.proposedPatchBytes = Buffer.byteLength(proposalText, "utf8");
 
       const patchStarted = Date.now();
-      const applied = await deps.applyPatch({ sandbox, rawProposal: fixture.patch, protectedFiles: task.protectedFiles });
+      const applied = await deps.applyPatch({ sandbox, rawProposal: proposalText, protectedFiles: task.protectedFiles });
       recordPatchOutcome(evidence.patch, applied, privateRoots);
       let captureFailed = false;
       if (applied.outcome === "success") {
@@ -394,7 +440,7 @@ export async function executeAgentSuccessTreatment(args: {
       evidence.protectedIntegrity = await evaluateProtectedIntegrity(sandbox, task, changes);
       if (evidence.protectedIntegrity.status === "unproven") addError("PROTECTED_INTEGRITY_UNPROVEN", "Protected-file integrity could not be proven.");
 
-      const complete = !captureFailed && !postIndeterminate && evidence.protectedIntegrity.status !== "unproven";
+      const complete = !captureFailed && !postIndeterminate && !cwdCleanupFailed && evidence.protectedIntegrity.status !== "unproven";
       evidence.status = complete ? "completed" : "partial";
       evidence.availability = complete ? "complete" : "incomplete";
     }
@@ -402,6 +448,7 @@ export async function executeAgentSuccessTreatment(args: {
     evidence.status = "failed";
     evidence.availability = "infrastructure-failure";
     addError("EXECUTION_FAILED", error instanceof Error ? error.message : String(error));
+    await recordNotInvoked("execution-failed");
   } finally {
     evidence.timing.evaluationDurationMs = Date.now() - started;
     evidence.cleanup.attempted = true;
@@ -421,10 +468,10 @@ export async function executeAgentSuccessTreatment(args: {
       }
     }
   }
-  return { evidence, patchFiles };
+  return { evidence, patchFiles, contextFiles };
 }
 
-export type AgentSuccessCaseResult = { evidence: AgentSuccessCaseEvidenceV1; patchFiles: AgentSuccessPatchFile[] };
+export type AgentSuccessCaseResult = { evidence: AgentSuccessCaseEvidenceV1; patchFiles: AgentSuccessPatchFile[]; contextFiles: AgentSuccessPatchFile[] };
 
 /** Executes both mandatory treatments, in fixed order, each in its own sandbox. */
 export async function executeAgentSuccessCase(args: {
@@ -434,13 +481,16 @@ export async function executeAgentSuccessCase(args: {
   runtimeRoot: string;
   privateRoots: readonly string[];
   dependencies?: Partial<AgentSuccessRateDependencies>;
+  proposalSource?: AgentSuccessProposalSource;
 }): Promise<AgentSuccessCaseResult> {
   const treatments: AgentSuccessTreatmentEvidenceV1[] = [];
   const patchFiles: AgentSuccessPatchFile[] = [];
+  const contextFiles: AgentSuccessPatchFile[] = [];
   for (const treatmentId of AGENT_SUCCESS_RATE_TREATMENT_IDS) {
     const result = await executeAgentSuccessTreatment({ ...args, treatmentId });
     treatments.push(result.evidence);
     patchFiles.push(...result.patchFiles);
+    contextFiles.push(...result.contextFiles);
   }
   return {
     evidence: {
@@ -448,10 +498,12 @@ export async function executeAgentSuccessCase(args: {
       caseName: args.task.title,
       benchmarkProject: args.task.benchmarkProject,
       taskLocality: args.task.taskLocality,
-      fixtureId: args.task.deterministicFixture?.id ?? "",
+      // Real-agent mode never reads the fixture, so it has no fixture identity.
+      fixtureId: args.proposalSource ? "" : (args.task.deterministicFixture?.id ?? ""),
       treatments
     },
-    patchFiles
+    patchFiles,
+    contextFiles
   };
 }
 

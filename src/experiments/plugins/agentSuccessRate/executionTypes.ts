@@ -1,6 +1,7 @@
 import type { BaselineInvalidReason, PatchFileStatus, PatchPolicyRejectionCode, VerificationPhase, VerificationStatus } from "../../../evaluation/agentSuccess/index.js";
 import type { ChangedFileV1 } from "../../../evaluation/changeSet/index.js";
 import type { TaskLocality } from "../../../evaluation/types.js";
+import type { TokenUsageReliability, TokenUsageSource } from "../../../agents/types.js";
 import type { ExperimentRunStatus } from "../../types.js";
 import type { AgentSuccessRateTreatmentId } from "./metadata.js";
 
@@ -60,8 +61,8 @@ export type AgentSuccessProtectedIntegrityEvidenceV1 = {
 };
 
 export type AgentSuccessTimingEvidenceV1 = {
-  /** Always null in deterministic-fixture mode: no agent runs. */
-  agentDurationMs: null;
+  /** Null in deterministic-fixture mode (no agent runs) and whenever no provider attempt was measured. */
+  agentDurationMs: number | null;
   baselineVerificationDurationMs: number | null;
   patchPipelineDurationMs: number | null;
   postEditVerificationDurationMs: number | null;
@@ -75,6 +76,67 @@ export type AgentSuccessCleanupEvidenceV1 = {
 };
 
 export type AgentSuccessErrorV1 = { code: string; message: string };
+
+/** Provider-reported usage as recorded by the existing agent adapters. A missing total is null, never an estimate. */
+export type AgentSuccessAgentTokenEvidenceV1 = {
+  totalTokens: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  source: TokenUsageSource;
+  reliability: TokenUsageReliability;
+};
+
+export type AgentSuccessRealAgentProviderId = "codex" | "claude";
+
+/** not-invoked = no provider process was started; the other values are classifyAgentRunOutcome statuses. */
+export type AgentSuccessProviderStatus =
+  | "not-invoked"
+  | "completed"
+  | "failed"
+  | "skipped"
+  | "timeout"
+  | "agent-unavailable"
+  | "agent-limit-reached"
+  | "invalid-output";
+
+/** Bounded description of the context a treatment supplied. The context body lives in a separate artifact. */
+export type AgentSuccessContextEvidenceV1 = {
+  contextMode: AgentSuccessRateTreatmentId;
+  availability: "available" | "partial" | "unavailable";
+  reason: string | null;
+  selectionPolicyId: string;
+  myDevKitVersion: string | null;
+  includedSourceFiles: string[];
+  contextChars: number;
+  /** A size estimate of the supplied context. It is never provider-reported usage. */
+  estimatedContextTokens: number;
+  contextArtifactPath: string | null;
+};
+
+export type AgentSuccessRealAgentEvidenceV1 = {
+  providerId: AgentSuccessRealAgentProviderId;
+  attempt: 1;
+  promptTransport: "stdin";
+  providerInvoked: boolean;
+  providerStatus: AgentSuccessProviderStatus;
+  providerStatusReason: string | null;
+  /** True only when the provider returned a non-empty final answer that was handed to the patch pipeline. */
+  finalAnswerAvailable: boolean;
+  promptChars: number | null;
+  context: AgentSuccessContextEvidenceV1;
+  /** Artifact-relative attempt directory and file paths; null when the provider was not invoked. */
+  agentArtifactDirectory: string | null;
+  agentArtifacts: { prompt: string | null; result: string | null; stdout: string | null; stderr: string | null; telemetry: string | null };
+  cwdCleanup: AgentSuccessCleanupEvidenceV1;
+};
+
+/** What a proposal source returns after the evaluable baseline is established. */
+export type AgentSuccessProposal =
+  | { kind: "proposal"; text: string; realAgent: AgentSuccessRealAgentEvidenceV1; agentDurationMs: number | null; agentTokenUsage: AgentSuccessAgentTokenEvidenceV1 | null; errors: AgentSuccessErrorV1[]; contextFile: AgentSuccessPatchFile | null }
+  | { kind: "no-proposal"; realAgent: AgentSuccessRealAgentEvidenceV1; agentDurationMs: number | null; agentTokenUsage: AgentSuccessAgentTokenEvidenceV1 | null; errors: AgentSuccessErrorV1[]; contextFile: AgentSuccessPatchFile | null };
+
+/** `invoke: false` asks only for not-invoked evidence (for example when the baseline is not evaluable). */
+export type AgentSuccessProposalSource = (request: { treatmentId: AgentSuccessRateTreatmentId; invoke: boolean; notInvokedReason?: string }) => Promise<AgentSuccessProposal>;
 
 export type AgentSuccessTreatmentEvidenceV1 = {
   treatmentId: AgentSuccessRateTreatmentId;
@@ -90,13 +152,15 @@ export type AgentSuccessTreatmentEvidenceV1 = {
   postEditVerification: AgentSuccessVerificationEvidenceV1 | null;
   protectedIntegrity: AgentSuccessProtectedIntegrityEvidenceV1;
   timing: AgentSuccessTimingEvidenceV1;
-  /** Always null in deterministic-fixture mode. */
-  agentTokenUsage: null;
+  /** Null in deterministic-fixture mode and whenever no provider attempt ran. */
+  agentTokenUsage: AgentSuccessAgentTokenEvidenceV1 | null;
   cleanup: AgentSuccessCleanupEvidenceV1;
   /** Artifact-relative patch paths; null when the artifact does not exist. */
   proposedPatchPath: string | null;
   appliedPatchPath: string | null;
   errors: AgentSuccessErrorV1[];
+  /** Present only in real-agent mode; deterministic-fixture evidence never carries this key. */
+  realAgent?: AgentSuccessRealAgentEvidenceV1;
 };
 
 export type AgentSuccessCaseEvidenceV1 = {
@@ -115,4 +179,6 @@ export type AgentSuccessPatchFile = { relativePath: string; content: string };
 export type AgentSuccessTreatmentResult = {
   evidence: AgentSuccessTreatmentEvidenceV1;
   patchFiles: AgentSuccessPatchFile[];
+  /** Context bodies (real-agent mode only); never embedded in the evidence. */
+  contextFiles: AgentSuccessPatchFile[];
 };

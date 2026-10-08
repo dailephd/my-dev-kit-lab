@@ -9,3 +9,7 @@ export * from "./metadata.js";
 export * from "./metrics.js";
 export * from "./plugin.js";
 export * from "./types.js";
+export * from "./agentTaskProjection.js";
+export * from "./contextGeneration.js";
+export * from "./realAgentExecution.js";
+export * from "./realAgentPrompt.js";
