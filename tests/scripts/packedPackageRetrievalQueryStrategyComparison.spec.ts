@@ -73,7 +73,8 @@ describe("packed-package acceptance for retrieval-query-strategy-comparison", ()
   it("requires the plugin in the installed experiment list, appended after the earlier ids (v0.8.2 appends context-pack-generation)", () => {
     const required = /const REQUIRED_EXPERIMENT_IDS = \[([^\]]*)\]/.exec(verifierSource)?.[1] ?? "";
     const ids = required.split(",").map((entry) => entry.trim().replace(/"/g, ""));
-    expect(ids).toEqual([
+    // v0.9.0 appends agent-success-rate as the eighth required plugin; the seven historical ids and their order are unchanged.
+    expect(ids.slice(0, 7)).toEqual([
       "context-strategy-comparison",
       "warm-index-reuse",
       "incremental-change-staleness",

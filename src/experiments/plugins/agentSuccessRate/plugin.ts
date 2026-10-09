@@ -119,6 +119,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
     const outDir = path.resolve(context.outputRoot ?? path.resolve(context.toolRoot, context.config.outDir));
     const runtimeRoot = await resolveSandboxRuntimeRoot(outDir, context.toolRoot);
     const io = readArtifactIo(inputs);
+    const removeAttemptDirectory = readRemoveAttemptDirectoryInput(inputs);
     const dependencies = readDependenciesInput(inputs);
 
     await io.ensureDirectory(outDir);
@@ -236,7 +237,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
       ...(await validateAgentArtifacts(caseEvidence, outDir, io))
     ];
     if (problems.length > 0) {
-      throw new Error(AGENT_SUCCESS_RATE_ARTIFACT_STATE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir)));
+      throw new Error(AGENT_SUCCESS_RATE_ARTIFACT_STATE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir, removeAttemptDirectory)));
     }
 
     // Context and patch artifacts, then execution, then analysis last. Pre-existing files are never overwritten.
@@ -248,7 +249,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
     ];
     for (const target of targets) {
       if (await io.exists(target.filePath)) {
-        throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir)));
+        throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir, removeAttemptDirectory)));
       }
     }
     const created: string[] = [];
@@ -267,7 +268,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
           // best effort: the failure below is the outcome
         }
       }
-      throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir)));
+      throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir, removeAttemptDirectory)));
     }
 
     return mapAgentSuccessRateToRun({
@@ -554,7 +555,11 @@ async function validateAgentArtifacts(caseEvidence: readonly AgentSuccessCaseEvi
  * Removes only attempt directories this run created (those recorded as invoked). Removal is best effort, but a directory
  * that could not be removed is counted and reported in the returned suffix so cleanup is never presented as complete.
  */
-async function removeAgentAttemptDirectories(caseEvidence: readonly AgentSuccessCaseEvidenceV1[], outDir: string): Promise<string> {
+async function removeAgentAttemptDirectories(
+  caseEvidence: readonly AgentSuccessCaseEvidenceV1[],
+  outDir: string,
+  removeDirectory: (directory: string) => Promise<void>
+): Promise<string> {
   let failures = 0;
   for (const entry of caseEvidence) {
     for (const treatment of entry.treatments) {
@@ -562,7 +567,7 @@ async function removeAgentAttemptDirectories(caseEvidence: readonly AgentSuccess
         const directory = attempt.realAgent?.agentArtifactDirectory;
         if (!directory) continue;
         try {
-          await rm(resolveWithinRoot(outDir, directory), { recursive: true, force: true });
+          await removeDirectory(resolveWithinRoot(outDir, directory));
         } catch {
           failures += 1;
         }
@@ -577,6 +582,12 @@ function patchLabel(patchPath: string, realMode: boolean): string {
   const suffix = realMode && attempt && attempt !== "1" ? ` (attempt ${attempt})` : "";
   if (patchPath.endsWith("-applied.patch")) return `Applied patch (from change evidence)${suffix}`;
   return `${realMode ? "Proposed patch (provider final answer)" : "Proposed deterministic fixture patch"}${suffix}`;
+}
+
+/** Removal seam for failed-persistence attempt directories so a removal failure can be proven on every platform. */
+function readRemoveAttemptDirectoryInput(inputs: Record<string, unknown> | undefined): (directory: string) => Promise<void> {
+  const value = inputs?.agentSuccessRemoveAttemptDirectory;
+  return typeof value === "function" ? (value as (directory: string) => Promise<void>) : (directory) => rm(directory, { recursive: true, force: true });
 }
 
 function readRemoveDirectoryInput(inputs: Record<string, unknown> | undefined): { removeDirectory?: (directory: string) => Promise<void> } {
