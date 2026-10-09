@@ -215,3 +215,16 @@ The audit framework's `code-rot` audit type separately includes a `security-vali
 Security validation is additive. It does not replace the experiment plugin runtime, controlled experiment behavior, agent adapters, reports, plots, screenshots, or gallery. Both tracks reuse shared target and report infrastructure where appropriate.
 
 The `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation work (published — see [ROADMAP.md](ROADMAP.md)) is a separate, lab-owned track layered on the experiment-plugin runtime, not on security validation. It does not weaken, replace, or conflate with `security:validate` or the code-rot audit framework; both existing systems regress cleanly under this implementation, verified through the focused `v0.4.3` and evaluation/experiment test suites, as well as the full pre-release readiness regression (including `security:validate` and `npm run audit`) that ran before publication.
+
+### Agent-success-rate safety boundaries (v0.9.0, implemented, unreleased)
+
+The `agent-success-rate` experiment (not in the published 0.8.2 package) runs benchmark tasks and, only on explicit opt-in, an external coding-agent CLI. It is an experiment, not a security validator, and it does not turn automated validation into manual penetration testing. Its boundaries are:
+
+- **Controlled projects only:** it evaluates two bundled, dependency-free benchmark projects; `--target` is rejected, and canonical projects and the installed package are never written to.
+- **Guarded disposable copies:** every attempt runs in a fresh copy created and removed under ownership checks; a cleanup failure is reported, prevents a clean success, and never triggers a repair.
+- **Source-only provider context:** the provider receives the public task text and source context. Tests, trusted checks, behavior-fact definitions, edit scopes, and reference patches stay evaluator-side; repair feedback uses a fixed vocabulary plus the untrusted previous diff.
+- **No direct agent editing:** the provider returns a unified diff over standard input; the Lab validates it against a patch path policy (allowed paths only, protected files and traversal rejected), checks it with Git, and applies it itself. Protected-file integrity is verified after the patch.
+- **Restricted invocation:** providers run only with explicit `--agent` and `--include-real-agents`, with fixed restricted argument lists, a timeout (default 240000 ms, maximum 1800000 ms), and an empty neutral working directory.
+- **Process-error handling:** the shared measured-command runner records errors from child output streams on the command result, so a failed process start is a reported failure and not an unhandled exception.
+
+Limits: the neutral working directory is not full operating-system isolation, the provider inherits the host environment and account permissions, and the Lab does not guarantee prevention of every malicious provider action. Very long Windows paths are not made to work; they end as controlled infrastructure failures.

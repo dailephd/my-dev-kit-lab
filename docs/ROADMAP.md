@@ -1405,7 +1405,7 @@ Acceptance:
 
 ### v0.9.0 — agent-success-rate plugin
 
-Status: **planned; not implemented**.
+Status: **implemented locally; unreleased; pre-release readiness pending**. Latest published release remains v0.8.2.
 
 Purpose:
 
@@ -1428,6 +1428,13 @@ Acceptance:
 * Fake-agent or deterministic fixture can simulate edits.
 * Real-agent campaign can run with guarded local benchmark copies.
 * Reports show diff summary, test result summary, blast radius, and repair-attempt labeling where applicable.
+
+Implementation status (local, unreleased):
+
+* Every listed feature and acceptance item is implemented in the `agent-success-rate` plugin; see [COMMANDS.md](COMMANDS.md#agent-success-rate-v090-implemented-unreleased), [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090-implemented-unreleased), and [METRICS.md](METRICS.md#agent-success-rate-metrics-v090-implemented-unreleased).
+* The deterministic fixture mode and simulated Codex/Claude providers validate the patch pipeline and repair logic. A paid live-provider campaign has not been run; real-agent capability is implemented but not yet evidenced by live results.
+* Campaign scheduling, resume, skip-completed runs, rate-limit pause handling, the provider telemetry taxonomy, strict prompt modes, the report section registry, and generalized gallery presentation remain in v0.9.1 and v0.9.2.
+* The v0.9.0 version is not published and the package version is unchanged. Pre-release readiness has not yet been performed.
 
 ### v0.9.1 — normalized provider telemetry and campaign scheduler
 

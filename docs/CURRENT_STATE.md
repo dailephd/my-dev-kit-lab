@@ -11,7 +11,7 @@ This document records the repository's operational state. It is the source of tr
 - Latest release: `v0.8.2` (latest published package version)
 - Latest published version: `v0.8.2` (context-pack generation experiments)
 - Current release: `v0.8.2` (published/current package baseline)
-- Current implemented unreleased version: none.
+- Current implemented unreleased version: `v0.9.0` (agent-success-rate plugin), implemented on the feature branch and not published; the package version stays `0.8.2` until release preparation.
 - Published package and installed CLI are at `0.8.2`.
 - Release date: `2026-10-07`
 - Previous release: `v0.8.1` (retrieval query strategy comparison)
@@ -21,8 +21,8 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Latest published release: `v0.8.2` (context-pack generation experiments).
 - Current release milestone: `v0.8.2` (context-pack generation experiments), completed and released.
-- Next planned version after v0.8.2: `v0.9.0` (agent-success-rate plugin), per the roadmap.
-- Active planned version: `v0.9.0` (agent-success-rate plugin).
+- Next planned version: `v0.9.1` (normalized provider telemetry and campaign scheduler), per the roadmap.
+- Active planned version: `v0.9.1` (normalized provider telemetry and campaign scheduler); the active workflow is documentation reconciliation and an implementation-completeness audit of the implemented v0.9.0 work.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -33,8 +33,12 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 ## Operational state
 
 - Release channel branch: `main`.
-- Current branch: `main`.
+- Current branch: `feature/v0.9.0-agent-success-foundation` (local only; not pushed). The `main` branch remains the release channel.
 - Completed implementation branch: `feature/v0.8.2-context-pack-generation-experiments`.
+- Implemented-unreleased branch: `feature/v0.9.0-agent-success-foundation` (local only; not pushed). It implements the `agent-success-rate` plugin as the eighth registered plugin: a mutable-benchmark evaluation foundation, a deterministic fixture mode, a six-task Node benchmark corpus over two dependency-free projects, guarded real-agent patch generation and evaluation (Codex or Claude, explicit opt-in), optional bounded repair (up to two repairs, three attempts in total), the public `experiment run` CLI options, scientific reporting, and installed-package acceptance coverage. A narrow follow-up correction made the shared measured-command runner handle errors emitted by child output streams, so a deep Windows output path ends in a controlled infrastructure failure instead of an unhandled `ENOTCONN` error. Commits are in the branch history; this file records the state, not the batch sequence.
+- v0.9.0 local validation (Windows only, on the implementation commit before this documentation reconciliation): `npm run typecheck`, full `npm test` (7,152 passed, 8 skipped, 0 failed), `npm run docs:check`, `npm run verify`, `npm run security:package` (zero findings), and `npm run verify:packed-package` (exact tarball installed, installed CLI exercised, simulated Codex/Claude providers, repair campaigns, immutability and package hygiene) all passed. A final comment-only source edit was followed by a passing typecheck; the other checks were not rerun after it. These are local results, not cross-platform CI evidence.
+- v0.9.0 validation still pending: POSIX (Linux/macOS) execution of the newest agent-success tests, hosted CI on the exact candidate, and any live paid-provider campaign. Real Codex and Claude repair behavior has not been validated; simulated providers validated transport, patch evaluation, and repair logic only.
+- Current workflow stage: documentation reconciliation and implementation-completeness audit (see [reports/v0.9.0-documentation-reconciliation-completeness-audit.md](reports/v0.9.0-documentation-reconciliation-completeness-audit.md)). Pre-release readiness has not been performed.
 - v0.8.2 transition proof: a disposable worktree verified package metadata, the built CLI, version-sensitive tests, packed-package acceptance, and benchmarks at 0.8.2; the worktree was removed.
 - v0.8.2 installed-package acceptance: passed, including `@dailephd/my-dev-kit@1.12.5` bundled and external-local compatibility, privacy projection, report checks, and target/package immutability.
 - v0.8.2 implementation validation: full `npm test` passed (503 files, 6,793 passed, 6 skipped, 0 failed); typecheck, build, benchmark verification, and packed-package verification passed. The release branch additionally passed its release-preparation validation gates.
@@ -78,15 +82,16 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
-- Exact next action: continue with the planned v0.9.0 agent-success-rate milestone when that work is scheduled.
-- Baseline constraints: use published v0.8.2; preserve prior retrieval evidence and metric semantics, and keep v0.9.x agent-success work out of v0.8.2 scope.
+- Exact next action: run the separate pre-release readiness workflow for the implemented v0.9.0 candidate (including cross-platform CI after an authorized push); release preparation and publication remain separate, later, explicitly authorized steps.
+- Baseline constraints: v0.8.2 is the published baseline; preserve prior retrieval evidence and metric semantics. v0.9.1 and v0.9.2 scope (telemetry taxonomy, campaign scheduling and resume, strict prompt modes, report section registry, generalized gallery) is not part of v0.9.0.
 - ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
 
 ## Implemented
 
 - Generic experiment-plugin runtime in `src/experiments`.
-- Registry contains seven experiment plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling` (published in v0.7.0; synthetic-repository input added in v0.7.1), `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), and `context-pack-generation` (published in v0.8.2).
+- Registry contains eight experiment plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling` (published in v0.7.0; synthetic-repository input added in v0.7.1), `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), `context-pack-generation` (published in v0.8.2), and `agent-success-rate` (implemented for v0.9.0, unreleased).
 - The seventh plugin, `context-pack-generation`, was released in v0.8.2.
+- The eighth plugin, `agent-success-rate`, is implemented for v0.9.0 and is not yet released.
 - Raw-full-file versus my-dev-kit-guided behavior routed through that plugin while preserving legacy artifacts and commands.
 - Self and explicit local-project experiment targets.
 - Plugin-aware JSON and HTML reports in `src/report/experiments`.
@@ -172,12 +177,16 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- context-pack generation experiments (`v0.8.2`) and agent-success experiment plugins (`v0.9.x`)
-- normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
+- context-pack generation experiments (`v0.8.2`, published); the agent-success-rate plugin (`v0.9.0`) is implemented but unreleased
+- normalized telemetry, campaign scheduler (including resume and skip-completed runs), prompt hardening, and generalized publication portal (v0.9.1 and v0.9.2)
 
 ## Limitations
 
 - The implemented security framework is automated CLI/package validation with adversarial checks; it is not a manual pentest framework.
+- `agent-success-rate` (v0.9.0, implemented, unreleased) evaluates a finite, controlled six-task corpus; deterministic-fixture results do not measure context effectiveness or agent ability; provider telemetry (tokens, durations) can be unavailable and is then reported as unavailable, never zero; no automatic treatment winner or statistical-significance claim is produced; and generalized campaign scheduling, resume, and skip-completed runs are outside this plugin and planned for v0.9.1.
+- A very long Windows output path can still make the operating system refuse to start Git or checks in the disposable benchmark copy; the affected treatment then ends as a controlled infrastructure failure, never a success. Long Windows paths are not made to work.
+- The generic self-target report metadata (for example the output root and tool root lines) can contain absolute machine-local paths; the agent-success-rate section and artifacts use relative references.
+- The agent-success-rate plugin implements its own recursive glob matching without changing the older shared `fileGlobs` matcher.
 - Profile behavior is currently limited to default check selection and scenario applicability filtering.
 - Secret leakage and network/local-first checks are bounded automated checks, not exhaustive proofs.
 - Package-boundary scenario severity is still result-level rather than per-evidence-item.
@@ -188,8 +197,8 @@ The following remain planned, not implemented:
 - `v0.6.0` freshness covers only the files an index snapshot lists as indexed; it does not establish whole-repository freshness, and a file that is new since indexing is outside the comparison. The `unknown` status means evidence was insufficient, while a task with no assessment is reported as not assessed. The `v0.6.0` package makes no reindex recommendation; the released `v0.6.1` evidence adds categorical recommendation evidence.
 - `v0.6.1` affected-neighborhood evidence is bounded to the baseline graph of the prepared index and to the files the index snapshot represents. `changedSymbolCount` counts baseline symbol identities that belong to confirmed changed indexed files; it does not prove any individual symbol's own source text changed. `affectedEdgeCount` counts unique baseline edges incident to at least one seed, not every edge among the affected nodes. `taskOverlapPercent` is over resolvable task nodes and is unavailable, never zero, when there are none. Unresolved or ambiguous expected symbols keep a task at `unknown` rather than unrelated, and `not-indicated` means only that this bounded analysis found no evidence supporting reindexing: it does not mean skipping a reindex is safe, that the whole repository is fresh, or that no new non-indexed file exists. There is no automatic reindex, no graph-diff or refreshed-index comparison, and no partial refresh.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
-- Seven experiment plugins are registered: `context-strategy-comparison`, `warm-index-reuse` (introduced in `v0.5.0`), `incremental-change-staleness` (introduced in `v0.6.2`, extended to four treatments in released `v0.6.3`), `context-window-scaling`, `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), and `context-pack-generation` (published in v0.8.2).
-- `context-pack-generation` is the seventh plugin and was published in v0.8.2.
+- Eight experiment plugins are registered: `context-strategy-comparison`, `warm-index-reuse` (introduced in `v0.5.0`), `incremental-change-staleness` (introduced in `v0.6.2`, extended to four treatments in released `v0.6.3`), `context-window-scaling`, `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), `context-pack-generation` (published in v0.8.2), and `agent-success-rate` (implemented for v0.9.0, unreleased).
+- `context-pack-generation` is the seventh plugin and was published in v0.8.2; `agent-success-rate` is the eighth (v0.9.0, implemented, unreleased).
 - `retrieval-precision-recall` (v0.8.0) reports set-based precision and recall, not ranked retrieval metrics, and does not itself compare retrieval strategies (the separate v0.8.1 plugin does). It reports no winner, ranking, or composite score and invokes no agent. Its lifecycle expands only the top search candidate. An external-local run fails as a whole when any case has a safety or execution failure and then writes no normal artifact, report, or manifest family. Durable external identities are redacted; the console summary of a successful run can still show the physical output directory. Very long platform paths can make a run fail cleanly where Git or the operating system cannot support them. Real-tool smokes were run against then-current `@dailephd/my-dev-kit@1.12.5`; that is validation history, not a pinned default.
 - `retrieval-query-strategy-comparison` (v0.8.1) runs no coding agent and does not evaluate answer quality. Its retrieved token count is a `ceil(characters / 4)` context-size estimate, not provider billing telemetry. The semantic strategies can truthfully be partial or unavailable for a case; such a case is excluded from the matched cross-strategy comparison for every strategy while its per-strategy evidence is retained. The Pareto front is a set of nondominated strategies listed in canonical strategy order, not a ranking. The plugin reports no significance test or confidence interval, selects no strategy automatically, produces no plot or screenshot, and generates no context pack. External-local mode rejects `--case` and `--benchmark-project` and fails as a whole, writing no normal artifact family, when any safety or privacy check fails.
 - `context-pack-generation` (released in v0.8.2) reuses existing retrieval-quality coverage metrics and estimated-token semantics. Tests and call relationships are descriptive because the frozen answer key has no expected identities for either. External-local science uses real identities before redaction; durable output omits the pack body and report previews redact identities. The plugin defines no composite score, winner, ranking, test-coverage score, or call-edge-coverage score.
@@ -261,4 +270,4 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-`v0.8.2` is the latest published release and current package version; `v0.8.1` is the previous release. No implemented-unreleased version is current, and `v0.9.0` is the next planned milestone. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 readiness and release-preparation evidence remains associated with its exact Git/CI history.
+`v0.8.2` is the latest published release and current package version; `v0.8.1` is the previous release. The implemented-unreleased version is `v0.9.0` (agent-success-rate plugin); `v0.9.1` is the next planned milestone. The exact next step is the separate pre-release readiness workflow for the v0.9.0 candidate, including cross-platform CI after an authorized push. Release preparation, version bump, tagging, and publication have not started and are not authorized by this document. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 readiness and release-preparation evidence remains associated with its exact Git/CI history.

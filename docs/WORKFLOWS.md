@@ -509,6 +509,60 @@ The repository remains read-only. Privacy projection happens after metrics are c
 
 **Interpretation:** coverage uses the existing fact, file, and symbol measures; estimated tokens are a context-size estimate. The report compares paired raw and pack size and objectives without a composite winner or ranking. Tests and call relationships are descriptive because the frozen answer key does not provide expected test or call-edge identities. See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082) and [METRICS.md](METRICS.md#context-pack-generation-metrics-v082).
 
+## Agent-success-rate evaluation (v0.9.0, implemented, unreleased)
+
+**Status:** implemented in this checkout for v0.9.0; absent from the 0.8.2 package. Pre-release readiness has not yet been performed. These workflows run from a source checkout (`npm run build` first), for example `node dist/scripts/cli.js experiment run --experiment agent-success-rate ...`.
+
+**Goal:** measure whether an implementation patch resolves a controlled benchmark task, under two source-context treatments (`raw-full-file` and `context-pack`), using trusted checks on the actual changed repository state. Command syntax is in [COMMANDS.md](COMMANDS.md#agent-success-rate-v090-implemented-unreleased); metric definitions are in [METRICS.md](METRICS.md#agent-success-rate-metrics-v090-implemented-unreleased).
+
+### A. Deterministic evaluation (default)
+
+**Prerequisites:** a built checkout; no provider, network, or agent installation is needed.
+
+```text
+node dist/scripts/cli.js experiment run --experiment agent-success-rate --out lab-output/agent-success-rate
+node dist/scripts/cli.js experiment run --experiment agent-success-rate --case asr-board-title-normalization --out lab-output/agent-success-rate-one
+```
+
+1. Select tasks from the bundled six-task catalog (two localized, two cross-module, two broad-change tasks over the `agent-success-task-board-node` and `agent-success-inventory-node` projects). `--case` and `--benchmark-project` narrow the selection without reordering it.
+2. For each task and each treatment, create a fresh disposable copy of the benchmark project with a throwaway Git baseline; the canonical project is never modified.
+3. Verify the unmodified baseline: it is evaluable only when at least one task check fails (there is something to fix), every regression check passes, and no check timed out or errored. A task whose baseline is not evaluable is excluded from rates and reported as such.
+4. Apply the task's reference patch through the same patch pipeline that real-agent patches use, capture the changed files, and run the trusted task and regression checks.
+5. Write the execution and analysis artifacts, the patch artifacts under `diffs/`, and the JSON, HTML, and text reports; remove the disposable copies.
+
+**Outputs:** `agent-success-rate-execution.json`, `agent-success-rate-analysis.json`, `report.json`, `report.html`, `report.txt`, and `diffs/`.
+
+**Interpretation:** both treatments receive the same reference patch, so the run validates the evaluation pipeline and the benchmark corpus only. It does not measure agent ability or context effectiveness; `contextEffectEvaluated` is `false`, agent duration and provider tokens are unavailable, and any difference between the treatments is a pipeline diagnostic.
+
+### B. Real-agent evaluation (explicit opt-in)
+
+**Prerequisites:** a locally installed and authenticated `codex` or `claude` command and a resolvable my-dev-kit command for `context-pack` retrieval (default `npx @dailephd/my-dev-kit@latest`). A real run can consume paid provider quota; the Lab never selects a provider on its own.
+
+```text
+node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent codex --include-real-agents --case asr-board-title-normalization --out lab-output/agent-success-rate-codex
+node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent claude --include-real-agents --repair-attempts 2 --timeout-ms 600000 --out lab-output/agent-success-rate-claude
+```
+
+1. Select exactly one provider and pass both `--agent` and `--include-real-agents`.
+2. Generate each treatment's source-only context in the disposable copy: the raw treatment supplies full files, and the `context-pack` treatment supplies a bounded pack selected through my-dev-kit retrieval. Tests, trusted checks, behavior-fact definitions, reference patches, and fixture notes are never supplied.
+3. Invoke the provider in an empty neutral temporary directory with the prompt on standard input. The provider returns a proposed unified diff; it does not edit the benchmark project.
+4. Extract the diff, validate it against the patch policy (allowed paths only, no protected files), check it with Git, and apply it to a fresh disposable copy. A rejected patch is an implementation failure, distinct from an infrastructure failure.
+5. Run the trusted task and regression checks, verify protected-file integrity, capture the changed files, and compute edit-scope, blast-radius, duration, and (when reported by the provider) token metrics.
+6. With `--repair-attempts 1` or `2`, a repair attempt follows an evaluable implementation failure only. It uses a **new clean disposable copy**, a fixed-category outcome description, and the untrusted previous diff; test output, check names, and expected edits are not echoed. The total never exceeds three attempts per treatment.
+7. Inspect `agent-success-rate-analysis.json` and the report: initial-attempt success and final success are separate measurements, and a repaired success is never counted as an initial success.
+
+**Failures that do not trigger a repair:** provider unavailable, limit reached, timeout, failure, or empty answer; an unavailable context; an invalid baseline; sandbox, cleanup, or integrity-proof failures; and any other infrastructure failure. These leave the treatment's verdict unavailable rather than counting it as a failed attempt.
+
+**Preserved evidence:** `contexts/` (the supplied context), `agents/` (per-attempt provider evidence), and `diffs/` (proposed and applied patches). The Lab removes only the disposable directories it created, after checking that it owns them; a cleanup failure is reported rather than hidden.
+
+**Unavailable metrics:** a measurement that could not be made (for example provider tokens when the provider reports no usage) is recorded as unavailable with a reason, never as zero.
+
+**Paths and non-destructive behavior:** artifacts and disposable copies live beneath the output directory (beneath the workspace for an installed CLI). A very long output path can make the operating system refuse to start Git or checks in the disposable copy; the run then ends as a controlled infrastructure failure that reports the working-directory length and never reports success. Choose a shorter `--out` in that case. The Lab does not shorten or relocate a path you supplied.
+
+**Not part of this workflow:** automatically scheduled campaigns, resuming interrupted runs, skipping completed runs, and rate-limit pausing are planned for v0.9.1 and are not implemented.
+
+**Completion:** the run is complete when the reports and both scientific artifacts exist and the process exits `0`. Results are descriptive for a finite controlled corpus; no winner, ranking, composite score, or significance claim is produced.
+
 ## Real-agent warm-index campaign (v0.5.2)
 
 Available in the installed v0.5.2 CLI. This is a distinct campaign path through the `warm-index-reuse` plugin, separate from the generic `context-strategy-comparison` campaign described in "Real-agent campaign" above; it reuses the warm-index runtime described in "Warm-index reuse experiment" above rather than the agent-matrix path.
