@@ -696,7 +696,34 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
     if (decoyRun.status !== 0) fail(gate, "A cwd containing a decoy benchmarks tree changed which corpus the installed CLI resolved.", describeChildResult(decoyRun));
     const decoyCases = readJson(path.join(base, "decoy run", AGENT_SUCCESS_EXECUTION_FILE), gate).cases.map((entry) => entry.caseId);
     if (JSON.stringify(decoyCases) !== JSON.stringify([catalogIds[3]])) fail(gate, "The decoy cwd corpus influenced the run.");
-    pass(gate, "bundled catalog and profiles resolved from the installed packageRoot, never the cwd; default output under the explicit workspace; explicit --out honoured; nothing written to the invocation directory, package or canonical projects");
+    // PATH-012: an output root deep enough that the OS may refuse to start a process in the sandbox must never crash the installed
+    // CLI. The host decides the outcome (probed with a plain Node spawn, not assumed from any length): either the run completes, or
+    // it ends in a controlled, reported infrastructure failure -- never an unhandled stream error, never a success verdict.
+    {
+      let deepOut = path.join(base, "deep out");
+      while (deepOut.length < 300) deepOut = path.join(deepOut, "n".repeat(Math.max(1, Math.min(40, 300 - deepOut.length - 1))));
+      mkdirSync(deepOut, { recursive: true });
+      const hostCanSpawnDeep = runInstalledCli({ command: process.execPath, argsPrefix: ["-e", "1"], resolutionKind: "direct" }, deepOut, [], envWithBin).status === 0;
+      const deepRun = runInstalledCli(cliCommand, invocationCwd, ["experiment", "run", "--experiment", AGENT_SUCCESS_PLUGIN_ID, "--case", catalogIds[0], "--out", deepOut], providerEnv(sentinelStateDir));
+      const diagnostics = `${deepRun.stderr ?? ""}\n${deepRun.stdout ?? ""}`;
+      if (/Unhandled 'error' event|ENOTCONN|throw er;/.test(diagnostics.replace(/SANDBOX_GIT_FAILED[^\n]*/g, ""))) fail(gate, "A deep output root produced an unhandled process error in the installed CLI.", describeChildResult(deepRun));
+      const deepExecution = readJson(path.join(deepOut, AGENT_SUCCESS_EXECUTION_FILE), gate);
+      const deepTreatments = deepExecution.cases.flatMap((entry) => entry.treatments);
+      if (hostCanSpawnDeep) {
+        if (deepRun.status !== 0 || deepTreatments.some((treatment) => treatment.status !== "completed")) fail(gate, "This host can start processes in the deep output root, but the installed run did not complete.", describeChildResult(deepRun));
+      } else {
+        if (deepRun.status !== 1) fail(gate, `Deep output root: expected a controlled failure (exit 1), got ${deepRun.status}.`, describeChildResult(deepRun));
+        for (const treatment of deepTreatments) {
+          if (treatment.status !== "failed" || treatment.availability !== "infrastructure-failure") fail(gate, "A deep-output failure was not reported as an infrastructure failure.");
+          if (!treatment.errors.some((error) => error.code === "SANDBOX_GIT_FAILED" && /cwd length \d+ characters/.test(error.message))) fail(gate, "The deep-output failure carries no actionable diagnostic.");
+        }
+      }
+      if (/"taskSuccess":\s*true/.test(JSON.stringify(deepExecution)) && !hostCanSpawnDeep) fail(gate, "A failed deep-output run reported task success.");
+      for (const project of AGENT_SUCCESS_PROJECTS) {
+        if (existsSync(path.join(installedProjectRoot(project), ".git"))) fail(gate, `${project} gained .git during the deep-output run.`);
+      }
+    }
+    pass(gate, "deep output root ends in completion or a controlled infrastructure failure (never an unhandled error); bundled catalog and profiles resolved from the installed packageRoot, never the cwd; default output under the explicit workspace; explicit --out honoured; nothing written to the invocation directory, package or canonical projects");
   }
 
   // ---- 9. CLI REJECTION MATRIX -----------------------------------------------------------------------------------------

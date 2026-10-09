@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -203,7 +204,21 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     child.stderr!.on("data", collect(stderrCollector, "stderr", options.stderrMaxBytes));
     child.on("error", (error) => {
       spawnError = error.message;
+      // A failed spawn in a working directory that exists is not a missing executable; the OS may be refusing the path (for
+      // example a very long cwd on Windows). Report the measured length
+      // without asserting a limit of our own.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" && existsSync(options.cwd)) {
+        spawnError += ` (the working directory exists but the process could not be started in it; cwd length ${options.cwd.length} characters)`;
+      }
     });
+    // A failed spawn can also make the OS report the never-connected stdout/stderr pipes as errors (Windows:
+    // read ENOTCONN). They are stream events of this one failed process: record the first cause once and let
+    // the 'close' event settle the result, instead of letting an unhandled 'error' event end the whole process.
+    const recordStreamError = (stream: "stdout" | "stderr") => (error: Error) => {
+      spawnError = spawnError ?? `Failed to read command ${stream}: ${error.message}`;
+    };
+    child.stdout!.on("error", recordStreamError("stdout"));
+    child.stderr!.on("error", recordStreamError("stderr"));
     if (options.stdinText !== undefined) {
       // A child that exits or closes stdin before we write must not crash the process (EPIPE).
       child.stdin?.on("error", (error) => {
