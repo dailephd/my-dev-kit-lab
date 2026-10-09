@@ -185,7 +185,8 @@ describe("RPR agent-success-rate experiment run, describe and help through the i
     expect(result.stdout).toContain("Report Text:");
 
     // RPR-037: runtime output is outside the package root; canonical projects are unchanged
-    expect(path.relative(repoRoot, outDir).startsWith("..")).toBe(true);
+    const relativeOut = path.relative(repoRoot, outDir); // an absolute result means a different drive, which is also outside the package root
+    expect(relativeOut.startsWith("..") || path.isAbsolute(relativeOut)).toBe(true);
     expect(existsSync(path.join(repoRoot, "lab-output")) && !packageHadLabOutput).toBe(false);
     for (const project of projects) expect(await snapshotProjectTree(path.join(projectsRoot, project), { excludedNames: [".git"] })).toEqual(before.get(project));
     expect(existsSync(path.join(outDir, "sandboxes"))).toBe(false);

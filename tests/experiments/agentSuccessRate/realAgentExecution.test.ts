@@ -403,8 +403,14 @@ describe("REA provider and patch failure semantics (runner seam)", () => {
     const { spawn } = await import("node:child_process");
     const holders: Array<ReturnType<typeof spawn>> = [];
     try {
-      const seam = makeSeamAgent((request) => {
-        holders.push(spawn(process.execPath, ["-e", "setTimeout(() => {}, 20000)"], { cwd: request.cwd, stdio: "ignore" }));
+      const seam = makeSeamAgent(async (request) => {
+        const holder = spawn(process.execPath, ["-e", "process.stdout.write('ready'); setTimeout(() => {}, 20000)"], { cwd: request.cwd, stdio: ["ignore", "pipe", "ignore"] });
+        holders.push(holder);
+        // Wait until the holder is running inside the directory, so the lock is in place before cleanup runs.
+        await new Promise<void>((resolve, reject) => {
+          holder.once("error", reject);
+          holder.stdout!.once("data", () => resolve());
+        });
         return fakeAgentResult({ finalAnswerText: GOOD_ANSWER });
       });
       const { execution } = await runReal({ runAgent: seam.runAgent });
