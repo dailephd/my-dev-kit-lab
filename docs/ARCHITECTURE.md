@@ -131,7 +131,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers eight plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, the released v0.8.1 `retrieval-query-strategy-comparison`, the released v0.8.2 `context-pack-generation`, and the implemented-but-unreleased v0.9.0 `agent-success-rate` (the eighth plugin; the seven earlier IDs and their order are unchanged). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers eight plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, the released v0.8.1 `retrieval-query-strategy-comparison`, the released v0.8.2 `context-pack-generation`, and the v0.9.0 `agent-success-rate` (the eighth plugin; the seven earlier IDs and their order are unchanged). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -791,9 +791,9 @@ External-local execution uses the existing local repository subject safety bound
 
 The frozen answer key has no expected call-edge or test identities. Accordingly, call relationships and tests may appear descriptively in a pack; v0.8.2 does not score call-edge coverage or test coverage.
 
-## Agent-success-rate evaluation architecture (v0.9.0, implemented, unreleased)
+## Agent-success-rate evaluation architecture (v0.9.0)
 
-Status: implemented in this checkout for v0.9.0; not part of the published 0.8.2 package.
+Status: shipped in v0.9.0.
 
 `agent-success-rate` is an experimental Lab plugin on the existing experiment runtime (`src/experiments/plugins/agentSuccessRate/`). It does not add a parallel runner: `src/experiments/runner.ts` resolves it like any other plugin, and its typed report section is projected by `src/report/experiments/buildAgentSuccessRateReport.ts` and `agentSuccessRateReportModel.ts` into the shared JSON, HTML, and text reports.
 

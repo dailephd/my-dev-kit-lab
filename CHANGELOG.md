@@ -4,14 +4,15 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-### Agent success rate (implemented for v0.9.0; not yet released)
+## [0.9.0] - 2026-10-09
+
+### Agent success rate
 
 - Added the experimental `agent-success-rate` plugin as the eighth registered experiment plugin, running the fixed `raw-full-file` and `context-pack` treatments over a bundled six-task implementation corpus (two Node benchmark projects; localized, cross-module, and broad-change tasks) in guarded disposable copies, with trusted task and regression checks, behavior facts, changed-file capture, and preserved patch artifacts.
 - Added a deterministic-fixture default mode (reference patches, no coding agent) and an explicit real-agent mode (`--agent <codex|claude> --include-real-agents`) in which the Lab validates and applies a provider-proposed unified diff itself, with optional bounded repair (`--repair-attempts 0|1|2`, at most three attempts per treatment, a fresh copy per attempt).
 - Added edit-quality, blast-radius, duration, and provider-token metrics with explicit availability, separate initial-attempt and final success, descriptive paired comparisons, and JSON, HTML, and text reports; no composite score or automatic winner is produced.
-- Extended packed-package acceptance to cover the plugin, bundled corpus, simulated providers, and repair campaigns.
+- Extended packed-package acceptance to cover the installed CLI, bundled corpus and resources, simulated providers, repair campaigns, cleanup, and package hygiene; the deterministic reference patches ship as required resources and stay hidden from real-agent prompts.
 - The shared measured-command runner now handles errors emitted by child output streams, so an unsupported deep Windows working directory ends in a controlled infrastructure failure instead of an unhandled `ENOTCONN` error.
-- Release-note finalization, the version assignment, and the publication date belong to release preparation.
 
 ## [0.8.2] - 2026-10-07
 

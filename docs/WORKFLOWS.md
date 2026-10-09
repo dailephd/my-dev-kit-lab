@@ -509,11 +509,11 @@ The repository remains read-only. Privacy projection happens after metrics are c
 
 **Interpretation:** coverage uses the existing fact, file, and symbol measures; estimated tokens are a context-size estimate. The report compares paired raw and pack size and objectives without a composite winner or ranking. Tests and call relationships are descriptive because the frozen answer key does not provide expected test or call-edge identities. See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082) and [METRICS.md](METRICS.md#context-pack-generation-metrics-v082).
 
-## Agent-success-rate evaluation (v0.9.0, implemented, unreleased)
+## Agent-success-rate evaluation (v0.9.0)
 
-**Status:** implemented in this checkout for v0.9.0; absent from the 0.8.2 package. Pre-release readiness has not yet been performed. These workflows run from a source checkout (`npm run build` first), for example `node dist/scripts/cli.js experiment run --experiment agent-success-rate ...`.
+**Status:** shipped in v0.9.0. These workflows run from the installed CLI (`my-dev-kit-lab experiment run --experiment agent-success-rate ...`) or from a built source checkout (`npm run build` first, then `node dist/scripts/cli.js experiment run --experiment agent-success-rate ...`).
 
-**Goal:** measure whether an implementation patch resolves a controlled benchmark task, under two source-context treatments (`raw-full-file` and `context-pack`), using trusted checks on the actual changed repository state. Command syntax is in [COMMANDS.md](COMMANDS.md#agent-success-rate-v090-implemented-unreleased); metric definitions are in [METRICS.md](METRICS.md#agent-success-rate-metrics-v090-implemented-unreleased).
+**Goal:** measure whether an implementation patch resolves a controlled benchmark task, under two source-context treatments (`raw-full-file` and `context-pack`), using trusted checks on the actual changed repository state. Command syntax is in [COMMANDS.md](COMMANDS.md#agent-success-rate-v090); metric definitions are in [METRICS.md](METRICS.md#agent-success-rate-metrics-v090).
 
 ### A. Deterministic evaluation (default)
 

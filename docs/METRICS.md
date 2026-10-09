@@ -869,9 +869,9 @@ In external-local mode, analysis uses real identities before the privacy project
 
 See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082), [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment), and [ARCHITECTURE.md](ARCHITECTURE.md#context-pack-generation-architecture-v082).
 
-## Agent-success-rate metrics (v0.9.0, implemented, unreleased)
+## Agent-success-rate metrics (v0.9.0)
 
-Status: implemented in this checkout for v0.9.0; not part of the published 0.8.2 package. The scientific owner of every per-treatment value is `analyzeAgentSuccessTreatment` in `src/experiments/plugins/agentSuccessRate/analysis.ts`; repair aggregation and paired differences are owned by `repairAnalysis.ts`. Values are persisted in `agent-success-rate-analysis.json` (schema `1.0.0`); `agent-success-rate-execution.json` holds the evidence they are computed from. `contextEffectEvaluated` is `false` in deterministic-fixture mode.
+Status: shipped in v0.9.0. The scientific owner of every per-treatment value is `analyzeAgentSuccessTreatment` in `src/experiments/plugins/agentSuccessRate/analysis.ts`; repair aggregation and paired differences are owned by `repairAnalysis.ts`. Values are persisted in `agent-success-rate-analysis.json` (schema `1.0.0`); `agent-success-rate-execution.json` holds the evidence they are computed from. `contextEffectEvaluated` is `false` in deterministic-fixture mode.
 
 ### Availability rules
 

@@ -216,9 +216,9 @@ Security validation is additive. It does not replace the experiment plugin runti
 
 The `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation work (published — see [ROADMAP.md](ROADMAP.md)) is a separate, lab-owned track layered on the experiment-plugin runtime, not on security validation. It does not weaken, replace, or conflate with `security:validate` or the code-rot audit framework; both existing systems regress cleanly under this implementation, verified through the focused `v0.4.3` and evaluation/experiment test suites, as well as the full pre-release readiness regression (including `security:validate` and `npm run audit`) that ran before publication.
 
-### Agent-success-rate safety boundaries (v0.9.0, implemented, unreleased)
+### Agent-success-rate safety boundaries (v0.9.0)
 
-The `agent-success-rate` experiment (not in the published 0.8.2 package) runs benchmark tasks and, only on explicit opt-in, an external coding-agent CLI. It is an experiment, not a security validator, and it does not turn automated validation into manual penetration testing. Its boundaries are:
+The `agent-success-rate` experiment (added in v0.9.0) runs benchmark tasks and, only on explicit opt-in, an external coding-agent CLI. It is an experiment, not a security validator, and it does not turn automated validation into manual penetration testing. Its boundaries are:
 
 - **Controlled projects only:** it evaluates two bundled, dependency-free benchmark projects; `--target` is rejected, and canonical projects and the installed package are never written to.
 - **Guarded disposable copies:** every attempt runs in a fresh copy created and removed under ownership checks; a cleanup failure is reported, prevents a clean success, and never triggers a repair.

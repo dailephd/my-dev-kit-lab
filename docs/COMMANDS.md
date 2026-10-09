@@ -184,7 +184,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (published in v0.7.0), `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), `context-pack-generation` (published in v0.8.2), and `agent-success-rate` (eighth plugin; implemented in this checkout for v0.9.0 and absent from the 0.8.2 package), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (published in v0.7.0), `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), `context-pack-generation` (published in v0.8.2), and `agent-success-rate` (eighth plugin; added in v0.9.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -398,7 +398,7 @@ See [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080) and 
 
 #### `retrieval-query-strategy-comparison` (v0.8.1)
 
-This surface is included in the current 0.8.2 package.
+This surface is included in the current package.
 
 ```text
 my-dev-kit-lab experiment list
@@ -436,7 +436,7 @@ See [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v
 
 #### `context-pack-generation` (v0.8.2)
 
-The plugin is included in the published 0.8.2 package. `experiment list` and `experiment describe --experiment context-pack-generation` expose it as experimental, schema 1.0.0, with `self` and `external-local` targets, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed variants: `raw-full-file`, then `context-pack`.
+The plugin is included in the package from v0.8.2 onward. `experiment list` and `experiment describe --experiment context-pack-generation` expose it as experimental, schema 1.0.0, with `self` and `external-local` targets, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed variants: `raw-full-file`, then `context-pack`.
 
 ```text
 my-dev-kit-lab experiment list
@@ -451,9 +451,9 @@ External-local mode requires `--target` and `--local-subject-config` together. I
 
 The command rejects unsupported policy and selection flags, including `--treatment`, `--strategy`, `--max-files`, `--max-symbols`, and `--graph-depth`. It writes execution and analysis artifacts plus JSON, text, and HTML reports; bundled runs also write one pack artifact per case. See [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment) and [METRICS.md](METRICS.md#context-pack-generation-metrics-v082).
 
-#### `agent-success-rate` (v0.9.0, implemented, unreleased)
+#### `agent-success-rate` (v0.9.0)
 
-`agent-success-rate` is implemented in this checkout and is **not part of the published 0.8.2 package**; it will be available from an installed package only after a later release. It is the eighth registered plugin (after `context-pack-generation`; the seven earlier IDs and their order are unchanged). `experiment list` and `experiment describe --experiment agent-success-rate` expose it as experimental, schema 1.0.0, with the `self` target only, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed treatments: `raw-full-file`, then `context-pack`. Both treatments run for every selected task.
+`agent-success-rate` is included in the v0.9.0 package and is available from the installed CLI. It is the eighth registered plugin (after `context-pack-generation`; the seven earlier IDs and their order are unchanged). `experiment list` and `experiment describe --experiment agent-success-rate` expose it as experimental, schema 1.0.0, with the `self` target only, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed treatments: `raw-full-file`, then `context-pack`. Both treatments run for every selected task.
 
 ```text
 my-dev-kit-lab experiment describe --experiment agent-success-rate
@@ -476,7 +476,7 @@ The default is **deterministic-fixture mode**: it applies each task's reference 
 
 The command is self-target only: `--target` is rejected, as is every option outside the table. In particular `--agents` is not an alias for `--agent`, arbitrary provider command templates (`--command-template-*`) are not accepted, and campaign options (`--campaign`, `--max-runs`, `--continue-on-failure`, `--require-agents`) are not supported. Multiple providers, comma lists, unknown provider names, a `--repair-attempts` outside 0–2, a `--timeout-ms` that is not a positive integer up to 1800000, and `--timeout-ms`, `--repair-attempts`, or `--kit-command` without real-agent mode are rejected before any output directory is created and before any provider is launched.
 
-The process exits `0` when the run completes and `1` when the run fails (including controlled infrastructure failures, which never report task success) or when an option is rejected. It writes `report.json`, `report.html`, `report.txt`, `agent-success-rate-execution.json`, and `agent-success-rate-analysis.json`, plus supporting `diffs/` patch artifacts and, in real-agent mode, `contexts/` and `agents/` evidence. See [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090-implemented-unreleased), [METRICS.md](METRICS.md#agent-success-rate-metrics-v090-implemented-unreleased), and [ARCHITECTURE.md](ARCHITECTURE.md#agent-success-rate-evaluation-architecture-v090-implemented-unreleased).
+The process exits `0` when the run completes and `1` when the run fails (including controlled infrastructure failures, which never report task success) or when an option is rejected. It writes `report.json`, `report.html`, `report.txt`, `agent-success-rate-execution.json`, and `agent-success-rate-analysis.json`, plus supporting `diffs/` patch artifacts and, in real-agent mode, `contexts/` and `agents/` evidence. See [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), [METRICS.md](METRICS.md#agent-success-rate-metrics-v090), and [ARCHITECTURE.md](ARCHITECTURE.md#agent-success-rate-evaluation-architecture-v090).
 
 ### `my-dev-kit-lab experiment controlled [options]`
 
