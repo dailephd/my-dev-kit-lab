@@ -12,6 +12,7 @@ import type { AgentFacingTaskV1 } from "./agentTaskProjection.js";
 import { findPromptLeaks, type AgentSuccessContextResult, type ForbiddenAgentValue } from "./contextGeneration.js";
 import { boundMessage } from "./execution.js";
 import type {
+  AgentSuccessAttemptNumber,
   AgentSuccessAgentTokenEvidenceV1,
   AgentSuccessCleanupEvidenceV1,
   AgentSuccessErrorV1,
@@ -24,6 +25,7 @@ import type {
 } from "./executionTypes.js";
 import type { AgentSuccessRateTreatmentId } from "./metadata.js";
 import { buildAgentSuccessRealAgentPrompt } from "./realAgentPrompt.js";
+import { summarizeAgentSuccessRepairFeedback, type AgentSuccessRepairFeedback } from "./repairFeedback.js";
 
 export const AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS = 240_000;
 export const AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS = 1_800_000;
@@ -42,10 +44,15 @@ export type AgentSuccessRealAgentSettings = {
   protectedRoots: readonly string[];
   /** Roots replaced by <path> in any persisted message. */
   privateRoots: readonly string[];
+  /**
+   * Removal seam for the provider's neutral working directory so cleanup failure can be proven on every platform without
+   * relying on permissions or timing. Production removes the directory it created, recursively.
+   */
+  removeDirectory?: (directory: string) => Promise<void>;
 };
 
-export function agentSuccessAgentArtifactDirectory(benchmarkProject: string, caseId: string, treatmentId: string): string {
-  return `agents/${sanitizePathSegment(benchmarkProject)}/${sanitizePathSegment(caseId)}/${sanitizePathSegment(treatmentId)}/attempt-1`;
+export function agentSuccessAgentArtifactDirectory(benchmarkProject: string, caseId: string, treatmentId: string, attemptNumber: AgentSuccessAttemptNumber = 1): string {
+  return `agents/${sanitizePathSegment(benchmarkProject)}/${sanitizePathSegment(caseId)}/${sanitizePathSegment(treatmentId)}/attempt-${attemptNumber}`;
 }
 
 export function agentSuccessContextArtifactPath(benchmarkProject: string, caseId: string, treatmentId: string): string {
@@ -136,15 +143,20 @@ export function createRealAgentProposalSource(args: {
   task: AgentFacingTaskV1;
   contexts: Readonly<Record<AgentSuccessRateTreatmentId, AgentSuccessContextResult>>;
   forbidden: readonly ForbiddenAgentValue[];
+  /** One-based attempt number; the initial attempt is 1. */
+  attemptNumber?: AgentSuccessAttemptNumber;
+  /** Repair attempts only: the harness-authored feedback about the previous attempt. */
+  repair?: { feedback: AgentSuccessRepairFeedback; maxAttempts: number };
 }): AgentSuccessProposalSource {
   const { settings } = args;
+  const attemptNumber: AgentSuccessAttemptNumber = args.attemptNumber ?? 1;
   return async ({ treatmentId, invoke, notInvokedReason }): Promise<AgentSuccessProposal> => {
     const context = args.contexts[treatmentId];
     const task = args.task;
     const contextArtifactPath = context.text !== null ? agentSuccessContextArtifactPath(task.benchmarkProject, task.caseId, treatmentId) : null;
     const realAgent: AgentSuccessRealAgentEvidenceV1 = {
       providerId: settings.providerId,
-      attempt: 1,
+      attempt: attemptNumber,
       promptTransport: "stdin",
       providerInvoked: false,
       providerStatus: "not-invoked",
@@ -164,7 +176,8 @@ export function createRealAgentProposalSource(args: {
       },
       agentArtifactDirectory: null,
       agentArtifacts: { prompt: null, result: null, stdout: null, stderr: null, telemetry: null },
-      cwdCleanup: { attempted: false, removed: false, reason: null }
+      cwdCleanup: { attempted: false, removed: false, reason: null },
+      ...(args.repair ? { repairFeedback: summarizeAgentSuccessRepairFeedback(args.repair.feedback) } : {})
     };
     let contextFile: AgentSuccessPatchFile | null = contextArtifactPath !== null && context.text !== null ? { relativePath: contextArtifactPath, content: context.text } : null;
     const noProposal = (
@@ -194,7 +207,12 @@ export function createRealAgentProposalSource(args: {
       return noProposal(`context-unavailable: ${context.reason ?? "unknown"}`, "CONTEXT_UNAVAILABLE", `The ${treatmentId} context could not be built (${context.reason ?? "unknown"}); the provider was not invoked.`);
     }
 
-    const promptText = buildAgentSuccessRealAgentPrompt({ task, treatmentId, contextText: context.text });
+    const promptText = buildAgentSuccessRealAgentPrompt({
+      task,
+      treatmentId,
+      contextText: context.text,
+      ...(args.repair ? { repair: { feedback: args.repair.feedback, attemptNumber, maxAttempts: args.repair.maxAttempts } } : {})
+    });
     const leaks = findPromptLeaks(promptText, args.forbidden);
     if (leaks.length > 0) {
       contextFile = null;
@@ -203,7 +221,7 @@ export function createRealAgentProposalSource(args: {
     }
     realAgent.promptChars = promptText.length;
 
-    const attemptDirectory = agentSuccessAgentArtifactDirectory(task.benchmarkProject, task.caseId, treatmentId);
+    const attemptDirectory = agentSuccessAgentArtifactDirectory(task.benchmarkProject, task.caseId, treatmentId, attemptNumber);
     let attemptAbsolute: string;
     try {
       attemptAbsolute = resolveWithinRoot(settings.outDir, attemptDirectory);
@@ -227,7 +245,7 @@ export function createRealAgentProposalSource(args: {
         realAgent.providerInvoked = true;
         realAgent.agentArtifactDirectory = attemptDirectory;
         result = await settings.runAgent({
-          runId: `${task.caseId}.${settings.providerId}.${treatmentId}`,
+          runId: `${task.caseId}.${settings.providerId}.${treatmentId}${attemptNumber === 1 ? "" : `.repair${attemptNumber - 1}`}`,
           agentId: settings.providerId,
           promptVariant: buildTransportVariant(task, treatmentId),
           promptText,
@@ -245,7 +263,7 @@ export function createRealAgentProposalSource(args: {
       const cleanup: AgentSuccessCleanupEvidenceV1 = { attempted: neutralCwd !== null, removed: neutralCwd === null, reason: null };
       if (neutralCwd !== null) {
         try {
-          await rm(neutralCwd, { recursive: true, force: true });
+          await (settings.removeDirectory ?? ((directory: string) => rm(directory, { recursive: true, force: true })))(neutralCwd);
           cleanup.removed = true;
         } catch (error) {
           cleanup.removed = false;

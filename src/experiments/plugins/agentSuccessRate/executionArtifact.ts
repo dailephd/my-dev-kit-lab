@@ -1,4 +1,5 @@
-import type { AgentSuccessCaseEvidenceV1, AgentSuccessRealAgentProviderId } from "./executionTypes.js";
+import { attemptEvidenceOf } from "./attemptEvidence.js";
+import { AGENT_SUCCESS_MAX_TOTAL_ATTEMPTS, type AgentSuccessCaseEvidenceV1, type AgentSuccessRealAgentProviderId } from "./executionTypes.js";
 import {
   AGENT_SUCCESS_RATE_EXECUTION_MODE,
   AGENT_SUCCESS_RATE_PLUGIN_ID,
@@ -15,7 +16,10 @@ export const AGENT_SUCCESS_RATE_EXECUTION_SCHEMA_VERSION = "my-dev-kit-lab-agent
 export type AgentSuccessRateRealAgentRunV1 = {
   providerId: AgentSuccessRealAgentProviderId;
   timeoutMs: number;
-  attemptsPerTreatment: 1;
+  /** Maximum provider attempts per treatment: 1 + repairAttempts. */
+  attemptsPerTreatment: 1 | 2 | 3;
+  /** Repairs allowed after the initial attempt. Absent in artifacts written before repair support (equivalent to 0). */
+  repairAttempts?: 0 | 1 | 2;
   promptTransport: "stdin";
 };
 
@@ -61,7 +65,15 @@ export function buildAgentSuccessRateExecutionArtifact(args: {
     treatmentOrder: [...AGENT_SUCCESS_RATE_TREATMENT_IDS],
     cases: structuredClone(args.cases) as AgentSuccessCaseEvidenceV1[],
     ...(args.realAgent
-      ? { realAgent: { providerId: args.realAgent.providerId, timeoutMs: args.realAgent.timeoutMs, attemptsPerTreatment: 1 as const, promptTransport: "stdin" as const } }
+      ? {
+          realAgent: {
+            providerId: args.realAgent.providerId,
+            timeoutMs: args.realAgent.timeoutMs,
+            attemptsPerTreatment: args.realAgent.attemptsPerTreatment,
+            repairAttempts: args.realAgent.repairAttempts,
+            promptTransport: "stdin" as const
+          }
+        }
       : {})
   };
 }
@@ -102,6 +114,7 @@ export function validateAgentSuccessRateExecutionArtifact(artifact: AgentSuccess
         problems.push(`case ${entry.caseId}/${treatment.treatmentId} is missing real-agent evidence.`);
         continue;
       }
+      problems.push(...validateAttempts(entry.caseId, treatment, artifact.realAgent));
       if (artifact.realAgent && evidence.providerId !== artifact.realAgent.providerId) problems.push(`case ${entry.caseId}/${treatment.treatmentId} provider does not match the run provider.`);
       if (evidence.context.contextMode !== treatment.treatmentId) problems.push(`case ${entry.caseId}/${treatment.treatmentId} context mode does not match the treatment.`);
       if (evidence.providerInvoked !== (evidence.agentArtifactDirectory !== null)) problems.push(`case ${entry.caseId}/${treatment.treatmentId} agent artifact directory disagrees with provider invocation.`);
@@ -110,5 +123,30 @@ export function validateAgentSuccessRateExecutionArtifact(artifact: AgentSuccess
       if (evidence.context.availability !== "unavailable" && evidence.providerInvoked && evidence.context.contextArtifactPath === null) problems.push(`case ${entry.caseId}/${treatment.treatmentId} is missing its context artifact reference.`);
     }
   }
+  return problems;
+}
+
+/** Attempts are ordered, contiguous and one-based, bounded by the configured allowance, and never share a sandbox. */
+function validateAttempts(caseId: string, treatment: AgentSuccessCaseEvidenceV1["treatments"][number], run: AgentSuccessRateRealAgentRunV1 | undefined): string[] {
+  const problems: string[] = [];
+  const label = `case ${caseId}/${treatment.treatmentId}`;
+  const attempts = treatment.attempts;
+  // Evidence recorded without attempt history is a single legacy attempt and is validated by the checks above.
+  if (!attempts || attempts.length === 0) return problems;
+  const allowed = Math.min(1 + (run?.repairAttempts ?? 0), AGENT_SUCCESS_MAX_TOTAL_ATTEMPTS);
+  if (attempts.length > allowed) problems.push(`${label} executed ${attempts.length} attempts but at most ${allowed} are allowed.`);
+  attempts.forEach((attempt, index) => {
+    if (attempt.attemptNumber !== index + 1) problems.push(`${label} attempt numbering is not contiguous from 1.`);
+    if (attempt.evidence.attempts !== undefined) problems.push(`${label} attempt ${attempt.attemptNumber} nests further attempts.`);
+    if (attempt.evidence.realAgent && attempt.evidence.realAgent.attempt !== attempt.attemptNumber) problems.push(`${label} attempt ${attempt.attemptNumber} disagrees with its provider evidence.`);
+    if (run && attempt.providerId !== run.providerId) problems.push(`${label} attempt ${attempt.attemptNumber} provider does not match the run provider.`);
+    if (index > 0) {
+      const previous = attempts[index - 1]!;
+      if (!previous.repairEligible || previous.taskSuccess !== false) problems.push(`${label} attempt ${attempt.attemptNumber} followed an attempt that was not repair-eligible.`);
+    }
+  });
+  const sandboxIds = attempts.map((attempt) => attempt.evidence.sandboxId);
+  if (new Set(sandboxIds).size !== sandboxIds.length) problems.push(`${label} attempts share a sandbox id.`);
+  if (attempts[attempts.length - 1]!.evidence.sandboxId !== treatment.sandboxId) problems.push(`${label} top-level evidence is not the final attempt.`);
   return problems;
 }

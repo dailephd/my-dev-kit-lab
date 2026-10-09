@@ -113,9 +113,58 @@ export type AgentSuccessContextEvidenceV1 = {
   contextArtifactPath: string | null;
 };
 
+/** Attempt numbers are one-based and bounded: one initial attempt plus at most two repairs. */
+export type AgentSuccessAttemptNumber = 1 | 2 | 3;
+export const AGENT_SUCCESS_MAX_REPAIR_ATTEMPTS = 2;
+export const AGENT_SUCCESS_MAX_TOTAL_ATTEMPTS = 3;
+
+/**
+ * Fixed vocabulary describing how one attempt ended. The first group is repair-eligible (a completed provider attempt
+ * produced an evaluable implementation failure); everything else is never retried.
+ */
+export type AgentSuccessFailureCategory =
+  | "none"
+  | "patch-malformed"
+  | "patch-policy-rejected"
+  | "patch-check-failed"
+  | "patch-apply-failed"
+  | "task-check-failed"
+  | "regression-failed"
+  | "required-behavior-unsatisfied"
+  | "baseline-invalid"
+  | "context-unavailable"
+  | "provider-unavailable"
+  | "provider-limit-reached"
+  | "provider-timeout"
+  | "provider-failed"
+  | "provider-empty-answer"
+  | "provider-not-invoked"
+  | "infrastructure-failure"
+  | "cleanup-failed"
+  | "integrity-unproven"
+  | "integrity-mutated"
+  | "evidence-incomplete";
+
+/** Closed, harness-authored description of the previous attempt. It never carries check ids, tests or stderr. */
+export type AgentSuccessRepairFeedbackSummaryV1 = {
+  /** The attempt whose outcome this feedback describes. */
+  basedOnAttempt: AgentSuccessAttemptNumber;
+  category: AgentSuccessFailureCategory;
+  patchProduced: boolean;
+  patchApplied: boolean;
+  taskChecks: "all-passed" | "some-failed" | "not-evaluated";
+  regressionChecks: "all-passed" | "some-failed" | "not-evaluated";
+  requiredBehavior: "verified" | "not-verified" | "not-evaluated";
+  failedTaskCheckCount: number | null;
+  failedRegressionCheckCount: number | null;
+  /** Whether the previous agent-authored patch was included, and whether it was cut to the bound. */
+  previousPatchIncluded: boolean;
+  previousPatchTruncated: boolean;
+};
+
 export type AgentSuccessRealAgentEvidenceV1 = {
   providerId: AgentSuccessRealAgentProviderId;
-  attempt: 1;
+  attempt: AgentSuccessAttemptNumber;
   promptTransport: "stdin";
   providerInvoked: boolean;
   providerStatus: AgentSuccessProviderStatus;
@@ -128,6 +177,8 @@ export type AgentSuccessRealAgentEvidenceV1 = {
   agentArtifactDirectory: string | null;
   agentArtifacts: { prompt: string | null; result: string | null; stdout: string | null; stderr: string | null; telemetry: string | null };
   cwdCleanup: AgentSuccessCleanupEvidenceV1;
+  /** Present on repair attempts only; null for the initial attempt. */
+  repairFeedback?: AgentSuccessRepairFeedbackSummaryV1 | null;
 };
 
 /** What a proposal source returns after the evaluable baseline is established. */
@@ -161,6 +212,36 @@ export type AgentSuccessTreatmentEvidenceV1 = {
   errors: AgentSuccessErrorV1[];
   /** Present only in real-agent mode; deterministic-fixture evidence never carries this key. */
   realAgent?: AgentSuccessRealAgentEvidenceV1;
+  /**
+   * Real-agent mode only. Ordered, contiguous, one-based attempt evidence. The top-level fields above describe the FINAL
+   * evaluated attempt; the initial attempt is always attempts[0] and is never overwritten by a repair.
+   */
+  attempts?: AgentSuccessAttemptEvidenceV1[];
+};
+
+export type AgentSuccessAttemptEvidenceV1 = {
+  attemptNumber: AgentSuccessAttemptNumber;
+  providerId: AgentSuccessRealAgentProviderId;
+  providerStatus: AgentSuccessProviderStatus;
+  startedAt: string;
+  completedAt: string;
+  /** Provider wall time for this attempt; null when no provider ran. */
+  durationMs: number | null;
+  tokenUsage: AgentSuccessAgentTokenEvidenceV1 | null;
+  proposedPatchAvailability: "available" | "unavailable";
+  patchApplicationOutcome: NonNullable<AgentSuccessPatchEvidenceV1["outcome"]> | "not-attempted";
+  baselineAssessment: AgentSuccessTreatmentEvidenceV1["baselineAssessment"];
+  postEditVerification: AgentSuccessVerificationEvidenceV1 | null;
+  changeEvidenceAvailability: "available" | "unavailable";
+  /** The attempt's task-success verdict from the analysis owner; null when it could not be determined. */
+  taskSuccess: boolean | null;
+  failureCategory: AgentSuccessFailureCategory;
+  /** True when this attempt ended in an eligible implementation failure (a repair may follow if allowance remains). */
+  repairEligible: boolean;
+  /** Sandbox cleanup for this attempt's own sandbox. */
+  cleanupResult: AgentSuccessCleanupEvidenceV1;
+  /** Complete per-attempt evidence (its own sandbox, patch, verification and artifact references). */
+  evidence: AgentSuccessTreatmentEvidenceV1;
 };
 
 export type AgentSuccessCaseEvidenceV1 = {

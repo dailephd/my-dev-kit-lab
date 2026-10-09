@@ -9,7 +9,7 @@ export type AgentSuccessRateTreatmentId = (typeof AGENT_SUCCESS_RATE_TREATMENT_I
 /** Deterministic-fixture mode executes fixture patches only; no coding agent runs. It is the default mode. */
 export const AGENT_SUCCESS_RATE_EXECUTION_MODE = "deterministic-fixture" as const;
 
-/** Real-agent mode runs exactly one provider attempt per case/treatment and evaluates the patch it generates. */
+/** Real-agent mode runs an initial provider attempt (plus bounded repairs, when configured) per case/treatment and evaluates each patch the provider generates. */
 export const AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE = "real-agent" as const;
 
 export type AgentSuccessExecutionMode = typeof AGENT_SUCCESS_RATE_EXECUTION_MODE | typeof AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE;
@@ -22,7 +22,7 @@ export const agentSuccessRateMetadata: ExperimentPluginMetadata = {
   schemaVersion: "1.0.0",
   status: "experimental",
   supportedTargets: ["self"],
-  supportedOutputs: ["json", "artifact"]
+  supportedOutputs: ["json", "html", "text", "artifact"]
 };
 
 /** Exactly two mandatory treatments, in fixed order. There is no treatment selector. */

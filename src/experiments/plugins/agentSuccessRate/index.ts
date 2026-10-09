@@ -13,3 +13,8 @@ export * from "./agentTaskProjection.js";
 export * from "./contextGeneration.js";
 export * from "./realAgentExecution.js";
 export * from "./realAgentPrompt.js";
+export * from "./attemptEvidence.js";
+export * from "./repairPolicy.js";
+export * from "./repairFeedback.js";
+export * from "./repairAnalysis.js";
+export * from "./repairExecution.js";

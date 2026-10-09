@@ -51,7 +51,7 @@ describe("agent-success-rate registration, metadata and config", () => {
       schemaVersion: "1.0.0",
       status: "experimental",
       supportedTargets: ["self"],
-      supportedOutputs: ["json", "artifact"]
+      supportedOutputs: ["json", "html", "text", "artifact"]
     });
   });
 

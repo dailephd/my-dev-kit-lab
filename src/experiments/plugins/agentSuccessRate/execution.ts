@@ -29,6 +29,7 @@ import { isPathInside, sanitizePathSegment } from "../../outputPaths.js";
 import type { AgentSuccessRateTreatmentId } from "./metadata.js";
 import { AGENT_SUCCESS_RATE_TREATMENT_IDS } from "./metadata.js";
 import type {
+  AgentSuccessAttemptNumber,
   AgentSuccessCaseEvidenceV1,
   AgentSuccessChangeEvidenceV1,
   AgentSuccessPatchEvidenceV1,
@@ -167,13 +168,21 @@ export async function resolveSandboxRuntimeRoot(outDir: string, toolRoot: string
 // Execution
 // ---------------------------------------------------------------------------------------------------------------
 
-export function deriveAgentSuccessSandboxId(runId: string, caseId: string, treatmentId: AgentSuccessRateTreatmentId): string {
-  const digest = createHash("sha256").update(`${runId}\0${caseId}\0${treatmentId}`).digest("hex").slice(0, 20);
-  return `asr-${digest}-${treatmentId === "raw-full-file" ? "raw" : "ctx"}`;
+/** Attempt 1 keeps its original identity; every repair attempt derives a distinct sandbox id so no sandbox is ever reused. */
+export function deriveAgentSuccessSandboxId(runId: string, caseId: string, treatmentId: AgentSuccessRateTreatmentId, attemptNumber: AgentSuccessAttemptNumber = 1): string {
+  const attemptKey = attemptNumber === 1 ? "" : `\0attempt-${attemptNumber}`;
+  const digest = createHash("sha256").update(`${runId}\0${caseId}\0${treatmentId}${attemptKey}`).digest("hex").slice(0, 20);
+  return `asr-${digest}-${treatmentId === "raw-full-file" ? "raw" : "ctx"}${attemptNumber === 1 ? "" : `-a${attemptNumber}`}`;
 }
 
-export function agentSuccessPatchArtifactPath(benchmarkProject: string, caseId: string, treatmentId: string, kind: "proposed" | "applied"): string {
-  return `diffs/${sanitizePathSegment(benchmarkProject)}/${sanitizePathSegment(caseId)}/${sanitizePathSegment(treatmentId)}/attempt-1-${kind}.patch`;
+export function agentSuccessPatchArtifactPath(
+  benchmarkProject: string,
+  caseId: string,
+  treatmentId: string,
+  kind: "proposed" | "applied",
+  attemptNumber: AgentSuccessAttemptNumber = 1
+): string {
+  return `diffs/${sanitizePathSegment(benchmarkProject)}/${sanitizePathSegment(caseId)}/${sanitizePathSegment(treatmentId)}/attempt-${attemptNumber}-${kind}.patch`;
 }
 
 /** Bounds a message and replaces any known machine-local root so no absolute path is persisted. */
@@ -297,13 +306,16 @@ export async function executeAgentSuccessTreatment(args: {
   dependencies?: Partial<AgentSuccessRateDependencies>;
   /** Real-agent mode: supplies the proposal instead of the deterministic fixture, which is then never consulted. */
   proposalSource?: AgentSuccessProposalSource;
+  /** One-based; repair attempts get their own sandbox id and patch artifact names. Defaults to the initial attempt. */
+  attemptNumber?: AgentSuccessAttemptNumber;
 }): Promise<AgentSuccessTreatmentResult> {
   const deps = { ...defaultAgentSuccessRateDependencies, ...args.dependencies };
   const { task, treatmentId } = args;
   const privateRoots = [args.runtimeRoot, args.canonicalProjectRoot, ...args.privateRoots];
   const proposalSource = args.proposalSource;
   const fixture = proposalSource ? undefined : task.deterministicFixture;
-  const sandboxId = deriveAgentSuccessSandboxId(args.runId, task.id, treatmentId);
+  const attemptNumber: AgentSuccessAttemptNumber = args.attemptNumber ?? 1;
+  const sandboxId = deriveAgentSuccessSandboxId(args.runId, task.id, treatmentId, attemptNumber);
   const started = Date.now();
 
   const evidence: AgentSuccessTreatmentEvidenceV1 = {
@@ -403,7 +415,7 @@ export async function executeAgentSuccessTreatment(args: {
         return { evidence, patchFiles, contextFiles };
       }
 
-      const proposedPath = agentSuccessPatchArtifactPath(task.benchmarkProject, task.id, treatmentId, "proposed");
+      const proposedPath = agentSuccessPatchArtifactPath(task.benchmarkProject, task.id, treatmentId, "proposed", attemptNumber);
       patchFiles.push({ relativePath: proposedPath, content: proposalText });
       evidence.proposedPatchPath = proposedPath;
       evidence.patch.attempted = true;
@@ -417,7 +429,7 @@ export async function executeAgentSuccessTreatment(args: {
         try {
           changes = await deps.captureChanges({ sandbox });
           evidence.change = summarizeChange(changes);
-          const appliedPath = agentSuccessPatchArtifactPath(task.benchmarkProject, task.id, treatmentId, "applied");
+          const appliedPath = agentSuccessPatchArtifactPath(task.benchmarkProject, task.id, treatmentId, "applied", attemptNumber);
           patchFiles.push({ relativePath: appliedPath, content: changes.diff });
           evidence.appliedPatchPath = appliedPath;
         } catch (error) {

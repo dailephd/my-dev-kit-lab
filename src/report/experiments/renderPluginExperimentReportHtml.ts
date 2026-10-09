@@ -6,6 +6,7 @@ import { renderContextWindowScalingHtml } from "./renderContextWindowScalingHtml
 import { renderRetrievalPrecisionRecallHtml } from "./renderRetrievalPrecisionRecallHtml.js";
 import { renderRetrievalQueryStrategyComparisonHtml } from "./renderRetrievalQueryStrategyComparisonHtml.js";
 import { renderContextPackGenerationHtml } from "./renderContextPackGenerationHtml.js";
+import { renderAgentSuccessRateHtml } from "./renderAgentSuccessRateHtml.js";
 
 export function renderPluginExperimentReportHtml(report: PluginExperimentReport): string {
   const redactedTarget = report.target.privacyProjection === "external-local-redacted";
@@ -116,6 +117,8 @@ export function renderPluginExperimentReportHtml(report: PluginExperimentReport)
   ${renderRetrievalQueryStrategyComparisonHtml(report.retrievalQueryStrategyComparison ?? null)}
 
   ${renderContextPackGenerationHtml(report.contextPackGeneration ?? null)}
+
+  ${renderAgentSuccessRateHtml(report.agentSuccessRate ?? null)}
 
   <section>
     <h2>Warnings, Skips, And Failures</h2>

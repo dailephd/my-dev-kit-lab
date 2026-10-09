@@ -30,6 +30,7 @@ import {
 import {
   AGENT_SUCCESS_RATE_SELF_ONLY_MESSAGE,
   AgentSuccessRateInputError,
+  boundMessage,
   executeAgentSuccessCase,
   readAgentSuccessTasksInput,
   resolveControlledBenchmarkProject,
@@ -39,6 +40,8 @@ import {
 } from "./execution.js";
 import { AGENT_SUCCESS_RATE_EXECUTION_ARTIFACT_FILE, buildAgentSuccessRateExecutionArtifact, validateAgentSuccessRateExecutionArtifact } from "./executionArtifact.js";
 import type { AgentSuccessCaseEvidenceV1, AgentSuccessPatchFile, AgentSuccessRealAgentProviderId, AgentSuccessTreatmentEvidenceV1 } from "./executionTypes.js";
+import { attemptEvidenceOf } from "./attemptEvidence.js";
+import { executeAgentSuccessRepairCase } from "./repairExecution.js";
 import {
   AGENT_SUCCESS_RATE_EXECUTION_MODE,
   AGENT_SUCCESS_RATE_PLUGIN_ID,
@@ -138,12 +141,13 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
             runAgent: readRunAgentInput(inputs),
             outDir,
             protectedRoots: [context.toolRoot, outDir, runtimeRoot, packageRoot(), ...projectRoots.values()],
-            privateRoots: [outDir, context.toolRoot]
+            privateRoots: [outDir, context.toolRoot],
+            ...readRemoveDirectoryInput(inputs)
           };
     try {
       for (const task of tasks) {
         const canonicalProjectRoot = projectRoots.get(task.benchmarkProject)!;
-        let proposalSource;
+        let repairContexts: Parameters<typeof createRealAgentProposalSource>[0]["contexts"] | null = null;
         if (real !== null && settings !== null && packBuilder !== null) {
           // Both treatment contexts come from the same clean canonical project state, before any sandbox exists.
           const contextInput = buildContextTaskInput(task);
@@ -151,30 +155,54 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
             "raw-full-file": await buildRawFullFileContext(contextInput, canonicalProjectRoot),
             "context-pack": await packBuilder.build(contextInput, canonicalProjectRoot)
           };
-          proposalSource = createRealAgentProposalSource({
-            settings,
-            runId: context.runId,
-            task: projectAgentFacingTask(task),
-            contexts,
-            forbidden: forbiddenByTask.get(task.id) ?? []
-          });
+          repairContexts = contexts;
         }
-        const result = await executeAgentSuccessCase({
-          task,
-          runId: context.runId,
-          canonicalProjectRoot,
-          runtimeRoot,
-          privateRoots: [outDir, context.toolRoot],
-          dependencies,
-          proposalSource
-        });
+        const result =
+          real !== null && settings !== null && repairContexts !== null
+            ? await executeAgentSuccessRepairCase({
+                task,
+                runId: context.runId,
+                canonicalProjectRoot,
+                runtimeRoot,
+                privateRoots: [outDir, context.toolRoot],
+                dependencies,
+                // Each attempt is built from the same public task, the same original treatment context and (for repairs)
+                // only the harness-authored feedback about the previous attempt.
+                repairFor: () => ({
+                  providerId: real.providerId,
+                  repairAttempts: real.repairAttempts,
+                  createProposalSource: ({ attemptNumber, feedback }) =>
+                    createRealAgentProposalSource({
+                      settings,
+                      runId: context.runId,
+                      task: projectAgentFacingTask(task),
+                      contexts: repairContexts!,
+                      forbidden: forbiddenByTask.get(task.id) ?? [],
+                      attemptNumber,
+                      ...(feedback ? { repair: { feedback, maxAttempts: 1 + real.repairAttempts } } : {})
+                    })
+                })
+              })
+            : await executeAgentSuccessCase({
+                task,
+                runId: context.runId,
+                canonicalProjectRoot,
+                runtimeRoot,
+                privateRoots: [outDir, context.toolRoot],
+                dependencies
+              });
         caseEvidence.push(result.evidence);
         patchFiles.push(...result.patchFiles);
         contextFiles.push(...result.contextFiles);
       }
     } finally {
       // Only an empty runtime root this run created is removed; rmdir refuses a non-empty directory.
-      if (!runtimeRootExisted) await rmdir(runtimeRoot).catch(() => undefined);
+      if (!runtimeRootExisted) {
+        // rmdir refuses a non-empty directory, so a leftover sandbox keeps the root; that is reported, never hidden.
+        await rmdir(runtimeRoot).catch((error: unknown) => {
+          warnings.push({ code: "sandbox-runtime-root-not-removed", message: boundMessage(`The sandbox runtime root could not be removed: ${error instanceof Error ? error.message : String(error)}`, [outDir, context.toolRoot]) });
+        });
+      }
       const disposeReason = packBuilder === null ? null : await packBuilder.dispose();
       if (disposeReason !== null) warnings.push({ code: "context-work-directory-not-removed", message: disposeReason });
     }
@@ -186,7 +214,17 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
     const executionArtifact = buildAgentSuccessRateExecutionArtifact({
       ...common,
       cases: caseEvidence,
-      realAgent: real === null ? undefined : { providerId: real.providerId, timeoutMs: real.timeoutMs, attemptsPerTreatment: 1, promptTransport: "stdin", contextEffectEvaluated: analysis.contextEffectEvaluated }
+      realAgent:
+        real === null
+          ? undefined
+          : {
+              providerId: real.providerId,
+              timeoutMs: real.timeoutMs,
+              attemptsPerTreatment: (1 + real.repairAttempts) as 1 | 2 | 3,
+              repairAttempts: real.repairAttempts as 0 | 1 | 2,
+              promptTransport: "stdin",
+              contextEffectEvaluated: analysis.contextEffectEvaluated
+            }
     });
     const analysisArtifact = buildAgentSuccessRateAnalysisArtifact({ ...common, analysis });
     const problems = [
@@ -198,8 +236,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
       ...(await validateAgentArtifacts(caseEvidence, outDir, io))
     ];
     if (problems.length > 0) {
-      await removeAgentAttemptDirectories(caseEvidence, outDir);
-      throw new Error(AGENT_SUCCESS_RATE_ARTIFACT_STATE_MESSAGE);
+      throw new Error(AGENT_SUCCESS_RATE_ARTIFACT_STATE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir)));
     }
 
     // Context and patch artifacts, then execution, then analysis last. Pre-existing files are never overwritten.
@@ -211,8 +248,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
     ];
     for (const target of targets) {
       if (await io.exists(target.filePath)) {
-        await removeAgentAttemptDirectories(caseEvidence, outDir);
-        throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE);
+        throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir)));
       }
     }
     const created: string[] = [];
@@ -231,8 +267,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
           // best effort: the failure below is the outcome
         }
       }
-      await removeAgentAttemptDirectories(caseEvidence, outDir);
-      throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE);
+      throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir)));
     }
 
     return mapAgentSuccessRateToRun({
@@ -245,6 +280,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
       patchArtifactPaths: patchFiles.map((file) => file.relativePath),
       contextArtifactPaths: contextFiles.map((file) => file.relativePath),
       providerId: real?.providerId ?? null,
+      realSettings: real === null ? undefined : { timeoutMs: real.timeoutMs, repairAttempts: real.repairAttempts },
       warnings
     });
   },
@@ -256,7 +292,9 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
 /** Every patch artifact must be promised by exactly one treatment's evidence, and vice versa. */
 function validatePatchFiles(caseEvidence: readonly AgentSuccessCaseEvidenceV1[], patchFiles: readonly AgentSuccessPatchFile[]): string[] {
   const problems: string[] = [];
-  const promised = caseEvidence.flatMap((entry) => entry.treatments.flatMap((t) => [t.proposedPatchPath, t.appliedPatchPath])).filter((p): p is string => p !== null);
+  const promised = caseEvidence
+    .flatMap((entry) => entry.treatments.flatMap((t) => attemptEvidenceOf(t).flatMap((attempt) => [attempt.proposedPatchPath, attempt.appliedPatchPath])))
+    .filter((p): p is string => p !== null);
   const produced = patchFiles.map((file) => file.relativePath);
   if (new Set(produced).size !== produced.length) problems.push("duplicate patch artifact path.");
   if ([...promised].sort().join("\n") !== [...produced].sort().join("\n")) problems.push("patch artifacts do not match the paths promised by execution evidence.");
@@ -273,13 +311,16 @@ export function mapAgentSuccessRateToRun(args: {
   patchArtifactPaths: readonly string[];
   contextArtifactPaths?: readonly string[];
   providerId?: AgentSuccessRealAgentProviderId | null;
+  realSettings?: { timeoutMs: number; repairAttempts: number };
   warnings?: ExperimentRun["warnings"];
 }): AgentSuccessRateRun {
   const realMode = args.analysis.executionMode === AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE;
   const patchOwner = new Map<string, { caseId: string; variantId: string }>();
   for (const entry of args.caseEvidence) {
     for (const t of entry.treatments) {
-      for (const p of [t.proposedPatchPath, t.appliedPatchPath]) if (p) patchOwner.set(p, { caseId: entry.caseId, variantId: t.treatmentId });
+      for (const attempt of attemptEvidenceOf(t)) {
+        for (const p of [attempt.proposedPatchPath, attempt.appliedPatchPath]) if (p) patchOwner.set(p, { caseId: entry.caseId, variantId: t.treatmentId });
+      }
     }
   }
   const cases: ExperimentCase[] = args.caseEvidence.map((entry, caseIndex) => ({
@@ -326,7 +367,7 @@ export function mapAgentSuccessRateToRun(args: {
       })),
       ...args.patchArtifactPaths.map((patchPath) => ({
         id: `patch:${patchPath}`,
-        label: patchPath.endsWith("-applied.patch") ? "Applied patch (from change evidence)" : realMode ? "Proposed patch (provider final answer)" : "Proposed deterministic fixture patch",
+        label: patchLabel(patchPath, realMode),
         path: patchPath,
         kind: "artifact" as const,
         mimeType: "text/x-diff",
@@ -339,6 +380,7 @@ export function mapAgentSuccessRateToRun(args: {
     metadata: {
       executionMode: args.analysis.executionMode,
       ...(args.providerId ? { providerId: args.providerId } : {}),
+      ...(args.realSettings ? { timeoutMs: args.realSettings.timeoutMs, repairAttempts: args.realSettings.repairAttempts } : {}),
       contextEffectEvaluated: args.analysis.contextEffectEvaluated,
       executionArtifactPath: AGENT_SUCCESS_RATE_EXECUTION_ARTIFACT_FILE,
       analysisArtifactPath: AGENT_SUCCESS_RATE_ANALYSIS_ARTIFACT_FILE
@@ -386,6 +428,14 @@ function buildOutcome(
       taskSuccess: success.availability === "available" ? (success.value as boolean) : null,
       executionMode,
       ...(treatment.realAgent ? { providerId: treatment.realAgent.providerId, providerStatus: treatment.realAgent.providerStatus } : {}),
+      ...(treatmentAnalysis.repair
+        ? {
+            attemptCount: treatmentAnalysis.repair.attemptCount,
+            repairAttemptCount: treatmentAnalysis.repair.repairAttemptCount,
+            initialAttemptTaskSuccess: treatmentAnalysis.repair.initialAttemptTaskSuccess.availability === "available" ? (treatmentAnalysis.repair.initialAttemptTaskSuccess.value as boolean) : null,
+            repairSucceeded: treatmentAnalysis.repair.repairSucceeded.availability === "available" ? (treatmentAnalysis.repair.repairSucceeded.value as boolean) : null
+          }
+        : {}),
       contextEffectEvaluated
     }
   };
@@ -413,7 +463,7 @@ function readArtifactIo(inputs: Record<string, unknown> | undefined): AgentSucce
 // Real-agent helpers
 // ---------------------------------------------------------------------------------------------------------------
 
-type RealAgentRunConfig = { providerId: AgentSuccessRealAgentProviderId; timeoutMs: number; kitCommand: string };
+type RealAgentRunConfig = { providerId: AgentSuccessRealAgentProviderId; timeoutMs: number; kitCommand: string; repairAttempts: number };
 
 /** Real-agent mode exists only when a provider is named; the closed config validator has already enforced the opt-in. */
 function readRealAgentConfig(config: AgentSuccessRateConfig): RealAgentRunConfig | null {
@@ -421,7 +471,8 @@ function readRealAgentConfig(config: AgentSuccessRateConfig): RealAgentRunConfig
   return {
     providerId: config.agentId,
     timeoutMs: config.timeoutMs ?? AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS,
-    kitCommand: config.kitCommand ?? DEFAULT_AGENT_SUCCESS_KIT_COMMAND
+    kitCommand: config.kitCommand ?? DEFAULT_AGENT_SUCCESS_KIT_COMMAND,
+    repairAttempts: config.repairAttempts ?? 0
   };
 }
 
@@ -464,7 +515,8 @@ function readAgentEnvInput(inputs: Record<string, unknown> | undefined): NodeJS.
 
 /** Every context artifact must be promised by exactly one treatment's evidence, and vice versa. */
 function validateContextFiles(caseEvidence: readonly AgentSuccessCaseEvidenceV1[], contextFiles: readonly AgentSuccessPatchFile[]): string[] {
-  const promised = caseEvidence.flatMap((entry) => entry.treatments.map((t) => t.realAgent?.context.contextArtifactPath ?? null)).filter((p): p is string => p !== null);
+  // The treatment context is persisted once, by the initial attempt, and repairs reuse it unchanged.
+  const promised = caseEvidence.flatMap((entry) => entry.treatments.map((t) => attemptEvidenceOf(t)[0]?.realAgent?.context.contextArtifactPath ?? null)).filter((p): p is string => p !== null);
   const produced = contextFiles.map((file) => file.relativePath);
   const problems: string[] = [];
   if (new Set(produced).size !== produced.length) problems.push("duplicate context artifact path.");
@@ -478,17 +530,19 @@ async function validateAgentArtifacts(caseEvidence: readonly AgentSuccessCaseEvi
   const directories = new Set<string>();
   for (const entry of caseEvidence) {
     for (const treatment of entry.treatments) {
-      const real = treatment.realAgent;
-      if (!real?.agentArtifactDirectory) continue;
-      if (directories.has(real.agentArtifactDirectory)) problems.push("duplicate agent attempt directory.");
-      directories.add(real.agentArtifactDirectory);
-      if (!/\/attempt-1$/.test(real.agentArtifactDirectory)) problems.push("agent attempt directory is not attempt-1.");
-      for (const reference of Object.values(real.agentArtifacts)) {
-        if (reference === null) continue;
-        try {
-          if (!(await io.exists(resolveWithinRoot(outDir, reference)))) problems.push(`agent artifact ${reference} is missing.`);
-        } catch {
-          problems.push("agent artifact path is invalid.");
+      for (const attempt of attemptEvidenceOf(treatment)) {
+        const real = attempt.realAgent;
+        if (!real?.agentArtifactDirectory) continue;
+        if (directories.has(real.agentArtifactDirectory)) problems.push("duplicate agent attempt directory.");
+        directories.add(real.agentArtifactDirectory);
+        if (!real.agentArtifactDirectory.endsWith(`/attempt-${real.attempt}`)) problems.push(`agent attempt directory is not attempt-${real.attempt}.`);
+        for (const reference of Object.values(real.agentArtifacts)) {
+          if (reference === null) continue;
+          try {
+            if (!(await io.exists(resolveWithinRoot(outDir, reference)))) problems.push(`agent artifact ${reference} is missing.`);
+          } catch {
+            problems.push("agent artifact path is invalid.");
+          }
         }
       }
     }
@@ -496,17 +550,36 @@ async function validateAgentArtifacts(caseEvidence: readonly AgentSuccessCaseEvi
   return problems;
 }
 
-/** Removes only attempt directories this run created (those recorded as invoked), best effort. */
-async function removeAgentAttemptDirectories(caseEvidence: readonly AgentSuccessCaseEvidenceV1[], outDir: string): Promise<void> {
+/**
+ * Removes only attempt directories this run created (those recorded as invoked). Removal is best effort, but a directory
+ * that could not be removed is counted and reported in the returned suffix so cleanup is never presented as complete.
+ */
+async function removeAgentAttemptDirectories(caseEvidence: readonly AgentSuccessCaseEvidenceV1[], outDir: string): Promise<string> {
+  let failures = 0;
   for (const entry of caseEvidence) {
     for (const treatment of entry.treatments) {
-      const directory = treatment.realAgent?.agentArtifactDirectory;
-      if (!directory) continue;
-      try {
-        await rm(resolveWithinRoot(outDir, directory), { recursive: true, force: true });
-      } catch {
-        // best effort: the artifact failure is the reported outcome
+      for (const attempt of attemptEvidenceOf(treatment)) {
+        const directory = attempt.realAgent?.agentArtifactDirectory;
+        if (!directory) continue;
+        try {
+          await rm(resolveWithinRoot(outDir, directory), { recursive: true, force: true });
+        } catch {
+          failures += 1;
+        }
       }
     }
   }
+  return failures > 0 ? ` ${failures} agent attempt director${failures === 1 ? "y" : "ies"} could not be removed.` : "";
+}
+
+function patchLabel(patchPath: string, realMode: boolean): string {
+  const attempt = /attempt-(\d+)-/.exec(patchPath)?.[1];
+  const suffix = realMode && attempt && attempt !== "1" ? ` (attempt ${attempt})` : "";
+  if (patchPath.endsWith("-applied.patch")) return `Applied patch (from change evidence)${suffix}`;
+  return `${realMode ? "Proposed patch (provider final answer)" : "Proposed deterministic fixture patch"}${suffix}`;
+}
+
+function readRemoveDirectoryInput(inputs: Record<string, unknown> | undefined): { removeDirectory?: (directory: string) => Promise<void> } {
+  const value = inputs?.agentSuccessRemoveDirectory;
+  return typeof value === "function" ? { removeDirectory: value as (directory: string) => Promise<void> } : {};
 }

@@ -1,5 +1,7 @@
 import type { AgentFacingTaskV1 } from "./agentTaskProjection.js";
 import type { AgentSuccessRateTreatmentId } from "./metadata.js";
+import type { AgentSuccessAttemptNumber } from "./executionTypes.js";
+import { renderAgentSuccessRepairFeedbackLines, type AgentSuccessRepairFeedback } from "./repairFeedback.js";
 
 export const REAL_AGENT_CONTEXT_BEGIN = "<<<BEGIN_SUPPLIED_CONTEXT>>>";
 export const REAL_AGENT_CONTEXT_END = "<<<END_SUPPLIED_CONTEXT>>>";
@@ -9,8 +11,15 @@ export const REAL_AGENT_CONTEXT_END = "<<<END_SUPPLIED_CONTEXT>>>";
  * instructions. It accepts no AgentSuccessTaskV1, so trusted checks, behavior facts, edit scopes and fixture patches
  * are structurally unreachable here.
  */
-export function buildAgentSuccessRealAgentPrompt(args: { task: AgentFacingTaskV1; treatmentId: AgentSuccessRateTreatmentId; contextText: string }): string {
+export function buildAgentSuccessRealAgentPrompt(args: {
+  task: AgentFacingTaskV1;
+  treatmentId: AgentSuccessRateTreatmentId;
+  contextText: string;
+  /** Repair attempts only: fixed-vocabulary feedback about the previous attempt. The original context is unchanged. */
+  repair?: { feedback: AgentSuccessRepairFeedback; attemptNumber: AgentSuccessAttemptNumber; maxAttempts: number };
+}): string {
   const { task, treatmentId, contextText } = args;
+  const repairLines = args.repair ? renderAgentSuccessRepairFeedbackLines(args.repair.feedback, args.repair.attemptNumber, args.repair.maxAttempts) : [];
   return [
     "# Implementation Benchmark",
     "",
@@ -40,6 +49,6 @@ export function buildAgentSuccessRealAgentPrompt(args: { task: AgentFacingTaskV1
     REAL_AGENT_CONTEXT_BEGIN,
     contextText,
     REAL_AGENT_CONTEXT_END,
-    ""
+    ...(repairLines.length > 0 ? repairLines : [""])
   ].join("\n");
 }

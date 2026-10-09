@@ -7,13 +7,18 @@ import {
   type AgentSuccessMeanId,
   type AgentSuccessMeanV1,
   type AgentSuccessMetricId,
+  type AgentSuccessAttemptAnalysisV1,
+  type AgentSuccessPairedOutcomesV1,
   type AgentSuccessRateAnalysisV1,
+  type AgentSuccessRepairAnalysisV1,
   type AgentSuccessTreatmentAggregateV1,
   type AgentSuccessTreatmentAnalysisV1
 } from "./analysisTypes.js";
-import type { AgentSuccessCaseEvidenceV1, AgentSuccessTreatmentEvidenceV1, AgentSuccessVerificationCheckEvidenceV1 } from "./executionTypes.js";
+import type { AgentSuccessAttemptEvidenceV1, AgentSuccessCaseEvidenceV1, AgentSuccessTreatmentEvidenceV1, AgentSuccessVerificationCheckEvidenceV1 } from "./executionTypes.js";
 import { AGENT_SUCCESS_RATE_EXECUTION_MODE, AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE, AGENT_SUCCESS_RATE_TREATMENT_IDS, type AgentSuccessExecutionMode } from "./metadata.js";
 import { availableMetric, notApplicableMetric, ratioMetric, triMetric, unavailableMetric } from "./metrics.js";
+import { aggregateRepair, buildRepairComparison } from "./repairAnalysis.js";
+import { classifyAgentSuccessAttempt } from "./repairPolicy.js";
 import type { AgentSuccessMetricUnit, AgentSuccessMetricV1, Tri } from "./types.js";
 
 export const AGENT_SUCCESS_RATE_LIMITATIONS: readonly string[] = [
@@ -25,7 +30,8 @@ export const AGENT_SUCCESS_RATE_LIMITATIONS: readonly string[] = [
 ];
 
 export const AGENT_SUCCESS_RATE_REAL_AGENT_LIMITATIONS: readonly string[] = [
-  "Real-agent mode gives each treatment exactly one provider attempt; the provider generated its own patch from only the supplied treatment context.",
+  "Real-agent mode gives each treatment one initial provider attempt and, only when repairAttempts is configured, at most that many bounded repair attempts (three attempts in total); the provider generated its own patch from only the supplied treatment context.",
+  "Initial-attempt success and final success are separate measurements; a repaired success is never an initial-attempt success, and repair feedback is limited to fixed outcome categories.",
   "Task success is derived from trusted checks on the actual changed repository state; agent prose is never evidence of success.",
   "Matched-case comparisons are descriptive. A single run supports no causal, ranking, winner or statistical-significance claim.",
   "Estimated context tokens are size estimates of the supplied context and are not provider-reported token usage.",
@@ -276,7 +282,84 @@ export function analyzeAgentSuccessTreatment(task: AgentSuccessTaskV1, evidence:
     if (!metric) throw new Error(`Agent success analysis did not produce metric ${id}.`);
     metrics[id] = metric;
   }
-  return { treatmentId: evidence.treatmentId, caseId: task.id, executionStatus: evidence.status, evidenceAvailability: evidence.availability, metrics };
+  const repair = evidence.attempts && evidence.attempts.length > 0 ? buildRepairAnalysis(task, evidence.attempts) : undefined;
+  return { treatmentId: evidence.treatmentId, caseId: task.id, executionStatus: evidence.status, evidenceAvailability: evidence.availability, metrics, ...(repair ? { repair } : {}) };
+}
+
+function retag(metric: AgentSuccessMetricV1, id: string): AgentSuccessMetricV1 {
+  return { ...metric, id };
+}
+
+/** Sum of a per-attempt quantity over the provider attempts that ran. Unavailable if any invoked attempt was not measured. */
+function sumOverInvoked(id: string, unit: AgentSuccessMetricUnit, noun: string, samples: ReadonlyArray<{ invoked: boolean; metric: AgentSuccessMetricV1 }>): AgentSuccessMetricV1 {
+  const invoked = samples.filter((sample) => sample.invoked);
+  if (invoked.length === 0) return unavailableMetric(id, unit, "no provider attempt ran.");
+  const missing = invoked.filter((sample) => sample.metric.availability !== "available");
+  if (missing.length > 0) return unavailableMetric(id, unit, `${missing.length} of ${invoked.length} provider attempt(s) have no ${noun}; a complete total is not available.`);
+  return availableMetric(id, invoked.reduce((total, sample) => total + (sample.metric.value as number), 0), unit);
+}
+
+/** Per-attempt analysis plus the initial/final separation. Attempt order is evidence order (contiguous, one-based). */
+function buildRepairAnalysis(task: AgentSuccessTaskV1, attempts: readonly AgentSuccessAttemptEvidenceV1[]): AgentSuccessRepairAnalysisV1 {
+  const analyzed = attempts.map((attempt) => {
+    const analysis = analyzeAgentSuccessTreatment(task, attempt.evidence);
+    const classification = classifyAgentSuccessAttempt(attempt.evidence, analysis.metrics);
+    const entry: AgentSuccessAttemptAnalysisV1 = {
+      attemptNumber: attempt.attemptNumber,
+      providerStatus: attempt.providerStatus,
+      failureCategory: classification.category,
+      repairEligible: classification.repairEligible,
+      executionStatus: analysis.executionStatus,
+      evidenceAvailability: analysis.evidenceAvailability,
+      metrics: analysis.metrics
+    };
+    return { entry, invoked: attempt.evidence.realAgent?.providerInvoked === true };
+  });
+  const first = analyzed[0]!;
+  const last = analyzed[analyzed.length - 1]!;
+  const initial = retag(first.entry.metrics.taskSuccess, "initialAttemptTaskSuccess");
+  const final = retag(last.entry.metrics.taskSuccess, "finalTaskSuccess");
+  const repairAttemptCount = analyzed.length - 1;
+
+  let repairSucceeded: AgentSuccessMetricV1;
+  if (repairAttemptCount === 0) {
+    repairSucceeded = notApplicableMetric("repairSucceeded", "boolean", "no repair attempt was executed.");
+  } else if (initial.availability !== "available" || final.availability !== "available") {
+    repairSucceeded = unavailableMetric("repairSucceeded", "boolean", "the initial or final attempt has no determinate task-success verdict.");
+  } else {
+    repairSucceeded = availableMetric("repairSucceeded", initial.value === false && final.value === true, "boolean");
+  }
+
+  const duration = (item: (typeof analyzed)[number]): AgentSuccessMetricV1 => item.entry.metrics.agentDurationMs;
+  const tokens = (item: (typeof analyzed)[number]): AgentSuccessMetricV1 => item.entry.metrics.agentTotalTokens;
+  const firstOr = (item: (typeof analyzed)[number], pick: typeof duration, id: string, unit: AgentSuccessMetricUnit): AgentSuccessMetricV1 =>
+    item.invoked ? retag(pick(item), id) : unavailableMetric(id, unit, "no provider attempt ran.");
+  const evaluationDurations = analyzed.map((item) => item.entry.metrics.evaluationDurationMs);
+  const missingEvaluation = evaluationDurations.filter((metric) => metric.availability !== "available").length;
+  const invokedItems = analyzed.filter((item) => item.invoked);
+
+  return {
+    attemptCount: analyzed.length,
+    repairAttemptCount,
+    initialAttemptRepairEligible: first.entry.repairEligible,
+    initialAttemptTaskSuccess: initial,
+    finalTaskSuccess: final,
+    repairSucceeded,
+    firstAttemptProviderDurationMs: firstOr(first, duration, "firstAttemptProviderDurationMs", "ms"),
+    finalAttemptProviderDurationMs: firstOr(last, duration, "finalAttemptProviderDurationMs", "ms"),
+    totalProviderDurationMs: sumOverInvoked("totalProviderDurationMs", "ms", "duration measurement", analyzed.map((item) => ({ invoked: item.invoked, metric: duration(item) }))),
+    firstAttemptProviderTokens: firstOr(first, tokens, "firstAttemptProviderTokens", "tokens"),
+    finalAttemptProviderTokens: firstOr(last, tokens, "finalAttemptProviderTokens", "tokens"),
+    totalProviderTokens: sumOverInvoked("totalProviderTokens", "tokens", "provider-reported total token usage", analyzed.map((item) => ({ invoked: item.invoked, metric: tokens(item) }))),
+    totalEvaluationDurationMs:
+      missingEvaluation > 0
+        ? unavailableMetric("totalEvaluationDurationMs", "ms", `${missingEvaluation} of ${analyzed.length} attempt(s) have no evaluation duration; a complete total is not available.`)
+        : availableMetric("totalEvaluationDurationMs", evaluationDurations.reduce((total, metric) => total + (metric.value as number), 0), "ms"),
+    providerAttemptCount: invokedItems.length,
+    providerDurationMeasuredAttemptCount: invokedItems.filter((item) => duration(item).availability === "available").length,
+    providerTokenMeasuredAttemptCount: invokedItems.filter((item) => tokens(item).availability === "available").length,
+    attempts: analyzed.map((item) => item.entry)
+  };
 }
 
 function mean(id: AgentSuccessMeanId, caseIds: readonly string[], treatment: readonly AgentSuccessTreatmentAnalysisV1[], allTreatments: readonly (readonly AgentSuccessTreatmentAnalysisV1[])[]): AgentSuccessMeanV1 {
@@ -320,20 +403,24 @@ export function analyzeAgentSuccessRate(
       evaluable.length === 0 ? unavailableMetric(id, "ratio", "no case has a determinate task-success verdict for this treatment.") : availableMetric(id, successful.length / evaluable.length, "ratio");
     const means = {} as Record<AgentSuccessMeanId, AgentSuccessMeanV1>;
     for (const meanId of Object.keys(AGENT_SUCCESS_MEAN_SOURCES) as AgentSuccessMeanId[]) means[meanId] = mean(meanId, caseIds, own, series);
+    const repair = aggregateRepair(own);
     return {
       treatmentId,
       evaluableCaseCount: evaluable.length,
       successfulCaseCount: successful.length,
       taskSuccessRate: rate("taskSuccessRate"),
-      initialAttemptSuccessRate: rate("initialAttemptSuccessRate"),
+      // With repair evidence the initial-attempt rate comes from attempt 1; otherwise one attempt makes it equal the final rate.
+      initialAttemptSuccessRate: repair ? repair.initialAttemptSuccessRate : rate("initialAttemptSuccessRate"),
       agentTokenMeasurementsAvailable: own.filter((entry) => entry.metrics.agentTotalTokens.availability === "available").length,
       agentTokenMeasurementsUnavailable: own.filter((entry) => entry.metrics.agentTotalTokens.availability !== "available").length,
-      means
+      means,
+      ...(repair ? { repair } : {})
     };
   });
 
   if (executionMode === AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE) {
     const comparison = buildComparison(cases);
+    const hasRepairEvidence = cases.some((entry) => entry.treatments.some((treatment) => treatment.repair !== undefined));
     return {
       executionMode,
       contextEffectEvaluated: comparison.matchedCaseIds.length > 0,
@@ -342,7 +429,8 @@ export function analyzeAgentSuccessRate(
       cases,
       aggregates,
       limitations: [...AGENT_SUCCESS_RATE_REAL_AGENT_LIMITATIONS],
-      comparison
+      comparison,
+      ...(hasRepairEvidence ? { repairComparison: buildRepairComparison(cases, comparison.pairedOutcomes) } : {})
     };
   }
   return {
@@ -360,7 +448,7 @@ export function analyzeAgentSuccessRate(
 function buildComparison(cases: readonly AgentSuccessCaseAnalysisV1[]): AgentSuccessComparisonV1 {
   const matchedCaseIds: string[] = [];
   const incompleteCases: AgentSuccessComparisonV1["incompleteCases"] = [];
-  const pairedOutcomes = { bothSucceeded: 0, onlyRawFullFileSucceeded: 0, onlyContextPackSucceeded: 0, neitherSucceeded: 0 };
+  const pairedOutcomes: AgentSuccessPairedOutcomesV1 = { bothSucceeded: 0, onlyRawFullFileSucceeded: 0, onlyContextPackSucceeded: 0, neitherSucceeded: 0 };
   for (const entry of cases) {
     const unavailableTreatmentIds = entry.treatments.filter((t) => t.metrics.taskSuccess.availability !== "available").map((t) => t.treatmentId);
     if (unavailableTreatmentIds.length > 0) {

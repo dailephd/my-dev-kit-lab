@@ -57,9 +57,23 @@ export function toExperimentMetric(metric: AgentSuccessMetricV1, scope: { caseId
 }
 
 export function toAgentSuccessOutcomeMetrics(analysis: AgentSuccessTreatmentAnalysisV1): ExperimentMetric[] {
-  return (Object.keys(analysis.metrics) as AgentSuccessMetricId[]).map((id) =>
-    toExperimentMetric(analysis.metrics[id], { caseId: analysis.caseId, variantId: analysis.treatmentId })
-  );
+  const scope = { caseId: analysis.caseId, variantId: analysis.treatmentId };
+  const metrics = (Object.keys(analysis.metrics) as AgentSuccessMetricId[]).map((id) => toExperimentMetric(analysis.metrics[id], scope));
+  const repair = analysis.repair;
+  if (repair) {
+    // Initial-attempt and final outcomes are separate measurements; attempt counts are plain counts.
+    metrics.push(
+      toExperimentMetric(repair.initialAttemptTaskSuccess, scope),
+      toExperimentMetric(repair.finalTaskSuccess, scope),
+      toExperimentMetric(repair.repairSucceeded, scope),
+      toExperimentMetric(availableMetric("attemptCount", repair.attemptCount, "count"), scope),
+      toExperimentMetric(availableMetric("repairAttemptCount", repair.repairAttemptCount, "count"), scope),
+      toExperimentMetric(repair.totalProviderDurationMs, scope),
+      toExperimentMetric(repair.totalProviderTokens, scope),
+      toExperimentMetric(repair.totalEvaluationDurationMs, scope)
+    );
+  }
+  return metrics;
 }
 
 export function toAgentSuccessRunMetrics(analysis: AgentSuccessRateAnalysisV1): ExperimentMetric[] {
@@ -73,6 +87,18 @@ export function toAgentSuccessRunMetrics(analysis: AgentSuccessRateAnalysisV1): 
       toExperimentMetric(aggregate.initialAttemptSuccessRate, scope)
     );
     for (const mean of Object.values(aggregate.means)) metrics.push(toExperimentMetric(mean.metric, scope));
+    const repair = aggregate.repair;
+    if (repair) {
+      metrics.push(
+        toExperimentMetric(availableMetric("initialAttemptSuccessfulCount", repair.initialAttemptSuccessfulCount, "count"), scope),
+        toExperimentMetric(repair.finalTaskSuccessRate, scope),
+        toExperimentMetric(availableMetric("finalSuccessfulCount", repair.finalSuccessfulCount, "count"), scope),
+        toExperimentMetric(availableMetric("repairAttemptedCaseCount", repair.repairAttemptedCaseCount, "count"), scope),
+        toExperimentMetric(availableMetric("repairedCaseCount", repair.repairedCaseCount, "count"), scope),
+        toExperimentMetric(repair.repairSuccessRate, scope),
+        toExperimentMetric(repair.meanAttemptsPerEvaluableCase, scope)
+      );
+    }
   }
   return metrics;
 }

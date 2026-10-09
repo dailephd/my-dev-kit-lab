@@ -17,6 +17,7 @@ import type { ContextWindowScalingReportV1 } from "./contextWindowScalingReportM
 import type { RetrievalPrecisionRecallReportV1 } from "./retrievalPrecisionRecallReportModel.js";
 import type { RetrievalQueryStrategyComparisonReportV1 } from "./retrievalQueryStrategyComparisonReportModel.js";
 import type { ContextPackGenerationReportV1 } from "./contextPackGenerationReportModel.js";
+import type { AgentSuccessRateReportV1 } from "./agentSuccessRateReportModel.js";
 
 export type PluginExperimentReportMetadata = {
   generatedAt: string;
@@ -87,6 +88,8 @@ export type PluginExperimentReport = {
   retrievalQueryStrategyComparison: RetrievalQueryStrategyComparisonReportV1 | null;
   /** Populated only for context-pack-generation runs; null for every other plugin. */
   contextPackGeneration: ContextPackGenerationReportV1 | null;
+  /** Populated only for agent-success-rate runs; null for every other plugin. */
+  agentSuccessRate?: AgentSuccessRateReportV1 | null;
   contextStrategyComparisonV043: ContextStrategyComparisonV043ReportV1 | null;
   interpretation: {
     summary: string;

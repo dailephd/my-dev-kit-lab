@@ -83,10 +83,47 @@ export function validateAgentSuccessRateAnalysisArtifact(artifact: AgentSuccessR
         if (!metric) problems.push(`analysis case ${entry.caseId}/${treatment.treatmentId} is missing metric ${id}.`);
         else problems.push(...validateAgentSuccessMetric(metric));
       }
+      if (analysis.executionMode !== AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE && treatment.repair !== undefined) {
+        problems.push(`analysis case ${entry.caseId}/${treatment.treatmentId} carries repair analysis in deterministic-fixture mode.`);
+      }
+      if (treatment.repair) {
+        const repair = treatment.repair;
+        const label = `analysis case ${entry.caseId}/${treatment.treatmentId}`;
+        for (const metric of [
+          repair.initialAttemptTaskSuccess,
+          repair.finalTaskSuccess,
+          repair.repairSucceeded,
+          repair.firstAttemptProviderDurationMs,
+          repair.finalAttemptProviderDurationMs,
+          repair.totalProviderDurationMs,
+          repair.firstAttemptProviderTokens,
+          repair.finalAttemptProviderTokens,
+          repair.totalProviderTokens,
+          repair.totalEvaluationDurationMs
+        ]) {
+          problems.push(...validateAgentSuccessMetric(metric));
+        }
+        if (repair.attempts.length !== repair.attemptCount || repair.repairAttemptCount !== repair.attemptCount - 1) problems.push(`${label} attempt counts are inconsistent.`);
+        repair.attempts.forEach((attempt, index) => {
+          if (attempt.attemptNumber !== index + 1) problems.push(`${label} attempt analysis numbering is not contiguous from 1.`);
+          for (const id of AGENT_SUCCESS_METRIC_IDS) {
+            const metric = attempt.metrics[id];
+            if (!metric) problems.push(`${label} attempt ${attempt.attemptNumber} is missing metric ${id}.`);
+            else problems.push(...validateAgentSuccessMetric(metric));
+          }
+        });
+        const final = repair.attempts[repair.attempts.length - 1];
+        if (final && JSON.stringify(final.metrics.taskSuccess.value) !== JSON.stringify(treatment.metrics.taskSuccess.value)) problems.push(`${label} final attempt analysis disagrees with the final metrics.`);
+      }
     }
   }
   for (const aggregate of analysis.aggregates) {
     problems.push(...validateAgentSuccessMetric(aggregate.taskSuccessRate), ...validateAgentSuccessMetric(aggregate.initialAttemptSuccessRate));
+    if (aggregate.repair) {
+      const repair = aggregate.repair;
+      problems.push(...validateAgentSuccessMetric(repair.initialAttemptSuccessRate), ...validateAgentSuccessMetric(repair.finalTaskSuccessRate), ...validateAgentSuccessMetric(repair.repairSuccessRate), ...validateAgentSuccessMetric(repair.meanAttemptsPerEvaluableCase));
+      for (const total of [...repair.providerDurationMs, ...repair.providerTokens]) problems.push(...validateAgentSuccessMetric(total.total));
+    }
     for (const mean of Object.values(aggregate.means)) problems.push(...validateAgentSuccessMetric(mean.metric));
   }
   return problems;
@@ -109,6 +146,18 @@ export function validateAgentSuccessRateArtifactFamily(execution: AgentSuccessRa
     if (entry.treatments.map((t) => t.treatmentId).join(",") !== counterpart.treatments.map((t) => t.treatmentId).join(",")) {
       problems.push(`execution and analysis treatment identity differs for case ${entry.caseId}.`);
     }
+    entry.treatments.forEach((treatment, treatmentIndex) => {
+      const executedAttempts = treatment.attempts?.length ?? null;
+      const analyzedAttempts = counterpart.treatments[treatmentIndex]?.repair?.attempts.length ?? null;
+      if (executedAttempts !== analyzedAttempts) problems.push(`execution and analysis attempt counts differ for case ${entry.caseId}/${treatment.treatmentId}.`);
+      treatment.attempts?.forEach((attempt, attemptIndex) => {
+        const analyzed = counterpart.treatments[treatmentIndex]?.repair?.attempts[attemptIndex];
+        if (analyzed && analyzed.attemptNumber !== attempt.attemptNumber) problems.push(`execution and analysis attempt identity differs for case ${entry.caseId}/${treatment.treatmentId}.`);
+        const verdict = analyzed?.metrics.taskSuccess;
+        const analyzedSuccess = verdict && verdict.availability === "available" ? (verdict.value as boolean) : null;
+        if (analyzed && analyzedSuccess !== attempt.taskSuccess) problems.push(`execution and analysis task success differ for case ${entry.caseId}/${treatment.treatmentId} attempt ${attempt.attemptNumber}.`);
+      });
+    });
   });
   return problems;
 }

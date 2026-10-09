@@ -1,4 +1,11 @@
 import { createDefaultExperimentPluginRegistry } from "../experiments/index.js";
+import {
+  AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS,
+  AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS,
+  AGENT_SUCCESS_RATE_REAL_AGENT_IDS,
+  AGENT_SUCCESS_RATE_REPAIR_ATTEMPT_VALUES,
+  AGENT_SUCCESS_RATE_TREATMENT_IDS
+} from "../experiments/plugins/agentSuccessRate/index.js";
 import type { ExperimentConfigFieldDefinition, ExperimentPlugin } from "../experiments/index.js";
 
 // ---------------------------------------------------------------------------
@@ -68,7 +75,29 @@ function buildDescription(plugin: ExperimentPlugin): Record<string, unknown> {
     optionalConfigFields: readConfigFields(plugin, false),
     targetBehavior: describeTargetBehavior(plugin),
     expectedReports: describeExpectedReports(plugin),
-    examples: describeExamples(plugin)
+    examples: describeExamples(plugin),
+    ...(plugin.metadata.id === AGENT_SUCCESS_RATE_ID ? { agentSuccessRate: describeAgentSuccessRate() } : {})
+  };
+}
+
+const AGENT_SUCCESS_RATE_ID = "agent-success-rate";
+
+/** Fixed, public description of the implemented behavior. It names no task check, fact, edit scope or reference patch. */
+function describeAgentSuccessRate(): Record<string, unknown> {
+  return {
+    treatments: [...AGENT_SUCCESS_RATE_TREATMENT_IDS],
+    corpus: "Bundled six-task implementation corpus over two canonical benchmark projects (localized, cross-module and broad-change tasks), resolved from the installed package.",
+    defaultMode: "deterministic-fixture: validates the patch evaluation pipeline and the benchmark corpus; no coding agent runs and no provider is required.",
+    realAgentMode: "Opt-in only: --agent <codex|claude> together with --include-real-agents. Neither flag alone enables it; real execution is never the default.",
+    providers: [...AGENT_SUCCESS_RATE_REAL_AGENT_IDS],
+    timeoutMs: { default: AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS, maximum: AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS, scope: "each provider attempt" },
+    repairAttempts: { allowed: [...AGENT_SUCCESS_RATE_REPAIR_ATTEMPT_VALUES], default: 0, maximumTotalAttemptsPerTreatment: 3, mode: "real-agent only" },
+    agentContext: "Source-only: the provider sees the public task text and the treatment's source context, never tests, trusted checks or reference patches, and runs in a neutral working directory.",
+    patchApplication: "Guarded: the provider returns a unified diff only. The Lab validates it against a patch policy and applies it in a fresh disposable sandbox; canonical benchmark projects are never modified.",
+    taskSuccess: "Decided by trusted checks on the actual changed repository state (required behavior, no regressions, protected files intact). A provider's claim of completion is never evidence. Initial-attempt success and final success are reported separately.",
+    reportOutputs: ["report.json", "report.html", "report.txt", "agent-success-rate-execution.json", "agent-success-rate-analysis.json"],
+    targetPolicy: "Self-target only; external-local targets are rejected.",
+    interpretation: "Descriptive matched comparison of two source-context treatments on a finite corpus: no winner, ranking, composite score, causal or statistical-significance claim."
   };
 }
 
@@ -95,6 +124,26 @@ function printDescription(plugin: ExperimentPlugin): void {
   console.log("Examples:");
   for (const example of description.examples as string[]) {
     console.log(`  ${example}`);
+  }
+  const agentSuccessRate = description.agentSuccessRate as Record<string, any> | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (agentSuccessRate) {
+    console.log("");
+    console.log("Agent success rate details:");
+    console.log(`  Treatments: ${(agentSuccessRate.treatments as string[]).join(", ")}`);
+    console.log(`  Corpus: ${agentSuccessRate.corpus}`);
+    console.log(`  Default mode: ${agentSuccessRate.defaultMode}`);
+    console.log(`  Real-agent mode: ${agentSuccessRate.realAgentMode}`);
+    console.log(`  Providers: ${(agentSuccessRate.providers as string[]).join(", ")}`);
+    console.log(`  Timeout per attempt: default ${agentSuccessRate.timeoutMs.default} ms, maximum ${agentSuccessRate.timeoutMs.maximum} ms`);
+    console.log(
+      `  Repair attempts: ${(agentSuccessRate.repairAttempts.allowed as number[]).join(", ")} (default ${agentSuccessRate.repairAttempts.default}; at most ${agentSuccessRate.repairAttempts.maximumTotalAttemptsPerTreatment} attempts per treatment; real-agent mode only)`
+    );
+    console.log(`  Agent context: ${agentSuccessRate.agentContext}`);
+    console.log(`  Patch application: ${agentSuccessRate.patchApplication}`);
+    console.log(`  Task success: ${agentSuccessRate.taskSuccess}`);
+    console.log(`  Report outputs: ${(agentSuccessRate.reportOutputs as string[]).join(", ")}`);
+    console.log(`  Target policy: ${agentSuccessRate.targetPolicy}`);
+    console.log(`  Interpretation: ${agentSuccessRate.interpretation}`);
   }
 }
 
@@ -141,6 +190,9 @@ function readArrayField(value: unknown, key: string): unknown[] {
 }
 
 function describePurpose(plugin: ExperimentPlugin): string {
+  if (plugin.metadata.id === AGENT_SUCCESS_RATE_ID) {
+    return "Measure whether implementation patches resolve benchmark tasks under two source-context treatments (raw-full-file and context-pack) using trusted checks on disposable benchmark copies. Deterministic-fixture mode (default) validates the evaluation pipeline only; real-agent mode (opt-in) evaluates the patches a selected provider returns, with optional bounded repair.";
+  }
   if (plugin.metadata.id === "context-strategy-comparison") {
     return "Compare raw full-file prompts with my-dev-kit-guided retrieval prompts using the existing controlled experiment workflow.";
   }
@@ -148,6 +200,9 @@ function describePurpose(plugin: ExperimentPlugin): string {
 }
 
 function describeTargetBehavior(plugin: ExperimentPlugin): string {
+  if (plugin.metadata.id === AGENT_SUCCESS_RATE_ID) {
+    return "Self-target only: the bundled corpus is evaluated against the Lab itself and an explicit --target is rejected. Sandboxes and artifacts are written beneath the output directory (beneath the workspace when installed), never into the installed package or the canonical benchmark projects. Accepted options: --out, --case, --benchmark-project, --kit-command, --agent, --include-real-agents, --timeout-ms and --repair-attempts; every other option is rejected.";
+  }
   const supportsExternal = plugin.metadata.supportedTargets.includes("external-local");
   if (plugin.metadata.id === "context-window-scaling") {
     return "Three subject modes. Bundled (default): the bundled fixed scaling corpus against the Lab itself. Synthetic: caller-supplied deterministic synthetic repositories via --synthetic-config <path> (a SyntheticRepositoryConfigV1 JSON file, mutually exclusive with --case) written beneath the experiment output directory. External local repository: an explicitly selected local Git worktree via --target <path> together with --local-subject-config <path> (a LocalRepositorySubjectConfigV1 JSON file); the repository is never modified, the output directory must be outside it, and durable output omits the repository path, source text, and file names. Operational context-fit measurement only; no retrieval precision, recall, or ranking quality is measured.";
@@ -171,6 +226,9 @@ function describeTargetBehavior(plugin: ExperimentPlugin): string {
 }
 
 function describeExpectedReports(plugin: ExperimentPlugin): string {
+  if (plugin.metadata.id === AGENT_SUCCESS_RATE_ID) {
+    return "Writes plugin-aware report.json, report.html and report.txt with a typed agent-success-rate section (initial-attempt and final success, repair history, edit quality, provider duration and tokens, scientific limitations), plus the separate agent-success-rate-execution.json and agent-success-rate-analysis.json artifacts.";
+  }
   if (plugin.metadata.supportedOutputs.includes("html") && plugin.metadata.supportedOutputs.includes("json")) {
     return "Writes plugin-aware JSON and HTML reports with plugin, target, variant, case, metric, artifact, warning, skip, and failure metadata.";
   }
@@ -220,6 +278,12 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
     examples.push(
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --case <case-id> --out <run-dir>`,
       `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --target <local-git-repository> --local-subject-config <path-to-local-subject-config.json> --out <run-dir-outside-the-repository>`
+    );
+  }
+  if (plugin.metadata.id === AGENT_SUCCESS_RATE_ID) {
+    examples.push(
+      `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --case <case-id> --out <run-dir>`,
+      `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id} --agent codex --include-real-agents --repair-attempts 2 --out <run-dir>`
     );
   }
   if (plugin.metadata.id === "context-window-scaling") {
