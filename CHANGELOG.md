@@ -4,7 +4,7 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-10-09
+## [0.9.0] - 2026-10-10
 
 ### Agent success rate
 
