@@ -77,7 +77,7 @@ describe("registry, list and describe", () => {
   it("registers exactly one new plugin and keeps every earlier id and order", () => {
     const registry = createDefaultExperimentPluginRegistry();
     const ids = registry.list().map((plugin) => plugin.id);
-    expect(ids).toEqual([...PRIOR_IDS, ID]);
+    expect(ids).toEqual([...PRIOR_IDS, ID, "agent-success-rate"]);
     expect(ids.filter((id) => id === ID)).toHaveLength(1);
     expect(registry.describe(ID)).toEqual({
       id: ID,
@@ -95,7 +95,7 @@ describe("registry, list and describe", () => {
     const output = capture();
     expect(await runExperimentListCommandFromArgs(["--json"])).toBe(0);
     const listed = JSON.parse(output.stdout()) as { experiments: Array<{ id: string; supportedVariants: string[] }> };
-    expect(listed.experiments.map((entry) => entry.id)).toEqual([...PRIOR_IDS, ID]);
+    expect(listed.experiments.map((entry) => entry.id)).toEqual([...PRIOR_IDS, ID, "agent-success-rate"]);
     expect(listed.experiments.find((entry) => entry.id === ID)).toMatchObject({
       status: "experimental",
       supportedTargets: ["self", "external-local"],

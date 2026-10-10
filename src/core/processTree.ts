@@ -32,6 +32,71 @@ export function requestProcessTermination(pid: number | undefined): void {
   }
 }
 
+export type TerminateProcessTreeOptions = {
+  /** Test seam; defaults to the running platform. */
+  platform?: NodeJS.Platform;
+  /** Signal for the non-Windows branch. Defaults to "SIGKILL". */
+  posixSignal?: NodeJS.Signals;
+  /** Upper bound for awaiting the Windows `taskkill` helper. Defaults to 5000 ms. */
+  waitTimeoutMs?: number;
+};
+
+/**
+ * Opt-in, awaitable descendant-tree termination for bounded execution
+ * (see `terminateProcessTree` in `runMeasuredCommand`). The legacy
+ * `forceTerminateProcess` above is intentionally unchanged: it stays
+ * fire-and-forget and, off Windows, signals one pid only.
+ *
+ * Windows: `taskkill /pid <pid> /T /F` (shell:false) is awaited, bounded by
+ * `waitTimeoutMs`, so the caller knows the tree was asked to die before it
+ * proceeds.
+ *
+ * Other platforms: the child must have been spawned `detached` so it leads its
+ * own process group; the whole group is signalled via the negative pid. If no
+ * group exists, the single pid is signalled as a fallback.
+ *
+ * Never throws: the target may already have exited.
+ */
+export async function terminateProcessTree(
+  pid: number | undefined,
+  options: TerminateProcessTreeOptions = {}
+): Promise<void> {
+  if (!pid) {
+    return;
+  }
+  const platform = options.platform ?? process.platform;
+  if (platform === "win32") {
+    await new Promise<void>((resolve) => {
+      let timer: NodeJS.Timeout | undefined;
+      const finish = () => {
+        if (timer) clearTimeout(timer);
+        resolve();
+      };
+      const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], {
+        shell: false,
+        stdio: "ignore",
+        windowsHide: true
+      });
+      timer = setTimeout(finish, options.waitTimeoutMs ?? 5000);
+      killer.on("error", finish);
+      killer.on("close", finish);
+    });
+    return;
+  }
+  const signal = options.posixSignal ?? "SIGKILL";
+  try {
+    process.kill(-pid, signal);
+    return;
+  } catch {
+    // No process group for this pid (or it already exited); fall back to the single pid.
+  }
+  try {
+    process.kill(pid, signal);
+  } catch {
+    // The process may have exited between the liveness check and this signal.
+  }
+}
+
 /**
  * Forced cleanup for a process that did not stop on request.
  *

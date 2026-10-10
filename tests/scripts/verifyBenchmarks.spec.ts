@@ -33,7 +33,13 @@ describe("verify-benchmarks", () => {
     tempDirs.push(tempRoot);
     const contractsDir = path.join(tempRoot, "benchmarks", "contracts");
     mkdirSync(contractsDir, { recursive: true });
-    for (const name of ["todo-behavior.md", "todo-benchmark-case.json", "benchmark-project-profiles.json"]) {
+    for (const name of [
+      "todo-behavior.md",
+      "todo-benchmark-case.json",
+      "benchmark-project-profiles.json",
+      "agent-success-rate-tasks.json",
+      "agent-success-rate-project-profiles.json"
+    ]) {
       copyFileSync(path.join(process.cwd(), "benchmarks", "contracts", name), path.join(contractsDir, name));
     }
     cpSync(path.join(process.cwd(), "benchmarks", "projects"), path.join(tempRoot, "benchmarks", "projects"), { recursive: true });
@@ -86,6 +92,70 @@ describe("verify-benchmarks", () => {
 
     const result = validateBenchmarks(tempRoot);
     expect(result.errors).toContain("Missing contract file: benchmarks/contracts/warm-index-benchmark-cases.json");
+  });
+
+  describe("agent-success implementation corpus", () => {
+    function copyBenchmarks(): string {
+      const tempRoot = copyBenchmarksWithWarmIndexCases((cases) => cases);
+      return tempRoot;
+    }
+
+    it("validates the dedicated agent-success corpus alongside the historical contracts", () => {
+      const result = validateBenchmarks(process.cwd());
+      expect(result.errors).toEqual([]);
+      expect(result.checks).toContain("validated agent-success corpus (2 projects, 6 tasks)");
+      expect(result.checks).toContain("validated benchmark-project-profiles.json");
+    });
+
+    it("COR-039 keeps the historical retrieval profile contract free of the implementation projects", () => {
+      const profiles = JSON.parse(readFileSync(path.join(process.cwd(), "benchmarks", "contracts", "benchmark-project-profiles.json"), "utf8")) as {
+        projects?: Array<{ id?: string; projectId?: string }>;
+      };
+      const text = JSON.stringify(profiles);
+      expect(text).not.toContain("agent-success-task-board-node");
+      expect(text).not.toContain("agent-success-inventory-node");
+    });
+
+    it("fails when the task catalog is missing instead of treating the corpus as optional", () => {
+      const tempRoot = copyBenchmarks();
+      rmSync(path.join(tempRoot, "benchmarks", "contracts", "agent-success-rate-tasks.json"));
+      const result = validateBenchmarks(tempRoot);
+      expect(result.ok).toBe(false);
+      expect(result.errors).toEqual(["Agent-success corpus: CATALOG_MISSING at benchmarks/contracts/agent-success-rate-tasks.json: the catalog file is missing."]);
+      expect(result.checks.some((check) => check.startsWith("validated agent-success corpus"))).toBe(false);
+    });
+
+    it("fails when the project-profile catalog is missing", () => {
+      const tempRoot = copyBenchmarks();
+      rmSync(path.join(tempRoot, "benchmarks", "contracts", "agent-success-rate-project-profiles.json"));
+      const result = validateBenchmarks(tempRoot);
+      expect(result.ok).toBe(false);
+      expect(result.errors.join(" | ")).toContain("CATALOG_MISSING at benchmarks/contracts/agent-success-rate-project-profiles.json");
+    });
+
+    it("fails when a task reference patch or locality composition is malformed", () => {
+      const tempRoot = copyBenchmarks();
+      const file = path.join(tempRoot, "benchmarks", "contracts", "agent-success-rate-tasks.json");
+      const tasks = JSON.parse(readFileSync(file, "utf8")) as Array<Record<string, unknown>>;
+      tasks[0]!.deterministicFixture = { id: "broken", patch: "not a diff" };
+      tasks[2]!.taskLocality = "localized";
+      writeFileSync(file, JSON.stringify(tasks));
+      const result = validateBenchmarks(tempRoot);
+      expect(result.ok).toBe(false);
+      expect(result.errors.join(" | ")).toContain("FIXTURE_INVALID");
+      expect(result.errors.join(" | ")).toContain("LOCALITY_MISMATCH");
+    });
+
+    it("fails when a canonical implementation project loses a required file or gains generated output", () => {
+      const tempRoot = copyBenchmarks();
+      const project = path.join(tempRoot, "benchmarks", "projects", "agent-success-inventory-node");
+      rmSync(path.join(project, "src", "quantity.js"));
+      mkdirSync(path.join(project, "node_modules"));
+      const result = validateBenchmarks(tempRoot);
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((error) => error.includes("PROJECT_FILE_MISSING"))).toBe(true);
+      expect(result.errors.some((error) => error.includes("PROJECT_FORBIDDEN_OUTPUT"))).toBe(true);
+    });
   });
 
   it("fails on a broken fixture", () => {

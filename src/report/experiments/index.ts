@@ -35,6 +35,10 @@ export { buildContextPackGenerationReport, CONTEXT_PACK_GENERATION_LIMITATIONS }
 export { loadContextPackArtifacts } from "./loadContextPackArtifacts.js";
 export { renderContextPackGenerationHtml } from "./renderContextPackGenerationHtml.js";
 export { renderContextPackGenerationTextLines } from "./renderContextPackGenerationText.js";
+export * from "./agentSuccessRateReportModel.js";
+export { buildAgentSuccessRateReport, safeAgentSuccessArtifactReference } from "./buildAgentSuccessRateReport.js";
+export { renderAgentSuccessRateHtml } from "./renderAgentSuccessRateHtml.js";
+export { renderAgentSuccessRateTextLines } from "./renderAgentSuccessRateText.js";
 export * from "./retrievalQueryStrategyComparisonReportModel.js";
 export { buildRetrievalQueryStrategyComparisonReport, RETRIEVAL_QUERY_STRATEGY_COMPARISON_LIMITATIONS } from "./buildRetrievalQueryStrategyComparisonReport.js";
 export { renderRetrievalQueryStrategyComparisonHtml } from "./renderRetrievalQueryStrategyComparisonHtml.js";

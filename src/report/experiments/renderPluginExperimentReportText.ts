@@ -29,6 +29,7 @@ import { renderContextWindowScalingTextLines } from "./renderContextWindowScalin
 import { renderRetrievalPrecisionRecallTextLines } from "./renderRetrievalPrecisionRecallText.js";
 import { renderRetrievalQueryStrategyComparisonTextLines } from "./renderRetrievalQueryStrategyComparisonText.js";
 import { renderContextPackGenerationTextLines } from "./renderContextPackGenerationText.js";
+import { renderAgentSuccessRateTextLines } from "./renderAgentSuccessRateText.js";
 
 function sanitizeScalar(value: unknown): string {
   const text = String(value);
@@ -790,6 +791,10 @@ export function renderPluginExperimentReportText(report: PluginExperimentReport)
   }
 
   // Additive: other plugins keep their existing text output unchanged.
+  const agentSuccessRate = report.agentSuccessRate ?? null;
+  if (agentSuccessRate !== null) {
+    lines.push(...renderAgentSuccessRateTextLines(agentSuccessRate));
+  }
   const contextPackGeneration = report.contextPackGeneration ?? null;
   if (contextPackGeneration !== null) {
     pushSection(lines, "Context Pack Generation");

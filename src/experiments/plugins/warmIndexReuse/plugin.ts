@@ -98,9 +98,8 @@ export const warmIndexReusePlugin: ExperimentPlugin<WarmIndexReuseConfig, WarmIn
     const startedAt = context.startedAt.toISOString();
     // A campaign preset selects campaign-aware case selection and real-agent evaluation for
     // exactly one provider; its absence preserves the legacy fake-agent path unchanged. Real-agent
-    // campaign execution is still guarded at the public experiment-run command (v0.5.2 Batch 3):
-    // this plugin-level path is exercised by programmatic/test callers only until Batch 4
-    // implements campaign-accurate reporting.
+    // execution stays explicitly gated: the config requires includeRealAgents for a preset, and the
+    // public experiment-run command rejects incompatible options before this path is reached.
     const preset = context.config.campaignPreset ? getWarmIndexCampaignPreset(context.config.campaignPreset) : undefined;
     const cases = preset
       ? selectWarmIndexCampaignCases(readCasesInput(context.inputs), preset, context.config)

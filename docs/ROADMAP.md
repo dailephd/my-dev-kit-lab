@@ -73,7 +73,7 @@ Completed scope:
 * Correct target-project execution of `test:security` during external-target validation, including installed-package execution.
 * Documentation synchronized with the implemented plugin and security-validation architecture.
 * Fortification continues after this baseline without changing the backward-compatible `security:validate` command.
-* The v0.2.1 package baseline was not the final security, audit, mobile, or pentest architecture.
+* The historical v0.2.1 package baseline was not the final security, audit, mobile, or pentest architecture.
 
 Dependencies:
 
@@ -1405,7 +1405,7 @@ Acceptance:
 
 ### v0.9.0 — agent-success-rate plugin
 
-Status: **planned; not implemented**.
+Status: **published in v0.9.0**.
 
 Purpose:
 
@@ -1428,6 +1428,13 @@ Acceptance:
 * Fake-agent or deterministic fixture can simulate edits.
 * Real-agent campaign can run with guarded local benchmark copies.
 * Reports show diff summary, test result summary, blast radius, and repair-attempt labeling where applicable.
+
+Shipped scope:
+
+* Every listed feature and acceptance item is implemented in the `agent-success-rate` plugin; see [COMMANDS.md](COMMANDS.md#agent-success-rate-v090), [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), and [METRICS.md](METRICS.md#agent-success-rate-metrics-v090).
+* The deterministic fixture mode and simulated Codex/Claude providers validate the patch pipeline and repair logic. A paid live-provider campaign has not been run; real-agent capability is implemented but not yet evidenced by live results.
+* Campaign scheduling, resume, skip-completed runs, rate-limit pause handling, the provider telemetry taxonomy, strict prompt modes, the report section registry, and generalized gallery presentation remain in v0.9.1 and v0.9.2.
+* Release history for v0.9.0 is recorded in [CHANGELOG.md](../CHANGELOG.md).
 
 ### v0.9.1 — normalized provider telemetry and campaign scheduler
 

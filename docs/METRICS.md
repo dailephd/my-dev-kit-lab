@@ -868,3 +868,73 @@ There is no composite score, winner, or ranking. Tests and call relationships ma
 In external-local mode, analysis uses real identities before the privacy projection. Redacted placeholders never enter metric calculations. Durable external-local output has no pack body; the report preview presents redacted identities.
 
 See [COMMANDS.md](COMMANDS.md#context-pack-generation-v082), [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment), and [ARCHITECTURE.md](ARCHITECTURE.md#context-pack-generation-architecture-v082).
+
+## Agent-success-rate metrics (v0.9.0)
+
+Status: shipped in v0.9.0. The scientific owner of every per-treatment value is `analyzeAgentSuccessTreatment` in `src/experiments/plugins/agentSuccessRate/analysis.ts`; repair aggregation and paired differences are owned by `repairAnalysis.ts`. Values are persisted in `agent-success-rate-analysis.json` (schema `1.0.0`); `agent-success-rate-execution.json` holds the evidence they are computed from. `contextEffectEvaluated` is `false` in deterministic-fixture mode.
+
+### Availability rules
+
+Every metric is typed `available`, `unavailable`, or `not-applicable`, with a unit and, when not available, a reason.
+
+- **Unavailable** means the evidence needed to compute the value does not exist (for example the provider reported no token usage, a check timed out, the patch was not applied, or the baseline was invalid). It is never converted to zero, never counted as a failure, and excluded from rates and means.
+- **Not applicable** means the quantity is undefined by construction (for example a ratio whose denominator is zero, or `repairSucceeded` when no repair attempt ran).
+- **Invalid baseline exclusion:** a treatment whose unmodified baseline is not evaluable (it needs at least one failing task check, all regression checks passing, and no check timing out or erroring) has no task-success verdict and is excluded from rates; this is a benchmark defect, not an agent failure.
+- **Tri-state verdicts:** a verdict is true, false, or unknown. A failed check makes a conjunction false; otherwise a missing, timed-out, or errored check makes it unknown; only complete passing evidence makes it true.
+
+### Task-success metrics
+
+| Metric | Meaning and formula | Source, units, availability |
+|---|---|---|
+| `taskChecksPassed` | Every trusted task check passed on the changed state | boolean from post-edit verification; unknown if any task check is missing, timed out, or errored |
+| `regressionSafe` | Every regression check that passed on the baseline still passes | boolean; only baseline-passing regression checks are considered |
+| `requiredFactsSatisfied` | Every behavior fact marked required has all its verification checks passing | boolean |
+| `protectedIntegrity` | Protected files are byte-intact after the patch | boolean from the protected-integrity comparison |
+| `taskResolved` | `taskChecksPassed` AND `requiredFactsSatisfied` | boolean |
+| `taskSuccess` | `taskResolved` AND `regressionSafe` AND `protectedIntegrity` intact. A patch that was rejected or not applied yields false; an uncomputable verdict yields unavailable | boolean; the only success verdict; agent prose is never evidence |
+| `initialAttemptTaskSuccess` | `taskSuccess` of attempt 1 | boolean; real-agent repair evidence only |
+| `finalTaskSuccess` | `taskSuccess` of the last attempt executed | boolean; equals `taskSuccess` |
+| `repairSucceeded` | `initialAttemptTaskSuccess` is false AND `finalTaskSuccess` is true | boolean; not applicable when no repair attempt ran; unavailable if either verdict is unavailable |
+| `repairSuccessRate` (aggregate) | repaired cases / repair-attempted cases with a determinate repair verdict | ratio; not applicable when no repair attempt ran for the treatment |
+| `taskSuccessRate`, `initialAttemptSuccessRate`, `finalTaskSuccessRate` (aggregates) | successful cases / cases with a determinate verdict for that attempt basis | ratio; unavailable when no case has a determinate verdict |
+
+First versus final attempt: `initialAttemptSuccessRate` and `finalTaskSuccessRate` are separate measurements. A repaired success raises the final rate and never the initial rate. Without repair evidence a single attempt makes the two equal.
+
+### Check, fact, and edit-quality metrics
+
+| Metric | Formula | Numerator / denominator | Notes |
+|---|---|---|---|
+| `taskCheckPassRate` | passed task checks / task checks | `taskCheckPassedCount` / `taskCheckTotalCount` | unavailable unless every task check has a complete result; not applicable with zero checks |
+| `regressionCheckPassRate` | passed regression checks / regression checks | `regressionCheckPassedCount` / `regressionCheckTotalCount` | `regressionFailureCount` counts failed checks that passed on the baseline |
+| `requiredFactCoverage` | satisfied required facts / required facts | `requiredFactsSatisfiedCount` / `requiredFactsTotal` | not applicable with no required facts |
+| `factCoverage` | satisfied facts (required and optional) / all facts | satisfied / total facts | not applicable with no facts |
+| `expectedEditCoverage` | changed files that were expected / expected edit files | `expectedEditFilesChangedCount` / `expectedEditFileCount` | ratio |
+| `editScopePrecision` | changed files inside the allowed edit scope / changed files | `allowedEditChangedFileCount` / `changedFileCount` | not applicable when no file changed |
+| `unexpectedChangedFileCount` | changed files minus changed files inside the allowed scope | count | files outside the allowed scope |
+| `protectedMutationCount` | protected paths found mutated after the patch | count | unavailable if integrity could not be proven; `attemptedProtectedEditCount` counts protected paths a patch tried to edit |
+| `changedFileCount`, `addedFileCount`, `modifiedFileCount`, `deletedFileCount` | counts of captured changed files by status | count | from the changed-file capture of the final attempt |
+| `linesAdded`, `linesDeleted` | sums of per-file additions and deletions | lines | unavailable if any changed file has no line counts (binary); never estimated |
+| `totalChurn` | `linesAdded` + `linesDeleted` | lines | the final patch's churn, not the churn accumulated over repair attempts |
+| `relativeChurn` | `totalChurn` / `baselineTextLineCount` | ratio | unavailable when the baseline text-line count is unknown; not applicable at zero baseline lines |
+
+Edit-quality and blast-radius metrics describe the final attempt only. A treatment that never applied a patch has these metrics unavailable, not zero.
+
+### Time and token metrics
+
+| Metric | Meaning | Source and caveat |
+|---|---|---|
+| `agentDurationMs` | Measured wall-clock duration of the provider attempt | unavailable in deterministic mode and when no provider ran; for repair runs, `firstAttemptProviderDurationMs`, `finalAttemptProviderDurationMs`, and `totalProviderDurationMs` are reported separately |
+| `totalProviderDurationMs` | Sum of provider durations over attempts that ran | unavailable if any invoked attempt was not measured |
+| `agentTotalTokens` (provider token usage) | Provider-reported total token usage for the attempt | unavailable when the provider reported none (source and reliability are recorded); `totalProviderTokens` sums over attempts and is unavailable if any invoked attempt lacks a total |
+| `estimatedContextTokens` | Estimated size of the context supplied to the provider | a size estimate recorded in execution evidence, not provider-reported usage; never substituted for provider tokens |
+| `baselineVerificationDurationMs`, `patchPipelineDurationMs`, `postEditVerificationDurationMs`, `evaluationDurationMs` | Measured durations of the evaluator's own stages | milliseconds; `totalEvaluationDurationMs` sums attempts |
+
+Cumulative versus final: durations and tokens accumulate over all provider attempts (repair costs are included), while edit-quality and blast-radius metrics describe only the final patch.
+
+### Paired comparisons and means
+
+- Aggregate means (`meanTaskCheckPassRate`, `meanEditScopePrecision`, `meanTotalChurn`, and the other `mean*` entries) are unweighted arithmetic means over **matched** cases: cases for which the source metric is available in every treatment. Unavailable values are not converted to zero. A mean with no matched case is unavailable.
+- The matched comparison counts, over cases with a determinate verdict in both treatments, `bothSucceeded`, `onlyRawFullFileSucceeded`, `onlyContextPackSucceeded`, and `neitherSucceeded`; incomplete cases are listed separately with the unavailable treatment IDs. With repair evidence a second matched comparison uses initial-attempt success.
+- Paired differences report the mean of the `raw-full-file` values, the mean of the `context-pack` values, and the mean of `context-pack` minus `raw-full-file` over matched cases.
+- These are **descriptive**. No weighted composite score, ranking, automatic winner, causal claim, or statistical-significance test is produced (`statisticalEffect` is `not-assessed`). The corpus is finite and controlled, so results do not generalize beyond it, and a single run carries no variance estimate.
+- Provider telemetry can be unavailable, and in deterministic-fixture mode both treatments receive the same reference patch, so those results measure the pipeline only.

@@ -418,6 +418,7 @@ describe("context-window-scaling plugin with production owners and the fake kit"
       "retrieval-precision-recall",
       "retrieval-query-strategy-comparison",
       "context-pack-generation",
+      "agent-success-rate",
     ]);
   });
 });

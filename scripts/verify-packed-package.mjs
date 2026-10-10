@@ -25,6 +25,7 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { AGENT_SUCCESS_GATE_LABELS, AGENT_SUCCESS_REQUIRED_TARBALL_PATHS, runAgentSuccessPackedAcceptance } from "./verifyPackedPackageAgentSuccess.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGE_JSON_PATH = path.join(REPO_ROOT, "package.json");
@@ -221,10 +222,12 @@ const REQUIRED_TARBALL_PATHS = [
   "examples/tutorial-browser/index.html",
   "examples/tutorial-browser/prepare.mjs",
   "examples/tutorial-browser/server.mjs",
-  "examples/tutorial-browser/scenario.json"
+  "examples/tutorial-browser/scenario.json",
+  // v0.9.0 -- agent-success-rate compiled owners, task and profile catalogs and both canonical benchmark projects.
+  ...AGENT_SUCCESS_REQUIRED_TARBALL_PATHS
 ];
 
-const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation"];
+const REQUIRED_EXPERIMENT_IDS = ["context-strategy-comparison", "warm-index-reuse", "incremental-change-staleness", "context-window-scaling", "retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation", "agent-success-rate"];
 const INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS_LOCAL = ["U1", "L2", "E1", "P1", "I1", "T1"];
 
 const WARM_INDEX_CHARTS = [
@@ -3583,6 +3586,31 @@ async function main() {
     }
 
     // -----------------------------------------------------------------
+    // 9c-7. v0.9.0 agent-success-rate installed-package acceptance. The same
+    // exact tarball and installed binary as every gate above; implemented in
+    // scripts/verifyPackedPackageAgentSuccess.mjs. Deterministic fake providers
+    // only -- no real coding agent is ever invoked.
+    // -----------------------------------------------------------------
+    await runAgentSuccessPackedAcceptance({
+      fail,
+      describeChildResult,
+      runInstalledCli,
+      cliCommand,
+      envWithBin,
+      consumerBinDir: path.join(dirs.consumer, "node_modules", ".bin"),
+      repoRoot: REPO_ROOT,
+      tempRoot,
+      installedPackageRoot,
+      tarballFiles,
+      snapshotDirectory,
+      diffSnapshots,
+      writeFakeAgentLauncher,
+      isolatedProviderEnv,
+      codexArgs: CODEX_STDIN_ARGS,
+      claudeArgs: CLAUDE_STDIN_ARGS
+    });
+
+    // -----------------------------------------------------------------
     // 9d. v0.5.2 real-agent campaign acceptance. Deterministic local fake
     // Codex/Claude providers only -- no real provider is ever invoked. Every
     // scenario runs inside the same installed-package-immutability window
@@ -4109,6 +4137,7 @@ async function main() {
         "CONTEXT_PACK_GENERATION_PRIVACY: PASS",
         "CONTEXT_PACK_GENERATION_IMMUTABILITY: PASS",
         "CONTEXT_PACK_GENERATION_REAL_MY_DEV_KIT: PASS",
+        ...AGENT_SUCCESS_GATE_LABELS.map((label) => `${label}: PASS`),
         "SOURCE_CHECKOUT_RUNTIME_DEPENDENCY: NONE_OBSERVED"
       ].join("\n")
     );
@@ -4130,6 +4159,8 @@ async function main() {
     await rm(tempRoot, { recursive: true, force: true });
   }
 }
+
+export { describeChildResult, fail, isolatedProviderEnv, loadResolveCommand, resolveConsumerBinCommand, runInstalledCli, writeFakeAgentLauncher };
 
 const isMain = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
 if (isMain) {

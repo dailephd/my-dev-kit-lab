@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "my-dev-kit-lab-agent-success-project-profiles-v1",
+  "projects": [
+    {
+      "projectId": "agent-success-task-board-node",
+      "displayName": "Task Board (Node)",
+      "description": "Dependency-free in-memory task board used as an implementation benchmark: title validation, task storage, external-task import, project ownership and per-project summaries.",
+      "rootPath": "benchmarks/projects/agent-success-task-board-node",
+      "sourceRoots": [
+        "src"
+      ],
+      "testRoots": [
+        "tests"
+      ],
+      "primaryLanguage": "javascript",
+      "runtime": "node>=24"
+    },
+    {
+      "projectId": "agent-success-inventory-node",
+      "displayName": "Inventory and Fulfillment (Node)",
+      "description": "Dependency-free in-memory inventory used as an implementation benchmark: quantity validation, stock and reservation storage, reservation lifecycle and a fulfillment report.",
+      "rootPath": "benchmarks/projects/agent-success-inventory-node",
+      "sourceRoots": [
+        "src"
+      ],
+      "testRoots": [
+        "tests"
+      ],
+      "primaryLanguage": "javascript",
+      "runtime": "node>=24"
+    }
+  ]
+}

@@ -354,7 +354,8 @@ describe("experiment list/describe with warm-index-reuse", () => {
         "retrieval-query-strategy-comparison",
         ["keyword-search", "symbol-lookup", "graph-neighborhood", "source-slice", "data-model-graph", "model-view-lineage", "combined-graph-guided"]
       ],
-      ["context-pack-generation", ["raw-full-file", "context-pack"]]
+      ["context-pack-generation", ["raw-full-file", "context-pack"]],
+      ["agent-success-rate", ["raw-full-file", "context-pack"]]
     ]);
   });
 

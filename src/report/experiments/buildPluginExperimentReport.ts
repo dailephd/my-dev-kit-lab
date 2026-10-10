@@ -26,6 +26,8 @@ import { buildRetrievalQueryStrategyComparisonReport } from "./buildRetrievalQue
 import type { RetrievalQueryStrategyComparisonReportV1 } from "./retrievalQueryStrategyComparisonReportModel.js";
 import type { ContextPack } from "../../experiments/plugins/contextPackGeneration/types.js";
 import { buildContextPackGenerationReport } from "./buildContextPackGenerationReport.js";
+import { AGENT_SUCCESS_RATE_DETERMINISTIC_STATEMENT, AGENT_SUCCESS_RATE_REAL_AGENT_STATEMENT, buildAgentSuccessRateReport } from "./buildAgentSuccessRateReport.js";
+import type { AgentSuccessRateReportV1 } from "./agentSuccessRateReportModel.js";
 import type { ContextPackGenerationReportV1 } from "./contextPackGenerationReportModel.js";
 
 // Bulk context-window-scaling evidence is presented by the typed report section; the complete
@@ -40,6 +42,9 @@ const RETRIEVAL_QUERY_STRATEGY_COMPARISON_BULK_KEYS = ["caseExecutionEvidence", 
 
 // Same for context-pack-generation: the typed section presents execution evidence and analysis.
 const CONTEXT_PACK_GENERATION_BULK_KEYS = ["caseExecutionEvidence", "analysis"] as const;
+
+// Same for agent-success-rate: the typed section presents execution evidence and analysis.
+const AGENT_SUCCESS_RATE_BULK_KEYS = ["caseExecutionEvidence", "analysis"] as const;
 
 const V043_BULK_ARRAY_KEYS = [
   "v043StageContextExecutions",
@@ -64,6 +69,7 @@ export function buildPluginExperimentReport(args: {
   const retrievalPrecisionRecall = buildRetrievalPrecisionRecallReport(args.run);
   const retrievalQueryStrategyComparison = buildRetrievalQueryStrategyComparisonReport(args.run);
   const contextPackGeneration = buildContextPackGenerationReport(args.run, args.contextPacks);
+  const agentSuccessRate = buildAgentSuccessRateReport(args.run);
   const rawRun: ExperimentRun = { ...args.run, artifacts: relativizeArtifacts(args.run.artifacts, outputRoot) };
   for (const key of V043_BULK_ARRAY_KEYS) {
     delete (rawRun as Record<string, unknown>)[key];
@@ -85,6 +91,11 @@ export function buildPluginExperimentReport(args: {
   }
   if (contextPackGeneration) {
     for (const key of CONTEXT_PACK_GENERATION_BULK_KEYS) {
+      delete (rawRun as Record<string, unknown>)[key];
+    }
+  }
+  if (agentSuccessRate) {
+    for (const key of AGENT_SUCCESS_RATE_BULK_KEYS) {
       delete (rawRun as Record<string, unknown>)[key];
     }
   }
@@ -117,6 +128,7 @@ export function buildPluginExperimentReport(args: {
     retrievalPrecisionRecall,
     retrievalQueryStrategyComparison,
     contextPackGeneration,
+    agentSuccessRate,
     contextStrategyComparisonV043,
     interpretation: buildInterpretation(
       args.run,
@@ -125,7 +137,8 @@ export function buildPluginExperimentReport(args: {
       contextWindowScaling,
       retrievalPrecisionRecall,
       retrievalQueryStrategyComparison,
-      contextPackGeneration
+      contextPackGeneration,
+      agentSuccessRate
     ),
     rawRun,
   };
@@ -227,8 +240,24 @@ function buildInterpretation(
   contextWindowScaling: ContextWindowScalingReportV1 | null,
   retrievalPrecisionRecall: RetrievalPrecisionRecallReportV1 | null,
   retrievalQueryStrategyComparison: RetrievalQueryStrategyComparisonReportV1 | null,
-  contextPackGeneration: ContextPackGenerationReportV1 | null = null
+  contextPackGeneration: ContextPackGenerationReportV1 | null = null,
+  agentSuccessRate: AgentSuccessRateReportV1 | null = null
 ): PluginExperimentReport["interpretation"] {
+  if (agentSuccessRate) {
+    const real = agentSuccessRate.identity.executionMode === "real-agent";
+    const [raw, pack] = agentSuccessRate.treatments;
+    const rate = (treatment: typeof raw, kind: "initial" | "final"): string => {
+      const metric = kind === "initial" ? treatment?.initialSuccessRate : treatment?.finalSuccessRate;
+      return metric && metric.availability === "available" && typeof metric.value === "number" ? metric.value.toFixed(4) : "unavailable";
+    };
+    const summary = real
+      ? `${AGENT_SUCCESS_RATE_REAL_AGENT_STATEMENT} Provider ${agentSuccessRate.identity.providerId ?? "unknown"} ran ${agentSuccessRate.identity.caseCount} case(s) with up to ${agentSuccessRate.identity.maxAttemptsPerTreatment} attempt(s) per treatment. Initial-attempt success rate: raw-full-file ${rate(raw, "initial")}, context-pack ${rate(pack, "initial")}; final success rate: raw-full-file ${rate(raw, "final")}, context-pack ${rate(pack, "final")}. No treatment is declared best and no statistical or causal claim is made.`
+      : `${AGENT_SUCCESS_RATE_DETERMINISTIC_STATEMENT} ${agentSuccessRate.identity.caseCount} case(s) were evaluated for each treatment identity.`;
+    return {
+      summary,
+      recommendedNextStep: "Review per-case results, the repair history and the scientific limitations; unavailable evidence is never counted as a failure or as zero."
+    };
+  }
   if (contextPackGeneration) {
     const overall = contextPackGeneration.scopes.find((scope) => scope.scopeId === "overall");
     const saved = overall?.tokenSavings;

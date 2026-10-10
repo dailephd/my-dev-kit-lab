@@ -10,6 +10,7 @@ Related design family: **LAB-AGENT** (proposed identifiers, not adopted version 
 
 Roadmap relationship:
 - the adopted Lab roadmap preserves agent-success, provider telemetry/scheduler, and prompt/report/gallery work under their existing `v0.9.0-v0.9.2` assignments;
+- the roadmap-defined `v0.9.0` agent-success-rate slice (a six-task Node corpus, two treatments, guarded patch evaluation, optional repair) shipped in v0.9.0, as described in [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md#agent-success-rate-evaluation-architecture-v090), and [COMMANDS.md](COMMANDS.md#agent-success-rate-v090). The larger generalized engineering benchmark described below remains a proposal and design reference; nothing in it is implemented or adopted unless a document above states so separately;
 - an earlier coordinated-roadmap proposal considered moving this family to `my-dev-kit-lab v0.13.0-v0.13.2 / LAB-AGENT`; ECO-00 adoption on 2026-09-25 superseded that relocation proposal and preserved the existing Lab assignments;
 - `v0.10.0` is the additive `LAB-EVIDENCE-01` reservation, and `v0.13.0` is performance evidence (`LAB-PERF-01`), not an agent-benchmark reservation;
 - this document remains a design reference. Its generalized benchmark, candidate plugin name, contracts, and suggested batches do not themselves amend version scope or establish new prerequisites;

@@ -7,22 +7,22 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version: `0.8.2`
-- Latest release: `v0.8.2` (latest published package version)
-- Latest published version: `v0.8.2` (context-pack generation experiments)
-- Current release: `v0.8.2` (published/current package baseline)
-- Current implemented unreleased version: none.
-- Published package and installed CLI are at `0.8.2`.
-- Release date: `2026-10-07`
-- Previous release: `v0.8.1` (retrieval query strategy comparison)
+- Package version: `0.9.0`
+- Latest release (release-source state): `v0.9.0`; this label does not verify external publication.
+- Release-source version: `v0.9.0` (agent-success-rate plugin)
+- Current release source: `v0.9.0`; the `published/current` designation is established only from external npm, tag, and GitHub Release evidence.
+- External publication state is established from npm, Git tag, and GitHub Release evidence; this source document does not assert that evidence.
+- Package baseline represented by this release source: `v0.9.0`.
+- The package and installed CLI are at `0.9.0`.
+- Release date: `2026-10-10`.
+- Previous release: `v0.8.2` (context-pack generation experiments); `v0.8.1` (retrieval query strategy comparison) preceded it
 - v0.7.1 publication (historical), verified on `2026-10-03`: npm contained `@dailephd/my-dev-kit-lab@0.7.1` and `latest` resolved to `0.7.1` at that time; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.7.1) is non-draft and non-prerelease. Annotated tag object `3117578e6a4cb551b757f90d5b3887a8f6272454` points to release commit `b9ddb3c4c15036e2983740e0a45f0374c14275f5`, merged through PR #43. This is release identity evidence; later documentation corrections do not move the tag or change the published package.
 - `v0.5.0` status: published; it is a historical release. The release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
-- Latest published release: `v0.8.2` (context-pack generation experiments).
-- Current release milestone: `v0.8.2` (context-pack generation experiments), completed and released.
-- Next planned version after v0.8.2: `v0.9.0` (agent-success-rate plugin), per the roadmap.
-- Active planned version: `v0.9.0` (agent-success-rate plugin).
+- Release-source milestone: `v0.9.0` (agent-success-rate plugin).
+- Next planned version: `v0.9.1` (normalized provider telemetry and campaign scheduler), per the roadmap.
+- Active planned version: `v0.9.1` (normalized provider telemetry and campaign scheduler); v0.9.0 is complete.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -33,8 +33,13 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 ## Operational state
 
 - Release channel branch: `main`.
-- Current branch: `main`.
+- Historical current branch during the v0.9.0 release workflow: `release/v0.9.0`; `main` remains the release channel.
+- The v0.9.0 source was prepared on `release/v0.9.0`; that preparation branch is historical, and `main` remains the release channel.
 - Completed implementation branch: `feature/v0.8.2-context-pack-generation-experiments`.
+- Completed implementation branch: `feature/v0.9.0-agent-success-foundation`. It implements the `agent-success-rate` plugin as the eighth registered plugin: a mutable-benchmark evaluation foundation, a deterministic fixture mode, a six-task Node benchmark corpus over two dependency-free projects, guarded real-agent patch generation and evaluation (Codex or Claude, explicit opt-in), optional bounded repair (up to two repairs, three attempts in total), the public `experiment run` CLI options, scientific reporting, and installed-package acceptance coverage. A narrow follow-up correction made the shared measured-command runner handle errors emitted by child output streams, so a deep Windows output path ends in a controlled infrastructure failure instead of an unhandled `ENOTCONN` error. Commits are in the branch history; this file records the state, not the batch sequence.
+- v0.9.0 validated implementation candidate: commit `f534ee6e5c27f4e4284ab15c5c7b481ad5c896a7` passed local readiness (`npm ci`, `npm run docs:check`, `npm run typecheck`, `npm run build`, full `npm test` with 7,152 passed and 8 skipped, `npm run verify`, `npm run verify:packed-package`, `npm run security:validate`, `npm run security:package`, and the code-rot audit), the opt-in six-task real-`my-dev-kit` context check, ordinary CI run `37979878793` (Ubuntu, macOS, and Windows on Node 24 and latest, six of six jobs), and CodeQL run `37979878750` (`javascript-typescript` and `actions`, zero open alerts). An earlier candidate, `fc22e80`, failed two Windows tests; those test assumptions were corrected in `f534ee6`.
+- v0.9.0 validation limits: simulated Codex and Claude providers validated transport, patch evaluation, and repair logic only; no live paid-provider campaign has been run, and real Codex and Claude repair behavior has not been validated.
+- The v0.9.0 release source records the final package version, release date, and user-facing changes. External publication state is established from npm, tag, and GitHub Release evidence, rather than inferred from these source documents.
 - v0.8.2 transition proof: a disposable worktree verified package metadata, the built CLI, version-sensitive tests, packed-package acceptance, and benchmarks at 0.8.2; the worktree was removed.
 - v0.8.2 installed-package acceptance: passed, including `@dailephd/my-dev-kit@1.12.5` bundled and external-local compatibility, privacy projection, report checks, and target/package immutability.
 - v0.8.2 implementation validation: full `npm test` passed (503 files, 6,793 passed, 6 skipped, 0 failed); typecheck, build, benchmark verification, and packed-package verification passed. The release branch additionally passed its release-preparation validation gates.
@@ -50,7 +55,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.5.2` release branch: `release/v0.5.2` (historical release branch merged to `main`).
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
-- Current published release: `v0.8.2` context-pack generation experiments; the previous `v0.8.1` release added retrieval query strategy comparison.
+- Previous release baseline: `v0.8.2` context-pack generation experiments; the `v0.8.1` release added retrieval query strategy comparison.
 - v0.8.2 release validation: local implementation, documentation, package, and full-suite gates passed; hosted validation evidence is available in GitHub Actions for the release branch.
 - v0.8.2 plugin contract: `context-pack-generation` always runs `raw-full-file` and `context-pack`; its report presents existing retrieval coverage and estimated size plus paired token savings and objective deltas, without a composite winner or ranking. External-local science uses real identities before redaction, persists no pack body, and renders a redacted preview.
 - Workflow stage (published release): v0.8.0 implementation, documentation reconciliation, readiness, and release preparation are complete; v0.8.0 is an earlier historical release, and `experiment run --experiment retrieval-precision-recall` is part of the current package.
@@ -78,15 +83,16 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
-- Exact next action: continue with the planned v0.9.0 agent-success-rate milestone when that work is scheduled.
-- Baseline constraints: use published v0.8.2; preserve prior retrieval evidence and metric semantics, and keep v0.9.x agent-success work out of v0.8.2 scope.
+- Exact next action: hosted CI and CodeQL validation of the release-prepared commit, then the separately authorized release pull request and publication workflow.
+- Baseline constraints: v0.9.0 is the current baseline; preserve prior retrieval evidence and metric semantics. v0.9.1 and v0.9.2 scope (telemetry taxonomy, campaign scheduling and resume, strict prompt modes, report section registry, generalized gallery) is not part of v0.9.0.
 - ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
 
 ## Implemented
 
 - Generic experiment-plugin runtime in `src/experiments`.
-- Registry contains seven experiment plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling` (published in v0.7.0; synthetic-repository input added in v0.7.1), `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), and `context-pack-generation` (published in v0.8.2).
+- Registry contains eight experiment plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling` (published in v0.7.0; synthetic-repository input added in v0.7.1), `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), `context-pack-generation` (published in v0.8.2), and `agent-success-rate` (v0.9.0).
 - The seventh plugin, `context-pack-generation`, was released in v0.8.2.
+- The eighth plugin, `agent-success-rate`, was added in v0.9.0.
 - Raw-full-file versus my-dev-kit-guided behavior routed through that plugin while preserving legacy artifacts and commands.
 - Self and explicit local-project experiment targets.
 - Plugin-aware JSON and HTML reports in `src/report/experiments`.
@@ -172,28 +178,31 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- context-pack generation experiments (`v0.8.2`) and agent-success experiment plugins (`v0.9.x`)
-- normalized telemetry, campaign scheduler, prompt hardening, and generalized publication portal
+- normalized telemetry, campaign scheduler (including resume and skip-completed runs), prompt hardening, and generalized publication portal (v0.9.1 and v0.9.2)
 
 ## Limitations
 
 - The implemented security framework is automated CLI/package validation with adversarial checks; it is not a manual pentest framework.
+- `agent-success-rate` (v0.9.0) evaluates a finite, controlled six-task corpus; deterministic-fixture results do not measure context effectiveness or agent ability; provider telemetry (tokens, durations) can be unavailable and is then reported as unavailable, never zero; no automatic treatment winner or statistical-significance claim is produced; and generalized campaign scheduling, resume, and skip-completed runs are outside this plugin and planned for v0.9.1.
+- A very long Windows output path can still make the operating system refuse to start Git or checks in the disposable benchmark copy; the affected treatment then ends as a controlled infrastructure failure, never a success. Long Windows paths are not made to work.
+- The generic self-target report metadata (for example the output root and tool root lines) can contain absolute machine-local paths; the agent-success-rate section and artifacts use relative references.
+- The agent-success-rate plugin implements its own recursive glob matching without changing the older shared `fileGlobs` matcher.
 - Profile behavior is currently limited to default check selection and scenario applicability filtering.
 - Secret leakage and network/local-first checks are bounded automated checks, not exhaustive proofs.
 - Package-boundary scenario severity is still result-level rather than per-evidence-item.
 - Some security tools are optional and may be reported as skipped when unavailable.
 - Fake-agent token totals are estimates. Provider telemetry differs by adapter and can be unavailable.
 - `warm-index-reuse` fake-agent correctness and token totals are deterministic simulated harness evidence, not real-model correctness or provider billing telemetry; its estimated context tokens are a separate character-based context-size estimate. Cumulative durations are component sums, not wall-clock latency. No token-savings percentage, break-even task, winner, or ranking is calculated.
-- The `v0.5.2` real-agent warm-index campaign depends on locally configured Codex/Claude provider CLIs and may produce partial per-run outcomes (`token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) reported through explicit `agentEvidenceStatus`/`tokenEvidenceStatus` values rather than being silently treated as success; Claude's token evidence may be `unavailable` or `partial` depending on provider output, and this is reported explicitly rather than defaulted to zero.
+- The `v0.5.2` real-agent warm-index campaign depends on locally configured Codex/Claude provider CLIs and may produce partial per-run outcomes (`failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) reported through explicit `agentEvidenceStatus`/`tokenEvidenceStatus` values (token evidence is `unavailable`, `partial`, or `complete` and is not an outcome status) rather than being silently treated as success; Claude's token evidence may be `unavailable` or `partial` depending on provider output, and this is reported explicitly rather than defaulted to zero.
 - `v0.6.0` freshness covers only the files an index snapshot lists as indexed; it does not establish whole-repository freshness, and a file that is new since indexing is outside the comparison. The `unknown` status means evidence was insufficient, while a task with no assessment is reported as not assessed. The `v0.6.0` package makes no reindex recommendation; the released `v0.6.1` evidence adds categorical recommendation evidence.
 - `v0.6.1` affected-neighborhood evidence is bounded to the baseline graph of the prepared index and to the files the index snapshot represents. `changedSymbolCount` counts baseline symbol identities that belong to confirmed changed indexed files; it does not prove any individual symbol's own source text changed. `affectedEdgeCount` counts unique baseline edges incident to at least one seed, not every edge among the affected nodes. `taskOverlapPercent` is over resolvable task nodes and is unavailable, never zero, when there are none. Unresolved or ambiguous expected symbols keep a task at `unknown` rather than unrelated, and `not-indicated` means only that this bounded analysis found no evidence supporting reindexing: it does not mean skipping a reindex is safe, that the whole repository is fresh, or that no new non-indexed file exists. There is no automatic reindex, no graph-diff or refreshed-index comparison, and no partial refresh.
 - Results are evidence for specific targets, tasks, agents, and configurations; they do not prove universal token savings.
-- Seven experiment plugins are registered: `context-strategy-comparison`, `warm-index-reuse` (introduced in `v0.5.0`), `incremental-change-staleness` (introduced in `v0.6.2`, extended to four treatments in released `v0.6.3`), `context-window-scaling`, `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), and `context-pack-generation` (published in v0.8.2).
-- `context-pack-generation` is the seventh plugin and was published in v0.8.2.
+- Eight experiment plugins are registered: `context-strategy-comparison`, `warm-index-reuse` (introduced in `v0.5.0`), `incremental-change-staleness` (introduced in `v0.6.2`, extended to four treatments in released `v0.6.3`), `context-window-scaling`, `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), `context-pack-generation` (published in v0.8.2), and `agent-success-rate` (v0.9.0).
+- `context-pack-generation` is the seventh plugin and was published in v0.8.2; `agent-success-rate` is the eighth and is included in the v0.9.0 release source.
 - `retrieval-precision-recall` (v0.8.0) reports set-based precision and recall, not ranked retrieval metrics, and does not itself compare retrieval strategies (the separate v0.8.1 plugin does). It reports no winner, ranking, or composite score and invokes no agent. Its lifecycle expands only the top search candidate. An external-local run fails as a whole when any case has a safety or execution failure and then writes no normal artifact, report, or manifest family. Durable external identities are redacted; the console summary of a successful run can still show the physical output directory. Very long platform paths can make a run fail cleanly where Git or the operating system cannot support them. Real-tool smokes were run against then-current `@dailephd/my-dev-kit@1.12.5`; that is validation history, not a pinned default.
 - `retrieval-query-strategy-comparison` (v0.8.1) runs no coding agent and does not evaluate answer quality. Its retrieved token count is a `ceil(characters / 4)` context-size estimate, not provider billing telemetry. The semantic strategies can truthfully be partial or unavailable for a case; such a case is excluded from the matched cross-strategy comparison for every strategy while its per-strategy evidence is retained. The Pareto front is a set of nondominated strategies listed in canonical strategy order, not a ranking. The plugin reports no significance test or confidence interval, selects no strategy automatically, produces no plot or screenshot, and generates no context pack. External-local mode rejects `--case` and `--benchmark-project` and fails as a whole, writing no normal artifact family, when any safety or privacy check fails.
 - `context-pack-generation` (released in v0.8.2) reuses existing retrieval-quality coverage metrics and estimated-token semantics. Tests and call relationships are descriptive because the frozen answer key has no expected identities for either. External-local science uses real identities before redaction; durable output omits the pack body and report previews redact identities. The plugin defines no composite score, winner, ranking, test-coverage score, or call-edge-coverage score.
-- `context-window-scaling` shipped in v0.7.0. Agent-success plugins remain planned. Context-window budgets classify measured contexts without truncation or per-budget reconstruction; correctness is deterministic fake-agent evidence and context-independent in the current harness.
+- `context-window-scaling` shipped in v0.7.0. The `agent-success-rate` plugin is included in the v0.9.0 release source. Context-window budgets classify measured contexts without truncation or per-budget reconstruction; correctness is deterministic fake-agent evidence and context-independent in the current harness.
 - `v0.6.3` refresh evidence is scoped to the executed deterministic scenarios and the configured my-dev-kit tool. `APPLIED_PARTIAL` in one accepted run does not guarantee that a later run cannot fall back; a fallback is reported as `FALLBACK_FULL` and is not evidence about the requested partial behavior. `no-observed-regression-relative-to-full` means only that the scenario showed no regression under the frozen correctness and required-file dimensions; it does not prove equivalence or safety, or that full refresh is unnecessary. Full refresh is a reference, not a preferred treatment. Correctness remains deterministic fake-agent evidence.
 - In the accepted real-upstream `v0.6.3` run, required-file status was `missing` for every treatment record (including `full-refresh`) and correctness was equal across treatments within each scenario, so those dimensions did not separate the treatments; the operational refresh counts did. The `tests/fixtures/fake-my-dev-kit-cli.js` fixture does not emulate `--refresh-scope` evidence, so the four-treatment public run requires a real my-dev-kit `1.12.5` or later.
 - R6 ran security validation, the audit workflow, the cross-platform CI matrix, and the latest-Node readiness workflow for `v0.6.3`.
@@ -261,4 +270,4 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-`v0.8.2` is the latest published release and current package version; `v0.8.1` is the previous release. No implemented-unreleased version is current, and `v0.9.0` is the next planned milestone. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 readiness and release-preparation evidence remains associated with its exact Git/CI history.
+The release source represents package version `0.9.0` and date `2026-10-10`; `v0.8.2` is its previous release baseline, and `v0.9.1` is the next planned milestone. External publication is established from npm, tag, and GitHub Release evidence and is not asserted here. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.

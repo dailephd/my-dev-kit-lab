@@ -3,6 +3,7 @@ import path from "node:path";
 import { parseAgentCommandTemplate } from "../agents/index.js";
 import { parseAgentId } from "../agents/agentRegistry.js";
 import { readBenchmarkProjectProfiles, readEvaluationCases } from "../evaluation/index.js";
+import { AGENT_SUCCESS_PROJECT_PROFILES_PATH, AGENT_SUCCESS_TASK_CATALOG_PATH, assertReadAgentSuccessCorpus } from "../evaluation/agentSuccess/index.js";
 import { summarizeRetrievalGroundTruthIssuesSafely, validateRetrievalPrecisionRecallCorpus } from "../evaluation/retrievalQuality/index.js";
 import { loadLocalRepositorySubject } from "../evaluation/localRepositorySubject/index.js";
 import type { LocalRepositorySubject } from "../evaluation/localRepositorySubject/index.js";
@@ -22,6 +23,12 @@ import {
 } from "../experiments/index.js";
 import type { WarmIndexCampaignPresetId } from "../experiments/index.js";
 import { contextPackGenerationPlugin } from "../experiments/plugins/contextPackGeneration/index.js";
+import {
+  AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS,
+  AGENT_SUCCESS_RATE_REAL_AGENT_IDS,
+  agentSuccessRatePlugin,
+  selectAgentSuccessTasks
+} from "../experiments/plugins/agentSuccessRate/index.js";
 import { prepareSyntheticContextWindowScalingInputs } from "../experiments/plugins/contextWindowScaling/index.js";
 import {
   projectExternalLocalTarget,
@@ -103,9 +110,27 @@ const CONTEXT_PACK_GENERATION_CASES_RESOURCE = "benchmarks/contracts/warm-index-
 const CONTEXT_PACK_GENERATION_ALLOWED_FLAGS = ["--experiment", "--out", "--case", "--benchmark-project", "--kit-command"];
 const CONTEXT_PACK_GENERATION_EXTERNAL_ALLOWED_FLAGS = ["--experiment", "--out", "--target", "--local-subject-config", "--kit-command"];
 
+// agent-success-rate (v0.9.0) owns the bundled six-task implementation corpus (task catalog and project profiles), both
+// resolved from the package root, never the cwd. It runs against the Lab itself only and accepts exactly these options;
+// every other flag is rejected, not ignored. Real providers run only with --agent together with --include-real-agents.
+const AGENT_SUCCESS_RATE_ALLOWED_FLAGS = [
+  "--experiment",
+  "--out",
+  "--case",
+  "--benchmark-project",
+  "--kit-command",
+  "--agent",
+  "--include-real-agents",
+  "--timeout-ms",
+  "--repair-attempts"
+];
+
 // Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
 // warm-index-reuse, rejects) the fields it does not support.
 type ParsedExperimentRunConfig = Partial<ExperimentMatrixConfig> & {
+  // agent-success-rate only: the single selected real provider and the bounded repair allowance.
+  agentId?: string;
+  repairAttempts?: number;
   kitCommand?: string;
   campaignPreset?: WarmIndexCampaignPresetId;
   contextBudgets?: number[];
@@ -138,6 +163,16 @@ export type RunExperimentRunCommandOptions = {
     captureScreenshot?: Parameters<typeof runWarmIndexCampaignPresentation>[0]["captureScreenshot"];
   };
 };
+
+export function assertAgentSuccessRateFlags(argv: string[]): void {
+  const flags = argv.filter((arg) => arg.startsWith("--"));
+  const unsupported = [...new Set(flags.filter((flag) => !AGENT_SUCCESS_RATE_ALLOWED_FLAGS.includes(flag)))];
+  if (unsupported.length > 0) {
+    throw new Error(
+      `${unsupported.join(", ")} ${unsupported.length === 1 ? "is" : "are"} not supported for --experiment ${agentSuccessRatePlugin.metadata.id}; supported options: ${AGENT_SUCCESS_RATE_ALLOWED_FLAGS.join(", ")}.`
+    );
+  }
+}
 
 export async function runExperimentRunCommandFromArgs(
   argv: string[],
@@ -224,7 +259,8 @@ export async function runExperimentRunCommandFromArgs(
           `Target root: ${result.target.targetRoot}`,
           `Output: ${String(result.metadata?.outputRoot ?? "")}`,
           `Report JSON: ${reports.outputPaths.jsonPath}`,
-          `Report HTML: ${reports.outputPaths.htmlPath}`
+          `Report HTML: ${reports.outputPaths.htmlPath}`,
+          ...(args.experimentId === agentSuccessRatePlugin.metadata.id ? agentSuccessRateSummaryLines(result, reports.outputPaths.textPath) : [])
         ];
 
     // Automatic presentation (report already produced above) applies only to warm-index-reuse
@@ -297,8 +333,14 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   let contextBudgets: number[] | undefined;
   let syntheticConfigPath: string | undefined;
   let localSubjectConfigPath: string | undefined;
+  const agentFlagValues: string[] = [];
+  let repairAttempts: number | undefined;
   const seenFlags: string[] = [];
   const commandTemplates: Partial<Record<"codex" | "claude", AgentCommandTemplate>> = {};
+
+  // The flag whitelist runs before any value is interpreted so an unsupported flag is reported as such.
+  const preScanIndex = argv.indexOf("--experiment");
+  if (preScanIndex >= 0 && argv[preScanIndex + 1] === agentSuccessRatePlugin.metadata.id) assertAgentSuccessRateFlags(argv);
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -327,6 +369,10 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       caseIds.push(...splitList(readRequiredValue(argv, ++index, "--case")));
     } else if (arg === "--benchmark-project") {
       benchmarkProjects.push(...splitList(readRequiredValue(argv, ++index, "--benchmark-project")));
+    } else if (arg === "--agent") {
+      agentFlagValues.push(readRequiredValue(argv, ++index, "--agent"));
+    } else if (arg === "--repair-attempts") {
+      repairAttempts = parseRepairAttempts(readRequiredValue(argv, ++index, "--repair-attempts"));
     } else if (arg === "--agents") {
       agents = splitList(readRequiredValue(argv, ++index, "--agents")).map((value) => parseAgentId(value) as ExperimentAgentId);
     } else if (arg === "--strategies") {
@@ -454,6 +500,48 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       throw new Error("--benchmark-project must list at least one benchmark project id.");
     }
   }
+  if (experimentId === agentSuccessRatePlugin.metadata.id) {
+    // Mode matrix: no flags = deterministic-fixture (default); --agent together with --include-real-agents = real-agent mode.
+    // Everything else is rejected, never coerced: a provider needs both flags, and real-agent options need a provider.
+    if (agentFlagValues.length > 1) {
+      throw new Error("--agent may be supplied only once; agent-success-rate runs exactly one provider.");
+    }
+    const agentId = agentFlagValues[0];
+    if (agentId !== undefined && !(AGENT_SUCCESS_RATE_REAL_AGENT_IDS as readonly string[]).includes(agentId)) {
+      throw new Error(`--agent must be exactly one of: ${AGENT_SUCCESS_RATE_REAL_AGENT_IDS.join(", ")}.`);
+    }
+    if (agentId !== undefined && includeRealAgents !== true) {
+      throw new Error("--agent requires --include-real-agents; real providers are invoked only with explicit authorization.");
+    }
+    if (agentId === undefined && includeRealAgents === true) {
+      throw new Error("--include-real-agents requires --agent <codex|claude> for agent-success-rate.");
+    }
+    if (agentId === undefined && timeoutMs !== undefined) {
+      throw new Error("--timeout-ms is only supported together with --agent and --include-real-agents (real-agent mode).");
+    }
+    if (agentId === undefined && kitCommand !== undefined) {
+      throw new Error("--kit-command is only supported together with --agent and --include-real-agents (real-agent mode).");
+    }
+    if (agentId === undefined && repairAttempts !== undefined && repairAttempts > 0) {
+      throw new Error("--repair-attempts greater than 0 requires --agent and --include-real-agents (real-agent mode).");
+    }
+    if (timeoutMs !== undefined && timeoutMs > AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS) {
+      throw new Error(`--timeout-ms must be a positive integer no greater than ${AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS}.`);
+    }
+    if (seenFlags.includes("--case") && caseIds.length === 0) {
+      throw new Error("--case must list at least one case id.");
+    }
+    if (seenFlags.includes("--benchmark-project") && benchmarkProjects.length === 0) {
+      throw new Error("--benchmark-project must list at least one benchmark project id.");
+    }
+  } else {
+    if (agentFlagValues.length > 0) {
+      throw new Error(`--agent is only supported for --experiment ${agentSuccessRatePlugin.metadata.id}.`);
+    }
+    if (repairAttempts !== undefined) {
+      throw new Error(`--repair-attempts is only supported for --experiment ${agentSuccessRatePlugin.metadata.id}.`);
+    }
+  }
   if (contextBudgets !== undefined && experimentId !== contextWindowScalingPlugin.metadata.id) {
     throw new Error(`--context-budgets is only supported for --experiment ${contextWindowScalingPlugin.metadata.id}.`);
   }
@@ -502,7 +590,8 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       throw new Error(`External ${experimentId} targets require --local-subject-config.`);
     }
   }
-  if (kitCommand !== undefined && !KIT_COMMAND_PLUGIN_IDS.includes(experimentId)) {
+  // agent-success-rate accepts --kit-command in real-agent mode; its own validation above owns that rule and message.
+  if (kitCommand !== undefined && experimentId !== agentSuccessRatePlugin.metadata.id && !KIT_COMMAND_PLUGIN_IDS.includes(experimentId)) {
     throw new Error(`--kit-command is only supported for --experiment ${KIT_COMMAND_PLUGIN_IDS.join(" or ")}.`);
   }
   if (campaignPreset !== undefined) {
@@ -540,6 +629,8 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       requireAgents,
       includeRealAgents,
       commandTemplates: Object.keys(commandTemplates).length > 0 ? commandTemplates : undefined,
+      agentId: agentFlagValues[0],
+      repairAttempts,
       kitCommand,
       campaignPreset,
       contextBudgets
@@ -621,7 +712,27 @@ async function loadPluginInputs(
       ? loadRetrievalQueryStrategyComparisonLocalSubjectInputs(args, toolRoot, context, outputRoot)
       : loadRetrievalQueryStrategyComparisonInputs(args, toolRoot, context);
   }
+  if (args.experimentId === agentSuccessRatePlugin.metadata.id) {
+    return loadAgentSuccessRateInputs(args, context);
+  }
   return undefined;
+}
+
+// agent-success-rate: the bundled task catalog and project profiles are located through the established package-resource
+// resolver (never the cwd) and validated by the corpus reader, which also checks the canonical projects on disk. The
+// validated tasks reach the plugin through its existing programmatic input; the plugin applies --case/--benchmark-project
+// selection in catalog order and owns execution, repair, science and artifacts. No task file is accepted from the CLI.
+async function loadAgentSuccessRateInputs(args: ParsedRunExperimentArgs, context: LabExecutionContext): Promise<Record<string, unknown>> {
+  const validation = agentSuccessRatePlugin.validateConfig(args.config);
+  if (!validation.valid || !validation.config) {
+    throw new Error(`Invalid agent success rate config: ${validation.errors.join("; ")}`);
+  }
+  resolvePackageResource(context, AGENT_SUCCESS_TASK_CATALOG_PATH);
+  resolvePackageResource(context, AGENT_SUCCESS_PROJECT_PROFILES_PATH);
+  const corpus = assertReadAgentSuccessCorpus(context.resourceRoot);
+  // Fail on unknown case or project ids before any output directory exists.
+  selectAgentSuccessTasks(corpus.tasks, validation.config);
+  return { agentSuccessTasks: corpus.tasks };
 }
 
 // context-pack-generation (bundled/self): the frozen warm-index corpus through the established resource resolver, profile
@@ -950,12 +1061,29 @@ function readRequiredValue(argv: string[], index: number, label: string): string
   return value;
 }
 
+function parseRepairAttempts(value: string): number {
+  if (!/^[0-2]$/.test(value)) {
+    throw new Error("--repair-attempts must be 0, 1 or 2.");
+  }
+  return Number(value);
+}
+
 function parsePositiveInteger(label: string, value: string): number {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`${label} must be a positive integer.`);
   }
   return parsed;
+}
+
+function agentSuccessRateSummaryLines(result: { metadata?: Record<string, unknown> }, textPath: string): string[] {
+  const mode = readMetadataString(result.metadata?.executionMode) ?? "deterministic-fixture";
+  const provider = readMetadataString(result.metadata?.providerId);
+  return [
+    `Report Text: ${textPath}`,
+    `Execution mode: ${mode}`,
+    ...(provider ? [`Provider: ${provider} (invoked by explicit --include-real-agents authorization)`] : ["Provider: none (deterministic-fixture; no coding agent was invoked)"])
+  ];
 }
 
 function readMetadataString(value: unknown): string | undefined {

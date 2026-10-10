@@ -1,0 +1,14 @@
+{
+  "name": "agent-success-task-board-node",
+  "version": "0.0.0",
+  "description": "Dependency-free JavaScript implementation benchmark: an in-memory task board.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test \"tests/*.check.mjs\""
+  }
+}

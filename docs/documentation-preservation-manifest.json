@@ -48,7 +48,8 @@
         "tutorial",
         "Chromium",
         "incremental-change-staleness",
-        "--synthetic-config"
+        "--synthetic-config",
+        "agent-success-rate"
       ]
     },
     "docs/PROJECT_OVERVIEW.md": {
@@ -72,7 +73,8 @@
         "planned",
         "tutorial",
         "browser",
-        "incremental-change-staleness"
+        "incremental-change-staleness",
+        "agent-success-rate"
       ]
     },
     "docs/CURRENT_STATE.md": {
@@ -111,7 +113,9 @@
         "v0.10.0",
         "incremental-change-staleness",
         "context-window-scaling",
-        "v0.7.0"
+        "v0.7.0",
+        "agent-success-rate",
+        "pre-release readiness"
       ]
     },
     "docs/ARCHITECTURE.md": {
@@ -123,7 +127,8 @@
         "Automated security-validation architecture",
         "Audit framework architecture",
         "Shared report and evidence infrastructure",
-        "Key contracts"
+        "Key contracts",
+        "Agent-success-rate evaluation architecture"
       ],
       "requiredTopics": [
         "src/experiments",
@@ -147,7 +152,8 @@
         "incremental-change-staleness",
         "SyntheticRepositoryConfigV1",
         "synthetic-repositories",
-        "syntheticInputs"
+        "syntheticInputs",
+        "agent-success-rate"
       ]
     },
     "docs/COMMANDS.md": {
@@ -183,7 +189,9 @@
         "incremental-change-staleness",
         "--synthetic-config",
         "SyntheticRepositoryConfigV1",
-        "synthetic-repositories"
+        "synthetic-repositories",
+        "agent-success-rate",
+        "--repair-attempts"
       ]
     },
     "docs/WORKFLOWS.md": {
@@ -203,7 +211,8 @@
         "Android extension of the security audit adapter",
         "Manual pentest",
         "Warm-index reuse experiment",
-        "Real-agent warm-index campaign"
+        "Real-agent warm-index campaign",
+        "Agent-success-rate evaluation"
       ],
       "requiredTopics": [
         "experiment",
@@ -219,7 +228,9 @@
         "--campaign",
         "incremental-change-staleness",
         "--synthetic-config",
-        "synthetic-repositories"
+        "synthetic-repositories",
+        "agent-success-rate",
+        "Agent-success-rate evaluation"
       ]
     },
     "docs/TUTORIAL.md": {
@@ -243,13 +254,15 @@
         "Prompt complexity metrics",
         "Experiment and run metrics",
         "Planned v0.4.3 metrics",
-        "Warm-index reuse metrics"
+        "Warm-index reuse metrics",
+        "Agent-success-rate metrics"
       ],
       "requiredTopics": [
         "affected-neighborhood",
         "reindexRecommendation",
         "incremental-change-staleness",
-        "synthetic-repository-manifest"
+        "synthetic-repository-manifest",
+        "agent-success-rate"
       ]
     },
     "docs/GALLERY.md": {
@@ -277,7 +290,8 @@
         "Commands",
         "Reports and verdicts",
         "Current limitations",
-        "Fortification status and audit relationship"
+        "Fortification status and audit relationship",
+        "Agent-success-rate safety boundaries"
       ],
       "requiredTopics": [
         "static",
@@ -413,13 +427,14 @@
       "0.7.2",
       "0.8.0",
       "0.8.1",
-      "0.8.2"
+      "0.8.2",
+      "0.9.0"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.8.2",
+    "latestPublishedVersion": "0.9.0",
     "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.9.0",
+    "nextPlannedVersion": "0.9.1",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",
@@ -427,7 +442,8 @@
       "context-window-scaling",
       "retrieval-precision-recall",
       "retrieval-query-strategy-comparison",
-      "context-pack-generation"
+      "context-pack-generation",
+      "agent-success-rate"
     ],
     "experimentPluginDocuments": [
       "README.md",

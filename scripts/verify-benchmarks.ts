@@ -9,6 +9,7 @@ import {
   validateWarmIndexBenchmarkCases,
   validateWarmIndexBenchmarkSuiteCoverage
 } from "../src/evaluation/benchmarkMetadata.js";
+import { readAgentSuccessCorpus } from "../src/evaluation/agentSuccess/index.js";
 import type { BenchmarkProjectProfile, BenchmarkTaskAnswerKey, EvaluationCaseInput } from "../src/evaluation/types.js";
 
 type BenchmarkCase = {
@@ -99,6 +100,23 @@ function walk(dir: string): string[] {
     }
   }
   return files;
+}
+
+/**
+ * Agent-success implementation corpus (v0.9.0). A separate contract family from the retrieval benchmark profiles above:
+ * it is mandatory, so a missing or malformed corpus fails verification. Structural and filesystem checks only; reference
+ * patches are executed by the dedicated corpus acceptance tests, never here.
+ */
+function validateAgentSuccessCorpusSection(rootDir: string, checks: string[], errors: string[]): void {
+  const result = readAgentSuccessCorpus(rootDir);
+  if (!result.ok) {
+    for (const issue of result.issues) {
+      errors.push(`Agent-success corpus: ${issue.code} at ${issue.path}: ${issue.message}`);
+    }
+    return;
+  }
+  const { corpus } = result;
+  checks.push(`validated agent-success corpus (${corpus.profiles.length} projects, ${corpus.tasks.length} tasks)`);
 }
 
 export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
@@ -238,6 +256,8 @@ export function validateBenchmarks(rootDir = process.cwd()): ValidationResult {
       errors.push(`Forbidden generated output found in ${project}: ${forbidden[0]}`);
     }
   }
+
+  validateAgentSuccessCorpusSection(rootDir, checks, errors);
 
   return { ok: errors.length === 0, errors, checks };
 }

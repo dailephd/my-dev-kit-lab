@@ -184,9 +184,7 @@ Same command owner and options as `npm run audit` (see "Audit commands" below). 
 
 ### `my-dev-kit-lab experiment list`
 
-Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (published in v0.7.0), `retrieval-precision-recall` (published in v0.8.0), and `retrieval-query-strategy-comparison` (published in v0.8.1), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
-
-The source registry and published 0.8.2 package include `context-pack-generation` as an experimental plugin.
+Lists registered experiment plugins: `context-strategy-comparison`, `warm-index-reuse` (introduced in v0.5.0), `incremental-change-staleness` (introduced in v0.6.2), `context-window-scaling` (published in v0.7.0), `retrieval-precision-recall` (published in v0.8.0), `retrieval-query-strategy-comparison` (published in v0.8.1), `context-pack-generation` (published in v0.8.2), and `agent-success-rate` (eighth plugin; added in v0.9.0), with each plugin's status, supported variants, and outputs. Accepts `--json` for machine-readable output. Read-only; does not require a writable workspace and works when the package root, invocation directory, and workspace all differ.
 
 ### `my-dev-kit-lab experiment describe --experiment <id>`
 
@@ -247,7 +245,7 @@ my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign codex-ful
 my-dev-kit-lab experiment run --experiment warm-index-reuse --campaign claude-full --include-real-agents --case warm-medium-complete-idempotent --out <dir>
 ```
 
-A `--campaign` run requires a locally configured Codex or Claude provider CLI matching the selected preset's agent; it reports partial outcomes (`token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) explicitly rather than treating them as success, and — on a completed run — additionally produces the campaign report/plots/screenshot/gallery presentation described in [ARCHITECTURE.md](ARCHITECTURE.md#real-agent-warm-index-campaign-architecture-v052-released) and [GALLERY.md](GALLERY.md).
+A `--campaign` run requires a locally configured Codex or Claude provider CLI matching the selected preset's agent; it reports partial outcomes (`failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`) and unavailable or partial token evidence explicitly rather than treating them as success, and — on a completed run — additionally produces the campaign report/plots/screenshot/gallery presentation described in [ARCHITECTURE.md](ARCHITECTURE.md#real-agent-warm-index-campaign-architecture-v052-released) and [GALLERY.md](GALLERY.md).
 
 See [METRICS.md](METRICS.md#warm-index-reuse-metrics) for the reported metrics and [WORKFLOWS.md](WORKFLOWS.md#real-agent-warm-index-campaign-v052) for the real-agent campaign procedure.
 
@@ -400,7 +398,7 @@ See [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080) and 
 
 #### `retrieval-query-strategy-comparison` (v0.8.1)
 
-This surface is included in the current 0.8.2 package.
+This surface is included in the current package.
 
 ```text
 my-dev-kit-lab experiment list
@@ -438,7 +436,7 @@ See [WORKFLOWS.md](WORKFLOWS.md#retrieval-query-strategy-comparison-experiment-v
 
 #### `context-pack-generation` (v0.8.2)
 
-The plugin is included in the published 0.8.2 package. `experiment list` and `experiment describe --experiment context-pack-generation` expose it as experimental, schema 1.0.0, with `self` and `external-local` targets, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed variants: `raw-full-file`, then `context-pack`.
+The plugin is included in the package from v0.8.2 onward. `experiment list` and `experiment describe --experiment context-pack-generation` expose it as experimental, schema 1.0.0, with `self` and `external-local` targets, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed variants: `raw-full-file`, then `context-pack`.
 
 ```text
 my-dev-kit-lab experiment list
@@ -452,6 +450,33 @@ Bundled/self mode uses the frozen bundled 12-case corpus. `--case` and `--benchm
 External-local mode requires `--target` and `--local-subject-config` together. It accepts only `--out`, `--target`, `--local-subject-config`, and `--kit-command`; `--case` and `--benchmark-project` are rejected because the local-subject config supplies the case set. A configured case requires the same complete deterministic retrieval answer key as `retrieval-precision-recall`. The output directory must be outside the repository, which is read-only. Science is calculated on real identities before redaction; durable output contains no context-pack body, and report previews use redacted identities.
 
 The command rejects unsupported policy and selection flags, including `--treatment`, `--strategy`, `--max-files`, `--max-symbols`, and `--graph-depth`. It writes execution and analysis artifacts plus JSON, text, and HTML reports; bundled runs also write one pack artifact per case. See [WORKFLOWS.md](WORKFLOWS.md#context-pack-generation-experiment) and [METRICS.md](METRICS.md#context-pack-generation-metrics-v082).
+
+#### `agent-success-rate` (v0.9.0)
+
+`agent-success-rate` is included in the v0.9.0 package and is available from the installed CLI. It is the eighth registered plugin (after `context-pack-generation`; the seven earlier IDs and their order are unchanged). `experiment list` and `experiment describe --experiment agent-success-rate` expose it as experimental, schema 1.0.0, with the `self` target only, `json`, `html`, `text`, and `artifact` outputs, and exactly two fixed treatments: `raw-full-file`, then `context-pack`. Both treatments run for every selected task.
+
+```text
+my-dev-kit-lab experiment describe --experiment agent-success-rate
+my-dev-kit-lab experiment run --experiment agent-success-rate [--out <dir>] [--case <ids>] [--benchmark-project <ids>]
+my-dev-kit-lab experiment run --experiment agent-success-rate --agent <codex|claude> --include-real-agents [--timeout-ms <ms>] [--repair-attempts <0|1|2>] [--kit-command <command>] [--case <ids>] [--benchmark-project <ids>] [--out <dir>]
+```
+
+| Option | Allowed value or default |
+|---|---|
+| `--out <dir>` | Optional. Installed default `<workspace>/lab-output/experiments/agent-success-rate/<target>/<run>/` (source-checkout default `lab-output/experiments/agent-success-rate/<target>/<run>/`). Sandboxes and artifacts are written beneath the output directory, never into the installed package or the canonical benchmark projects |
+| `--case <ids>` | Optional task IDs from the bundled six-task catalog; the catalog order is preserved |
+| `--benchmark-project <ids>` | Optional benchmark project IDs (`agent-success-task-board-node`, `agent-success-inventory-node`); the catalog order is preserved |
+| `--agent <codex\|claude>` | Selects exactly one real provider. Requires `--include-real-agents` |
+| `--include-real-agents` | Explicit authorization to invoke the selected provider. Requires `--agent`. Without both flags no provider is ever launched |
+| `--timeout-ms <ms>` | Real-agent mode only. Positive integer per provider attempt; default `240000`, maximum `1800000` |
+| `--repair-attempts <0\|1\|2>` | Real-agent mode only. Repairs allowed after the initial attempt; default `0`; at most three attempts per treatment |
+| `--kit-command <command>` | Real-agent mode only. The my-dev-kit command used for `context-pack` retrieval; default `npx @dailephd/my-dev-kit@latest` |
+
+The default is **deterministic-fixture mode**: it applies each task's reference patch in a disposable copy, runs the trusted checks, and invokes no coding agent, so it needs no provider and no network. Its results validate the evaluation pipeline and the corpus; they do not measure agent ability or context effectiveness (`contextEffectEvaluated` is `false`). **Real-agent mode** is entered only by `--agent` together with `--include-real-agents`; neither flag works alone. The selected provider receives source-only context and returns a unified diff over standard input; the Lab validates the diff against a patch policy and applies it itself.
+
+The command is self-target only: `--target` is rejected, as is every option outside the table. In particular `--agents` is not an alias for `--agent`, arbitrary provider command templates (`--command-template-*`) are not accepted, and campaign options (`--campaign`, `--max-runs`, `--continue-on-failure`, `--require-agents`) are not supported. Multiple providers, comma lists, unknown provider names, a `--repair-attempts` outside 0–2, a `--timeout-ms` that is not a positive integer up to 1800000, and `--timeout-ms`, `--repair-attempts`, or `--kit-command` without real-agent mode are rejected before any output directory is created and before any provider is launched.
+
+The process exits `0` when the run completes and `1` when the run fails (including controlled infrastructure failures, which never report task success) or when an option is rejected. It writes `report.json`, `report.html`, `report.txt`, `agent-success-rate-execution.json`, and `agent-success-rate-analysis.json`, plus supporting `diffs/` patch artifacts and, in real-agent mode, `contexts/` and `agents/` evidence. See [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), [METRICS.md](METRICS.md#agent-success-rate-metrics-v090), and [ARCHITECTURE.md](ARCHITECTURE.md#agent-success-rate-evaluation-architecture-v090).
 
 ### `my-dev-kit-lab experiment controlled [options]`
 

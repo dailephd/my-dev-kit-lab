@@ -1,0 +1,671 @@
+[
+  {
+    "schemaVersion": "my-dev-kit-lab-agent-success-task-v1",
+    "id": "asr-board-title-normalization",
+    "title": "Normalize task titles on creation",
+    "benchmarkProject": "agent-success-task-board-node",
+    "projectProfileRef": "agent-success-task-board-node",
+    "taskLocality": "localized",
+    "query": "task title validation: trim surrounding whitespace, reject blank titles",
+    "sourceRoots": [
+      "src"
+    ],
+    "rawIncludeGlobs": [
+      "src/**/*.js"
+    ],
+    "instruction": "Task creation must normalize titles. A title is stored without its surrounding whitespace, while whitespace inside the title is kept. A title that is empty or contains only whitespace must be rejected with the board's documented invalid-title error (code INVALID_TITLE), and a rejected creation must not change the store or consume a task id. Titles that are already trimmed must keep working exactly as before. Fix the implementation under src/; do not change tests, package.json or the README.",
+    "expectedEditFiles": [
+      "src/validation.js"
+    ],
+    "allowedEditFiles": [
+      "src/validation.js"
+    ],
+    "protectedFiles": [
+      ".gitattributes",
+      "README.md",
+      "package.json",
+      "tests/import-edge.check.mjs",
+      "tests/import-primary.check.mjs",
+      "tests/regression.check.mjs",
+      "tests/summary-edge.check.mjs",
+      "tests/summary-primary.check.mjs",
+      "tests/title-edge.check.mjs",
+      "tests/title-primary.check.mjs"
+    ],
+    "taskChecks": [
+      {
+        "id": "title-primary",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/title-primary.check.mjs"
+        ],
+        "timeoutMs": 30000
+      },
+      {
+        "id": "title-edge",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/title-edge.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "regressionChecks": [
+      {
+        "id": "regression",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/regression.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "behaviorFacts": [
+      {
+        "id": "title-trimmed",
+        "text": "Created and imported tasks store the title without surrounding whitespace.",
+        "required": true,
+        "verificationCheckIds": [
+          "title-primary"
+        ]
+      },
+      {
+        "id": "title-blank-rejected",
+        "text": "Empty and whitespace-only titles are rejected with INVALID_TITLE.",
+        "required": true,
+        "verificationCheckIds": [
+          "title-primary",
+          "title-edge"
+        ]
+      },
+      {
+        "id": "title-no-side-effects",
+        "text": "A rejected title leaves the store and id sequence unchanged and interior whitespace is preserved.",
+        "required": false,
+        "verificationCheckIds": [
+          "title-edge"
+        ]
+      },
+      {
+        "id": "title-existing-behavior",
+        "text": "Existing creation, completion and import behavior is unchanged.",
+        "required": false,
+        "verificationCheckIds": [
+          "regression"
+        ]
+      }
+    ],
+    "deterministicFixture": {
+      "id": "asr-board-title-normalization-reference",
+      "patch": "diff --git a/src/validation.js b/src/validation.js\nindex f3fa377..1ce3d58 100644\n--- a/src/validation.js\n+++ b/src/validation.js\n@@ -14,10 +14,14 @@ export class ValidationError extends Error {\n  * Returns the normalized title for a task, or throws ValidationError(INVALID_TITLE).\n  */\n export function validateTitle(title) {\n-  if (typeof title !== \"string\" || title.length === 0) {\n-    throw new ValidationError(INVALID_TITLE, \"title must be a non-empty string\");\n+  if (typeof title !== \"string\") {\n+    throw new ValidationError(INVALID_TITLE, \"title must be a string\");\n   }\n-  return title;\n+  const normalized = title.trim();\n+  if (normalized.length === 0) {\n+    throw new ValidationError(INVALID_TITLE, \"title must not be blank\");\n+  }\n+  return normalized;\n }\n \n /**\n",
+      "notes": "Replaces the title-length test in validateTitle with a trim-then-test normalization."
+    }
+  },
+  {
+    "schemaVersion": "my-dev-kit-lab-agent-success-task-v1",
+    "id": "asr-board-import-idempotency",
+    "title": "Make task import idempotent",
+    "benchmarkProject": "agent-success-task-board-node",
+    "projectProfileRef": "agent-success-task-board-node",
+    "taskLocality": "cross-module",
+    "query": "external task import: normalized external id identity, duplicate detection across import calls",
+    "sourceRoots": [
+      "src"
+    ],
+    "rawIncludeGlobs": [
+      "src/**/*.js"
+    ],
+    "instruction": "Importing external tasks must be idempotent. External ids identify tasks after normalization (surrounding whitespace removed and letters compared case-insensitively), and the normalized form is what the board stores and reports. Re-importing a task whose external id is already known, from an earlier import call or earlier in the same call, must not create a duplicate and must be reported as skipped. Import order must stay deterministic, new distinct external ids must still be importable, and manually created tasks must never be removed. The identity rules are shared between the task store and the import service; make them consistent. Fix the implementation under src/; do not change tests, package.json or the README.",
+    "expectedEditFiles": [
+      "src/taskService.js",
+      "src/taskStore.js"
+    ],
+    "allowedEditFiles": [
+      "src/taskService.js",
+      "src/taskStore.js"
+    ],
+    "protectedFiles": [
+      ".gitattributes",
+      "README.md",
+      "package.json",
+      "tests/import-edge.check.mjs",
+      "tests/import-primary.check.mjs",
+      "tests/regression.check.mjs",
+      "tests/summary-edge.check.mjs",
+      "tests/summary-primary.check.mjs",
+      "tests/title-edge.check.mjs",
+      "tests/title-primary.check.mjs"
+    ],
+    "taskChecks": [
+      {
+        "id": "import-primary",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/import-primary.check.mjs"
+        ],
+        "timeoutMs": 30000
+      },
+      {
+        "id": "import-edge",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/import-edge.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "regressionChecks": [
+      {
+        "id": "regression",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/regression.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "behaviorFacts": [
+      {
+        "id": "import-no-duplicates",
+        "text": "Re-importing the same external task across calls does not create a duplicate.",
+        "required": true,
+        "verificationCheckIds": [
+          "import-primary"
+        ]
+      },
+      {
+        "id": "import-normalized-identity",
+        "text": "External ids are compared and stored in one normalized form.",
+        "required": true,
+        "verificationCheckIds": [
+          "import-primary",
+          "import-edge"
+        ]
+      },
+      {
+        "id": "import-in-call-and-order",
+        "text": "Duplicates inside one call are collapsed and import order is deterministic.",
+        "required": false,
+        "verificationCheckIds": [
+          "import-edge"
+        ]
+      },
+      {
+        "id": "import-existing-behavior",
+        "text": "Exact re-imports, distinct imports and manual tasks keep working.",
+        "required": false,
+        "verificationCheckIds": [
+          "regression"
+        ]
+      }
+    ],
+    "deterministicFixture": {
+      "id": "asr-board-import-idempotency-reference",
+      "patch": "diff --git a/src/taskService.js b/src/taskService.js\nindex e9d2084..e0ae2f5 100644\n--- a/src/taskService.js\n+++ b/src/taskService.js\n@@ -38,7 +38,7 @@ export class TaskService {\n         throw new ValidationError(INVALID_EXTERNAL_ID, \"external id must be a non-empty string\");\n       }\n       const externalId = normalizeExternalId(item.externalId);\n-      if (this.store.findByExternalId(item.externalId)) {\n+      if (this.store.findByExternalId(externalId)) {\n         skipped.push(externalId);\n         continue;\n       }\ndiff --git a/src/taskStore.js b/src/taskStore.js\nindex ecb50cd..93de902 100644\n--- a/src/taskStore.js\n+++ b/src/taskStore.js\n@@ -10,7 +10,7 @@ export class TaskNotFoundError extends Error {\n  * Returns the identity key used to compare external task identifiers.\n  */\n export function normalizeExternalId(externalId) {\n-  return String(externalId).trim();\n+  return String(externalId).trim().toLowerCase();\n }\n \n /**\n",
+      "notes": "Lower-cases the identity key in the store and looks up the normalized key in the service."
+    }
+  },
+  {
+    "schemaVersion": "my-dev-kit-lab-agent-success-task-v1",
+    "id": "asr-board-project-summary",
+    "title": "Keep project identity and summaries consistent",
+    "benchmarkProject": "agent-success-task-board-node",
+    "projectProfileRef": "agent-success-task-board-node",
+    "taskLocality": "broad-change",
+    "query": "project identity normalization across task creation, import and per-project summaries",
+    "sourceRoots": [
+      "src"
+    ],
+    "rawIncludeGlobs": [
+      "src/**/*.js"
+    ],
+    "instruction": "Every task must belong to a normalized project identity (project id trimmed and lower-cased; tasks without a project belong to inbox), and creation, import and summaries must all use that same identity. A blank project id must be rejected with the documented invalid-project error (code INVALID_PROJECT) before anything is stored. A project summary must count only the tasks that belong to exactly the requested project (requested ids are normalized the same way), its completed count must be derived from those tasks only and can never exceed its total, and unrelated tasks, including tasks of projects with similar names, must never change it. Summaries stay deterministic. Fix the implementation under src/; do not change tests, package.json or the README.",
+    "expectedEditFiles": [
+      "src/projectSummary.js",
+      "src/taskService.js",
+      "src/validation.js"
+    ],
+    "allowedEditFiles": [
+      "src/projectSummary.js",
+      "src/taskService.js",
+      "src/validation.js"
+    ],
+    "protectedFiles": [
+      ".gitattributes",
+      "README.md",
+      "package.json",
+      "tests/import-edge.check.mjs",
+      "tests/import-primary.check.mjs",
+      "tests/regression.check.mjs",
+      "tests/summary-edge.check.mjs",
+      "tests/summary-primary.check.mjs",
+      "tests/title-edge.check.mjs",
+      "tests/title-primary.check.mjs"
+    ],
+    "taskChecks": [
+      {
+        "id": "summary-primary",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/summary-primary.check.mjs"
+        ],
+        "timeoutMs": 30000
+      },
+      {
+        "id": "summary-edge",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/summary-edge.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "regressionChecks": [
+      {
+        "id": "regression",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/regression.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "behaviorFacts": [
+      {
+        "id": "project-identity-normalized",
+        "text": "Created and imported tasks keep one normalized project identity and blank project ids are rejected.",
+        "required": true,
+        "verificationCheckIds": [
+          "summary-primary",
+          "summary-edge"
+        ]
+      },
+      {
+        "id": "summary-filters-project",
+        "text": "A summary contains exactly the tasks of the requested project.",
+        "required": true,
+        "verificationCheckIds": [
+          "summary-primary"
+        ]
+      },
+      {
+        "id": "summary-consistent-counts",
+        "text": "Completed never exceeds total and unrelated tasks never change a summary.",
+        "required": true,
+        "verificationCheckIds": [
+          "summary-edge"
+        ]
+      },
+      {
+        "id": "summary-deterministic",
+        "text": "Summaries are deterministic and list task ids in creation order.",
+        "required": false,
+        "verificationCheckIds": [
+          "summary-edge"
+        ]
+      },
+      {
+        "id": "summary-existing-behavior",
+        "text": "Single-project summaries and the other board behaviors are unchanged.",
+        "required": false,
+        "verificationCheckIds": [
+          "regression"
+        ]
+      }
+    ],
+    "deterministicFixture": {
+      "id": "asr-board-project-summary-reference",
+      "patch": "diff --git a/src/projectSummary.js b/src/projectSummary.js\nindex 8b24e3b..7de36a9 100644\n--- a/src/projectSummary.js\n+++ b/src/projectSummary.js\n@@ -1,12 +1,14 @@\n+import { normalizeProjectId } from \"./validation.js\";\n+\n /**\n  * Summarizes the tasks of one project. Task ids are listed in creation order.\n  */\n export function summarizeProject(store, projectId) {\n-  const all = store.list();\n-  const tasks = all.filter((task) => task.projectId.startsWith(projectId));\n-  const completed = all.filter((task) => task.completed).length;\n+  const normalizedProjectId = normalizeProjectId(projectId);\n+  const tasks = store.list().filter((task) => task.projectId === normalizedProjectId);\n+  const completed = tasks.filter((task) => task.completed).length;\n   return {\n-    projectId,\n+    projectId: normalizedProjectId,\n     total: tasks.length,\n     completed,\n     open: tasks.length - completed,\ndiff --git a/src/taskService.js b/src/taskService.js\nindex e9d2084..9de3034 100644\n--- a/src/taskService.js\n+++ b/src/taskService.js\n@@ -1,5 +1,5 @@\n import { TaskNotFoundError, normalizeExternalId } from \"./taskStore.js\";\n-import { INVALID_EXTERNAL_ID, ValidationError, validateTitle } from \"./validation.js\";\n+import { INVALID_EXTERNAL_ID, ValidationError, normalizeProjectId, validateTitle } from \"./validation.js\";\n \n const DEFAULT_PROJECT = \"inbox\";\n \n@@ -10,10 +10,11 @@ export class TaskService {\n \n   createTask({ title, projectId = DEFAULT_PROJECT } = {}) {\n     const normalizedTitle = validateTitle(title);\n+    const normalizedProjectId = normalizeProjectId(projectId);\n     return this.store.add({\n       id: this.store.nextId(),\n       title: normalizedTitle,\n-      projectId,\n+      projectId: normalizedProjectId,\n       externalId: null,\n       completed: false\n     });\n@@ -43,11 +44,12 @@ export class TaskService {\n         continue;\n       }\n       const title = validateTitle(item.title);\n+      const projectId = normalizeProjectId(item.projectId ?? DEFAULT_PROJECT);\n       imported.push(\n         this.store.add({\n           id: this.store.nextId(),\n           title,\n-          projectId: item.projectId ?? DEFAULT_PROJECT,\n+          projectId,\n           externalId,\n           completed: false\n         })\ndiff --git a/src/validation.js b/src/validation.js\nindex f3fa377..81e36dd 100644\n--- a/src/validation.js\n+++ b/src/validation.js\n@@ -27,5 +27,9 @@ export function normalizeProjectId(projectId) {\n   if (typeof projectId !== \"string\") {\n     throw new ValidationError(INVALID_PROJECT, \"project id must be a string\");\n   }\n-  return projectId.trim();\n+  const normalized = projectId.trim().toLowerCase();\n+  if (normalized.length === 0) {\n+    throw new ValidationError(INVALID_PROJECT, \"project id must not be blank\");\n+  }\n+  return normalized;\n }\n",
+      "notes": "Normalizes project ids in validation, uses them in the service for creation and import, and filters summaries by exact identity."
+    }
+  },
+  {
+    "schemaVersion": "my-dev-kit-lab-agent-success-task-v1",
+    "id": "asr-inventory-quantity-boundary",
+    "title": "Enforce positive-integer quantities",
+    "benchmarkProject": "agent-success-inventory-node",
+    "projectProfileRef": "agent-success-inventory-node",
+    "taskLocality": "localized",
+    "query": "quantity validation: positive integers only for stock and reservations",
+    "sourceRoots": [
+      "src"
+    ],
+    "rawIncludeGlobs": [
+      "src/**/*.js"
+    ],
+    "instruction": "Stock and reservation quantities must be positive integers. Zero, negative numbers, fractional numbers, NaN, infinities, negative zero and values that are not numbers must all be rejected with the documented quantity error (code INVALID_QUANTITY), and the rejection must happen before any inventory or reservation changes. Valid positive integers must keep working. Fix the implementation under src/; do not change tests, package.json or the README.",
+    "expectedEditFiles": [
+      "src/quantity.js"
+    ],
+    "allowedEditFiles": [
+      "src/quantity.js"
+    ],
+    "protectedFiles": [
+      ".gitattributes",
+      "README.md",
+      "package.json",
+      "tests/quantity-edge.check.mjs",
+      "tests/quantity-primary.check.mjs",
+      "tests/regression.check.mjs",
+      "tests/report-edge.check.mjs",
+      "tests/report-primary.check.mjs",
+      "tests/reservation-edge.check.mjs",
+      "tests/reservation-primary.check.mjs"
+    ],
+    "taskChecks": [
+      {
+        "id": "quantity-primary",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/quantity-primary.check.mjs"
+        ],
+        "timeoutMs": 30000
+      },
+      {
+        "id": "quantity-edge",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/quantity-edge.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "regressionChecks": [
+      {
+        "id": "regression",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/regression.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "behaviorFacts": [
+      {
+        "id": "quantity-positive-integer",
+        "text": "Only positive integers are accepted as quantities.",
+        "required": true,
+        "verificationCheckIds": [
+          "quantity-primary",
+          "quantity-edge"
+        ]
+      },
+      {
+        "id": "quantity-reject-before-mutation",
+        "text": "A rejected quantity never changes stock or reservations.",
+        "required": true,
+        "verificationCheckIds": [
+          "quantity-primary",
+          "quantity-edge"
+        ]
+      },
+      {
+        "id": "quantity-nonnumeric",
+        "text": "Nonnumeric values are rejected.",
+        "required": false,
+        "verificationCheckIds": [
+          "quantity-edge"
+        ]
+      },
+      {
+        "id": "quantity-valid-still-work",
+        "text": "Valid positive quantities keep working.",
+        "required": false,
+        "verificationCheckIds": [
+          "quantity-primary",
+          "regression"
+        ]
+      }
+    ],
+    "deterministicFixture": {
+      "id": "asr-inventory-quantity-boundary-reference",
+      "patch": "diff --git a/src/quantity.js b/src/quantity.js\nindex eff9546..0cf840f 100644\n--- a/src/quantity.js\n+++ b/src/quantity.js\n@@ -12,7 +12,7 @@ export class QuantityError extends Error {\n  * Returns the quantity when it is a valid stock or reservation quantity, or throws QuantityError.\n  */\n export function assertPositiveInteger(value) {\n-  if (typeof value !== \"number\" || value < 0) {\n+  if (!Number.isInteger(value) || value <= 0) {\n     throw new QuantityError(\"quantity must be a positive integer\");\n   }\n   return value;\n",
+      "notes": "Replaces the sign-only test with an integer-and-positive test."
+    }
+  },
+  {
+    "schemaVersion": "my-dev-kit-lab-agent-success-task-v1",
+    "id": "asr-inventory-reservation-atomicity",
+    "title": "Make reservations atomic",
+    "benchmarkProject": "agent-success-inventory-node",
+    "projectProfileRef": "agent-success-inventory-node",
+    "taskLocality": "cross-module",
+    "query": "reservation service and inventory store: check before mutate, duplicate reservation ids, failed reservations",
+    "sourceRoots": [
+      "src"
+    ],
+    "rawIncludeGlobs": [
+      "src/**/*.js"
+    ],
+    "instruction": "A reservation must either complete or change nothing. When stock is insufficient (or the sku is unknown) no stock may be consumed and no reservation record may be created. A reservation id that already has a record must be rejected with DUPLICATE_RESERVATION without consuming stock again or altering the existing record, and an id whose earlier attempt failed must remain usable. A successful reservation decrements the matching stock exactly once, and unrelated inventory items must never change. The reservation service and the inventory store currently apply and check their changes in an unsafe order; make them consistent. Fix the implementation under src/; do not change tests, package.json or the README.",
+    "expectedEditFiles": [
+      "src/inventoryStore.js",
+      "src/reservationService.js"
+    ],
+    "allowedEditFiles": [
+      "src/inventoryStore.js",
+      "src/reservationService.js"
+    ],
+    "protectedFiles": [
+      ".gitattributes",
+      "README.md",
+      "package.json",
+      "tests/quantity-edge.check.mjs",
+      "tests/quantity-primary.check.mjs",
+      "tests/regression.check.mjs",
+      "tests/report-edge.check.mjs",
+      "tests/report-primary.check.mjs",
+      "tests/reservation-edge.check.mjs",
+      "tests/reservation-primary.check.mjs"
+    ],
+    "taskChecks": [
+      {
+        "id": "reservation-primary",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/reservation-primary.check.mjs"
+        ],
+        "timeoutMs": 30000
+      },
+      {
+        "id": "reservation-edge",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/reservation-edge.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "regressionChecks": [
+      {
+        "id": "regression",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/regression.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "behaviorFacts": [
+      {
+        "id": "reserve-insufficient-no-consumption",
+        "text": "Insufficient stock never leaves partially decremented inventory.",
+        "required": true,
+        "verificationCheckIds": [
+          "reservation-primary"
+        ]
+      },
+      {
+        "id": "reserve-failed-no-record",
+        "text": "Failed reservations create no reservation record and their ids stay reusable.",
+        "required": true,
+        "verificationCheckIds": [
+          "reservation-primary",
+          "reservation-edge"
+        ]
+      },
+      {
+        "id": "reserve-duplicate-id",
+        "text": "A duplicate reservation id never consumes stock twice.",
+        "required": true,
+        "verificationCheckIds": [
+          "reservation-edge"
+        ]
+      },
+      {
+        "id": "reserve-unrelated-items",
+        "text": "Unrelated inventory items are unchanged by failed and successful reservations.",
+        "required": false,
+        "verificationCheckIds": [
+          "reservation-edge"
+        ]
+      },
+      {
+        "id": "reserve-existing-behavior",
+        "text": "Valid reservations, cancellation and fulfillment keep working.",
+        "required": false,
+        "verificationCheckIds": [
+          "regression"
+        ]
+      }
+    ],
+    "deterministicFixture": {
+      "id": "asr-inventory-reservation-atomicity-reference",
+      "patch": "diff --git a/src/inventoryStore.js b/src/inventoryStore.js\nindex edd48fe..87d9da0 100644\n--- a/src/inventoryStore.js\n+++ b/src/inventoryStore.js\n@@ -71,10 +71,10 @@ export class InventoryStore {\n     if (!item) {\n       throw new UnknownSkuError(sku);\n     }\n-    item.available -= quantity;\n-    if (item.available < 0) {\n+    if (item.available < quantity) {\n       throw new InsufficientStockError(sku);\n     }\n+    item.available -= quantity;\n     return { ...item };\n   }\n \n@@ -89,6 +89,9 @@ export class InventoryStore {\n   }\n \n   addReservation(record) {\n+    if (this.#reservations.has(record.id)) {\n+      throw new DuplicateReservationError(record.id);\n+    }\n     this.#reservations.set(record.id, { ...record });\n     return { ...record };\n   }\ndiff --git a/src/reservationService.js b/src/reservationService.js\nindex a7b29c5..f8b183b 100644\n--- a/src/reservationService.js\n+++ b/src/reservationService.js\n@@ -1,4 +1,5 @@\n import {\n+  DuplicateReservationError,\n   RESERVATION_ACTIVE,\n   RESERVATION_FULFILLED,\n   UnknownReservationError\n@@ -15,8 +16,11 @@ export class ReservationService {\n    */\n   reserve({ reservationId, sku, quantity }) {\n     assertPositiveInteger(quantity);\n-    this.store.addReservation({ id: reservationId, sku, quantity, status: RESERVATION_ACTIVE });\n+    if (this.store.getReservation(reservationId)) {\n+      throw new DuplicateReservationError(reservationId);\n+    }\n     this.store.takeStock(sku, quantity);\n+    this.store.addReservation({ id: reservationId, sku, quantity, status: RESERVATION_ACTIVE });\n     return this.store.getReservation(reservationId);\n   }\n \n",
+      "notes": "Checks stock before mutating it and records the reservation only after stock was taken."
+    }
+  },
+  {
+    "schemaVersion": "my-dev-kit-lab-agent-success-task-v1",
+    "id": "asr-inventory-fulfillment-report",
+    "title": "Make reservation lifecycle and report consistent",
+    "benchmarkProject": "agent-success-inventory-node",
+    "projectProfileRef": "agent-success-inventory-node",
+    "taskLocality": "broad-change",
+    "query": "reservation lifecycle states, cancellation stock restoration and fulfillment report totals",
+    "sourceRoots": [
+      "src"
+    ],
+    "rawIncludeGlobs": [
+      "src/**/*.js"
+    ],
+    "instruction": "Reservation lifecycle state must be represented the same way by the store, the reservation service and the fulfillment report, using the exported status values (active, fulfilled, cancelled) only. Cancelling an active reservation restores exactly its reserved quantity exactly once; cancelling again must not restore stock again, and a fulfilled reservation must never be restored by a cancellation. A cancelled reservation must not become fulfilled. The fulfillment report must distinguish active, fulfilled and cancelled reservations for every sku, its figures must agree with the underlying store (received equals available plus active plus fulfilled quantity for each row), unrelated skus must not be affected, and the report must stay deterministic. Fix the implementation under src/; do not change tests, package.json or the README.",
+    "expectedEditFiles": [
+      "src/fulfillmentReport.js",
+      "src/inventoryStore.js",
+      "src/reservationService.js"
+    ],
+    "allowedEditFiles": [
+      "src/fulfillmentReport.js",
+      "src/inventoryStore.js",
+      "src/reservationService.js"
+    ],
+    "protectedFiles": [
+      ".gitattributes",
+      "README.md",
+      "package.json",
+      "tests/quantity-edge.check.mjs",
+      "tests/quantity-primary.check.mjs",
+      "tests/regression.check.mjs",
+      "tests/report-edge.check.mjs",
+      "tests/report-primary.check.mjs",
+      "tests/reservation-edge.check.mjs",
+      "tests/reservation-primary.check.mjs"
+    ],
+    "taskChecks": [
+      {
+        "id": "report-primary",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/report-primary.check.mjs"
+        ],
+        "timeoutMs": 30000
+      },
+      {
+        "id": "report-edge",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/report-edge.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "regressionChecks": [
+      {
+        "id": "regression",
+        "executable": "node",
+        "args": [
+          "--test",
+          "tests/regression.check.mjs"
+        ],
+        "timeoutMs": 30000
+      }
+    ],
+    "behaviorFacts": [
+      {
+        "id": "cancel-restores-once",
+        "text": "Cancellation restores the reserved quantity exactly once.",
+        "required": true,
+        "verificationCheckIds": [
+          "report-primary",
+          "report-edge"
+        ]
+      },
+      {
+        "id": "report-distinguishes-states",
+        "text": "The report separates active, fulfilled and cancelled reservations.",
+        "required": true,
+        "verificationCheckIds": [
+          "report-primary"
+        ]
+      },
+      {
+        "id": "report-agrees-with-store",
+        "text": "Reported inventory and reservation totals agree with the store.",
+        "required": true,
+        "verificationCheckIds": [
+          "report-primary",
+          "report-edge"
+        ]
+      },
+      {
+        "id": "report-deterministic-isolated",
+        "text": "The report is deterministic and unrelated skus are unaffected.",
+        "required": false,
+        "verificationCheckIds": [
+          "report-edge"
+        ]
+      },
+      {
+        "id": "report-existing-behavior",
+        "text": "Reserving, fulfilling and simple reports keep working.",
+        "required": false,
+        "verificationCheckIds": [
+          "regression"
+        ]
+      }
+    ],
+    "deterministicFixture": {
+      "id": "asr-inventory-fulfillment-report-reference",
+      "patch": "diff --git a/src/fulfillmentReport.js b/src/fulfillmentReport.js\nindex 4ec4a37..fa82ec3 100644\n--- a/src/fulfillmentReport.js\n+++ b/src/fulfillmentReport.js\n@@ -1,4 +1,4 @@\n-import { RESERVATION_FULFILLED } from \"./inventoryStore.js\";\n+import { RESERVATION_ACTIVE, RESERVATION_CANCELLED, RESERVATION_FULFILLED } from \"./inventoryStore.js\";\n \n function bucket(reservations) {\n   return {\n@@ -19,9 +19,9 @@ export function buildFulfillmentReport(store) {\n       sku: item.sku,\n       received: item.received,\n       available: item.available,\n-      active: bucket(mine.filter((reservation) => reservation.status !== RESERVATION_FULFILLED)),\n+      active: bucket(mine.filter((reservation) => reservation.status === RESERVATION_ACTIVE)),\n       fulfilled: bucket(mine.filter((reservation) => reservation.status === RESERVATION_FULFILLED)),\n-      cancelled: bucket([])\n+      cancelled: bucket(mine.filter((reservation) => reservation.status === RESERVATION_CANCELLED))\n     };\n   });\n   const sum = (selector) => rows.reduce((total, row) => total + selector(row), 0);\ndiff --git a/src/inventoryStore.js b/src/inventoryStore.js\nindex edd48fe..fa579cf 100644\n--- a/src/inventoryStore.js\n+++ b/src/inventoryStore.js\n@@ -4,6 +4,16 @@ export const RESERVATION_ACTIVE = \"active\";\n export const RESERVATION_FULFILLED = \"fulfilled\";\n export const RESERVATION_CANCELLED = \"cancelled\";\n \n+const RESERVATION_STATUSES = new Set([RESERVATION_ACTIVE, RESERVATION_FULFILLED, RESERVATION_CANCELLED]);\n+\n+export class InvalidReservationStatusError extends Error {\n+  constructor(status) {\n+    super(`invalid reservation status: ${String(status)}`);\n+    this.name = \"InvalidReservationStatusError\";\n+    this.code = \"INVALID_RESERVATION_STATUS\";\n+  }\n+}\n+\n export class UnknownSkuError extends Error {\n   constructor(sku) {\n     super(`unknown sku: ${sku}`);\n@@ -104,6 +114,9 @@ export class InventoryStore {\n   }\n \n   setReservationStatus(id, status) {\n+    if (!RESERVATION_STATUSES.has(status)) {\n+      throw new InvalidReservationStatusError(status);\n+    }\n     const record = this.#reservations.get(id);\n     if (!record) {\n       throw new UnknownReservationError(id);\ndiff --git a/src/reservationService.js b/src/reservationService.js\nindex a7b29c5..e4ccad3 100644\n--- a/src/reservationService.js\n+++ b/src/reservationService.js\n@@ -1,10 +1,19 @@\n import {\n   RESERVATION_ACTIVE,\n+  RESERVATION_CANCELLED,\n   RESERVATION_FULFILLED,\n   UnknownReservationError\n } from \"./inventoryStore.js\";\n import { assertPositiveInteger } from \"./quantity.js\";\n \n+export class InvalidTransitionError extends Error {\n+  constructor(id, from, to) {\n+    super(`reservation ${id} cannot move from ${from} to ${to}`);\n+    this.name = \"InvalidTransitionError\";\n+    this.code = \"INVALID_TRANSITION\";\n+  }\n+}\n+\n export class ReservationService {\n   constructor(store) {\n     this.store = store;\n@@ -28,8 +37,14 @@ export class ReservationService {\n     if (!record) {\n       throw new UnknownReservationError(reservationId);\n     }\n+    if (record.status === RESERVATION_CANCELLED) {\n+      return record;\n+    }\n+    if (record.status !== RESERVATION_ACTIVE) {\n+      throw new InvalidTransitionError(reservationId, record.status, RESERVATION_CANCELLED);\n+    }\n     this.store.returnStock(record.sku, record.quantity);\n-    return this.store.setReservationStatus(reservationId, \"canceled\");\n+    return this.store.setReservationStatus(reservationId, RESERVATION_CANCELLED);\n   }\n \n   /**\n@@ -40,6 +55,12 @@ export class ReservationService {\n     if (!record) {\n       throw new UnknownReservationError(reservationId);\n     }\n+    if (record.status === RESERVATION_FULFILLED) {\n+      return record;\n+    }\n+    if (record.status !== RESERVATION_ACTIVE) {\n+      throw new InvalidTransitionError(reservationId, record.status, RESERVATION_FULFILLED);\n+    }\n     return this.store.setReservationStatus(reservationId, RESERVATION_FULFILLED);\n   }\n }\n",
+      "notes": "Validates lifecycle statuses in the store, enforces active-only transitions in the service and buckets the report by exact status."
+    }
+  }
+]

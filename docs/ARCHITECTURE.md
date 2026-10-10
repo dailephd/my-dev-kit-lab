@@ -131,7 +131,7 @@ flowchart TD
 
 ## Experiment-plugin runtime
 
-`src/experiments/defaultRegistry.ts` registers seven plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, the released v0.8.1 `retrieval-query-strategy-comparison`, and the released v0.8.2 `context-pack-generation`. `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
+`src/experiments/defaultRegistry.ts` registers eight plugins: `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, the released v0.7.0 `context-window-scaling`, the released v0.8.0 `retrieval-precision-recall`, the released v0.8.1 `retrieval-query-strategy-comparison`, the released v0.8.2 `context-pack-generation`, and the v0.9.0 `agent-success-rate` (the eighth plugin; the seven earlier IDs and their order are unchanged). `src/experiments/runner.ts` resolves the requested plugin and target, validates configuration, executes the plugin, normalizes output, and invokes plugin-aware report generation.
 
 The `context-strategy-comparison` plugin delegates trial execution and comparison logic to the established controlled-experiment infrastructure. This preserves:
 
@@ -546,7 +546,7 @@ flowchart LR
 - `plugin.ts` gains a campaign branch: when `config.campaignPreset` is set, it runs `evaluateWarmIndexRealAgentCampaign` instead of the existing `evaluateWarmIndexFakeAgents` fake-agent path; the unchanged index/execution layer (`warmIndexSession.ts`, `execution.ts`, `executionArtifact.ts`) and metrics owner (`metrics.ts`) are reused unmodified.
 - `agentEvaluation.ts` — `evaluateWarmIndexRealAgentCampaign` is the campaign agent-evidence owner: one real-provider run per task side with context evidence, using a neutral temporary working directory (cleaned up best-effort in a `finally` block) so the provider process cannot see the target's own working tree.
 - `realAgentPrompt.ts` — `buildWarmIndexRealAgentPrompt` builds the single real-agent prompt from already-computed warm-index context evidence; it does not itself call a provider or parse output.
-- `src/agents` owns the frozen Codex/Claude stdin transport (Codex JSONL `exec --json --ephemeral ...`; Claude JSON `--restricted -p --output-format json ...`) and `classifyAgentRunOutcome`'s outcome mapping (`completed`, `token-unavailable`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`); the campaign path reuses these adapters rather than duplicating provider transport.
+- `src/agents` owns the frozen Codex/Claude stdin transport (Codex JSONL `exec --json --ephemeral ...`; Claude JSON `--restricted -p --output-format json ...`) and `classifyAgentRunOutcome`'s outcome mapping (`completed`, `failed`, `invalid-output`, `agent-unavailable`, `agent-limit-reached`, `timeout`; token availability is reported separately as token evidence, not as an outcome status); the campaign path reuses these adapters rather than duplicating provider transport.
 - `runExperimentRunCommand.ts` is the orchestration boundary: it parses `--campaign`/`--include-real-agents`, rejects incompatible flags, runs the plugin, and — only for a completed campaign run — invokes `runWarmIndexCampaignPresentation.ts` with the run's execution-artifact path and campaign agent id. The warm-index plugin itself does not call report, plot, screenshot, or gallery code; cross-presentation orchestration stays a command-layer responsibility, not a plugin responsibility.
 - `runWarmIndexCampaignPresentation.ts` sequences the existing, unmodified report → plots → screenshot pipeline for a completed campaign run, then calls `writeWarmIndexCampaignGallery.ts`.
 - `writeWarmIndexCampaignGallery.ts` (`src/gallery/`) builds a bounded, 3-item campaign gallery (report, plots, bounded `warm-index-execution.json` evidence) with relative POSIX paths and no links to raw agent stdout/stderr/telemetry, reusing `writeGalleryManifest.ts` rather than a parallel gallery contract. A captured report screenshot is optional metadata on the report gallery item; it is not a fourth gallery item and does not replace the execution-evidence item.
@@ -790,6 +790,58 @@ Bundled execution loads the frozen corpus, builds a call-graph-enabled index per
 External-local execution uses the existing local repository subject safety boundary. It snapshots the target, stages private scratch, calculates science with real identities, checks the eligible universe and target immutability, projects identities for privacy, asserts the projection, and then persists projected artifacts and redacted report previews. It never persists a durable external-local pack body. A failure in safety or privacy checks prevents normal durable output.
 
 The frozen answer key has no expected call-edge or test identities. Accordingly, call relationships and tests may appear descriptively in a pack; v0.8.2 does not score call-edge coverage or test coverage.
+
+## Agent-success-rate evaluation architecture (v0.9.0)
+
+Status: shipped in v0.9.0.
+
+`agent-success-rate` is an experimental Lab plugin on the existing experiment runtime (`src/experiments/plugins/agentSuccessRate/`). It does not add a parallel runner: `src/experiments/runner.ts` resolves it like any other plugin, and its typed report section is projected by `src/report/experiments/buildAgentSuccessRateReport.ts` and `agentSuccessRateReportModel.ts` into the shared JSON, HTML, and text reports.
+
+### Ownership
+
+| Responsibility | Owner |
+|---|---|
+| Task contract (`AgentSuccessTaskV1`): instruction, trusted task and regression checks, behavior facts, edit scopes, protected files, deterministic reference patch | `src/evaluation/agentSuccess/taskTypes.ts`, `validateAgentSuccessTask.ts`, `taskPaths.ts` |
+| Corpus reading and validation; resource resolution from the package root, not the working directory | `readAgentSuccessCorpus.ts`, `validateAgentSuccessCorpus.ts`, `benchmarks/contracts/agent-success-rate-tasks.json`, `agent-success-rate-project-profiles.json` |
+| Disposable benchmark copies with an ephemeral Git baseline, ownership-checked creation and removal | `src/evaluation/benchmarkSandbox/` |
+| Patch extraction, unified-diff parsing, patch path policy, `git apply --check` then apply | `extractPatchCandidate.ts`, `parseUnifiedDiff.ts`, `validatePatchPolicy.ts`, `applyPatchToSandbox.ts` |
+| Changed-file capture (added/modified/deleted files, line counts) | `src/evaluation/changeSet/` |
+| Trusted check execution and baseline validity | `runVerificationCheck.ts`, `assessBaseline.ts` |
+| Source-only task projection and treatment contexts (`raw-full-file`, `context-pack`) | `agentTaskProjection.ts`, `contextGeneration.ts`, `realAgentPrompt.ts` |
+| Provider invocation, attempt evidence, repair lifecycle | `realAgentExecution.ts`, `repairExecution.ts`, `repairPolicy.ts`, `repairFeedback.ts`, `attemptEvidence.ts` |
+| Execution artifact and scientific analysis (separate modules and artifacts) | `execution.ts`, `executionArtifact.ts`, `analysis.ts`, `repairAnalysis.ts`, `metrics.ts`, `analysisArtifact.ts` |
+| Process execution with bounded output, timeout, and process-tree termination | `src/core/runMeasuredCommand.ts`, `src/core/processTree.ts` |
+
+### Data flow
+
+1. The plugin validates its configuration (deterministic-fixture by default; real-agent only with an explicit provider and authorization) and reads the bundled corpus from the package root.
+2. For each selected task and each treatment, a fresh disposable copy is created and a throwaway Git baseline is recorded. The baseline is verified first; a task whose baseline is not evaluable is excluded from rates.
+3. Deterministic mode feeds the task's reference patch into the same patch pipeline a real patch uses. Real-agent mode builds a source-only prompt, invokes the provider with the prompt on standard input in an empty neutral working directory, and extracts the proposed diff.
+4. The patch policy and Git check run before the diff is applied. The changed files are captured, trusted checks run on the changed state, and protected-file integrity is verified. Task success is derived only from these checks.
+5. On an evaluable implementation failure with repair enabled, a new clean disposable copy is created and a bounded repair prompt (fixed-category feedback plus the untrusted previous diff) is sent. At most three attempts run per treatment; the final edit-quality metrics use only the final attempt, while durations and tokens are accumulated across attempts.
+6. Execution evidence is persisted (`agent-success-rate-execution.json`), analysed by a separate pure module (`agent-success-rate-analysis.json`), and projected into the reports. Disposable copies and provider working directories are removed after ownership checks.
+
+### Boundaries
+
+- **The provider proposes; the Lab applies.** Providers never edit the benchmark project. A rejected patch (an implementation failure) is distinct from an infrastructure failure, and a provider failure is distinct from an implementation failure; only evaluable implementation failures are repair-eligible.
+- **Trusted checks stay evaluator-side.** Tests, check commands, behavior facts, edit scopes, and reference patches are removed from the provider-facing projection and are checked structurally by tests; repair feedback uses a fixed vocabulary.
+- **Canonical benchmark projects are immutable.** All execution happens in disposable copies beneath the output directory; the installed package is never written to.
+- **Cleanup requires ownership.** The Lab removes only sandbox and attempt directories it created, and reports a removal failure instead of hiding it; a failed removal prevents a clean success.
+- **The neutral working directory is not an operating-system sandbox.** It keeps the provider out of the benchmark and repository directories, but a provider process can still use the host as its own account permits. Provider invocation uses fixed restricted argument lists, but the provider inherits the host environment and the Lab does not claim to prevent every malicious provider action.
+- **Deterministic fixtures do not measure agent performance.** They validate the pipeline and the corpus.
+- **Unavailable evidence is never zero.** Metrics carry an explicit availability (`available`, `unavailable`, `not-applicable`) and a reason.
+
+### Shared process-runner change
+
+`src/core/runMeasuredCommand.ts` now attaches error handlers to the child's `stdout` and `stderr` streams. When the operating system refuses to start a process (for example because of a very long working-directory path on Windows), it can also report the never-connected pipes as errors; previously that surfaced as an unhandled `ENOTCONN` error that ended the whole process. The first cause is now recorded once on the command result, an `ENOENT` on an existing working directory carries the directory length in its message, and the existing timeout, output-limit, and process-tree behavior is unchanged. Long Windows paths are not made to work: the affected treatment ends as a controlled infrastructure failure (never a success).
+
+### Installed-package boundary
+
+The bundled corpus, project profiles, and canonical projects ship in the package and are resolved from the package root. The packed-package verifier (`scripts/verify-packed-package.mjs` with `scripts/verifyPackedPackageAgentSuccess.mjs`) packs once, installs the exact tarball in a clean consumer, runs the installed CLI against the corpus, simulates Codex/Claude providers with fake executables (no paid provider is ever launched), exercises repair campaigns, and checks immutability and package hygiene.
+
+### Non-goals
+
+v0.9.0 does not add campaign scheduling, resume, skip-completed runs, rate-limit pause handling, a provider telemetry taxonomy, strict prompt modes, a report section registry, or generalized gallery presentation (v0.9.1 and v0.9.2). It does not add a weighted score, an automatic winner, or statistical-significance testing.
 
 ## Target model
 

@@ -1,0 +1,14 @@
+{
+  "name": "agent-success-inventory-node",
+  "version": "0.0.0",
+  "description": "Dependency-free JavaScript implementation benchmark: an in-memory inventory and reservation system.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test \"tests/*.check.mjs\""
+  }
+}

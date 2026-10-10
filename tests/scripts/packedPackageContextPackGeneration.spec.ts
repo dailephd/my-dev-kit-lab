@@ -72,7 +72,8 @@ describe("packed-package acceptance for context-pack-generation", () => {
   it("requires the experiment id last, after every earlier id in the existing order", () => {
     const required = /const REQUIRED_EXPERIMENT_IDS = \[([^\]]*)\]/.exec(verifierSource)?.[1] ?? "";
     const ids = required.split(",").map((entry) => entry.trim().replace(/"/g, ""));
-    expect(ids).toEqual([
+    // v0.9.0 appends agent-success-rate as the eighth required plugin; the seven historical ids and their order are unchanged.
+    expect(ids.slice(0, 7)).toEqual([
       "context-strategy-comparison",
       "warm-index-reuse",
       "incremental-change-staleness",

@@ -202,8 +202,8 @@ describe("plugin metadata and registration", () => {
   it("advertises plot without screenshot and is registered before retrieval-precision-recall and retrieval-query-strategy-comparison", () => {
     expect(contextWindowScalingMetadata.supportedOutputs).toEqual(["json", "text", "html", "plot"]);
     const registry = createDefaultExperimentPluginRegistry();
-    expect(registry.list()).toHaveLength(7);
-    expect(registry.list().map((p) => p.id).at(-4)).toBe("context-window-scaling");
-    expect(registry.list().map((p) => p.id).slice(-3)).toEqual(["retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation"]);
+    expect(registry.list()).toHaveLength(8);
+    expect(registry.list().map((p) => p.id).at(-5)).toBe("context-window-scaling");
+    expect(registry.list().map((p) => p.id).slice(-4)).toEqual(["retrieval-precision-recall", "retrieval-query-strategy-comparison", "context-pack-generation", "agent-success-rate"]);
   });
 });
