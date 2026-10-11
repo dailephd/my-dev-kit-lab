@@ -61,9 +61,11 @@ export const AGENT_SUCCESS_GATE_LABELS = [
 
 const PLUGIN_DIR = "dist/src/experiments/plugins/agentSuccessRate";
 const pluginModules = [
-  "agentTaskProjection", "analysis", "analysisArtifact", "analysisTypes", "attemptEvidence", "config", "contextGeneration", "execution",
+  "agentTaskProjection", "analysis", "analysisArtifact", "analysisTypes", "attemptEvidence",
+  "campaignCheckpoint", "campaignCheckpointStore", "campaignEvidenceQuality", "campaignExecution", "campaignIdentity",
+  "campaignProgress", "campaignQueue", "campaignRecovery", "campaignResumableExecution", "config", "contextGeneration", "execution",
   "executionArtifact", "executionTypes", "index", "metadata", "metrics", "plugin", "realAgentExecution", "realAgentPrompt",
-  "repairAnalysis", "repairExecution", "repairFeedback", "repairPolicy", "types"
+  "repairAnalysis", "repairExecution", "repairFeedback", "repairPolicy", "timeoutPresets", "types"
 ].map((name) => `${PLUGIN_DIR}/${name}.js`);
 const corpusModules = [
   "applyPatchToSandbox", "assessBaseline", "corpusTypes", "extractPatchCandidate", "index", "parseUnifiedDiff", "patchTypes", "readAgentSuccessCorpus",
@@ -73,13 +75,19 @@ const sandboxModules = ["createBenchmarkSandbox", "errors", "gitExecutor", "inde
   (name) => `dist/src/evaluation/benchmarkSandbox/${name}.js`
 );
 const changeSetModules = ["captureChangeSet", "index", "types"].map((name) => `dist/src/evaluation/changeSet/${name}.js`);
-const reportModules = ["agentSuccessRateReportModel", "buildAgentSuccessRateReport", "renderAgentSuccessRateHtml", "renderAgentSuccessRateText"].map(
+const reportModules = [
+  "agentSuccessRateReportModel", "buildAgentSuccessRateReport", "renderAgentSuccessRateHtml", "renderAgentSuccessRateText",
+  "agentSuccessCampaignProgressReportModel", "buildAgentSuccessCampaignProgressReport", "renderAgentSuccessCampaignProgressHtml",
+  "renderAgentSuccessCampaignProgressText", "writeAgentSuccessCampaignProgressReport"
+].map(
   (name) => `dist/src/report/experiments/${name}.js`
 );
 const providerModules = [
   "dist/src/agents/runAgentPrompt.js",
   "dist/src/agents/agentRegistry.js",
   "dist/src/agents/parseAgentTokenUsage.js",
+  "dist/src/agents/normalizeAgentTelemetry.js",
+  "dist/src/agents/providerBuildObservation.js",
   "dist/src/agents/adapters/codexAdapter.js",
   "dist/src/agents/adapters/claudeAdapter.js",
   "dist/src/evaluation/classifyAgentRunOutcome.js"

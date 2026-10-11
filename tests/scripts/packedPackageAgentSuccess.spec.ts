@@ -1,9 +1,9 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { applyPatchToSandbox, assertReadAgentSuccessCorpus } from "../../src/evaluation/agentSuccess/index.js";
 import { createDefaultExperimentPluginRegistry } from "../../src/experiments/defaultRegistry.js";
-import { makeSandbox, useSandboxTestCleanup } from "../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
+import { makeSandbox, makeTempDir, useSandboxTestCleanup } from "../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
 // @ts-expect-error -- the acceptance module is plain ESM JavaScript that ships with the verifier, not a typed library.
 import * as acceptance from "../../scripts/verifyPackedPackageAgentSuccess.mjs";
 
@@ -20,8 +20,36 @@ const codeOf = (text: string): string => text.split("\n").filter((line) => !/^\s
 
 const sourceOf = (compiled: string): string => path.resolve(compiled.replace(/^dist\//, "").replace(/\.js$/, ".ts"));
 const tsFilesIn = (directory: string): string[] => readdirSync(path.resolve(directory)).filter((name) => name.endsWith(".ts") && !name.endsWith(".d.ts"));
+const campaignModules = [
+  "campaignCheckpoint", "campaignCheckpointStore", "campaignEvidenceQuality", "campaignExecution", "campaignIdentity",
+  "campaignProgress", "campaignQueue", "campaignRecovery", "campaignResumableExecution", "timeoutPresets"
+];
 
 describe("PACK-003..008 required packed contents and plugin list", () => {
+  it("requires the v0.9.1 campaign owners and their installed progress/provider dependencies explicitly", () => {
+    for (const name of campaignModules) expect(requiredPaths).toContain(`dist/src/experiments/plugins/agentSuccessRate/${name}.js`);
+    for (const name of ["agentSuccessCampaignProgressReportModel", "buildAgentSuccessCampaignProgressReport", "renderAgentSuccessCampaignProgressHtml", "renderAgentSuccessCampaignProgressText", "writeAgentSuccessCampaignProgressReport"]) {
+      expect(requiredPaths).toContain(`dist/src/report/experiments/${name}.js`);
+    }
+    for (const name of ["normalizeAgentTelemetry", "providerBuildObservation"]) expect(requiredPaths).toContain(`dist/src/agents/${name}.js`);
+    expect(new Set(requiredPaths).size).toBe(requiredPaths.length);
+    expect(requiredPaths).not.toContain("dist/tests/scripts/packedPackageAgentSuccess.spec.js");
+    expect(requiredPaths).not.toContain("src/experiments/plugins/agentSuccessRate/campaignRecovery.ts");
+  });
+
+  it.each(campaignModules)("rejects an exact test tarball missing required campaign owner %s before installed execution", async (name) => {
+    const missing = `dist/src/experiments/plugins/agentSuccessRate/${name}.js`;
+    const runInstalledCli = vi.fn(() => { throw new Error("must not execute an incomplete package"); });
+    await expect(acceptance.runAgentSuccessPackedAcceptance({
+      repoRoot, tempRoot: makeTempDir("lab-pack-missing-"), installedPackageRoot: repoRoot,
+      tarballFiles: new Set(requiredPaths.filter((entry) => entry !== missing)),
+      snapshotDirectory: async () => [], diffSnapshots: () => [],
+      fail: (gate: string, message: string) => { throw new Error(`${gate}: ${message}`); },
+      describeChildResult: () => "", runInstalledCli, cliCommand: {}, envWithBin: {}
+    })).rejects.toThrow(`Required agent-success-rate file(s) missing from the exact tarball: ${missing}`);
+    expect(runInstalledCli).not.toHaveBeenCalled();
+  });
+
   it("PACK-003: every required compiled path has a TypeScript source, so a rename cannot silently weaken the gate", () => {
     const compiled = requiredPaths.filter((entry) => entry.startsWith("dist/"));
     expect(compiled.length).toBeGreaterThanOrEqual(50);

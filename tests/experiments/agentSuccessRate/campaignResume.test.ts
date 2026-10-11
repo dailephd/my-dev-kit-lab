@@ -45,6 +45,8 @@ describe("simulated version two resume and limit continuation", () => {
     const r = await f.run(newIntent, { hooks: { publication: async (g, phase) => { if ([2,5].includes(g) && phase === "published") { const cp = (await f.read()).checkpoint!; expect(cp.units.find(u => u.state === "in-progress")!.epochs.at(-1)!.phase).toBe("reserved"); reserved.push(cp.integrity); expect(agent.requests.length).toBe(g === 2 ? 0 : 1); } } } });
     expect(r.errors).toEqual([]); expect(r.status).toBe("completed"); expect(reserved).toHaveLength(2); expect(new Set(snapshots).size).toBe(2); expect(agent.requests).toHaveLength(2);
   }, 90000);
+  // Four real Git evaluations plus immutable-history/finalization verification took 96s alone
+  // and exceeded 120s in a Windows file run while checkpoints kept advancing. Bound this test only.
   it("RSP-014/RSP-016/RSP-017/RSP-029/RSP-030 resumes next selected case once and finalizes existing scientific schemas", async () => {
     const agent = makeScriptedProvider(() => ({ answer: GOOD_ANSWER })); const f = await fixture(simulated(agent.runAgent), [makeTask({ id: "z-first" }, DECOY_REFERENCE_PATCH), makeTask({ id: "a-later" }, DECOY_REFERENCE_PATCH)]);
     const first = await f.run(newIntent, { limit: "one-case" }); expect(first.errors).toEqual([]); expect(first.status).toBe("partial"); expect(first.checkpoint!.units.map(u => u.state)).toEqual(["completed","completed","pending","pending"]); expect(first.scientificArtifactsWritten).toBe(false);
@@ -52,7 +54,7 @@ describe("simulated version two resume and limit continuation", () => {
     expect(agent.requests.map(r=>r.runId)).toEqual(["z-first.codex.raw-full-file","z-first.codex.context-pack","a-later.codex.raw-full-file","a-later.codex.context-pack"]);
     const e = JSON.parse(await readFile(path.join(f.outputRoot,"agent-success-rate-execution.json"),"utf8")); const a = JSON.parse(await readFile(path.join(f.outputRoot,"agent-success-rate-analysis.json"),"utf8")); expect(validateAgentSuccessRateExecutionArtifact(e)).toEqual([]); expect(validateAgentSuccessRateAnalysisArtifact(a)).toEqual([]); expect(validateAgentSuccessRateArtifactFamily(e,a)).toEqual([]);
     const complete = await f.run(resume); expect(complete.errors).toEqual([]); expect(complete.status).toBe("already-complete"); expect(agent.requests).toHaveLength(4); expect(complete.checkpoint!.generation).toBe(second.checkpoint!.generation);
-  }, 120000);
+  }, 180000);
   it("RSP-015/RSP-010 fully evaluated failure with bounded repairs is skipped forever", async () => {
     const agent = makeScriptedProvider(() => ({ answer: MALFORMED_ANSWER })); const f = await fixture(simulated(agent.runAgent,2)); const first = await f.run(newIntent);
     expect(first.errors).toEqual([]); expect(first.status,JSON.stringify(first.checkpoint!.units[0]!.epochs[0]!.terminal?.evidence)).toBe("completed"); expect(agent.requests).toHaveLength(6); first.checkpoint!.units.forEach(u => { expect(u.completion!.taskSuccess).toBe(false); expect(u.completion!.evidence.attempts!.map(a=>a.attemptNumber)).toEqual([1,2,3]); });

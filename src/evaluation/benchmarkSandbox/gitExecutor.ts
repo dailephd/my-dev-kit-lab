@@ -66,7 +66,9 @@ export async function runSandboxGit(
   const result = await runMeasuredCommand({
     commandId,
     executable: "git",
-    args: ["-c", "core.quotepath=false", "-c", "core.autocrlf=false", "-c", "core.fsmonitor=false", ...args],
+    // Initialization creates .git paths before repository-local configuration exists.
+    // Keep long-path support command-local so even that first invocation is covered.
+    args: ["-c", "core.quotepath=false", "-c", "core.autocrlf=false", "-c", "core.longpaths=true", "-c", "core.fsmonitor=false", ...args],
     cwd: target.projectRoot,
     outDir: path.join(target.evidenceRoot, "git"),
     env,
