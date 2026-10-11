@@ -312,11 +312,16 @@ export function renderExperimentRunHelp(): string {
     "                                                      with fixed-category feedback and the untrusted previous diff; it",
     "                                                      never follows a provider, sandbox or verification infrastructure",
     "                                                      problem.",
-    "                                                      Writes report.json, report.html and report.txt plus",
+    "                                                      Ordinary noncampaign execution writes report.json, report.html and report.txt plus",
     "                                                      agent-success-rate-execution.json and",
     "                                                      agent-success-rate-analysis.json. Initial-attempt and final success",
     "                                                      are reported separately. Results are descriptive for the finite",
-    "                                                      corpus: no winner, ranking, composite score or significance claim."
+    "                                                      corpus: no winner, ranking, composite score or significance claim.",
+    "",
+    "agent-success-rate resumable campaigns and timeouts only:",
+    ...AGENT_CAMPAIGN_OPTION_HELP.map(line => `  ${line}`),
+    "Examples (replace bracketed values; explicit source-root is required when package source proof is unavailable):",
+    ...AGENT_CAMPAIGN_EXAMPLES.map(line => `  ${line}`)
   ].join("\n");
 }
 
@@ -545,3 +550,4 @@ export function renderTutorialRunHelp(): string {
     "  2   Invalid command usage"
   ].join("\n");
 }
+import { AGENT_CAMPAIGN_EXAMPLES, AGENT_CAMPAIGN_OPTION_HELP } from "../commands/runExperimentDescribeCommand.js";

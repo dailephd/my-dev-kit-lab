@@ -938,3 +938,12 @@ Cumulative versus final: durations and tokens accumulate over all provider attem
 - Paired differences report the mean of the `raw-full-file` values, the mean of the `context-pack` values, and the mean of `context-pack` minus `raw-full-file` over matched cases.
 - These are **descriptive**. No weighted composite score, ranking, automatic winner, causal claim, or statistical-significance test is produced (`statisticalEffect` is `not-assessed`). The corpus is finite and controlled, so results do not generalize beyond it, and a single run carries no variance estimate.
 - Provider telemetry can be unavailable, and in deterministic-fixture mode both treatments receive the same reference patch, so those results measure the pipeline only.
+
+
+## Campaign progress evidence (v0.9.1 implemented; unreleased)
+
+Token evidence levels are `provider-reported`, `cli-reported`, `parsed-from-output`, `unavailable`, and `estimated`. The original telemetry source is retained. Numeric availability is recorded per token field, so partial measurements remain partial and normalization never fills missing fields or invents totals; unattributed OpenTelemetry evidence is unavailable. Duration provenance is `lab-wall-clock` for valid observed elapsed time and `unavailable` for missing or invalid values; campaign comparison time is Lab-measured wall-clock duration, not provider-native time.
+
+The plugin-specific progress projection is `my-dev-kit-lab-agent-success-rate-campaign-progress-v1`; the writer publishes immutable revision-specific JSON, HTML, and text snapshots. It accounts for selected cases and treatment units, while execution epochs remain recovery history and are excluded from selected-unit counts. Paused provider-limit and uncertain states remain distinct. Partial progress is not a complete scientific analysis artifact.
+
+Evidence quality is metric-specific: task outcomes, token measurements, and duration can have different strong, partial, or unavailable classifications. Strong describes the completeness and provenance of the available evidence; it is not statistical significance. Partial evidence does not mean task failure. Missing token evidence is unavailable, never zero; estimated tokens are not provider usage. Duration is Lab-measured wall-clock time, not provider-native time. Comparisons use matched completed cases and state their denominator and exclusions; the existing paired direction is preserved. These descriptive comparisons establish no causal effect, winner, p-value, or general provider performance.

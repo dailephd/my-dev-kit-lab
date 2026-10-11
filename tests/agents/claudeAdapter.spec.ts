@@ -101,6 +101,9 @@ describe("claudeAdapter", () => {
   });
 
   describe("v0.5.2 Batch 2 -- Claude JSON final-answer parsing", () => {
+    it.each(['{"result":42}', '{"result":null}', '{"result":', '[{"result":"patch"}]', '"patch"'])("P2-TEL-002 rejects invalid result envelopes: %s", (text) => {
+      expect(parseClaudeFinalAnswer(text)).toEqual({ finalAnswerText: "", finalAnswerParseStatus: "empty" });
+    });
     it("parses the result field from a JSON envelope", () => {
       const result = parseClaudeFinalAnswer(
         JSON.stringify({

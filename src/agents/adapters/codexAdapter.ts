@@ -1,6 +1,7 @@
 import { runMeasuredCommand } from "../../core/runMeasuredCommand.js";
 import { applyPromptToCommandTemplate } from "../runAgentPrompt.js";
 import { parseAgentTokenUsage } from "../parseAgentTokenUsage.js";
+import { trustedProviderLaunch } from "../providerBuildObservation.js";
 import type { AgentAdapter, AgentFinalAnswerParseResult, AgentRunRequest, AgentRunResult } from "../types.js";
 
 // v0.5.2 Batch 2 -- frozen stdin invocation for the real-agent evaluation transport. Every flag
@@ -55,14 +56,19 @@ export const codexAdapter: AgentAdapter = {
 /**
  * Recognizes a Codex JSONL event stream (at least one line parses to an object with a string
  * `type`) and, when recognized, uses the LAST `item.completed` `agent_message` text as the final
- * answer -- never the raw JSONL. Falls back to the legacy plain-text behavior when no event-shaped
- * line is found, so non-JSONL Codex output (and existing tests) keep working unchanged.
+ * answer -- never the raw JSONL. JSON-shaped output without an answer stays empty. Plain text
+ * retains the legacy fallback. A single formatted JSON event is supported as well.
  */
 export function parseCodexFinalAnswer(text: string): AgentFinalAnswerParseResult {
-  let sawEventLine = false;
+  let sawEventLine = /^[\s]*[\[{]/.test(text);
   let lastAgentMessageText: string | null = null;
 
-  for (const line of text.split(/\r?\n/)) {
+  const candidates = function* (): Iterable<string> {
+    const trimmed = text.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) yield trimmed;
+    for (const match of text.matchAll(/[^\r\n]+/g)) if (match[0].trim() !== trimmed) yield match[0];
+  };
+  for (const line of candidates()) {
     const trimmedLine = line.trim();
     if (!trimmedLine) continue;
     let parsed: unknown;
@@ -72,7 +78,9 @@ export function parseCodexFinalAnswer(text: string): AgentFinalAnswerParseResult
       // Agent output can mix JSONL with incidental non-JSON noise; ignore malformed lines.
       continue;
     }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    if (!parsed || typeof parsed !== "object") continue;
+    sawEventLine = true;
+    if (Array.isArray(parsed)) continue;
     const event = parsed as Record<string, unknown>;
     if (typeof event.type !== "string") continue;
     sawEventLine = true;
@@ -99,7 +107,9 @@ export function parseCodexFinalAnswer(text: string): AgentFinalAnswerParseResult
 export async function runCliAgent(request: AgentRunRequest, adapter: AgentAdapter): Promise<AgentRunResult> {
   const started = Date.now();
   const command = adapter.buildCommand(request);
-  const available = await adapter.isAvailable(request);
+  if (request.trustedExecutable && (request.commandTemplate || request.promptTransport !== "stdin" || adapter.id === "fake-agent")) throw new Error("INVALID_TRUSTED_PROVIDER_REQUEST");
+  const launch = request.trustedExecutable ? await trustedProviderLaunch(request.trustedExecutable, adapter.id as "codex" | "claude") : null;
+  const available = launch !== null || await adapter.isAvailable(request);
   if (!available) {
     const ended = Date.now();
     const status = request.requireAvailable ? "failed" : "skipped";
@@ -132,18 +142,20 @@ export async function runCliAgent(request: AgentRunRequest, adapter: AgentAdapte
 
   const measured = await runMeasuredCommand({
     commandId: `${adapter.id}-agent-run`,
-    commandString: command.command,
-    extraArgs: command.args,
+    ...(launch ? { executable: launch.executable, args: [...launch.prefix, ...command.args], resolveCommand: false } : { commandString: command.command, extraArgs: command.args }),
     cwd: request.commandTemplate?.cwd ?? request.cwd,
     outDir: request.outDir,
     env: request.env,
     timeoutMs: request.timeoutMs,
-    stdinText: command.stdinText
+    stdinText: command.stdinText,
+    ...(launch ? { stdoutMaxBytes: 8 * 1024 * 1024, stderrMaxBytes: 1024 * 1024, terminateProcessTree: true } : {})
   });
   const ended = Date.now();
   const combinedOutput = `${measured.stdout}\n${measured.stderr}`;
   const parsedAnswer = adapter.parseFinalAnswer(measured.stdout || measured.stderr);
   const parsedUsage = adapter.parseTokenUsage(combinedOutput);
+  // Bound campaigns require process-channel diagnostics. Never search final agent message/patch bodies.
+  const condition = launch ? trustedProcessCondition(measured.stdout, measured.stderr, measured.timedOut === true) : null;
   return {
     runId: request.runId,
     agentId: adapter.id,
@@ -169,6 +181,25 @@ export async function runCliAgent(request: AgentRunRequest, adapter: AgentAdapte
     tokenUsageSource: parsedUsage.tokenUsageSource,
     tokenUsageReliability: parsedUsage.tokenUsageReliability,
     warnings: parsedUsage.warnings,
-    errors: measured.ok ? [] : [measured.error ?? "Agent command failed."]
+    errors: [...(measured.ok ? [] : [measured.error ?? "Agent command failed."]), ...(condition === "limit" ? ["Provider rate limit reached."] : condition === "timeout" ? ["Provider command timed out."] : [])]
   };
+}
+
+function trustedProcessCondition(stdout: string, stderr: string, timedOut: boolean): "limit" | "timeout" | null {
+  if (timedOut) return "timeout";
+  const diagnostics: string[] = [];
+  const isPatch = (text: string) => /^(?:diff --git |@@ |\+\+\+ |--- )/m.test(text);
+  // Non-interactive CLI diagnostic lines, not arbitrary substrings or diff additions.
+  if (!isPatch(stderr)) diagnostics.push(...stderr.split(/\r?\n/).filter(line => /^(?:error:\s*)?(?:rate limit (?:exceeded|reached)|usage limit (?:exceeded|reached)|quota (?:exceeded|exhausted)|too many requests|you(?:'ve| have) (?:hit|reached) (?:your |the )?(?:usage |session |rate )?limit)/i.test(line.trim())));
+  for (const line of stdout.split(/\r?\n/).slice(0, 1000)) {
+    try {
+      const event = JSON.parse(line) as Record<string, unknown>;
+      if (!event || typeof event !== "object") continue;
+      if (event.type !== "error" && event.type !== "turn.failed" && event.is_error !== true) continue;
+      const error = event.error;
+      const message = typeof error === "string" ? error : error && typeof error === "object" ? (error as Record<string, unknown>).message : event.message;
+      if (typeof message === "string" && message.length <= 2048 && !isPatch(message)) diagnostics.push(message);
+    } catch { /* Not a structured error event; agent output is deliberately not diagnostic evidence. */ }
+  }
+  return diagnostics.some(text => /\b(?:rate\s+limit|usage\s+limit|quota|too many requests|session\s+limit)\b/i.test(text)) ? "limit" : null;
 }

@@ -43,6 +43,8 @@ describe("RPR agent-success-rate typed report section", () => {
   it("RPR-040: the report carries a typed section built from the calculated analysis only", () => {
     const report = build(realRun);
     const section = report.agentSuccessRate!;
+    // REPORT-LEGACY: ordinary runs gain no operational campaign field.
+    expect(section).not.toHaveProperty("campaignEvidence");
     expect(section).toMatchObject({
       schemaVersion: "my-dev-kit-lab-agent-success-rate-report-v1",
       identity: { executionMode: "real-agent", providerId: "codex", repairAttempts: 2, maxAttemptsPerTreatment: 3, timeoutMs: 30000, caseCount: 3, treatmentOutcomeCount: 6 }

@@ -1,0 +1,30 @@
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { expect, it, vi } from "vitest";
+import * as observation from "../../src/agents/providerBuildObservation.js";
+import { runExperimentRunCommandFromArgs } from "../../src/commands/runExperimentRunCommand.js";
+import { captureCommand, cliFixture, latestCheckpoint, useCampaignCleanup } from "../experiments/agentSuccessRate/realProviderCampaignTestHelpers.js";
+
+useCampaignCleanup();
+it("RSP-020/RSP-033 public resume rejects changed current source bytes and preserves completed evidence", async () => {
+  const f = await cliFixture();
+  const sourceRoot = path.join(f.root, "source");
+  await mkdir(sourceRoot);
+  await cp(path.join(process.cwd(), "src"), path.join(sourceRoot, "src"), { recursive: true });
+  for (const name of ["package.json", "package-lock.json"]) await cp(path.join(process.cwd(), name), path.join(sourceRoot, name));
+  const flags = [...f.base]; flags[flags.indexOf("--campaign-source-root") + 1] = sourceRoot;
+  const observed = vi.spyOn(observation, "observeProviderBuild");
+  const created = await captureCommand(() => runExperimentRunCommandFromArgs([...flags, "--agent-campaign", "new"], { context: f.context }));
+  expect(created.code).toBe(0);
+  const checkpoint = await latestCheckpoint(f.outputRoot);
+  const scientific = await readFile(path.join(f.outputRoot, "agent-success-rate-execution.json"));
+  const originalPath = path.join(process.cwd(), "src/experiments/plugins/agentSuccessRate/campaignRecovery.ts");
+  const original = await readFile(originalPath);
+  await writeFile(path.join(sourceRoot, "src/experiments/plugins/agentSuccessRate/campaignRecovery.ts"), Buffer.concat([original, Buffer.from("\n// changed current bytes\n")]));
+  const resumed = await captureCommand(() => runExperimentRunCommandFromArgs([...flags, "--agent-campaign", "resume"], { context: f.context }));
+  expect(resumed.code).toBe(1); expect(resumed.stderr).toContain("IDENTITY_MISMATCH");
+  expect(await latestCheckpoint(f.outputRoot)).toEqual(checkpoint);
+  expect(await readFile(path.join(f.outputRoot, "agent-success-rate-execution.json"))).toEqual(scientific);
+  expect(await readFile(originalPath)).toEqual(original);
+  expect(observed).not.toHaveBeenCalled(); expect(f.shim.invocationKeys()).toEqual([]);
+}, 120000);

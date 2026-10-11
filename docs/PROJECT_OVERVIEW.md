@@ -150,8 +150,28 @@ v0.8.0 retrieval precision/recall and v0.8.1 retrieval query strategy comparison
 
 Context-pack generation experiments shipped in v0.8.2.
 
-Version v0.9.0 (the agent-success-rate plugin) is the current release. Planned after it are v0.9.1 and v0.9.2.
+Latest published baseline: v0.9.0.
 
-Normalized provider telemetry, campaign scheduling, prompt hardening, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
+Current implementation: v0.9.1 is implemented on the feature branch but remains unreleased. Pre-release readiness is pending.
+
+Next planned version: v0.9.2.
+
+Hardened provider prompts, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned for v0.9.2. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 
 See [CURRENT_STATE.md](CURRENT_STATE.md) for implemented-versus-planned status and [ROADMAP.md](ROADMAP.md) for semantic version ordering.
+
+
+## v0.9.1 current implementation
+
+The feature branch adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports. It reuses the existing provider adapters and preserves the prior scientific artifact contracts.
+
+These campaign capabilities are implemented on the feature branch but unreleased.
+
+
+## Version lifecycle
+
+The published/current baseline is v0.9.0.
+
+Version 0.9.1 is implemented on the feature branch but unreleased; pre-release readiness is pending.
+
+Version 0.9.2 remains planned.

@@ -5,6 +5,10 @@ import { snapshotProjectTree } from "../../../src/evaluation/benchmarkSandbox/in
 import { FIXTURE_FILES, FIX_PATCH, makeTempDir, useSandboxTestCleanup } from "../../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
 import { PROTECTED_PATCH, README_PATCH, makeTask, makeToolRoot, runAgentSuccess } from "./agentSuccessRateTestHelpers.js";
 import { fakeAgentResult, makeProviderShim, makeSeamAgent, makeSourceBackedKit, type ProviderShim } from "./realAgentTestHelpers.js";
+import type { AgentRunResult, TokenUsageSource, TokenUsageReliability } from "../../../src/agents/types.js";
+import { parseAgentTokenUsage } from "../../../src/agents/index.js";
+import { projectAgentFacingTask } from "../../../src/experiments/plugins/agentSuccessRate/agentTaskProjection.js";
+import { createRealAgentProposalSource, projectAgentSuccessProviderTelemetryV091 } from "../../../src/experiments/plugins/agentSuccessRate/realAgentExecution.js";
 
 useSandboxTestCleanup();
 
@@ -267,7 +271,97 @@ describe("REA simulated real-agent pipeline (claude shim)", () => {
     const aggregate = analysis.analysis.aggregates.find((entry: Json) => entry.treatmentId === "context-pack");
     expect(aggregate.agentTokenMeasurementsAvailable).toBe(0);
     expect(aggregate.agentTokenMeasurementsUnavailable).toBe(1);
+    expect(treatmentOf(execution, CASE_ID, "context-pack").realAgent.providerStatus).toBe("completed");
+    expect(metricOf(analysis, CASE_ID, "context-pack", "taskSuccess")).toMatchObject({ availability: "available", value: true });
+    expect(execution.schemaVersion).toBe("my-dev-kit-lab-agent-success-rate-execution-v1");
+    expect(JSON.stringify([execution, analysis])).not.toMatch(/normalizedTelemetry|tokenUsageSourceConflict/);
   }, 120_000);
+});
+
+describe("P2 normalized telemetry at the provider proposal boundary", () => {
+  async function proposal(result: AgentRunResult, invoke = true) {
+    let calls = 0;
+    const context = { availability: "available" as const, reason: null, selectionPolicyId: "test", myDevKitVersion: null, includedSourceFiles: [], contextChars: 4, estimatedContextTokens: 1, text: "code" };
+    const source = createRealAgentProposalSource({
+      settings: { providerId: "codex", timeoutMs: 100, outDir: makeTempDir("lab-asr-p2-out-"), protectedRoots: [process.cwd()], privateRoots: [], runAgent: async () => { calls++; return result; } },
+      runId: "p2", task: projectAgentFacingTask(makeTask()), forbidden: [],
+      contexts: { "raw-full-file": { ...context, treatmentId: "raw-full-file" }, "context-pack": { ...context, treatmentId: "context-pack" } }
+    });
+    const returned = await source({ treatmentId: "raw-full-file", invoke });
+    return { returned, calls };
+  }
+
+  const sources: Array<[TokenUsageSource, string]> = [["provider-reported", "provider-reported"], ["cli-json", "cli-reported"], ["agent-reported", "parsed-from-output"], ["estimated-from-text", "estimated"], ["otel", "unavailable"], ["unavailable", "unavailable"]];
+  it.each(sources)("P2-TEL-003/004 maps %s in the actual provider path", async (source, evidenceLevel) => {
+    for (const reliability of ["high", "medium", "low", "unavailable"] as TokenUsageReliability[]) {
+      const { returned, calls } = await proposal(fakeAgentResult({ finalAnswerText: FIX_PATCH, tokenUsage: { source, inputTokens: 0, totalTokens: 7 }, tokenUsageSource: source, tokenUsageReliability: reliability }));
+      expect(calls).toBe(1);
+      expect(returned.normalizedTelemetry.tokenUsage).toMatchObject({ source, reliability, evidenceLevel, inputTokens: 0, totalTokens: 7, outputTokens: null });
+      expect(returned.normalizedTelemetry.providerStatus).toBe("completed");
+      expect(returned.agentTokenUsage!.source).toBe(source);
+      if (source === "estimated-from-text" || source === "unavailable") expect(returned.agentTokenUsage!.totalTokens).toBeNull();
+    }
+  });
+
+  it.each([-1, 1.5, NaN, Infinity, -Infinity, "bad"])("P2-TEL-006 rejects invalid boundary count %s while preserving siblings", async (value) => {
+    const result = fakeAgentResult({ finalAnswerText: FIX_PATCH, tokenUsage: { source: "cli-json", totalTokens: value as number, inputTokens: 4, outputTokens: value as number, cachedInputTokens: value as number, reasoningTokens: value as number }, tokenUsageSource: "cli-json" });
+    const { returned } = await proposal(result);
+    expect(returned.normalizedTelemetry.tokenUsage).toMatchObject({ totalTokens: null, inputTokens: 4, outputTokens: null, cachedInputTokens: null, reasoningTokens: null, numericAvailability: "available" });
+    expect(returned.agentTokenUsage).toMatchObject({ totalTokens: null, inputTokens: 4, outputTokens: null });
+  });
+
+  it("P2-TEL-005/015 completed without tokens retains independent outcome and excludes sensitive evidence", async () => {
+    const result = fakeAgentResult({ finalAnswerText: `${FIX_PATCH}\nquota timeout rate limit`, cwd: "PRIVATE_PATH", stdoutPath: "PRIVATE_STDOUT", stderrPath: "PRIVATE_STDERR", args: ["PRIVATE_PROMPT"], tokenUsage: { source: "unavailable", rawText: "PRIVATE_CREDENTIAL" } });
+    const { returned } = await proposal(result);
+    expect(returned.kind).toBe("proposal");
+    expect(returned.normalizedTelemetry).toMatchObject({ providerStatus: "completed", tokenUsage: { condition: "token-unavailable", totalTokens: null, inputTokens: null, outputTokens: null } });
+    expect(JSON.stringify(returned.normalizedTelemetry)).not.toMatch(/PRIVATE_|rawText|stdout|stderr|prompt|cwd|credential/);
+  });
+
+  it("P2-TEL-007 preserves parser-derived partial totals in the CLI channel", async () => {
+    const parsed = parseAgentTokenUsage('{"usage":{"input_tokens":5}}');
+    const { returned } = await proposal(fakeAgentResult({ ...parsed, finalAnswerText: FIX_PATCH }));
+    expect(returned.normalizedTelemetry.tokenUsage).toMatchObject({ totalTokens: 5, inputTokens: 5, outputTokens: null, evidenceLevel: "cli-reported" });
+  });
+
+  it.each([["provider-reported", "estimated-from-text"], ["estimated-from-text", "provider-reported"], ["cli-json", "provider-reported"]] as Array<[TokenUsageSource, TokenUsageSource]>)("P2-TEL-008 retains source disagreement %s/%s without promotion", async (usageSource, resultSource) => {
+    const { returned } = await proposal(fakeAgentResult({ finalAnswerText: FIX_PATCH, tokenUsage: { source: usageSource, totalTokens: 5 }, tokenUsageSource: resultSource, tokenUsageReliability: "high" }));
+    expect(returned.tokenUsageSourceConflict).toEqual({ usageSource, resultSource });
+    expect(returned.normalizedTelemetry.tokenUsage).toMatchObject({ source: usageSource, reliability: "high", evidenceLevel: "unavailable", classificationReason: "unattributed-source", totalTokens: 5 });
+    expect(returned.agentTokenUsage!.source).toBe(resultSource);
+    if ([usageSource, resultSource].includes("estimated-from-text")) expect(returned.agentTokenUsage!.totalTokens).toBeNull();
+  });
+
+  it.each([0, 12.5, NaN, Infinity, -1, undefined])("P2-TEL-009 preserves measurement provenance for %s", async (durationMs) => {
+    const result = fakeAgentResult({ finalAnswerText: FIX_PATCH, durationMs: durationMs as number });
+    const direct = projectAgentSuccessProviderTelemetryV091(result, "completed", durationMs);
+    if (durationMs === undefined || !Number.isFinite(durationMs) || durationMs < 0) expect(direct.normalizedTelemetry.duration.source).toBe("unavailable");
+    const { returned } = await proposal(result);
+    expect(returned.normalizedTelemetry.duration).toEqual({ durationMs: returned.agentDurationMs, source: "lab-wall-clock", reason: null });
+    expect(returned.agentDurationMs).toBeGreaterThanOrEqual(0);
+    if (durationMs !== undefined && Number.isFinite(durationMs) && durationMs >= 0) expect(returned.agentDurationMs).toBe(durationMs);
+  });
+
+  it.each([
+    [fakeAgentResult({ finalAnswerText: FIX_PATCH }), "completed"],
+    [fakeAgentResult({ status: "failed", errors: ["exit 1"] }), "failed"],
+    [fakeAgentResult({ status: "failed", errors: ["timed out after 1ms"] }), "timeout"],
+    [fakeAgentResult({ status: "skipped", warnings: ["not available"] }), "agent-unavailable"],
+    [fakeAgentResult({ status: "failed", errors: ["usage limit reached"] }), "agent-limit-reached"],
+    [fakeAgentResult({ status: "skipped", warnings: ["intentionally skipped"] }), "skipped"]
+  ] as const)("P2-TEL-010 normalizes classified provider status %#", async (result, status) => {
+    const { returned } = await proposal(result);
+    expect(returned.normalizedTelemetry.providerStatus).toBe(status);
+    expect(returned.realAgent.providerStatus).toBe(status);
+    expect(returned.normalizedTelemetry.tokenUsage.condition).toBe("token-unavailable");
+  });
+
+  it("P2-TEL-010 retains classifier invalid-output and inherited not-invoked", async () => {
+    expect(projectAgentSuccessProviderTelemetryV091(fakeAgentResult(), "invalid-output", null).normalizedTelemetry.providerStatus).toBe("invalid-output");
+    const { returned, calls } = await proposal(fakeAgentResult(), false);
+    expect(calls).toBe(0);
+    expect(returned.normalizedTelemetry).toMatchObject({ providerStatus: "not-invoked", duration: { source: "unavailable", durationMs: null }, tokenUsage: { condition: "token-unavailable" } });
+  });
 });
 
 function walkFiles(root: string): string[] {

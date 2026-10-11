@@ -1438,7 +1438,7 @@ Shipped scope:
 
 ### v0.9.1 — normalized provider telemetry and campaign scheduler
 
-Status: **planned; not implemented**.
+Status: **implemented on feature branch; unreleased; pre-release readiness pending**.
 
 Purpose:
 
@@ -1472,7 +1472,9 @@ Features:
 * Add per-agent timeout presets.
 * Add campaign progress summary.
 
-Acceptance:
+Implementation status: all listed requirements are implemented in the current feature-branch source and covered by focused tests; independent documentation/completeness audit is in progress.
+
+Acceptance (preserved):
 
 * Reports make clear which comparisons are strong, partial, or unavailable.
 * Interrupted campaigns can resume.

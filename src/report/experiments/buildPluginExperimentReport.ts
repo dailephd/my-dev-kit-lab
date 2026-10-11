@@ -44,7 +44,7 @@ const RETRIEVAL_QUERY_STRATEGY_COMPARISON_BULK_KEYS = ["caseExecutionEvidence", 
 const CONTEXT_PACK_GENERATION_BULK_KEYS = ["caseExecutionEvidence", "analysis"] as const;
 
 // Same for agent-success-rate: the typed section presents execution evidence and analysis.
-const AGENT_SUCCESS_RATE_BULK_KEYS = ["caseExecutionEvidence", "analysis"] as const;
+const AGENT_SUCCESS_RATE_BULK_KEYS = ["caseExecutionEvidence", "analysis", "agentSuccessCampaignProgress"] as const;
 
 const V043_BULK_ARRAY_KEYS = [
   "v043StageContextExecutions",

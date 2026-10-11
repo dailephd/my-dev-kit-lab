@@ -7,6 +7,32 @@ import {
   AGENT_SUCCESS_RATE_TREATMENT_IDS
 } from "../experiments/plugins/agentSuccessRate/index.js";
 import type { ExperimentConfigFieldDefinition, ExperimentPlugin } from "../experiments/index.js";
+import { AGENT_TIMEOUT_PRESETS } from "../experiments/plugins/agentSuccessRate/timeoutPresets.js";
+
+/** Public command-owned operational contract, shared by human, JSON and run help. */
+export const AGENT_CAMPAIGN_OPTION_HELP = [
+  "--agent-campaign <new|resume|continue-limit>: explicit version 2 campaign; requires stable --out <directory>.",
+  "--one-case: campaign-only; process at most the first unfinished selected case, with both treatments mandatory.",
+  "--campaign-source-root <directory>: campaign-only verified current source checkout; required when installed source proof is unavailable.",
+  "--timeout-preset <standard|extended|maximum>: codex/claude real-agent mode only; 240000/900000/1800000 ms per attempt.",
+  "--timeout-ms <ms>: numeric override; mutually exclusive with --timeout-preset. Neither supplied preserves 240000 ms default.",
+  "--expected-checkpoint-revision <positive-integer>: continue-limit only; exact committed checkpoint generation.",
+  "--limit-case <case-id> --limit-treatment <raw-full-file|context-pack> --limit-epoch <epoch-id>: continue-limit only; exact terminal limit unit and epoch.",
+  "--authorize-additional-invocation: mandatory boolean with no value for continue-limit; at most two execution epochs per treatment.",
+  "Resume revalidates identity, ownership and artifact digests and skips completed work, including completed task failures.",
+  "Real campaigns require --agent <codex|claude> and --include-real-agents plus trusted local build observation bound to invocation.",
+  "Native executables and attributable restricted node entrypoints are supported; unsupported wrappers are UNVERIFIABLE. No universal installation support or transitive attestation.",
+  "Uncertain invocations block resume; no force replay, marker stealing, automatic quota waiting, polling or provider switching.",
+  "Partial campaign work is persisted without final scientific reports; complete campaigns write the existing execution/analysis v1 artifacts.",
+  "Campaign exits: 0 consistent bounded work (including one-case partial), 1 paused/blocked/failed execution, 2 invalid CLI usage. Legacy behavior is preserved.",
+  "--campaign belongs to warm-index-reuse and is rejected by agent-success-rate; other plugins reject these campaign options."
+] as const;
+export const AGENT_CAMPAIGN_EXAMPLES = [
+  "my-dev-kit-lab experiment run --experiment agent-success-rate --agent-campaign new --one-case --out <campaign-output-root> --campaign-source-root <source-checkout>",
+  "my-dev-kit-lab experiment run --experiment agent-success-rate --agent-campaign resume --one-case --out <same-campaign-output-root> --campaign-source-root <source-checkout>",
+  "my-dev-kit-lab experiment run --experiment agent-success-rate --agent codex --include-real-agents --agent-campaign new --timeout-preset extended --out <campaign-output-root> --campaign-source-root <source-checkout>",
+  "my-dev-kit-lab experiment run --experiment agent-success-rate --agent codex --include-real-agents --agent-campaign continue-limit --out <campaign-output-root> --campaign-source-root <source-checkout> --expected-checkpoint-revision <revision> --limit-case <case-id> --limit-treatment <treatment> --limit-epoch <epoch-id> --authorize-additional-invocation"
+] as const;
 
 // ---------------------------------------------------------------------------
 // v0.4.6 Batch 4 -- reusable experiment-describe command owner.
@@ -91,6 +117,8 @@ function describeAgentSuccessRate(): Record<string, unknown> {
     realAgentMode: "Opt-in only: --agent <codex|claude> together with --include-real-agents. Neither flag alone enables it; real execution is never the default.",
     providers: [...AGENT_SUCCESS_RATE_REAL_AGENT_IDS],
     timeoutMs: { default: AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS, maximum: AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS, scope: "each provider attempt" },
+    timeoutPresets: AGENT_TIMEOUT_PRESETS,
+    campaign: { modes: ["new", "resume", "continue-limit"], options: [...AGENT_CAMPAIGN_OPTION_HELP], examples: [...AGENT_CAMPAIGN_EXAMPLES] },
     repairAttempts: { allowed: [...AGENT_SUCCESS_RATE_REPAIR_ATTEMPT_VALUES], default: 0, maximumTotalAttemptsPerTreatment: 3, mode: "real-agent only" },
     agentContext: "Source-only: the provider sees the public task text and the treatment's source context, never tests, trusted checks or reference patches, and runs in a neutral working directory.",
     patchApplication: "Guarded: the provider returns a unified diff only. The Lab validates it against a patch policy and applies it in a fresh disposable sandbox; canonical benchmark projects are never modified.",
@@ -135,6 +163,7 @@ function printDescription(plugin: ExperimentPlugin): void {
     console.log(`  Real-agent mode: ${agentSuccessRate.realAgentMode}`);
     console.log(`  Providers: ${(agentSuccessRate.providers as string[]).join(", ")}`);
     console.log(`  Timeout per attempt: default ${agentSuccessRate.timeoutMs.default} ms, maximum ${agentSuccessRate.timeoutMs.maximum} ms`);
+    for (const option of agentSuccessRate.campaign.options as string[]) console.log(`  ${option}`);
     console.log(
       `  Repair attempts: ${(agentSuccessRate.repairAttempts.allowed as number[]).join(", ")} (default ${agentSuccessRate.repairAttempts.default}; at most ${agentSuccessRate.repairAttempts.maximumTotalAttemptsPerTreatment} attempts per treatment; real-agent mode only)`
     );
@@ -243,6 +272,7 @@ function describeExamples(plugin: ExperimentPlugin): string[] {
     `my-dev-kit-lab experiment describe --experiment ${plugin.metadata.id}`,
     `my-dev-kit-lab experiment run --experiment ${plugin.metadata.id}${agentOptions}`
   ];
+  if (plugin.metadata.id === AGENT_SUCCESS_RATE_ID) examples.push(...AGENT_CAMPAIGN_EXAMPLES);
   // Only advertise an explicit --target example for plugins that support external targets.
   if (
     plugin.metadata.supportedTargets.includes("external-local") &&

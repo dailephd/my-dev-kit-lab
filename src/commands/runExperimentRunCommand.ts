@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { parseAgentCommandTemplate } from "../agents/index.js";
 import { parseAgentId } from "../agents/agentRegistry.js";
@@ -48,6 +48,18 @@ import type {
 } from "../evaluation/controlledExperimentTypes.js";
 import type { PromptComplexityLevel } from "../prompts/types.js";
 import type { LabExecutionContext } from "../runtime/index.js";
+import { observeProviderBuild } from "../agents/providerBuildObservation.js";
+import { resolveAgentTimeoutPreset } from "../experiments/plugins/agentSuccessRate/timeoutPresets.js";
+import { validateAgentSuccessRateConfig } from "../experiments/plugins/agentSuccessRate/config.js";
+import { AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS } from "../experiments/plugins/agentSuccessRate/realAgentExecution.js";
+import { AGENT_SUCCESS_RATE_TREATMENT_IDS } from "../experiments/plugins/agentSuccessRate/metadata.js";
+import { executeAgentSuccessCampaignV2, prepareAgentSuccessCampaign, type CampaignExecutionHooks, type CampaignPreparationInput } from "../experiments/plugins/agentSuccessRate/campaignExecution.js";
+import { readCampaignCheckpointV2, validateCampaignOutputPath } from "../experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
+import { validateCampaignLimitAuthorization, type CampaignIntent } from "../experiments/plugins/agentSuccessRate/campaignRecovery.js";
+import { campaignIdentifier } from "../experiments/plugins/agentSuccessRate/campaignIdentity.js";
+import { readCampaignProgress } from "../experiments/plugins/agentSuccessRate/campaignProgress.js";
+import { writeAgentSuccessCampaignProgressReport } from "../report/experiments/writeAgentSuccessCampaignProgressReport.js";
+import { boundMessage } from "../experiments/plugins/agentSuccessRate/execution.js";
 
 // ---------------------------------------------------------------------------
 // v0.4.6 Batch 4 -- reusable experiment-run command owner.
@@ -122,8 +134,12 @@ const AGENT_SUCCESS_RATE_ALLOWED_FLAGS = [
   "--agent",
   "--include-real-agents",
   "--timeout-ms",
-  "--repair-attempts"
+  "--repair-attempts",
+  "--agent-campaign", "--one-case", "--campaign-source-root", "--timeout-preset",
+  "--expected-checkpoint-revision", "--limit-case", "--limit-treatment", "--limit-epoch", "--authorize-additional-invocation"
 ];
+const AGENT_CAMPAIGN_FLAGS = ["--agent-campaign", "--one-case", "--campaign-source-root", "--expected-checkpoint-revision", "--limit-case", "--limit-treatment", "--limit-epoch", "--authorize-additional-invocation"];
+type AgentCampaignRequest = { mode: "new" | "resume" | "continue-limit"; oneCase: boolean; sourceRoot?: string; expectedRevision?: number; limitCase?: string; limitTreatment?: "raw-full-file" | "context-pack"; limitEpoch?: string; authorize: boolean };
 
 // Union of CLI-provided fields across plugins; each plugin's validateConfig narrows (and, for
 // warm-index-reuse, rejects) the fields it does not support.
@@ -137,6 +153,7 @@ type ParsedExperimentRunConfig = Partial<ExperimentMatrixConfig> & {
 };
 
 type ParsedRunExperimentArgs = {
+  agentCampaign?: AgentCampaignRequest;
   experimentId: string;
   targetPath?: string;
   outDir?: string;
@@ -149,6 +166,8 @@ type ParsedRunExperimentArgs = {
 };
 
 export type RunExperimentRunCommandOptions = {
+  /** Programmatic process/context seams, never public CLI authorization or synthetic build evidence. */
+  campaignRuntime?: { env?: NodeJS.ProcessEnv; contextDependencies?: import("../experiments/plugins/agentSuccessRate/contextGeneration.js").AgentSuccessContextDependencies; dependencies?: CampaignPreparationInput["dependencies"]; hooks?: CampaignExecutionHooks };
   // Used for self-target fallback (no --target) and bundled-resource
   // resolution. Defaults to a freshly discovered LabExecutionContext.
   context?: LabExecutionContext;
@@ -178,8 +197,11 @@ export async function runExperimentRunCommandFromArgs(
   argv: string[],
   options: RunExperimentRunCommandOptions = {}
 ): Promise<number> {
+  let parsed = false;
+  const campaignUsage = argv.includes("--agent-campaign") || argv.some(a => AGENT_CAMPAIGN_FLAGS.includes(a));
   try {
     const args = parseRunExperimentArgs(argv);
+    parsed = true;
     const context = options.context ?? createLabExecutionContext();
     const toolRoot = context.packageRoot;
     const registry = createDefaultExperimentPluginRegistry();
@@ -202,6 +224,7 @@ export async function runExperimentRunCommandFromArgs(
       });
     }
     const inputs = await loadPluginInputs(args, toolRoot, context, outputRoot);
+    if (args.agentCampaign) return await runAgentCampaignCommand(args, context, outputRoot!, inputs!, runId, options);
     const result = await runExperiment({
       pluginId: args.experimentId,
       registry,
@@ -303,16 +326,101 @@ export async function runExperimentRunCommandFromArgs(
     if (result.status === "failed") return 1;
     return 0;
   } catch (error) {
-    if (process.env.DEBUG) {
+    if (campaignUsage) {
+      const sourceIndex = argv.indexOf("--campaign-source-root");
+      const source = sourceIndex >= 0 ? argv[sourceIndex + 1] : undefined;
+      const message = error instanceof Error ? error.message : "CAMPAIGN_FAILED";
+      console.error(boundMessage(message, [process.cwd(), options.context?.packageRoot ?? "", ...(source ? [path.resolve(options.context?.invocationCwd ?? process.cwd(), source)] : [])]));
+    } else if (process.env.DEBUG) {
       console.error(error);
     } else {
       console.error(error instanceof Error ? error.message : String(error));
     }
-    return 1;
+    return campaignUsage && !parsed ? 2 : 1;
   }
 }
 
+async function runAgentCampaignCommand(args: ParsedRunExperimentArgs, context: LabExecutionContext, outputRoot: string, inputs: Record<string, unknown>, runId: string, options: RunExperimentRunCommandOptions): Promise<number> {
+  const request = args.agentCampaign!;
+  const sourceRoot = path.resolve(context.invocationCwd, request.sourceRoot ?? context.packageRoot);
+  try {
+    if (!(await lstat(path.join(sourceRoot, "src"))).isDirectory() || path.resolve(await realpath(sourceRoot)).toLowerCase() !== sourceRoot.toLowerCase()) throw new Error();
+    const metadata = JSON.parse(await readFile(path.join(sourceRoot, "package.json"), "utf8")) as { name?: string; version?: string };
+    if (metadata.name !== "@dailephd/my-dev-kit-lab" || metadata.version !== "0.9.0") throw new Error();
+  } catch { throw new Error("CAMPAIGN_SOURCE_UNVERIFIABLE: supply --campaign-source-root with a current my-dev-kit-lab source checkout; installed source bytes cannot be guessed."); }
+  const boundary = { toolRoot: context.packageRoot, outputRoot };
+  await validateCampaignOutputPath(boundary, sourceRoot);
+  let entries: string[] = [];
+  try { entries = await readdir(outputRoot); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    if (request.mode !== "new") throw new Error("RESUMABLE_CAMPAIGN_REQUIRED: --out must contain an existing version 2 campaign.");
+  }
+  if (request.mode === "new" && entries.length > 0) throw new Error("CAMPAIGN_OUTPUT_EXISTS: new requires an empty output root; existing artifacts are preserved.");
+  if (request.mode !== "new" && !entries.includes("campaign-checkpoints-v2")) throw new Error("RESUMABLE_CAMPAIGN_REQUIRED: no version 2 checkpoint in --out.");
+  const validation = validateAgentSuccessRateConfig(args.config);
+  if (!validation.valid || !validation.config) throw new Error("INVALID_CAMPAIGN_CONFIG");
+  const config = validation.config;
+  const tasks = selectAgentSuccessTasks(inputs.agentSuccessTasks as import("../evaluation/agentSuccess/index.js").AgentSuccessTaskV1[], config);
+  const runtime = options.campaignRuntime;
+  const provider: CampaignPreparationInput["provider"] = config.agentId ? { kind: "real-agent", providerId: config.agentId, includeRealAgents: true, timeoutMs: config.timeoutMs ?? AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS, repairAttempts: (config.repairAttempts ?? 0) as 0 | 1 | 2, kitCommand: config.kitCommand, contextDependencies: runtime?.contextDependencies, env: runtime?.env } : { kind: "deterministic-fixture" };
+  const preparation: CampaignPreparationInput = { boundary, sourceRoot, corpusFile: resolvePackageResource(context, AGENT_SUCCESS_TASK_CATALOG_PATH), tasks, treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider, dependencies: runtime?.dependencies };
+  // Source, corpus and canonical project byte checks precede even a task-free version probe.
+  let prepared = await prepareAgentSuccessCampaign(preparation);
+  if (provider.kind === "real-agent") {
+    provider.trustedExecutable = await observeProviderBuild(provider.providerId, { env: runtime?.env });
+    prepared = await prepareAgentSuccessCampaign(preparation);
+  }
+  let intent: CampaignIntent = request.mode === "new" ? { kind: "new-resumable" } : { kind: "resume" };
+  let reused = 0;
+  const previousEpochs = new Set<string>();
+  if (request.mode !== "new") {
+    // Identity-scoped stores are not discovery: a different digest cannot create another campaign on resume.
+    const identities = await readdir(path.join(outputRoot, "campaign-checkpoints-v2"));
+    if (!identities.includes(prepared.identity.digest)) throw new Error("CAMPAIGN_IDENTITY_MISMATCH: current inputs do not match this output root.");
+    const stored = await readCampaignCheckpointV2(boundary, prepared.identity, tasks);
+    if (!stored.reusable || !stored.checkpoint || stored.identityVerification !== "MATCH") throw new Error("RESUMABLE_CAMPAIGN_REQUIRED_MATCH");
+    const cp = stored.checkpoint;
+    cp.units.flatMap(u => u.epochs).forEach(e => previousEpochs.add(e.id));
+    reused = cp.units.filter(u => u.state === "completed").length;
+    if (request.mode === "continue-limit") {
+      const unit = cp.units.find(u => u.caseId === request.limitCase && u.treatmentId === request.limitTreatment);
+      if (cp.generation !== request.expectedRevision || !unit || unit.epochs.at(-1)?.id !== request.limitEpoch) throw new Error("LIMIT_AUTHORIZATION_MISMATCH");
+      const authorization = { identityDigest: cp.identity.digest, generation: request.expectedRevision!, revision: cp.integrity, caseId: request.limitCase!, treatmentId: request.limitTreatment!, acknowledgeInvocation: true as const, acknowledgeExternalLimit: true as const };
+      validateCampaignLimitAuthorization(authorization, cp, unit);
+      intent = { kind: "authorize-limit-continuation", authorization };
+    }
+  } else {
+    await mkdir(outputRoot, { recursive: true });
+    await validateCampaignOutputPath(boundary, sourceRoot);
+    if ((await readdir(outputRoot)).length !== 0) throw new Error("CAMPAIGN_OUTPUT_EXISTS");
+  }
+  const result = await executeAgentSuccessCampaignV2(prepared, { intent, runId, limit: request.oneCase ? "one-case" : "all-selected-cases", hooks: runtime?.hooks });
+  const progressLines: string[] = [];
+  let progressFailed = false;
+  let progressValidated = false;
+  try {
+    const snapshot = await readCampaignProgress(boundary, prepared.identity, tasks);
+    progressValidated = true;
+    const progress = await writeAgentSuccessCampaignProgressReport({ snapshot, boundary });
+    progressLines.push(`Progress status: ${progress.model.state}`, `Progress checkpoint revision: ${progress.model.checkpointGeneration} (${progress.model.checkpointRevision})`, `Completed evaluations: ${progress.model.unitCounts.completed}/${progress.model.totalTreatmentUnits}`, `Completed cases: ${progress.model.caseCounts.completed}/${progress.model.selectedCaseCount}`, `Progress JSON: ${progress.outputPaths.jsonPath}`, `Progress Text: ${progress.outputPaths.textPath}`, `Progress HTML: ${progress.outputPaths.htmlPath}`);
+  } catch {
+    progressFailed = true;
+    progressLines.push(progressValidated ? "Progress persistence: failed (validated checkpoint retained)." : "Progress status: blocked-integrity (checkpoint unavailable or untrusted).");
+    progressLines.push("Progress publication: failed; checkpoint/scientific execution outcome is reported separately.");
+  }
+  const newEpochs = result.checkpoint?.units.flatMap(u => u.epochs).filter(e => !previousEpochs.has(e.id)) ?? [];
+  // Provider evidence, never mere creation of a reservation, establishes invocation.
+  const newWork = newEpochs.some(e => e.terminal?.evidence.realAgent?.providerInvoked === true) ? "invoked" : newEpochs.some(e => e.phase === "invocation-authorized" || e.phase === "uncertain") ? "unconfirmed" : "none";
+  console.log(["Experiment: agent-success-rate", `Campaign mode: ${request.mode}`, `Identity: ${prepared.identity.digest.slice(0, 16)}`, `Status: ${result.status === "provider-limit" ? "paused-provider-limit" : result.status}`, `New provider work: ${newWork}`, `Validated work reused: ${reused > 0 ? "yes" : "no"}`, `Checkpoint revision: ${result.checkpoint?.generation ?? "unavailable"}`, `Final scientific artifacts: ${result.scientificArtifactsWritten ? "written" : "not written"}`, `Output: ${outputRoot}`, ...result.errors.map(e => `Failure: ${e}`)].join("\n"));
+  console.log(progressLines.join("\n"));
+  return !progressFailed && ["completed", "already-complete", "partial"].includes(result.status) ? 0 : 1;
+}
+
 export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs {
+  let agentCampaignMode: string | undefined;
+  let oneCase = false, authorize = false;
+  let campaignSourceRoot: string | undefined, limitCase: string | undefined, limitTreatment: string | undefined, limitEpoch: string | undefined, timeoutPreset: string | undefined;
+  let expectedRevision: number | undefined;
   let experimentId = "";
   let targetPath: string | undefined;
   let outDir: string | undefined;
@@ -344,8 +452,22 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg !== undefined && arg.startsWith("--") && seenFlags.includes(arg) && (AGENT_CAMPAIGN_FLAGS.includes(arg) || arg === "--timeout-preset" || (argv.includes("agent-success-rate") && arg !== "--case" && arg !== "--benchmark-project"))) throw new Error(`${arg} may be supplied only once.`);
     if (arg !== undefined && arg.startsWith("--")) seenFlags.push(arg);
-    if (arg === "--experiment") {
+    if (arg === "--agent-campaign") {
+      agentCampaignMode = readRequiredValue(argv, ++index, arg);
+    } else if (arg === "--one-case") { oneCase = true;
+    } else if (arg === "--authorize-additional-invocation") { authorize = true;
+    } else if (arg === "--campaign-source-root") { campaignSourceRoot = readRequiredValue(argv, ++index, arg);
+    } else if (arg === "--expected-checkpoint-revision") {
+      const value = readRequiredValue(argv, ++index, arg);
+      if (!/^[1-9]\d*$/.test(value)) throw new Error("--expected-checkpoint-revision must be a positive integer.");
+      expectedRevision = parsePositiveInteger(arg, value);
+    } else if (arg === "--limit-case") { limitCase = readRequiredValue(argv, ++index, arg);
+    } else if (arg === "--limit-treatment") { limitTreatment = readRequiredValue(argv, ++index, arg);
+    } else if (arg === "--limit-epoch") { limitEpoch = readRequiredValue(argv, ++index, arg);
+    } else if (arg === "--timeout-preset") { timeoutPreset = readRequiredValue(argv, ++index, arg);
+    } else if (arg === "--experiment") {
       experimentId = readRequiredValue(argv, ++index, "--experiment");
     } else if (arg === "--target") {
       targetPath = readRequiredValue(argv, ++index, "--target");
@@ -411,6 +533,22 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
 
   if (!experimentId) {
     throw new Error("Usage: --experiment <id> [--target <path>] [--out <directory>]");
+  }
+  const campaignFlagsPresent = seenFlags.some(f => AGENT_CAMPAIGN_FLAGS.includes(f));
+  if ((campaignFlagsPresent || timeoutPreset !== undefined) && experimentId !== agentSuccessRatePlugin.metadata.id) throw new Error("Agent campaign and timeout preset flags are only supported for --experiment agent-success-rate.");
+  if (campaignFlagsPresent && agentCampaignMode === undefined) throw new Error("Campaign flags require --agent-campaign <new|resume|continue-limit>.");
+  if (agentCampaignMode !== undefined && !["new", "resume", "continue-limit"].includes(agentCampaignMode)) throw new Error("--agent-campaign must be new, resume or continue-limit.");
+  if (agentCampaignMode !== undefined && !outDir?.trim()) throw new Error("--agent-campaign requires a stable --out directory.");
+  const limitPresent = expectedRevision !== undefined || limitCase !== undefined || limitTreatment !== undefined || limitEpoch !== undefined || authorize;
+  if (agentCampaignMode !== "continue-limit" && limitPresent) throw new Error("Limit authorization flags require --agent-campaign continue-limit.");
+  if (agentCampaignMode === "continue-limit") {
+    if (expectedRevision === undefined || !limitCase || !limitTreatment || !limitEpoch || !authorize) throw new Error("continue-limit requires --expected-checkpoint-revision, --limit-case, --limit-treatment, --limit-epoch and --authorize-additional-invocation.");
+    if (expectedRevision > 1000000 || !campaignIdentifier(limitCase) || !["raw-full-file", "context-pack"].includes(limitTreatment) || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(limitEpoch)) throw new Error("Invalid limit revision, case, treatment or epoch identifier.");
+  }
+  if (timeoutPreset !== undefined) {
+    if (timeoutMs !== undefined) throw new Error("--timeout-preset and --timeout-ms cannot be combined.");
+    if (agentFlagValues.length !== 1 || includeRealAgents !== true || !["codex", "claude"].includes(agentFlagValues[0]!)) throw new Error("--timeout-preset requires --agent <codex|claude> and --include-real-agents.");
+    timeoutMs = resolveAgentTimeoutPreset(agentFlagValues[0] as "codex" | "claude", timeoutPreset);
   }
   const KIT_COMMAND_PLUGIN_IDS = [
     warmIndexReusePlugin.metadata.id,
@@ -611,6 +749,7 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
 
   return {
     experimentId,
+    ...(agentCampaignMode ? { agentCampaign: { mode: agentCampaignMode as AgentCampaignRequest["mode"], oneCase, sourceRoot: campaignSourceRoot, expectedRevision, limitCase, limitTreatment: limitTreatment as AgentCampaignRequest["limitTreatment"], limitEpoch, authorize } } : {}),
     targetPath,
     outDir,
     syntheticConfigPath,

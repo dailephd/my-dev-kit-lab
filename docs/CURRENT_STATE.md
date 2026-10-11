@@ -8,10 +8,11 @@ This document records the repository's operational state. It is the source of tr
 
 - Package: `@dailephd/my-dev-kit-lab`
 - Package version: `0.9.0`
-- Latest release (release-source state): `v0.9.0`; this label does not verify external publication.
+- Latest release (latest published npm version): `v0.9.0` (verified against the registry during this audit).
 - Release-source version: `v0.9.0` (agent-success-rate plugin)
-- Current release source: `v0.9.0`; the `published/current` designation is established only from external npm, tag, and GitHub Release evidence.
-- External publication state is established from npm, Git tag, and GitHub Release evidence; this source document does not assert that evidence.
+- Current release / published-current baseline: `v0.9.0`.
+- The implemented `v0.9.1` feature branch is unreleased; pre-release readiness is pending.
+- npm registry reports `0.9.0` as latest published; local package metadata remains `0.9.0`.
 - Package baseline represented by this release source: `v0.9.0`.
 - The package and installed CLI are at `0.9.0`.
 - Release date: `2026-10-10`.
@@ -21,8 +22,8 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Release-source milestone: `v0.9.0` (agent-success-rate plugin).
-- Next planned version: `v0.9.1` (normalized provider telemetry and campaign scheduler), per the roadmap.
-- Active planned version: `v0.9.1` (normalized provider telemetry and campaign scheduler); v0.9.0 is complete.
+- Next planned version: `v0.9.2` (hardened provider prompts and report/gallery generalization), per the roadmap.
+- Active planned version: v0.9.1 implementation is complete on the feature branch, unreleased; pre-release readiness is pending.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -84,7 +85,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
 - Exact next action: hosted CI and CodeQL validation of the release-prepared commit, then the separately authorized release pull request and publication workflow.
-- Baseline constraints: v0.9.0 is the current baseline; preserve prior retrieval evidence and metric semantics. v0.9.1 and v0.9.2 scope (telemetry taxonomy, campaign scheduling and resume, strict prompt modes, report section registry, generalized gallery) is not part of v0.9.0.
+- Baseline constraints: v0.9.0 remains the published package baseline; preserve prior retrieval evidence and metric semantics. v0.9.1 is implemented but unreleased; v0.9.2 retains the planned strict prompt modes, report section registry, and generalized gallery.
 - ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
 
 ## Implemented
@@ -178,12 +179,12 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- normalized telemetry, campaign scheduler (including resume and skip-completed runs), prompt hardening, and generalized publication portal (v0.9.1 and v0.9.2)
+- v0.9.2 prompt hardening, broader report generalization, and gallery generalization
 
 ## Limitations
 
 - The implemented security framework is automated CLI/package validation with adversarial checks; it is not a manual pentest framework.
-- `agent-success-rate` (v0.9.0) evaluates a finite, controlled six-task corpus; deterministic-fixture results do not measure context effectiveness or agent ability; provider telemetry (tokens, durations) can be unavailable and is then reported as unavailable, never zero; no automatic treatment winner or statistical-significance claim is produced; and generalized campaign scheduling, resume, and skip-completed runs are outside this plugin and planned for v0.9.1.
+- `agent-success-rate` (v0.9.0) evaluates a finite, controlled six-task corpus; deterministic-fixture results do not measure context effectiveness or agent ability; provider telemetry (tokens, durations) can be unavailable and is then reported as unavailable, never zero; no automatic treatment winner or statistical-significance claim is produced; and the v0.9.1 campaign extension adds explicit scheduling, resume, and verified completed-unit reuse on the unreleased feature branch.
 - A very long Windows output path can still make the operating system refuse to start Git or checks in the disposable benchmark copy; the affected treatment then ends as a controlled infrastructure failure, never a success. Long Windows paths are not made to work.
 - The generic self-target report metadata (for example the output root and tool root lines) can contain absolute machine-local paths; the agent-success-rate section and artifacts use relative references.
 - The agent-success-rate plugin implements its own recursive glob matching without changing the older shared `fileGlobs` matcher.
@@ -270,4 +271,9 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-The release source represents package version `0.9.0` and date `2026-10-10`; `v0.8.2` is its previous release baseline, and `v0.9.1` is the next planned milestone. External publication is established from npm, tag, and GitHub Release evidence and is not asserted here. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
+The published package baseline is version `0.9.0` (release date `2026-10-10`); `v0.8.2` is its previous release. The `v0.9.1` implementation is on the current feature branch and unreleased. `published/current` is established from npm registry evidence; `v0.9.2` is next planned. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
+
+
+## v0.9.1 implementation status
+
+The current feature branch contains normalized provider telemetry, integrated Codex/Claude parsing and outcome handling, deterministic campaign queues, checkpoint v1/v2 recovery contracts, explicit resume and verified completed-unit reuse, provider-limit pause/continuation, public campaign CLI routing and timeout presets, and plugin-specific progress evidence. Partial progress is operational evidence; final scientific execution and analysis artifacts are published only after campaign finalization. Uncertain provider invocations are not replayed automatically. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [ROADMAP.md](ROADMAP.md).

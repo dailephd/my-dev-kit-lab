@@ -123,6 +123,12 @@ describe("codexAdapter", () => {
   });
 
   describe("v0.5.2 Batch 2 -- Codex JSONL final-answer parsing", () => {
+    it("P2-TEL-001 extracts a formatted single JSON final-answer event", () => {
+      expect(parseCodexFinalAnswer(JSON.stringify({ type: "item.completed", item: { type: "agent_message", text: "patch" } }, null, 2))).toEqual({ finalAnswerText: "patch", finalAnswerParseStatus: "parsed" });
+    });
+    it.each(['{"usage":{"total_tokens":5}}', '{"type":', '[{"type":"turn.completed"}]'])("P2-TEL-001 never leaks unsupported or malformed envelopes: %s", (text) => {
+      expect(parseCodexFinalAnswer(text)).toEqual({ finalAnswerText: "", finalAnswerParseStatus: "empty" });
+    });
     function jsonl(...events: unknown[]): string {
       return events.map((event) => JSON.stringify(event)).join("\n");
     }
