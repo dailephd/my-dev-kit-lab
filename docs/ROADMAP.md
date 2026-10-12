@@ -1481,6 +1481,51 @@ Acceptance (preserved):
 * Interrupted campaigns can resume.
 * Partial results are preserved.
 
+### Priority correction before v0.9.2 — external-target package-content correction (release version TBD)
+
+Status: **urgent, planned; not implemented, validated, release-prepared, or published**.
+
+Priority and version boundary:
+
+* This correction takes implementation priority over the planned v0.9.2 prompt/report/gallery milestone because external target validation currently risks false release blockers. It is a repair task, not a replacement for v0.9.2.
+* The source release is v0.9.1. The number v0.9.2 was already assigned to hardened real-agent prompts and report/gallery generalization; **do not use the proposed v0.9.2 patch version or the version-named implementation branch for this correction without a separately approved release-sequence decision**.
+* This unversioned correction may be developed and independently validated as a dedicated Lab candidate. Its eventual publishable patch version remains **TBD**, not an implied new release. No npm publication, tag, release branch, or version bump is authorized by this roadmap change.
+* Preserve every original v0.9.2 feature, acceptance criterion, and later ECO-00 milestone assignment unchanged. Resolve any version collision explicitly before release preparation; never publish an out-of-sequence semver version to bypass the collision.
+
+Trigger and verified scope of the problem:
+
+* A reported external validation of `@dailephd/my-dev-kit-orchestrator` produced nine package-content blockers even though the Orchestrator candidate separately passed its installed-tarball checks. **The original nine JSON findings and tarball inventory still require exact read-only comparison before implementation; do not declare them false positives solely from their count.**
+* The current `src/securityValidation/packageChecks/requiredPackageContents.ts` declares Lab-specific `REQUIRED_PACKAGE_CONTENTS` (including Lab runtime files and benchmark resources), while `runPackageChecks.ts` calls `detectMissingRequiredContents` without its supported `requiredFiles` argument. The default therefore imposes Lab-specific requirements on external targets.
+* Distinguish the actual resolved self/external identity through `src/securityValidation/validate/resolveTarget.ts` and `runSecurityValidation.ts`, never package-name equality.
+
+Implementation requirements:
+
+* Preserve the complete strict Lab self-package inventory and its blocker findings.
+* For external npm targets, derive required package paths from the target's own readable `package.json` and supported public entrypoint declarations, including `bin` and an applicable `main` (and other reliably interpretable runtime entrypoints). Do not assume Lab-specific `dist`, benchmark, or changelog files. Apply README, license, and metadata requirements only where npm packaging semantics or an independently established target contract support them.
+* Reuse `runPackageChecks` and the existing `detectMissingRequiredContents({ requiredFiles })` extension point; do not introduce a parallel checker, new CLI flag, or Orchestrator-specific allowlist.
+* Preserve forbidden-file checks, malformed-manifest and pack/inventory failures, mandatory check IDs, deterministic blocker findings, target metadata, and existing report/verdict/threshold contracts. Missing required external entrypoints and forbidden secrets/private files must remain blockers. Unsupported entrypoint metadata must be explicitly unverified, never silently passed.
+* Leave `src/securityValidation/validate/verdict.ts`, severity mappings, `--fail-on`, and default package-check selection unchanged; preserve target immutability and existing experiment/audit behavior.
+
+Behavior-derived test requirements (all required for this repair):
+
+* LAB-PKG-01 to 06: strict Lab self-inventory; valid external CLI `bin`; missing external `bin`; missing required `main`; `bin` plus `main`; absence of inherited Lab paths.
+* LAB-PKG-07 to 10: forbidden environment/private-key/local paths; malformed package metadata; failed, empty, or unparseable npm pack inventory; Windows/Unix path normalization.
+* LAB-PKG-11 to 16: exact target package/root/commit in reports; no external target mutation; current self-regression suite; reconcile each of the nine original findings without hiding real blockers; unchanged dependency/static/fuzz check selection; mandatory package check in default full validation.
+* Use synthetic packages for positive, negative, and boundary tests; use the real Orchestrator candidate only for read-only regression and immutable before/after comparison.
+
+Required execution and acceptance:
+
+1. Inspect project instructions, the latest Lab handoff, this roadmap, package-check code and tests, the Orchestrator remediation report, and every referenced original finding. Establish the exact Lab and Orchestrator Git states before any edit. Bounded my-dev-kit retrieval precedes broad source reading.
+2. Implement the bounded repair on a new Lab-only branch from the verified current `main` state; use a project-contained worktree if the Lab checkout has unrelated user changes. Preserve the Orchestrator worktree and its uncommitted dependency remediation; do not run installs, edits, commits, or branch switches in Orchestrator.
+3. Run focused security/package tests, `npm ci`, `npm run typecheck`, `npm run build`, `npm run test:security`, `npm test`, and `npm run verify`. Run Lab self-security and external read-only Orchestrator validation with output confined to Lab-owned workspace; do not substitute a locally edited Lab checkout for a published validator.
+4. Confirm the nine specifically attributable false positives disappear; real missing entrypoints and forbidden files still fail; malformed or unparseable pack results cannot pass; report schemas/identity and verdict policy remain unchanged; both repositories and fixtures remain immutable as required.
+5. Report the exact corrected Lab candidate SHA, original-nine-finding reconciliation, validation results, remaining real findings and skipped optional scanners. The candidate must not be called published or release-ready merely because these tests pass.
+6. For Orchestrator release evidence, use only a separately published and version-pinned corrected Lab package **or** an explicitly approved independent candidate-equivalence contract. Then rerun Orchestrator's complete security and exact-SHA readiness workflow; do not advance it on a raw local Lab test alone.
+
+Acceptance: **No cross-package Lab-file false positives, no reduction in real security coverage, strict self checks preserved, complete reproducible evidence, and no mutation to the Orchestrator candidate**.
+
+Explicit exclusions: release or publication actions, Orchestrator dependency remediation or commits, feature development for v0.9.2, changes to security verdict policy, new audit framework, new package CLI options, generic package-layout assumptions, and unverified security exemptions.
+
 ### v0.9.2 — hardened real-agent prompts and report/gallery generalization
 
 Status: **planned; not implemented**.
