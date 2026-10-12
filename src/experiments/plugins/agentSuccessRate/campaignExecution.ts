@@ -37,6 +37,8 @@ export type CampaignPreparationInput = {
   sourceRoot?: string;
   /** Current corpus file bytes, never an asserted digest. Missing corpus proof stays unavailable. */
   corpusFile: string | null;
+  /** Authorized root that owns the selected corpus input. */
+  corpusRoot: string;
   tasks: readonly AgentSuccessTaskV1[];
   treatments: readonly AgentSuccessRateTreatmentId[];
   provider: CampaignProvider;
@@ -45,28 +47,62 @@ export type CampaignPreparationInput = {
 export type PreparedCampaign = { readonly identity: CampaignIdentity };
 const preparations = new WeakMap<PreparedCampaign, CampaignPreparationInput>();
 
-async function currentBytes(file: string): Promise<Buffer> {
-  const stat = await lstat(file);
+async function establishPhysicalRoot(root: string): Promise<{ lexical: string; physical: string }> {
+  const lexical = path.resolve(root);
+  const stat = await lstat(lexical);
+  campaignAssert(stat.isDirectory() && !stat.isSymbolicLink(), "IDENTITY_INPUT_UNSAFE");
+  return { lexical, physical: await realpath(lexical) };
+}
+
+async function currentBytes(file: string, authorizedRoot: { lexical: string; physical: string }, descendantsValidated = false): Promise<Buffer> {
+  const lexicalRoot = authorizedRoot.lexical;
+  const lexicalFile = path.resolve(file);
+  const relative = path.relative(lexicalRoot, lexicalFile);
+  campaignAssert(relative !== "" && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative), "IDENTITY_INPUT_UNSAFE");
+
+  // Canonicalizing the trusted root accepts OS aliases of that root. A file is then
+  // checked against the corresponding child reached from the canonical root itself.
+  let physicalCandidate = authorizedRoot.physical;
+  if (!descendantsValidated) {
+    for (const part of relative.split(path.sep)) {
+      physicalCandidate = path.join(physicalCandidate, part);
+      const componentStat = await lstat(physicalCandidate);
+      campaignAssert(!componentStat.isSymbolicLink(), "IDENTITY_INPUT_UNSAFE");
+    }
+  } else {
+    physicalCandidate = path.join(physicalCandidate, relative);
+  }
+  const authorizedFileStat = await lstat(physicalCandidate);
+  campaignAssert(authorizedFileStat.isFile() && !authorizedFileStat.isSymbolicLink() && authorizedFileStat.size <= 32 * 1024 * 1024, "IDENTITY_INPUT_UNSAFE");
+  const stat = await lstat(lexicalFile);
   campaignAssert(stat.isFile() && !stat.isSymbolicLink() && stat.size <= 32 * 1024 * 1024, "IDENTITY_INPUT_UNSAFE");
-  campaignAssert(path.resolve(await realpath(file)).toLowerCase() === path.resolve(file).toLowerCase(), "IDENTITY_INPUT_ALIAS");
-  const bytes = await readFile(file);
-  campaignAssert(bytes.length === stat.size, "IDENTITY_INPUT_CHANGED");
+  campaignAssert(authorizedFileStat?.isFile() && authorizedFileStat.dev === stat.dev && authorizedFileStat.ino === stat.ino, "IDENTITY_INPUT_UNSAFE");
+  const bytes = await readFile(lexicalFile);
+  const after = await lstat(lexicalFile);
+  const authorizedAfter = await lstat(physicalCandidate);
+  campaignAssert(bytes.length === stat.size && after.isFile() && !after.isSymbolicLink() && after.size === stat.size && after.dev === stat.dev && after.ino === stat.ino && after.mtimeMs === stat.mtimeMs && authorizedAfter.dev === authorizedFileStat.dev && authorizedAfter.ino === authorizedFileStat.ino && authorizedAfter.size === authorizedFileStat.size && authorizedAfter.mtimeMs === authorizedFileStat.mtimeMs, "IDENTITY_INPUT_CHANGED");
   return bytes;
 }
 
 async function produceIdentity(input: CampaignPreparationInput): Promise<CampaignIdentity> {
   buildCampaignQueue(input.tasks, input.treatments, "all-selected-cases");
   const sourceRoot = input.sourceRoot ?? fileURLToPath(new URL("../../../../", import.meta.url));
-  const sources = await scanProjectTree(path.join(sourceRoot, "src"), [".git", "node_modules"]);
+  const physicalSourceRoot = await establishPhysicalRoot(sourceRoot);
+  const sourceDirectory = path.join(sourceRoot, "src");
+  const sourceDirectoryStat = await lstat(sourceDirectory);
+  campaignAssert(sourceDirectoryStat.isDirectory() && !sourceDirectoryStat.isSymbolicLink(), "IDENTITY_INPUT_UNSAFE");
+  const sources = await scanProjectTree(sourceDirectory, [".git", "node_modules"]);
+  const physicalCorpusRoot = input.corpusFile === null ? null : await establishPhysicalRoot(input.corpusRoot);
   campaignAssert(sources.length <= 9998, "DATA_BOUND");
   const sourceFiles = [];
-  for (const file of [...sources.map((p) => `src/${p}`), "package.json", "package-lock.json"]) sourceFiles.push({ path: file, bytes: await currentBytes(resolveWithinRoot(sourceRoot, file)) });
+  for (const file of [...sources.map((p) => `src/${p}`), "package.json", "package-lock.json"]) sourceFiles.push({ path: file, bytes: await currentBytes(resolveWithinRoot(sourceRoot, file), physicalSourceRoot, true) });
   const projects = [];
   for (const projectId of new Set(input.tasks.map((t) => t.benchmarkProject))) {
     const root = await resolveControlledBenchmarkProject(input.boundary.toolRoot, projectId);
+    const physicalProjectRoot = await establishPhysicalRoot(root);
     const paths = await scanProjectTree(root, [".git"]);
     const files = [];
-    for (const file of paths) files.push({ path: file, bytes: await currentBytes(resolveWithinRoot(root, file)) });
+    for (const file of paths) files.push({ path: file, bytes: await currentBytes(resolveWithinRoot(root, file), physicalProjectRoot, true) });
     projects.push({ projectId, files });
   }
   const provider = input.provider;
@@ -89,7 +125,7 @@ async function produceIdentity(input: CampaignPreparationInput): Promise<Campaig
   const functions = (object: object) => Object.entries(object).map(([key, value]) => ({ key, source: String(value) })).sort((a, b) => a.key < b.key ? -1 : 1);
   return createCampaignIdentity({
     tasks: input.tasks,
-    corpusBytes: input.corpusFile === null ? null : await currentBytes(input.corpusFile), projects, sourceFiles,
+    corpusBytes: input.corpusFile === null ? null : await currentBytes(input.corpusFile, physicalCorpusRoot!), projects, sourceFiles,
     config: provider.kind === "deterministic-fixture" ? { providerId: provider.kind, timeoutMs: 1000, repairAttempts: 0 } : { providerId: provider.providerId, timeoutMs: provider.timeoutMs, repairAttempts: provider.repairAttempts },
     contextConfiguration: { contract: "existing-agent-success-context-v1", treatments: [...input.treatments] },
     retrievalConfiguration: { contract: simulated ? "trusted-simulated-retrieval-v1" : real ? "real-provider-retrieval-v1" : "no-retrieval-fixture-v1", dependencies: simulated ? functions(provider.contextDependencies) : real ? functions(provider.contextDependencies ?? defaultContextDependencies()) : [], ...(real ? { kitCommand: provider.kitCommand ?? DEFAULT_AGENT_SUCCESS_KIT_COMMAND, version: retrievalVersion } : {}), executionDependencies: functions(input.dependencies ?? {}) },

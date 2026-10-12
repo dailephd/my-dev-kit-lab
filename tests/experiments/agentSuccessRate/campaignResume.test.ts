@@ -29,7 +29,7 @@ async function fixture(provider: CampaignProvider = { kind: "deterministic-fixtu
   const toolRoot = path.join(root, "tool"), outputRoot = path.join(root, "out"); await mkdir(toolRoot); await mkdir(outputRoot);
   await writeFile(path.join(toolRoot, "package.json"), '{"name":"test-tool","version":"0.0.0"}\n'); writeProjectFiles(path.join(toolRoot, "benchmarks/projects/fixture"), FIXTURE_FILES);
   const corpusFile = path.join(root, "corpus.json"); await writeFile(corpusFile, JSON.stringify(tasks));
-  const boundary = { outputRoot, toolRoot }; const input = { boundary, tasks, corpusFile, sourceRoot: process.cwd(), treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider };
+  const boundary = { outputRoot, toolRoot }; const input = { boundary, tasks, corpusFile, corpusRoot: root, sourceRoot: process.cwd(), treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider };
   const prepared = await prepareAgentSuccessCampaign(input); const read = () => readCampaignCheckpointV2(boundary, prepared.identity, tasks);
   const run = (intent: import("../../../src/experiments/plugins/agentSuccessRate/campaignRecovery.js").CampaignIntent, extra: Partial<import("../../../src/experiments/plugins/agentSuccessRate/campaignResumableExecution.js").CampaignResumableOptions> = {}) => executeAgentSuccessCampaignV2(prepared, { ...options, intent, ...extra });
   return { root, boundary, input, prepared, tasks, read, run, outputRoot, toolRoot };

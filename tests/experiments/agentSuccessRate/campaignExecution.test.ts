@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, realpath, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { executeAgentSuccessCampaign, prepareAgentSuccessCampaign, type CampaignProvider } from "../../../src/experiments/plugins/agentSuccessRate/campaignExecution.js";
@@ -28,7 +28,7 @@ async function fixture(options: { tasks?: AgentSuccessTaskV1[]; provider?: Campa
   const corpusFile = path.join(toolRoot, "corpus.json");
   await writeFile(corpusFile, JSON.stringify(tasks));
   const boundary = { toolRoot, outputRoot };
-  const input = { boundary, sourceRoot: process.cwd(), corpusFile: options.missingCorpus ? null : corpusFile, tasks, treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider: options.provider ?? { kind: "deterministic-fixture" as const }, dependencies: options.dependencies };
+  const input = { boundary, sourceRoot: process.cwd(), corpusFile: options.missingCorpus ? null : corpusFile, corpusRoot: toolRoot, tasks, treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider: options.provider ?? { kind: "deterministic-fixture" as const }, dependencies: options.dependencies };
   const prepared = await prepareAgentSuccessCampaign(input);
   const stored = () => readCampaignCheckpoint(boundary, prepared.identity, tasks);
   return { toolRoot, outputRoot, tasks, boundary, input, prepared, stored };
@@ -38,6 +38,41 @@ function simulated(runAgent: AgentSuccessRunAgent, repairAttempts: 0 | 1 | 2 = 0
 }
 
 describe("checkpoint-integrated campaign execution (no paid providers)", () => {
+  it("IDENTITY-PHYSICAL-ROOT accepts current files under the canonical identity of the authorized roots", async () => {
+    const f = await fixture();
+    const canonicalSourceRoot = await realpath(process.cwd());
+    const canonicalToolRoot = await realpath(f.toolRoot);
+    const prepared = await prepareAgentSuccessCampaign({ ...f.input, sourceRoot: canonicalSourceRoot, boundary: { ...f.boundary, toolRoot: canonicalToolRoot } });
+    expect(prepared.identity).toEqual(f.prepared.identity);
+  });
+
+  it("IDENTITY-UNTRUSTED-ANCESTOR rejects a corpus redirected by a symlink or junction before provider/checkpoint use", async () => {
+    const f = await fixture();
+    const outside = makeTempDir("lab-campaign-outside-");
+    await writeFile(path.join(outside, "corpus.json"), "[]");
+    const alias = path.join(f.toolRoot, "corpus-alias");
+    await symlink(outside, alias, process.platform === "win32" ? "junction" : "dir");
+    const agent = makeScriptedProvider(() => ({ answer: GOOD_ANSWER }));
+    const input = { ...f.input, corpusFile: path.join(alias, "corpus.json"), provider: simulated(agent.runAgent) };
+    await expect(prepareAgentSuccessCampaign(input)).rejects.toThrow("IDENTITY_INPUT_UNSAFE");
+    expect(agent.requests).toHaveLength(0);
+    expect(await readdir(f.outputRoot)).toEqual([]);
+  });
+
+  it.each(["absolute escape", "relative traversal", "symlink input file"])("IDENTITY-UNSAFE-CORPUS rejects %s before provider/checkpoint use", async (kind) => {
+    const f = await fixture();
+    const outside = makeTempDir("lab-campaign-outside-");
+    const outsideCorpus = path.join(outside, "corpus.json");
+    await writeFile(outsideCorpus, "[]");
+    const corpusFile = kind === "absolute escape" ? outsideCorpus : kind === "relative traversal" ? path.join(f.toolRoot, "..", "outside", "corpus.json") : path.join(f.toolRoot, "corpus-link.json");
+    if (kind === "symlink input file") await symlink(outsideCorpus, corpusFile, "file");
+    const agent = makeScriptedProvider(() => ({ answer: GOOD_ANSWER }));
+    await expect(prepareAgentSuccessCampaign({ ...f.input, corpusFile, provider: simulated(agent.runAgent) })).rejects.toThrow("IDENTITY_INPUT_UNSAFE");
+    expect(agent.requests).toHaveLength(0);
+    expect(await readdir(f.outputRoot)).toEqual([]);
+    expect(await readFile(outsideCorpus, "utf8")).toBe("[]");
+  });
+
   it("QUEUE-ORDER / TREATMENT-BOUNDARY / CLAIM-BEFORE-EXECUTION / SANDBOX-ISOLATION through the existing simulated provider pipeline", async () => {
     const tasks = [makeTask({ id: "z-case" }, DECOY_REFERENCE_PATCH), makeTask({ id: "a-case" }, DECOY_REFERENCE_PATCH)];
     const snapshots: string[][] = [];

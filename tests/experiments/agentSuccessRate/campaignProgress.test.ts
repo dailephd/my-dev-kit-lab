@@ -23,7 +23,7 @@ async function fixture(provider: CampaignProvider = { kind: "deterministic-fixtu
   writeProjectFiles(path.join(toolRoot, "benchmarks/projects/fixture"), FIXTURE_FILES);
   const tasks = Array.from({ length: count }, (_, i) => makeTask({ id: i === 0 ? "z-first" : "a-later" }, provider.kind === "deterministic-fixture" ? undefined : DECOY_REFERENCE_PATCH));
   const corpusFile = path.join(root, "corpus.json"); await writeFile(corpusFile, JSON.stringify(tasks));
-  const boundary = { toolRoot, outputRoot }, prepared = await prepareAgentSuccessCampaign({ boundary, tasks, corpusFile, sourceRoot: process.cwd(), treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider });
+  const boundary = { toolRoot, outputRoot }, prepared = await prepareAgentSuccessCampaign({ boundary, tasks, corpusFile, corpusRoot: root, sourceRoot: process.cwd(), treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider });
   const progress = () => readCampaignProgress(boundary, prepared.identity, tasks);
   const run = (intent: "new-resumable" | "resume" = "new-resumable", oneCase = false, publication?: (g: number, phase: string) => Promise<void>) => executeAgentSuccessCampaignV2(prepared, { runId: "progress-run", intent: { kind: intent }, limit: oneCase ? "one-case" : "all-selected-cases", ...(publication ? { hooks: { publication } } : {}) });
   return { root, boundary, prepared, tasks, progress, run, publish: (snapshot: ValidatedCampaignProgress) => writeAgentSuccessCampaignProgressReport({ boundary, snapshot }) };

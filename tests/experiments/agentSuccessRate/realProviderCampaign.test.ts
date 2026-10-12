@@ -19,7 +19,7 @@ const args = { intent: { kind: "new-resumable" as const }, runId: "real-test", l
 describe("explicit real-provider campaign routing through fake process transport", () => {
   it("RSP-002 inconsistent fixture/simulation/real mode fields are rejected", async () => {
     const f = await cliFixture();
-    const input = { boundary: { toolRoot: f.toolRoot, outputRoot: f.outputRoot }, sourceRoot: process.cwd(), corpusFile: path.join(f.toolRoot, "benchmarks/contracts/agent-success-rate-tasks.json"), tasks: [f.task], treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS };
+    const input = { boundary: { toolRoot: f.toolRoot, outputRoot: f.outputRoot }, sourceRoot: process.cwd(), corpusFile: path.join(f.toolRoot, "benchmarks/contracts/agent-success-rate-tasks.json"), corpusRoot: f.toolRoot, tasks: [f.task], treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS };
     for (const provider of [{ kind: "deterministic-fixture", providerId: "codex", includeRealAgents: true }, { kind: "real-agent", providerId: "codex", timeoutMs: 5000, repairAttempts: 0, runAgent: () => { throw new Error("never"); } }]) await expect(prepareAgentSuccessCampaign({ ...input, provider: provider as unknown as CampaignProvider })).rejects.toThrow("INCONSISTENT_EXECUTION_MODE");
     expect(f.shim.invocationKeys()).toEqual([]);
   }, 60000);
@@ -58,7 +58,7 @@ describe("explicit real-provider campaign routing through fake process transport
     const root = await campaignTemp(); const toolRoot = path.join(root, "tool"), outputRoot = path.join(root, "out"); await mkdir(outputRoot); writeProjectFiles(path.join(toolRoot, "benchmarks/projects/fixture"), FIXTURE_FILES);
     const task = makeTask({}, DECOY_REFERENCE_PATCH); const corpusFile = path.join(root, "corpus.json"); await writeFile(corpusFile, JSON.stringify([task]));
     const shim = makeProviderShim("codex"); shim.respond(task.id, "raw-full-file", GOOD_ANSWER); shim.respond(task.id, "context-pack", GOOD_ANSWER);
-    const prepared = await prepareAgentSuccessCampaign({ boundary: { toolRoot, outputRoot }, sourceRoot: process.cwd(), corpusFile, tasks: [task], treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider: { kind: "real-agent", includeRealAgents: true, providerId: "codex", timeoutMs: 5000, repairAttempts: 0, trustedExecutable: await observeProviderBuild("codex", { env: shim.env }), env: shim.env, contextDependencies: makeSourceBackedKit().dependencies } });
+    const prepared = await prepareAgentSuccessCampaign({ boundary: { toolRoot, outputRoot }, sourceRoot: process.cwd(), corpusFile, corpusRoot: root, tasks: [task], treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider: { kind: "real-agent", includeRealAgents: true, providerId: "codex", timeoutMs: 5000, repairAttempts: 0, trustedExecutable: await observeProviderBuild("codex", { env: shim.env }), env: shim.env, contextDependencies: makeSourceBackedKit().dependencies } });
     expect((await executeAgentSuccessCampaign(prepared, args)).errors).toContain("REAL_PROVIDER_REQUIRES_V2");
     const result = await executeAgentSuccessCampaignV2(prepared, args); expect(result.errors).toEqual([]); expect(result.status).toBe("completed"); expect(result.checkpoint!.units.every(u => u.completion!.taskSuccess)).toBe(true); expect(shim.invocationKeys()).toHaveLength(2);
   }, 120000);

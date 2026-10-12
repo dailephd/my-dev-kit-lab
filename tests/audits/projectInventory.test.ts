@@ -50,6 +50,11 @@ function buildFixtureProject(): string {
   writeFile(root, "reports/security/report.json", "{}");
   writeFile(root, "lab-output/artifact.json", "{}");
   writeFile(root, ".my-dev-kit/index.json", "{}");
+  writeFile(root, ".my-dev-kit-context/worktrees/history/src/old.ts", "export const historical = true;\n");
+  writeFile(root, ".my-dev-kit-context/worktrees/history/tests/old.test.ts", "test('historical', () => {});\n");
+  writeFile(root, ".my-dev-kit-context/worktrees/history/package.json", "{}\n");
+  writeFile(root, ".my-dev-kit-context/worktrees/history/docs/old.md", "# Historical\n");
+  writeFile(root, ".my-dev-kit-context-notes/keep.ts", "export const firstParty = true;\n");
 
   return root;
 }
@@ -176,6 +181,54 @@ describe("scanProjectInventory — exclusions", () => {
       const names = inventory.excludedDirectorySummary.map((e) => e.name);
       expect(names).toContain("node_modules");
       expect(names).toContain(".git");
+      expect(inventory.excludedDirectorySummary).toContainEqual({ name: ".my-dev-kit-context", occurrences: 1 });
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("excludes historical context worktrees by whole directory segment while retaining first-party and fixture files", () => {
+    const root = buildFixtureProject();
+    try {
+      const inventory = scanProjectInventory(root);
+      const paths = inventory.files.map((file) => file.relativePath);
+      expect(paths.some((file) => file.startsWith(".my-dev-kit-context/"))).toBe(false);
+      expect(paths).toContain("src/index.ts");
+      expect(paths).toContain("tests/index.test.ts");
+      expect(paths).toContain("docs/GUIDE.md");
+      expect(paths).toContain("package.json");
+      expect(paths).toContain(".my-dev-kit-context-notes/keep.ts");
+      expect(inventory.excludedDirectorySummary).toContainEqual({ name: ".my-dev-kit-context", occurrences: 1 });
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("audits an explicitly selected directory named .my-dev-kit-context as its target root", () => {
+    const parent = makeTempDir();
+    try {
+      const explicitTarget = path.join(parent, ".my-dev-kit-context");
+      writeFile(explicitTarget, "src/selected.ts", "export const selected = true;\n");
+      const inventory = scanProjectInventory(explicitTarget);
+      expect(inventory.sourceFiles.map((file) => file.relativePath)).toContain("src/selected.ts");
+      expect(inventory.excludedDirectorySummary).toEqual([]);
+    } finally {
+      cleanup(parent);
+    }
+  });
+
+  it("produces identical inventory when unrelated historical context artifacts are added", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/index.ts", "export const x = 1;\n");
+      writeFile(root, "tests/index.test.ts", "test('x', () => {});\n");
+      const before = scanProjectInventory(root);
+      writeFile(root, ".my-dev-kit-context/worktrees/extra/src/extra.ts", "export const extra = true;\n");
+      writeFile(root, ".my-dev-kit-context/reports/evidence.md", "evidence\n");
+      const after = scanProjectInventory(root);
+      expect(after.files).toEqual(before.files);
+      expect(after.filesByCategory).toEqual(before.filesByCategory);
+      expect(after.excludedDirectorySummary).toContainEqual({ name: ".my-dev-kit-context", occurrences: 1 });
     } finally {
       cleanup(root);
     }

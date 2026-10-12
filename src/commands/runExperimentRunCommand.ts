@@ -363,7 +363,7 @@ async function runAgentCampaignCommand(args: ParsedRunExperimentArgs, context: L
   const tasks = selectAgentSuccessTasks(inputs.agentSuccessTasks as import("../evaluation/agentSuccess/index.js").AgentSuccessTaskV1[], config);
   const runtime = options.campaignRuntime;
   const provider: CampaignPreparationInput["provider"] = config.agentId ? { kind: "real-agent", providerId: config.agentId, includeRealAgents: true, timeoutMs: config.timeoutMs ?? AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS, repairAttempts: (config.repairAttempts ?? 0) as 0 | 1 | 2, kitCommand: config.kitCommand, contextDependencies: runtime?.contextDependencies, env: runtime?.env } : { kind: "deterministic-fixture" };
-  const preparation: CampaignPreparationInput = { boundary, sourceRoot, corpusFile: resolvePackageResource(context, AGENT_SUCCESS_TASK_CATALOG_PATH), tasks, treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider, dependencies: runtime?.dependencies };
+  const preparation: CampaignPreparationInput = { boundary, sourceRoot, corpusFile: resolvePackageResource(context, AGENT_SUCCESS_TASK_CATALOG_PATH), corpusRoot: context.packageRoot, tasks, treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider, dependencies: runtime?.dependencies };
   // Source, corpus and canonical project byte checks precede even a task-free version probe.
   let prepared = await prepareAgentSuccessCampaign(preparation);
   if (provider.kind === "real-agent") {
