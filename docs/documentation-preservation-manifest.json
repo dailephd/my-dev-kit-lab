@@ -49,7 +49,8 @@
         "Chromium",
         "incremental-change-staleness",
         "--synthetic-config",
-        "agent-success-rate"
+        "agent-success-rate",
+        "external-target package-content correction"
       ]
     },
     "docs/PROJECT_OVERVIEW.md": {
@@ -74,7 +75,8 @@
         "tutorial",
         "browser",
         "incremental-change-staleness",
-        "agent-success-rate"
+        "agent-success-rate",
+        "external-target package-content correction"
       ]
     },
     "docs/CURRENT_STATE.md": {
@@ -115,7 +117,8 @@
         "context-window-scaling",
         "v0.7.0",
         "agent-success-rate",
-        "pre-release readiness"
+        "pre-release readiness",
+        "external-target package-content correction"
       ]
     },
     "docs/ARCHITECTURE.md": {
@@ -153,7 +156,8 @@
         "SyntheticRepositoryConfigV1",
         "synthetic-repositories",
         "syntheticInputs",
-        "agent-success-rate"
+        "agent-success-rate",
+        "external-target package-content correction"
       ]
     },
     "docs/COMMANDS.md": {
@@ -191,7 +195,8 @@
         "SyntheticRepositoryConfigV1",
         "synthetic-repositories",
         "agent-success-rate",
-        "--repair-attempts"
+        "--repair-attempts",
+        "external-target package-content correction"
       ]
     },
     "docs/WORKFLOWS.md": {
@@ -230,7 +235,8 @@
         "--synthetic-config",
         "synthetic-repositories",
         "agent-success-rate",
-        "Agent-success-rate evaluation"
+        "Agent-success-rate evaluation",
+        "external-target package-content correction"
       ]
     },
     "docs/TUTORIAL.md": {
@@ -301,7 +307,8 @@
         "manual pentest",
         "network",
         "security:validate",
-        "audit"
+        "audit",
+        "external-target package-content correction"
       ]
     },
     "docs/DOCUMENTATION_PRESERVATION_POLICY.md": {
@@ -383,7 +390,8 @@
     ],
     "requiredDeferredMarkers": [
       "Post-v1 / version TBD",
-      "manual pentest"
+      "manual pentest",
+      "Priority correction before v0.9.2"
     ],
     "forbiddenVersionRangeHeadings": [
       "v0.5.x-v0.9.x",
