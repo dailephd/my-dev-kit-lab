@@ -1483,7 +1483,7 @@ Acceptance (preserved):
 
 ### v0.9.2 — external-target package-content validator correction
 
-Status: **urgent, planned; not implemented, validated, release-prepared, or published**.
+Status: **planned; not implemented**.
 
 Purpose:
 
