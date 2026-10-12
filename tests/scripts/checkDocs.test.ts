@@ -22,7 +22,7 @@ type DocumentationManifest = {
   currentFacts: {
     latestPublishedVersion: string;
     nextPlannedVersion: string;
-    currentImplementedUnreleasedVersion?: string;
+    currentImplementedUnreleasedVersion?: string | null;
     implementedExperimentPlugins?: string[];
     experimentPluginDocuments?: string[];
   };
@@ -366,7 +366,7 @@ describe("release lifecycle and plugin preservation", () => {
       expect(unreleasedIndex).toBeGreaterThan(publishedIndex);
       expect(unreleasedIndex).toBeLessThan(plannedIndex);
     } else {
-      expect(facts.currentImplementedUnreleasedVersion ?? null).toBeNull();
+      expect(facts.currentImplementedUnreleasedVersion).toBeNull();
     }
     expect(pluginIds.length).toBeGreaterThanOrEqual(2);
     expect(pluginDocuments.length).toBeGreaterThan(0);

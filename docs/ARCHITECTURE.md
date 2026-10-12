@@ -841,7 +841,7 @@ The bundled corpus, project profiles, and canonical projects ship in the package
 
 ### Non-goals
 
-v0.9.0 does not add campaign scheduling, resume, skip-completed runs, rate-limit pause handling, a provider telemetry taxonomy, strict prompt modes, a report section registry, or generalized gallery presentation (v0.9.1 and v0.9.2). It does not add a weighted score, an automatic winner, or statistical-significance testing.
+v0.9.1 adds campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry. Strict prompt modes, a report section registry, and generalized gallery presentation remain planned for v0.9.2. The plugin does not add a weighted score, an automatic winner, or statistical-significance testing.
 
 ## Target model
 
@@ -1218,3 +1218,12 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.5.2 campaign command orchestration (released) | `src/commands/runExperimentRunCommand.ts` |
 | v0.5.2 campaign presentation sequencing (released) | `src/commands/runWarmIndexCampaignPresentation.ts` |
 | v0.5.2 campaign gallery (released) | `src/gallery/writeWarmIndexCampaignGallery.ts` |
+
+
+## v0.9.1 campaign architecture
+
+Shared agent telemetry contracts live under `src/agents/`; Codex and Claude adapters feed the existing real-agent execution boundary in `src/experiments/plugins/agentSuccessRate/realAgentExecution.ts`. Campaign identity and deterministic selection are owned by `campaignIdentity.ts` and `campaignQueue.ts`. `campaignExecution.ts` reuses the treatment executor and persists each unit through the checkpoint store. Checkpoint v1 compatibility remains in `campaignCheckpoint.ts`; v2 epoch and recovery rules are owned by `campaignRecovery.ts`, with immutable generation and artifact ownership in `campaignCheckpointStore.ts`.
+
+`runExperimentRunCommand.ts` routes the public campaign flags into the plugin. `timeoutPresets.ts` owns the Codex and Claude operational presets. `campaignProgress.ts` validates a closed progress projection; builders, renderers, and writer under `src/report/experiments/` publish JSON, static escaped HTML, and text snapshots. Partial progress files describe operational state and do not replace the complete execution/analysis artifacts. Final scientific artifact generation continues through the existing plugin and report owners. Provider identity observation binds supported executable forms to execution; it does not attest all transitive dependencies.
+
+Checkpoint and progress identifiers are `my-dev-kit-lab-agent-success-rate-campaign-checkpoint-v1`, `my-dev-kit-lab-agent-success-rate-campaign-checkpoint-v2`, and `my-dev-kit-lab-agent-success-rate-campaign-progress-v1`. They are separate operational persistence contracts. Scientific outputs remain `agent-success-rate-execution.json` (`my-dev-kit-lab-agent-success-rate-execution-v1`) and `agent-success-rate-analysis.json` (`my-dev-kit-lab-agent-success-rate-analysis-v1`); checkpoints and partial progress do not substitute for them.

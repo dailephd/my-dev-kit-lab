@@ -143,6 +143,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         cwd: options.cwd,
         env: childEnv,
         shell: false,
+        windowsHide: true,
         stdio: options.stdinText !== undefined ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
         // Own process group so a bounded termination can reach descendants. Windows reaches the tree
         // through `taskkill /T`, and `detached` there would open a new console, so it is not set.
@@ -209,6 +210,9 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       // without asserting a limit of our own.
       if ((error as NodeJS.ErrnoException).code === "ENOENT" && existsSync(options.cwd)) {
         spawnError += ` (the working directory exists but the process could not be started in it; cwd length ${options.cwd.length} characters)`;
+        if (process.platform === "win32") {
+          spawnError += "; use a shorter output/sandbox path on this Windows host";
+        }
       }
     });
     // A failed spawn can also make the OS report the never-connected stdout/stderr pipes as errors (Windows:

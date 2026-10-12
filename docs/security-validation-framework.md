@@ -228,3 +228,12 @@ The `agent-success-rate` experiment (added in v0.9.0) runs benchmark tasks and, 
 - **Process-error handling:** the shared measured-command runner records errors from child output streams on the command result, so a failed process start is a reported failure and not an unhandled exception.
 
 Limits: the neutral working directory is not full operating-system isolation, the provider inherits the host environment and account permissions, and the Lab does not guarantee prevention of every malicious provider action. Very long Windows paths are not made to work; they end as controlled infrastructure failures.
+
+
+## Agent-success-rate campaign security boundaries (v0.9.1)
+
+Real-provider campaign execution remains explicit opt-in. The implementation observes supported Codex/Claude executable forms and binds the observed executable to launch; unsupported or ambiguous forms fail closed. This does not attest every transitive dependency. Provider context is limited to approved task context and runs from a neutral working directory; trusted answers, private benchmark definitions, checks, and reference patches are not supplied as provider context. Attempts and repair remain bounded.
+
+Campaign identity, exclusive dispatch ownership, immutable checkpoint generations, artifact digests, and output-root containment guard persistence and resume. Version 2 checkpoints authorize invocation durably before dispatch and isolate execution epochs in separate artifact namespaces. Uncertain provider invocations are not silently replayed. Known provider-limit continuation requires explicit authorization bound to the exact case, treatment, epoch, and checkpoint revision; no general crash auto-recovery or quota polling is provided.
+
+Provider stdout/stderr are treated as untrusted input. Parsing and normalized telemetry are bounded by observed structured output and retain provenance; unavailable or partial measurements remain unavailable or partial. Public progress reports use a closed validated projection and do not include raw provider output, trusted answers, credentials, or private task definitions.

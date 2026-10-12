@@ -1,8 +1,9 @@
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { runAgentPrompt } from "../../../agents/index.js";
-import type { AgentRunResult } from "../../../agents/types.js";
+import { normalizeAgentDurationV091, normalizeAgentTokenUsageV091, runAgentPrompt } from "../../../agents/index.js";
+import type { AgentRunResult, NormalizedAgentTelemetryV091, TokenUsageSource } from "../../../agents/types.js";
+import type { TrustedProviderExecutable } from "../../../agents/providerBuildObservation.js";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
 import { isSameOrInside, resolvePhysicalPath } from "../../../evaluation/benchmarkSandbox/pathPolicy.js";
 import { classifyAgentRunOutcome } from "../../../evaluation/classifyAgentRunOutcome.js";
@@ -38,6 +39,7 @@ export type AgentSuccessRealAgentSettings = {
   timeoutMs: number;
   env?: NodeJS.ProcessEnv;
   runAgent: AgentSuccessRunAgent;
+  trustedExecutable?: TrustedProviderExecutable;
   /** Experiment output root; agent attempt directories are created below it. */
   outDir: string;
   /** Roots the provider working directory must be disjoint from (repository, benchmarks, sandboxes, outputs, package). */
@@ -96,19 +98,41 @@ function toProviderStatus(status: string): AgentSuccessProviderStatus {
     case "agent-unavailable":
     case "agent-limit-reached":
     case "invalid-output":
+    case "not-invoked":
       return status;
     default:
       return "failed";
   }
 }
 
+/** Runtime-only projection. The evaluation pipeline copies named legacy fields, never this envelope. */
+export function projectAgentSuccessProviderTelemetryV091(
+  result: AgentRunResult | null,
+  providerStatus: AgentSuccessProviderStatus,
+  durationMs: number | null | undefined
+): { normalizedTelemetry: NormalizedAgentTelemetryV091; tokenUsageSourceConflict: { usageSource: TokenUsageSource; resultSource: TokenUsageSource } | null } {
+  const tokenUsage = normalizeAgentTokenUsageV091(result?.tokenUsage ?? { source: "unavailable" }, result?.tokenUsageReliability ?? "unavailable");
+  const conflict = result !== null && result.tokenUsage.source !== result.tokenUsageSource;
+  if (conflict) {
+    // Retain both identities and reliability; disagreement cannot certify either channel.
+    tokenUsage.evidenceLevel = "unavailable";
+    tokenUsage.classificationReason = "unattributed-source";
+  }
+  return {
+    normalizedTelemetry: { providerStatus, tokenUsage, duration: normalizeAgentDurationV091(durationMs) },
+    tokenUsageSourceConflict: conflict ? { usageSource: result.tokenUsage.source, resultSource: result.tokenUsageSource } : null
+  };
+}
+
+type AgentSuccessRuntimeProposal = AgentSuccessProposal & ReturnType<typeof projectAgentSuccessProviderTelemetryV091>;
+
 function tokenEvidence(result: AgentRunResult): AgentSuccessAgentTokenEvidenceV1 {
-  const finite = (value: number | undefined): number | null => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null);
+  const normalized = normalizeAgentTokenUsageV091(result.tokenUsage, result.tokenUsageReliability);
   return {
     // Only provider-, agent-, CLI- or telemetry-reported totals count; a text-length estimate is not provider usage.
-    totalTokens: result.tokenUsageSource === "unavailable" || result.tokenUsageSource === "estimated-from-text" ? null : finite(result.tokenUsage.totalTokens),
-    inputTokens: finite(result.tokenUsage.inputTokens),
-    outputTokens: finite(result.tokenUsage.outputTokens),
+    totalTokens: [result.tokenUsageSource, result.tokenUsage.source].some((source) => source === "unavailable" || source === "estimated-from-text") ? null : normalized.totalTokens,
+    inputTokens: normalized.inputTokens,
+    outputTokens: normalized.outputTokens,
     source: result.tokenUsageSource,
     reliability: result.tokenUsageReliability
   };
@@ -147,10 +171,11 @@ export function createRealAgentProposalSource(args: {
   attemptNumber?: AgentSuccessAttemptNumber;
   /** Repair attempts only: the harness-authored feedback about the previous attempt. */
   repair?: { feedback: AgentSuccessRepairFeedback; maxAttempts: number };
-}): AgentSuccessProposalSource {
+}): (request: Parameters<AgentSuccessProposalSource>[0]) => Promise<AgentSuccessRuntimeProposal> {
   const { settings } = args;
   const attemptNumber: AgentSuccessAttemptNumber = args.attemptNumber ?? 1;
-  return async ({ treatmentId, invoke, notInvokedReason }): Promise<AgentSuccessProposal> => {
+  return async ({ treatmentId, invoke, notInvokedReason }): Promise<AgentSuccessRuntimeProposal> => {
+    let runtimeTelemetry = projectAgentSuccessProviderTelemetryV091(null, "not-invoked", null);
     const context = args.contexts[treatmentId];
     const task = args.task;
     const contextArtifactPath = context.text !== null ? agentSuccessContextArtifactPath(task.benchmarkProject, task.caseId, treatmentId) : null;
@@ -185,10 +210,11 @@ export function createRealAgentProposalSource(args: {
       code: string,
       message: string,
       measured: { agentDurationMs?: number | null; agentTokenUsage?: AgentSuccessAgentTokenEvidenceV1 | null } = {}
-    ): AgentSuccessProposal => {
+    ): AgentSuccessRuntimeProposal => {
       realAgent.providerStatusReason = boundMessage(reason, settings.privateRoots);
       return {
         kind: "no-proposal",
+        ...runtimeTelemetry,
         realAgent,
         agentDurationMs: measured.agentDurationMs ?? null,
         agentTokenUsage: measured.agentTokenUsage ?? null,
@@ -200,7 +226,7 @@ export function createRealAgentProposalSource(args: {
     if (!invoke) {
       realAgent.context.contextArtifactPath = null;
       realAgent.providerStatusReason = boundMessage(notInvokedReason ?? "not-invoked", settings.privateRoots);
-      return { kind: "no-proposal", realAgent, agentDurationMs: null, agentTokenUsage: null, errors: [], contextFile: null };
+      return { kind: "no-proposal", ...runtimeTelemetry, realAgent, agentDurationMs: null, agentTokenUsage: null, errors: [], contextFile: null };
     }
 
     if (context.availability === "unavailable" || context.text === null) {
@@ -250,6 +276,7 @@ export function createRealAgentProposalSource(args: {
           promptVariant: buildTransportVariant(task, treatmentId),
           promptText,
           promptTransport: "stdin",
+          trustedExecutable: settings.trustedExecutable,
           timeoutMs: settings.timeoutMs,
           requireAvailable: false,
           env: settings.env,
@@ -278,11 +305,13 @@ export function createRealAgentProposalSource(args: {
       realAgent.providerInvoked = realAgent.providerInvoked && !notNeutral;
       if (!notNeutral) realAgent.providerStatus = "failed";
       if (notNeutral || !realAgent.providerInvoked) realAgent.agentArtifactDirectory = null;
+      const agentDurationMs = notNeutral ? null : Date.now() - wallStarted;
+      runtimeTelemetry = projectAgentSuccessProviderTelemetryV091(null, realAgent.providerStatus, agentDurationMs);
       return noProposal(
         notNeutral ? "provider-cwd-not-neutral" : "provider-invocation-error",
         notNeutral ? "AGENT_CWD_NOT_NEUTRAL" : "PROVIDER_FAILED",
         notNeutral ? "The provider working directory overlapped a protected root; the provider was not invoked." : `The provider invocation raised an error: ${invocationError ?? "unknown"}`,
-        { agentDurationMs: notNeutral ? null : Date.now() - wallStarted }
+        { agentDurationMs }
       );
     }
 
@@ -300,6 +329,7 @@ export function createRealAgentProposalSource(args: {
     };
     const agentDurationMs = Number.isFinite(result.durationMs) && result.durationMs >= 0 ? result.durationMs : Date.now() - wallStarted;
     const agentTokenUsage = tokenEvidence(result);
+    runtimeTelemetry = projectAgentSuccessProviderTelemetryV091(result, providerStatus, agentDurationMs);
 
     if (providerStatus !== "completed") {
       return noProposal(classification.statusReason, PROVIDER_STATUS_CODES[providerStatus as keyof typeof PROVIDER_STATUS_CODES] ?? "PROVIDER_FAILED", `Provider ${settings.providerId} ended with status ${providerStatus}: ${classification.statusReason}`, {
@@ -312,6 +342,6 @@ export function createRealAgentProposalSource(args: {
     }
     realAgent.finalAnswerAvailable = true;
     realAgent.providerStatusReason = null;
-    return { kind: "proposal", text: result.finalAnswerText, realAgent, agentDurationMs, agentTokenUsage, errors: [] as AgentSuccessErrorV1[], contextFile };
+    return { kind: "proposal", ...runtimeTelemetry, text: result.finalAnswerText, realAgent, agentDurationMs, agentTokenUsage, errors: [] as AgentSuccessErrorV1[], contextFile };
   };
 }

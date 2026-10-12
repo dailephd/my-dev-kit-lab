@@ -10,14 +10,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * errors (Windows `read ENOTCONN` after `spawn ... ENOENT`). Those stream errors must be absorbed by the one failed
  * process's lifecycle and reported in its result, never escape as an unhandled 'error' event.
  */
-const state = vi.hoisted(() => ({ script: (_child: unknown): void => undefined }));
+const state = vi.hoisted(() => ({ script: (_child: unknown): void => undefined, spawnOptions: undefined as import("node:child_process").SpawnOptions | undefined }));
 
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
   const { EventEmitter: Emitter } = await import("node:events");
   return {
     ...actual,
-    spawn: () => {
+    spawn: (_executable: string, _args: string[], options: import("node:child_process").SpawnOptions) => {
+      state.spawnOptions = options;
       const child = new Emitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; stdin: null; pid: number; unref(): void };
       child.stdout = new Emitter();
       child.stderr = new Emitter();
@@ -36,6 +37,7 @@ const { runMeasuredCommand } = await import("../../src/core/runMeasuredCommand.j
 const tempDirs: string[] = [];
 afterEach(async () => {
   state.script = () => undefined;
+  state.spawnOptions = undefined;
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => undefined)));
 });
 
@@ -48,6 +50,12 @@ const run = (cwd: string) => {
 const enotconn = () => Object.assign(new Error("read ENOTCONN"), { code: "ENOTCONN", errno: -4053, syscall: "read" });
 
 describe("runMeasuredCommand failed-spawn stream errors", () => {
+  it("starts measured commands without a shell or a visible Windows console", async () => {
+    state.script = (child) => (child as EventEmitter).emit("close", 0);
+    expect((await run(os.tmpdir())).ok).toBe(true);
+    expect(state.spawnOptions).toMatchObject({ shell: false, windowsHide: true, cwd: os.tmpdir() });
+  });
+
   it("PATH-003/004: ENOTCONN on both pipes after a spawn ENOENT is absorbed and reported once, as a failure", async () => {
     state.script = (child) => {
       const c = child as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter };

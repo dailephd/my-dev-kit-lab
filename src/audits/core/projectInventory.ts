@@ -164,6 +164,7 @@ const EXCLUDED_DIR_NAMES = new Set([
   ".my-dev-kit",
   ".my-dev-kit-v1",
   ".my-dev-kit-lab",
+  ".my-dev-kit-context",
   "__pycache__",
   ".idea",
   ".vscode",

@@ -5,6 +5,12 @@ import type {
   AgentSuccessReportPairedOutcomesV1
 } from "./agentSuccessRateReportModel.js";
 
+export function renderCampaignEvidenceSummary(report: AgentSuccessRateReportV1): string {
+  const m = report.campaignEvidence;
+  return m ? [`Campaign evidence: ${m.state}; checkpoint revision ${m.checkpointGeneration} (${m.checkpointRevision}); completed evaluations ${m.unitCounts.completed}/${m.totalTreatmentUnits}; completed cases ${m.caseCounts.completed}/${m.selectedCaseCount}`,
+    ...m.comparisons.map(q => `${q.quantity}: ${q.quality}; ${q.basis}; ${q.measurementBasis}; matched ${q.matchedCaseIds.length}/${q.selectedCaseCount}; excluded ${q.excludedCaseIds.length}; raw=${q.rawFullFileMean ?? "unavailable"}; context=${q.contextPackMean ?? "unavailable"}; delta=${q.meanDifference ?? "unavailable"}; unit=${q.unit}; reasons=${q.reasons.join(", ") || "none"}; ${q.reasonExplanations.join(" ")}`)].join("\n") : "";
+}
+
 /** One display form for every metric: an absent value is labelled, never rendered as zero. */
 export function formatAgentSuccessMetric(metric: AgentSuccessReportMetricV1 | null | undefined): string {
   if (!metric) return "unavailable (not recorded)";
@@ -186,5 +192,6 @@ export function renderAgentSuccessRateTextLines(report: AgentSuccessRateReportV1
   for (const warning of report.warnings) lines.push(`warning ${sanitize(warning.code)}: ${sanitize(warning.message)}`);
   for (const error of errors) lines.push(`error ${error.caseId} / ${error.treatmentId} attempt ${error.attemptNumber} ${sanitize(error.code)}: ${sanitize(error.message)}`);
   for (const artifact of report.artifacts) lines.push(`artifact ${sanitize(artifact.id)}: ${artifact.path ?? "[reference withheld]"}`);
+  if (report.campaignEvidence) lines.push(renderCampaignEvidenceSummary(report));
   return lines;
 }

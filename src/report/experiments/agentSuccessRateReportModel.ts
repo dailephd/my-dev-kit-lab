@@ -138,6 +138,7 @@ export type AgentSuccessReportRepairHistoryV1 = {
 };
 
 export type AgentSuccessRateReportV1 = {
+  campaignEvidence?: Pick<import("../../experiments/plugins/agentSuccessRate/campaignProgress.js").CampaignProgressV1, "schemaVersion" | "campaignIdentity" | "checkpointGeneration" | "checkpointRevision" | "state" | "selectedCaseCount" | "totalTreatmentUnits" | "unitCounts" | "caseCounts" | "comparisons" | "finalScientificArtifactsAvailable">;
   schemaVersion: typeof AGENT_SUCCESS_RATE_REPORT_SCHEMA_VERSION;
   identity: {
     runId: string;

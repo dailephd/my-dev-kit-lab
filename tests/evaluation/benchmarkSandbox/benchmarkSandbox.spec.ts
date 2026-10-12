@@ -40,6 +40,38 @@ async function makeLink(target: string, linkPath: string): Promise<void> {
 }
 
 describe("benchmark sandbox creation", () => {
+  it("applies command-local long-path support before initialization in a supported deep path with spaces", async () => {
+    const canonical = makeCanonicalFixture();
+    const before = await snapshotProjectTree(canonical, SNAPSHOT_ALL);
+    const parent = makeTempDir("lab-long-init-");
+    const sandboxId = "long-init";
+    let runtimeRoot = path.join(parent, "path with spaces");
+    const runtimeLength = 240 - path.join(sandboxId, "project").length - 1;
+    while (runtimeRoot.length < runtimeLength) {
+      if (runtimeRoot.length + 1 === runtimeLength) { runtimeRoot += "x"; break; }
+      runtimeRoot = path.join(runtimeRoot, "nested path with spaces-xxxxxxxxxxxxxxxx".slice(0, Math.min(40, runtimeLength - runtimeRoot.length - 1)));
+    }
+    const sibling = path.join(parent, "keep.txt");
+    writeFileSync(sibling, "unrelated content\n");
+    const sandbox = await makeSandbox(canonical, sandboxId, runtimeRoot);
+    expect(sandbox.projectRoot.length).toBe(240);
+    const init = JSON.parse(readFileSync(path.join(sandbox.evidenceRoot, "git", "git-0001-init.telemetry.json"), "utf8"));
+    expect(init.ok).toBe(true);
+    expect(init.exitCode).toBe(0);
+    expect(init.args.indexOf("core.longpaths=true")).toBeGreaterThan(0);
+    expect(init.args.indexOf("core.longpaths=true")).toBeLessThan(init.args.indexOf("init"));
+    const effective = await runSandboxGit(sandbox, ["config", "--show-origin", "--get", "core.longpaths"]);
+    expect(effective.ok).toBe(true);
+    expect(effective.stdout.trim()).toMatch(/^command line:\s+true$/);
+    expect((await runSandboxGit(sandbox, ["status", "--porcelain"])).stdout).toBe("");
+    expect(sandbox.baseline.commit).toMatch(/^[a-f0-9]{40}$/);
+    expect(await snapshotProjectTree(sandbox.projectRoot, { excludedNames: [".git"] })).toEqual(before);
+    expect(await snapshotProjectTree(canonical, SNAPSHOT_ALL)).toEqual(before);
+    expect(await removeBenchmarkSandbox({ runtimeRoot, sandboxId })).toEqual({ removed: true, alreadyAbsent: false });
+    expect(readFileSync(sibling, "utf8")).toBe("unrelated content\n");
+    expect(await snapshotProjectTree(canonical, SNAPSHOT_ALL)).toEqual(before);
+  });
+
   it("RSP-007 copies a benchmark project into the caller-supplied runtime root", async () => {
     const canonical = makeCanonicalFixture();
     const runtimeRoot = path.join(makeTempDir("lab-rt-"), "runtime");

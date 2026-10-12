@@ -1,4 +1,5 @@
 import type { ExperimentRun } from "../../experiments/index.js";
+import { validateCampaignProgress } from "../../experiments/plugins/agentSuccessRate/campaignProgress.js";
 import type { AgentSuccessMeasurementTotalV1, AgentSuccessPairedDifferenceV1 } from "../../experiments/plugins/agentSuccessRate/analysisTypes.js";
 import { attemptEvidenceOf } from "../../experiments/plugins/agentSuccessRate/attemptEvidence.js";
 import type { AgentSuccessTreatmentEvidenceV1 } from "../../experiments/plugins/agentSuccessRate/executionTypes.js";
@@ -250,7 +251,17 @@ export function buildAgentSuccessRateReport(run: ExperimentRun): AgentSuccessRat
 
   const overall: AgentSuccessRateReportV1["resultAvailability"]["overall"] = total === 0 || evaluable === 0 ? "unavailable" : unavailable === 0 ? "complete" : "partial";
 
+  const progress = (run as ExperimentRun & { agentSuccessCampaignProgress?: unknown }).agentSuccessCampaignProgress;
+  let campaignEvidence: AgentSuccessRateReportV1["campaignEvidence"];
+  if (progress !== undefined) {
+    validateCampaignProgress(progress);
+    if (progress.state !== "complete" || !progress.finalScientificArtifactsAvailable) throw new Error("Campaign final report requires complete validated evidence.");
+    const { schemaVersion, campaignIdentity, checkpointGeneration, checkpointRevision, state, selectedCaseCount, totalTreatmentUnits, unitCounts, caseCounts, comparisons, finalScientificArtifactsAvailable } = progress;
+    campaignEvidence = structuredClone({ schemaVersion, campaignIdentity, checkpointGeneration, checkpointRevision, state, selectedCaseCount, totalTreatmentUnits, unitCounts, caseCounts, comparisons, finalScientificArtifactsAvailable });
+  }
+
   return {
+    ...(campaignEvidence ? { campaignEvidence } : {}),
     schemaVersion: AGENT_SUCCESS_RATE_REPORT_SCHEMA_VERSION,
     identity: {
       runId: run.runId,

@@ -24,12 +24,12 @@ const numberFields: Record<keyof UsageAccumulator, string[]> = {
 
 export function parseAgentTokenUsage(text: string): AgentTokenUsageParseResult {
   const warnings: string[] = [];
-  const jsonUsage = parseJsonUsage(text);
+  const jsonUsage = parseJsonUsage(text, warnings);
   if (jsonUsage.found) {
     return buildResult(jsonUsage.usage, "cli-json", text, warnings);
   }
 
-  const plainTextUsage = parsePlainTextUsage(text);
+  const plainTextUsage = jsonUsage.structured ? { found: false, usage: {} } : parsePlainTextUsage(text);
   if (plainTextUsage.found) {
     return buildResult(plainTextUsage.usage, "agent-reported", text, warnings);
   }
@@ -43,60 +43,69 @@ export function parseAgentTokenUsage(text: string): AgentTokenUsageParseResult {
   };
 }
 
-function parseJsonUsage(text: string): { found: boolean; usage: UsageAccumulator } {
-  const usage: UsageAccumulator = {};
+function parseJsonUsage(text: string, warnings: string[]): { found: boolean; usage: UsageAccumulator; structured: boolean } {
+  let usage: UsageAccumulator | undefined;
+  let structured = false;
+  let visited = 0;
+  const warn = (message: string): void => { if (!warnings.includes(message)) warnings.push(message); };
+  const visit = (value: unknown, depth: number): void => {
+    if (!value || typeof value !== "object") return;
+    if (++visited > 2048 || depth > 16) {
+      warn("Token usage traversal limit reached; additional envelopes were ignored.");
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const child of value) { if (visited > 2048) break; visit(child, depth + 1); }
+      return;
+    }
+    const record = value as Record<string, unknown>;
+    const local: UsageAccumulator = {};
+    for (const [key, aliases] of Object.entries(numberFields) as Array<[keyof UsageAccumulator, string[]]>) {
+      for (const alias of aliases) {
+        const count = record[alias];
+        if (count === undefined) continue;
+        if (typeof count !== "number" || !Number.isFinite(count) || !Number.isInteger(count) || count < 0) {
+          warn("Invalid token count ignored in agent output.");
+          continue;
+        }
+        if (local[key] !== undefined && local[key] !== count) warn("Conflicting token aliases; legacy maximum precedence retained within one usage record.");
+        local[key] = Math.max(local[key] ?? 0, count);
+      }
+    }
+    if (hasAnyUsage(local)) {
+      if (usage === undefined) usage = local;
+      else if (JSON.stringify(usage) !== JSON.stringify(local)) warn("Multiple token usage records; first valid record retained without combining attempts.");
+    }
+    // Supported envelope traversal only: patch/tool payload objects are not usage metadata.
+    for (const key of ["usage", "token_usage", "tokenUsage", "response", "message", "data", "event", "result"]) {
+      if (visited > 2048) break;
+      visit(record[key], depth + 1);
+    }
+  };
+  let candidates = 0;
   for (const candidate of collectJsonCandidates(text)) {
+    if (++candidates > 4096) { warn("Token usage candidate limit reached; additional lines were ignored."); break; }
     try {
-      mergeUsage(usage, extractUsage(JSON.parse(candidate)));
+      const value: unknown = JSON.parse(candidate);
+      structured = true;
+      visit(value, 0);
     } catch {
       // Agent output is often mixed JSONL plus text; malformed lines are ignored.
     }
   }
-  return { found: hasAnyUsage(usage), usage };
+  return { found: usage !== undefined, usage: usage ?? {}, structured };
 }
 
-function collectJsonCandidates(text: string): string[] {
+function* collectJsonCandidates(text: string): Iterable<string> {
   const trimmed = text.trim();
-  const candidates: string[] = [];
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    candidates.push(trimmed);
+    yield trimmed;
   }
-  for (const line of text.split(/\r?\n/)) {
-    const lineTrimmed = line.trim();
-    if (lineTrimmed.startsWith("{") || lineTrimmed.startsWith("[")) {
-      candidates.push(lineTrimmed);
+  for (const match of text.matchAll(/[^\r\n]+/g)) {
+    const lineTrimmed = match[0].trim();
+    if (lineTrimmed !== trimmed && (lineTrimmed.startsWith("{") || lineTrimmed.startsWith("["))) {
+      yield lineTrimmed;
     }
-  }
-  return [...new Set(candidates)];
-}
-
-function extractUsage(value: unknown): UsageAccumulator {
-  const usage: UsageAccumulator = {};
-  visit(value, usage);
-  return usage;
-}
-
-function visit(value: unknown, usage: UsageAccumulator): void {
-  if (!value || typeof value !== "object") {
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item) => visit(item, usage));
-    return;
-  }
-
-  const record = value as Record<string, unknown>;
-  for (const [usageKey, fieldNames] of Object.entries(numberFields) as Array<[keyof UsageAccumulator, string[]]>) {
-    for (const fieldName of fieldNames) {
-      const fieldValue = record[fieldName];
-      if (typeof fieldValue === "number" && Number.isFinite(fieldValue)) {
-        usage[usageKey] = Math.max(usage[usageKey] ?? 0, fieldValue);
-      }
-    }
-  }
-
-  for (const child of Object.values(record)) {
-    visit(child, usage);
   }
 }
 
@@ -111,21 +120,14 @@ function parsePlainTextUsage(text: string): { found: boolean; usage: UsageAccumu
   ];
 
   for (const [key, pattern] of patterns) {
-    const match = text.match(pattern);
+    const match = text.match(new RegExp(pattern.source.replace("(\\d+)", "(\\d+)(?![\\d.eE])"), pattern.flags));
     if (match?.[1]) {
-      usage[key] = Number(match[1]);
+      const count = Number(match[1]);
+      if (Number.isFinite(count) && Number.isInteger(count)) usage[key] = count;
     }
   }
 
   return { found: hasAnyUsage(usage), usage };
-}
-
-function mergeUsage(target: UsageAccumulator, source: UsageAccumulator): void {
-  for (const key of Object.keys(numberFields) as Array<keyof UsageAccumulator>) {
-    if (source[key] !== undefined) {
-      target[key] = Math.max(target[key] ?? 0, source[key]);
-    }
-  }
 }
 
 function hasAnyUsage(usage: UsageAccumulator): boolean {

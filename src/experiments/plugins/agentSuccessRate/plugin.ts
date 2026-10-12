@@ -247,27 +247,9 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
       { filePath: resolveWithinRoot(outDir, AGENT_SUCCESS_RATE_EXECUTION_ARTIFACT_FILE), content: `${JSON.stringify(executionArtifact, null, 2)}\n` },
       { filePath: resolveWithinRoot(outDir, AGENT_SUCCESS_RATE_ANALYSIS_ARTIFACT_FILE), content: `${JSON.stringify(analysisArtifact, null, 2)}\n` }
     ];
-    for (const target of targets) {
-      if (await io.exists(target.filePath)) {
-        throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir, removeAttemptDirectory)));
-      }
-    }
-    const created: string[] = [];
     try {
-      for (const target of targets) {
-        await io.ensureDirectory(path.dirname(target.filePath));
-        await io.writeFile(target.filePath, target.content);
-        created.push(target.filePath);
-      }
+      await writeAgentSuccessRateArtifactTargets(targets, io);
     } catch {
-      // Remove only files this attempt created; never touch anything else.
-      for (const filePath of created.reverse()) {
-        try {
-          await io.removeFile(filePath);
-        } catch {
-          // best effort: the failure below is the outcome
-        }
-      }
       throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE + (await removeAgentAttemptDirectories(caseEvidence, outDir, removeAttemptDirectory)));
     }
 
@@ -289,6 +271,31 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
     return result.summary ?? summarizeExperimentRun(result);
   }
 };
+
+/** Shared artifact publication owner. Campaign reuse must verify committed ownership and exact bytes. */
+export async function writeAgentSuccessRateArtifactTargets(
+  targets: readonly { filePath: string; content: string }[],
+  io: AgentSuccessRateArtifactIo,
+  verifiedReuse?: (target: { filePath: string; content: string }) => Promise<boolean>
+): Promise<void> {
+  const pending: Array<{ filePath: string; content: string }> = [];
+  for (const target of targets) {
+    if (await io.exists(target.filePath)) {
+      if (!verifiedReuse || !(await verifiedReuse(target))) throw new Error(AGENT_SUCCESS_RATE_PERSISTENCE_FAILURE_MESSAGE);
+    } else pending.push(target);
+  }
+  const created: string[] = [];
+  try {
+    for (const target of pending) {
+      await io.ensureDirectory(path.dirname(target.filePath));
+      await io.writeFile(target.filePath, target.content);
+      created.push(target.filePath);
+    }
+  } catch (error) {
+    for (const file of created.reverse()) { try { await io.removeFile(file); } catch { /* Report persistence failure below. */ } }
+    throw error;
+  }
+}
 
 /** Every patch artifact must be promised by exactly one treatment's evidence, and vice versa. */
 function validatePatchFiles(caseEvidence: readonly AgentSuccessCaseEvidenceV1[], patchFiles: readonly AgentSuccessPatchFile[]): string[] {
@@ -478,7 +485,7 @@ function readRealAgentConfig(config: AgentSuccessRateConfig): RealAgentRunConfig
 }
 
 /** Captures hidden values for the leak guard, then returns a copy of the task with the reference fixture removed. */
-function sealTask(task: AgentSuccessTaskV1, forbiddenByTask: Map<string, ForbiddenAgentValue[]>): AgentSuccessTaskV1 {
+export function sealTask(task: AgentSuccessTaskV1, forbiddenByTask: Map<string, ForbiddenAgentValue[]>): AgentSuccessTaskV1 {
   forbiddenByTask.set(task.id, collectForbiddenAgentValues(task));
   const sealed: AgentSuccessTaskV1 = { ...task };
   delete sealed.deterministicFixture;
@@ -490,7 +497,7 @@ function packageRoot(): string {
   return fileURLToPath(new URL("../../../../", import.meta.url));
 }
 
-function defaultContextDependencies(): AgentSuccessContextDependencies {
+export function defaultContextDependencies(): AgentSuccessContextDependencies {
   return {
     buildIndex: buildMyDevKitIndex,
     runCommand: runMeasuredCommand,

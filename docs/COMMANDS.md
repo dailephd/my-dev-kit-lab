@@ -478,6 +478,16 @@ The command is self-target only: `--target` is rejected, as is every option outs
 
 The process exits `0` when the run completes and `1` when the run fails (including controlled infrastructure failures, which never report task success) or when an option is rejected. It writes `report.json`, `report.html`, `report.txt`, `agent-success-rate-execution.json`, and `agent-success-rate-analysis.json`, plus supporting `diffs/` patch artifacts and, in real-agent mode, `contexts/` and `agents/` evidence. See [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), [METRICS.md](METRICS.md#agent-success-rate-metrics-v090), and [ARCHITECTURE.md](ARCHITECTURE.md#agent-success-rate-evaluation-architecture-v090).
 
+##### Campaign execution (v0.9.1)
+
+These options are available in the v0.9.1 package. The base command is `my-dev-kit-lab experiment run --experiment agent-success-rate`. Existing `--out`, `--case`, `--agent`, `--include-real-agents`, `--timeout-ms`, and `--repair-attempts` retain their v0.9.0 meanings.
+
+Campaign-specific options are `--agent-campaign <new|resume|continue-limit>`, `--one-case`, `--campaign-source-root <directory>`, `--timeout-preset <standard|extended|maximum>`, `--expected-checkpoint-revision <positive-integer>`, `--limit-case <id>`, `--limit-treatment <raw-full-file|context-pack>`, `--limit-epoch <epoch-id>`, and `--authorize-additional-invocation`. Campaign mode requires a stable output root. `--campaign-source-root` supplies a verified source checkout and is required when installed source proof is unavailable. `--one-case` processes at most the first unfinished selected case, with both treatments mandatory. Resume validates campaign identity and checkpoint revision; completed units are reused only after evidence and artifact verification. Provider-limit continuation uses `--agent-campaign continue-limit` and requires explicit authorization bound to the exact case, treatment, epoch UUID, and positive checkpoint generation. Uncertain invocations fail closed.
+
+`--campaign` remains a `warm-index-reuse` option and is not an `agent-success-rate` alias. Real provider execution requires `--include-real-agents`; no credentials are accepted through campaign flags. Codex and Claude presets are each 240000 ms (`standard`), 900000 ms (`extended`), and 1800000 ms (`maximum`). A preset conflicts with an explicitly supplied `--timeout-ms`. These are operational limits, not measured performance recommendations.
+
+Campaign exit codes are 0 for consistent bounded work (including a one-case partial result), 1 for paused/blocked/failed execution, and 2 for invalid CLI usage. A provider-limit pause is a persisted campaign state, distinct from task failure. The command never polls for quota reset or switches providers. Consult `--help` and `experiment describe` for exact current output wording.
+
 ### `my-dev-kit-lab experiment controlled [options]`
 
 Runs the `context-strategy-comparison` plugin's legacy controlled-experiment path directly (not through the generic plugin runner). Options:

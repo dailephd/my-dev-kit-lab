@@ -1,5 +1,5 @@
 import type { AgentSuccessRateReportV1 } from "./agentSuccessRateReportModel.js";
-import { AGENT_SUCCESS_BASIS_LABEL, formatAgentSuccessMetric, formatAgentSuccessPairs, formatAgentSuccessTotal } from "./renderAgentSuccessRateText.js";
+import { AGENT_SUCCESS_BASIS_LABEL, formatAgentSuccessMetric, formatAgentSuccessPairs, formatAgentSuccessTotal, renderCampaignEvidenceSummary } from "./renderAgentSuccessRateText.js";
 
 function escapeHtml(value: string | number | boolean | null | undefined): string {
   return String(value ?? "")
@@ -25,6 +25,7 @@ export function renderAgentSuccessRateHtml(report: AgentSuccessRateReportV1 | nu
   const realMode = report.identity.executionMode === "real-agent";
   const m = formatAgentSuccessMetric;
   const parts: string[] = [];
+  if (report.campaignEvidence) parts.push(`<section><h2>Campaign evidence</h2><pre>${escapeHtml(renderCampaignEvidenceSummary(report))}</pre></section>`);
 
   parts.push(`<section id="agent-success-rate">
     <h2>Agent Success Rate</h2>

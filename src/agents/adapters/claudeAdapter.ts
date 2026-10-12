@@ -58,8 +58,8 @@ export const claudeAdapter: AgentAdapter = {
 
 /**
  * Parses a single JSON result envelope (`{ "result": "..." }`) when stdout is valid JSON, never
- * the raw envelope itself. Falls back to the legacy plain-text behavior when stdout is not valid
- * JSON, so existing argv-mode text output keeps working unchanged.
+ * the raw envelope itself. Malformed JSON-shaped output stays empty; legacy plain text output
+ * retains its fallback.
  */
 export function parseClaudeFinalAnswer(text: string): AgentFinalAnswerParseResult {
   const trimmedInput = text.trim();
@@ -75,8 +75,10 @@ export function parseClaudeFinalAnswer(text: string): AgentFinalAnswerParseResul
         // Valid JSON object without a string result: empty, never the raw envelope.
         return { finalAnswerText: "", finalAnswerParseStatus: "empty" };
       }
+      return { finalAnswerText: "", finalAnswerParseStatus: "empty" };
     } catch {
-      // Not valid JSON; fall through to the legacy plain-text behavior below.
+      // A malformed envelope is not a legacy text answer.
+      if (/^[\[{]/.test(trimmedInput)) return { finalAnswerText: "", finalAnswerParseStatus: "empty" };
     }
   }
   return { finalAnswerText: trimmedInput, finalAnswerParseStatus: trimmedInput ? "parsed" : "empty" };

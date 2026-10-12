@@ -559,9 +559,17 @@ node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent 
 
 **Paths and non-destructive behavior:** artifacts and disposable copies live beneath the output directory (beneath the workspace for an installed CLI). A very long output path can make the operating system refuse to start Git or checks in the disposable copy; the run then ends as a controlled infrastructure failure that reports the working-directory length and never reports success. Choose a shorter `--out` in that case. The Lab does not shorten or relocate a path you supplied.
 
-**Not part of this workflow:** automatically scheduled campaigns, resuming interrupted runs, skipping completed runs, and rate-limit pausing are planned for v0.9.1 and are not implemented.
+**Campaign extension (v0.9.1):** explicit campaign creation, one-case execution, validated resume, verified completed-unit reuse, provider-limit pause, and explicitly authorized bounded continuation are available through the agent-success-rate campaign command. See the campaign lifecycle below. Automatic background scheduling and quota-reset polling are not provided.
 
 **Completion:** the run is complete when the reports and both scientific artifacts exist and the process exits `0`. Results are descriptive for a finite controlled corpus; no winner, ranking, composite score, or significance claim is produced.
+
+### Campaign lifecycle (v0.9.1)
+
+Select cases and the fixed raw-full-file/context-pack treatments, then choose deterministic fixture execution or explicitly opt into Codex/Claude with `--include-real-agents`. A new campaign validates inputs and provider authorization, establishes content-based campaign identity, and writes an initial checkpoint before dispatch. Execute a selected workload or one case; each treatment is durably completed with its evidence and supporting artifacts before later work proceeds.
+
+For continuation, invoke explicit resume with the expected checkpoint revision. The runner validates identity, immutable history, completed evidence, and artifact digests, then reuses verified completed units and continues pending work. A known provider limit pauses the campaign; continuation requires explicit authorization for the exact case, treatment, epoch, and revision. At most two execution epochs are supported per treatment. An uncertain invocation is not automatically replayed; resolve it through the supported explicit recovery contract. Version 1 checkpoints remain readable but unfinished v1 campaigns are not automatically migrated.
+
+Review the versioned campaign progress JSON/HTML/text snapshots for operational counts and metric-specific evidence quality. They do not claim complete scientific results. After all selected work is validated and finalized, review the existing execution, analysis, and `report.json`/`report.html`/`report.txt` scientific outputs. Missing telemetry is unavailable evidence, not a task failure; a completed trusted-check failure remains a valid task outcome. There is no background scheduling or quota-reset polling.
 
 ## Real-agent warm-index campaign (v0.5.2)
 

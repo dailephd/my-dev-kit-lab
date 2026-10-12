@@ -30,6 +30,8 @@ export async function writePluginExperimentReports(args: {
    * `outputPaths` carry a redacted marker and bare file names instead of the machine-local output directory.
    */
   redactOutputRoot?: boolean;
+  /** A caller-owned immutable snapshot must never overwrite a pre-existing file. */
+  exclusive?: boolean;
 }): Promise<WritePluginExperimentReportsResult> {
   const rawOutDir = args.outputRoot ?? readString(args.run.metadata?.outputRoot);
   if (!rawOutDir) {
@@ -56,13 +58,14 @@ export async function writePluginExperimentReports(args: {
   const serializedPaths: PluginExperimentReportPaths = args.redactOutputRoot
     ? { outDir: "[redacted]", jsonPath: "report.json", htmlPath: "report.html", textPath: "report.txt" }
     : outputPaths;
+  const writeOptions = args.exclusive ? { encoding: "utf8" as const, flag: "wx" } : "utf8";
   await writeFile(
     outputPaths.jsonPath,
     `${JSON.stringify({ report, outputPaths: serializedPaths }, null, 2)}\n`,
-    "utf8"
+    writeOptions
   );
-  await writeFile(outputPaths.htmlPath, renderPluginExperimentReportHtml(report), "utf8");
-  await writeFile(outputPaths.textPath, renderPluginExperimentReportText(report), "utf8");
+  await writeFile(outputPaths.htmlPath, renderPluginExperimentReportHtml(report), writeOptions);
+  await writeFile(outputPaths.textPath, renderPluginExperimentReportText(report), writeOptions);
   return { report, outputPaths };
 }
 
