@@ -76,7 +76,8 @@
         "browser",
         "incremental-change-staleness",
         "agent-success-rate",
-        "external-target package-content correction"
+        "external-target package-content correction",
+        "v0.9.3"
       ]
     },
     "docs/CURRENT_STATE.md": {
@@ -118,7 +119,8 @@
         "v0.7.0",
         "agent-success-rate",
         "pre-release readiness",
-        "external-target package-content correction"
+        "external-target package-content correction",
+        "v0.9.3"
       ]
     },
     "docs/ARCHITECTURE.md": {
@@ -157,7 +159,8 @@
         "synthetic-repositories",
         "syntheticInputs",
         "agent-success-rate",
-        "external-target package-content correction"
+        "external-target package-content correction",
+        "v0.9.3"
       ]
     },
     "docs/COMMANDS.md": {
@@ -360,6 +363,7 @@
       "v0.9.0",
       "v0.9.1",
       "v0.9.2",
+      "v0.9.3",
       "v0.10.0",
       "v0.11.0",
       "v0.12.0",
@@ -391,7 +395,7 @@
     "requiredDeferredMarkers": [
       "Post-v1 / version TBD",
       "manual pentest",
-      "Priority correction before v0.9.2"
+      "v0.9.2 — external-target package-content validator correction"
     ],
     "forbiddenVersionRangeHeadings": [
       "v0.5.x-v0.9.x",
