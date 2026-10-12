@@ -20,7 +20,8 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Release-source milestone: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
-- Next planned version: `v0.9.2` (hardened provider prompts and report/gallery generalization), per the roadmap.
+- Next planned numbered version: `v0.9.2` (hardened provider prompts and report/gallery generalization), per the roadmap; its agreed feature scope is unchanged.
+- Urgent prerequisite before v0.9.2 implementation: external-target package-content correction (**planned/unimplemented; release version TBD**). The submitted v0.9.2 patch-version suggestion conflicts with the existing v0.9.2 roadmap assignment; it is not authorized as a separate release. See [ROADMAP.md](ROADMAP.md#priority-correction-before-v092--external-target-package-content-correction-release-version-tbd).
 - Active planned version: v0.9.2 (strict prompt modes, report section registry, and generalized gallery).
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
