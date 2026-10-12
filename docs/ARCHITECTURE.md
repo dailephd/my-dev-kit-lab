@@ -841,7 +841,7 @@ The bundled corpus, project profiles, and canonical projects ship in the package
 
 ### Non-goals
 
-v0.9.1 adds campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry. Strict prompt modes, a report section registry, and generalized gallery presentation remain planned for v0.9.2. The plugin does not add a weighted score, an automatic winner, or statistical-significance testing.
+v0.9.1 adds campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry. Strict prompt modes, a report section registry, and generalized gallery presentation remain planned for v0.9.3 (moved intact from v0.9.2). The plugin does not add a weighted score, an automatic winner, or statistical-significance testing.
 
 ## Target model
 
@@ -912,11 +912,11 @@ Profile behavior remains intentionally narrow in the current implementation: pro
 
 Optional local tools can be reported as skipped; absence alone does not make the framework crash. This automation is not equivalent to a manual pentest.
 
-### Planned external-target package-content correction (release version TBD)
+### Planned external-target package-content correction (v0.9.2)
 
 Current limitation (v0.9.1): `runPackageChecks.ts` calls `detectMissingRequiredContents` without a target-specific `requiredFiles` list, causing the Lab-specific `REQUIRED_PACKAGE_CONTENTS` default to apply to other npm packages. The target resolver already exposes `isSelf` from the resolved root; package-name equality is not a valid substitute for self identity. This defect is **not yet corrected**.
 
-The planned repair retains the existing package-check runner, required-content helper, target resolver, forbidden-content checker, report IDs, and verdict owner. It keeps strict Lab self requirements but derives an external target's required inventory from validated `package.json` entrypoints, without inventing Lab file paths. Malformed metadata, nonzero or unparseable `npm pack`, absent entrypoints, private files, and unsupported metadata must remain explicit failures or unevaluated evidence, never false passes. No parallel validator, target mutation, security-policy change, or external-target-specific hardcoded allowlist is authorized. See [ROADMAP.md](ROADMAP.md#priority-correction-before-v092--external-target-package-content-correction-release-version-tbd) for diagnosis, tests, and gates.
+The planned repair retains the existing package-check runner, required-content helper, target resolver, forbidden-content checker, report IDs, and verdict owner. It keeps strict Lab self requirements but derives an external target's required inventory from validated `package.json` entrypoints, without inventing Lab file paths. Malformed metadata, nonzero or unparseable `npm pack`, absent entrypoints, private files, and unsupported metadata must remain explicit failures or unevaluated evidence, never false passes. No parallel validator, target mutation, security-policy change, or external-target-specific hardcoded allowlist is authorized. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction) for diagnosis, tests, and gates.
 
 ## Audit framework architecture
 
