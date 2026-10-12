@@ -10,7 +10,7 @@ The latest release is v0.9.1 (normalized provider telemetry and resumable agent-
 
 v0.9.0 adds the `agent-success-rate` plugin, the eighth registered experiment plugin, which evaluates implementation patches under the `raw-full-file` and `context-pack` treatments.
 
-v0.9.1 adds normalized provider telemetry and resumable campaign execution. v0.9.2 remains planned.
+v0.9.1 adds normalized provider telemetry and resumable campaign execution. v0.9.2 is planned as the urgent external npm package-content validator fix; the previously planned prompt/report/gallery features are preserved in v0.9.3.
 
 v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--version`, `security validate`, `audit`, the `experiment` family, `report render`, `plots generate`, `gallery build`, `demo final`, and the historical direct final-demo invocation form), a writable lab workspace model kept separate from the installed package and the inspected target, and a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`). See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for status detail and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime path model. The "Installed CLI" section below documents the shipped command surface; the source-checkout `npm run` workflow in Quickstart remains available for contributors.
 
@@ -284,7 +284,7 @@ See [docs/METRICS.md](docs/METRICS.md) for full metric definitions.
 
 `npm run security:validate` (contributor/source-checkout) and `my-dev-kit-lab security validate` (installed CLI) both call the same standalone security-validation command owner. It checks local CLI/package boundaries and can inspect another local project with `--target <path>`. The generic audit command can reuse those results through `--types security`, but it does not replace the standalone validator or its reports.
 
-**External npm package caveat (v0.9.1):** the current required-file check can impose Lab-specific package paths on unrelated npm targets. Reported missing Lab paths require finding-by-finding verification; they are not evidence that the external package lacks its own declared entrypoints. An urgent external-target package-content correction is planned before the unchanged v0.9.2 feature scope, with release version TBD. Do not treat an unverified candidate fix as a published security-validator result. See [ROADMAP.md](docs/ROADMAP.md#priority-correction-before-v092--external-target-package-content-correction-release-version-tbd).
+**External npm package caveat (v0.9.1):** the current required-file check can impose Lab-specific package paths on unrelated npm targets. Reported missing Lab paths require finding-by-finding verification; they are not evidence that the external package lacks its own declared entrypoints. The external-target package-content correction is assigned to planned v0.9.2. The previously planned prompt/report/gallery feature scope is preserved in v0.9.3. Do not treat an unverified candidate fix as a published security-validator result. See [ROADMAP.md](docs/ROADMAP.md#v092--external-target-package-content-validator-correction).
 
 Android validation uses `--profile android`. Its default path is static and non-destructive: it starts zero Gradle processes, zero external tools, and zero network operations. Only confirmed `SecurityFinding` records can become audit issues; Android `CandidateEvidence` remains review-only evidence.
 
