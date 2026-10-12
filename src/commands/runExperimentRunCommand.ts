@@ -344,9 +344,13 @@ async function runAgentCampaignCommand(args: ParsedRunExperimentArgs, context: L
   const request = args.agentCampaign!;
   const sourceRoot = path.resolve(context.invocationCwd, request.sourceRoot ?? context.packageRoot);
   try {
+    const packageName = "@dailephd/my-dev-kit-lab";
+    const validPackageVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+    const executingMetadata = JSON.parse(await readFile(path.join(context.packageRoot, "package.json"), "utf8")) as { name?: string; version?: string };
+    if (executingMetadata.name !== packageName || typeof executingMetadata.version !== "string" || !validPackageVersion.test(executingMetadata.version)) throw new Error();
     if (!(await lstat(path.join(sourceRoot, "src"))).isDirectory() || path.resolve(await realpath(sourceRoot)).toLowerCase() !== sourceRoot.toLowerCase()) throw new Error();
     const metadata = JSON.parse(await readFile(path.join(sourceRoot, "package.json"), "utf8")) as { name?: string; version?: string };
-    if (metadata.name !== "@dailephd/my-dev-kit-lab" || metadata.version !== "0.9.0") throw new Error();
+    if (metadata.name !== packageName || metadata.version !== executingMetadata.version) throw new Error();
   } catch { throw new Error("CAMPAIGN_SOURCE_UNVERIFIABLE: supply --campaign-source-root with a current my-dev-kit-lab source checkout; installed source bytes cannot be guessed."); }
   const boundary = { toolRoot: context.packageRoot, outputRoot };
   await validateCampaignOutputPath(boundary, sourceRoot);

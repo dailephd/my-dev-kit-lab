@@ -434,7 +434,7 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.9.1",
-    "currentImplementedUnreleasedVersion": "",
+    "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.9.2",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",

@@ -24,7 +24,8 @@ export async function cliFixture(providerId: "codex" | "claude" = "codex") {
   const root = await campaignTemp();
   const toolRoot = path.join(root, "tool"), outputRoot = path.join(root, "out");
   await mkdir(path.join(toolRoot, "benchmarks/contracts"), { recursive: true });
-  await writeFile(path.join(toolRoot, "package.json"), '{"name":"@dailephd/my-dev-kit-lab","version":"0.9.0"}');
+  const executingPackage = JSON.parse(await readFile(path.join(process.cwd(), "package.json"), "utf8")) as { name?: string; version?: string };
+  await writeFile(path.join(toolRoot, "package.json"), JSON.stringify({ name: executingPackage.name, version: executingPackage.version }));
   const catalogPath = "benchmarks/contracts/agent-success-rate-tasks.json";
   const tasks = JSON.parse(await readFile(catalogPath, "utf8")) as AgentSuccessTaskV1[];
   for (const file of [catalogPath, "benchmarks/contracts/agent-success-rate-project-profiles.json"]) await cp(file, path.join(toolRoot, file));
