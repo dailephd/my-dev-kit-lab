@@ -15,8 +15,8 @@ flowchart LR
   V052 --> V060[v0.6.0] --> V061[v0.6.1] --> V062[v0.6.2] --> V063[v0.6.3]
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
-  V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2]
-  V092 --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
+  V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2] --> V093[v0.9.3]
+  V093 --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
   V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
   V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
@@ -1434,7 +1434,7 @@ Shipped scope:
 * Every listed feature and acceptance item is implemented in the `agent-success-rate` plugin; see [COMMANDS.md](COMMANDS.md#agent-success-rate-v090), [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), and [METRICS.md](METRICS.md#agent-success-rate-metrics-v090).
 * The deterministic fixture mode and simulated Codex/Claude providers validate the patch pipeline and repair logic. A paid live-provider campaign has not been run; real-agent capability is implemented but not yet evidenced by live results.
 * v0.9.1 released with campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry.
-* Strict prompt modes, the report section registry, and generalized gallery presentation remain planned for v0.9.2.
+* Strict prompt modes, the report section registry, and generalized gallery presentation remain planned for v0.9.3 (moved intact from the previously assigned v0.9.2 after prioritizing its security-validator patch).
 * Release history for v0.9.0 is recorded in [CHANGELOG.md](../CHANGELOG.md).
 
 ### v0.9.1 — normalized provider telemetry and campaign scheduler
@@ -1481,16 +1481,19 @@ Acceptance (preserved):
 * Interrupted campaigns can resume.
 * Partial results are preserved.
 
-### Priority correction before v0.9.2 — external-target package-content correction (release version TBD)
+### v0.9.2 — external-target package-content validator correction
 
 Status: **urgent, planned; not implemented, validated, release-prepared, or published**.
 
+Purpose:
+
+* Correct the existing security validator so external npm packages are checked against their own declared package entrypoints instead of Lab-specific runtime files, without weakening Lab self-validation or security verdicts.
+
 Priority and version boundary:
 
-* This correction takes implementation priority over the planned v0.9.2 prompt/report/gallery milestone because external target validation currently risks false release blockers. It is a repair task, not a replacement for v0.9.2.
-* The source release is v0.9.1. The number v0.9.2 was already assigned to hardened real-agent prompts and report/gallery generalization; **do not use the proposed v0.9.2 patch version or the version-named implementation branch for this correction without a separately approved release-sequence decision**.
-* This unversioned correction may be developed and independently validated as a dedicated Lab candidate. Its eventual publishable patch version remains **TBD**, not an implied new release. No npm publication, tag, release branch, or version bump is authorized by this roadmap change.
-* Preserve every original v0.9.2 feature, acceptance criterion, and later ECO-00 milestone assignment unchanged. Resolve any version collision explicitly before release preparation; never publish an out-of-sequence semver version to bypass the collision.
+* **Version sequence explicitly approved on 2026-10-12:** v0.9.2 is the immediate security-validator patch; the complete former v0.9.2 prompt/report/gallery scope and acceptance criteria move intact to v0.9.3; v0.10.0 and later ecosystem milestones keep their existing assignments.
+* The source release remains v0.9.1 until a separately approved v0.9.2 release. The documentation update assigns the target version but does not bump package.json, authorize a tag/npm publication, or claim implementation/readiness.
+* Implement in the dedicated Lab branch `fix/v0.9.2-external-package-layout-validation` from the then-current verified `main` (after integrating this documentation PR). Preserve all unrelated Lab and Orchestrator work. Do not begin v0.9.3 feature development before completing the prioritized patch and its appropriate release gates.
 
 Trigger and verified scope of the problem:
 
@@ -1524,11 +1527,11 @@ Required execution and acceptance:
 
 Acceptance: **No cross-package Lab-file false positives, no reduction in real security coverage, strict self checks preserved, complete reproducible evidence, and no mutation to the Orchestrator candidate**.
 
-Explicit exclusions: release or publication actions, Orchestrator dependency remediation or commits, feature development for v0.9.2, changes to security verdict policy, new audit framework, new package CLI options, generic package-layout assumptions, and unverified security exemptions.
+Explicit exclusions from this implementation task: automatic release or publication actions, Orchestrator dependency remediation or commits, feature development for v0.9.3, changes to security verdict policy, new audit framework, new package CLI options, generic package-layout assumptions, and unverified security exemptions.
 
-### v0.9.2 — hardened real-agent prompts and report/gallery generalization
+### v0.9.3 — hardened real-agent prompts and report/gallery generalization
 
-Status: **planned; not implemented**.
+Status: **planned; not implemented**. Previously assigned to v0.9.2; the existing purpose, features, and acceptance criteria were moved intact under v0.9.3 by the 2026-10-12 release-sequence decision.
 
 Purpose:
 
