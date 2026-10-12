@@ -17,12 +17,7 @@ export type CampaignStoreBoundary = { outputRoot: string; toolRoot: string };
 /** Command preflight, including a not-yet-created output root. No filesystem mutation. */
 export async function validateCampaignOutputPath(boundary: CampaignStoreBoundary, sourceRoot?: string): Promise<void> {
   const root = path.resolve(boundary.outputRoot);
-  let existing = root;
-  for (;;) {
-    try { await lstat(existing); break; } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; const parent = path.dirname(existing); campaignAssert(parent !== existing, "UNSAFE_FILESYSTEM_TARGET"); existing = parent; }
-  }
-  await plainAncestors(existing);
-  const physicalRoot = await resolvePhysicalPath(root);
+  const physicalRoot = await resolveCampaignRoot(root);
   const roots = await Promise.all([boundary.toolRoot, moduleRoot, ...(path.basename(path.resolve(moduleRoot)) === "dist" ? [path.dirname(path.resolve(moduleRoot))] : []), ...(sourceRoot ? [sourceRoot] : [])].map(resolvePhysicalPath));
   for (const protectedRoot of roots) {
     campaignAssert(!samePhysicalPath(physicalRoot, protectedRoot), "PROTECTED_OUTPUT_ROOT");
@@ -44,18 +39,34 @@ function samePhysicalPath(left: string, right: string): boolean { return isSameO
 async function plain(candidate: string, kind: "file" | "directory"): Promise<void> {
   const stat = await lstat(candidate);
   campaignAssert(!stat.isSymbolicLink() && (kind === "file" ? stat.isFile() : stat.isDirectory()), "UNSAFE_FILESYSTEM_TARGET");
-  // Physical and lexical path spellings may differ on supported filesystems (for
-  // example volume casing). Link rejection is enforced separately with lstat.
 }
 /** Inspect every ancestor; refuse links/junctions and fail closed on inspection errors. */
 async function plainAncestors(candidate: string): Promise<void> {
   let current = path.resolve(candidate);
   for (;;) { await plain(current, "directory"); const parent = path.dirname(current); if (parent === current) return; current = parent; }
 }
+/** Resolve filesystem aliases before inspecting ancestors (macOS exposes /var as /private/var). */
+async function resolveCampaignRoot(candidate: string): Promise<string> {
+  const resolved = path.resolve(candidate);
+  let existing = resolved;
+  const remainder: string[] = [];
+  for (;;) {
+    try { await plain(existing, "directory"); break; }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      const parent = path.dirname(existing);
+      campaignAssert(parent !== existing, "UNSAFE_FILESYSTEM_TARGET");
+      remainder.unshift(path.basename(existing));
+      existing = parent;
+    }
+  }
+  const physicalExisting = await realpath(existing);
+  await plainAncestors(physicalExisting);
+  return path.join(physicalExisting, ...remainder);
+}
 async function validateRoot(boundary: CampaignStoreBoundary): Promise<string> {
-  const root = path.resolve(boundary.outputRoot);
-  await plainAncestors(root);
-  const physicalRoot = await resolvePhysicalPath(root);
+  const root = await resolveCampaignRoot(boundary.outputRoot);
+  const physicalRoot = root;
   const packageRoots = await Promise.all([boundary.toolRoot, moduleRoot, ...(path.basename(path.resolve(moduleRoot)) === "dist" ? [path.dirname(path.resolve(moduleRoot))] : [])].map(resolvePhysicalPath));
   for (const packageRoot of packageRoots) {
     campaignAssert(!samePhysicalPath(physicalRoot, packageRoot), "PROTECTED_OUTPUT_ROOT");

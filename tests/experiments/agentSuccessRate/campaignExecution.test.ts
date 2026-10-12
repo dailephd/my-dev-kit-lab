@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { executeAgentSuccessCampaign, prepareAgentSuccessCampaign, type CampaignProvider } from "../../../src/experiments/plugins/agentSuccessRate/campaignExecution.js";
 import type { AgentSuccessRunAgent } from "../../../src/experiments/plugins/agentSuccessRate/realAgentExecution.js";
-import { acquireCampaignDispatch, assertCampaignDispatch, persistCampaignArtifact, readCampaignCheckpoint, releaseCampaignDispatch, writeCampaignCheckpoint } from "../../../src/experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
+import { acquireCampaignDispatch, assertCampaignDispatch, persistCampaignArtifact, readCampaignCheckpoint, releaseCampaignDispatch, validateCampaignOutputPath, writeCampaignCheckpoint } from "../../../src/experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
 import { createCampaignCheckpoint, transitionCampaignCheckpoint } from "../../../src/experiments/plugins/agentSuccessRate/campaignCheckpoint.js";
 import { AGENT_SUCCESS_RATE_TREATMENT_IDS } from "../../../src/experiments/plugins/agentSuccessRate/metadata.js";
 import { defaultAgentSuccessRateDependencies, agentSuccessPatchArtifactPath } from "../../../src/experiments/plugins/agentSuccessRate/execution.js";
@@ -38,6 +38,28 @@ function simulated(runAgent: AgentSuccessRunAgent, repairAttempts: 0 | 1 | 2 = 0
 }
 
 describe("checkpoint-integrated campaign execution (no paid providers)", () => {
+  it("PHYSICAL-PATH-ALIAS accepts an aliased parent while keeping the checkpoint root owned", async () => {
+    const f = await fixture();
+    const physicalParent = path.join(f.outputRoot, "physical-parent");
+    const aliasedParent = path.join(f.outputRoot, "aliased-parent");
+    await mkdir(physicalParent);
+    await symlink(physicalParent, aliasedParent, process.platform === "win32" ? "junction" : "dir");
+    const physicalRoot = path.join(physicalParent, "campaign");
+    await mkdir(physicalRoot);
+    const boundary = { ...f.boundary, outputRoot: path.join(aliasedParent, "campaign") };
+
+    await validateCampaignOutputPath(boundary, process.cwd());
+    const prepared = await prepareAgentSuccessCampaign({ ...f.input, boundary });
+    const result = await executeAgentSuccessCampaign(prepared, request);
+    expect(result.status).toBe("completed");
+    expect((await readCampaignCheckpoint(boundary, prepared.identity, f.tasks)).checkpoint).toEqual(result.checkpoint);
+    expect(await realpath(boundary.outputRoot)).toBe(await realpath(physicalRoot));
+
+    const directLink = path.join(f.outputRoot, "linked-output-root");
+    await symlink(physicalRoot, directLink, process.platform === "win32" ? "junction" : "dir");
+    await expect(validateCampaignOutputPath({ ...boundary, outputRoot: directLink }, process.cwd())).rejects.toThrow("UNSAFE_FILESYSTEM_TARGET");
+  }, 60000);
+
   it("IDENTITY-PHYSICAL-ROOT accepts current files under the canonical identity of the authorized roots", async () => {
     const f = await fixture();
     const canonicalSourceRoot = await realpath(process.cwd());
