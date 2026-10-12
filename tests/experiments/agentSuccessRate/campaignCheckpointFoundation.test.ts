@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, symlink, unlink, writeFile } fro
 import path from "node:path";
 import { CAMPAIGN_DEPENDENCY_FILES, CAMPAIGN_SOURCE_FILES, campaignHash, canonicalCampaignJson, compareCampaignIdentity, createCampaignIdentity, validateCampaignIdentity } from "../../../src/experiments/plugins/agentSuccessRate/campaignIdentity.js";
 import { CAMPAIGN_CHECKPOINT_MAX_BYTES, createCampaignCheckpoint, projectCampaignTreatmentEvidence, sealCampaignCheckpoint, transitionCampaignCheckpoint, validateCampaignCheckpoint, validateCampaignCompletion, validateCampaignHistory, validateCampaignRelativePath, type CampaignCheckpoint } from "../../../src/experiments/plugins/agentSuccessRate/campaignCheckpoint.js";
-import { prepareCampaignCompletion, readCampaignCheckpoint, writeCampaignCheckpoint } from "../../../src/experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
+import { acquireCampaignDispatch, assertCampaignDispatch, prepareCampaignCompletion, readCampaignCheckpoint, releaseCampaignDispatch, writeCampaignCheckpoint } from "../../../src/experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
 import { makeTask, makeTreatmentEvidence } from "./agentSuccessRateTestHelpers.js";
 import { normalizeAgentTokenUsageV091 } from "../../../src/agents/normalizeAgentTelemetry.js";
 import { parseAgentTokenUsage } from "../../../src/agents/parseAgentTokenUsage.js";
@@ -83,6 +83,18 @@ describe("campaign checkpoint foundation", () => {
   it("RSP-026 existing scientific artifact contract remains independent", () => { const execution = buildAgentSuccessRateExecutionArtifact({ runId: "test", pluginId: "agent-success-rate", pluginSchemaVersion: "1.0.0", startedAt: at, completedAt: at, cases: [{ caseId: task.id, caseName: task.title, benchmarkProject: task.benchmarkProject, taskLocality: task.taskLocality, fixtureId: "fixture", treatments: [makeTreatmentEvidence(), makeTreatmentEvidence({}, "context-pack")] }] }); expect(execution.schemaVersion).toBe("my-dev-kit-lab-agent-success-rate-execution-v1"); expect(validateAgentSuccessRateExecutionArtifact(execution)).toEqual([]); });
   it("RSP-027 checkpoint operations never invoke providers", async () => { const codex = vi.spyOn(codexAdapter, "runPrompt").mockImplementation(async () => { throw new Error("provider forbidden"); }); const claude = vi.spyOn(claudeAdapter, "runPrompt").mockImplementation(async () => { throw new Error("provider forbidden"); }); const f = await fixture(); await commitThrough(f); await readCampaignCheckpoint(f.boundary, identity(), [task]); expect(codex).not.toHaveBeenCalled(); expect(claude).not.toHaveBeenCalled(); });
   it("RSP-028 rejects canonical/package output roots and preserves sentinels", async () => { const f = await fixture(); for (const segment of ["src", "benchmarks", "dist", "node_modules"]) { const target = path.join(f.tool, segment); await mkdir(target); await writeFile(path.join(target, "sentinel"), "keep"); await expect(writeCampaignCheckpoint({ ...f.boundary, outputRoot: target }, f.a, [task])).rejects.toThrow("PROTECTED_OUTPUT_ROOT"); expect(await readFile(path.join(target, "sentinel"), "utf8")).toBe("keep"); } });
+  it("RSP-031 accepts a verified Windows drive-letter spelling of the same output root", async () => {
+    const f = await fixture();
+    const driveSpelling = process.platform === "win32" && /^[A-Za-z]:/.test(f.out)
+      ? `${f.out[0] === f.out[0]!.toUpperCase() ? f.out[0]!.toLowerCase() : f.out[0]!.toUpperCase()}${f.out.slice(1)}`
+      : f.out;
+    const boundary = { ...f.boundary, outputRoot: driveSpelling };
+    await writeCampaignCheckpoint(boundary, f.a, [task]);
+    expect((await readCampaignCheckpoint(boundary, identity(), [task])).checkpoint).toEqual(f.a);
+    const ownership = await acquireCampaignDispatch(f.boundary, identity());
+    await assertCampaignDispatch(boundary, identity(), ownership);
+    await releaseCampaignDispatch(boundary, identity(), ownership);
+  });
   it("RSP-029 artifacts remain under output root and unrelated files survive", async () => { const f = await fixture(); await writeFile(path.join(f.out, "unrelated.txt"), "keep"); await commitThrough(f); expect(await readFile(path.join(f.out, "unrelated.txt"), "utf8")).toBe("keep"); expect((await readdir(f.dir)).sort()).toEqual(["generation-0000000001.json", "generation-0000000002.json", "generation-0000000003.json", "owner.json"]); });
   it("RSP-030 inherited telemetry/parsing separation", () => { const parsed = parseAgentTokenUsage('{"usage":{"input_tokens":5}}'); const n = normalizeAgentTokenUsageV091(parsed.tokenUsage, parsed.tokenUsageReliability); expect(n).toMatchObject({ inputTokens: 5, totalTokens: 5, evidenceLevel: "cli-reported" }); expect(normalizeAgentTokenUsageV091({ source: "unavailable" }, "unavailable").condition).toBe("token-unavailable"); });
   it("RSP-007 classified limit is represented without restart or provider work", () => {

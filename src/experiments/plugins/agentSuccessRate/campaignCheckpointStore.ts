@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentSuccessTaskV1 } from "../../../evaluation/agentSuccess/index.js";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
-import { isSameOrInside } from "../../../evaluation/benchmarkSandbox/pathPolicy.js";
+import { isSameOrInside, resolvePhysicalPath } from "../../../evaluation/benchmarkSandbox/pathPolicy.js";
 import { campaignAssert, campaignHash, canonicalCampaignJson, compareCampaignIdentity, validateCampaignIdentity, type CampaignIdentity } from "./campaignIdentity.js";
 import { CAMPAIGN_CHECKPOINT_MAX_BYTES, requiredCampaignArtifacts, validateCampaignCheckpoint, validateCampaignCompletion, validateCampaignHistory, validateCampaignRelativePath, type CampaignCheckpoint, type CampaignCompletion } from "./campaignCheckpoint.js";
 import type { AgentSuccessTreatmentEvidenceV1 } from "./executionTypes.js";
@@ -22,12 +22,13 @@ export async function validateCampaignOutputPath(boundary: CampaignStoreBoundary
     try { await lstat(existing); break; } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; const parent = path.dirname(existing); campaignAssert(parent !== existing, "UNSAFE_FILESYSTEM_TARGET"); existing = parent; }
   }
   await plainAncestors(existing);
-  const roots = [path.resolve(boundary.toolRoot), path.resolve(moduleRoot), ...(path.basename(path.resolve(moduleRoot)) === "dist" ? [path.dirname(path.resolve(moduleRoot))] : []), ...(sourceRoot ? [path.resolve(sourceRoot)] : [])];
+  const physicalRoot = await resolvePhysicalPath(root);
+  const roots = await Promise.all([boundary.toolRoot, moduleRoot, ...(path.basename(path.resolve(moduleRoot)) === "dist" ? [path.dirname(path.resolve(moduleRoot))] : []), ...(sourceRoot ? [sourceRoot] : [])].map(resolvePhysicalPath));
   for (const protectedRoot of roots) {
-    campaignAssert(root !== protectedRoot, "PROTECTED_OUTPUT_ROOT");
+    campaignAssert(!samePhysicalPath(physicalRoot, protectedRoot), "PROTECTED_OUTPUT_ROOT");
     for (const segment of ["src", "scripts", "dist", "node_modules", "benchmarks", "tests"]) {
       const protectedPath = path.join(protectedRoot, segment);
-      campaignAssert(!isSameOrInside(protectedPath, root) && !isSameOrInside(root, protectedPath), "PROTECTED_OUTPUT_ROOT");
+      campaignAssert(!isSameOrInside(protectedPath, physicalRoot) && !isSameOrInside(physicalRoot, protectedPath), "PROTECTED_OUTPUT_ROOT");
     }
   }
 }
@@ -38,11 +39,13 @@ const STORE_OWNER = "campaign-checkpoint-store-v1";
 const moduleRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 type StoredCheckpoint = CampaignCheckpoint | CampaignCheckpointV2;
 const durableCheckpoints = new WeakMap<StoredCheckpoint, string>();
+function samePhysicalPath(left: string, right: string): boolean { return isSameOrInside(left, right) && isSameOrInside(right, left); }
 
 async function plain(candidate: string, kind: "file" | "directory"): Promise<void> {
   const stat = await lstat(candidate);
   campaignAssert(!stat.isSymbolicLink() && (kind === "file" ? stat.isFile() : stat.isDirectory()), "UNSAFE_FILESYSTEM_TARGET");
-  campaignAssert(path.resolve(await realpath(candidate)).toLowerCase() === path.resolve(candidate).toLowerCase(), "PHYSICAL_PATH_ALIAS");
+  // Physical and lexical path spellings may differ on supported filesystems (for
+  // example volume casing). Link rejection is enforced separately with lstat.
 }
 /** Inspect every ancestor; refuse links/junctions and fail closed on inspection errors. */
 async function plainAncestors(candidate: string): Promise<void> {
@@ -52,11 +55,11 @@ async function plainAncestors(candidate: string): Promise<void> {
 async function validateRoot(boundary: CampaignStoreBoundary): Promise<string> {
   const root = path.resolve(boundary.outputRoot);
   await plainAncestors(root);
-  const tool = await realpath(boundary.toolRoot);
-  const packageRoots = [tool, path.resolve(moduleRoot), ...(path.basename(path.resolve(moduleRoot)) === "dist" ? [path.dirname(path.resolve(moduleRoot))] : [])];
+  const physicalRoot = await resolvePhysicalPath(root);
+  const packageRoots = await Promise.all([boundary.toolRoot, moduleRoot, ...(path.basename(path.resolve(moduleRoot)) === "dist" ? [path.dirname(path.resolve(moduleRoot))] : [])].map(resolvePhysicalPath));
   for (const packageRoot of packageRoots) {
-    campaignAssert(root !== packageRoot, "PROTECTED_OUTPUT_ROOT");
-    for (const segment of ["src", "scripts", "dist", "node_modules", "benchmarks", "tests"]) { const protectedRoot = path.join(packageRoot, segment); campaignAssert(!isSameOrInside(protectedRoot, root) && !isSameOrInside(root, protectedRoot), "PROTECTED_OUTPUT_ROOT"); }
+    campaignAssert(!samePhysicalPath(physicalRoot, packageRoot), "PROTECTED_OUTPUT_ROOT");
+    for (const segment of ["src", "scripts", "dist", "node_modules", "benchmarks", "tests"]) { const protectedRoot = path.join(packageRoot, segment); campaignAssert(!isSameOrInside(protectedRoot, physicalRoot) && !isSameOrInside(physicalRoot, protectedRoot), "PROTECTED_OUTPUT_ROOT"); }
   }
   return root;
 }
@@ -64,7 +67,8 @@ async function safeFile(root: string, relative: string): Promise<string> {
   validateCampaignRelativePath(relative);
   const target = resolveWithinRoot(root, relative);
   await plainAncestors(path.dirname(target)); await plain(target, "file");
-  campaignAssert(isSameOrInside(await realpath(root), await realpath(target)) && target !== root, "ARTIFACT_ESCAPE");
+  const [physicalRoot, physicalTarget] = await Promise.all([realpath(root), realpath(target)]);
+  campaignAssert(isSameOrInside(physicalRoot, physicalTarget) && !samePhysicalPath(physicalTarget, physicalRoot), "ARTIFACT_ESCAPE");
   return target;
 }
 async function boundedRead(file: string, max: number): Promise<Buffer> {
@@ -138,7 +142,7 @@ async function readStoredCheckpoint(boundary: CampaignStoreBoundary, expected: C
     else campaignAssert(committed.parentIntegrity === null && committed.units.every((u) => u.state === "pending") && (!v2 || (committed as CampaignCheckpointV2).finalization === null), "INVALID_INITIAL_HISTORY");
     await verifyArtifacts(boundary, committed); previous = committed;
   }
-  if (previous) durableCheckpoints.set(previous, path.resolve(boundary.outputRoot));
+  if (previous) durableCheckpoints.set(previous, await resolvePhysicalPath(boundary.outputRoot));
   return { checkpoint: previous, temporaryFiles: names.filter((n) => TEMPORARY.test(n)).sort(), identityVerification: verification, reusable: previous !== null && verification === "MATCH" };
 }
 
@@ -179,7 +183,7 @@ async function writeStoredCheckpoint(boundary: CampaignStoreBoundary, checkpoint
     await unlink(temp);
     campaignAssert((await boundedRead(writer, 100)).toString("utf8") === token, "WRITER_OWNERSHIP_CHANGED");
     await unlink(writer);
-    durableCheckpoints.set(checkpoint, path.resolve(boundary.outputRoot));
+    durableCheckpoints.set(checkpoint, await resolvePhysicalPath(boundary.outputRoot));
   } catch (e) {
     await lock.close().catch(() => undefined);
     if (!published) { campaignAssert((await boundedRead(writer, 100)).toString("utf8") === token, "WRITER_OWNERSHIP_CHANGED"); await unlink(writer); }
@@ -206,7 +210,7 @@ export async function acquireCampaignDispatch(boundary: CampaignStoreBoundary, i
     await handle.writeFile(token); await handle.sync();
     const stat = await handle.stat();
     const ownership = Object.freeze({ identityDigest: identity.digest });
-    dispatches.set(ownership, { root, token, dev: stat.dev, ino: stat.ino });
+    dispatches.set(ownership, { root: await resolvePhysicalPath(root), token, dev: stat.dev, ino: stat.ino });
     // An already active checkpoint publication cannot become a campaign dispatch.
     for (const v2 of [false, true]) {
       const dir = await directory(boundary, identity, false, v2);
@@ -221,7 +225,7 @@ export async function acquireCampaignDispatch(boundary: CampaignStoreBoundary, i
 
 export async function assertCampaignDispatch(boundary: CampaignStoreBoundary, identity: CampaignIdentity, ownership: CampaignDispatchOwnership): Promise<void> {
   const owner = dispatches.get(ownership);
-  campaignAssert(owner && owner.root === await validateRoot(boundary) && ownership.identityDigest === identity.digest, "DISPATCH_OWNER_INVALID");
+  campaignAssert(owner && samePhysicalPath(owner.root, await resolvePhysicalPath(await validateRoot(boundary))) && ownership.identityDigest === identity.digest, "DISPATCH_OWNER_INVALID");
   const marker = path.join(owner.root, DISPATCH_MARKER);
   const stat = await lstat(marker);
   campaignAssert(stat.dev === owner.dev && stat.ino === owner.ino && (await boundedRead(marker, 1024)).toString("utf8") === owner.token, "DISPATCH_OWNER_CHANGED");
@@ -272,7 +276,8 @@ export async function persistCampaignArtifact(boundary: CampaignStoreBoundary, i
   try { handle = await open(target, "wx"); } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     campaignAssert(committed?.identity.digest === identity.digest, "ARTIFACT_COLLISION");
-    campaignAssert(durableCheckpoints.get(committed) === root, "ARTIFACT_OWNER_UNVERIFIED");
+    const durableRoot = durableCheckpoints.get(committed);
+    campaignAssert(durableRoot !== undefined && samePhysicalPath(durableRoot, await resolvePhysicalPath(root)), "ARTIFACT_OWNER_UNVERIFIED");
     const dir = await directory(boundary, identity, false, committed.schemaVersion === CAMPAIGN_CHECKPOINT_SCHEMA_V2); campaignAssert(dir !== null, "ARTIFACT_OWNER_UNVERIFIED");
     const published = await boundedRead(path.join(dir, generationName(committed.generation)), CAMPAIGN_CHECKPOINT_MAX_BYTES);
     campaignAssert(published.toString("utf8") === `${canonicalCampaignJson(committed)}\n`, "ARTIFACT_OWNER_UNVERIFIED");
