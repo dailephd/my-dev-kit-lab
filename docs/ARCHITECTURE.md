@@ -912,6 +912,12 @@ Profile behavior remains intentionally narrow in the current implementation: pro
 
 Optional local tools can be reported as skipped; absence alone does not make the framework crash. This automation is not equivalent to a manual pentest.
 
+### Planned external-target package-content correction (release version TBD)
+
+Current limitation (v0.9.1): `runPackageChecks.ts` calls `detectMissingRequiredContents` without a target-specific `requiredFiles` list, causing the Lab-specific `REQUIRED_PACKAGE_CONTENTS` default to apply to other npm packages. The target resolver already exposes `isSelf` from the resolved root; package-name equality is not a valid substitute for self identity. This defect is **not yet corrected**.
+
+The planned repair retains the existing package-check runner, required-content helper, target resolver, forbidden-content checker, report IDs, and verdict owner. It keeps strict Lab self requirements but derives an external target's required inventory from validated `package.json` entrypoints, without inventing Lab file paths. Malformed metadata, nonzero or unparseable `npm pack`, absent entrypoints, private files, and unsupported metadata must remain explicit failures or unevaluated evidence, never false passes. No parallel validator, target mutation, security-policy change, or external-target-specific hardcoded allowlist is authorized. See [ROADMAP.md](ROADMAP.md#priority-correction-before-v092--external-target-package-content-correction-release-version-tbd) for diagnosis, tests, and gates.
+
 ## Audit framework architecture
 
 `src/audits/` is the implemented generic project-audit framework. `code-rot` (since `v0.3.0`) and `security` (since `v0.3.2`) are the currently implemented audit types. `quality`, `project`, and `all` audit types remain planned — supplying them to `--types` fails cleanly with exit code 2 and a clear message rather than running.
