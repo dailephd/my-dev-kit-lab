@@ -841,7 +841,7 @@ The bundled corpus, project profiles, and canonical projects ship in the package
 
 ### Non-goals
 
-v0.9.0 does not add campaign scheduling, resume, skip-completed runs, rate-limit pause handling, a provider telemetry taxonomy, strict prompt modes, a report section registry, or generalized gallery presentation (v0.9.1 and v0.9.2). It does not add a weighted score, an automatic winner, or statistical-significance testing.
+v0.9.1 adds campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry. Strict prompt modes, a report section registry, and generalized gallery presentation remain planned for v0.9.2. The plugin does not add a weighted score, an automatic winner, or statistical-significance testing.
 
 ## Target model
 
@@ -1220,7 +1220,7 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | v0.5.2 campaign gallery (released) | `src/gallery/writeWarmIndexCampaignGallery.ts` |
 
 
-## v0.9.1 campaign architecture (implemented, unreleased)
+## v0.9.1 campaign architecture
 
 Shared agent telemetry contracts live under `src/agents/`; Codex and Claude adapters feed the existing real-agent execution boundary in `src/experiments/plugins/agentSuccessRate/realAgentExecution.ts`. Campaign identity and deterministic selection are owned by `campaignIdentity.ts` and `campaignQueue.ts`. `campaignExecution.ts` reuses the treatment executor and persists each unit through the checkpoint store. Checkpoint v1 compatibility remains in `campaignCheckpoint.ts`; v2 epoch and recovery rules are owned by `campaignRecovery.ts`, with immutable generation and artifact ownership in `campaignCheckpointStore.ts`.
 

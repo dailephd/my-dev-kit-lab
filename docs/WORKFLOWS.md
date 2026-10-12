@@ -559,11 +559,11 @@ node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent 
 
 **Paths and non-destructive behavior:** artifacts and disposable copies live beneath the output directory (beneath the workspace for an installed CLI). A very long output path can make the operating system refuse to start Git or checks in the disposable copy; the run then ends as a controlled infrastructure failure that reports the working-directory length and never reports success. Choose a shorter `--out` in that case. The Lab does not shorten or relocate a path you supplied.
 
-**Campaign extension (v0.9.1, implemented on feature branch; unreleased):** explicit campaign creation, one-case execution, validated resume, verified completed-unit reuse, provider-limit pause, and explicitly authorized bounded continuation are available through the agent-success-rate campaign command. See the campaign lifecycle below. Automatic background scheduling and quota-reset polling are not provided.
+**Campaign extension (v0.9.1):** explicit campaign creation, one-case execution, validated resume, verified completed-unit reuse, provider-limit pause, and explicitly authorized bounded continuation are available through the agent-success-rate campaign command. See the campaign lifecycle below. Automatic background scheduling and quota-reset polling are not provided.
 
 **Completion:** the run is complete when the reports and both scientific artifacts exist and the process exits `0`. Results are descriptive for a finite controlled corpus; no winner, ranking, composite score, or significance claim is produced.
 
-### Campaign lifecycle (v0.9.1 implemented; unreleased) (v0.9.1 implemented; unreleased)
+### Campaign lifecycle (v0.9.1)
 
 Select cases and the fixed raw-full-file/context-pack treatments, then choose deterministic fixture execution or explicitly opt into Codex/Claude with `--include-real-agents`. A new campaign validates inputs and provider authorization, establishes content-based campaign identity, and writes an initial checkpoint before dispatch. Execute a selected workload or one case; each treatment is durably completed with its evidence and supporting artifacts before later work proceeds.
 

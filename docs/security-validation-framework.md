@@ -230,7 +230,7 @@ The `agent-success-rate` experiment (added in v0.9.0) runs benchmark tasks and, 
 Limits: the neutral working directory is not full operating-system isolation, the provider inherits the host environment and account permissions, and the Lab does not guarantee prevention of every malicious provider action. Very long Windows paths are not made to work; they end as controlled infrastructure failures.
 
 
-## Agent-success-rate campaign security boundaries (v0.9.1 implemented; unreleased)
+## Agent-success-rate campaign security boundaries (v0.9.1)
 
 Real-provider campaign execution remains explicit opt-in. The implementation observes supported Codex/Claude executable forms and binds the observed executable to launch; unsupported or ambiguous forms fail closed. This does not attest every transitive dependency. Provider context is limited to approved task context and runs from a neutral working directory; trusted answers, private benchmark definitions, checks, and reference patches are not supplied as provider context. Attempts and repair remain bounded.
 

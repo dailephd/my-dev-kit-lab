@@ -1,6 +1,6 @@
 # Roadmap
 
-This roadmap separates the implemented baseline from planned work. A version listed here is not released or implemented unless explicitly marked as current or completed.
+This roadmap separates the released baseline from planned work. A version listed here is not released or implemented unless explicitly marked as current or completed.
 
 The roadmap follows semantic version order. `v1.0.0` is the stable release after the complete `v0.x` development track; it is newer than every `v0.x` release.
 
@@ -1433,12 +1433,13 @@ Shipped scope:
 
 * Every listed feature and acceptance item is implemented in the `agent-success-rate` plugin; see [COMMANDS.md](COMMANDS.md#agent-success-rate-v090), [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), and [METRICS.md](METRICS.md#agent-success-rate-metrics-v090).
 * The deterministic fixture mode and simulated Codex/Claude providers validate the patch pipeline and repair logic. A paid live-provider campaign has not been run; real-agent capability is implemented but not yet evidenced by live results.
-* Campaign scheduling, resume, skip-completed runs, rate-limit pause handling, the provider telemetry taxonomy, strict prompt modes, the report section registry, and generalized gallery presentation remain in v0.9.1 and v0.9.2.
+* v0.9.1 released with campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry.
+* Strict prompt modes, the report section registry, and generalized gallery presentation remain planned for v0.9.2.
 * Release history for v0.9.0 is recorded in [CHANGELOG.md](../CHANGELOG.md).
 
 ### v0.9.1 — normalized provider telemetry and campaign scheduler
 
-Status: **implemented on feature branch; unreleased; pre-release readiness pending**.
+Status: **published**.
 
 Purpose:
 
@@ -1472,7 +1473,7 @@ Features:
 * Add per-agent timeout presets.
 * Add campaign progress summary.
 
-Implementation status: all listed requirements are implemented in the current feature-branch source and covered by focused tests; independent documentation/completeness audit is in progress.
+Release status: the listed campaign and telemetry capabilities are implemented in the v0.9.1 package. See [CHANGELOG.md](../CHANGELOG.md) for the release summary.
 
 Acceptance (preserved):
 
