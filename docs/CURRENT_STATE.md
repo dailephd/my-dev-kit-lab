@@ -20,9 +20,9 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Release-source milestone: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
-- Next planned numbered version: `v0.9.2` (hardened provider prompts and report/gallery generalization), per the roadmap; its agreed feature scope is unchanged.
-- Urgent prerequisite before v0.9.2 implementation: external-target package-content correction (**planned/unimplemented; release version TBD**). The submitted v0.9.2 patch-version suggestion conflicts with the existing v0.9.2 roadmap assignment; it is not authorized as a separate release. See [ROADMAP.md](ROADMAP.md#priority-correction-before-v092--external-target-package-content-correction-release-version-tbd).
-- Active planned version: v0.9.2 (strict prompt modes, report section registry, and generalized gallery).
+- Next planned version: `v0.9.2` (external-target npm package-content security correction), per the approved 2026-10-12 roadmap sequence.
+- Next feature version: `v0.9.3` (hardened real-agent prompts, report section registry, and generalized gallery), with the former v0.9.2 features and acceptance criteria preserved intact. The user approved this version reassignment on 2026-10-12; neither version is implemented or published. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
+- Active planned version: v0.9.2 (strict Lab self-package validation and target-derived external npm entrypoint validation; no verdict-policy changes).
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -83,9 +83,9 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
-- Exact next action: verify the nine external Orchestrator package-content findings, then carry out the bounded Lab-only external-target package-content correction before starting the intact v0.9.2 feature milestone. Do not assign the patch v0.9.2 or enter release preparation until its version collision is separately resolved; no repair implementation or validation PASS has been established.
-- Baseline constraints: v0.9.1 is the published package baseline; preserve prior retrieval evidence and metric semantics. v0.9.2 retains the planned strict prompt modes, report section registry, and generalized gallery.
-- ECO-00 adoption on 2026-09-25 preserves v0.6.1-v0.9.2 exactly as already planned and reserves new ecosystem-assurance work additively at v0.10.0-v0.17.0. LAB-EVIDENCE-01 is v0.10.0; no existing Lab milestone was reassigned.
+- Exact next action: verify the nine external Orchestrator package-content findings, then implement and validate the bounded Lab-only v0.9.2 external-target package-content correction. Keep the complete former v0.9.2 feature scope scheduled for v0.9.3; do not enter release preparation or publish without separately satisfied gates and authorization. No v0.9.2 repair implementation or validation PASS has been established.
+- Baseline constraints: v0.9.1 is the published package baseline; preserve prior retrieval evidence and metric semantics. v0.9.2 is a bounded security-validator correction; v0.9.3 retains the planned strict prompt modes, report section registry, and generalized gallery.
+- ECO-00 adoption on 2026-09-25 originally preserved the existing v0.6.1-v0.9.2 scope. The explicitly approved 2026-10-12 prioritization assigns the security correction to v0.9.2 and moves the prior v0.9.2 scope intact to v0.9.3. The ECO-00 v0.10.0-v0.17.0 assignments remain unchanged; LAB-EVIDENCE-01 remains v0.10.0.
 
 ## Implemented
 
@@ -178,7 +178,8 @@ The following remain planned, not implemented:
 - JVM package/environment rot and Gradle/Maven dependency freshness checks
 - framework-aware code-rot profiles after the language-aware track is stable
 - manual pentest workflow after `v1.0.0` (post-v1 / version TBD)
-- v0.9.2 prompt hardening, broader report generalization, and gallery generalization
+- v0.9.2 external-target npm package-content validator correction (security blocker preservation and target-derived entrypoints)
+- v0.9.3 prompt hardening, broader report generalization, and gallery generalization
 
 ## Limitations
 
@@ -270,7 +271,7 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-The published package baseline is version `0.9.1` (release date `2026-10-12`); `v0.9.0` is its previous release. `published/current` identifies the release documented by this package source; `v0.9.2` is next planned. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
+The published package baseline is version `0.9.1` (release date `2026-10-12`); `v0.9.0` is its previous release. `published/current` identifies the release documented by this package source; `v0.9.2` is the next planned security-validator correction and `v0.9.3` retains the formerly planned prompt/report/gallery scope. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
 
 
 ## v0.9.1 release status
