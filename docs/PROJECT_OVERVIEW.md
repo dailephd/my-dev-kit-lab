@@ -154,7 +154,7 @@ Latest published baseline: v0.9.1.
 
 Current implementation: v0.9.1 is released with provenance-aware provider telemetry, campaign checkpoints, validated resume, safe completed-unit reuse, and bounded provider-limit continuation.
 
-Urgent prerequisite (release version TBD): correct external-target npm package-content validation before work on the unchanged v0.9.2 milestone. At v0.9.1 the package checker inherits Lab-specific required runtime/resource paths when evaluating other npm targets, potentially generating false release blockers. The repair must use each external target's declared entrypoints while preserving strict Lab self checks, forbidden-file detection, and verdict policy; the reported nine Orchestrator findings require exact JSON confirmation. This is a planned correction, not current functionality or a separately authorized release.
+Urgent prerequisite (release version TBD): the external-target package-content correction must address npm validation before work on the unchanged v0.9.2 milestone. At v0.9.1 the package checker inherits Lab-specific required runtime/resource paths when evaluating other npm targets, potentially generating false release blockers. The repair must use each external target's declared entrypoints while preserving strict Lab self checks, forbidden-file detection, and verdict policy; the reported nine Orchestrator findings require exact JSON confirmation. This is a planned correction, not current functionality or a separately authorized release.
 
 Next planned numbered version: v0.9.2.
 
