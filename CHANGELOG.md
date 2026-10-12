@@ -2,6 +2,8 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
 ## [0.9.1] - 2026-10-12
 
 ### Normalized provider telemetry and resumable campaigns
@@ -10,8 +12,6 @@ All notable changes to my-dev-kit-lab are documented here.
 - Added deterministic agent-success-rate campaign queues, immutable checkpoint generations, version 1 compatibility and version 2 recovery epochs, explicit resume and verified completed-unit reuse, and bounded provider-limit continuation.
 - Added public campaign CLI options, Codex and Claude timeout presets, campaign progress summaries, and strong/partial/unavailable metric-specific evidence classifications.
 - Preserved partial evidence without presenting it as complete scientific analysis; uncertain provider invocations are not replayed automatically. Real-provider use remains explicitly opted in and depends on the existing provider adapters.
-
-## [Unreleased]
 
 ## [0.9.0] - 2026-10-10
 

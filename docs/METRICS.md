@@ -940,7 +940,7 @@ Cumulative versus final: durations and tokens accumulate over all provider attem
 - Provider telemetry can be unavailable, and in deterministic-fixture mode both treatments receive the same reference patch, so those results measure the pipeline only.
 
 
-## Campaign progress evidence (v0.9.1 implemented; unreleased)
+## Campaign progress evidence (v0.9.1 released)
 
 Token evidence levels are `provider-reported`, `cli-reported`, `parsed-from-output`, `unavailable`, and `estimated`. The original telemetry source is retained. Numeric availability is recorded per token field, so partial measurements remain partial and normalization never fills missing fields or invents totals; unattributed OpenTelemetry evidence is unavailable. Duration provenance is `lab-wall-clock` for valid observed elapsed time and `unavailable` for missing or invalid values; campaign comparison time is Lab-measured wall-clock duration, not provider-native time.
 
