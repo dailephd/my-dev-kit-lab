@@ -885,21 +885,20 @@ This workflow does not create a separate product version.
 
 Use this workflow after implementation completion and documentation reconciliation.
 
-Typical commands:
+Typical full local validation (latest stable Node.js only):
 
 ```bash
-npm run typecheck
-npm run build
-npm run test
-npm run verify
-npm run docs:check
+npm ci
+npm run validate:local
 ```
+
+For implementation corrections, use affected focused tests. Hosted CI validates Node 24 on three operating systems, without a duplicate local/full-suite matrix.
 
 Run safe command discovery/help smokes for changed command families and any release-specific fixture checks. Android releases must preserve project detection, manifest and advanced-security checks, report-schema stability, non-destructive target evidence, and optional-tool skip handling. Required CI must pass on the repository's configured operating-system matrix before publication work begins.
 
 **Completion:** the worktree is clean, package/release metadata is internally consistent, required checks pass, and no generated report or local artifact is staged.
 
-When the local CodeQL CLI preflight is skipped, pre-release readiness still requires a successful GitHub CodeQL advanced-setup analysis for the exact candidate SHA, recorded Code Scanning analyses for both configured languages (`javascript-typescript` and `actions`), and review of open applicable CodeQL alerts. Verify the analyses through GitHub's code-scanning analysis API or an equivalent `gh` query, including the candidate SHA/ref and analysis categories; workflow success alone is insufficient. An unresolved alert must be surfaced for explicit classification or correction; do not auto-dismiss it. A complete readiness run requires all three workflow families: [`ci.yml`](../.github/workflows/ci.yml), [`pre-release-latest-node-readiness.yml`](../.github/workflows/pre-release-latest-node-readiness.yml), and [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml). GitHub default setup does not need to be enabled when this advanced-setup workflow is used.
+Local candidate validation uses the latest stable Node.js via `npm run validate:local` (when a full local run is warranted); corrections use focused affected tests. The hosted release baseline is Node 24 across Ubuntu, macOS, and Windows in [`ci.yml`](../.github/workflows/ci.yml), with exactly one full suite per matrix cell and no duplicate latest-Node workflow. The separate [CodeQL workflow](../.github/workflows/codeql.yml) still requires the expected `javascript-typescript` and `actions` analyses plus open-alert review; a successful workflow alone is not a zero-alert assertion. Unique standalone security and code-rot checks remain part of release readiness with raw findings and explicit candidate-scoped exceptions retained. See [CI_NODE_POLICY.md](CI_NODE_POLICY.md).
 
 ## Release preparation and publication
 
@@ -924,11 +923,10 @@ The planner determines applicable workflows from the checked-in triggers before 
 
 | Workflow | Automatic branch pushes | Pull requests | Manual dispatch | Tag pushes |
 |---|---|---|---|---|
-| `ci.yml` | `main`, `feature/**`, `fix/**` | `main` | Yes | None |
-| `pre-release-latest-node-readiness.yml` | `release/**` | None | Yes | None |
-| `codeql.yml` | `main`, `feature/**`, `fix/**`, `release/**`, `validation/**` | `main` | Yes | None |
+| `ci.yml` | `main` | `main` | Yes | None |
+| `codeql.yml` | `main` | `main` | Yes | None |
 
-Readiness requires all three workflow families on the exact candidate; dispatch workflows when the candidate branch has no applicable automatic trigger. Standard CI covers Ubuntu/macOS/Windows on Node 24 and latest; dedicated readiness covers the three operating systems on Node latest; CodeQL covers JavaScript/TypeScript and Actions plus the alert review described above. For release-branch validation, ordinary CI needs dispatch or an applicable PR event rather than a release-branch push. The dedicated readiness workflow has no automatic main trigger. The established release policy records tag CI and a separate main dedicated latest-Node gate as `NOT_APPLICABLE_BY_REPOSITORY_POLICY`; main still requires its ordinary CI matrix and applicable CodeQL checks. If workflow triggers or approved policy change, the planner must reconcile applicability before execution.
+Readiness uses the one Node-24 three-OS CI matrix and independent hosted CodeQL. Local latest-stable Node checks are owned by `npm run validate:local`, not by an additional hosted matrix. Release-branch candidate validation uses an applicable PR or explicit `workflow_dispatch`; pushing the release branch alone does not trigger the full matrix. Do not duplicate identical GitHub Actions checks for the same commit; unique security and code-rot audits are independently reviewed with any approved exceptions recorded without changing raw results. The retired latest-Node workflow is not a required gate.
 
 When release preparation writes its historical report in a report-only child commit, retain separate identities: `RELEASE_PREPARED_PRODUCT_SHA` owns product validation, while `RELEASE_BRANCH_TIP` identifies the child containing the report. Verify that the child changes only the release-preparation report, merge the child tip so the report reaches main, and never attribute product validation to that child. Exact-main validation belongs to the resulting merged main commit.
 

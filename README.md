@@ -323,3 +323,7 @@ Support is optional and does not affect access to the project.
 - [docs/ROADMAP.md](docs/ROADMAP.md) — versioned plans, dependencies, exclusions, and acceptance criteria
 - [docs/GALLERY.md](docs/GALLERY.md) — gallery output explained
 - [docs/security-validation-framework.md](docs/security-validation-framework.md) — security evidence, verdicts, and safety boundaries
+
+## Node validation and CI
+
+Local full validation uses latest stable Node.js with `npm run validate:local`, while GitHub Actions validates Node 24 on Ubuntu, macOS, and Windows. The duplicate latest-Node readiness matrix is retired; distinct security/code-rot reviews and CodeQL retain their release responsibilities. See [docs/CI_NODE_POLICY.md](docs/CI_NODE_POLICY.md).

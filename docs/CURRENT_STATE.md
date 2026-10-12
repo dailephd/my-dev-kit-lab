@@ -25,7 +25,7 @@ This document records the repository's operational state. It is the source of tr
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
-- Node support baseline: `engines.node` is `>=24`. GitHub Actions CI validates Node `24` and Node `latest` across Ubuntu, macOS, and Windows; Node `22` is no longer part of the supported matrix. The pre-release readiness workflow tracks Node `latest` rather than a hard-coded version.
+- Node support baseline: `engines.node` is `>=24`. Local validation uses the latest stable Node.js through `npm run validate:local` with an official release-index preflight. Hosted CI validates Node `24` across Ubuntu, macOS, and Windows only; the previously duplicated latest-Node readiness matrix has been retired. See [CI_NODE_POLICY.md](CI_NODE_POLICY.md).
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 

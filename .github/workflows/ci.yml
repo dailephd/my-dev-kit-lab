@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-      - "feature/**"
-      - "fix/**"
 
   pull_request:
     branches:
@@ -35,7 +33,6 @@ jobs:
           - windows-latest
         node-version:
           - "24"
-          - "latest"
 
     steps:
       - name: Check out repository
@@ -73,26 +70,17 @@ jobs:
         if: runner.os == 'Windows'
         run: npx playwright install chromium
 
-      - name: Run real-browser tutorial test
-        run: npm run test:tutorial-browser
-
       - name: Check documentation consistency
         run: npm run docs:check
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Focused v0.4.4 bridge and report smoke
-        run: npx vitest run tests/experiments/contextStrategyComparison/producerReadinessBridgeIntegration.test.ts
-
-      - name: Build
-        run: npm run build
+      - name: Verify (includes the sole build and benchmark checks)
+        run: npm run verify
 
       - name: Test
         run: npm run test
-
-      - name: Verify
-        run: npm run verify
 
       - name: Verify packed package
         run: npm run verify:packed-package
