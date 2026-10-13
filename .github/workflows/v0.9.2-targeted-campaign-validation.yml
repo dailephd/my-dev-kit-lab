@@ -68,6 +68,11 @@ jobs:
             "workflow_sha=$env:GITHUB_SHA"
           ) | Set-Content -LiteralPath validation-logs/metadata.txt
 
+      - name: Prepare ignored campaign fixture root
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path candidate-source/.my-dev-kit-context | Out-Null
+
       - name: Install dependencies
         shell: pwsh
         working-directory: candidate-source
