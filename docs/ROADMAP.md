@@ -1483,7 +1483,7 @@ Acceptance (preserved):
 
 ### v0.9.2 — external-target package-content validator correction
 
-Status: **planned; not implemented**.
+Status: **implemented in `21453d5301568cb8b89afebe9362f90313403e8c`; unreleased; pre-release readiness pending**.
 
 Purpose:
 
@@ -1491,9 +1491,9 @@ Purpose:
 
 Priority and version boundary:
 
-* **Version sequence explicitly approved on 2026-10-12:** v0.9.2 is the immediate security-validator patch; the complete former v0.9.2 prompt/report/gallery scope and acceptance criteria move intact to v0.9.3; v0.10.0 and later ecosystem milestones keep their existing assignments.
-* The source release remains v0.9.1 until a separately approved v0.9.2 release. The documentation update assigns the target version but does not bump package.json, authorize a tag/npm publication, or claim implementation/readiness.
-* Implement in the dedicated Lab branch `fix/v0.9.2-external-package-layout-validation` from the then-current verified `main` (after integrating this documentation PR). Preserve all unrelated Lab and Orchestrator work. Do not begin v0.9.3 feature development before completing the prioritized patch and its appropriate release gates.
+* **Version sequence explicitly approved on 2026-10-12:** v0.9.2 is the security-validator correction; the complete former v0.9.2 prompt/report/gallery scope and acceptance criteria remain assigned intact to v0.9.3; v0.10.0 and later ecosystem milestones keep their existing assignments.
+* Package version and latest published version remain 0.9.1. The v0.9.2 implementation is unreleased; this documentation does not bump package metadata, authorize a tag or npm publication, or claim pre-release readiness.
+* Implementation is recorded on `fix/v0.9.2-external-package-layout-validation` at `21453d5301568cb8b89afebe9362f90313403e8c`. Pre-release readiness is a separate pending workflow.
 
 Trigger and verified scope of the problem:
 

@@ -912,11 +912,9 @@ Profile behavior remains intentionally narrow in the current implementation: pro
 
 Optional local tools can be reported as skipped; absence alone does not make the framework crash. This automation is not equivalent to a manual pentest.
 
-### Planned external-target package-content correction (v0.9.2)
+### External-target package-content correction (v0.9.2, implemented/unreleased)
 
-Current limitation (v0.9.1): `runPackageChecks.ts` calls `detectMissingRequiredContents` without a target-specific `requiredFiles` list, causing the Lab-specific `REQUIRED_PACKAGE_CONTENTS` default to apply to other npm packages. The target resolver already exposes `isSelf` from the resolved root; package-name equality is not a valid substitute for self identity. This defect is **not yet corrected**.
-
-The planned repair retains the existing package-check runner, required-content helper, target resolver, forbidden-content checker, report IDs, and verdict owner. It keeps strict Lab self requirements but derives an external target's required inventory from validated `package.json` entrypoints, without inventing Lab file paths. Malformed metadata, nonzero or unparseable `npm pack`, absent entrypoints, private files, and unsupported metadata must remain explicit failures or unevaluated evidence, never false passes. No parallel validator, target mutation, security-policy change, or external-target-specific hardcoded allowlist is authorized. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction) for diagnosis, tests, and gates.
+`runPackageChecks.ts` keeps the strict `REQUIRED_PACKAGE_CONTENTS` inventory for Lab self-validation. External npm targets derive required package files from validated declared entrypoints (`bin`, `main`, and supported exact `exports` mappings), so unrelated Lab-only paths are not required. Missing declared external entrypoints, invalid or incomplete package metadata, failed or unparseable `npm pack` evidence, and forbidden contents remain blockers. The correction eliminates the nine inherited Lab-only Orchestrator false positives while keeping forbidden-file checks active. It uses the existing package-check runner, target resolver, report IDs, and verdict owner; security verdict policy is unchanged. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction) for the approved scope.
 
 ## Audit framework architecture
 

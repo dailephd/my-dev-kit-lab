@@ -158,6 +158,8 @@ Supported verdicts are:
 
 Optional scanners can be recorded as skipped. A skip is not silently converted into a pass, and its effect is reflected in the verdict and report.
 
+Failed or incomplete scanner execution cannot produce a false `PASS`: process failures, invalid output, or incomplete analysis remain failed/inconclusive evidence according to the existing check contract. Findings and severity mappings are preserved. Optional scanners that are unavailable are explicitly `SKIPPED` with a reason. This correction does not change verdict policy.
+
 ### CodeQL coverage contract
 
 CodeQL has separate local and hosted responsibilities:
@@ -200,11 +202,9 @@ Current report/schema details:
 - Manual pentest is deferred until after `v1.0.0`. It is a human-led workflow and is not required for automated Android security validation.
 - Runtime behavior, device/emulator testing, APK/AAB inspection, signing verification, Play Console or policy validation, remote Firebase state, Digital Asset Links ownership, automatic fixes, and exhaustive security proof remain outside current scope.
 
-### Known external npm package-content limitation (v0.9.1)
+### External-target package-content correction (v0.9.2, implemented/unreleased)
 
-For external target validation, the current package-content runner calls `detectMissingRequiredContents` without a target-supplied required-file list. Consequently, the Lab-specific `REQUIRED_PACKAGE_CONTENTS` default is applied even when the target is another npm package. Nine Orchestrator missing-file blockers were reported in an external validation; their individual JSON findings and actual packaged paths require read-only verification before categorizing each as a false positive. This is a **known implementation limitation, not a completed correction**.
-
-The urgent external-target package-content correction is assigned to planned v0.9.2; the prior v0.9.2 prompt/report/gallery milestone moves intact to v0.9.3. The correction must preserve Lab's complete strict self-package inventory, validate an external package's own supported declared `bin`/`main`/runtime entrypoints, continue detecting forbidden secrets and local files, and treat malformed package metadata, failed/unparseable pack output, and genuinely missing entrypoints as blockers or explicitly unevaluated evidence. No `verdict.ts`, severity, `--fail-on`, mandatory-check selection, report-schema, or target-mutation policy changes are authorized. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction) for the bounded acceptance tests and release boundary.
+Lab self-validation retains its strict required inventory. External packages are checked against their declared supported entrypoints; missing required entrypoints, malformed or incomplete package metadata, failed or unparseable package evidence, and forbidden contents remain blockers. This eliminates the nine inherited Lab-only Orchestrator false positives without weakening forbidden-file validation. Package inventory and metadata failures cannot pass. The security verdict policy is unchanged. The original prompt/report/gallery milestone remains fully planned for v0.9.3; see [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
 
 ## Fortification status and audit relationship
 

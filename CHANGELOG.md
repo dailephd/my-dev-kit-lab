@@ -4,6 +4,12 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### v0.9.2 implementation (unreleased)
+
+- Corrected external npm package validation to retain Lab's strict self-package inventory while deriving external requirements from declared package entrypoints. Missing entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers; nine inherited Lab-only Orchestrator false positives are eliminated.
+- Corrected Semgrep evidence handling so failed or incomplete scans cannot produce a false `PASS`; unavailable optional scanners remain explicitly `SKIPPED`, with findings and severity mappings preserved.
+- Implementation-stage checks passed on the implementation source commit. Pre-release readiness is pending; this entry does not denote a published v0.9.2 release.
+
 ## [0.9.1] - 2026-10-12
 
 ### Normalized provider telemetry and resumable campaigns

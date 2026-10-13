@@ -154,9 +154,11 @@ Latest published baseline: v0.9.1.
 
 Current implementation: v0.9.1 is released with provenance-aware provider telemetry, campaign checkpoints, validated resume, safe completed-unit reuse, and bounded provider-limit continuation.
 
-Urgent planned v0.9.2 patch: the external-target package-content correction must address npm validation before work on the unchanged prompt/report/gallery milestone now assigned to v0.9.3. At v0.9.1 the package checker inherits Lab-specific required runtime/resource paths when evaluating other npm targets, potentially generating false release blockers. The repair must use each external target's declared entrypoints while preserving strict Lab self checks, forbidden-file detection, and verdict policy; the reported nine Orchestrator findings require exact JSON confirmation. This is planned v0.9.2 functionality, not current functionality or an authorized publication.
+Implemented/unreleased v0.9.2 correction: external npm package validation uses declared package entrypoints while Lab self-validation retains its strict required inventory. Missing external entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated; Semgrep failed or incomplete scans cannot produce a false PASS. Security verdict policy is unchanged. Implementation-stage results are documented in [CURRENT_STATE.md](CURRENT_STATE.md); pre-release readiness remains pending.
 
-Next planned version: v0.9.2 (external package-content security correction); next feature milestone: v0.9.3 (original planned v0.9.2 scope).
+Current version v0.9.2 is implemented and unreleased (external-target package-content correction and Semgrep evidence correction).
+
+Next planned version: v0.9.3 (original feature milestone, with its full approved scope preserved).
 
 Hardened provider prompts, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned for v0.9.3. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 

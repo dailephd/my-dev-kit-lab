@@ -857,18 +857,13 @@ flowchart LR
 
 **Completion:** deterministic combined issues and the security summary are written without modifying the target.
 
-## Urgent external-target package-content correction (planned v0.9.2)
+## External-target package-content correction (v0.9.2 implementation completed)
 
-**Goal:** repair a false-positive-prone external npm package required-file check without weakening self-validation or changing an external target. The repair is assigned to v0.9.2; the unchanged prompt/report/gallery feature milestone moves to v0.9.3. Neither is implemented or released in v0.9.1.
+**Goal and implemented behavior:** correct external npm package validation without weakening the strict Lab self inventory, forbidden-file validation, or the existing security verdict policy. External packages use their declared entrypoints; missing required entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated. Semgrep failures and incomplete scans cannot produce a false `PASS`; unavailable optional scanners remain explicitly `SKIPPED`.
 
-1. Verify Lab `main`, package `0.9.1`, the planned v0.9.2 security-fix and moved v0.9.3 feature contracts, and the Orchestrator candidate/worktree identities. Preserve all pre-existing user changes.
-2. Read Orchestrator's remediation report and all nine referenced JSON package findings. Compare each required path to Lab's `REQUIRED_PACKAGE_CONTENTS` and Orchestrator's actual npm tarball. Only findings proven to result from the Lab inventory mismatch may be categorized as false positives.
-3. Perform bounded source retrieval, then fix only Lab's existing package-required-file selection. Retain the strict Lab self-inventory; use target-owned entrypoint metadata for external packages and preserve forbidden-content checks, fail-closed package errors, IDs, verdicts, and deterministic report formats.
-4. Test synthetic external packages (valid and missing `bin`/`main`, malformed metadata, failed pack, empty inventory, path separators, forbidden files), strict Lab self-validation, and the entire existing security/default-check contract.
-5. Run focused package tests, `npm ci`, `npm run typecheck`, `npm run build`, `npm run test:security`, `npm test`, `npm run verify`, and self-security validation in Lab. Run read-only target validation against the immutable Orchestrator worktree; keep all reports and temporary artifacts within Lab. Inspect Orchestrator tracked/untracked state before and after; do not install or commit anything there.
-6. Record real remaining findings, skipped optional checks, exact Lab candidate SHA, Orchestrator immutable identity, and tested report contracts. Do not call a candidate a published validator. A published, pinned corrected Lab release or separately authorized independent candidate contract is required before final Orchestrator security/readiness revalidation.
+**Implementation evidence:** implementation commit `21453d5301568cb8b89afebe9362f90313403e8c` passed 7,590 full-suite tests with zero failures and eight existing conditional skips, 615 security tests, documentation checks, build, typecheck, verify, and packed-package checks. Lab self-security had no blocker or major findings and retained 160 minor findings. Orchestrator package validation passed; Orchestrator remains **NOT READY** with 21 major and 86 minor target-owned findings. Its immutability check passed across 11,074 files. These results belong to the implementation SHA and are not exact-SHA validation of a documentation-reconciled candidate. Pre-release readiness remains a separate pending workflow.
 
-**Stop:** missing nine-finding evidence, unexpected repo state, inability to establish safe self/external semantics, real security blockers, or failed required validation must be reported as unresolved. No version bump, release or publication, Orchestrator work, or v0.9.2 feature implementation is authorized by this documentation task. The v0.9.2 and v0.9.3 assignments are approved, but implementation readiness and publication still require separate gates and approval.
+The v0.9.3 prompt, report, and gallery feature requirements and acceptance criteria remain intact in [ROADMAP.md](ROADMAP.md). No package version bump, release, tag, merge, or publication is part of implementation or documentation reconciliation.
 
 ## Implementation completion
 
@@ -893,6 +888,10 @@ Required actions:
 4. run the required validation commands for the repository
 
 This workflow does not create a separate product version.
+
+The v0.9.2 implementation-stage evidence is documented separately from pre-release readiness. Its implementation SHA is `21453d5301568cb8b89afebe9362f90313403e8c`; those test and package results are not validation of a later documentation-reconciled SHA.
+
+The package version and latest published version remain 0.9.1. The v0.9.2 implementation is unreleased and readiness is pending. The full v0.9.3 feature milestone is preserved. The reconciliation candidate proceeds to the separate readiness workflow only after documentation checks and review; it does not authorize release preparation or publication.
 
 ## Pre-release readiness
 
