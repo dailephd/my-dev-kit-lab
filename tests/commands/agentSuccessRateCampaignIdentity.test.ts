@@ -20,7 +20,7 @@ it("RSP-020/RSP-033 public resume rejects changed current source bytes and prese
   const flags = [...f.base]; flags[flags.indexOf("--campaign-source-root") + 1] = sourceRoot;
   const observed = vi.spyOn(observation, "observeProviderBuild");
   const created = await captureCommand(() => runExperimentRunCommandFromArgs([...flags, "--agent-campaign", "new"], { context: f.context }));
-  expect(created.code).toBe(0);
+  expect(created.code, created.stderr).toBe(0);
   const checkpoint = await latestCheckpoint(f.outputRoot);
   const scientific = await readFile(path.join(f.outputRoot, "agent-success-rate-execution.json"));
   const originalPath = path.join(process.cwd(), "src/experiments/plugins/agentSuccessRate/campaignRecovery.ts");

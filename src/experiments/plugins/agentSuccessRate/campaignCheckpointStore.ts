@@ -46,7 +46,7 @@ async function plainAncestors(candidate: string): Promise<void> {
   for (;;) { await plain(current, "directory"); const parent = path.dirname(current); if (parent === current) return; current = parent; }
 }
 /** Resolve filesystem aliases before inspecting ancestors (macOS exposes /var as /private/var). */
-async function resolveCampaignRoot(candidate: string): Promise<string> {
+export async function resolveCampaignRoot(candidate: string): Promise<string> {
   const resolved = path.resolve(candidate);
   let existing = resolved;
   const remainder: string[] = [];

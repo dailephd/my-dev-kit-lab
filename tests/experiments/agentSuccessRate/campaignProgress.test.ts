@@ -39,7 +39,7 @@ describe("validated campaign progress and immutable companion reports", () => {
     const physicalRoot = await realpath(f.boundary.outputRoot);
     expect(path.resolve(f.boundary.outputRoot)).not.toBe(path.resolve(physicalRoot));
     const published = await writeAgentSuccessCampaignProgressReport({ snapshot, boundary: f.boundary });
-    expect(await readFile(published.outputPaths.jsonPath, "utf8")).toContain('"schemaVersion": "agent-success-rate-campaign-progress-v1"');
+    expect(JSON.parse(await readFile(published.outputPaths.jsonPath, "utf8")).schemaVersion).toBe("my-dev-kit-lab-agent-success-rate-campaign-progress-v1");
     expect(await readFile(published.outputPaths.textPath, "utf8")).toContain("Campaign progress");
     expect(await readFile(published.outputPaths.htmlPath, "utf8")).toContain("Campaign progress");
     expect(await readFile(published.outputPaths.manifestPath, "utf8")).toContain(snapshot.model.campaignIdentity);
