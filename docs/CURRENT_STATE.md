@@ -7,11 +7,10 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Package version in the final release-document state: `0.9.2`.
-- Latest published version before publication: `v0.9.1` (normalized provider telemetry and resumable campaigns).
-- Latest release confirmed in the registry before this publication workflow: `v0.9.1`; `published/current` refers only to externally verified npm release state.
-- Release-document version: `v0.9.2` final state; registry publication is verified separately from this document.
-- Current release-document state: final v0.9.2 documentation prepared; it does not claim publication.
+- Current release-document and package version: `v0.9.2`.
+- Previous published release: `v0.9.1` (normalized provider telemetry and resumable campaigns).
+- Registry publication is established separately through external npm evidence; release-document status does not fabricate registry evidence.
+- Final release-document state: v0.9.2.
 - Intended release date: `2026-10-13` (verify again before publication if delayed).
 - Previous published release: `v0.9.1` (2026-10-12).
 - Previous release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
@@ -19,7 +18,7 @@ This document records the repository's operational state. It is the source of tr
 - `v0.5.0` status: published; it is a historical release. The release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
-- Previous published release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
+- Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
 - Next planned version: `v0.9.3` (hardened real-agent prompts, report section registry, tutorial-manifest gallery consumption, and generalized gallery/evidence portal); its complete prior feature scope and acceptance criteria remain intact. The approved 2026-10-12 reassignment leaves v0.10.0 and later release assignments unchanged. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
 - Active planned version: `v0.9.3`; final release documentation represents v0.9.2, and registry publication is verified separately.
@@ -55,7 +54,7 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - `v0.5.2` release branch: `release/v0.5.2` (historical release branch merged to `main`).
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
-- Historical release baseline before v0.9.0: `v0.8.2` context-pack generation experiments; the `v0.8.1` release added retrieval query strategy comparison. The current release is v0.9.1, as stated above.
+- Historical release baseline before v0.9.0: `v0.8.2` context-pack generation experiments; the `v0.8.1` release added retrieval query strategy comparison. v0.9.1 is the previous published release.
 - v0.8.2 release validation: local implementation, documentation, package, and full-suite gates passed; hosted validation evidence is available in GitHub Actions for the release branch.
 - v0.8.2 plugin contract: `context-pack-generation` always runs `raw-full-file` and `context-pack`; its report presents existing retrieval coverage and estimated size plus paired token savings and objective deltas, without a composite winner or ranking. External-local science uses real identities before redaction, persists no pack body, and renders a redacted preview.
 - Workflow stage (published release): v0.8.0 implementation, documentation reconciliation, readiness, and release preparation are complete; v0.8.0 is an earlier historical release, and `experiment run --experiment retrieval-precision-recall` is part of the current package.
@@ -83,9 +82,9 @@ See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP
 - **v0.5.2 implementation validation summary (historical):** final implementation SHA `ca66ab3888bc9bf166c75436bacd2970234465c6`. Local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run build`, `npm run verify:benchmarks`, `npm run verify`, `npm run verify:packed-package` (run twice, reproducible), focused implementation/acceptance suites (`test:agents`, `test:report`, `test:plots`, `test:gallery`, `test:screenshot`, `test:integration`, `test:e2e`, `test:security`). Full suite: 389 files, 5011 passed, 1 skipped, 0 failed. `npm run audit -- --types code-rot,security ...` and `npm run security:validate -- --target . --profile npm-package ...` both completed with zero blockers. Ordinary CI run `35916754237` passed all six jobs on that exact commit (Ubuntu, macOS, and Windows × Node 24/latest), including `verify:packed-package` in every job. This implementation-stage evidence establishes implementation validation, not publication or pre-release readiness; the later documentation-reconciled readiness evidence is recorded separately below.
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
-- Historical implementation source: `21453d5301568cb8b89afebe9362f90313403e8c` on `fix/v0.9.2-external-package-layout-validation`; documentation-reconciled candidate `128aceda255218ce27d198b4187660c6f545c870` failed pre-release readiness. Neither result is readiness evidence for the new correction candidate.
-- Exact next action after correction validation: return the new correction candidate SHA to the ChatGPT global planner for a completely new exact-SHA pre-release readiness cycle. Keep publication unauthorized and v0.9.3 planned.
-- Baseline constraints: v0.9.1 is the published package baseline; preserve prior retrieval evidence and metric semantics. v0.9.2 is a bounded security-validator correction; v0.9.3 retains the planned strict prompt modes, report section registry, and generalized gallery.
+- Historical implementation source: `21453d5301568cb8b89afebe9362f90313403e8c` on `fix/v0.9.2-external-package-layout-validation`; documentation-reconciled candidate `128aceda255218ce27d198b4187660c6f545c870` failed pre-release readiness. That failure remains historical and was superseded by the accepted exact-SHA readiness and release-PR validation recorded below.
+- Release-PR correction `#56` was merged to `main`; exact merged-main CI and CodeQL evidence is recorded in Validation state. The current release-document and package-metadata version is v0.9.2; v0.9.3 remains planned.
+- Baseline constraints: v0.9.2 is the current release-document and package-metadata baseline; preserve prior retrieval evidence and metric semantics. v0.9.3 retains the planned strict prompt modes, report section registry, and generalized gallery.
 - ECO-00 adoption on 2026-09-25 originally preserved the existing v0.6.1-v0.9.2 scope. The explicitly approved 2026-10-12 prioritization assigns the external-target package-content correction to v0.9.2 and moves the prior v0.9.2 scope intact to v0.9.3. The ECO-00 v0.10.0-v0.17.0 assignments remain unchanged; LAB-EVIDENCE-01 remains v0.10.0.
 
 ## Implemented
@@ -216,14 +215,15 @@ The following remain planned, not implemented:
 
 ## Validation state
 
-- Inherited readiness: PASS_READY_FOR_RELEASE_PREP for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`; local Node latest gates and the hosted Ubuntu/macOS/Windows Node 24 matrix passed. Hosted GitHub Actions CodeQL analyses for JavaScript/TypeScript and Actions passed on that candidate. The local optional CodeQL scanner was unavailable and correctly reported SKIPPED; that is not a pass. The accepted readiness report supersedes earlier failed attempts, which remain historical.
-- Release-preparation local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run verify`, and `npm pack --dry-run`; `git diff --check` is clean. The complete local test suite was not rerun because exact-SHA readiness evidence applies and hosted PR CI runs it once per job. Hosted PR results are established by GitHub check records and Code Scanning analyses.
+- Inherited readiness was accepted for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`; local Node latest gates and the hosted Ubuntu/macOS/Windows Node 24 matrix passed. Hosted GitHub Actions CodeQL analyses for JavaScript/TypeScript and Actions passed on that candidate. The local optional CodeQL scanner was unavailable and correctly reported SKIPPED; that is not a pass. Earlier failed attempts remain historical and are superseded by the accepted exact-SHA result.
+- The release-prepared main candidate `a4ef38c800d96bf4462360ae3f6c47139b09d211` passed GitHub Actions CI run `38457883307` on Ubuntu, macOS, and Windows / Node 24, including full tests and packed-package verification. Hosted CodeQL run `38457883400` passed JavaScript/TypeScript and Actions analysis on the same exact SHA.
+- Release-preparation local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run verify`, and `npm pack --dry-run`; `git diff --check` was clean. The complete local test suite was not rerun because exact-SHA readiness evidence applies and hosted PR CI ran it once per job.
 
 ### v0.9.2 implementation-stage evidence (not pre-release readiness)
 
 Implementation commit `21453d5301568cb8b89afebe9362f90313403e8c` passed the full suite: 7,590 tests passed, zero failed, with eight existing conditional skips. The security suite passed 615 tests. Documentation checks, build, typecheck, `npm run verify`, and packed-package checks passed. Lab self-security had no blocker or major findings; 160 minor findings remained visible. External Orchestrator package validation passed, and target immutability passed across 11,074 files. These are implementation-stage results inherited from the implementation SHA; they are not exact-SHA validation of this documentation-reconciled candidate and do not complete pre-release readiness.
 
-The external Orchestrator remains **NOT READY**: its separate target-owned evidence contains 21 major and 86 minor findings. Those findings remain visible and are not suppressed or attributed to Lab. The pre-release readiness attempt for candidate `128aceda255218ce27d198b4187660c6f545c870` failed: macOS and Windows campaign progress/report CI jobs failed, and the roadmap retained an outdated original-nine-findings statement. The new correction candidate requires its own complete readiness cycle; see the preserved historical report in the readiness worktree.
+The external Orchestrator remains **NOT READY**: its separate target-owned evidence contains 21 major and 86 minor findings. Those findings remain visible and are not suppressed or attributed to Lab. The earlier pre-release readiness attempt for candidate `128aceda255218ce27d198b4187660c6f545c870` failed: macOS and Windows campaign progress/report CI jobs failed, and the roadmap retained an outdated original-nine-findings statement. Those failures are preserved as historical evidence and were superseded by accepted readiness for `d6289600273a0d573f8d71dcdd975546c683dc6b` and successful release-PR validation.
 
 `npm run typecheck`, `npm run build`, the focused `v0.4.3` test suites (`tests/evaluation/upstreamArtifacts`, `tests/evaluation/stageContextSelectors`, `tests/evaluation/stageContextExpectations`, `tests/evaluation/stageContextMetrics`, `tests/evaluation/targetImmutability`, `tests/evaluation/stageContextDeterminism`, `tests/experiments/contextStrategyComparison`, `tests/report/experiments`), `npm run test:evaluation`, and `npm run test:experiments` pass.
 
@@ -280,12 +280,15 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Return the release-preparation report and exact release-PR head SHA to the ChatGPT global planner for review. Do not merge, tag, create a GitHub Release, or publish to npm in this stage.
+Latest release documentation is v0.9.2.
+
+The `published/current` designation is based on external npm evidence, not package metadata or release-document wording.
+
+The full v0.9.3 prompt/report/gallery scope remains planned; later roadmap assignments are unchanged. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
+
+Exact next action: preserve the complete v0.9.3 roadmap scope and leave it planned.
 
 
-The final v0.9.2 release documentation and package metadata are prepared. Registry publication status is established separately; v0.9.3 retains the former prompt/report/gallery scope. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
-
-
-## v0.9.1 release status
+## Previous v0.9.1 release history
 
 The v0.9.1 release includes normalized provider telemetry, integrated Codex/Claude parsing and outcome handling, deterministic campaign queues, checkpoint v1/v2 recovery contracts, explicit resume and verified completed-unit reuse, provider-limit pause/continuation, public campaign CLI routing and timeout presets, and plugin-specific progress evidence. Partial progress is operational evidence; final scientific execution and analysis artifacts are published only after campaign finalization. Uncertain provider invocations are not replayed automatically. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [ROADMAP.md](ROADMAP.md).
