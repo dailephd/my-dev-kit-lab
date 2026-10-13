@@ -891,7 +891,7 @@ This workflow does not create a separate product version.
 
 The v0.9.2 implementation-stage evidence is documented separately from pre-release readiness. Its implementation SHA is `21453d5301568cb8b89afebe9362f90313403e8c`; those test and package results are not validation of a later documentation-reconciled SHA.
 
-The package version and latest published version remain 0.9.1. The v0.9.2 implementation is unreleased. Its earlier exact-SHA readiness attempt failed, and its evidence cannot be reused for the correction candidate; the correction must undergo a new readiness cycle after validation. The full v0.9.3 feature milestone is preserved. This workflow does not authorize release preparation or publication.
+The validated implementation SHA is `d6289600273a0d573f8d71dcdd975546c683dc6b`; inherited readiness was accepted as PASS_READY_FOR_RELEASE_PREP. Earlier failed readiness attempts remain historical and are superseded by the accepted exact-SHA result. Release preparation applies package version `0.9.2`, final release documentation, and the approved Node 24 CI policy on `release/v0.9.2`; hosted release-PR validation is a separate gate. The full v0.9.3 feature milestone is preserved. This workflow does not authorize merge, tagging, GitHub Release creation, or npm publication.
 
 ## Pre-release readiness
 
@@ -911,7 +911,7 @@ Run safe command discovery/help smokes for changed command families and any rele
 
 **Completion:** the worktree is clean, package/release metadata is internally consistent, required checks pass, and no generated report or local artifact is staged.
 
-When the local CodeQL CLI preflight is skipped, pre-release readiness still requires a successful GitHub CodeQL advanced-setup analysis for the exact candidate SHA, recorded Code Scanning analyses for both configured languages (`javascript-typescript` and `actions`), and review of open applicable CodeQL alerts. Verify the analyses through GitHub's code-scanning analysis API or an equivalent `gh` query, including the candidate SHA/ref and analysis categories; workflow success alone is insufficient. An unresolved alert must be surfaced for explicit classification or correction; do not auto-dismiss it. A complete readiness run requires all three workflow families: [`ci.yml`](../.github/workflows/ci.yml), [`pre-release-latest-node-readiness.yml`](../.github/workflows/pre-release-latest-node-readiness.yml), and [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml). GitHub default setup does not need to be enabled when this advanced-setup workflow is used.
+The inherited readiness report for the v0.9.2 implementation was accepted by the global planner and includes exact-SHA hosted CodeQL analyses for both `javascript-typescript` and `actions`, with applicable alert review. For current release-PR validation, require the Node 24 three-OS standard CI matrix and both hosted CodeQL analyses plus applicable Code Scanning alert review. The manual Node-latest workflow is optional diagnostics only. Historical release records that required the earlier readiness workflow families remain unchanged.
 
 ## Release preparation and publication
 
@@ -937,10 +937,10 @@ The planner determines applicable workflows from the checked-in triggers before 
 | Workflow | Automatic branch pushes | Pull requests | Manual dispatch | Tag pushes |
 |---|---|---|---|---|
 | `ci.yml` | `main`, `feature/**`, `fix/**` | `main` | Yes | None |
-| `pre-release-latest-node-readiness.yml` | `release/**` | None | Yes | None |
+| `pre-release-latest-node-readiness.yml` | None | None | Yes (manual diagnostic only) | None |
 | `codeql.yml` | `main`, `feature/**`, `fix/**`, `release/**`, `validation/**` | `main` | Yes | None |
 
-Readiness requires all three workflow families on the exact candidate; dispatch workflows when the candidate branch has no applicable automatic trigger. Standard CI covers Ubuntu/macOS/Windows on Node 24 and latest; dedicated readiness covers the three operating systems on Node latest; CodeQL covers JavaScript/TypeScript and Actions plus the alert review described above. For release-branch validation, ordinary CI needs dispatch or an applicable PR event rather than a release-branch push. The dedicated readiness workflow has no automatic main trigger. The established release policy records tag CI and a separate main dedicated latest-Node gate as `NOT_APPLICABLE_BY_REPOSITORY_POLICY`; main still requires its ordinary CI matrix and applicable CodeQL checks. If workflow triggers or approved policy change, the planner must reconcile applicability before execution.
+Mandatory hosted release-PR validation consists of standard CI on Ubuntu, macOS, and Windows with Node 24 and hosted CodeQL analyses for `javascript-typescript` and `actions`, followed by applicable Code Scanning alert review. The redundant Node-latest readiness workflow is available only through manual dispatch for explicitly requested diagnostics and has no release-branch push trigger. Local release validation uses Node latest; the package engine remains `>=24`. Exact-SHA results may be reused only when their execution contract matches the required gate. The full test suite runs once per CI job; `npm run verify` builds and verifies benchmark contracts before the suite, and package verification follows. Historical releases that required the former six-cell matrix or latest-Node workflow retain their original evidence unchanged.
 
 When release preparation writes its historical report in a report-only child commit, retain separate identities: `RELEASE_PREPARED_PRODUCT_SHA` owns product validation, while `RELEASE_BRANCH_TIP` identifies the child containing the report. Verify that the child changes only the release-preparation report, merge the child tip so the report reaches main, and never attribute product validation to that child. Exact-main validation belongs to the resulting merged main commit.
 

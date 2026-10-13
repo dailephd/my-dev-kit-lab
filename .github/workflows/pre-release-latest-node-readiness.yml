@@ -3,10 +3,6 @@ name: Pre-release latest Node readiness
 on:
   workflow_dispatch:
 
-  push:
-    branches:
-      - release/**
-
 permissions:
   contents: read
 

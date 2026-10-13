@@ -16,7 +16,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The latest release is v0.9.1 (normalized provider telemetry and resumable agent-success-rate campaigns); v0.9.0 (agent-success-rate implementation-patch evaluation) is the previous release. The repository package version is 0.9.1.
+The v0.9.2 release documentation covers external package validation, Semgrep evidence, campaign path-safety, and cross-platform corrections; registry publication is established separately through npm evidence. Previous releases are v0.9.1 and v0.9.0. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the publication and release state.
 
 The v0.8.1 release added the `retrieval-query-strategy-comparison` plugin as the sixth experiment plugin. It compares seven deterministic my-dev-kit retrieval workflows without running any coding agent, keeps execution evidence and scientific analysis in separate artifacts, and in external-local mode preserves the read-only and privacy boundaries of the local-repository subject model.
 
@@ -32,7 +32,7 @@ The generic experiment-plugin runtime has eight registered plugins (the eighth, 
 
 `retrieval-precision-recall` (released in v0.8.0) measures retrieval quality without any agent. For each case it runs the existing my-dev-kit search, lookup, slice, and source lifecycle and compares the retrieved files and symbols with a deterministic answer key, reporting file and symbol precision and recall, fact coverage from explicit fact-to-context mappings, irrelevant context ratio, estimated retrieved tokens, and the missed files and symbols. The default run uses a bundled 12-case corpus over two benchmark projects; it can also run over an explicitly selected local Git repository (`--target` with `--local-subject-config`) with the repository treated as read-only and its path and file, symbol, and fact identities redacted from durable output. These are set-based measures with no ranking, winner, or composite score, and comparing retrieval strategies is provided separately by the v0.8.1 plugin described next (released in v0.8.1). See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [METRICS.md](METRICS.md).
 
-`retrieval-query-strategy-comparison` (released in v0.8.1) compares seven fixed retrieval strategies — `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided` — over the same frozen 12-case corpus, without any agent. Every selected case receives all seven strategies. Retrieval quality reuses the inherited file, symbol, and fact-coverage measures, adds balanced file and symbol F1, and compares strategies as macro means over matched complete cases for the overall scope and for the existing localized, cross-module, and broad-change task-locality scopes. Strategies are compared by Pareto dominance; a best strategy is named only when exactly one strategy is nondominated, and otherwise the result is an explicit tradeoff. There is no composite score and no total ranking. The execution evidence and the scientific analysis are written as two separate artifacts, with typed JSON, text, and HTML reports. The plugin can also run over an explicitly selected local Git repository with the same read-only, privacy-redacted boundary as the other local-repository plugins. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [METRICS.md](METRICS.md).
+`retrieval-query-strategy-comparison` (released in v0.8.1) compares seven fixed retrieval strategies â€” `keyword-search`, `symbol-lookup`, `graph-neighborhood`, `source-slice`, `data-model-graph`, `model-view-lineage`, and `combined-graph-guided` â€” over the same frozen 12-case corpus, without any agent. Every selected case receives all seven strategies. Retrieval quality reuses the inherited file, symbol, and fact-coverage measures, adds balanced file and symbol F1, and compares strategies as macro means over matched complete cases for the overall scope and for the existing localized, cross-module, and broad-change task-locality scopes. Strategies are compared by Pareto dominance; a best strategy is named only when exactly one strategy is nondominated, and otherwise the result is an explicit tradeoff. There is no composite score and no total ranking. The execution evidence and the scientific analysis are written as two separate artifacts, with typed JSON, text, and HTML reports. The plugin can also run over an explicitly selected local Git repository with the same read-only, privacy-redacted boundary as the other local-repository plugins. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [METRICS.md](METRICS.md).
 
 Selectable Codex/Claude real-agent warm-index campaigns, with their own report/plots/screenshot/gallery presentation, are current installed-CLI capabilities.
 
@@ -150,30 +150,18 @@ v0.8.0 retrieval precision/recall and v0.8.1 retrieval query strategy comparison
 
 Context-pack generation experiments shipped in v0.8.2.
 
+## v0.9.1 campaign capabilities
+
+The published v0.9.1 release adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports while preserving existing provider adapters and scientific artifact contracts.
+
 Latest published baseline: v0.9.1.
 
 Current implementation: v0.9.1 is released with provenance-aware provider telemetry, campaign checkpoints, validated resume, safe completed-unit reuse, and bounded provider-limit continuation.
 
-Implemented/unreleased v0.9.2 correction: external npm package validation uses declared package entrypoints while Lab self-validation retains its strict required inventory. Missing external entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated; Semgrep failed or incomplete scans cannot produce a false PASS. Security verdict policy is unchanged. Implementation-stage results and the failed earlier exact-SHA pre-release attempt are documented in [CURRENT_STATE.md](CURRENT_STATE.md); a new readiness cycle is required after correction.
+The v0.9.2 external-target package-content correction fixes external npm package validation using declared entrypoints while Lab self-validation retains its strict required inventory. Missing external entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated; Semgrep failed or incomplete scans cannot produce a false PASS. Campaign filesystem identity, path-safety, and cross-platform compatibility corrections are included. Security verdict strictness is unchanged. Earlier failed readiness attempts remain historical and are superseded by the accepted readiness result for the exact validated source SHA; release PR validation is tracked separately in [CURRENT_STATE.md](CURRENT_STATE.md).
 
-Current version v0.9.2 is implemented and unreleased (external-target package-content correction and Semgrep evidence correction).
-
-Next planned version: v0.9.3 (original feature milestone, with its full approved scope preserved).
-
-Hardened provider prompts, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned for v0.9.3. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
-
-See [CURRENT_STATE.md](CURRENT_STATE.md) for implemented-versus-planned status and [ROADMAP.md](ROADMAP.md) for semantic version ordering.
-
-
-## v0.9.1 campaign capabilities
-
-The release adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports. It reuses the existing provider adapters and preserves the prior scientific artifact contracts.
-
+Next planned version: v0.9.3. Its full scope remains planned and includes hardened provider prompts, tutorial-manifest gallery consumption, a report section registry, and generalized gallery/evidence portal presentation. v0.10.0 and all later roadmap assignments remain preserved.
 
 ## Version lifecycle
 
-The published/current baseline is v0.9.1.
-
-Version 0.9.1 is published and is the current package baseline.
-
-Version 0.9.2 (external package validator correction) and version 0.9.3 (hardened prompts, reports, and gallery) remain planned and unpublished.
+The v0.9.2 release documentation contains the final release state, with package metadata set to 0.9.2. This repository text does not assert an npm artifact exists; registry publication is established separately from npm evidence. The next planned implementation version is v0.9.3.

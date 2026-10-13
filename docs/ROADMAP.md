@@ -1483,7 +1483,7 @@ Acceptance (preserved):
 
 ### v0.9.2 — external-target package-content validator correction
 
-Status: **implemented; unreleased. The pre-release readiness attempt for candidate `128aceda255218ce27d198b4187660c6f545c870` failed; a new exact-SHA readiness cycle is required after correction.**
+Status: **final release-document state; registry publication is established separately by npm evidence.**
 
 Purpose:
 
@@ -1492,8 +1492,8 @@ Purpose:
 Priority and version boundary:
 
 * **Version sequence explicitly approved on 2026-10-12:** v0.9.2 is the security-validator correction; the complete former v0.9.2 prompt/report/gallery scope and acceptance criteria remain assigned intact to v0.9.3; v0.10.0 and later ecosystem milestones keep their existing assignments.
-* Package version and latest published version remain 0.9.1. The v0.9.2 implementation is unreleased; this documentation does not bump package metadata, authorize a tag or npm publication, or claim pre-release readiness.
-* Implementation is recorded on `fix/v0.9.2-external-package-layout-validation` at `21453d5301568cb8b89afebe9362f90313403e8c`. Its separate readiness attempt failed on candidate `128aceda255218ce27d198b4187660c6f545c870`; correcting that candidate does not establish readiness, and a new exact-SHA cycle must follow.
+* Package metadata and final release documentation represent v0.9.2. npm publication, tagging, and GitHub Release state are established by their respective external evidence.
+* Validated implementation is recorded on `fix/v0.9.2-cross-platform-readiness-correction` at `d6289600273a0d573f8d71dcdd975546c683dc6b`. Earlier failures, including the attempt on `128aceda255218ce27d198b4187660c6f545c870`, remain historical; the global planner accepted readiness for the exact validated SHA as PASS_READY_FOR_RELEASE_PREP.
 
 Trigger and verified scope of the problem:
 
