@@ -1,3 +1,5 @@
+import type { AttackResult } from "./attackScenarios/attackResult.js";
+
 // Core types for the my-dev-kit-lab security-validation framework.
 // These types describe the vocabulary for checks, findings, results, and verdicts
 // used by dependency checks (Prompt 3), CLI adversarial tests (Prompts 4–5),
@@ -198,7 +200,7 @@ export type SecurityValidationSummary = {
   // v0.2.2 Batch 2 — structured attack-scenario results (empty array when no
   // attack-scenario-shaped checks were selected). Each result is also folded
   // into `checks`/`findings` via toSecurityCheckResult() for verdict purposes.
-  attackResults: import("./attackScenarios/attackResult.js").AttackResult[];
+  attackResults: AttackResult[];
   // v0.2.2 Batch 5 — additive verdict-reasoning fields. Optional so any
   // existing test/consumer that constructs a summary without them is
   // unaffected.

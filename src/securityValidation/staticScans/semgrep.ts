@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { runSecurityCommand } from "../commandRunner.js";
 import { resolveCommand } from "../../core/resolveCommand.js";
 import { skippedCheck } from "../cliAdversarial/runAdversarialCheck.js";
-import type { SecurityCheckResult, SecurityFinding } from "../types.js";
+import type { CommandExecutionResult, SecurityCheckResult, SecurityFinding } from "../types.js";
 
 // Semgrep scan focused on subprocess safety, path traversal, fs safety,
 // and secret leakage in the my-dev-kit source tree.
@@ -20,21 +20,41 @@ export type SemgrepFinding = {
 export type ParsedSemgrepOutput = {
   findings: SemgrepFinding[];
   parseError?: string;
+  analysisError?: string;
   rawOutput: string;
 };
 
 export function parseSemgrepJson(raw: string): ParsedSemgrepOutput {
   if (!raw.trim()) {
-    return { findings: [], rawOutput: raw };
+    return { findings: [], parseError: "Semgrep produced no JSON scan evidence", rawOutput: raw };
   }
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const results = Array.isArray(parsed["results"]) ? (parsed["results"] as unknown[]) : [];
-    const findings: SemgrepFinding[] = results.map((r) => {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || !Array.isArray(parsed.results)) {
+      return { findings: [], parseError: "Semgrep JSON requires a results array", rawOutput: raw };
+    }
+    const findings: SemgrepFinding[] = [];
+    let parseError = !Array.isArray(parsed.errors) || !isRecord(parsed.paths) ||
+      !Array.isArray(parsed.paths.scanned) || parsed.paths.scanned.some((file) => typeof file !== "string")
+      ? "Semgrep JSON requires errors and paths.scanned arrays" : undefined;
+    for (const [index, r] of parsed.results.entries()) {
+      if (!isRecord(r) || typeof r.check_id !== "string" || !r.check_id ||
+          typeof r.path !== "string" || !r.path || !isRecord(r.start) ||
+          !Number.isInteger(r.start.line) || Number(r.start.line) < 1 || !isRecord(r.extra) ||
+          (r.extra.message !== undefined && typeof r.extra.message !== "string") ||
+          (r.extra.metadata !== undefined && !isRecord(r.extra.metadata))) {
+        parseError ??= `Malformed Semgrep result at index ${index}`;
+        continue;
+      }
       const item = r as Record<string, unknown>;
       const checkId = typeof item["check_id"] === "string" ? item["check_id"] : "unknown";
       const extra = (item["extra"] as Record<string, unknown> | undefined) ?? {};
       const metadata = (extra["metadata"] as Record<string, unknown> | undefined) ?? {};
+      if ((extra.severity !== undefined && (typeof extra.severity !== "string" || !extra.severity.trim())) ||
+          (extra.severity === undefined && (typeof metadata.severity !== "string" || !metadata.severity.trim()))) {
+        parseError ??= `Missing or malformed Semgrep severity at index ${index}`;
+        continue;
+      }
       const severity =
         typeof extra["severity"] === "string"
           ? extra["severity"]
@@ -45,9 +65,14 @@ export function parseSemgrepJson(raw: string): ParsedSemgrepOutput {
       const filePath = typeof item["path"] === "string" ? item["path"] : "";
       const startObj = (item["start"] as Record<string, unknown> | undefined) ?? {};
       const line = typeof startObj["line"] === "number" ? startObj["line"] : 0;
-      return { ruleId: checkId, severity, message, path: filePath, line };
-    });
-    return { findings, rawOutput: raw };
+      findings.push({ ruleId: checkId, severity, message, path: filePath, line });
+    }
+    // Semgrep's CLI contract reports partial/fatal analysis in errors even
+    // when the process exits zero. Retain matches, but never call this clean.
+    const analysisError = Array.isArray(parsed.errors) && parsed.errors.length > 0
+      ? `Semgrep reported ${parsed.errors.length} analysis error(s): ${JSON.stringify(parsed.errors).slice(0, 500)}`
+      : undefined;
+    return { findings, parseError, analysisError, rawOutput: raw };
   } catch (err) {
     return {
       findings: [],
@@ -55,6 +80,10 @@ export function parseSemgrepJson(raw: string): ParsedSemgrepOutput {
       rawOutput: raw,
     };
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function semgrepSeverityToSecurity(semgrepSeverity: string): SecurityFinding["severity"] {
@@ -123,72 +152,29 @@ export async function runSemgrepCheck(options: {
     scanTarget,
   ];
 
-  const cmd = await runSecurityCommand({
-    command,
-    args: scanArgs,
-    cwd: targetRoot,
-    timeoutMs,
-  });
+  let cmd: CommandExecutionResult;
+  try {
+    cmd = await runSecurityCommand({ command, args: scanArgs, cwd: targetRoot, timeoutMs });
+  } catch (error) {
+    cmd = { command, args: scanArgs, cwd: targetRoot, exitCode: null, durationMs: 0,
+      stdout: "", stderr: error instanceof Error ? error.message : String(error), timedOut: false, skipped: false };
+  }
 
   const finishedAt = new Date().toISOString();
 
-  // Semgrep exits 0 = no findings, 1 = findings found, other = error.
-  const isError = cmd.exitCode !== 0 && cmd.exitCode !== 1;
-  const isTimedOut = cmd.timedOut;
-
-  if (isTimedOut || (isError && !cmd.stdout.trim())) {
-    return {
-      id: "semgrep-scan",
-      name: "Semgrep static analysis",
-      category: "static-scan",
-      status: "failed",
-      severity: "major",
-      startedAt,
-      finishedAt,
-      durationMs: cmd.durationMs,
-      findings: [
-        {
-          id: "semgrep-execution-error",
-          title: "Semgrep execution failed",
-          severity: "major",
-          category: "static-scan",
-          description: isTimedOut
-            ? "Semgrep timed out."
-            : `Semgrep exited with code ${String(cmd.exitCode)}. stderr: ${cmd.stderr.slice(0, 500)}`,
-          recommendation: "Check semgrep installation and .semgrep.yml config.",
-          releaseImpact: "Review before release",
-        },
-      ],
-      command: [command, ...scanArgs].join(" "),
-    };
+  // Distinguish positively established absence from a failed attempted scan.
+  // Network, permission, generic npm, or native spawn errors are not absence.
+  const unavailable = !cmd.timedOut && cmd.exitCode !== 0 && !cmd.stdout.trim() && (
+    (cmd.skipped && cmd.exitCode === null && Boolean(cmd.skippedReason?.match(/\b(semgrep|scanner|cli)\b.*(unavailable|not installed|not found|not on PATH)/i))) ||
+    (useNpx && !cmd.skipped && cmd.exitCode === 1 && /could not determine executable to run/i.test(cmd.stderr))
+  );
+  if (unavailable) {
+    return { ...skippedCheck({ id: "semgrep-scan", name: "Semgrep static analysis", category: "static-scan",
+      reason: cmd.skippedReason ?? "Semgrep CLI is unavailable; the npx fallback package provides no executable." }),
+      command: [command, ...scanArgs].join(" "), commandCwd: targetRoot, exitCode: cmd.exitCode };
   }
 
   const parsed = parseSemgrepJson(cmd.stdout);
-
-  if (parsed.parseError) {
-    return {
-      id: "semgrep-scan",
-      name: "Semgrep static analysis",
-      category: "static-scan",
-      status: "warning",
-      severity: "minor",
-      startedAt,
-      finishedAt,
-      durationMs: cmd.durationMs,
-      findings: [
-        {
-          id: "semgrep-parse-error",
-          title: "Could not parse Semgrep output",
-          severity: "minor",
-          category: "static-scan",
-          description: `JSON parse error: ${parsed.parseError}`,
-          recommendation: "Verify semgrep version produces valid JSON output.",
-          releaseImpact: "Review before release",
-        },
-      ],
-      command: [command, ...scanArgs].join(" "),
-    };
-  }
 
   const securityFindings: SecurityFinding[] = parsed.findings.map((f) => ({
     id: `semgrep-${f.ruleId.replace(/[^a-z0-9-]/gi, "-")}`,
@@ -202,6 +188,24 @@ export async function runSemgrepCheck(options: {
         ? "Should fix before release"
         : "Review before release",
   }));
+
+  const executionFailed = cmd.timedOut || cmd.skipped || (cmd.exitCode !== 0 && cmd.exitCode !== 1) ||
+    (cmd.exitCode === 1 && parsed.findings.length === 0);
+  const evidenceError = executionFailed
+    ? `Semgrep execution failed: exitCode=${String(cmd.exitCode)}, timedOut=${cmd.timedOut}, skipped=${cmd.skipped}. ${cmd.stderr.slice(0, 500)}`
+    : parsed.parseError ?? parsed.analysisError;
+  if (evidenceError) {
+    securityFindings.push({
+      id: executionFailed ? "semgrep-execution-error" : parsed.parseError ? "semgrep-parse-error" : "semgrep-analysis-error",
+      title: "Semgrep scan evidence is incomplete or unsuccessful",
+      severity: "major",
+      category: "static-scan",
+      description: evidenceError,
+      evidence: `exitCode=${String(cmd.exitCode)}; ${parsed.parseError ?? parsed.analysisError ?? ""}`,
+      recommendation: "Resolve the scanner execution or analysis error and rerun with valid JSON scan evidence.",
+      releaseImpact: "Review before release",
+    });
+  }
 
   const hasBlockerOrMajor = securityFindings.some(
     (f) => f.severity === "blocker" || f.severity === "major"
@@ -224,5 +228,7 @@ export async function runSemgrepCheck(options: {
     durationMs: cmd.durationMs,
     findings: securityFindings,
     command: [command, ...scanArgs].join(" "),
+    commandCwd: targetRoot,
+    exitCode: cmd.exitCode,
   };
 }

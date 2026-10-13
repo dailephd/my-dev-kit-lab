@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { executeAgentSuccessCampaignV2, prepareAgentSuccessCampaign, type CampaignProvider } from "../../../src/experiments/plugins/agentSuccessRate/campaignExecution.js";
 import { createCampaignCheckpoint, transitionCampaignCheckpoint } from "../../../src/experiments/plugins/agentSuccessRate/campaignCheckpoint.js";
 import { createCampaignCheckpointV2, transitionCampaignCheckpointV2, type CampaignCheckpointV2, type CampaignLimitAuthorization } from "../../../src/experiments/plugins/agentSuccessRate/campaignRecovery.js";
@@ -17,7 +18,7 @@ import { makeScriptedProvider, GOOD_ANSWER, MALFORMED_ANSWER, DECOY_REFERENCE_PA
 import { fakeAgentResult, makeSeamAgent, makeSourceBackedKit } from "./realAgentTestHelpers.js";
 
 const dirs: string[] = [];
-afterEach(async () => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) { expect(path.resolve(dir).startsWith(path.resolve(process.cwd(), ".my-dev-kit-context") + path.sep)).toBe(true); await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } });
+afterEach(async () => { vi.restoreAllMocks(); for (const dir of dirs.splice(0)) { expect(path.resolve(dir).startsWith(path.resolve(os.tmpdir()) + path.sep)).toBe(true); await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } });
 const at = "2026-10-10T00:00:00.000Z";
 const options = { runId: "resume-test", limit: "all-selected-cases" as const };
 const newIntent = { kind: "new-resumable" as const }, resume = { kind: "resume" as const };
@@ -25,7 +26,7 @@ function simulated(runAgent: import("../../../src/experiments/plugins/agentSucce
   return { kind: "trusted-simulated-provider", simulationId: "resume-v2-fixture", providerId: "codex", timeoutMs: 30000, repairAttempts, runAgent, contextDependencies: makeSourceBackedKit().dependencies };
 }
 async function fixture(provider: CampaignProvider = { kind: "deterministic-fixture" }, tasks: AgentSuccessTaskV1[] = [makeTask({}, DECOY_REFERENCE_PATCH)]) {
-  const root = await mkdtemp(path.join(process.cwd(), ".my-dev-kit-context", "resume-test-")); dirs.push(root);
+  const root = await mkdtemp(path.join(os.tmpdir(), "resume-test-")); dirs.push(root);
   const toolRoot = path.join(root, "tool"), outputRoot = path.join(root, "out"); await mkdir(toolRoot); await mkdir(outputRoot);
   await writeFile(path.join(toolRoot, "package.json"), '{"name":"test-tool","version":"0.0.0"}\n'); writeProjectFiles(path.join(toolRoot, "benchmarks/projects/fixture"), FIXTURE_FILES);
   const corpusFile = path.join(root, "corpus.json"); await writeFile(corpusFile, JSON.stringify(tasks));

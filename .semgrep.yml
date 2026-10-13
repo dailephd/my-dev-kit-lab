@@ -4,8 +4,8 @@ rules:
   # ---------------------------------------------------------------------------
   - id: no-shell-true-in-spawn
     patterns:
-      - pattern: spawn($CMD, $ARGS, {shell: true, ...})
-      - pattern: execFile($CMD, $ARGS, {shell: true, ...})
+      - pattern: 'spawn($CMD, $ARGS, {shell: true, ...})'
+      - pattern: 'execFile($CMD, $ARGS, {shell: true, ...})'
     message: "spawn/execFile with shell:true allows shell injection. Use shell:false."
     languages: [typescript, javascript]
     severity: ERROR
@@ -55,8 +55,8 @@ rules:
   # ---------------------------------------------------------------------------
   - id: unsafe-fs-rm-recursive
     patterns:
-      - pattern: fs.rm($PATH, {recursive: true, ...})
-      - pattern: fs.rmSync($PATH, {recursive: true, ...})
+      - pattern: 'fs.rm($PATH, {recursive: true, ...})'
+      - pattern: 'fs.rmSync($PATH, {recursive: true, ...})'
     message: "Recursive fs.rm on a user-controlled path can delete unintended files. Validate path is within the expected directory."
     languages: [typescript, javascript]
     severity: WARNING
@@ -66,7 +66,7 @@ rules:
 
   - id: unsafe-fs-rmdir-recursive
     patterns:
-      - pattern: fs.rmdirSync($PATH, {recursive: true, ...})
+      - pattern: 'fs.rmdirSync($PATH, {recursive: true, ...})'
     message: "Recursive rmdir on user-controlled path. Validate path boundaries first."
     languages: [typescript, javascript]
     severity: WARNING
@@ -90,7 +90,7 @@ rules:
   # Secret leakage — environment variables in artifacts
   # ---------------------------------------------------------------------------
   - id: process-env-in-output
-    pattern: JSON.stringify({..., $KEY: process.env.$VAR, ...})
+    pattern: 'JSON.stringify({..., $KEY: process.env.$VAR, ...})'
     message: "Embedding process.env values in JSON output may leak secrets. Review what gets serialized."
     languages: [typescript, javascript]
     severity: WARNING

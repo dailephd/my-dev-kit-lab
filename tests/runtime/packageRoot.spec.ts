@@ -45,8 +45,11 @@ describe("discoverPackageRoot", () => {
 
   it("fails clearly when no matching package can be found", () => {
     const isolatedDir = mkdtempSync(path.join(os.tmpdir(), "package-root-missing-"));
+    // A project-local temporary directory can inherit the real Lab manifest.
+    // Start at the filesystem root, which has no enclosing project ancestors.
+    const isolatedRoot = path.parse(isolatedDir).root;
     try {
-      expect(() => discoverPackageRoot(isolatedDir)).toThrow(
+      expect(() => discoverPackageRoot(isolatedRoot)).toThrow(
         /Unable to locate the "@dailephd\/my-dev-kit-lab" package root/
       );
     } finally {

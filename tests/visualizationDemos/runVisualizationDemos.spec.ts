@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -44,6 +44,7 @@ describe("runVisualizationDemos", () => {
     const outDir = path.join(rootDir, "out");
     tempDirs.push(rootDir);
     mkdirSync(scriptDir, { recursive: true });
+    writeFileSync(path.join(scriptDir, "package.json"), JSON.stringify({ type: "module" }));
     const spacedScriptPath = path.join(scriptDir, "fake my-dev-kit cli.js");
     copyFileSync(path.resolve("tests/fixtures/fake-my-dev-kit-cli.js"), spacedScriptPath);
 

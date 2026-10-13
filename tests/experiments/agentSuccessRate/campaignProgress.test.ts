@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, symlink, unlink } from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { prepareAgentSuccessCampaign, executeAgentSuccessCampaignV2, type CampaignProvider } from "../../../src/experiments/plugins/agentSuccessRate/campaignExecution.js";
 import { readCampaignProgress, validateCampaignProgress, type ValidatedCampaignProgress } from "../../../src/experiments/plugins/agentSuccessRate/campaignProgress.js";
 import { classifyCampaignEvidence, campaignAttemptTelemetry } from "../../../src/experiments/plugins/agentSuccessRate/campaignEvidenceQuality.js";
@@ -15,9 +16,9 @@ import { makeSourceBackedKit } from "./realAgentTestHelpers.js";
 import { AGENT_SUCCESS_RATE_TREATMENT_IDS } from "../../../src/experiments/plugins/agentSuccessRate/metadata.js";
 import type { CampaignCheckpointV2 } from "../../../src/experiments/plugins/agentSuccessRate/campaignRecovery.js";
 const dirs: string[] = [];
-afterEach(async () => { for (const d of dirs.splice(0)) { expect(path.resolve(d).startsWith(path.resolve(process.cwd(), ".my-dev-kit-context") + path.sep)).toBe(true); await rm(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } });
+afterEach(async () => { for (const d of dirs.splice(0)) { expect(path.resolve(d).startsWith(path.resolve(os.tmpdir()) + path.sep)).toBe(true); await rm(d, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } });
 async function fixture(provider: CampaignProvider = { kind: "deterministic-fixture" }, count = 1) {
-  const root = await mkdtemp(path.join(process.cwd(), ".my-dev-kit-context", "progress-test-")); dirs.push(root);
+  const root = await mkdtemp(path.join(os.tmpdir(), "progress-test-")); dirs.push(root);
   const toolRoot = path.join(root, "tool"), outputRoot = path.join(root, "out"); await mkdir(toolRoot); await mkdir(outputRoot);
   await writeFile(path.join(toolRoot, "package.json"), '{"name":"test-tool","version":"0.0.0"}');
   writeProjectFiles(path.join(toolRoot, "benchmarks/projects/fixture"), FIXTURE_FILES);

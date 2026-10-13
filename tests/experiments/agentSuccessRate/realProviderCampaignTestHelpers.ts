@@ -1,5 +1,6 @@
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
 import { afterEach, vi } from "vitest";
 import type { AgentSuccessTaskV1 } from "../../../src/evaluation/agentSuccess/index.js";
 import type { CampaignCheckpointV2 } from "../../../src/experiments/plugins/agentSuccessRate/campaignRecovery.js";
@@ -10,9 +11,11 @@ import { useSandboxTestCleanup } from "../../evaluation/benchmarkSandbox/sandbox
 const roots: string[] = [];
 export function useCampaignCleanup() {
   useSandboxTestCleanup();
-  afterEach(async () => { vi.restoreAllMocks(); for (const root of roots.splice(0)) { if (!root.startsWith(path.join(process.cwd(), ".my-dev-kit-context") + path.sep)) throw new Error("UNSAFE_TEST_CLEANUP"); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } });
+  afterEach(async () => { vi.restoreAllMocks(); for (const root of roots.splice(0)) { if (!root.startsWith(path.resolve(os.tmpdir()) + path.sep)) throw new Error("UNSAFE_TEST_CLEANUP"); await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } });
 }
-export async function campaignTemp() { const root = await mkdtemp(path.join(process.cwd(), ".my-dev-kit-context", "r6-")); roots.push(root); return root; }
+// Epoch identities add several directory levels. Keep disposable fixtures under
+// the configured temporary root so Windows can start the real Git/provider processes.
+export async function campaignTemp() { const root = await mkdtemp(path.join(os.tmpdir(), "r6-")); roots.push(root); return root; }
 export async function latestCheckpoint(outputRoot: string): Promise<CampaignCheckpointV2> {
   const store = path.join(outputRoot, "campaign-checkpoints-v2");
   const identity = (await readdir(store)).find(n => /^[a-f0-9]{64}$/.test(n))!;

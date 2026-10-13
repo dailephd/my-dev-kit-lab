@@ -8,6 +8,10 @@ import {
 } from "../../../src/securityValidation/attackScenarios/payloadCorpus.js";
 
 describe("payload corpus", () => {
+  it("preserves the exact null-byte traversal payload", () => {
+    const value = getPayloadsForGroup("path-traversal").find((payload) => payload.id.endsWith("null-byte"))?.value;
+    expect(value).toBe("../../etc/passwd" + String.fromCharCode(0) + ".txt");
+  });
   it("returns deterministic payloads for every known group", () => {
     for (const group of PAYLOAD_GROUPS) {
       const first = getPayloadsForGroup(group);
