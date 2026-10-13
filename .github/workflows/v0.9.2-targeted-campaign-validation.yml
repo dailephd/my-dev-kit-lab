@@ -28,7 +28,7 @@ jobs:
           - latest
 
     env:
-      CANDIDATE_SHA: 824b80bc5f58b329a96cab08b16a9539a0ab9b7e
+      CANDIDATE_SHA: d6289600273a0d573f8d71dcdd975546c683dc6b
 
     steps:
       - name: Check out validation workflow branch
@@ -37,7 +37,7 @@ jobs:
       - name: Check out exact correction candidate
         uses: actions/checkout@v7
         with:
-          ref: 824b80bc5f58b329a96cab08b16a9539a0ab9b7e
+          ref: d6289600273a0d573f8d71dcdd975546c683dc6b
           path: candidate-source
 
       - name: Assert candidate source SHA
