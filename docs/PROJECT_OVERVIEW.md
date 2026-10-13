@@ -16,7 +16,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The v0.9.2 release documentation covers external package validation, Semgrep evidence, campaign path-safety, and cross-platform corrections; registry publication is established separately through npm evidence. Previous releases are v0.9.1 and v0.9.0. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the publication and release state.
+The current release-document and package-metadata version is v0.9.2. It covers external package validation, Semgrep evidence, campaign path-safety, and cross-platform corrections; security verdict strictness is unchanged. v0.9.1 and v0.9.0 are previous releases, and registry publication is established separately through npm evidence. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the publication and release state.
 
 The v0.8.1 release added the `retrieval-query-strategy-comparison` plugin as the sixth experiment plugin. It compares seven deterministic my-dev-kit retrieval workflows without running any coding agent, keeps execution evidence and scientific analysis in separate artifacts, and in external-local mode preserves the read-only and privacy boundaries of the local-repository subject model.
 
@@ -154,9 +154,9 @@ Context-pack generation experiments shipped in v0.8.2.
 
 The published v0.9.1 release adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports while preserving existing provider adapters and scientific artifact contracts.
 
-Latest published baseline: v0.9.1.
+Current release-document and package-metadata version: v0.9.2. v0.9.1 is the previous published baseline.
 
-Current implementation: v0.9.1 is released with provenance-aware provider telemetry, campaign checkpoints, validated resume, safe completed-unit reuse, and bounded provider-limit continuation.
+Current implementation: v0.9.2 includes external npm package entrypoint validation, strict Lab self-package inventory, corrected Semgrep failure evidence, and campaign filesystem identity, path-safety, and cross-platform corrections. The v0.9.1 campaign capabilities remain included.
 
 The v0.9.2 external-target package-content correction fixes external npm package validation using declared entrypoints while Lab self-validation retains its strict required inventory. Missing external entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated; Semgrep failed or incomplete scans cannot produce a false PASS. Campaign filesystem identity, path-safety, and cross-platform compatibility corrections are included. Security verdict strictness is unchanged. Earlier failed readiness attempts remain historical and are superseded by the accepted readiness result for the exact validated source SHA; release PR validation is tracked separately in [CURRENT_STATE.md](CURRENT_STATE.md).
 
@@ -164,4 +164,4 @@ Next planned version: v0.9.3. Its full scope remains planned and includes harden
 
 ## Version lifecycle
 
-The v0.9.2 release documentation contains the final release state, with package metadata set to 0.9.2. This repository text does not assert an npm artifact exists; registry publication is established separately from npm evidence. The next planned implementation version is v0.9.3.
+The v0.9.2 release documentation and package metadata contain the final release state. Registry publication is established separately through npm evidence. The next planned implementation version is v0.9.3.
