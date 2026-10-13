@@ -9,7 +9,7 @@ Owner: **my-dev-kit-lab**
 Related design family: **LAB-AGENT** (proposed identifiers, not adopted version reservations)
 
 Roadmap relationship:
-- the adopted Lab roadmap preserves agent-success, provider telemetry/scheduler, and prompt/report/gallery work under their existing `v0.9.0-v0.9.2` assignments;
+- the Lab roadmap retains v0.9.0 agent-success and v0.9.1 provider telemetry/scheduler as released work. An explicit 2026-10-12 update assigns the urgent package-content security correction to v0.9.2 and moves the original prompt/report/gallery scope intact to v0.9.3; the generalized benchmark in this document remains only a proposal;
 - the roadmap-defined `v0.9.0` agent-success-rate slice (a six-task Node corpus, two treatments, guarded patch evaluation, optional repair) shipped in v0.9.0, as described in [ROADMAP.md](ROADMAP.md), [ARCHITECTURE.md](ARCHITECTURE.md#agent-success-rate-evaluation-architecture-v090), and [COMMANDS.md](COMMANDS.md#agent-success-rate-v090). The larger generalized engineering benchmark described below remains a proposal and design reference; nothing in it is implemented or adopted unless a document above states so separately;
 - an earlier coordinated-roadmap proposal considered moving this family to `my-dev-kit-lab v0.13.0-v0.13.2 / LAB-AGENT`; ECO-00 adoption on 2026-09-25 superseded that relocation proposal and preserved the existing Lab assignments;
 - `v0.10.0` is the additive `LAB-EVIDENCE-01` reservation, and `v0.13.0` is performance evidence (`LAB-PERF-01`), not an agent-benchmark reservation;
@@ -1232,7 +1232,7 @@ An unavailable agent must never become “agent failed the coding task.”
 
 ### Foundation: LAB-EVIDENCE-01
 
-The earlier coordination proposal placed the generic evidence foundation before the agent family. That order is not an adopted release prerequisite: ECO-00 preserves `v0.9.0-v0.9.2` and reserves `LAB-EVIDENCE-01` additively at `v0.10.0`. The capabilities below are design inputs for the generalized benchmark proposal; they must not be used to reorder releases or make the existing v0.9.x scope depend on a later milestone without an explicit planning decision.
+The earlier coordination proposal placed the generic evidence foundation before the agent family. That order is not an adopted release prerequisite: ECO-00 originally preserved `v0.9.0-v0.9.2` and reserves `LAB-EVIDENCE-01` additively at `v0.10.0`; the 2026-10-12 priority patch moves only the original v0.9.2 prompt/report/gallery scope to v0.9.3 without changing the v0.10.0 reservation. The capabilities below are design inputs for the generalized benchmark proposal; they must not be used to reorder releases or make the existing v0.9.x scope depend on a later milestone without an explicit planning decision.
 
 Proposed shared capabilities for the generalized design:
 

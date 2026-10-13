@@ -792,6 +792,10 @@ Current behavior:
 - reports default to `reports/security/<prefix>-security-validation.txt` and `.json`, subject to `--format`
 - the exit status follows the selected `--fail-on` threshold; invalid options or targets fail cleanly
 
+### External npm target package-content limitation (v0.9.1; correction planned)
+
+The existing `security:validate --target <path>` and `security:package -- --target <path>` entrypoints remain supported. In v0.9.1, the package-content required-file check can wrongly demand Lab-specific bundled runtime/resources from an unrelated npm package. Treat those missing-Lab-path findings as **suspected false positives pending exact finding and tarball comparison**, not as a successful external security gate or automatic permission to disregard genuine findings. The external-target package-content correction is assigned to planned v0.9.2 (the original v0.9.2 prompt/report/gallery features move intact to v0.9.3); it adds no command or flag. The existing self-check, forbidden-package-content policy, and `--fail-on` behavior remain authoritative. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
+
 ## Audit commands
 
 The generic audit framework runs conservative repository-health checks. It is separate from `security:validate`: selecting the `security` audit type adapts the standalone validator's results into the audit report while preserving the original security report.

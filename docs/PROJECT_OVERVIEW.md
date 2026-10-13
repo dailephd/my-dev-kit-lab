@@ -154,9 +154,11 @@ Latest published baseline: v0.9.1.
 
 Current implementation: v0.9.1 is released with provenance-aware provider telemetry, campaign checkpoints, validated resume, safe completed-unit reuse, and bounded provider-limit continuation.
 
-Next planned version: v0.9.2.
+Urgent planned v0.9.2 patch: the external-target package-content correction must address npm validation before work on the unchanged prompt/report/gallery milestone now assigned to v0.9.3. At v0.9.1 the package checker inherits Lab-specific required runtime/resource paths when evaluating other npm targets, potentially generating false release blockers. The repair must use each external target's declared entrypoints while preserving strict Lab self checks, forbidden-file detection, and verdict policy; the reported nine Orchestrator findings require exact JSON confirmation. This is planned v0.9.2 functionality, not current functionality or an authorized publication.
 
-Hardened provider prompts, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned for v0.9.2. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
+Next planned version: v0.9.2 (external package-content security correction); next feature milestone: v0.9.3 (original planned v0.9.2 scope).
+
+Hardened provider prompts, tutorial-manifest gallery consumption, and a generalized evidence portal remain planned for v0.9.3. Manual pentest remains a human-led post-v1/version-TBD workflow and is not part of the current automated validation system.
 
 See [CURRENT_STATE.md](CURRENT_STATE.md) for implemented-versus-planned status and [ROADMAP.md](ROADMAP.md) for semantic version ordering.
 
@@ -172,4 +174,4 @@ The published/current baseline is v0.9.1.
 
 Version 0.9.1 is published and is the current package baseline.
 
-Version 0.9.2 remains planned.
+Version 0.9.2 (external package validator correction) and version 0.9.3 (hardened prompts, reports, and gallery) remain planned and unpublished.

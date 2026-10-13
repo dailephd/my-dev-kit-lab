@@ -857,6 +857,19 @@ flowchart LR
 
 **Completion:** deterministic combined issues and the security summary are written without modifying the target.
 
+## Urgent external-target package-content correction (planned v0.9.2)
+
+**Goal:** repair a false-positive-prone external npm package required-file check without weakening self-validation or changing an external target. The repair is assigned to v0.9.2; the unchanged prompt/report/gallery feature milestone moves to v0.9.3. Neither is implemented or released in v0.9.1.
+
+1. Verify Lab `main`, package `0.9.1`, the planned v0.9.2 security-fix and moved v0.9.3 feature contracts, and the Orchestrator candidate/worktree identities. Preserve all pre-existing user changes.
+2. Read Orchestrator's remediation report and all nine referenced JSON package findings. Compare each required path to Lab's `REQUIRED_PACKAGE_CONTENTS` and Orchestrator's actual npm tarball. Only findings proven to result from the Lab inventory mismatch may be categorized as false positives.
+3. Perform bounded source retrieval, then fix only Lab's existing package-required-file selection. Retain the strict Lab self-inventory; use target-owned entrypoint metadata for external packages and preserve forbidden-content checks, fail-closed package errors, IDs, verdicts, and deterministic report formats.
+4. Test synthetic external packages (valid and missing `bin`/`main`, malformed metadata, failed pack, empty inventory, path separators, forbidden files), strict Lab self-validation, and the entire existing security/default-check contract.
+5. Run focused package tests, `npm ci`, `npm run typecheck`, `npm run build`, `npm run test:security`, `npm test`, `npm run verify`, and self-security validation in Lab. Run read-only target validation against the immutable Orchestrator worktree; keep all reports and temporary artifacts within Lab. Inspect Orchestrator tracked/untracked state before and after; do not install or commit anything there.
+6. Record real remaining findings, skipped optional checks, exact Lab candidate SHA, Orchestrator immutable identity, and tested report contracts. Do not call a candidate a published validator. A published, pinned corrected Lab release or separately authorized independent candidate contract is required before final Orchestrator security/readiness revalidation.
+
+**Stop:** missing nine-finding evidence, unexpected repo state, inability to establish safe self/external semantics, real security blockers, or failed required validation must be reported as unresolved. No version bump, release or publication, Orchestrator work, or v0.9.2 feature implementation is authorized by this documentation task. The v0.9.2 and v0.9.3 assignments are approved, but implementation readiness and publication still require separate gates and approval.
+
 ## Implementation completion
 
 Every implementation version ends with these stages before pre-release readiness:
