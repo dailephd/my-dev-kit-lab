@@ -36,18 +36,13 @@ describe("validated campaign progress and immutable companion reports", () => {
     const f = await fixture();
     await f.run();
     const snapshot = await f.progress();
-    const lexicalRoot = await mkdtemp(path.join(tmpdir(), "campaign-progress-os-alias-"));
-    try {
-      const physicalRoot = await realpath(lexicalRoot);
-      expect(path.resolve(lexicalRoot)).not.toBe(path.resolve(physicalRoot));
-      const published = await writeAgentSuccessCampaignProgressReport({ snapshot, boundary: { ...f.boundary, outputRoot: lexicalRoot } });
-      expect(await readFile(published.outputPaths.jsonPath, "utf8")).toContain('"schemaVersion": "agent-success-rate-campaign-progress-v1"');
-      expect(await readFile(published.outputPaths.textPath, "utf8")).toContain("Campaign progress");
-      expect(await readFile(published.outputPaths.htmlPath, "utf8")).toContain("Campaign progress");
-      expect(await readFile(published.outputPaths.manifestPath, "utf8")).toContain(snapshot.model.campaignIdentity);
-    } finally {
-      await rm(lexicalRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-    }
+    const physicalRoot = await realpath(f.boundary.outputRoot);
+    expect(path.resolve(f.boundary.outputRoot)).not.toBe(path.resolve(physicalRoot));
+    const published = await writeAgentSuccessCampaignProgressReport({ snapshot, boundary: f.boundary });
+    expect(await readFile(published.outputPaths.jsonPath, "utf8")).toContain('"schemaVersion": "agent-success-rate-campaign-progress-v1"');
+    expect(await readFile(published.outputPaths.textPath, "utf8")).toContain("Campaign progress");
+    expect(await readFile(published.outputPaths.htmlPath, "utf8")).toContain("Campaign progress");
+    expect(await readFile(published.outputPaths.manifestPath, "utf8")).toContain(snapshot.model.campaignIdentity);
   }, 120000);
   it("PROGRESS-INITIAL/ONE-TREATMENT/ONE-CASE/FINAL/REVISION REPORT-JSON/TEXT/HTML/CONSISTENCY/PARTIAL/COMPLETE/IMMUTABLE SECURITY-PRIVATE", async () => {
     const f = await fixture(undefined, 2); let half!: ValidatedCampaignProgress;
