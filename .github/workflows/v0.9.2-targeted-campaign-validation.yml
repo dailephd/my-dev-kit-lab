@@ -1,0 +1,108 @@
+name: v0.9.2 targeted campaign validation
+
+on:
+  push:
+    branches:
+      - validation/v0.9.2-targeted-campaign-r2
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v0.9.2-targeted-campaign-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  targeted-campaign-tests:
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+        node:
+          - "24"
+          - latest
+
+    env:
+      CANDIDATE_SHA: db845b8e2b3dc726d99660eabe855232ba5c416c
+
+    steps:
+      - name: Check out validation workflow branch
+        uses: actions/checkout@v7
+
+      - name: Check out exact correction candidate
+        uses: actions/checkout@v7
+        with:
+          ref: db845b8e2b3dc726d99660eabe855232ba5c416c
+          path: candidate-source
+
+      - name: Assert candidate source SHA
+        shell: pwsh
+        run: |
+          $actual = git -C candidate-source rev-parse HEAD
+          if ($actual -ne $env:CANDIDATE_SHA) {
+            throw "Candidate SHA mismatch: expected $env:CANDIDATE_SHA, received $actual"
+          }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: candidate-source/package-lock.json
+
+      - name: Record validation environment
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path validation-logs | Out-Null
+          @(
+            "os=$env:RUNNER_OS"
+            "matrix_os=${{ matrix.os }}"
+            "node_version=$(node --version)"
+            "npm_version=$(npm --version)"
+            "candidate_sha=$env:CANDIDATE_SHA"
+            "workflow_sha=$env:GITHUB_SHA"
+          ) | Set-Content -LiteralPath validation-logs/metadata.txt
+
+      - name: Install dependencies
+        shell: pwsh
+        working-directory: candidate-source
+        run: |
+          npm ci 2>&1 | Tee-Object -FilePath ../validation-logs/npm-ci.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run targeted campaign suites
+        shell: pwsh
+        working-directory: candidate-source
+        run: |
+          npm test -- `
+            tests/commands/agentSuccessRateCampaignCommand.test.ts `
+            tests/commands/agentSuccessRateCampaignIdentity.test.ts `
+            tests/commands/agentSuccessRateCampaignProgress.test.ts `
+            tests/experiments/agentSuccessRate/campaignProgress.test.ts `
+            tests/experiments/agentSuccessRate/realProviderCampaign.test.ts `
+            tests/experiments/agentSuccessRate/campaignCheckpointFoundation.test.ts `
+            tests/experiments/agentSuccessRate/campaignRecovery.test.ts `
+            tests/experiments/agentSuccessRate/campaignResume.test.ts `
+            tests/experiments/agentSuccessRate/campaignExecution.test.ts `
+            tests/experiments/agentSuccessRate/realAgentCampaign.test.ts `
+            --reporter=default `
+            --reporter=junit `
+            --outputFile=../validation-logs/targeted-results.xml 2>&1 |
+            Tee-Object -FilePath ../validation-logs/targeted-tests.log
+          $testExitCode = $LASTEXITCODE
+          "exit_code=$testExitCode" | Add-Content -LiteralPath ../validation-logs/targeted-tests.log
+          exit $testExitCode
+
+      - name: Upload targeted validation logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: v0.9.2-targeted-campaign-${{ matrix.os }}-node-${{ matrix.node }}
+          path: validation-logs/
+          if-no-files-found: error
+          retention-days: 7
