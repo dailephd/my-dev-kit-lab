@@ -88,7 +88,7 @@ function roadmapSections() {
   return sections;
 }
 const sections = roadmapSections();
-const negatedPublication = /\b(?:(?:has|is)\s+not\s+(?:yet\s+)?published|not\s+(?:yet\s+)?published|unpublished|unreleased(?!\s+v\d)|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
+const negatedPublication = /\b(?:(?:has|is)\s+not\s+(?:yet\s+)?(?:been\s+)?published|not\s+(?:yet\s+)?(?:been\s+)?published|unpublished|unreleased(?!\s+v\d)|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
 const positivePublication = (text) => /\bpublished\b/i.test(text || "") && !negatedPublication.test(text || "");
 const plannedLifecycle = /\b(?:planned|future|deferred|not implemented|not started|pre-release readiness pending)\b/i;
 // Implemented-but-unreleased: code exists in the checkout, publication has not happened.
@@ -108,8 +108,16 @@ if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(packageVersion)) {
 }
 
 const latestPublished = String(manifest.currentFacts?.latestPublishedVersion || "");
-if (packageVersion === latestPublished && !positivePublication(sections.get(packageVersion)?.status)) {
-  fail("docs/ROADMAP.md", `current package v${packageVersion} lifecycle`, "positively published", sections.get(packageVersion)?.status || "missing", "mark the externally verified current package release as published");
+const finalReleaseDocumentState = manifest.currentFacts?.releaseDocumentState === "final-release-state";
+if (packageVersion === latestPublished) {
+  const status = sections.get(packageVersion)?.status || "";
+  if (finalReleaseDocumentState) {
+    if (!/(?:release candidate prepared|final release-document state)/i.test(status) || positivePublication(status)) {
+      fail("docs/ROADMAP.md", `current release-document v${packageVersion} lifecycle`, "final release-document wording without a publication claim", status || "missing", "mark final release-document state and keep publication distinct");
+    }
+  } else if (!positivePublication(status)) {
+    fail("docs/ROADMAP.md", `current package v${packageVersion} lifecycle`, "positively published", status || "missing", "mark the externally verified current package release as published");
+  }
 }
 const nextPlanned = String(manifest.currentFacts?.nextPlannedVersion || "");
 if (nextPlanned) {
@@ -147,7 +155,7 @@ const staleRules = [
   [/0\.4\.2[^\n]{0,100}(?:release-prepared|not yet published|publication[^\n]{0,30}(?:remain|pending))|publication[^\n]{0,80}(?:remain|pending)[^\n]{0,80}0\.4\.2/i, "v0.4.2 publication state", "published", "remove stale release-preparation wording"],
   [/Android[^\n]{0,80}(?:not implemented|remains planned|profiles? (?:is|are) planned)/i, "Android implementation state", "implemented and published", "describe only additional mobile profiles as planned"],
   [/\bthe only currently published way\b/i, "current installed-package workflow", "the published installed CLI and contributor workflow described separately", "remove stale wording that treats source checkout as the only published command path"],
-  ...(latestPublishedMarker ? [[
+  ...(!finalReleaseDocumentState && latestPublishedMarker ? [[
     new RegExp(`\\bpending\\b[^\\n]{0,160}\\b${escapeRegex(latestPublishedMarker)}\\b|\\b${escapeRegex(latestPublishedMarker)}\\b[^\\n]{0,160}\\bpending\\b`, "i"),
     `${latestPublishedMarker} lifecycle wording`,
     "published/current or historical wording that does not call the latest release pending",
@@ -179,7 +187,8 @@ for (const { file, body } of currentDocs) {
         const after = from + marker.length;
         const nextVersion = line.slice(after).search(/v\d+\.\d+\.\d+\b/);
         const window = line.slice(from, nextVersion >= 0 ? after + nextVersion : line.length);
-        if (kind === "published" && negatedPublication.test(window)) fail(file, `v${version} publication claim`, "published or release-neutral", window.trim(), "remove stale negated publication wording");
+        if (kind === "published" && finalReleaseDocumentState && positivePublication(window)) fail(file, `v${version} publication claim`, "release-neutral until registry evidence is recorded", window.trim(), "do not claim the prepared npm artifact exists before publication");
+        if (kind === "published" && !finalReleaseDocumentState && negatedPublication.test(window)) fail(file, `v${version} publication claim`, "published or release-neutral", window.trim(), "remove stale negated publication wording");
         if (kind === "planned" && positivePublication(window)) fail(file, `v${version} publication claim`, "planned/unreleased or release-neutral", window.trim(), "do not describe the planned version as published");
         if (kind === "implemented-unreleased" && positivePublication(window)) fail(file, `v${version} publication claim`, "implemented/unreleased or release-neutral", window.trim(), "do not describe the unreleased version as published");
         if (kind === "implemented-unreleased" && /\bnot\s+(?:yet\s+)?implemented\b|\bnext planned\b/i.test(window)) fail(file, `v${version} implementation claim`, "implemented", window.trim(), "describe the implemented version as implemented and unreleased");

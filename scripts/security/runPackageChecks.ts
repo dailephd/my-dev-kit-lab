@@ -2,7 +2,7 @@
 import path from "node:path";
 import { runPackageChecks } from "../../src/securityValidation/index.js";
 import { DEFAULT_SECURITY_CONFIG } from "../../src/securityValidation/index.js";
-import { resolveValidationTarget } from "../../src/securityValidation/validate/resolveTarget.js";
+import { resolveValidationTarget, type SecurityValidationTarget } from "../../src/securityValidation/validate/resolveTarget.js";
 import { resolveToolRoot } from "./resolveToolRoot.js";
 
 const rawArgs = process.argv.slice(2);
@@ -11,8 +11,9 @@ const args = parseArgs(rawArgs);
 const toolRoot = resolveToolRoot(import.meta.url);
 
 let targetRoot: string;
+let target: SecurityValidationTarget;
 try {
-  const target = resolveValidationTarget(args.target, toolRoot);
+  target = resolveValidationTarget(args.target, toolRoot);
   targetRoot = target.targetRoot;
   if (!target.isSelf) {
     console.log(`Target: ${targetRoot}`);
@@ -32,7 +33,7 @@ const config = {
 console.log("Running package content checks...");
 console.log(`Report directory: ${config.reportDir}`);
 
-const output = await runPackageChecks({ cwd: targetRoot, config });
+const output = await runPackageChecks({ cwd: targetRoot, config, target });
 
 const passed = output.checks.filter((c) => c.status === "passed").length;
 const failed = output.checks.filter((c) => c.status === "failed").length;

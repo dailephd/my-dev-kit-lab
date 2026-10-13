@@ -841,7 +841,7 @@ The bundled corpus, project profiles, and canonical projects ship in the package
 
 ### Non-goals
 
-v0.9.1 adds campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry. Strict prompt modes, a report section registry, and generalized gallery presentation remain planned for v0.9.2. The plugin does not add a weighted score, an automatic winner, or statistical-significance testing.
+v0.9.1 adds campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry. Strict prompt modes, a report section registry, and generalized gallery presentation remain planned for v0.9.3 (moved intact from v0.9.2). The plugin does not add a weighted score, an automatic winner, or statistical-significance testing.
 
 ## Target model
 
@@ -911,6 +911,10 @@ For an external target, dependency, package, and supported static checks use the
 Profile behavior remains intentionally narrow in the current implementation: profiles drive default check selection and scenario applicability filtering, but they do not yet introduce deeper per-profile scenario branching beyond that selection metadata.
 
 Optional local tools can be reported as skipped; absence alone does not make the framework crash. This automation is not equivalent to a manual pentest.
+
+### External-target package-content correction (v0.9.2, final release-document state; registry publication is established separately)
+
+`runPackageChecks.ts` keeps the strict `REQUIRED_PACKAGE_CONTENTS` inventory for Lab self-validation. External npm targets derive required package files from validated declared entrypoints (`bin`, `main`, and supported exact `exports` mappings), so unrelated Lab-only paths are not required. Missing declared external entrypoints, invalid or incomplete package metadata, failed or unparseable `npm pack` evidence, and forbidden contents remain blockers. The correction eliminates the nine inherited Lab-only Orchestrator false positives while keeping forbidden-file checks active. It uses the existing package-check runner, target resolver, report IDs, and verdict owner; security verdict policy is unchanged. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction) for the approved scope.
 
 ## Audit framework architecture
 

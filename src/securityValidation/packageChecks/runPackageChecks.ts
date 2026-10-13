@@ -3,7 +3,9 @@ import { runSecurityCommand, resolveNpmCommand } from "../commandRunner.js";
 import { writeCheckResult } from "../artifacts.js";
 import { parseNpmPackDryRun } from "./parseNpmPackDryRun.js";
 import { detectForbiddenContents } from "./forbiddenPackageContents.js";
-import { detectMissingRequiredContents } from "./requiredPackageContents.js";
+import { detectMissingRequiredContents, requiredContentsForTarget } from "./requiredPackageContents.js";
+import { resolveValidationTarget, type SecurityValidationTarget } from "../validate/resolveTarget.js";
+import { discoverPackageRoot } from "../../runtime/packageRoot.js";
 import type { SecurityCheckResult, SecurityFinding } from "../types.js";
 import type { SecurityValidationConfig } from "../config.js";
 
@@ -17,29 +19,32 @@ export type PackageChecksOutput = {
 export async function runPackageChecks(options: {
   cwd: string;
   config: SecurityValidationConfig;
+  target?: SecurityValidationTarget;
 }): Promise<PackageChecksOutput> {
   const { cwd, config } = options;
   const { reportDir, rawOutputDir, commandTimeoutMs, forbiddenPackagePatterns, allowedPackageExceptions } = config;
   const allFindings: SecurityFinding[] = [];
   const checks: SecurityCheckResult[] = [];
   const npm = resolveNpmCommand();
+  const target = options.target ?? resolveValidationTarget(path.resolve(cwd), discoverPackageRoot());
+  if (path.resolve(target.targetRoot) !== path.resolve(cwd)) {
+    throw new Error("Package check cwd does not match the resolved target root");
+  }
+  const policy = await requiredContentsForTarget(target);
 
   // npm pack --dry-run to get the tarball file list
   const startedAt = new Date().toISOString();
   const cmd = await runSecurityCommand({
     command: npm,
-    args: ["pack", "--dry-run"],
+    args: ["pack", "--dry-run", "--json", "--ignore-scripts", "--cache", path.resolve(rawOutputDir, "npm-cache")],
     cwd,
     timeoutMs: commandTimeoutMs,
   });
   const finishedAt = new Date().toISOString();
 
-  // npm pack --dry-run writes the tarball filename to stdout on some npm
-  // versions and the detailed file list to stderr. Prefer whichever stream
-  // contains the tarball contents section, then fall back to combined output.
-  const packOutput =
-    [cmd.stdout, cmd.stderr].find((stream) => /tarball contents/i.test(stream)) ??
-    [cmd.stdout, cmd.stderr].filter(Boolean).join("\n");
+  // Supported npm versions emit JSON on stdout. Lifecycle scripts are disabled
+  // so inspection cannot build, install, or rewrite the target.
+  const packOutput = cmd.stdout;
   const parsed = parseNpmPackDryRun(packOutput);
 
   const { findings: contentFindings } = detectForbiddenContents({
@@ -51,21 +56,29 @@ export async function runPackageChecks(options: {
   const { findings: missingRequiredFindings } = detectMissingRequiredContents({
     files: parsed.files,
     checkId: "npm-pack",
+    requiredFiles: policy.requiredFiles,
   });
-  const packageFindings = [...contentFindings, ...missingRequiredFindings];
+  const evidenceFindings: SecurityFinding[] = [];
+  if (cmd.exitCode !== 0 || cmd.timedOut || cmd.skipped || parsed.parseError || parsed.files.length === 0) {
+    evidenceFindings.push({
+      id: "npm-pack-evidence-invalid",
+      title: "npm package inventory could not be validated",
+      severity: "blocker",
+      category: "package-content",
+      description: "A successful npm pack operation and a nonempty, parseable inventory are required.",
+      evidence: `exitCode=${String(cmd.exitCode)}; timedOut=${cmd.timedOut}; skipped=${cmd.skipped}; ${parsed.parseError ?? ""}; ${cmd.stderr.slice(0, 500)}`,
+      recommendation: "Resolve the package command or inventory failure and rerun validation.",
+      releaseImpact: "Blocker: required package evidence is unavailable",
+    });
+  }
+  const packageFindings = [...policy.findings, ...evidenceFindings, ...contentFindings, ...missingRequiredFindings];
   allFindings.push(...packageFindings);
 
   const packCheck: SecurityCheckResult = {
     id: "npm-pack-dry-run",
     name: "npm pack --dry-run (tarball file list)",
     category: "package-content",
-    status: cmd.timedOut
-      ? "failed"
-      : parsed.parseError && parsed.files.length === 0
-        ? "warning"
-        : packageFindings.length > 0
-          ? "failed"
-          : "passed",
+    status: packageFindings.length > 0 ? "failed" : "passed",
     severity: packageFindings.length > 0
       ? packageFindings.some((f) => f.severity === "blocker")
         ? "blocker"
@@ -76,7 +89,9 @@ export async function runPackageChecks(options: {
     durationMs: cmd.durationMs,
     findings: packageFindings,
     skippedReason: undefined,
-    command: "npm pack --dry-run",
+    command: "npm pack --dry-run --json --ignore-scripts",
+    commandCwd: cwd,
+    exitCode: cmd.exitCode,
   };
   await writeCheckResult({
     result: packCheck,

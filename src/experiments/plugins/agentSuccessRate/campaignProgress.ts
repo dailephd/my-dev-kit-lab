@@ -1,6 +1,7 @@
 import type { AgentSuccessTaskV1 } from "../../../evaluation/agentSuccess/index.js";
-import { lstat, readFile, realpath } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
+import { isSameOrInside, resolvePhysicalPath } from "../../../evaluation/benchmarkSandbox/pathPolicy.js";
 import { normalizeAgentDurationV091 as normalizedDuration, normalizeAgentTokenUsageV091 as normalizedTokens } from "../../../agents/normalizeAgentTelemetry.js";
 import { validateAgentSuccessRateExecutionArtifact, type AgentSuccessRateExecutionArtifactV1 } from "./executionArtifact.js";
 import { validateAgentSuccessRateAnalysisArtifact, validateAgentSuccessRateArtifactFamily, type AgentSuccessRateAnalysisArtifactV1 } from "./analysisArtifact.js";
@@ -85,7 +86,8 @@ export async function readCampaignProgressScientificFamily(snapshot: ValidatedCa
   const load = async (name: string) => {
     const ref = cp.finalization!.artifacts.find(a => a.path === name)!;
     const file = path.join(boundary.outputRoot, name), stat = await lstat(file);
-    campaignAssert(stat.isFile() && !stat.isSymbolicLink() && stat.size === ref.bytes && path.resolve(await realpath(file)).toLowerCase() === path.resolve(file).toLowerCase(), "SCIENTIFIC_ARTIFACT_UNSAFE");
+    const [physicalRoot, physicalFile] = await Promise.all([resolvePhysicalPath(boundary.outputRoot), resolvePhysicalPath(file)]);
+    campaignAssert(stat.isFile() && !stat.isSymbolicLink() && stat.size === ref.bytes && isSameOrInside(physicalRoot, physicalFile) && path.dirname(physicalFile) === physicalRoot, "SCIENTIFIC_ARTIFACT_UNSAFE");
     const bytes = await readFile(file); campaignAssert(bytes.length === ref.bytes && campaignHash(bytes) === ref.sha256, "SCIENTIFIC_ARTIFACT_CHANGED"); return JSON.parse(bytes.toString("utf8"));
   };
   const execution = await load("agent-success-rate-execution.json") as AgentSuccessRateExecutionArtifactV1;

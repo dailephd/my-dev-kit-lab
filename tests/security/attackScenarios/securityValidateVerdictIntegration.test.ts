@@ -13,6 +13,10 @@ import { findingsBreachFailOnThreshold } from "../../../src/securityValidation/v
 import type { DependencyChecksOutput } from "../../../src/securityValidation/dependencies/runDependencyChecks.js";
 import type { PackageChecksOutput } from "../../../src/securityValidation/packageChecks/runPackageChecks.js";
 import type { SecurityCheckResult, SecurityFinding } from "../../../src/securityValidation/types.js";
+import * as codeql from "../../../src/securityValidation/staticScans/codeql.js";
+import * as semgrep from "../../../src/securityValidation/staticScans/semgrep.js";
+import * as suite from "../../../src/securityValidation/validate/runCliSecuritySuiteCheck.js";
+import * as fuzz from "../../../src/securityValidation/fuzz/fuzzHarness.js";
 
 const dependencyChecksMock = vi.hoisted(() => vi.fn());
 const packageChecksMock = vi.hoisted(() => vi.fn());
@@ -173,10 +177,31 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(cleanupDirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
 });
 
 describe("security:validate verdict/fail-on integration against a controlled fixture", () => {
+  it("LAB-PKG-15/16 default full validation executes all existing groups and passes resolved self identity to package checks", async () => {
+    const reportDir = mkdtempSync(path.join(os.tmpdir(), "default-gate-report-"));
+    cleanupDirs.push(reportDir);
+    const successful = (id: string) => makeControlledCheck({ id, name: id, status: "passed", severity: "informational" });
+    const codeqlSpy = vi.spyOn(codeql, "runCodeqlCheck").mockResolvedValue(successful("codeql-scan"));
+    const semgrepSpy = vi.spyOn(semgrep, "runSemgrepCheck").mockResolvedValue(successful("semgrep-scan"));
+    const suiteSpy = vi.spyOn(suite, "runCliSecuritySuiteCheck").mockResolvedValue(successful("cli-adversarial-suite"));
+    const fuzzSpy = vi.spyOn(fuzz, "runAllFuzzTargets").mockResolvedValue(successful("fuzz-smoke"));
+    const summary = await runSecurityValidation({ cwd: toolRoot, config: { reportDir, rawOutputDir: path.join(reportDir, "raw") } });
+    expect(summary.isFullReleaseGate).toBe(true);
+    expect(packageChecksMock).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      cwd: toolRoot, target: expect.objectContaining({ targetRoot: toolRoot, toolRoot, isSelf: true }),
+    }));
+    expect(dependencyChecksMock).toHaveBeenCalledTimes(1);
+    for (const spy of [codeqlSpy, semgrepSpy, suiteSpy, fuzzSpy]) expect(spy).toHaveBeenCalledTimes(1);
+    expect(summary.checks.map((check) => check.id)).toEqual([
+      "npm-audit-full", "npm-audit-runtime", "npm-outdated", "npm-ls", "osv-scanner",
+      "npm-pack-dry-run", "codeql-scan", "semgrep-scan", "cli-adversarial-suite", "fuzz-smoke",
+    ]);
+  });
   async function runDepsPackageValidation() {
     const reportDir = mkdtempSync(path.join(os.tmpdir(), "verdict-deps-package-report-"));
     cleanupDirs.push(reportDir);

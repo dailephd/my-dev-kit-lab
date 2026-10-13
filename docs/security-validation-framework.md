@@ -158,6 +158,8 @@ Supported verdicts are:
 
 Optional scanners can be recorded as skipped. A skip is not silently converted into a pass, and its effect is reflected in the verdict and report.
 
+Failed or incomplete scanner execution cannot produce a false `PASS`: process failures, invalid output, or incomplete analysis remain failed/inconclusive evidence according to the existing check contract. Findings and severity mappings are preserved. Optional scanners that are unavailable are explicitly `SKIPPED` with a reason. This correction does not change verdict policy.
+
 ### CodeQL coverage contract
 
 CodeQL has separate local and hosted responsibilities:
@@ -199,6 +201,10 @@ Current report/schema details:
 - Informational architectural assertions are not equivalent to dynamic network or secret-leakage proofs.
 - Manual pentest is deferred until after `v1.0.0`. It is a human-led workflow and is not required for automated Android security validation.
 - Runtime behavior, device/emulator testing, APK/AAB inspection, signing verification, Play Console or policy validation, remote Firebase state, Digital Asset Links ownership, automatic fixes, and exhaustive security proof remain outside current scope.
+
+### External-target package-content correction (v0.9.2, final release-document state; registry publication is established separately)
+
+Lab self-validation retains its strict required inventory. External packages are checked against their declared supported entrypoints; missing required entrypoints, malformed or incomplete package metadata, failed or unparseable package evidence, and forbidden contents remain blockers. This eliminates the nine inherited Lab-only Orchestrator false positives without weakening forbidden-file validation. Package inventory and metadata failures cannot pass. The security verdict policy is unchanged. The original prompt/report/gallery milestone remains fully planned for v0.9.3; see [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
 
 ## Fortification status and audit relationship
 

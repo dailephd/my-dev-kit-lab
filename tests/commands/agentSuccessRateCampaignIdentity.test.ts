@@ -10,7 +10,8 @@ it("RSP-020/RSP-033 public resume rejects changed current source bytes and prese
   const f = await cliFixture();
   const executingMetadata = JSON.parse(await readFile(path.join(process.cwd(), "package.json"), "utf8")) as { name: string; version: string };
   const fixtureMetadata = JSON.parse(await readFile(path.join(f.toolRoot, "package.json"), "utf8")) as { name: string; version: string };
-  expect(executingMetadata.version).toBe("0.9.1");
+  expect(executingMetadata.name).toBe("@dailephd/my-dev-kit-lab");
+  expect(executingMetadata.version).toMatch(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
   expect(fixtureMetadata.name).toBe(executingMetadata.name);
   expect(fixtureMetadata.version).toBe(executingMetadata.version);
   const sourceRoot = path.join(f.root, "source");
@@ -20,7 +21,7 @@ it("RSP-020/RSP-033 public resume rejects changed current source bytes and prese
   const flags = [...f.base]; flags[flags.indexOf("--campaign-source-root") + 1] = sourceRoot;
   const observed = vi.spyOn(observation, "observeProviderBuild");
   const created = await captureCommand(() => runExperimentRunCommandFromArgs([...flags, "--agent-campaign", "new"], { context: f.context }));
-  expect(created.code).toBe(0);
+  expect(created.code, created.stderr).toBe(0);
   const checkpoint = await latestCheckpoint(f.outputRoot);
   const scientific = await readFile(path.join(f.outputRoot, "agent-success-rate-execution.json"));
   const originalPath = path.join(process.cwd(), "src/experiments/plugins/agentSuccessRate/campaignRecovery.ts");

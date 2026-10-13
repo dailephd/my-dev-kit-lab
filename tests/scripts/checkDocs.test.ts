@@ -22,6 +22,7 @@ type DocumentationManifest = {
   currentFacts: {
     latestPublishedVersion: string;
     nextPlannedVersion: string;
+    releaseDocumentState?: string;
     currentImplementedUnreleasedVersion?: string | null;
     implementedExperimentPlugins?: string[];
     experimentPluginDocuments?: string[];
@@ -56,6 +57,15 @@ function withDocs(change: (root: string) => void, assertion: (run: () => string)
 function edit(root: string, file: string, transform: (body: string) => string) {
   const target = path.join(root, file);
   fs.writeFileSync(target, transform(fs.readFileSync(target, "utf8")));
+}
+
+function setReleaseDocumentState(root: string, finalReleaseDocument: boolean) {
+  edit(root, "docs/documentation-preservation-manifest.json", (body) => {
+    const value = JSON.parse(body) as DocumentationManifest;
+    if (finalReleaseDocument) value.currentFacts.releaseDocumentState = "final-release-state";
+    else delete value.currentFacts.releaseDocumentState;
+    return `${JSON.stringify(value, null, 2)}\n`;
+  });
 }
 
 function expectFailure(change: (root: string) => void, message: string) {
@@ -114,6 +124,7 @@ function deriveDocumentationLifecycleFacts(
   const semver = /^\d+\.\d+\.\d+$/;
   const packageVersion = packageValue.version;
   const latestPublishedVersion = manifestValue.currentFacts.latestPublishedVersion;
+  const isFinalReleaseDocument = manifestValue.currentFacts.releaseDocumentState === "final-release-state";
   const nextPlannedVersion = manifestValue.currentFacts.nextPlannedVersion;
 
   if (!semver.test(packageVersion)) {
@@ -183,13 +194,19 @@ describe("documentation structural preservation", () => {
 });
 
 describe("release and current/planned state", () => {
-  it("LIFECYCLE-001 rejects changing the current published package version to planned", () => expectFailure(
-    (root) => edit(root, "docs/ROADMAP.md", (body) => {
-      const mutated = replaceRoadmapVersionStatus(body, lifecycle.latestPublishedRoadmapVersion, "Status: **planned**.");
-      expect(mutated).not.toBe(body);
-      return mutated;
-    }),
-    `current package v${lifecycle.packageVersion} lifecycle`,
+  it.each([
+    [false, "current package"],
+    [true, "current release-document"],
+  ] as const)("LIFECYCLE-001 rejects a planned status in %s lifecycle state", (finalReleaseDocument, label) => expectFailure(
+    (root) => {
+      setReleaseDocumentState(root, finalReleaseDocument);
+      edit(root, "docs/ROADMAP.md", (body) => {
+        const activeStatus = finalReleaseDocument ? "Status: **final release-document state; publication pending**." : "Status: **published**.";
+        const prepared = replaceRoadmapVersionStatus(body, lifecycle.latestPublishedRoadmapVersion, activeStatus);
+        return replaceRoadmapVersionStatus(prepared, lifecycle.latestPublishedRoadmapVersion, "Status: **planned**.");
+      });
+    },
+    `${label} v${lifecycle.packageVersion} lifecycle`,
   ));
   it("LIFECYCLE-002 rejects marking the manifest next planned version published", () => expectFailure(
     (root) => edit(root, "docs/ROADMAP.md", (body) => {
@@ -199,10 +216,20 @@ describe("release and current/planned state", () => {
     }),
     `next planned v${lifecycle.nextPlannedVersion} lifecycle`,
   ));
-  it("LIFECYCLE-003 rejects describing the latest published version as future", () => expectFailure(
-    (root) => edit(root, "README.md", (body) => `${body}\nv${lifecycle.latestPublishedVersion} is not yet published.\n`),
-    `v${lifecycle.latestPublishedVersion} publication claim`,
-  ));
+  it.each([false, true] as const)("LIFECYCLE-003 classifies unpublished wording for final-document=%s", (finalReleaseDocument) => {
+    const check = (root: string) => {
+      setReleaseDocumentState(root, finalReleaseDocument);
+      if (!finalReleaseDocument) {
+        edit(root, "docs/ROADMAP.md", (body) => replaceRoadmapVersionStatus(body, lifecycle.latestPublishedRoadmapVersion, "Status: **published**."));
+      }
+      edit(root, "README.md", (body) => `${body}\nv${lifecycle.latestPublishedVersion} has not yet been published to npm.\n`);
+    };
+    if (finalReleaseDocument) {
+      withDocs(check, (run) => expect(run()).toContain("passed"));
+    } else {
+      expectFailure(check, `v${lifecycle.latestPublishedVersion} publication claim`);
+    }
+  });
   it("LIFECYCLE-004 rejects a positive publication claim for the next planned version", () => expectFailure(
     (root) => edit(root, "README.md", (body) => `${body}\nv${lifecycle.nextPlannedVersion} is published.\n`),
     `v${lifecycle.nextPlannedVersion} publication claim`,

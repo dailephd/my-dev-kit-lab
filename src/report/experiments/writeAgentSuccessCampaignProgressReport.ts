@@ -4,6 +4,7 @@ import { campaignAssert, campaignHash, canonicalCampaignJson } from "../../exper
 import { validateCampaignOutputPath, type CampaignStoreBoundary } from "../../experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
 import type { ValidatedCampaignProgress } from "../../experiments/plugins/agentSuccessRate/campaignProgress.js";
 import { readCampaignProgressScientificFamily } from "../../experiments/plugins/agentSuccessRate/campaignProgress.js";
+import { resolvePhysicalPath } from "../../evaluation/benchmarkSandbox/pathPolicy.js";
 import { agentSuccessRatePlugin, mapAgentSuccessRateToRun } from "../../experiments/plugins/agentSuccessRate/plugin.js";
 import { writePluginExperimentReports } from "./writePluginExperimentReports.js";
 import { buildPluginExperimentReport } from "./buildPluginExperimentReport.js";
@@ -15,7 +16,7 @@ import { renderAgentSuccessCampaignProgressHtml } from "./renderAgentSuccessCamp
 
 async function plain(p: string, kind: "file" | "directory") {
   const s = await lstat(p);
-  campaignAssert(!s.isSymbolicLink() && (kind === "file" ? s.isFile() : s.isDirectory()) && path.resolve(await realpath(p)).toLowerCase() === path.resolve(p).toLowerCase(), "PROGRESS_UNSAFE_PATH");
+  campaignAssert(!s.isSymbolicLink() && (kind === "file" ? s.isFile() : s.isDirectory()) && path.resolve(await realpath(p)) === path.resolve(p), "PROGRESS_UNSAFE_PATH");
 }
 async function writeExclusive(p: string, content: string) {
   const h = await open(p, "wx"); try { await h.writeFile(content, "utf8"); await h.sync(); } finally { await h.close(); }
@@ -45,7 +46,10 @@ export async function writeAgentSuccessCampaignProgressReport(args: {
 }) {
   const model = buildAgentSuccessCampaignProgressReport(args.snapshot, args.boundary);
   await validateCampaignOutputPath(args.boundary);
-  const root = path.resolve(args.boundary.outputRoot); await plain(root, "directory");
+  // The checkpoint store has already validated this output root. Use the same physical identity for
+  // publication: a legitimate OS alias (for example macOS /var -> /private/var) is not a redirect
+  // created inside the campaign tree, and comparing it to the lexical spelling rejects valid roots.
+  const root = await resolvePhysicalPath(args.boundary.outputRoot); await plain(root, "directory");
   const family = await owned(root, "campaign-progress-v1", "agent-success-rate-campaign-progress-v1");
   const identity = await owned(family, model.campaignIdentity, `agent-success-rate-campaign-progress-v1:${model.campaignIdentity}`);
   // Ownership blockers can change without a checkpoint transition. Keep both projections immutable at that revision.

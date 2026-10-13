@@ -1,4 +1,4 @@
-import { lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { parseAgentCommandTemplate } from "../agents/index.js";
 import { parseAgentId } from "../agents/agentRegistry.js";
@@ -54,7 +54,7 @@ import { validateAgentSuccessRateConfig } from "../experiments/plugins/agentSucc
 import { AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS } from "../experiments/plugins/agentSuccessRate/realAgentExecution.js";
 import { AGENT_SUCCESS_RATE_TREATMENT_IDS } from "../experiments/plugins/agentSuccessRate/metadata.js";
 import { executeAgentSuccessCampaignV2, prepareAgentSuccessCampaign, type CampaignExecutionHooks, type CampaignPreparationInput } from "../experiments/plugins/agentSuccessRate/campaignExecution.js";
-import { readCampaignCheckpointV2, validateCampaignOutputPath } from "../experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
+import { readCampaignCheckpointV2, resolveCampaignRoot, validateCampaignOutputPath } from "../experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
 import { validateCampaignLimitAuthorization, type CampaignIntent } from "../experiments/plugins/agentSuccessRate/campaignRecovery.js";
 import { campaignIdentifier } from "../experiments/plugins/agentSuccessRate/campaignIdentity.js";
 import { readCampaignProgress } from "../experiments/plugins/agentSuccessRate/campaignProgress.js";
@@ -348,7 +348,8 @@ async function runAgentCampaignCommand(args: ParsedRunExperimentArgs, context: L
     const validPackageVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
     const executingMetadata = JSON.parse(await readFile(path.join(context.packageRoot, "package.json"), "utf8")) as { name?: string; version?: string };
     if (executingMetadata.name !== packageName || typeof executingMetadata.version !== "string" || !validPackageVersion.test(executingMetadata.version)) throw new Error();
-    if (!(await lstat(path.join(sourceRoot, "src"))).isDirectory() || path.resolve(await realpath(sourceRoot)).toLowerCase() !== sourceRoot.toLowerCase()) throw new Error();
+    await resolveCampaignRoot(sourceRoot);
+    if (!(await lstat(path.join(sourceRoot, "src"))).isDirectory()) throw new Error();
     const metadata = JSON.parse(await readFile(path.join(sourceRoot, "package.json"), "utf8")) as { name?: string; version?: string };
     if (metadata.name !== packageName || metadata.version !== executingMetadata.version) throw new Error();
   } catch { throw new Error("CAMPAIGN_SOURCE_UNVERIFIABLE: supply --campaign-source-root with a current my-dev-kit-lab source checkout; installed source bytes cannot be guessed."); }
