@@ -216,7 +216,7 @@ The following remain planned, not implemented:
 
 ## Validation state
 
-- Inherited readiness: PASS_READY_FOR_RELEASE_PREP for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`; local Node latest gates and the hosted Ubuntu/macOS/Windows Node 24 matrix and both CodeQL categories passed. The accepted readiness report supersedes earlier failed attempts, which remain historical.
+- Inherited readiness: PASS_READY_FOR_RELEASE_PREP for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`; local Node latest gates and the hosted Ubuntu/macOS/Windows Node 24 matrix passed. Hosted GitHub Actions CodeQL analyses for JavaScript/TypeScript and Actions passed on that candidate. The local optional CodeQL scanner was unavailable and correctly reported SKIPPED; that is not a pass. The accepted readiness report supersedes earlier failed attempts, which remain historical.
 - Release-preparation local gates passed: `npm run docs:check`, `npm run typecheck`, `npm run verify`, and `npm pack --dry-run`; `git diff --check` is clean. The complete local test suite was not rerun because exact-SHA readiness evidence applies and hosted PR CI runs it once per job. Hosted PR results are established by GitHub check records and Code Scanning analyses.
 
 ### v0.9.2 implementation-stage evidence (not pre-release readiness)

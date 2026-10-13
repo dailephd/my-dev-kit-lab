@@ -88,7 +88,7 @@ function roadmapSections() {
   return sections;
 }
 const sections = roadmapSections();
-const negatedPublication = /\b(?:(?:has|is)\s+not\s+(?:yet\s+)?published|not\s+(?:yet\s+)?published|unpublished|unreleased(?!\s+v\d)|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
+const negatedPublication = /\b(?:(?:has|is)\s+not\s+(?:yet\s+)?(?:been\s+)?published|not\s+(?:yet\s+)?(?:been\s+)?published|unpublished|unreleased(?!\s+v\d)|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
 const positivePublication = (text) => /\bpublished\b/i.test(text || "") && !negatedPublication.test(text || "");
 const plannedLifecycle = /\b(?:planned|future|deferred|not implemented|not started|pre-release readiness pending)\b/i;
 // Implemented-but-unreleased: code exists in the checkout, publication has not happened.
