@@ -1483,7 +1483,7 @@ Acceptance (preserved):
 
 ### v0.9.2 — external-target package-content validator correction
 
-Status: **implemented in `21453d5301568cb8b89afebe9362f90313403e8c`; unreleased; pre-release readiness pending**.
+Status: **implemented; unreleased. The pre-release readiness attempt for candidate `128aceda255218ce27d198b4187660c6f545c870` failed; a new exact-SHA readiness cycle is required after correction.**
 
 Purpose:
 
@@ -1493,11 +1493,11 @@ Priority and version boundary:
 
 * **Version sequence explicitly approved on 2026-10-12:** v0.9.2 is the security-validator correction; the complete former v0.9.2 prompt/report/gallery scope and acceptance criteria remain assigned intact to v0.9.3; v0.10.0 and later ecosystem milestones keep their existing assignments.
 * Package version and latest published version remain 0.9.1. The v0.9.2 implementation is unreleased; this documentation does not bump package metadata, authorize a tag or npm publication, or claim pre-release readiness.
-* Implementation is recorded on `fix/v0.9.2-external-package-layout-validation` at `21453d5301568cb8b89afebe9362f90313403e8c`. Pre-release readiness is a separate pending workflow.
+* Implementation is recorded on `fix/v0.9.2-external-package-layout-validation` at `21453d5301568cb8b89afebe9362f90313403e8c`. Its separate readiness attempt failed on candidate `128aceda255218ce27d198b4187660c6f545c870`; correcting that candidate does not establish readiness, and a new exact-SHA cycle must follow.
 
 Trigger and verified scope of the problem:
 
-* A reported external validation of `@dailephd/my-dev-kit-orchestrator` produced nine package-content blockers even though the Orchestrator candidate separately passed its installed-tarball checks. **The original nine JSON findings and tarball inventory still require exact read-only comparison before implementation; do not declare them false positives solely from their count.**
+* The original external validation of `@dailephd/my-dev-kit-orchestrator` reported nine package-content blockers even though the Orchestrator candidate separately passed its installed-tarball checks. The required read-only reconciliation was completed before implementation: each original finding ID and required path was checked against its evidence and the candidate's package inventory. All nine paths were Lab-specific, the declared `bin`/`main` entrypoints were present, and the nine inherited false positives were eliminated. This records the confirmed diagnosis and implemented correction; it does not make Orchestrator ready or waive real missing-entrypoint and forbidden-content blockers.
 * The current `src/securityValidation/packageChecks/requiredPackageContents.ts` declares Lab-specific `REQUIRED_PACKAGE_CONTENTS` (including Lab runtime files and benchmark resources), while `runPackageChecks.ts` calls `detectMissingRequiredContents` without its supported `requiredFiles` argument. The default therefore imposes Lab-specific requirements on external targets.
 * Distinguish the actual resolved self/external identity through `src/securityValidation/validate/resolveTarget.ts` and `runSecurityValidation.ts`, never package-name equality.
 

@@ -154,7 +154,7 @@ Latest published baseline: v0.9.1.
 
 Current implementation: v0.9.1 is released with provenance-aware provider telemetry, campaign checkpoints, validated resume, safe completed-unit reuse, and bounded provider-limit continuation.
 
-Implemented/unreleased v0.9.2 correction: external npm package validation uses declared package entrypoints while Lab self-validation retains its strict required inventory. Missing external entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated; Semgrep failed or incomplete scans cannot produce a false PASS. Security verdict policy is unchanged. Implementation-stage results are documented in [CURRENT_STATE.md](CURRENT_STATE.md); pre-release readiness remains pending.
+Implemented/unreleased v0.9.2 correction: external npm package validation uses declared package entrypoints while Lab self-validation retains its strict required inventory. Missing external entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated; Semgrep failed or incomplete scans cannot produce a false PASS. Security verdict policy is unchanged. Implementation-stage results and the failed earlier exact-SHA pre-release attempt are documented in [CURRENT_STATE.md](CURRENT_STATE.md); a new readiness cycle is required after correction.
 
 Current version v0.9.2 is implemented and unreleased (external-target package-content correction and Semgrep evidence correction).
 

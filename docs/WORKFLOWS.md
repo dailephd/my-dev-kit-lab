@@ -861,7 +861,7 @@ flowchart LR
 
 **Goal and implemented behavior:** correct external npm package validation without weakening the strict Lab self inventory, forbidden-file validation, or the existing security verdict policy. External packages use their declared entrypoints; missing required entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated. Semgrep failures and incomplete scans cannot produce a false `PASS`; unavailable optional scanners remain explicitly `SKIPPED`.
 
-**Implementation evidence:** implementation commit `21453d5301568cb8b89afebe9362f90313403e8c` passed 7,590 full-suite tests with zero failures and eight existing conditional skips, 615 security tests, documentation checks, build, typecheck, verify, and packed-package checks. Lab self-security had no blocker or major findings and retained 160 minor findings. Orchestrator package validation passed; Orchestrator remains **NOT READY** with 21 major and 86 minor target-owned findings. Its immutability check passed across 11,074 files. These results belong to the implementation SHA and are not exact-SHA validation of a documentation-reconciled candidate. Pre-release readiness remains a separate pending workflow.
+**Implementation evidence:** implementation commit `21453d5301568cb8b89afebe9362f90313403e8c` passed 7,590 full-suite tests with zero failures and eight existing conditional skips, 615 security tests, documentation checks, build, typecheck, verify, and packed-package checks. Lab self-security had no blocker or major findings and retained 160 minor findings. Orchestrator package validation passed; Orchestrator remains **NOT READY** with 21 major and 86 minor target-owned findings. Its immutability check passed across 11,074 files. These results belong to the implementation SHA and are not exact-SHA validation of a documentation-reconciled candidate. The separate readiness attempt failed on candidate `128aceda255218ce27d198b4187660c6f545c870`; a new exact-SHA readiness cycle is required after correction.
 
 The v0.9.3 prompt, report, and gallery feature requirements and acceptance criteria remain intact in [ROADMAP.md](ROADMAP.md). No package version bump, release, tag, merge, or publication is part of implementation or documentation reconciliation.
 
@@ -891,7 +891,7 @@ This workflow does not create a separate product version.
 
 The v0.9.2 implementation-stage evidence is documented separately from pre-release readiness. Its implementation SHA is `21453d5301568cb8b89afebe9362f90313403e8c`; those test and package results are not validation of a later documentation-reconciled SHA.
 
-The package version and latest published version remain 0.9.1. The v0.9.2 implementation is unreleased and readiness is pending. The full v0.9.3 feature milestone is preserved. The reconciliation candidate proceeds to the separate readiness workflow only after documentation checks and review; it does not authorize release preparation or publication.
+The package version and latest published version remain 0.9.1. The v0.9.2 implementation is unreleased. Its earlier exact-SHA readiness attempt failed, and its evidence cannot be reused for the correction candidate; the correction must undergo a new readiness cycle after validation. The full v0.9.3 feature milestone is preserved. This workflow does not authorize release preparation or publication.
 
 ## Pre-release readiness
 

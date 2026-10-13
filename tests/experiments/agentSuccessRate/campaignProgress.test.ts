@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, symlink, unlink } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, symlink, unlink, realpath } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
+import os, { tmpdir } from "node:os";
 import { prepareAgentSuccessCampaign, executeAgentSuccessCampaignV2, type CampaignProvider } from "../../../src/experiments/plugins/agentSuccessRate/campaignExecution.js";
 import { readCampaignProgress, validateCampaignProgress, type ValidatedCampaignProgress } from "../../../src/experiments/plugins/agentSuccessRate/campaignProgress.js";
 import { classifyCampaignEvidence, campaignAttemptTelemetry } from "../../../src/experiments/plugins/agentSuccessRate/campaignEvidenceQuality.js";
@@ -32,6 +32,23 @@ async function fixture(provider: CampaignProvider = { kind: "deterministic-fixtu
 const simulated = (agent: ReturnType<typeof makeScriptedProvider>, repairAttempts: 0 | 1 | 2 = 0): CampaignProvider => ({ kind: "trusted-simulated-provider", simulationId: "progress-fixture", providerId: "codex", timeoutMs: 30000, repairAttempts, runAgent: agent.runAgent, contextDependencies: makeSourceBackedKit().dependencies });
 const q = (cp: CampaignCheckpointV2, tasks: Awaited<ReturnType<typeof fixture>>["tasks"], quantity: string) => classifyCampaignEvidence(cp, tasks).find(q => q.quantity === quantity)!;
 describe("validated campaign progress and immutable companion reports", () => {
+  it.skipIf(process.platform !== "darwin")("PATH-02 accepts the authorized physical identity of the macOS system temporary path alias", async () => {
+    const f = await fixture();
+    await f.run();
+    const snapshot = await f.progress();
+    const lexicalRoot = await mkdtemp(path.join(tmpdir(), "campaign-progress-os-alias-"));
+    try {
+      const physicalRoot = await realpath(lexicalRoot);
+      expect(path.resolve(lexicalRoot)).not.toBe(path.resolve(physicalRoot));
+      const published = await writeAgentSuccessCampaignProgressReport({ snapshot, boundary: { ...f.boundary, outputRoot: lexicalRoot } });
+      expect(await readFile(published.outputPaths.jsonPath, "utf8")).toContain('"schemaVersion": "agent-success-rate-campaign-progress-v1"');
+      expect(await readFile(published.outputPaths.textPath, "utf8")).toContain("Campaign progress");
+      expect(await readFile(published.outputPaths.htmlPath, "utf8")).toContain("Campaign progress");
+      expect(await readFile(published.outputPaths.manifestPath, "utf8")).toContain(snapshot.model.campaignIdentity);
+    } finally {
+      await rm(lexicalRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }, 120000);
   it("PROGRESS-INITIAL/ONE-TREATMENT/ONE-CASE/FINAL/REVISION REPORT-JSON/TEXT/HTML/CONSISTENCY/PARTIAL/COMPLETE/IMMUTABLE SECURITY-PRIVATE", async () => {
     const f = await fixture(undefined, 2); let half!: ValidatedCampaignProgress;
     await expect(f.progress()).rejects.toThrow("UNAVAILABLE");
