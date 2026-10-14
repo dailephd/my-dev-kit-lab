@@ -1113,6 +1113,56 @@ async function main() {
     }
 
     // -----------------------------------------------------------------
+    // 9a. Installed subprocess-injection and secret-leakage scenarios.
+    // The subprocess scenario must reach \"passed\" from the compiled package
+    // alone (no shipped TypeScript source), proving both the argv round-trip
+    // and the runtime shell:false proof. The scenario status is read from the
+    // scenario result, independently of the overall security verdict.
+    // -----------------------------------------------------------------
+    const scenarioReportDir = path.join(dirs.workspace, "reports", "security");
+    const scenarioReportsBefore = new Set(readdirSync(scenarioReportDir));
+    const scenarioResult = runInstalledCli(
+      cliCommand,
+      dirs.consumer,
+      ["--workspace", dirs.workspace, "security", "validate", "--target", dirs.target, "--checks", "subprocess,secrets", "--format", "json"],
+      envWithBin
+    );
+    if (scenarioResult.status !== 0) {
+      fail("SECURITY_INSTALLED_SCENARIOS", "Installed `security validate --checks subprocess,secrets` did not exit 0.", describeChildResult(scenarioResult));
+    }
+    const scenarioReportNames = readdirSync(scenarioReportDir).filter(
+      (name) => name.endsWith(".json") && !scenarioReportsBefore.has(name)
+    );
+    let scenarioReportPath = scenarioReportNames.length === 1 ? path.join(scenarioReportDir, scenarioReportNames[0]) : null;
+    if (scenarioReportPath === null) {
+      // The report file name is stable per target, so an overwrite is not a new file; use the newest JSON.
+      const jsonNames = readdirSync(scenarioReportDir).filter((name) => name.endsWith(".json"));
+      jsonNames.sort((a, b) => statSync(path.join(scenarioReportDir, b)).mtimeMs - statSync(path.join(scenarioReportDir, a)).mtimeMs);
+      scenarioReportPath = jsonNames.length > 0 ? path.join(scenarioReportDir, jsonNames[0]) : null;
+    }
+    if (scenarioReportPath === null) {
+      fail("SECURITY_INSTALLED_SCENARIOS", "No security JSON report was produced for subprocess,secrets.");
+    }
+    const scenarioReport = JSON.parse(readFileSync(scenarioReportPath, "utf8"));
+    const scenarioResults = scenarioReport.attackScenarios?.results ?? [];
+    const subprocessScenario = scenarioResults.find((entry) => entry.scenarioId === "subprocess-injection-safety");
+    if (!subprocessScenario || subprocessScenario.status !== "passed") {
+      fail(
+        "SECURITY_INSTALLED_SCENARIOS",
+        `Installed subprocess-injection-safety scenario status was ${subprocessScenario ? subprocessScenario.status : "missing"}, expected passed.`,
+        JSON.stringify(subprocessScenario?.evidence ?? [], null, 2)
+      );
+    }
+    const shellProof = (subprocessScenario.evidence ?? []).find((entry) => entry.kind === "observation");
+    if (!shellProof || !/shell:false/.test(shellProof.observedBehavior ?? "") || /.ts/.test(shellProof.source ?? "")) {
+      fail("SECURITY_INSTALLED_SCENARIOS", "Installed subprocess scenario did not carry runtime shell:false proof.", JSON.stringify(shellProof ?? null));
+    }
+    const secretsScenario = scenarioResults.find((entry) => entry.scenarioId === "secret-leakage-bounded-scan");
+    if (!secretsScenario || secretsScenario.status !== "passed") {
+      fail("SECURITY_INSTALLED_SCENARIOS", `Installed secret-leakage scenario status was ${secretsScenario ? secretsScenario.status : "missing"}, expected passed.`);
+    }
+
+    // -----------------------------------------------------------------
     // 9b. Installed warm-index-reuse execution and plots. A temporary,
     // test-owned fake my-dev-kit script stands in for the real kit so the
     // gate needs no network; it is never packaged.

@@ -1,10 +1,7 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { AttackScenario, AttackScenarioContext, AttackScenarioRunOutcome } from "../attackScenario.js";
 import { makeEvidence } from "../exploitEvidence.js";
 import { getPayloadsForGroup } from "../payloadCorpus.js";
-import { runSecurityCommand } from "../../commandRunner.js";
+import { buildSecurityCommandSpawnOptions, runSecurityCommand } from "../../commandRunner.js";
 
 // ---------------------------------------------------------------------------
 // v0.2.2 Batch 3 — subprocess injection scenario.
@@ -17,37 +14,83 @@ import { runSecurityCommand } from "../../commandRunner.js";
 // that no shell re-interpreted it (splitting it into multiple commands via
 // `;`, `&&`, backticks, `$()`, or `|`).
 //
-// Also does a bounded static check that the command-execution helpers this
-// scenario exercises are built with `shell: false` (source inspection of a
-// known-small file, not a general code scanner).
+// Also verifies at runtime, through the compiled command runner's own
+// spawn-options builder (the exact value runSecurityCommand() spawns with),
+// that the runner does not enable a shell. No TypeScript source is read, so
+// the proof works from an installed package.
 // ---------------------------------------------------------------------------
 
 const ECHO_ARGV_SCRIPT = "process.stdout.write(JSON.stringify(process.argv.slice(1)))";
 
-function commandRunnerSourcePath(): string {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, "..", "..", "commandRunner.ts");
+// Dependencies of the scenario, injectable so tests can substitute a
+// controlled runner without executing anything unsafe. The defaults are the
+// real command runner and its real spawn-options builder, both of which ship
+// in the compiled package.
+export interface SubprocessInjectionDeps {
+  runCommand: typeof runSecurityCommand;
+  readSpawnOptions: (cwd: string) => unknown;
+}
+
+const DEFAULT_DEPS: SubprocessInjectionDeps = {
+  runCommand: runSecurityCommand,
+  readSpawnOptions: (cwd) => buildSecurityCommandSpawnOptions({ cwd, env: process.env }),
+};
+
+type ShellPolicyProof =
+  | { state: "safe" }
+  | { state: "unsafe"; detail: string }
+  | { state: "unavailable"; detail: string };
+
+// Runtime proof that the applicable runner's spawn path does not use a shell.
+// A strict `shell === false` is the only accepted safe value; a truthy shell
+// is demonstrated unsafe; a missing/malformed/throwing proof is unavailable.
+function proveShellDisabled(deps: SubprocessInjectionDeps, cwd: string): ShellPolicyProof {
+  let options: unknown;
+  try {
+    options = deps.readSpawnOptions(cwd);
+  } catch (error) {
+    return {
+      state: "unavailable",
+      detail: `Spawn options could not be obtained from the command runner: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+  if (typeof options !== "object" || options === null || !("shell" in options)) {
+    return { state: "unavailable", detail: "Command runner spawn options did not declare a shell setting." };
+  }
+  const shell = (options as { shell: unknown }).shell;
+  if (shell === false) return { state: "safe" };
+  if (shell === true || typeof shell === "string") {
+    return { state: "unsafe", detail: "Command runner spawn options enable a shell." };
+  }
+  return { state: "unavailable", detail: "Command runner spawn options declared a malformed shell setting." };
 }
 
 export const SUBPROCESS_INJECTION_SCENARIO: AttackScenario = {
   id: "subprocess-injection-safety",
   title: "Subprocess injection: shell metacharacter payloads are passed as literal arguments",
   description:
-    "Runs a benign argv-echoing Node script with each subprocess-injection payload as a single spawn argument and confirms it round-trips as exactly one literal string, proving no shell re-interpretation. Also checks that commandRunner.ts constructs subprocess calls with shell:false.",
+    "Runs a benign argv-echoing Node script with each subprocess-injection payload as a single spawn argument and confirms it round-trips as exactly one literal string, proving no shell re-interpretation. Also verifies at runtime that the command runner constructs subprocess calls with shell:false.",
   checkId: "subprocess",
   applicableProfiles: [],
   severityBaseline: "blocker",
   verdictImpact: "tool-framework-blocker",
   expectedSafeBehavior:
-    "Every subprocess-injection payload round-trips as a single literal argv element; commandRunner.ts uses shell:false.",
+    "Every subprocess-injection payload round-trips as a single literal argv element; the command runner uses shell:false.",
   evidenceRequirements: ["command", "observation"],
-  run: async (ctx: AttackScenarioContext): Promise<AttackScenarioRunOutcome> => {
+  run: (ctx: AttackScenarioContext) => runSubprocessInjectionScenario(ctx, DEFAULT_DEPS),
+};
+
+export async function runSubprocessInjectionScenario(
+  ctx: AttackScenarioContext,
+  deps: SubprocessInjectionDeps
+): Promise<AttackScenarioRunOutcome> {
+  {
     const evidence = [];
     const notLiteral: string[] = [];
 
     const payloads = getPayloadsForGroup("subprocess-injection");
     for (const p of payloads) {
-      const cmd = await runSecurityCommand({
+      const cmd = await deps.runCommand({
         command: process.execPath,
         args: ["-e", ECHO_ARGV_SCRIPT, p.value],
         cwd: ctx.toolRoot,
@@ -83,29 +126,23 @@ export const SUBPROCESS_INJECTION_SCENARIO: AttackScenario = {
       );
     }
 
-    let shellFalseConfirmed = false;
-    let sourceReadable = true;
-    try {
-      const source = fs.readFileSync(commandRunnerSourcePath(), "utf8");
-      shellFalseConfirmed = /shell:\s*false/.test(source);
-    } catch {
-      sourceReadable = false;
-    }
+    const proof = proveShellDisabled(deps, ctx.toolRoot);
     evidence.push(
       makeEvidence({
         kind: "observation",
-        source: "static check: src/securityValidation/commandRunner.ts",
-        confidence: sourceReadable ? "high" : "low",
+        source: "runtime check: buildSecurityCommandSpawnOptions() used by runSecurityCommand()",
+        confidence: proof.state === "unavailable" ? "low" : "high",
         expectedBehavior: "Subprocess calls should be constructed with shell:false.",
-        observedBehavior: sourceReadable
-          ? shellFalseConfirmed
-            ? "shell:false found in commandRunner.ts."
-            : "shell:false NOT found in commandRunner.ts."
-          : "Could not read commandRunner.ts source for static confirmation.",
+        observedBehavior:
+          proof.state === "safe"
+            ? "Command runner spawn options declare shell:false."
+            : proof.state === "unsafe"
+              ? proof.detail
+              : `Could not verify shell:false: ${proof.detail}`,
       })
     );
 
-    if (notLiteral.length > 0 || (sourceReadable && !shellFalseConfirmed)) {
+    if (notLiteral.length > 0 || proof.state === "unsafe") {
       return {
         status: "failed",
         confidence: "high",
@@ -113,16 +150,16 @@ export const SUBPROCESS_INJECTION_SCENARIO: AttackScenario = {
         recommendation:
           notLiteral.length > 0
             ? `Investigate argument construction — payload(s) did not round-trip literally: ${notLiteral.join(", ")}.`
-            : "commandRunner.ts must construct child_process.spawn calls with shell:false.",
+            : "The command runner must construct child_process.spawn calls with shell:false.",
       };
     }
 
-    if (!sourceReadable) {
+    if (proof.state === "unavailable") {
       return {
         status: "blocked",
         confidence: "low",
         evidence,
-        recommendation: "Could not statically confirm shell:false; argv round-trip evidence is still valid.",
+        recommendation: "Could not verify shell:false for the command runner; argv round-trip evidence alone is not sufficient.",
       };
     }
 
@@ -131,5 +168,5 @@ export const SUBPROCESS_INJECTION_SCENARIO: AttackScenario = {
       confidence: "high",
       evidence,
     };
-  },
-};
+  }
+}
