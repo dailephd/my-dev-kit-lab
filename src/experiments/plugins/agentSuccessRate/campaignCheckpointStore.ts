@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 import type { AgentSuccessTaskV1 } from "../../../evaluation/agentSuccess/index.js";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
 import { isSameOrInside, resolvePhysicalPath } from "../../../evaluation/benchmarkSandbox/pathPolicy.js";
-import { campaignAssert, campaignHash, canonicalCampaignJson, compareCampaignIdentity, validateCampaignIdentity, type CampaignIdentity } from "./campaignIdentity.js";
+import { CAMPAIGN_IDENTITY_VERSION_V2, campaignAssert, campaignHash, canonicalCampaignJson, compareCampaignIdentity, validateCampaignIdentity, type CampaignIdentity } from "./campaignIdentity.js";
+import { PROMPT_CONTRACT_ARTIFACT_FILE, renderPromptContractArtifact } from "./promptContract.js";
 import { CAMPAIGN_CHECKPOINT_MAX_BYTES, requiredCampaignArtifacts, validateCampaignCheckpoint, validateCampaignCompletion, validateCampaignHistory, validateCampaignRelativePath, type CampaignCheckpoint, type CampaignCompletion } from "./campaignCheckpoint.js";
 import type { AgentSuccessTreatmentEvidenceV1 } from "./executionTypes.js";
 import { projectCampaignTreatmentEvidence } from "./campaignCheckpoint.js";
@@ -115,8 +116,24 @@ export async function prepareCampaignCompletion(boundary: CampaignStoreBoundary,
   validateCampaignCompletion(result, identity, task, source.treatmentId);
   return result;
 }
+/**
+ * A V2 identity binds the effective prompt contract. Every attempt directory that holds provider artifacts must also hold
+ * prompt-contract.json whose bytes equal the deterministic rendering of the identity's contract. The expectation comes from
+ * the checksummed identity, so the sidecar cannot vouch for itself and the closed V1 checkpoint schema is not extended.
+ */
+async function verifyPromptContractArtifacts(root: string, identity: CampaignIdentity, references: readonly { path: string; kind: string }[]): Promise<void> {
+  if (identity.schemaVersion !== CAMPAIGN_IDENTITY_VERSION_V2) return;
+  const expected = Buffer.from(renderPromptContractArtifact(identity.promptContract), "utf8");
+  const directories = new Set(references.filter((r) => r.kind === "provider").map((r) => path.posix.dirname(r.path)));
+  for (const directoryPath of [...directories].sort()) {
+    const bytes = await boundedRead(await safeFile(root, `${directoryPath}/${PROMPT_CONTRACT_ARTIFACT_FILE}`), 1024 * 1024);
+    campaignAssert(bytes.equals(expected), "PROMPT_CONTRACT_ARTIFACT");
+  }
+}
 async function verifyArtifacts(boundary: CampaignStoreBoundary, checkpoint: StoredCheckpoint): Promise<void> {
   const root = await validateRoot(boundary);
+  for (const unit of checkpoint.units) await verifyPromptContractArtifacts(root, checkpoint.identity, unit.completion?.artifacts ?? []);
+  if (checkpoint.schemaVersion === CAMPAIGN_CHECKPOINT_SCHEMA_V2) for (const unit of checkpoint.units) for (const epoch of unit.epochs) await verifyPromptContractArtifacts(root, checkpoint.identity, epoch.terminal?.artifacts ?? []);
   for (const unit of checkpoint.units) for (const reference of unit.completion?.artifacts ?? []) { const bytes = await boundedRead(await safeFile(root, reference.path), 32 * 1024 * 1024); campaignAssert(bytes.length === reference.bytes && campaignHash(bytes) === reference.sha256, "ARTIFACT_INTEGRITY"); }
   if (checkpoint.schemaVersion === CAMPAIGN_CHECKPOINT_SCHEMA_V2) {
     for (const unit of checkpoint.units) for (const epoch of unit.epochs) {

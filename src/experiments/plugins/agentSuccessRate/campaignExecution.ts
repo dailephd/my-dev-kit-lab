@@ -23,13 +23,14 @@ import { buildAgentSuccessRateExecutionArtifact, validateAgentSuccessRateExecuti
 import { buildAgentSuccessRateAnalysisArtifact, validateAgentSuccessRateAnalysisArtifact, validateAgentSuccessRateArtifactFamily, AGENT_SUCCESS_RATE_ANALYSIS_ARTIFACT_FILE } from "./analysisArtifact.js";
 import { defaultContextDependencies, sealTask, writeAgentSuccessRateArtifactTargets } from "./plugin.js";
 import { DEFAULT_AGENT_SUCCESS_KIT_COMMAND } from "./contextGeneration.js";
+import { promptContractMatchesCurrentRenderer, type PromptContractV1 } from "./promptContract.js";
 import { executeResumableCampaign, type CampaignResumableOptions } from "./campaignResumableExecution.js";
 
 /** Explicit trusted test seam. These bytes certify a simulation, never a live executable. */
 export type CampaignProvider =
   | { kind: "deterministic-fixture" }
-  | { kind: "real-agent"; providerId: "codex" | "claude"; timeoutMs: number; repairAttempts: 0 | 1 | 2; includeRealAgents?: true; trustedExecutable?: TrustedProviderExecutable; kitCommand?: string; contextDependencies?: AgentSuccessContextDependencies; env?: NodeJS.ProcessEnv }
-  | { kind: "trusted-simulated-provider"; simulationId: string; providerId: "codex" | "claude"; timeoutMs: number; repairAttempts: 0 | 1 | 2; runAgent: AgentSuccessRunAgent; contextDependencies: AgentSuccessContextDependencies };
+  | { kind: "real-agent"; providerId: "codex" | "claude"; timeoutMs: number; repairAttempts: 0 | 1 | 2; includeRealAgents?: true; trustedExecutable?: TrustedProviderExecutable; kitCommand?: string; contextDependencies?: AgentSuccessContextDependencies; env?: NodeJS.ProcessEnv; promptContract?: PromptContractV1 }
+  | { kind: "trusted-simulated-provider"; simulationId: string; providerId: "codex" | "claude"; timeoutMs: number; repairAttempts: 0 | 1 | 2; runAgent: AgentSuccessRunAgent; contextDependencies: AgentSuccessContextDependencies; promptContract?: PromptContractV1 };
 
 export type CampaignPreparationInput = {
   boundary: CampaignStoreBoundary;
@@ -106,7 +107,7 @@ async function produceIdentity(input: CampaignPreparationInput): Promise<Campaig
     projects.push({ projectId, files });
   }
   const provider = input.provider;
-  const allowed = provider.kind === "deterministic-fixture" ? ["kind"] : provider.kind === "trusted-simulated-provider" ? ["kind", "simulationId", "providerId", "timeoutMs", "repairAttempts", "runAgent", "contextDependencies"] : ["kind", "providerId", "timeoutMs", "repairAttempts", "includeRealAgents", "trustedExecutable", "kitCommand", "contextDependencies", "env"];
+  const allowed = provider.kind === "deterministic-fixture" ? ["kind"] : provider.kind === "trusted-simulated-provider" ? ["kind", "simulationId", "providerId", "timeoutMs", "repairAttempts", "runAgent", "contextDependencies", "promptContract"] : ["kind", "providerId", "timeoutMs", "repairAttempts", "includeRealAgents", "trustedExecutable", "kitCommand", "contextDependencies", "env", "promptContract"];
   campaignAssert(Object.keys(provider).every(key => allowed.includes(key)), "INCONSISTENT_EXECUTION_MODE");
   const simulated = provider.kind === "trusted-simulated-provider";
   campaignAssert(["deterministic-fixture", "trusted-simulated-provider", "real-agent"].includes(provider.kind), "INVALID_EXECUTION_MODE");
@@ -122,6 +123,8 @@ async function produceIdentity(input: CampaignPreparationInput): Promise<Campaig
       campaignAssert(typeof retrievalVersion === "string" && retrievalVersion.length > 0 && retrievalVersion.length <= 256, "RETRIEVAL_IDENTITY_UNVERIFIABLE");
     } finally { await rm(commandsDir, { recursive: true, force: true }); }
   }
+  const promptContract = provider.kind === "deterministic-fixture" ? null : provider.promptContract ?? null;
+  if (promptContract !== null && provider.kind !== "deterministic-fixture") campaignAssert(promptContract.providerId === provider.providerId && promptContractMatchesCurrentRenderer(promptContract), "PROMPT_CONTRACT_UNVERIFIABLE");
   const functions = (object: object) => Object.entries(object).map(([key, value]) => ({ key, source: String(value) })).sort((a, b) => a.key < b.key ? -1 : 1);
   return createCampaignIdentity({
     tasks: input.tasks,
@@ -129,6 +132,7 @@ async function produceIdentity(input: CampaignPreparationInput): Promise<Campaig
     config: provider.kind === "deterministic-fixture" ? { providerId: provider.kind, timeoutMs: 1000, repairAttempts: 0 } : { providerId: provider.providerId, timeoutMs: provider.timeoutMs, repairAttempts: provider.repairAttempts },
     contextConfiguration: { contract: "existing-agent-success-context-v1", treatments: [...input.treatments] },
     retrievalConfiguration: { contract: simulated ? "trusted-simulated-retrieval-v1" : real ? "real-provider-retrieval-v1" : "no-retrieval-fixture-v1", dependencies: simulated ? functions(provider.contextDependencies) : real ? functions(provider.contextDependencies ?? defaultContextDependencies()) : [], ...(real ? { kitCommand: provider.kitCommand ?? DEFAULT_AGENT_SUCCESS_KIT_COMMAND, version: retrievalVersion } : {}), executionDependencies: functions(input.dependencies ?? {}) },
+    promptContract,
     verifiedProviderObservation: simulated ? Buffer.from(canonicalCampaignJson({ contract: "trusted-simulated-provider-v1", simulationId: provider.simulationId, implementation: String(provider.runAgent) })) : observed
   });
 }
@@ -214,7 +218,7 @@ export async function executeAgentSuccessCampaign(prepared: PreparedCampaign, ar
         const result = provider.kind === "trusted-simulated-provider" && contexts ? await executeAgentSuccessRepairTreatment({ ...common, repair: {
           providerId: provider.providerId, repairAttempts: provider.repairAttempts,
           createProposalSource: ({ attemptNumber, feedback }) => createRealAgentProposalSource({
-            settings: { providerId: provider.providerId, timeoutMs: provider.timeoutMs, outDir: boundary.outputRoot, privateRoots: common.privateRoots, protectedRoots: [boundary.toolRoot, boundary.outputRoot, runtimeRoot, canonicalProjectRoot],
+            settings: { providerId: provider.providerId, timeoutMs: provider.timeoutMs, ...(provider.promptContract ? { promptContract: provider.promptContract } : {}), outDir: boundary.outputRoot, privateRoots: common.privateRoots, protectedRoots: [boundary.toolRoot, boundary.outputRoot, runtimeRoot, canonicalProjectRoot],
               runAgent: async (request) => {
                 await assertCampaignDispatch(boundary, identity, ownership!);
                 await prepareCampaignProviderOutput(boundary, identity, ownership!, agentSuccessAgentArtifactDirectory(task.benchmarkProject, task.id, unit.treatmentId, attemptNumber));

@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { normalizeAgentDurationV091, normalizeAgentTokenUsageV091, runAgentPrompt } from "../../../agents/index.js";
@@ -26,6 +26,8 @@ import type {
 } from "./executionTypes.js";
 import type { AgentSuccessRateTreatmentId } from "./metadata.js";
 import { buildAgentSuccessRealAgentPrompt } from "./realAgentPrompt.js";
+import { PROMPT_CONTRACT_ARTIFACT_FILE, createPromptContract, promptSettingsOf, renderPromptContractArtifact, type PromptContractV1 } from "./promptContract.js";
+import { validateAgentSuccessFinalAnswer } from "./strictDiffResponse.js";
 import { summarizeAgentSuccessRepairFeedback, type AgentSuccessRepairFeedback } from "./repairFeedback.js";
 
 export const AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS = 240_000;
@@ -40,6 +42,8 @@ export type AgentSuccessRealAgentSettings = {
   env?: NodeJS.ProcessEnv;
   runAgent: AgentSuccessRunAgent;
   trustedExecutable?: TrustedProviderExecutable;
+  /** Effective prompt contract. Omitted = the inherited legacy prompt for `providerId`. Constant across repair attempts. */
+  promptContract?: PromptContractV1;
   /** Experiment output root; agent attempt directories are created below it. */
   outDir: string;
   /** Roots the provider working directory must be disjoint from (repository, benchmarks, sandboxes, outputs, package). */
@@ -173,6 +177,8 @@ export function createRealAgentProposalSource(args: {
   repair?: { feedback: AgentSuccessRepairFeedback; maxAttempts: number };
 }): (request: Parameters<AgentSuccessProposalSource>[0]) => Promise<AgentSuccessRuntimeProposal> {
   const { settings } = args;
+  const promptContract = settings.promptContract ?? createPromptContract(settings.providerId);
+  if (promptContract.providerId !== settings.providerId) throw new Error("PROMPT_CONTRACT_PROVIDER_MISMATCH");
   const attemptNumber: AgentSuccessAttemptNumber = args.attemptNumber ?? 1;
   return async ({ treatmentId, invoke, notInvokedReason }): Promise<AgentSuccessRuntimeProposal> => {
     let runtimeTelemetry = projectAgentSuccessProviderTelemetryV091(null, "not-invoked", null);
@@ -237,6 +243,7 @@ export function createRealAgentProposalSource(args: {
       task,
       treatmentId,
       contextText: context.text,
+      prompt: promptSettingsOf(promptContract),
       ...(args.repair ? { repair: { feedback: args.repair.feedback, attemptNumber, maxAttempts: args.repair.maxAttempts } } : {})
     });
     const leaks = findPromptLeaks(promptText, args.forbidden);
@@ -331,6 +338,14 @@ export function createRealAgentProposalSource(args: {
     const agentTokenUsage = tokenEvidence(result);
     runtimeTelemetry = projectAgentSuccessProviderTelemetryV091(result, providerStatus, agentDurationMs);
 
+    // The effective contract is persisted next to the provider artifacts so recovery can prove which prompt produced them.
+    try {
+      await mkdir(attemptAbsolute, { recursive: true });
+      await writeFile(path.join(attemptAbsolute, PROMPT_CONTRACT_ARTIFACT_FILE), renderPromptContractArtifact(promptContract), { encoding: "utf8", flag: "wx" });
+    } catch {
+      return noProposal("prompt-contract-not-persisted", "PROMPT_CONTRACT_NOT_PERSISTED", "The effective prompt contract could not be persisted; the provider answer was not evaluated.");
+    }
+
     if (providerStatus !== "completed") {
       return noProposal(classification.statusReason, PROVIDER_STATUS_CODES[providerStatus as keyof typeof PROVIDER_STATUS_CODES] ?? "PROVIDER_FAILED", `Provider ${settings.providerId} ended with status ${providerStatus}: ${classification.statusReason}`, {
         agentDurationMs,
@@ -342,6 +357,22 @@ export function createRealAgentProposalSource(args: {
     }
     realAgent.finalAnswerAvailable = true;
     realAgent.providerStatusReason = null;
-    return { kind: "proposal", ...runtimeTelemetry, text: result.finalAnswerText, realAgent, agentDurationMs, agentTokenUsage, errors: [] as AgentSuccessErrorV1[], contextFile };
+    // Application-level output contract, applied only to a completed provider's extracted final answer. An invalid
+    // response is handed to the patch pipeline as an empty proposal: it is recorded as malformed, never re-interpreted
+    // through legacy extraction, and the diagnostic reason code is retained as a bounded error.
+    const output = validateAgentSuccessFinalAnswer(promptContract, result.finalAnswerText);
+    if (!output.ok) {
+      return {
+        kind: "proposal",
+        ...runtimeTelemetry,
+        text: "",
+        realAgent,
+        agentDurationMs,
+        agentTokenUsage,
+        errors: [{ code: `OUTPUT_CONTRACT_${output.code}`, message: `The provider final answer violated the ${promptContract.templateId} output contract (${output.code}).` }],
+        contextFile
+      };
+    }
+    return { kind: "proposal", ...runtimeTelemetry, text: output.patchText, realAgent, agentDurationMs, agentTokenUsage, errors: [] as AgentSuccessErrorV1[], contextFile };
   };
 }

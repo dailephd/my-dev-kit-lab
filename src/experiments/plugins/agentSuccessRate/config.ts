@@ -3,6 +3,13 @@ import { invalidExperimentConfig, isPlainObject, mergeConfig, validExperimentCon
 import type { ExperimentConfigDefinition, ExperimentConfigValidationResult } from "../../types.js";
 import { DEFAULT_AGENT_SUCCESS_KIT_COMMAND } from "./contextGeneration.js";
 import { AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS } from "./realAgentExecution.js";
+import { createPromptContract, type PromptContractV1 } from "./promptContract.js";
+import {
+  AGENT_SUCCESS_PROMPT_EXPLANATION_MODES,
+  AGENT_SUCCESS_PROMPT_LENGTH_MODES,
+  AGENT_SUCCESS_PROMPT_TEMPLATE_IDS,
+  AGENT_SUCCESS_PROMPT_TOOL_USE_MODES
+} from "./realAgentPrompt.js";
 
 export const AGENT_SUCCESS_RATE_REAL_AGENT_IDS = ["codex", "claude"] as const;
 export type AgentSuccessRateRealAgentId = (typeof AGENT_SUCCESS_RATE_REAL_AGENT_IDS)[number];
@@ -23,7 +30,39 @@ export type AgentSuccessRateConfig = {
   kitCommand?: string;
   /** Repairs allowed after the initial attempt: 0 (default) = initial only, 1 or 2. Total attempts never exceed 3. */
   repairAttempts?: number;
+  /** Prompt contract selections (v0.9.3). Real-agent mode only; each is optional and defaults to the legacy prompt. */
+  promptTemplate?: (typeof AGENT_SUCCESS_PROMPT_TEMPLATE_IDS)[number];
+  promptLength?: (typeof AGENT_SUCCESS_PROMPT_LENGTH_MODES)[number];
+  promptExplanation?: (typeof AGENT_SUCCESS_PROMPT_EXPLANATION_MODES)[number];
+  promptToolUse?: (typeof AGENT_SUCCESS_PROMPT_TOOL_USE_MODES)[number];
+  /** Guidance only: the benchmark permits no commands, so 0 is the only accepted value. */
+  maxCommandCount?: number;
 };
+
+const PROMPT_FIELD_ALLOWED_VALUES = {
+  promptTemplate: AGENT_SUCCESS_PROMPT_TEMPLATE_IDS,
+  promptLength: AGENT_SUCCESS_PROMPT_LENGTH_MODES,
+  promptExplanation: AGENT_SUCCESS_PROMPT_EXPLANATION_MODES,
+  promptToolUse: AGENT_SUCCESS_PROMPT_TOOL_USE_MODES
+} as const;
+const PROMPT_FIELDS = [...Object.keys(PROMPT_FIELD_ALLOWED_VALUES), "maxCommandCount"] as const;
+
+/** True when any prompt-contract option was explicitly supplied (even with its default value). */
+export function hasExplicitPromptContractSelection(config: AgentSuccessRateConfig): boolean {
+  return PROMPT_FIELDS.some((field) => (config as Record<string, unknown>)[field] !== undefined);
+}
+
+/** The explicit prompt contract for a validated real-agent config, or null when no prompt option was supplied. */
+export function resolveAgentSuccessPromptContract(config: AgentSuccessRateConfig): PromptContractV1 | null {
+  if (config.agentId === undefined || !hasExplicitPromptContractSelection(config)) return null;
+  return createPromptContract(config.agentId, {
+    ...(config.promptTemplate !== undefined ? { templateId: config.promptTemplate } : {}),
+    ...(config.promptLength !== undefined ? { lengthMode: config.promptLength } : {}),
+    ...(config.promptExplanation !== undefined ? { explanationMode: config.promptExplanation } : {}),
+    ...(config.promptToolUse !== undefined ? { toolUseMode: config.promptToolUse } : {}),
+    ...(config.maxCommandCount !== undefined ? { maxCommandCount: config.maxCommandCount as 0 } : {})
+  });
+}
 
 export const AGENT_SUCCESS_RATE_REPAIR_ATTEMPT_VALUES = [0, 1, 2] as const;
 
@@ -31,7 +70,7 @@ export const defaultAgentSuccessRateConfig: AgentSuccessRateConfig = {
   outDir: "lab-output/agent-success-rate"
 };
 
-const SUPPORTED_FIELDS = ["outDir", "caseIds", "benchmarkProjects", "agentId", "includeRealAgents", "timeoutMs", "kitCommand", "repairAttempts"] as const;
+const SUPPORTED_FIELDS = ["outDir", "caseIds", "benchmarkProjects", "agentId", "includeRealAgents", "timeoutMs", "kitCommand", "repairAttempts", ...PROMPT_FIELDS] as const;
 
 /** Names that are recognized only to give a precise rejection. */
 const REJECTED_FIELD_MESSAGES: Record<string, string> = {
@@ -57,7 +96,12 @@ export const agentSuccessRateConfigDefinition: ExperimentConfigDefinition = {
     { name: "includeRealAgents", type: "boolean", description: "Must be exactly true whenever agentId is set; rejected otherwise." },
     { name: "timeoutMs", type: "number", description: "Per-attempt provider timeout in ms (real-agent mode only)." },
     { name: "kitCommand", type: "string", description: "my-dev-kit command used for context-pack retrieval (real-agent mode only)." },
-    { name: "repairAttempts", type: "number", description: "Repairs allowed after the initial attempt: 0 (default), 1 or 2. Real-agent mode only; at most 3 attempts per treatment." }
+    { name: "repairAttempts", type: "number", description: "Repairs allowed after the initial attempt: 0 (default), 1 or 2. Real-agent mode only; at most 3 attempts per treatment." },
+    { name: "promptTemplate", type: "string", description: "Prompt template: legacy-diff-v1 (default) or strict-diff-v1. Real-agent mode only." },
+    { name: "promptLength", type: "string", description: "Prompt length: standard (default) or short. Real-agent mode only." },
+    { name: "promptExplanation", type: "string", description: "Explanation policy: legacy (default) or none. Real-agent mode only." },
+    { name: "promptToolUse", type: "string", description: "Tool-use statement: prohibited (default) or bounded (explicit zero command budget). Real-agent mode only." },
+    { name: "maxCommandCount", type: "number", description: "Maximum command count guidance; only 0 is accepted. Real-agent mode only." }
   ]
 };
 
@@ -125,6 +169,21 @@ export function validateAgentSuccessRateConfig(config: unknown): ExperimentConfi
       if (!supported) errors.push("kitCommand must be a non-empty my-dev-kit command string.");
     } else {
       normalized.kitCommand = DEFAULT_AGENT_SUCCESS_KIT_COMMAND;
+    }
+  }
+  const suppliedPromptFields = PROMPT_FIELDS.filter((field) => raw[field] !== undefined);
+  if (suppliedPromptFields.length > 0) {
+    if (agentId === undefined || raw.includeRealAgents !== true) {
+      errors.push(`${suppliedPromptFields.join(", ")} require real-agent mode (agentId together with includeRealAgents=true); prompt options never enable a provider.`);
+    }
+    for (const [field, allowed] of Object.entries(PROMPT_FIELD_ALLOWED_VALUES)) {
+      const value = raw[field];
+      if (value !== undefined && !(typeof value === "string" && (allowed as readonly string[]).includes(value))) {
+        errors.push(`${field} must be one of: ${allowed.join(", ")}.`);
+      }
+    }
+    if (raw.maxCommandCount !== undefined && !(typeof raw.maxCommandCount === "number" && Number.isInteger(raw.maxCommandCount) && raw.maxCommandCount === 0)) {
+      errors.push("maxCommandCount must be the integer 0; the benchmark permits no commands.");
     }
   }
   return errors.length > 0 ? invalidExperimentConfig(errors) : validExperimentConfig(normalized);

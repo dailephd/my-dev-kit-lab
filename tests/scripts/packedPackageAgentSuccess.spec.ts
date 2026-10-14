@@ -252,7 +252,7 @@ describe("PACK-039..043 scenario building blocks", () => {
 
 describe("PACK-013/063 no live provider and gate declaration", () => {
   it("declares every acceptance gate label and prints them all in the final verdict", () => {
-    expect(acceptance.AGENT_SUCCESS_GATE_LABELS).toHaveLength(15);
+    expect(acceptance.AGENT_SUCCESS_GATE_LABELS).toHaveLength(16);
     for (const label of acceptance.AGENT_SUCCESS_GATE_LABELS as string[]) {
       expect(moduleSource, label).toContain(`"${label}"`);
       expect(moduleSource, label).toMatch(new RegExp(`(pass\\("${label}"|const gate = "${label}"|gate = "${label}")`));
