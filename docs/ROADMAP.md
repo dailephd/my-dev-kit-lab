@@ -1533,6 +1533,19 @@ Explicit exclusions from this implementation task: automatic release or publicat
 
 Status: **planned; not implemented**. Previously assigned to v0.9.2; the existing purpose, features, and acceptance criteria were moved intact under v0.9.3 by the 2026-10-12 release-sequence decision.
 
+Planned first batch — validator accuracy and external-target evidence (not implemented in v0.9.2):
+
+* Repair the existing subprocess-injection scenario's installed-package evidence path. The argv round-trip exercise uses Lab's command runner correctly, but its separate source inspection resolves `commandRunner.ts` relative to the compiled package, where that TypeScript source is not shipped; this can yield a `blocked` framework result unrelated to the external target. Validate the actual applicable tool behavior through a packaged-safe mechanism, distinguish Lab-framework evidence from target-project security evidence, and preserve failure on real shell interpolation or incomplete required proof. Test source-checkout, packed-installed Lab, and external-target modes without weakening the verdict.
+* Repair the bounded secret scanner's lexical false positive for diagnostic template-string text such as `token: "${token}"`. The current generic quoted-assignment pattern can match that text within a larger template literal despite the value being runtime interpolation rather than a hardcoded credential. Use syntax-aware discrimination, not a file/path/identifier allowlist; retain detection for genuine literal credentials (including config, object-property, and known token formats), stable ordering, severity, and redacted reports. Test the observed Orchestrator cases and true-positive controls.
+* Investigate evidence-backed code-rot signal quality for external npm targets, prioritizing stale-command references and grouped test-rot reports. Review the actual target `package.json`, command/document ownership, and line-level evidence before changing a detector; pre-existing, heuristic, or repeated findings are not automatically defects or grounds for blanket suppression.
+
+Maintenance acceptance (in addition to every pre-existing v0.9.3 acceptance item below):
+
+* A clean packed-install regression verifies subprocess argv literal round-trip and applicable runner safety without assuming that Lab's `.ts` sources are present, while unsafe runner behavior or missing required evidence still fails or remains explicitly blocked.
+* `token: "${token}"` in a diagnostic template string is not labeled a literal secret; real hardcoded secrets continue to be found with appropriate severity and without raw-value exposure in text/JSON evidence.
+* Self-target and external-target security checks preserve check IDs, profiles, applicability, target immutability, skip/error classifications, report contracts, and fail-on/verdict semantics; any code-rot detector correction is supported by positive, negative, and cross-project fixtures.
+* Existing v0.9.3 prompt templates, output modes, report/metric registry, gallery, tutorial-manifest consumption, and all v0.10.0+ milestones remain assigned exactly as previously planned.
+
 Purpose:
 
 * Harden real-agent prompt contracts and generalize reports/gallery for stable release readiness.

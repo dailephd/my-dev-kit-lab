@@ -201,6 +201,9 @@ Current report/schema details:
 - Informational architectural assertions are not equivalent to dynamic network or secret-leakage proofs.
 - Manual pentest is deferred until after `v1.0.0`. It is a human-led workflow and is not required for automated Android security validation.
 - Runtime behavior, device/emulator testing, APK/AAB inspection, signing verification, Play Console or policy validation, remote Firebase state, Digital Asset Links ownership, automatic fixes, and exhaustive security proof remain outside current scope.
+- **Known v0.9.2 subprocess scenario limitation:** the argv round-trip subcheck provides Lab-runner evidence, not a dynamic subprocess attestation for every external target. The same scenario performs a separate static read of `src/securityValidation/commandRunner.ts` relative to the installed compiled package, where the `.ts` source may be absent; the resulting `blocked` status is a tool-framework evidence failure, not proof of an external-target injection flaw. The raw failure remains visible and is not a PASS.
+- **Known v0.9.2 secret-scan limitation:** the generic sensitive-identifier matcher can recognize `token: "${token}"` inside a TypeScript diagnostic template string as a quoted literal assignment. Such an interpolation is not a hardcoded credential; this is a scanner false positive, not a blanket exemption for names containing `token`. The scanner's real credential patterns, finding severities, and redaction safeguards remain applicable.
+- Both validator-accuracy corrections and targeted code-rot signal-quality review are **planned, not implemented**, for the first v0.9.3 maintenance batch; see [ROADMAP.md](ROADMAP.md#v093--hardened-real-agent-prompts-and-reportgallery-generalization).
 
 ### External-target package-content correction (v0.9.2, final release-document state; registry publication is established separately)
 

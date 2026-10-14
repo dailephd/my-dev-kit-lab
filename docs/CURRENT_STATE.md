@@ -10,8 +10,8 @@ This document records the repository's operational state. It is the source of tr
 - Current release-document and package version: `v0.9.2`.
 - Previous published release: `v0.9.1` (normalized provider telemetry and resumable campaigns).
 - Registry publication is established separately through external npm evidence; release-document status does not fabricate registry evidence.
-- Final release-document state: v0.9.2.
-- Intended release date: `2026-10-13` (verify again before publication if delayed).
+- Final release-document state: v0.9.2; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.2) is dated `2026-10-13`. npm registry status is a separate external fact.
+- Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Previous published release: `v0.9.1` (2026-10-12).
 - Previous release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
 - v0.7.1 publication (historical), verified on `2026-10-03`: npm contained `@dailephd/my-dev-kit-lab@0.7.1` and `latest` resolved to `0.7.1` at that time; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.7.1) is non-draft and non-prerelease. Annotated tag object `3117578e6a4cb551b757f90d5b3887a8f6272454` points to release commit `b9ddb3c4c15036e2983740e0a45f0374c14275f5`, merged through PR #43. This is release identity evidence; later documentation corrections do not move the tag or change the published package.
@@ -20,7 +20,7 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
-- Next planned version: `v0.9.3` (hardened real-agent prompts, report section registry, tutorial-manifest gallery consumption, and generalized gallery/evidence portal); its complete prior feature scope and acceptance criteria remain intact. The approved 2026-10-12 reassignment leaves v0.10.0 and later release assignments unchanged. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
+- Next planned version: `v0.9.3` (initial validator-accuracy maintenance followed by the already planned hardened real-agent prompts, report section registry, tutorial-manifest gallery consumption, and generalized gallery/evidence portal). Its complete prior feature scope and acceptance criteria remain intact. The approved 2026-10-12 reassignment leaves v0.10.0 and later release assignments unchanged. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
 - Active planned version: `v0.9.3`; final release documentation represents v0.9.2, and registry publication is verified separately.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
@@ -182,6 +182,10 @@ The following remain planned, not implemented:
 
 ## Limitations
 
+- **Known v0.9.2 installed-package subprocess evidence limitation:** the `subprocess-injection-safety` scenario successfully exercises argument round-tripping, but its separate source inspection looks for Lab's `commandRunner.ts` relative to the installed runtime, where that TypeScript source is not packaged. A resulting `blocked`/failed framework check is not proof of subprocess injection in the external target. The underlying missing evidence must remain disclosed until corrected.
+- **Known v0.9.2 bounded secret-scan false positive:** diagnostic strings containing `token: "${token}"` inside TypeScript template literals can be matched as if they were literal credential assignments; verified examples occurred in Orchestrator diagnostics. Genuine hardcoded credentials must remain detectable. Neither correction is implemented in v0.9.2; both are planned for the initial v0.9.3 maintenance batch.
+- **External code-rot candidate findings:** previous Orchestrator-target audits produced substantial heuristic stale-command and test-rot output. Those findings require source-backed disposition and targeted detector-quality investigation; their count is not a confirmed defect count.
+
 - The implemented security framework is automated CLI/package validation with adversarial checks; it is not a manual pentest framework.
 - `agent-success-rate` (v0.9.0, extended in v0.9.1) evaluates a finite, controlled six-task corpus; deterministic-fixture results do not measure context effectiveness or agent ability; provider telemetry (tokens, durations) can be unavailable and is then reported as unavailable, never zero; no automatic treatment winner or statistical-significance claim is produced. The v0.9.1 campaign extension adds explicit scheduling, resume, and verified completed-unit reuse.
 - A very long Windows output path can still make the operating system refuse to start Git or checks in the disposable benchmark copy; the affected treatment then ends as a controlled infrastructure failure, never a success. Long Windows paths are not made to work.
@@ -286,7 +290,7 @@ The `published/current` designation is based on external npm evidence, not packa
 
 The full v0.9.3 prompt/report/gallery scope remains planned; later roadmap assignments are unchanged. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
 
-Exact next action: preserve the complete v0.9.3 roadmap scope and leave it planned.
+Exact next action: begin v0.9.3 planning with the bounded validator-accuracy maintenance batch (installed-package subprocess evidence, template-string secret false positives, and targeted code-rot finding-quality review), then implement its preserved prompt/report/gallery features. These corrections are planned, not implemented; no Lab patch or release has been initiated.
 
 
 ## Previous v0.9.1 release history
