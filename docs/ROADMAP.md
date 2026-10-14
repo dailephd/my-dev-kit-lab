@@ -1351,7 +1351,7 @@ Not part of v0.8.0: ranked retrieval metrics, retrieval-strategy comparison, str
 
 ### v0.8.1 — retrieval query strategy comparison
 
-Status: **published (2026-10-06); previous release**.
+Status: **published (2026-10-06); historical release**.
 
 Purpose:
 
