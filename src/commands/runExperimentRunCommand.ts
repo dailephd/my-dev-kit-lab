@@ -50,7 +50,13 @@ import type { PromptComplexityLevel } from "../prompts/types.js";
 import type { LabExecutionContext } from "../runtime/index.js";
 import { observeProviderBuild } from "../agents/providerBuildObservation.js";
 import { resolveAgentTimeoutPreset } from "../experiments/plugins/agentSuccessRate/timeoutPresets.js";
-import { validateAgentSuccessRateConfig } from "../experiments/plugins/agentSuccessRate/config.js";
+import { resolveAgentSuccessPromptContract, validateAgentSuccessRateConfig } from "../experiments/plugins/agentSuccessRate/config.js";
+import {
+  AGENT_SUCCESS_PROMPT_EXPLANATION_MODES,
+  AGENT_SUCCESS_PROMPT_LENGTH_MODES,
+  AGENT_SUCCESS_PROMPT_TEMPLATE_IDS,
+  AGENT_SUCCESS_PROMPT_TOOL_USE_MODES
+} from "../experiments/plugins/agentSuccessRate/realAgentPrompt.js";
 import { AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS } from "../experiments/plugins/agentSuccessRate/realAgentExecution.js";
 import { AGENT_SUCCESS_RATE_TREATMENT_IDS } from "../experiments/plugins/agentSuccessRate/metadata.js";
 import { executeAgentSuccessCampaignV2, prepareAgentSuccessCampaign, type CampaignExecutionHooks, type CampaignPreparationInput } from "../experiments/plugins/agentSuccessRate/campaignExecution.js";
@@ -135,6 +141,7 @@ const AGENT_SUCCESS_RATE_ALLOWED_FLAGS = [
   "--include-real-agents",
   "--timeout-ms",
   "--repair-attempts",
+  "--prompt-template", "--prompt-length", "--prompt-explanation", "--prompt-tool-use", "--max-command-count",
   "--agent-campaign", "--one-case", "--campaign-source-root", "--timeout-preset",
   "--expected-checkpoint-revision", "--limit-case", "--limit-treatment", "--limit-epoch", "--authorize-additional-invocation"
 ];
@@ -147,6 +154,12 @@ type ParsedExperimentRunConfig = Partial<ExperimentMatrixConfig> & {
   // agent-success-rate only: the single selected real provider and the bounded repair allowance.
   agentId?: string;
   repairAttempts?: number;
+  // agent-success-rate real-agent prompt contract selections; values are validated by the plugin config validator.
+  promptTemplate?: string;
+  promptLength?: string;
+  promptExplanation?: string;
+  promptToolUse?: string;
+  maxCommandCount?: number;
   kitCommand?: string;
   campaignPreset?: WarmIndexCampaignPresetId;
   contextBudgets?: number[];
@@ -367,7 +380,7 @@ async function runAgentCampaignCommand(args: ParsedRunExperimentArgs, context: L
   const config = validation.config;
   const tasks = selectAgentSuccessTasks(inputs.agentSuccessTasks as import("../evaluation/agentSuccess/index.js").AgentSuccessTaskV1[], config);
   const runtime = options.campaignRuntime;
-  const provider: CampaignPreparationInput["provider"] = config.agentId ? { kind: "real-agent", providerId: config.agentId, includeRealAgents: true, timeoutMs: config.timeoutMs ?? AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS, repairAttempts: (config.repairAttempts ?? 0) as 0 | 1 | 2, kitCommand: config.kitCommand, contextDependencies: runtime?.contextDependencies, env: runtime?.env } : { kind: "deterministic-fixture" };
+  const provider: CampaignPreparationInput["provider"] = config.agentId ? { kind: "real-agent", providerId: config.agentId, includeRealAgents: true, timeoutMs: config.timeoutMs ?? AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS, repairAttempts: (config.repairAttempts ?? 0) as 0 | 1 | 2, kitCommand: config.kitCommand, contextDependencies: runtime?.contextDependencies, env: runtime?.env, ...(resolveAgentSuccessPromptContract(config) ? { promptContract: resolveAgentSuccessPromptContract(config)! } : {}) } : { kind: "deterministic-fixture" };
   const preparation: CampaignPreparationInput = { boundary, sourceRoot, corpusFile: resolvePackageResource(context, AGENT_SUCCESS_TASK_CATALOG_PATH), corpusRoot: context.packageRoot, tasks, treatments: AGENT_SUCCESS_RATE_TREATMENT_IDS, provider, dependencies: runtime?.dependencies };
   // Source, corpus and canonical project byte checks precede even a task-free version probe.
   let prepared = await prepareAgentSuccessCampaign(preparation);
@@ -448,6 +461,11 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
   let localSubjectConfigPath: string | undefined;
   const agentFlagValues: string[] = [];
   let repairAttempts: number | undefined;
+  let promptTemplate: string | undefined;
+  let promptLength: string | undefined;
+  let promptExplanation: string | undefined;
+  let promptToolUse: string | undefined;
+  let maxCommandCount: number | undefined;
   const seenFlags: string[] = [];
   const commandTemplates: Partial<Record<"codex" | "claude", AgentCommandTemplate>> = {};
 
@@ -498,6 +516,18 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       benchmarkProjects.push(...splitList(readRequiredValue(argv, ++index, "--benchmark-project")));
     } else if (arg === "--agent") {
       agentFlagValues.push(readRequiredValue(argv, ++index, "--agent"));
+    } else if (arg === "--prompt-template") {
+      promptTemplate = parseChoice("--prompt-template", readRequiredValue(argv, ++index, arg), AGENT_SUCCESS_PROMPT_TEMPLATE_IDS);
+    } else if (arg === "--prompt-length") {
+      promptLength = parseChoice("--prompt-length", readRequiredValue(argv, ++index, arg), AGENT_SUCCESS_PROMPT_LENGTH_MODES);
+    } else if (arg === "--prompt-explanation") {
+      promptExplanation = parseChoice("--prompt-explanation", readRequiredValue(argv, ++index, arg), AGENT_SUCCESS_PROMPT_EXPLANATION_MODES);
+    } else if (arg === "--prompt-tool-use") {
+      promptToolUse = parseChoice("--prompt-tool-use", readRequiredValue(argv, ++index, arg), AGENT_SUCCESS_PROMPT_TOOL_USE_MODES);
+    } else if (arg === "--max-command-count") {
+      const value = readRequiredValue(argv, ++index, arg);
+      if (!/^\d+$/.test(value) || Number(value) !== 0) throw new Error("--max-command-count must be the integer 0; the benchmark permits no commands.");
+      maxCommandCount = 0;
     } else if (arg === "--repair-attempts") {
       repairAttempts = parseRepairAttempts(readRequiredValue(argv, ++index, "--repair-attempts"));
     } else if (arg === "--agents") {
@@ -671,6 +701,10 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
     if (timeoutMs !== undefined && timeoutMs > AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS) {
       throw new Error(`--timeout-ms must be a positive integer no greater than ${AGENT_SUCCESS_RATE_MAX_AGENT_TIMEOUT_MS}.`);
     }
+    const promptFlagsSupplied = PROMPT_CONTRACT_FLAGS.filter((flag) => seenFlags.includes(flag));
+    if (agentId === undefined && promptFlagsSupplied.length > 0) {
+      throw new Error(`${promptFlagsSupplied.join(", ")} ${promptFlagsSupplied.length === 1 ? "is" : "are"} only supported together with --agent and --include-real-agents (real-agent mode); prompt options never enable a provider.`);
+    }
     if (seenFlags.includes("--case") && caseIds.length === 0) {
       throw new Error("--case must list at least one case id.");
     }
@@ -678,6 +712,10 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       throw new Error("--benchmark-project must list at least one benchmark project id.");
     }
   } else {
+    const unrelatedPromptFlags = PROMPT_CONTRACT_FLAGS.filter((flag) => seenFlags.includes(flag));
+    if (unrelatedPromptFlags.length > 0) {
+      throw new Error(`${unrelatedPromptFlags.join(", ")} ${unrelatedPromptFlags.length === 1 ? "is" : "are"} only supported for --experiment ${agentSuccessRatePlugin.metadata.id}.`);
+    }
     if (agentFlagValues.length > 0) {
       throw new Error(`--agent is only supported for --experiment ${agentSuccessRatePlugin.metadata.id}.`);
     }
@@ -775,6 +813,11 @@ export function parseRunExperimentArgs(argv: string[]): ParsedRunExperimentArgs 
       commandTemplates: Object.keys(commandTemplates).length > 0 ? commandTemplates : undefined,
       agentId: agentFlagValues[0],
       repairAttempts,
+      promptTemplate,
+      promptLength,
+      promptExplanation,
+      promptToolUse,
+      maxCommandCount,
       kitCommand,
       campaignPreset,
       contextBudgets
@@ -1203,6 +1246,15 @@ function readRequiredValue(argv: string[], index: number, label: string): string
     throw new Error(`${label} requires a value.`);
   }
   return value;
+}
+
+const PROMPT_CONTRACT_FLAGS = ["--prompt-template", "--prompt-length", "--prompt-explanation", "--prompt-tool-use", "--max-command-count"];
+
+function parseChoice<T extends string>(label: string, value: string, allowed: readonly T[]): T {
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw new Error(`${label} must be one of: ${allowed.join(", ")}.`);
+  }
+  return value as T;
 }
 
 function parseRepairAttempts(value: string): number {

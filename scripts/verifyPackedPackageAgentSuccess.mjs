@@ -52,6 +52,7 @@ export const AGENT_SUCCESS_GATE_LABELS = [
   "AGENT_SUCCESS_OUTPUT_ROOT",
   "AGENT_SUCCESS_CLI_REJECTION",
   "AGENT_SUCCESS_PROVIDER_TRANSPORT",
+  "AGENT_SUCCESS_PROMPT_CONTRACT",
   "AGENT_SUCCESS_REPAIR",
   "AGENT_SUCCESS_REPAIR_LIMIT",
   "AGENT_SUCCESS_CLEANUP",
@@ -64,7 +65,7 @@ const pluginModules = [
   "agentTaskProjection", "analysis", "analysisArtifact", "analysisTypes", "attemptEvidence",
   "campaignCheckpoint", "campaignCheckpointStore", "campaignEvidenceQuality", "campaignExecution", "campaignIdentity",
   "campaignProgress", "campaignQueue", "campaignRecovery", "campaignResumableExecution", "config", "contextGeneration", "execution",
-  "executionArtifact", "executionTypes", "index", "metadata", "metrics", "plugin", "realAgentExecution", "realAgentPrompt",
+  "executionArtifact", "executionTypes", "index", "metadata", "metrics", "plugin", "promptContract", "realAgentExecution", "realAgentPrompt", "strictDiffResponse",
   "repairAnalysis", "repairExecution", "repairFeedback", "repairPolicy", "timeoutPresets", "types"
 ].map((name) => `${PLUGIN_DIR}/${name}.js`);
 const corpusModules = [
@@ -386,7 +387,7 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
       JSON.stringify(described.metadata?.supportedOutputs) !== JSON.stringify(["json", "html", "text", "artifact"]) ||
       JSON.stringify(described.supportedVariants) !== JSON.stringify(AGENT_SUCCESS_TREATMENTS) ||
       JSON.stringify(names(described.requiredConfigFields)) !== JSON.stringify(["outDir"]) ||
-      JSON.stringify(names(described.optionalConfigFields)) !== JSON.stringify(["caseIds", "benchmarkProjects", "agentId", "includeRealAgents", "timeoutMs", "kitCommand", "repairAttempts"]) ||
+      JSON.stringify(names(described.optionalConfigFields)) !== JSON.stringify(["caseIds", "benchmarkProjects", "agentId", "includeRealAgents", "timeoutMs", "kitCommand", "repairAttempts", "promptTemplate", "promptLength", "promptExplanation", "promptToolUse", "maxCommandCount"]) ||
       JSON.stringify(asr.treatments) !== JSON.stringify(AGENT_SUCCESS_TREATMENTS) ||
       JSON.stringify(asr.providers) !== JSON.stringify(["codex", "claude"]) ||
       !/^deterministic-fixture/.test(asr.defaultMode ?? "") ||
@@ -421,6 +422,11 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
       "default 240000, maximum 1800000",
       "--repair-attempts <0|1|2>",
       "At most 3 attempts per treatment.",
+      "--prompt-template <legacy-diff-v1|strict-diff-v1>",
+      "--prompt-length <standard|short>",
+      "--prompt-explanation <legacy|none>",
+      "--prompt-tool-use <prohibited|bounded>",
+      "--max-command-count <0>",
       "in a fresh sandbox",
       "Initial-attempt and final success are reported separately.",
       "no winner, ranking, composite score or significance claim"
@@ -751,6 +757,9 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
       ["--context-budgets", "8k"], ["--no-screenshot"],
       ["--agent", "codex"], ["--include-real-agents"],
       ["--repair-attempts", "1"], ["--timeout-ms", "1000"], ["--kit-command", "x"],
+      ["--prompt-template", "strict-diff-v1"], ["--prompt-length", "short"], ["--prompt-explanation", "none"], ["--prompt-tool-use", "bounded"], ["--max-command-count", "0"],
+      [...realFlags, "--max-command-count", "1"], [...realFlags, "--max-command-count", "-1"], [...realFlags, "--prompt-length", "tiny"], [...realFlags, "--prompt-template", "freeform"],
+      [...realFlags, "--prompt-length", "short", "--prompt-length", "standard"],
       ["--agent", "codex", "--agent", "claude", "--include-real-agents"], ["--agent", "claude,codex", "--include-real-agents"], ["--agent", "gemini", "--include-real-agents"],
       [...realFlags, "--repair-attempts", "3"], [...realFlags, "--repair-attempts", "1.5"], [...realFlags, "--repair-attempts", "-1"], [...realFlags, "--repair-attempts", "x"],
       [...realFlags, "--timeout-ms", "0"], [...realFlags, "--timeout-ms", "1800001"], [...realFlags, "--timeout-ms", "abc"], [...realFlags, "--timeout-ms", "1.5"],
@@ -801,7 +810,8 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
     const args = [
       "--workspace", workspaceDir, "experiment", "run", "--experiment", AGENT_SUCCESS_PLUGIN_ID, "--case", spec.caseId,
       "--agent", spec.provider, "--include-real-agents", "--kit-command", kitCommand, "--out", out,
-      ...(spec.repairAttempts === undefined ? [] : ["--repair-attempts", String(spec.repairAttempts)])
+      ...(spec.repairAttempts === undefined ? [] : ["--repair-attempts", String(spec.repairAttempts)]),
+      ...(spec.extraArgs ?? [])
     ];
     const result = runInstalledCli(cliCommand, invocationCwd, args, providerEnv(stateDir, kitLog));
     const kitCalls = existsSync(kitLog) ? readFileSync(kitLog, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : [];
@@ -936,6 +946,45 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
       if (outcome.final !== false) fail(gate, `decoy ${outcome.label}: a non-solving provider patch was scored as a success (deterministicFixture substitution?).`);
     }
     pass(gate, "installed bin with fake codex and claude executables: frozen stdin flags, neutral removed cwd, source-only prompts with independent treatment contexts, trusted-test decoys filtered before retrieval, provider answer (not the fixture) evaluated, telemetry preserved and unavailable token usage kept unavailable; 0 real providers");
+  }
+
+  // ---- 10b. PROMPT CONTRACT (v0.9.3 strict output, short form, explanation and bounded tool-use modes) ----------------------
+  {
+    const gate = "AGENT_SUCCESS_PROMPT_CONTRACT";
+    const strictArgs = ["--prompt-template", "strict-diff-v1", "--prompt-length", "short", "--prompt-explanation", "none", "--prompt-tool-use", "bounded", "--max-command-count", "0"];
+    const strictJson = (patch) => JSON.stringify({ schemaVersion: "1.0.0", patch });
+    const contractFile = (run, invocation) => path.join(run.out, "agents", run.execution.cases[0].benchmarkProject, run.spec.caseId, invocation.mode, `attempt-${invocation.n}`, "prompt-contract.json");
+    for (const [provider, index] of [["codex", 0], ["claude", 3]]) {
+      const task = taskById.get(catalogIds[index]);
+      const run = runSimulation({ gate, name: `contract-${provider}`, provider, caseId: task.id, extraArgs: strictArgs, answers: { default: strictJson(referencePatch(task)) } });
+      const outcomes = checkSimulationCommon(run, { exit: 0, invocationsPerTreatment: 1 });
+      for (const outcome of outcomes) {
+        if (outcome.final !== true) fail(gate, `${provider} ${outcome.label}: a conforming strict response did not pass the trusted checks.`);
+      }
+      for (const invocation of run.invocations) {
+        const prompt = run.prompts(invocation);
+        if (!prompt.includes('{"schemaVersion":"1.0.0","patch":"<one unified Git diff>"}')) fail(gate, `${provider}: the strict schema is not stated in the prompt.`);
+        if (!prompt.includes("Executable command budget: 0 (zero)")) fail(gate, `${provider}: the zero command budget is not stated in the prompt.`);
+        if (!prompt.includes("Do not run shell commands") && !/run shell commands/.test(prompt)) fail(gate, `${provider}: the no-command restriction was dropped from the short prompt.`);
+        const file = contractFile(run, invocation);
+        if (!existsSync(file)) fail(gate, `${provider}: prompt-contract.json is missing for ${invocation.key}.`);
+        const persisted = readJson(file, gate);
+        const contract = persisted.promptContract;
+        if (!contract || contract.templateId !== "strict-diff-v1" || contract.providerId !== provider || contract.lengthMode !== "short" || contract.explanationMode !== "none" || contract.toolUseMode !== "bounded" || contract.maxCommandCount !== 0) fail(gate, `${provider}: persisted prompt contract is wrong: ${JSON.stringify(contract)}`);
+        if (!/^[a-f0-9]{64}$/.test(contract.rendererDigest) || !/^[a-f0-9]{64}$/.test(persisted.promptContractDigest)) fail(gate, `${provider}: persisted prompt contract digests are malformed.`);
+      }
+    }
+    // A diff outside the strict envelope is an application-output failure, never silently applied through legacy extraction.
+    const invalidTask = taskById.get(catalogIds[0]);
+    const invalid = runSimulation({ gate, name: "contract-invalid", provider: "codex", caseId: invalidTask.id, extraArgs: ["--prompt-template", "strict-diff-v1"], answers: { default: `Here you go:\n${referencePatch(invalidTask)}` } });
+    const invalidOutcomes = checkSimulationCommon(invalid, { exit: invalid.result.status, invocationsPerTreatment: 1 });
+    for (const outcome of invalidOutcomes) {
+      if (outcome.final !== false) fail(gate, `invalid strict ${outcome.label}: a response outside the strict schema was scored as a success.`);
+      if (outcome.treatment.patch.outcome !== "parse-failure") fail(gate, `invalid strict ${outcome.label}: the response was not rejected before patch application.`);
+      if (!outcome.treatment.errors.some((error) => /^OUTPUT_CONTRACT_/.test(error.code))) fail(gate, `invalid strict ${outcome.label}: no bounded output-contract diagnostic was recorded.`);
+      if (outcome.treatment.realAgent.providerStatus !== "completed") fail(gate, `invalid strict ${outcome.label}: an application-output failure was reported as a provider failure.`);
+    }
+    pass(gate, "installed bin: strict-diff-v1 with short/none/bounded/0 for codex and claude evaluates exactly one JSON response through the existing patch pipeline, persists a per-attempt prompt-contract.json, states the zero command budget, and rejects an out-of-schema answer before patch application");
   }
 
   // ---- 11. REPAIR -------------------------------------------------------------------------------------------------------

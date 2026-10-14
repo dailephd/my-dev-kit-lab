@@ -17,7 +17,8 @@ import {
   validateAgentSuccessRateArtifactFamily
 } from "./analysisArtifact.js";
 import type { AgentSuccessRateAnalysisV1, AgentSuccessTreatmentAnalysisV1 } from "./analysisTypes.js";
-import { agentSuccessRateConfigDefinition, defaultAgentSuccessRateConfig, validateAgentSuccessRateConfig, type AgentSuccessRateConfig } from "./config.js";
+import { agentSuccessRateConfigDefinition, defaultAgentSuccessRateConfig, resolveAgentSuccessPromptContract, validateAgentSuccessRateConfig, type AgentSuccessRateConfig } from "./config.js";
+import type { PromptContractV1 } from "./promptContract.js";
 import {
   AgentSuccessPackContextBuilder,
   DEFAULT_AGENT_SUCCESS_KIT_COMMAND,
@@ -140,6 +141,7 @@ export const agentSuccessRatePlugin: ExperimentPlugin<AgentSuccessRateConfig, Ag
             timeoutMs: real.timeoutMs,
             env: readAgentEnvInput(inputs),
             runAgent: readRunAgentInput(inputs),
+            ...(real.promptContract ? { promptContract: real.promptContract } : {}),
             outDir,
             protectedRoots: [context.toolRoot, outDir, runtimeRoot, packageRoot(), ...projectRoots.values()],
             privateRoots: [outDir, context.toolRoot],
@@ -471,7 +473,14 @@ function readArtifactIo(inputs: Record<string, unknown> | undefined): AgentSucce
 // Real-agent helpers
 // ---------------------------------------------------------------------------------------------------------------
 
-type RealAgentRunConfig = { providerId: AgentSuccessRealAgentProviderId; timeoutMs: number; kitCommand: string; repairAttempts: number };
+type RealAgentRunConfig = {
+  providerId: AgentSuccessRealAgentProviderId;
+  timeoutMs: number;
+  kitCommand: string;
+  repairAttempts: number;
+  /** Explicit prompt contract; absent keeps the inherited legacy prompt. */
+  promptContract: PromptContractV1 | null;
+};
 
 /** Real-agent mode exists only when a provider is named; the closed config validator has already enforced the opt-in. */
 function readRealAgentConfig(config: AgentSuccessRateConfig): RealAgentRunConfig | null {
@@ -480,7 +489,8 @@ function readRealAgentConfig(config: AgentSuccessRateConfig): RealAgentRunConfig
     providerId: config.agentId,
     timeoutMs: config.timeoutMs ?? AGENT_SUCCESS_RATE_DEFAULT_AGENT_TIMEOUT_MS,
     kitCommand: config.kitCommand ?? DEFAULT_AGENT_SUCCESS_KIT_COMMAND,
-    repairAttempts: config.repairAttempts ?? 0
+    repairAttempts: config.repairAttempts ?? 0,
+    promptContract: resolveAgentSuccessPromptContract(config)
   };
 }
 
