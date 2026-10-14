@@ -57,94 +57,6 @@ function genericSecretFileMode(relativePath: string): GenericSecretFileMode {
   return "quoted-only";
 }
 
-// Deterministic line-by-line comment filter. Preserves the original string
-// length and every newline so line numbers computed from the filtered
-// content remain identical to the original file; comment content (line or
-// block) is replaced with spaces so it can never contribute to a match.
-// Quote-aware: a comment marker inside a single- or double-quoted literal
-// does not start a comment, and a backslash-escaped quote does not end one.
-function stripCodeCommentsPreservingLength(content: string): string {
-  const result = new Array<string>(content.length);
-  let index = 0;
-  let inLineComment = false;
-  let inBlockComment = false;
-  let inSingleQuote = false;
-  let inDoubleQuote = false;
-
-  while (index < content.length) {
-    const ch = content[index];
-    const next = index + 1 < content.length ? content[index + 1] : "";
-
-    if (inLineComment) {
-      if (ch === "\n") {
-        inLineComment = false;
-        result[index] = "\n";
-      } else {
-        result[index] = " ";
-      }
-      index++;
-      continue;
-    }
-
-    if (inBlockComment) {
-      if (ch === "*" && next === "/") {
-        result[index] = " ";
-        result[index + 1] = " ";
-        inBlockComment = false;
-        index += 2;
-        continue;
-      }
-      result[index] = ch === "\n" ? "\n" : " ";
-      index++;
-      continue;
-    }
-
-    if (inSingleQuote || inDoubleQuote) {
-      result[index] = ch;
-      if (ch === "\\" && next !== "") {
-        result[index + 1] = next;
-        index += 2;
-        continue;
-      }
-      if ((inSingleQuote && ch === "'") || (inDoubleQuote && ch === '"')) {
-        inSingleQuote = false;
-        inDoubleQuote = false;
-      }
-      index++;
-      continue;
-    }
-
-    if (ch === "/" && next === "/") {
-      inLineComment = true;
-      result[index] = " ";
-      index++;
-      continue;
-    }
-    if (ch === "/" && next === "*") {
-      inBlockComment = true;
-      result[index] = " ";
-      index++;
-      continue;
-    }
-    if (ch === "'") {
-      inSingleQuote = true;
-      result[index] = ch;
-      index++;
-      continue;
-    }
-    if (ch === '"') {
-      inDoubleQuote = true;
-      result[index] = ch;
-      index++;
-      continue;
-    }
-    result[index] = ch;
-    index++;
-  }
-
-  return result.join("");
-}
-
 const GENERIC_SENSITIVE_SINGLE_WORDS = new Set(["password", "passwd", "secret", "token"]);
 
 function splitGenericIdentifierWords(identifier: string): string[] {
@@ -203,61 +115,148 @@ const UNQUOTED_CONFIG_PATTERN = /^([A-Za-z_][A-Za-z0-9_.-]*)\s*[:=]\s*(\S.*?)\s*
 
 const MIN_GENERIC_SECRET_LENGTH = 8;
 
-function scanGenericSecretAssignments(relativePath: string, content: string): SecretFinding[] {
+// A whole-value `${...}` reference is a template/interpolation reference, not
+// a literal credential, even when it appears inside a plain quoted string.
+const WHOLE_VALUE_INTERPOLATION = /^\$\{[^}]*\}$/;
+
+const IDENTIFIER_PART = /[A-Za-z0-9_$]/;
+
+function isCandidateSecretValue(identifier: string, rawValue: string): boolean {
+  if (!isGenericSecretIdentifier(identifier)) return false;
+  if (rawValue.length < MIN_GENERIC_SECRET_LENGTH) return false;
+  if (WHOLE_VALUE_INTERPOLATION.test(rawValue)) return false;
+  if (isPlaceholder(rawValue)) return false;
+  return true;
+}
+
+// Deterministic lexical-state scan for code files. Assignments are only
+// recognized in code state, so assignment-shaped text inside an enclosing
+// string literal, template-literal text, or a comment is never reported,
+// while `${...}` expressions inside templates are scanned as code again.
+// Offsets index the original content, so line numbers are exact. Single- and
+// double-quoted strings end at an unescaped newline, as in JavaScript, so an
+// unbalanced quote cannot swallow the rest of the file.
+function scanQuotedCodeAssignments(relativePath: string, content: string): SecretFinding[] {
   const findings: SecretFinding[] = [];
-  const mode = genericSecretFileMode(relativePath);
-  const scannedContent = mode === "quoted-only" ? stripCodeCommentsPreservingLength(content) : content;
-  const lines = scannedContent.split("\n");
+  const pattern = new RegExp(QUOTED_ASSIGNMENT_PATTERN.source, "y");
+  const length = content.length;
 
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const line = lines[lineIndex];
-
-    if (mode === "allow-unquoted") {
-      const trimmed = line.trim();
-      if (trimmed.length === 0 || trimmed.startsWith("#") || trimmed.startsWith(";")) continue;
-      const unquotedMatch = UNQUOTED_CONFIG_PATTERN.exec(trimmed);
-      if (!unquotedMatch) continue;
-      const identifier = unquotedMatch[1];
-      if (!isGenericSecretIdentifier(identifier)) continue;
-      const rawCandidate = unquotedMatch[2];
-      if (isDynamicUnquotedValue(rawCandidate)) continue;
-      const rawValue = stripSurroundingQuotes(rawCandidate);
-      if (rawValue.length < MIN_GENERIC_SECRET_LENGTH) continue;
-      if (isPlaceholder(rawValue)) continue;
-      findings.push({
-        kind: "generic-secret-assignment",
-        file: relativePath,
-        line: lineIndex + 1,
-        matchedText: `${identifier} ${line.includes(":") ? ":" : "="} [REDACTED]`,
-        matchLength: rawValue.length,
-        severity: SEVERITY_FOR_KIND["generic-secret-assignment"],
-      });
-      continue;
+  const skipString = (start: number): number => {
+    const quote = content[start];
+    let i = start + 1;
+    while (i < length) {
+      const ch = content[i];
+      if (ch === "\\") i += 2;
+      else if (ch === quote) return i + 1;
+      else if (ch === "\n") return i;
+      else i++;
     }
+    return length;
+  };
 
-    QUOTED_ASSIGNMENT_PATTERN.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = QUOTED_ASSIGNMENT_PATTERN.exec(line)) !== null) {
-      const identifier = match[2];
-      const rawValue = match[4];
-      if (match[0].length === 0) {
-        QUOTED_ASSIGNMENT_PATTERN.lastIndex += 1;
+  const lexTemplate = (start: number): number => {
+    let i = start;
+    while (i < length) {
+      const ch = content[i];
+      if (ch === "\\") i += 2;
+      else if (ch === "`") return i + 1;
+      else if (ch === "$" && content[i + 1] === "{") i = lexCode(i + 2, true);
+      else i++;
+    }
+    return length;
+  };
+
+  const lexCode = (start: number, stopAtCloseBrace: boolean): number => {
+    let i = start;
+    let depth = 0;
+    while (i < length) {
+      const ch = content[i];
+      const next = i + 1 < length ? content[i + 1] : "";
+      if (ch === "/" && next === "/") {
+        const end = content.indexOf("\n", i);
+        i = end === -1 ? length : end;
         continue;
       }
-      if (!isGenericSecretIdentifier(identifier)) continue;
-      if (rawValue.length < MIN_GENERIC_SECRET_LENGTH) continue;
-      if (isPlaceholder(rawValue)) continue;
-      findings.push({
-        kind: "generic-secret-assignment",
-        file: relativePath,
-        line: lineIndex + 1,
-        matchedText: `${identifier} [REDACTED]`,
-        matchLength: rawValue.length,
-        severity: SEVERITY_FOR_KIND["generic-secret-assignment"],
-      });
+      if (ch === "/" && next === "*") {
+        const end = content.indexOf("*/", i + 2);
+        i = end === -1 ? length : end + 2;
+        continue;
+      }
+      if (ch === "`") {
+        i = lexTemplate(i + 1);
+        continue;
+      }
+      if (stopAtCloseBrace) {
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+          if (depth === 0) return i + 1;
+          depth--;
+        }
+      }
+      const isQuote = ch === '"' || ch === "'";
+      if (isQuote || /[A-Za-z_$]/.test(ch)) {
+        pattern.lastIndex = i;
+        const match = pattern.exec(content);
+        if (match && match[0].length > 0) {
+          if (isCandidateSecretValue(match[2], match[4])) {
+            findings.push({
+              kind: "generic-secret-assignment",
+              file: relativePath,
+              line: lineNumberAt(content, match.index),
+              matchedText: `${match[2]} [REDACTED]`,
+              matchLength: match[4].length,
+              severity: SEVERITY_FOR_KIND["generic-secret-assignment"],
+            });
+          }
+          i = match.index + match[0].length;
+          continue;
+        }
+        if (isQuote) {
+          i = skipString(i);
+          continue;
+        }
+        let j = i + 1;
+        while (j < length && IDENTIFIER_PART.test(content[j])) j++;
+        i = j;
+        continue;
+      }
+      i++;
     }
-  }
+    return length;
+  };
 
+  lexCode(0, false);
+  return findings;
+}
+
+function scanGenericSecretAssignments(relativePath: string, content: string): SecretFinding[] {
+  const mode = genericSecretFileMode(relativePath);
+  if (mode === "quoted-only") return scanQuotedCodeAssignments(relativePath, content);
+
+  const findings: SecretFinding[] = [];
+  const lines = content.split("\n");
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex];
+    const trimmed = line.trim();
+    if (trimmed.length === 0 || trimmed.startsWith("#") || trimmed.startsWith(";")) continue;
+    const unquotedMatch = UNQUOTED_CONFIG_PATTERN.exec(trimmed);
+    if (!unquotedMatch) continue;
+    const identifier = unquotedMatch[1];
+    if (!isGenericSecretIdentifier(identifier)) continue;
+    const rawCandidate = unquotedMatch[2];
+    if (isDynamicUnquotedValue(rawCandidate)) continue;
+    const rawValue = stripSurroundingQuotes(rawCandidate);
+    if (rawValue.length < MIN_GENERIC_SECRET_LENGTH) continue;
+    if (isPlaceholder(rawValue)) continue;
+    findings.push({
+      kind: "generic-secret-assignment",
+      file: relativePath,
+      line: lineIndex + 1,
+      matchedText: `${identifier} ${line.includes(":") ? ":" : "="} [REDACTED]`,
+      matchLength: rawValue.length,
+      severity: SEVERITY_FOR_KIND["generic-secret-assignment"],
+    });
+  }
   return findings;
 }
 

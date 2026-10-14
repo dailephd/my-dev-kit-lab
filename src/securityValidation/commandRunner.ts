@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type SpawnOptionsWithStdioTuple, type StdioNull, type StdioPipe } from "node:child_process";
 import { resolveCommand } from "../core/resolveCommand.js";
 import type { CommandExecutionResult } from "./types.js";
 
@@ -6,6 +6,22 @@ import type { CommandExecutionResult } from "./types.js";
 // npm.cmd/.ps1 shims or direct executables per platform.
 export function resolveNpmCommand(): string {
   return "npm";
+}
+
+// The single place the spawn options for security commands are constructed.
+// runSecurityCommand() spawns with exactly this result, so the subprocess
+// injection scenario can verify `shell: false` at runtime from the compiled
+// module instead of reading unshipped TypeScript source.
+export function buildSecurityCommandSpawnOptions(options: {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+}): SpawnOptionsWithStdioTuple<StdioNull, StdioPipe, StdioPipe> {
+  return {
+    cwd: options.cwd,
+    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: options.env,
+  };
 }
 
 // Runs a security check command with an argument array (no shell interpolation).
@@ -65,12 +81,7 @@ export async function runSecurityCommand(options: {
 
     let child;
     try {
-      child = spawn(command, args, {
-        cwd: options.cwd,
-        shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
-        env,
-      });
+      child = spawn(command, args, buildSecurityCommandSpawnOptions({ cwd: options.cwd, env }));
     } catch (spawnErr) {
       resolve({
         command,

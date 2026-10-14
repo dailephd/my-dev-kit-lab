@@ -595,3 +595,110 @@ describe("SECRET_LEAKAGE_SCENARIO — scanner self-detection regression", () => 
     expect(secondOrder).toEqual(firstOrder);
   });
 });
+
+describe("SECRET_LEAKAGE_SCENARIO generic assignment syntax context", () => {
+  // Fabricated, non-functional fixture values only.
+  const REAL = "Zq9xKw7LmPv2Rt";
+
+  async function scan(files: Record<string, string>) {
+    const root = makeFixtureDir("secret-syntax-");
+    for (const [rel, content] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      writeFileSync(path.join(root, rel), content, "utf8");
+    }
+    const outcome = await SECRET_LEAKAGE_SCENARIO.run(makeCtx(root));
+    const findings = outcome.evidence
+      .filter((e) => e.kind === "secret-leak")
+      .map((e) => ({ file: e.filePath, line: e.line, preview: e.redactedPreview }));
+    return { outcome, findings };
+  }
+
+  it.each([
+    ["diagnostic template string", 'console.log(`token: "${token}"`);\n'],
+    ["escaped quotes inside a double-quoted diagnostic", 'throw new Error("password: \\"hunter2hunter2\\" rejected");\n'],
+    ["interpolated token expression", "const msg = `Authorization: token ${apiToken} sent`;\n"],
+    ["nested template literal", 'const m = `outer ${`inner token: "${token}"`} done`;\n'],
+    ["line comment", `// password = "${REAL}"\nexport const x = 1;\n`],
+    ["block comment", `/* secret: "${REAL}" */\nexport const x = 1;\n`],
+    ["function parameter and type declaration", "export function login(password: string, token?: string): void {}\ntype T = { secret: string };\n"],
+    ["function call and env reference", "const password = getPassword();\nconst token = process.env.API_TOKEN;\n"],
+    ["string literal describing an assignment", `const help = "set password = '${REAL}' in config";\n`],
+    ["whole-value interpolation reference in a plain string", 'const o = { token: "${token}" };\n'],
+  ])("does not report: %s", async (_name, source) => {
+    const { outcome, findings } = await scan({ "src/a.ts": source });
+    expect(findings).toEqual([]);
+    expect(outcome.status).toBe("passed");
+  });
+
+  it.each([
+    ["static quoted password", `const password = "${REAL}";\n`],
+    ["static token", `const token = '${REAL}';\n`],
+    ["object-property value", `export const cfg = { clientSecret: "${REAL}" };\n`],
+    ["quoted object key", `export const cfg = { "apiKey": "${REAL}" };\n`],
+    ["escaped quote inside a real literal", `const password = "${REAL}\\"x";\n`],
+    ["assignment inside a template interpolation", "const s = `${ { password: \"" + REAL + "\" }.password }`;\n"],
+  ])("still reports: %s", async (_name, source) => {
+    const { outcome, findings } = await scan({ "src/a.ts": source });
+    expect(findings.length).toBe(1);
+    expect(outcome.status).toBe("failed");
+    expect(outcome.severity).toBe("major");
+  });
+
+  it("mixed file: interpolated diagnostic ignored, neighbouring hardcoded credential reported on its original line", async () => {
+    const source = [
+      "// header",
+      "export function report(token: string) {",
+      '  console.log(`token: "${token}"`);',
+      `  const password = "${REAL}";`,
+      "  return password;",
+      "}",
+      "",
+    ].join("\n");
+    const { findings } = await scan({ "src/mixed.ts": source });
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({ file: "src/mixed.ts", line: 4 });
+  });
+
+  it("keeps known-format token detection independent of syntax context", async () => {
+    const { findings } = await scan({
+      "src/a.ts": "const hint = `use ghp_abcdefghijklmnopqrstuvwxyz0123456789`;\n",
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(1);
+  });
+
+  it("keeps configuration modes: quoted .json, unquoted .env/.properties/.yaml/.toml; dynamic and placeholder values skipped", async () => {
+    const { findings } = await scan({
+      ".env": `DB_PASSWORD=${REAL}\nAPI_TOKEN=\${FROM_ENV}\nSECRET_TOKEN=changeme-please\n`,
+      "src/app.properties": `storePassword=${REAL}\n`,
+      "src/c.yaml": `clientSecret: ${REAL}\n`,
+      "src/c.toml": `accessToken = "${REAL}"\n`,
+      "package.json": `{"name":"fixture","password":"${REAL}"}\n`,
+    });
+    expect(findings.map((f) => f.file).sort()).toEqual([
+      ".env",
+      "package.json",
+      "src/app.properties",
+      "src/c.toml",
+      "src/c.yaml",
+    ]);
+  });
+
+  it("orders findings by file then line deterministically", async () => {
+    const source = `const a = 1;\nconst password = "${REAL}";\n\nconst token = "${REAL}x";\n`;
+    const first = await scan({ "src/b.ts": source, "src/a.ts": source });
+    const second = await scan({ "src/a.ts": source, "src/b.ts": source });
+    expect(first.findings.map((f) => `${f.file}:${f.line}`)).toEqual([
+      "src/a.ts:2",
+      "src/a.ts:4",
+      "src/b.ts:2",
+      "src/b.ts:4",
+    ]);
+    expect(second.findings).toEqual(first.findings);
+  });
+
+  it("never exposes the raw credential value in scenario evidence", async () => {
+    const { outcome } = await scan({ "src/a.ts": `const password = "${REAL}";\n` });
+    expect(JSON.stringify(outcome)).not.toContain(REAL);
+  });
+});
