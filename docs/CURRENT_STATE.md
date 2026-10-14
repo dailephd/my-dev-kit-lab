@@ -10,7 +10,7 @@ This document records the repository's operational state. It is the source of tr
 - Current release-document and package version: `v0.9.2`.
 - Previous published release: `v0.9.1` (normalized provider telemetry and resumable campaigns).
 - Registry publication is established separately through external npm evidence; release-document status does not fabricate registry evidence.
-- Final release-document state: v0.9.2; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.2) was published on `2026-10-13`. npm publication is a separate registry fact.
+- Final release-document state: v0.9.2; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.2) is dated `2026-10-13`. npm registry status is a separate external fact.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Previous published release: `v0.9.1` (2026-10-12).
 - Previous release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
