@@ -1,12 +1,5 @@
+import { getSpecializedReportSectionRegistry } from "./specializedReportSections.js";
 import type { PluginExperimentReport } from "./experimentReportModel.js";
-import { renderContextStrategyComparisonV043Html } from "./renderContextStrategyComparisonV043Html.js";
-import { renderWarmIndexReuseHtml } from "./renderWarmIndexReuseHtml.js";
-import { renderIncrementalChangeStalenessHtml } from "./renderIncrementalChangeStalenessHtml.js";
-import { renderContextWindowScalingHtml } from "./renderContextWindowScalingHtml.js";
-import { renderRetrievalPrecisionRecallHtml } from "./renderRetrievalPrecisionRecallHtml.js";
-import { renderRetrievalQueryStrategyComparisonHtml } from "./renderRetrievalQueryStrategyComparisonHtml.js";
-import { renderContextPackGenerationHtml } from "./renderContextPackGenerationHtml.js";
-import { renderAgentSuccessRateHtml } from "./renderAgentSuccessRateHtml.js";
 
 export function renderPluginExperimentReportHtml(report: PluginExperimentReport): string {
   const redactedTarget = report.target.privacyProjection === "external-local-redacted";
@@ -104,21 +97,7 @@ export function renderPluginExperimentReportHtml(report: PluginExperimentReport)
     ]))}
   </section>
 
-  ${renderContextStrategyComparisonV043Html(report.contextStrategyComparisonV043)}
-
-  ${renderWarmIndexReuseHtml(report.warmIndexReuse)}
-
-  ${renderIncrementalChangeStalenessHtml(report.incrementalChangeStaleness)}
-
-  ${renderContextWindowScalingHtml(report.contextWindowScaling)}
-
-  ${renderRetrievalPrecisionRecallHtml(report.retrievalPrecisionRecall ?? null)}
-
-  ${renderRetrievalQueryStrategyComparisonHtml(report.retrievalQueryStrategyComparison ?? null)}
-
-  ${renderContextPackGenerationHtml(report.contextPackGeneration ?? null)}
-
-  ${renderAgentSuccessRateHtml(report.agentSuccessRate ?? null)}
+  ${renderSpecializedSections(report)}
 
   <section>
     <h2>Warnings, Skips, And Failures</h2>
@@ -144,6 +123,15 @@ export function renderPluginExperimentReportHtml(report: PluginExperimentReport)
 </main>
 </body>
 </html>`;
+}
+
+// Specialized family sections come from the shared registry, in its deterministic order.
+function renderSpecializedSections(report: PluginExperimentReport): string {
+  return getSpecializedReportSectionRegistry()
+    .descriptors.map((descriptor) =>
+      (descriptor.renderHtml as (projection: unknown) => string)(report[descriptor.projectionKey] ?? null)
+    )
+    .join("\n\n  ");
 }
 
 function table(headers: string[], rows: string[][]): string {
