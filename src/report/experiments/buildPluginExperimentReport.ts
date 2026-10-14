@@ -13,22 +13,16 @@ import type {
   PluginExperimentReportFinding,
   PluginExperimentReportVariantSummary,
 } from "./experimentReportModel.js";
-import { buildContextStrategyComparisonV043Report } from "./buildContextStrategyComparisonV043Report.js";
 import type { ContextStrategyComparisonV043ReportV1 } from "./contextStrategyComparisonV043ReportModel.js";
-import { buildWarmIndexReuseReport } from "./buildWarmIndexReuseReport.js";
 import type { WarmIndexReuseReportV1 } from "./warmIndexReuseReportModel.js";
-import { buildIncrementalChangeStalenessPluginReport } from "./buildIncrementalChangeStalenessPluginReport.js";
-import { buildContextWindowScalingReport } from "./buildContextWindowScalingReport.js";
 import type { ContextWindowScalingReportV1 } from "./contextWindowScalingReportModel.js";
-import { buildRetrievalPrecisionRecallReport } from "./buildRetrievalPrecisionRecallReport.js";
 import type { RetrievalPrecisionRecallReportV1 } from "./retrievalPrecisionRecallReportModel.js";
-import { buildRetrievalQueryStrategyComparisonReport } from "./buildRetrievalQueryStrategyComparisonReport.js";
 import type { RetrievalQueryStrategyComparisonReportV1 } from "./retrievalQueryStrategyComparisonReportModel.js";
 import type { ContextPack } from "../../experiments/plugins/contextPackGeneration/types.js";
-import { buildContextPackGenerationReport } from "./buildContextPackGenerationReport.js";
-import { AGENT_SUCCESS_RATE_DETERMINISTIC_STATEMENT, AGENT_SUCCESS_RATE_REAL_AGENT_STATEMENT, buildAgentSuccessRateReport } from "./buildAgentSuccessRateReport.js";
+import { AGENT_SUCCESS_RATE_DETERMINISTIC_STATEMENT, AGENT_SUCCESS_RATE_REAL_AGENT_STATEMENT } from "./buildAgentSuccessRateReport.js";
 import type { AgentSuccessRateReportV1 } from "./agentSuccessRateReportModel.js";
 import type { ContextPackGenerationReportV1 } from "./contextPackGenerationReportModel.js";
+import { buildSpecializedReportProjections } from "./specializedReportSections.js";
 
 // Bulk context-window-scaling evidence is presented by the typed report section; the complete
 // evidence stays in context-window-scaling-execution.json.
@@ -62,14 +56,17 @@ export function buildPluginExperimentReport(args: {
 }): PluginExperimentReport {
   const outputRoot = args.outputRoot ?? readString(args.run.metadata?.outputRoot) ?? null;
   const allOutcomes = args.run.cases.flatMap((experimentCase) => experimentCase.outcomes);
-  const contextStrategyComparisonV043 = buildContextStrategyComparisonV043Report(args.run);
-  const warmIndexReuse = buildWarmIndexReuseReport(args.run);
-  const incrementalChangeStaleness = buildIncrementalChangeStalenessPluginReport(args.run);
-  const contextWindowScaling = buildContextWindowScalingReport(args.run);
-  const retrievalPrecisionRecall = buildRetrievalPrecisionRecallReport(args.run);
-  const retrievalQueryStrategyComparison = buildRetrievalQueryStrategyComparisonReport(args.run);
-  const contextPackGeneration = buildContextPackGenerationReport(args.run, args.contextPacks);
-  const agentSuccessRate = buildAgentSuccessRateReport(args.run);
+  // One shared registry owns specialized-family projection selection; each family builder runs once.
+  const {
+    contextStrategyComparisonV043,
+    warmIndexReuse,
+    incrementalChangeStaleness,
+    contextWindowScaling,
+    retrievalPrecisionRecall,
+    retrievalQueryStrategyComparison,
+    contextPackGeneration,
+    agentSuccessRate,
+  } = buildSpecializedReportProjections({ run: args.run, contextPacks: args.contextPacks });
   const rawRun: ExperimentRun = { ...args.run, artifacts: relativizeArtifacts(args.run.artifacts, outputRoot) };
   for (const key of V043_BULK_ARRAY_KEYS) {
     delete (rawRun as Record<string, unknown>)[key];

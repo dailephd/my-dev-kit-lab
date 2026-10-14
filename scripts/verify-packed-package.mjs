@@ -139,6 +139,10 @@ const REQUIRED_TARBALL_PATHS = [
   "dist/src/experiments/plugins/contextWindowScaling/localSubjectPrivacy.js",
   "dist/src/experiments/plugins/contextWindowScaling/executionArtifact.js",
   "dist/src/report/experiments/writePluginExperimentReports.js",
+  // v0.9.3 -- shared specialized report-section registry used by report generation.
+  "dist/src/report/experiments/reportSectionRegistry.js",
+  "dist/src/report/experiments/specializedReportSections.js",
+  "dist/src/report/experiments/renderSpecializedTextSections.js",
   // v0.8.0 -- retrieval-quality evidence/metric/fact-mapping/corpus-completeness owners, the retrieval-precision-recall
   // plugin (bundled and external-local execution, privacy projection), and its specialized report owners.
   "dist/src/evaluation/retrievalQuality/index.js",
