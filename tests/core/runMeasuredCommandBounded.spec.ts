@@ -1,4 +1,6 @@
-import { mkdtempSync, readFileSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createConnection } from "node:net";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -51,6 +53,28 @@ async function waitUntilDead(pid: number, timeoutMs: number): Promise<boolean> {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   return false;
+}
+
+async function isFixtureProbeReachable(port: number, token: string): Promise<boolean> {
+  return await new Promise((resolve) => {
+    let settled = false;
+    let response = "";
+    const finish = (reachable: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(reachable);
+    };
+    const socket = createConnection({ host: "127.0.0.1", port });
+    const timer = setTimeout(() => finish(false), 250);
+    socket.on("data", (chunk) => {
+      response += chunk.toString("utf8");
+      if (response.length >= token.length) finish(response === token);
+    });
+    socket.once("end", () => finish(response === token));
+    socket.once("error", () => finish(false));
+  });
 }
 
 describe("runMeasuredCommand default behavior is unchanged", () => {
@@ -139,11 +163,85 @@ describe("runMeasuredCommand bounded options", () => {
     expect(Number.isInteger(grandchildPid) && grandchildPid > 0).toBe(true);
     expect(await waitUntilDead(grandchildPid, 10_000)).toBe(true);
   });
+
+  it.skipIf(process.platform !== "win32")("RSP-047 awaits cleanup of descendants launched through a Windows command shim", async () => {
+    const dir = temp();
+    const binDir = path.join(dir, "fixture bin");
+    const scriptPath = path.join(dir, "timeout-descendant.cjs");
+    const pidPath = path.join(dir, "descendant.pid");
+    const probeToken = randomUUID();
+    const shimPath = path.join(binDir, "bounded-timeout-fixture.cmd");
+    const outDir = path.join(dir, "output");
+    const envPath = `${binDir}${path.delimiter}${process.env.Path ?? process.env.PATH ?? ""}`;
+    const env = hostEnv();
+    env.Path = envPath;
+    env.PATH = envPath;
+    const previousPath = process.env.Path;
+    const previousUpperPath = process.env.PATH;
+    let descendantPid: number | undefined;
+    let probePort: number | undefined;
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(scriptPath, [
+      "const fs = require('node:fs');",
+      "const { createServer } = require('node:net');",
+      "const token = process.argv[3];",
+      "const server = createServer((socket) => socket.end(token));",
+      "server.listen(0, '127.0.0.1', () => {",
+      "  const address = server.address();",
+      "  fs.writeFileSync(process.argv[2], JSON.stringify({ pid: process.pid, port: address.port }));",
+      "});",
+      "setInterval(() => {}, 60_000);"
+    ].join("\n"), "utf8");
+    writeFileSync(shimPath, `@echo off\r\n"${process.execPath}" "${scriptPath}" "${pidPath}" "${probeToken}"\r\n`, "utf8");
+
+    try {
+      // Match the installed verifier's narrowed provider environment. The process-tree helper
+      // must locate taskkill through SystemRoot rather than assuming System32 remains on PATH.
+      process.env.Path = envPath;
+      process.env.PATH = envPath;
+      const result = await runMeasuredCommand({
+        commandId: "windows-shim-timeout",
+        commandString: "bounded-timeout-fixture",
+        cwd: dir,
+        outDir,
+        env,
+        timeoutMs: 250,
+        terminateProcessTree: true
+      });
+      expect(result.resolvedCommand?.resolutionKind).toBe("windows-cmd-shim");
+      expect(result.ok).toBe(false);
+      expect(result.timedOut).toBe(true);
+      expect(result.error).not.toContain("Could not confirm termination");
+      const fixture = JSON.parse(readFileSync(pidPath, "utf8")) as { pid: number; port: number };
+      descendantPid = fixture.pid;
+      probePort = fixture.port;
+      expect(Number.isInteger(descendantPid) && descendantPid > 0).toBe(true);
+      expect(await isFixtureProbeReachable(probePort, probeToken)).toBe(false);
+    } finally {
+      if (previousPath === undefined) delete process.env.Path;
+      else process.env.Path = previousPath;
+      if (previousUpperPath === undefined) delete process.env.PATH;
+      else process.env.PATH = previousUpperPath;
+      if ((!descendantPid || !probePort) && existsSync(pidPath)) {
+        try {
+          const fixture = JSON.parse(readFileSync(pidPath, "utf8")) as { pid: number; port: number };
+          descendantPid = fixture.pid;
+          probePort = fixture.port;
+        } catch {
+          // No process is signalled unless its unique token probe proves it is this fixture.
+        }
+      }
+      if (descendantPid && probePort && (await isFixtureProbeReachable(probePort, probeToken))) {
+        await terminateProcessTree(descendantPid);
+        await waitUntilDead(descendantPid, 500);
+      }
+    }
+  }, 15_000);
 });
 
 describe("terminateProcessTree", () => {
-  it("resolves without throwing for an undefined or already-exited pid", async () => {
-    await expect(terminateProcessTree(undefined)).resolves.toBeUndefined();
-    await expect(terminateProcessTree(2_147_000_000)).resolves.toBeUndefined();
+  it("reports an absent pid as already terminated and an unresolvable pid as unconfirmed", async () => {
+    await expect(terminateProcessTree(undefined)).resolves.toBe(true);
+    await expect(terminateProcessTree(2_147_000_000)).resolves.toBe(false);
   });
 });

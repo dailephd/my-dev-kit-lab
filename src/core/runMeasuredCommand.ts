@@ -135,6 +135,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     let timedOut = false;
     let timeout: NodeJS.Timeout | undefined;
     let killGraceTimeout: NodeJS.Timeout | undefined;
+    let terminationPromise: Promise<boolean> | undefined;
     let settled = false;
 
     let child;
@@ -186,7 +187,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     const KILL_GRACE_MS = 3000;
     const terminate = () => {
       if (options.terminateProcessTree === true) {
-        void terminateProcessTree(child.pid);
+        terminationPromise ??= terminateProcessTree(child.pid);
       } else {
         forceTerminateProcess(child.pid);
       }
@@ -231,14 +232,18 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       child.stdin?.write(options.stdinText, "utf8");
       child.stdin?.end();
     }
-    // forceTerminateProcess is fire-and-forget (it never confirms the target process tree actually
-    // exited: on Windows it spawns a detached `taskkill /T /F` and does not await or check its
-    // result). That is normally sufficient, but a grandchild process spawned through an
-    // intermediate shim (for example a Windows .cmd launcher) can occasionally outlive an
-    // already-killed intermediate process. Without a bounded fallback, a caller whose kill silently
-    // failed would await this promise forever instead of receiving the already-known timeout error.
-    // (KILL_GRACE_MS and the shared `terminate` step are declared above, beside the output collectors.)
+    // Tree termination is awaited before a bounded result is returned. The helper has its own
+    // platform-specific time bound; a failed or timed-out tree kill remains visible in `error`.
+    // Non-tree callers retain the legacy kill-grace fallback below.
     const settle = async (exitCode: number | null) => {
+      if (settled) return;
+      if (terminationPromise) {
+        const terminated = await terminationPromise;
+        if (!terminated) {
+          const cleanupError = "Could not confirm termination of the command process tree.";
+          spawnError = spawnError ? `${spawnError} ${cleanupError}` : cleanupError;
+        }
+      }
       if (settled) return;
       settled = true;
       if (timeout) clearTimeout(timeout);
