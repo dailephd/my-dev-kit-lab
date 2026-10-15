@@ -246,7 +246,7 @@ describe("compare-prompts arguments", () => {
 
 type Campaign = { root: string; outputRoot: string; toolRoot: string; invocations: () => string[] };
 
-async function runCampaigns(): Promise<{ legacy: Campaign; strict: Campaign; root: string }> {
+async function runCampaigns(): Promise<{ legacy: Campaign; legacyV2: Campaign; strict: Campaign; root: string }> {
   // One fixture (one provider shim and retrieval kit) runs both campaigns so the provider-build identity matches.
   const f = await cliFixture("codex");
   const run = async (flags: string[], response: string, outputRoot: string): Promise<Campaign> => {
@@ -259,8 +259,9 @@ async function runCampaigns(): Promise<{ legacy: Campaign; strict: Campaign; roo
     return { root: f.root, outputRoot, toolRoot: f.toolRoot, invocations: () => f.shim.invocationKeys() };
   };
   const legacy = await run([], f.response, path.join(f.root, "out-legacy"));
-  const strict = await run(["--prompt-template", "strict-diff-v1"], JSON.stringify({ schemaVersion: "1.0.0", patch: f.response }), path.join(f.root, "out-strict"));
-  return { legacy, strict, root: f.root };
+  const comparableLegacy = await run(["--prompt-template", "legacy-diff-v1"], f.response, path.join(f.root, "out-legacy-v2"));
+  const strict = await run(["--prompt-template", "strict-diff-v1", "--prompt-length", "standard", "--prompt-explanation", "legacy", "--prompt-tool-use", "prohibited", "--max-command-count", "0"], JSON.stringify({ schemaVersion: "1.0.0", patch: f.response }), path.join(f.root, "out-strict"));
+  return { legacy, legacyV2: comparableLegacy, strict, root: f.root };
 }
 
 async function digestTree(root: string): Promise<string> {
@@ -305,15 +306,19 @@ async function promptContractFiles(root: string): Promise<string[]> {
 
 describe("complete evidence verification against real campaign outputs", () => {
   let legacy: Campaign; // default prompt: V1 identity, per-attempt prompt-contract.json artifacts
+  let legacyV2: Campaign;
   let strict: Campaign; // explicit contract: V2 identity
+  let legacyDigest = "";
   let baselineDigest = "";
   let candidateDigest = "";
 
   beforeAll(async () => {
     const campaigns = await runCampaigns();
     legacy = campaigns.legacy;
+    legacyV2 = campaigns.legacyV2;
     strict = campaigns.strict;
-    baselineDigest = await digestTree(legacy.outputRoot);
+    legacyDigest = await digestTree(legacy.outputRoot);
+    baselineDigest = await digestTree(legacyV2.outputRoot);
     candidateDigest = await digestTree(strict.outputRoot);
   }, 900000);
 
@@ -327,14 +332,14 @@ describe("complete evidence verification against real campaign outputs", () => {
     return { b, c, report: buildPromptTemplateComparison(b, c) };
   };
 
-  it("produces a fully verified COMPARABLE comparison from authentic V1 and V2 evidence without invoking a provider", async () => {
+  it("produces a fully verified COMPARABLE comparison when only the verified V2 template differs", async () => {
     const before = legacy.invocations();
-    const { b, c, report } = await compare(legacy.outputRoot, strict.outputRoot);
+    const { b, c, report } = await compare(legacyV2.outputRoot, strict.outputRoot);
     expect(b.unverifiable).toEqual([]);
     expect(c.unverifiable).toEqual([]);
     expect(report.comparison.incomparabilityReasons).toEqual([]);
     expect(report.comparison.status).toBe("COMPARABLE");
-    expect(report.baseline).toMatchObject({ identitySchema: expect.stringContaining("identity-v1"), promptBasis: "legacy-v1-persisted-contract-artifacts", templateId: "legacy-diff-v1" });
+    expect(report.baseline).toMatchObject({ identitySchema: expect.stringContaining("identity-v2"), promptBasis: "campaign-identity-v2-verified-contract", templateId: "legacy-diff-v1" });
     expect(report.candidate).toMatchObject({ identitySchema: expect.stringContaining("identity-v2"), promptBasis: "campaign-identity-v2-verified-contract", templateId: "strict-diff-v1" });
     expect(report.cohort.matchedUnitCount).toBe(2);
     expect(report.invalidOutput.overall).toMatchObject({ eligibleUnitCount: 2 });
@@ -343,18 +348,30 @@ describe("complete evidence verification against real campaign outputs", () => {
   }, 300000);
 
   it("does not mutate either source root", async () => {
-    await compare(legacy.outputRoot, strict.outputRoot);
-    expect(await digestTree(legacy.outputRoot)).toBe(baselineDigest);
+    await compare(legacyV2.outputRoot, strict.outputRoot);
+    expect(await digestTree(legacy.outputRoot)).toBe(legacyDigest);
+    expect(await digestTree(legacyV2.outputRoot)).toBe(baselineDigest);
     expect(await digestTree(strict.outputRoot)).toBe(candidateDigest);
   }, 300000);
 
-  it("rejects a V1 run whose historical prompt identity cannot be proven", async () => {
+  it("rejects a V1 run even when checkpoint-protected prompt bytes and self-validating sidecars do not prove the template", async () => {
     const copy = await copyRoot(legacy.outputRoot);
-    for (const file of await promptContractFiles(copy)) await rm(file);
+    expect((await promptContractFiles(copy)).length).toBeGreaterThan(0);
     const { b, report } = await compare(copy, strict.outputRoot);
     expect(b.promptBasis).toBe("unverified");
-    expect(b.unverifiable.join(" ")).toMatch(/historical prompt identity cannot be proven/);
+    expect(b.unverifiable.join(" ")).toMatch(/independently bound template evidence/);
     expect(report.comparison.status).toBe("INCOMPARABLE");
+    expect(report.invalidOutput.overall).toBeNull();
+  }, 300000);
+
+  it("does not accept a self-validating V1 sidecar as historical template proof", async () => {
+    const copy = await copyRoot(legacy.outputRoot);
+    const forged = renderPromptContractArtifact(createPromptContract("codex", { templateId: "strict-diff-v1" }));
+    for (const file of await promptContractFiles(copy)) await writeFile(file, forged);
+    const { b, report } = await compare(copy, strict.outputRoot);
+    expect(b.promptBasis).toBe("unverified");
+    expect(report.comparison.status).toBe("INCOMPARABLE");
+    expect(report.comparison.winner).toBeNull();
     expect(report.invalidOutput.overall).toBeNull();
   }, 300000);
 
@@ -362,7 +379,7 @@ describe("complete evidence verification against real campaign outputs", () => {
     const v1 = await copyRoot(legacy.outputRoot);
     const strictContract = renderPromptContractArtifact(createPromptContract("codex", { templateId: "strict-diff-v1" }));
     await writeFile((await promptContractFiles(v1))[0]!, strictContract);
-    expect((await compare(v1, strict.outputRoot)).b.unverifiable.join(" ")).toMatch(/conflicting prompt contracts|legacy default prompt/);
+    expect((await compare(v1, strict.outputRoot)).b.unverifiable.join(" ")).toMatch(/historical V1 prompt identity cannot be proven/);
     const v2 = await copyRoot(strict.outputRoot);
     await writeFile((await promptContractFiles(v2))[0]!, renderPromptContractArtifact(createPromptContract("codex")));
     expect((await compare(legacy.outputRoot, v2)).c.unverifiable.join(" ")).toMatch(/PROMPT_CONTRACT_ARTIFACT|does not match the campaign identity/);
@@ -375,7 +392,7 @@ describe("complete evidence verification against real campaign outputs", () => {
     const artifacts = unit.completion?.artifacts ?? unit.epochs?.[0]?.terminal?.artifacts ?? [];
     const patch = artifacts.find((artifact) => artifact.kind === "patch") ?? artifacts[0]!;
     await writeFile(path.join(copy, ...patch.path.split("/")), "tampered bytes");
-    const { c, report } = await compare(legacy.outputRoot, copy);
+    const { c, report } = await compare(legacyV2.outputRoot, copy);
     expect(c.unverifiable.join(" ")).toMatch(/checkpoint validation failed \(ARTIFACT_INTEGRITY\)/);
     expect(report.comparison.status).toBe("INCOMPARABLE");
   }, 300000);
@@ -388,7 +405,7 @@ describe("complete evidence verification against real campaign outputs", () => {
       const unit = units.find((entry) => entry.completion !== null)!;
       unit.completion!.taskSuccess = !unit.completion!.taskSuccess;
     });
-    const { c } = await compare(legacy.outputRoot, copy);
+    const { c } = await compare(legacyV2.outputRoot, copy);
     expect(c.unverifiable.join(" ")).toMatch(/checkpoint validation failed/);
   }, 300000);
 
@@ -398,7 +415,7 @@ describe("complete evidence verification against real campaign outputs", () => {
     await resealGeneration(path.join(dir, "generation-0000000001.json"), (body) => {
       body.updatedAt = "2099-01-01T00:00:00.000Z";
     });
-    expect((await compare(legacy.outputRoot, copy)).c.unverifiable.join(" ")).toMatch(/checkpoint validation failed/);
+    expect((await compare(legacyV2.outputRoot, copy)).c.unverifiable.join(" ")).toMatch(/checkpoint validation failed/);
   }, 300000);
 
   it("rejects a forged continuation state, a run-id mismatch and conflicting generations", async () => {
@@ -406,27 +423,27 @@ describe("complete evidence verification against real campaign outputs", () => {
     await resealGeneration((await latestGeneration(forged)).file, (body) => {
       (body.units as Array<{ state: string; completion: unknown }>)[0]!.state = "in-progress";
     });
-    expect((await compare(legacy.outputRoot, forged)).c.unverifiable.join(" ")).toMatch(/checkpoint validation failed/);
+    expect((await compare(legacyV2.outputRoot, forged)).c.unverifiable.join(" ")).toMatch(/checkpoint validation failed/);
 
     const runId = await copyRoot(strict.outputRoot);
     await resealGeneration((await latestGeneration(runId)).file, (body) => {
       body.runId = "some-other-run";
     });
-    expect((await compare(legacy.outputRoot, runId)).c.unverifiable.join(" ")).toMatch(/run id does not match/);
+    expect((await compare(legacyV2.outputRoot, runId)).c.unverifiable.join(" ")).toMatch(/run id does not match/);
 
     const gap = await copyRoot(strict.outputRoot);
     const latest = await latestGeneration(gap);
     await writeFile(path.join(path.dirname(latest.file), "generation-0000000099.json"), await readFile(latest.file));
-    expect((await compare(legacy.outputRoot, gap)).c.unverifiable.join(" ")).toMatch(/checkpoint validation failed/);
+    expect((await compare(legacyV2.outputRoot, gap)).c.unverifiable.join(" ")).toMatch(/checkpoint validation failed/);
   }, 300000);
 
   it("marks the comparison INCOMPARABLE when the trusted corpus is missing or does not match the identity", async () => {
-    const missing = await compare(legacy.outputRoot, strict.outputRoot, { loadTrustedTasks: async () => ({ ok: false, reason: "historical corpus is not available" }) });
+    const missing = await compare(legacyV2.outputRoot, strict.outputRoot, { loadTrustedTasks: async () => ({ ok: false, reason: "historical corpus is not available" }) });
     expect(missing.report.comparison.status).toBe("INCOMPARABLE");
     expect(missing.b.unverifiable.join(" ")).toMatch(/needs the trusted task corpus: historical corpus is not available/);
 
     const corpus = assertReadAgentSuccessCorpus(legacy.toolRoot).tasks;
-    const mismatch = await compare(legacy.outputRoot, strict.outputRoot, {
+    const mismatch = await compare(legacyV2.outputRoot, strict.outputRoot, {
       loadTrustedTasks: (async (identity: { selected: Array<{ caseId: string }> }) => ({
         ok: true,
         tasks: identity.selected.map((row) => ({ ...corpus.find((task) => task.id === row.caseId)!, title: "a different historical title" }))
@@ -443,23 +460,23 @@ describe("complete evidence verification against real campaign outputs", () => {
     const attempts = execution.cases[0]!.treatments[0]!.attempts;
     attempts[attempts.length - 1]!.taskSuccess = false;
     await writeFile(file, JSON.stringify(execution));
-    const { c } = await compare(legacy.outputRoot, copy);
+    const { c } = await compare(legacyV2.outputRoot, copy);
     expect(c.unverifiable.join(" ")).toMatch(/ARTIFACT_INTEGRITY|contradicts the checkpoint completion evidence|inconsistent/);
   }, 300000);
 
   it("is routed through the installed CLI, writes only the three report files and leaves sources unchanged", async () => {
     const out = path.join(tempRoot(), "comparison");
     await mkdir(path.dirname(out), { recursive: true });
-    const run = await runComparePrompts({ baseline: legacy.outputRoot, candidate: strict.outputRoot, out });
+    const run = await runComparePrompts({ baseline: legacyV2.outputRoot, candidate: strict.outputRoot, out });
     expect(run.report.comparison.status).toBe("COMPARABLE");
     expect((await readdir(out)).sort()).toEqual(["prompt-template-comparison.html", "prompt-template-comparison.json", "prompt-template-comparison.txt"]);
-    expect(await digestTree(legacy.outputRoot)).toBe(baselineDigest);
+    expect(await digestTree(legacyV2.outputRoot)).toBe(baselineDigest);
     expect(await digestTree(strict.outputRoot)).toBe(candidateDigest);
     // Command-level rejections never write.
     vi.spyOn(console, "error").mockImplementation(() => undefined);
-    expect(await runComparePromptsCommand(["--baseline", legacy.outputRoot, "--candidate", legacy.outputRoot, "--out", path.join(tempRoot(), "o")])).toBe(1);
-    expect(await runComparePromptsCommand(["--baseline", legacy.outputRoot, "--candidate", strict.outputRoot, "--out", path.join(legacy.outputRoot, "nested")])).toBe(1);
-    expect(existsSync(path.join(legacy.outputRoot, "nested"))).toBe(false);
+    expect(await runComparePromptsCommand(["--baseline", legacyV2.outputRoot, "--candidate", legacyV2.outputRoot, "--out", path.join(tempRoot(), "o")])).toBe(1);
+    expect(await runComparePromptsCommand(["--baseline", legacyV2.outputRoot, "--candidate", strict.outputRoot, "--out", path.join(legacyV2.outputRoot, "nested")])).toBe(1);
+    expect(existsSync(path.join(legacyV2.outputRoot, "nested"))).toBe(false);
   }, 300000);
 });
 

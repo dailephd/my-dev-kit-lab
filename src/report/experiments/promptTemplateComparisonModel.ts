@@ -342,9 +342,6 @@ export function buildPromptTemplateComparison(baseline: PromptComparisonSideEvid
       if (criterion.status === "unverifiable") reasons.push(`${criterion.id}: ${criterion.detail}`);
     }
     if ((baseline.promptContract as PromptContractV1).templateId === (candidate.promptContract as PromptContractV1).templateId) limitations.push(SAME_TEMPLATE_LIMITATION);
-    if (baseline.promptBasis === "legacy-v1-persisted-contract-artifacts" || candidate.promptBasis === "legacy-v1-persisted-contract-artifacts") {
-      limitations.push("A legacy V1 campaign identity does not bind a prompt contract; its template is established only from the persisted per-attempt prompt-contract.json artifacts of this run, which agree and match the legacy default.");
-    }
   }
 
   const status: ComparabilityStatus = reasons.length === 0 ? "COMPARABLE" : "INCOMPARABLE";

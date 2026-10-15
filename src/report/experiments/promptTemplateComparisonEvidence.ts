@@ -36,7 +36,6 @@ import { AGENT_SUCCESS_RATE_PLUGIN_ID, AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_M
 import {
   PROMPT_CONTRACT_ARTIFACT_FILE,
   assertPromptContractShape,
-  isLegacyDefaultPromptContract,
   promptContractDigest,
   renderPromptContractArtifact,
   type PromptContractV1
@@ -352,6 +351,12 @@ export async function loadPromptComparisonSide(
     side.unverifiable.push("a deterministic-fixture identity carries no prompt template");
     return side;
   }
+  if (!isV2) {
+    // V1 remains readable and its checkpoint has already been validated, but the closed V1 identity does not bind a
+    // prompt contract. Neither a sidecar digest nor a checkpoint hash for prompt bytes identifies the template.
+    side.unverifiable.push("historical V1 prompt identity cannot be proven from independently bound template evidence");
+    return side;
+  }
   if (attemptDirectories.length === 0) {
     side.unverifiable.push("no provider attempt artifact exists to establish the prompt identity");
     return side;
@@ -376,51 +381,26 @@ export async function loadPromptComparisonSide(
 
   let contract: PromptContractV1;
   let basis: PromptIdentityBasis;
-  if (isV2) {
-    const expected = renderPromptContractArtifact(identity.promptContract);
-    for (const item of parsed) {
-      if (item.contract !== null && renderPromptContractArtifact(item.contract) !== expected) {
-        side.unverifiable.push(reason(`prompt contract artifact for ${item.unit} does not match the campaign identity`));
+  const expected = renderPromptContractArtifact(identity.promptContract);
+  for (const item of parsed) {
+    if (item.contract !== null && renderPromptContractArtifact(item.contract) !== expected) {
+      side.unverifiable.push(reason(`prompt contract artifact for ${item.unit} does not match the campaign identity`));
+      return side;
+    }
+    if (item.contract === null) {
+      if (/self-consistent|malformed|outside/.test(item.problem ?? "")) {
+        side.unverifiable.push(reason(`prompt contract artifact for ${item.unit} is invalid: ${item.problem}`));
         return side;
       }
-      if (item.contract === null) {
-        if (/self-consistent|malformed|outside/.test(item.problem ?? "")) {
-          side.unverifiable.push(reason(`prompt contract artifact for ${item.unit} is invalid: ${item.problem}`));
-          return side;
-        }
-        side.unverifiedUnits.set(item.unit, "prompt-contract-unverified");
-      }
+      side.unverifiedUnits.set(item.unit, "prompt-contract-unverified");
     }
-    if (parsed.every((item) => item.contract === null)) {
-      side.unverifiable.push("no persisted prompt-contract.json artifact could verify the campaign identity's prompt contract");
-      return side;
-    }
-    contract = identity.promptContract;
-    basis = "campaign-identity-v2-verified-contract";
-  } else {
-    // A V1 identity does not bind a contract: every invoked attempt must carry a verifiable artifact and they must agree.
-    const missing = parsed.filter((item) => item.contract === null);
-    if (missing.length > 0) {
-      side.unverifiable.push(reason(`historical prompt identity cannot be proven: ${missing[0]!.problem} (${missing[0]!.unit})`));
-      return side;
-    }
-    const contracts = parsed.map((item) => item.contract as PromptContractV1);
-    const first = contracts[0] as PromptContractV1;
-    if (contracts.some((candidate) => renderPromptContractArtifact(candidate) !== renderPromptContractArtifact(first))) {
-      side.unverifiable.push("conflicting prompt contracts were persisted across the run's attempts");
-      return side;
-    }
-    if (first.providerId !== identity.config.providerId) {
-      side.unverifiable.push("the persisted prompt contract provider conflicts with the campaign identity provider");
-      return side;
-    }
-    if (!isLegacyDefaultPromptContract(first)) {
-      side.unverifiable.push("the persisted prompt contract conflicts with a V1 identity, which can only describe the legacy default prompt");
-      return side;
-    }
-    contract = first;
-    basis = "legacy-v1-persisted-contract-artifacts";
   }
+  if (parsed.every((item) => item.contract === null)) {
+    side.unverifiable.push("no persisted prompt-contract.json artifact could verify the campaign identity's prompt contract");
+    return side;
+  }
+  contract = identity.promptContract;
+  basis = "campaign-identity-v2-verified-contract";
   side.promptContract = contract;
   side.promptBasis = basis;
   return side;

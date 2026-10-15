@@ -136,10 +136,10 @@ export function memorySide(role: "baseline" | "candidate", spec: RunSpec): Promp
   return {
     role,
     identity,
-    promptBasis: v2 ? "campaign-identity-v2-verified-contract" : "legacy-v1-persisted-contract-artifacts",
-    promptContract: contract,
+    promptBasis: v2 ? "campaign-identity-v2-verified-contract" : "unverified",
+    promptContract: v2 ? contract : null,
     execution,
-    unverifiable: [],
+    unverifiable: v2 ? [] : ["historical V1 prompt identity cannot be proven from independently bound template evidence"],
     unverifiedUnits: new Map(Object.entries(spec.unverifiedUnits ?? {})),
     warnings: []
   };
