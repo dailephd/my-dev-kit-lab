@@ -1531,7 +1531,7 @@ Explicit exclusions from this implementation task: automatic release or publicat
 
 ### v0.9.3 — hardened real-agent prompts and report/gallery generalization
 
-Status: **implemented/unreleased**. The package remains 0.9.2. The six implementation batches and bounded Stage 4 completeness corrections are present on `feature/v0.9.3`; source and deterministic evidence contracts pass. The purpose, features, and acceptance criteria below remain in force. The real-provider smoke criterion remains NOT_VERIFIED pending planner adjudication and authorized evidence.
+Status: **implemented/unreleased**. The package remains 0.9.2. The six implementation batches and Stage 4 completeness corrections are present on `feature/v0.9.3`; source and deterministic evidence contracts pass. The v0.9.3 release acceptance criteria below validate implemented behavior and evidence integrity. By the owner's 2026-10-15 roadmap clarification, observed real-provider effectiveness is a separately authorized empirical objective, NOT_VERIFIED and not a v0.9.3 release-readiness gate.
 
 Completed first batch — validator accuracy and external-target evidence (implemented in v0.9.3; not part of the v0.9.2 package):
 
@@ -1568,14 +1568,14 @@ Features:
 
 Acceptance:
 
-* Invalid-output rate improves in smoke campaigns.
+* Deterministic prompt-contract smoke tests and persisted campaign evidence correctly classify completed malformed/empty responses, separate provider/infrastructure failures, enforce matched eligible denominators, and fail closed when prompt identity or checkpoint proof is inadequate. This tests the implemented measurement and validation contracts; it does not establish a real-provider rate improvement.
 * Reports compare prompt template versions.
 * Existing context-strategy report renders through generic report framework.
 * Warm-index, retrieval, context-window, audit, security, and mobile reports can share or link through consistent infrastructure where appropriate.
 * Gallery can browse multiple experiment and validation outputs.
 * Gallery can browse finalized tutorial artifacts through the canonical tutorial manifest without forcing tutorial execution to depend on gallery generation.
 
-The initial Stage 4 audit found glossary and comparison-evidence defects; bounded correction tasks fixed and validated those source findings. Stage 4 documentation and implementation-completeness status: **PASS**. Registered metric IDs resolve to evidence-based glossary descriptors and stable links, including bounded dynamic families; shared text/HTML caveats preserve known provenance and leave unavailable provenance unknown. Prompt comparison fails closed for unverified V1 identity, validates supported V2 and checkpoint evidence through existing campaign validators, excludes status-only invalid-output claims, and reports incomparable evidence explicitly. The acceptance criterion “Invalid-output rate improves in smoke campaigns” remains **NOT_VERIFIED**: no paid real-provider campaign was authorized. This is an open evidence dependency for planner adjudication and later readiness; implementation and deterministic tests do not satisfy that observed-effectiveness criterion.
+The initial Stage 4 audit found glossary and comparison-evidence defects; bounded correction tasks fixed and validated those source findings. Stage 4 documentation and implementation-completeness status: **PASS**. Registered metric IDs resolve to evidence-based glossary descriptors and stable links, including bounded dynamic families; shared text/HTML caveats preserve known provenance and leave unavailable provenance unknown. Prompt comparison fails closed for unverified V1 identity, validates supported V2 and checkpoint evidence through existing campaign validators, excludes status-only invalid-output claims, and reports incomparable evidence explicitly. **Deferred empirical objective (not assigned to a release version and not a v0.9.3 gate):** “Invalid-output rate improves in smoke campaigns.” Assess this only through separately authorized, matched real-provider campaigns with verified run-bound prompt identity and eligible-response denominators. No such campaign was authorized, so improvement is **NOT_VERIFIED**; do not claim improvement, invent results, or treat deterministic fixtures as proof. This owner-directed 2026-10-15 acceptance clarification separates release-verifiable behavior from later empirical effectiveness without removing the original scientific objective or changing v0.10.0+ scope.
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 

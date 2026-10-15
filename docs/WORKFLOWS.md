@@ -571,7 +571,7 @@ Run two real-agent campaigns that differ only in prompt template (for example `l
 my-dev-kit-lab report compare-prompts --baseline <baseline-run-root> --candidate <candidate-run-root> --out <comparison-root>
 ```
 
-Open `prompt-template-comparison.html`, or add `--source <comparison-root>` to `gallery build`. A `NOT_VERIFIED` behavioral-improvement status is expected until a separately authorized paired real-provider smoke has produced compatible evidence; the comparison itself performs no provider call.
+Open `prompt-template-comparison.html`, or add `--source <comparison-root>` to `gallery build`. A `NOT_VERIFIED` behavioral-improvement status is expected until a separately authorized paired real-provider smoke has produced compatible evidence; this empirical outcome is not a v0.9.3 release-readiness gate. The comparison itself performs no provider call.
 
 ### Campaign lifecycle (v0.9.1)
 
