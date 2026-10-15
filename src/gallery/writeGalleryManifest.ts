@@ -1,9 +1,11 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ScreenshotCaptureResult } from "../screenshot/types.js";
 import type { TokenSavingsSummary } from "../evaluation/types.js";
-import type { GalleryManifest, GalleryManifestArtifactPaths, GalleryManifestItemStatus } from "./types.js";
+import { GALLERY_MEDIA_EXTENSIONS, safeGalleryHref } from "./galleryPathSafety.js";
+import { readGallerySources } from "./readGallerySources.js";
+import type { GalleryManifest, GalleryManifestArtifactPaths, GalleryManifestItem, GalleryManifestItemStatus } from "./types.js";
 
 function toRelativePath(outDir: string, targetPath: string | undefined): string | undefined {
   if (!targetPath) {
@@ -106,6 +108,8 @@ export async function writeExperimentGalleryManifest(options: {
   plotsDir?: string;
   visualizationsDir?: string;
   experimentDir?: string;
+  /** Explicit artifact roots or supported manifests (absolute paths), read-only. */
+  sources?: string[];
   title?: string;
   description?: string;
   warnings?: string[];
@@ -191,6 +195,11 @@ export async function writeExperimentGalleryManifest(options: {
     });
   }
 
+  if (options.sources && options.sources.length > 0) {
+    const sourceResult = await readGallerySources({ sources: options.sources, realOutDir: await realpath(outDir) });
+    items.push(...sourceResult.items);
+  }
+
   items.push({
     id: "final-demo",
     title: "Final demo artifact index",
@@ -245,13 +254,66 @@ async function listFiles(dir: string): Promise<string[]> {
 export function renderGalleryIndex(manifest: GalleryManifest): string {
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8" /><title>${escapeHtml(manifest.title)}</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:32px;color:#17212b}section{border:1px solid #d9e1ea;border-radius:8px;padding:16px;margin:12px 0}code{background:#f2f4f7;padding:2px 4px}</style></head>
+<head><meta charset="utf-8" /><title>${escapeHtml(manifest.title)}</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:32px;color:#17212b}section{border:1px solid #d9e1ea;border-radius:8px;padding:16px;margin:12px 0}code{background:#f2f4f7;padding:2px 4px}video,img{max-width:100%;height:auto}a:focus-visible{outline:3px solid #1a5fb4}.unavailable{color:#8a1f1f}</style></head>
 <body><h1>${escapeHtml(manifest.title)}</h1><p>${escapeHtml(manifest.description)}</p>${manifest.items
     .map(
       (item) =>
-        `<section><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.description)}</p><p>Status: <strong>${escapeHtml(item.status)}</strong></p><p>Kind: ${escapeHtml(item.kind)}</p>${item.htmlPath ? `<p>HTML: <code>${escapeHtml(item.htmlPath)}</code></p>` : ""}${item.summaryPath ? `<p>Summary: <code>${escapeHtml(item.summaryPath)}</code></p>` : ""}${item.screenshotPath ? `<p>Screenshot: <code>${escapeHtml(item.screenshotPath)}</code></p>` : ""}${item.artifactPaths?.length ? `<ul>${item.artifactPaths.map((artifact) => `<li><code>${escapeHtml(artifact)}</code></li>`).join("")}</ul>` : ""}</section>`
+        `<section><h2>${escapeHtml(item.title)}</h2><p>${escapeHtml(item.description)}</p><p>Status: <strong>${escapeHtml(item.status)}</strong></p><p>Kind: ${escapeHtml(item.kind)}</p>${item.htmlPath ? `<p>HTML: <code>${escapeHtml(item.htmlPath)}</code></p>` : ""}${item.summaryPath ? `<p>Summary: <code>${escapeHtml(item.summaryPath)}</code></p>` : ""}${item.screenshotPath ? `<p>Screenshot: <code>${escapeHtml(item.screenshotPath)}</code></p>` : ""}${item.artifactPaths?.length ? `<ul>${item.artifactPaths.map((artifact) => `<li><code>${escapeHtml(artifact)}</code></li>`).join("")}</ul>` : ""}${renderSourceItemExtras(item)}</section>`
     )
     .join("")}</body></html>`;
+}
+
+/**
+ * Additive presentation for items produced by `gallery build --source`. Every href/src is validated by
+ * safeGalleryHref independently of text escaping; a value that fails validation is shown as unavailable text,
+ * never as a link or media element.
+ */
+function renderSourceItemExtras(item: GalleryManifestItem): string {
+  if (!item.sourceFamily) return "";
+  const parts: string[] = [];
+  parts.push(
+    `<p>Source family: <code>${escapeHtml(item.sourceFamily)}</code>${item.sourceId ? ` · Identity: <code>${escapeHtml(item.sourceId)}</code>` : ""}</p>`
+  );
+  const metricLine = item.metrics
+    .map((metric) => `${escapeHtml(metric.label)}: <strong>${escapeHtml(metric.value)}</strong>${metric.unit ? ` ${escapeHtml(metric.unit)}` : ""}`)
+    .join(" · ");
+  if (metricLine) parts.push(`<p>${metricLine}</p>`);
+  const link = (value: string | undefined, label: string, extensions?: readonly string[]): string => {
+    if (!value) return "";
+    const href = safeGalleryHref(value, extensions);
+    return href === null
+      ? `<li class="unavailable">${escapeHtml(label)} unavailable: unsafe or unsupported path</li>`
+      : `<li><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></li>`;
+  };
+  const links = [
+    link(item.htmlPath || undefined, "Open HTML report", [".html"]),
+    link(item.summaryPath, "Open summary JSON", [".json"]),
+    link(item.markdownPath, "Open generated Markdown", GALLERY_MEDIA_EXTENSIONS.markdown),
+    ...(item.artifactPaths ?? []).map((artifact) =>
+      link(artifact, `Artifact ${artifact}`, [...GALLERY_MEDIA_EXTENSIONS.text, ...GALLERY_MEDIA_EXTENSIONS.json])
+    )
+  ].join("");
+  if (links) parts.push(`<ul>${links}</ul>`);
+  if (item.videoPath) {
+    const src = safeGalleryHref(item.videoPath, GALLERY_MEDIA_EXTENSIONS.video);
+    parts.push(
+      src === null
+        ? `<p class="unavailable">Video unavailable: unsafe or unsupported path</p>`
+        : `<video controls preload="metadata" src="${escapeHtml(src)}">Your browser does not support embedded video. <a href="${escapeHtml(src)}">Open the WebM video</a>.</video>`
+    );
+  }
+  for (const [index, screenshot] of (item.screenshotPaths ?? []).entries()) {
+    const src = safeGalleryHref(screenshot, GALLERY_MEDIA_EXTENSIONS.screenshot);
+    parts.push(
+      src === null
+        ? `<p class="unavailable">Screenshot ${index + 1} unavailable: unsafe or unsupported path</p>`
+        : `<figure><img src="${escapeHtml(src)}" alt="${escapeHtml(item.title)} screenshot ${index + 1}" loading="lazy" /></figure>`
+    );
+  }
+  if (item.warnings.length > 0) {
+    parts.push(`<div><strong>Warnings</strong><ul>${item.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}</ul></div>`);
+  }
+  return parts.join("");
 }
 
 function escapeHtml(value: string | number | undefined): string {

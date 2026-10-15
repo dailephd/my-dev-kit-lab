@@ -551,6 +551,9 @@ The context-size plot compares measured context estimates per case and treatment
 |---|---|
 | `--out <dir>` | Required |
 | `--report <dir>` / `--plots <dir>` / `--visualizations <dir>` / `--experiment <dir>` | Optional; included in the manifest when present |
+| `--source <path>` | Optional and repeatable (v0.9.3, in development). One explicit artifact root or supported manifest per occurrence |
+
+`--source` reads completed outputs without running anything. Recognized families are identified from existing producer schemas: plugin experiment reports (`report.json`), warm-index campaign reports, controlled-experiment summaries (`experiment-summary.json`), standalone audit reports (`code-rot-audit.json`), security-validation reports (`*-security-validation.json`), Android validation reports (`*-android-security-validation.json`), and tutorial runs (`<run-root>/artifacts/tutorial-manifest.json`, or that manifest file given explicitly). Only the named root is read; nothing is discovered recursively and URLs are rejected. A missing, unreadable, malformed, unsupported-schema, unrecognized or ambiguous source fails the build with a non-zero exit code and no gallery item is invented. Legacy options and `--source` may be combined; sources keep their command-line order and repeats are listed once.
 
 ### `my-dev-kit-lab demo final [options]`
 

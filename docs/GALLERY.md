@@ -83,6 +83,17 @@ If the command reports a missing input, generate that artifact first or remove t
 
 ---
 
+## Browsing completed outputs with `--source` (v0.9.3, in development)
+
+`gallery build --source <path>` (repeatable) adds items for completed experiment, audit, security, Android validation and tutorial outputs. The gallery stays a static artifact browser: it never runs an experiment, audit, security validation or tutorial, never records or transcodes media, and never executes artifact content.
+
+- **Status.** Item `status` keeps the existing `pass`/`skipped`/`warning` vocabulary and reflects only what the producer recorded. The producer's own status (for a tutorial, `run.status`) is shown separately as a metric. A tutorial run that did not pass is never shown as passed, and a report without a recorded exit or verdict is a warning, not a pass.
+- **Tutorial runs.** The canonical `artifacts/tutorial-manifest.json` (`schemaVersion` `1.0.0`) supplies title, run identity, status, warnings and cleanup errors. A WebM video is embedded with controls and `preload="metadata"` (never autoplay), PNG/JPEG/WebP screenshots are shown as images, and the generated Markdown is linked as a file and never rendered as HTML. A missing optional artifact is listed as unavailable with a reason.
+- **Links.** A referenced file must be a run-root-relative POSIX path that resolves, after symlink/junction resolution, to an ordinary supported file inside its source root, and its content must match its media type. Links are relative to the gallery directory and may begin with `../`; unsafe or unsupported references produce no link.
+- **Manifest.** New items may carry the optional `sourceFamily`, `sourceId`, `videoPath`, `markdownPath` and `screenshotPaths` fields. Existing fields and `gallery-manifest.json` structure are unchanged, and `htmlPath` is `""` when a source has no HTML report.
+
+---
+
 ## Gallery publishing diagram
 
 ```mermaid

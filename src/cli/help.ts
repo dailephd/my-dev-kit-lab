@@ -466,7 +466,8 @@ export function renderGalleryBuildHelp(): string {
     "  --report <dir>           Path to a rendered report directory",
     "  --plots <dir>            Path to a plots output directory",
     "  --visualizations <dir>   Path to a visualization-demos output directory",
-    "  --experiment <dir>       Path to a controlled-experiment output directory"
+    "  --experiment <dir>       Path to a controlled-experiment output directory",
+    "  --source <path>          Artifact root or supported manifest to include; repeatable"
   ].join("\n");
 }
 
