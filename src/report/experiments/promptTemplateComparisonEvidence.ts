@@ -1,10 +1,15 @@
 // Read-only evidence loader for the prompt-template comparison. It reads persisted agent-success-rate artifacts
-// from one run root, reuses the existing pure validators, and never mutates the root or calls a checkpoint
-// operation that writes. Every read is bounded, physically contained and re-checked for concurrent change.
+// from one run root and verifies them with the campaign owners' own validators: the complete checkpoint store
+// read (every generation, history, artifact integrity, V2 authorization state) against trusted task definitions
+// that are authenticated by the persisted campaign identity's task digests. Nothing is written, no provider is
+// invoked, and every read is bounded, physically contained and change-detected.
 
+import { statSync } from "node:fs";
 import { open, readdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { isSafeRelativeArtifactPath } from "../../gallery/galleryPathSafety.js";
+import { assertReadAgentSuccessCorpus, type AgentSuccessTaskV1 } from "../../evaluation/agentSuccess/index.js";
 import {
   AGENT_SUCCESS_RATE_ANALYSIS_ARTIFACT_FILE,
   AGENT_SUCCESS_RATE_ANALYSIS_SCHEMA_VERSION,
@@ -12,6 +17,7 @@ import {
   validateAgentSuccessRateArtifactFamily,
   type AgentSuccessRateAnalysisArtifactV1
 } from "../../experiments/plugins/agentSuccessRate/analysisArtifact.js";
+import { attemptEvidenceOf } from "../../experiments/plugins/agentSuccessRate/attemptEvidence.js";
 import {
   AGENT_SUCCESS_RATE_EXECUTION_ARTIFACT_FILE,
   AGENT_SUCCESS_RATE_EXECUTION_SCHEMA_VERSION,
@@ -19,18 +25,19 @@ import {
   type AgentSuccessRateExecutionArtifactV1
 } from "../../experiments/plugins/agentSuccessRate/executionArtifact.js";
 import { CAMPAIGN_CHECKPOINT_MAX_BYTES, CAMPAIGN_CHECKPOINT_SCHEMA } from "../../experiments/plugins/agentSuccessRate/campaignCheckpoint.js";
-import { CAMPAIGN_CHECKPOINT_SCHEMA_V2 } from "../../experiments/plugins/agentSuccessRate/campaignRecovery.js";
+import { readCampaignCheckpoint, readCampaignCheckpointV2 } from "../../experiments/plugins/agentSuccessRate/campaignCheckpointStore.js";
+import { CAMPAIGN_CHECKPOINT_SCHEMA_V2, type CampaignCheckpointV2 } from "../../experiments/plugins/agentSuccessRate/campaignRecovery.js";
 import {
   CAMPAIGN_IDENTITY_VERSION_V2,
-  campaignHash,
-  canonicalCampaignJson,
   validateCampaignIdentity,
   type CampaignIdentity
 } from "../../experiments/plugins/agentSuccessRate/campaignIdentity.js";
 import { AGENT_SUCCESS_RATE_PLUGIN_ID, AGENT_SUCCESS_RATE_REAL_AGENT_EXECUTION_MODE } from "../../experiments/plugins/agentSuccessRate/metadata.js";
 import {
   PROMPT_CONTRACT_ARTIFACT_FILE,
-  createPromptContract,
+  assertPromptContractShape,
+  isLegacyDefaultPromptContract,
+  promptContractDigest,
   renderPromptContractArtifact,
   type PromptContractV1
 } from "../../experiments/plugins/agentSuccessRate/promptContract.js";
@@ -39,9 +46,10 @@ import type { PromptComparisonSideEvidence, PromptIdentityBasis } from "./prompt
 const MAX_ARTIFACT_BYTES = 32 * 1024 * 1024;
 const MAX_PROMPT_CONTRACT_BYTES = 64 * 1024;
 const MAX_CASES = 1000;
-const MAX_REASON_LENGTH = 200;
+const MAX_REASON_LENGTH = 240;
 const STORES = ["campaign-checkpoints-v2", "campaign-checkpoints"] as const;
 const GENERATION = /^generation-(\d{10})\.json$/;
+const CORPUS_CATALOG = "benchmarks/contracts/agent-success-rate-tasks.json";
 
 class EvidenceError extends Error {}
 
@@ -93,10 +101,68 @@ async function readJson(realRoot: string, relative: string, maxBytes: number): P
   }
 }
 
-type LoadedIdentity = { identity: CampaignIdentity; checkpointRunId: string | null };
+// ---------------------------------------------------------------------------
+// Trusted task corpus
+// ---------------------------------------------------------------------------
 
-async function loadIdentity(realRoot: string, execution: AgentSuccessRateExecutionArtifactV1): Promise<LoadedIdentity> {
-  const found: LoadedIdentity[] = [];
+export type TrustedTasksResult = { ok: true; tasks: AgentSuccessTaskV1[] } | { ok: false; reason: string };
+
+export type PromptComparisonLoadOptions = {
+  /**
+   * Supplies trusted task definitions for the identity's selected cases, in selection order. Authentication is by the
+   * identity's task digests inside the checkpoint validator; a supplier cannot make a mismatching task verify.
+   */
+  loadTrustedTasks?: (identity: CampaignIdentity) => Promise<TrustedTasksResult>;
+  /** Package/tool root used for the protected-root check and the default corpus. */
+  toolRoot?: string;
+};
+
+function defaultToolRoot(): string {
+  const here = fileURLToPath(new URL(".", import.meta.url));
+  for (const up of ["../../../", "../../../../"]) {
+    const candidate = path.resolve(here, up);
+    try {
+      if (statSyncIsFile(path.join(candidate, ...CORPUS_CATALOG.split("/")))) return candidate;
+    } catch {
+      // try the next layout
+    }
+  }
+  return path.resolve(here, "../../../");
+}
+
+function statSyncIsFile(file: string): boolean {
+  return statSync(file).isFile();
+}
+
+async function defaultTrustedTasks(identity: CampaignIdentity, toolRoot: string): Promise<TrustedTasksResult> {
+  let corpusTasks: AgentSuccessTaskV1[];
+  try {
+    corpusTasks = assertReadAgentSuccessCorpus(toolRoot).tasks;
+  } catch {
+    return { ok: false, reason: "the trusted task corpus is unavailable for this installation" };
+  }
+  const byId = new Map(corpusTasks.map((task) => [task.id, task]));
+  const tasks: AgentSuccessTaskV1[] = [];
+  for (const selected of identity.selected) {
+    const task = byId.get(selected.caseId);
+    if (!task) return { ok: false, reason: `the trusted task corpus does not contain case ${selected.caseId}` };
+    tasks.push(task);
+  }
+  return { ok: true, tasks };
+}
+
+// ---------------------------------------------------------------------------
+// Checkpoint verification
+// ---------------------------------------------------------------------------
+
+type VerifiedCheckpoint = {
+  identity: CampaignIdentity;
+  units: Array<{ caseId: string; treatmentId: string; state: string; taskSuccess: boolean | null; patchOutcome: string | null; patchCode: string | null }>;
+  finalized: boolean | null;
+};
+
+async function discoverIdentity(realRoot: string, execution: AgentSuccessRateExecutionArtifactV1): Promise<{ identity: CampaignIdentity; v2: boolean }> {
+  const found: Array<{ identity: CampaignIdentity; v2: boolean; runId: string | null }> = [];
   for (const store of STORES) {
     let identityDirs: string[];
     try {
@@ -116,8 +182,6 @@ async function loadIdentity(realRoot: string, execution: AgentSuccessRateExecuti
       const value = (await readJson(realRoot, `${store}/${dir}/${latest}`, CAMPAIGN_CHECKPOINT_MAX_BYTES)) as Record<string, unknown>;
       const schema = value.schemaVersion;
       if (schema !== CAMPAIGN_CHECKPOINT_SCHEMA && schema !== CAMPAIGN_CHECKPOINT_SCHEMA_V2) throw new EvidenceError("checkpoint schema is not supported");
-      const { integrity, ...body } = value;
-      if (typeof integrity !== "string" || integrity !== campaignHash(canonicalCampaignJson(body))) throw new EvidenceError("checkpoint integrity digest does not verify");
       try {
         validateCampaignIdentity(value.identity);
       } catch (error) {
@@ -125,18 +189,57 @@ async function loadIdentity(realRoot: string, execution: AgentSuccessRateExecuti
       }
       const identity = value.identity as CampaignIdentity;
       if (identity.digest !== dir) throw new EvidenceError("checkpoint directory does not match its campaign identity digest");
-      found.push({ identity, checkpointRunId: schema === CAMPAIGN_CHECKPOINT_SCHEMA_V2 && typeof value.runId === "string" ? value.runId : null });
+      found.push({ identity, v2: schema === CAMPAIGN_CHECKPOINT_SCHEMA_V2, runId: schema === CAMPAIGN_CHECKPOINT_SCHEMA_V2 && typeof value.runId === "string" ? value.runId : null });
     }
   }
-  const byRun = found.filter((entry) => entry.checkpointRunId === execution.runId);
-  const candidates = byRun.length > 0 ? byRun : found.filter((entry) => entry.checkpointRunId === null);
+  const byRun = found.filter((entry) => entry.runId === execution.runId);
+  if (found.some((entry) => entry.runId !== null && entry.runId !== execution.runId) && byRun.length === 0) {
+    throw new EvidenceError("checkpoint run id does not match the execution run");
+  }
+  const candidates = byRun.length > 0 ? byRun : found.filter((entry) => entry.runId === null);
   if (candidates.length === 0) throw new EvidenceError("no campaign identity checkpoint matches the execution run");
   if (candidates.length > 1) throw new EvidenceError("more than one campaign identity checkpoint matches the execution run");
-  return candidates[0] as LoadedIdentity;
+  return { identity: candidates[0]!.identity, v2: candidates[0]!.v2 };
 }
 
+async function verifyCheckpoint(realRoot: string, execution: AgentSuccessRateExecutionArtifactV1, options: PromptComparisonLoadOptions): Promise<VerifiedCheckpoint> {
+  const { identity, v2 } = await discoverIdentity(realRoot, execution);
+  const toolRoot = options.toolRoot ?? defaultToolRoot();
+  const trusted = options.loadTrustedTasks ? await options.loadTrustedTasks(identity) : await defaultTrustedTasks(identity, toolRoot);
+  if (!trusted.ok) throw new EvidenceError(`complete checkpoint validation needs the trusted task corpus: ${trusted.reason}`);
+  const boundary = { outputRoot: realRoot, toolRoot };
+  let stored: { checkpoint: unknown };
+  try {
+    stored = v2 ? await readCampaignCheckpointV2(boundary, identity, trusted.tasks) : await readCampaignCheckpoint(boundary, identity, trusted.tasks);
+  } catch (error) {
+    throw new EvidenceError(`checkpoint validation failed (${error instanceof Error ? error.message : "unknown"})`);
+  }
+  if (stored.checkpoint === null || typeof stored.checkpoint !== "object") throw new EvidenceError("checkpoint store holds no committed checkpoint for the campaign identity");
+  const checkpoint = stored.checkpoint as { units: Array<{ caseId: string; treatmentId: string; state: string; completion: { taskSuccess: boolean; evidence: { patch: { outcome: string | null; code: string | null } } } | null }> };
+  return {
+    identity,
+    units: checkpoint.units.map((unit) => ({
+      caseId: unit.caseId,
+      treatmentId: unit.treatmentId,
+      state: unit.state,
+      taskSuccess: unit.completion ? unit.completion.taskSuccess : null,
+      patchOutcome: unit.completion ? unit.completion.evidence.patch.outcome : null,
+      patchCode: unit.completion ? unit.completion.evidence.patch.code : null
+    })),
+    finalized: v2 ? (checkpoint as unknown as CampaignCheckpointV2).finalization !== null : null
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Side loader
+// ---------------------------------------------------------------------------
+
 /** Loads and verifies one side. Verification failures become `unverifiable` reasons, never an exception. */
-export async function loadPromptComparisonSide(rootPath: string, role: "baseline" | "candidate"): Promise<PromptComparisonSideEvidence> {
+export async function loadPromptComparisonSide(
+  rootPath: string,
+  role: "baseline" | "candidate",
+  options: PromptComparisonLoadOptions = {}
+): Promise<PromptComparisonSideEvidence> {
   const side: PromptComparisonSideEvidence = {
     role,
     identity: null,
@@ -191,14 +294,14 @@ export async function loadPromptComparisonSide(rootPath: string, role: "baseline
     return side;
   }
 
-  let loaded: LoadedIdentity;
+  let verified: VerifiedCheckpoint;
   try {
-    loaded = await loadIdentity(realRoot, execution);
+    verified = await verifyCheckpoint(realRoot, execution, options);
   } catch (error) {
-    side.unverifiable.push(reason(`campaign identity: ${error instanceof Error ? error.message : "unreadable"}`));
+    side.unverifiable.push(reason(`campaign checkpoint: ${error instanceof Error ? error.message : "unverifiable"}`));
     return side;
   }
-  const identity = loaded.identity;
+  const identity = verified.identity;
   side.identity = identity;
 
   const run = execution.realAgent as NonNullable<AgentSuccessRateExecutionArtifactV1["realAgent"]>;
@@ -210,45 +313,115 @@ export async function loadPromptComparisonSide(rootPath: string, role: "baseline
   if (executedIds.join("\0") !== selectedIds.join("\0")) side.unverifiable.push("campaign identity cases differ from the executed cases");
   if (side.unverifiable.length > 0) return side;
 
-  // Prompt identity: V2 carries a verified contract; V1 real-provider identity is the legacy default.
-  let expected: PromptContractV1;
-  let basis: PromptIdentityBasis;
-  if (identity.schemaVersion === CAMPAIGN_IDENTITY_VERSION_V2) {
-    expected = identity.promptContract;
-    basis = "campaign-identity-v2-verified-contract";
-  } else if (identity.config.providerId === "codex" || identity.config.providerId === "claude") {
-    expected = createPromptContract(identity.config.providerId);
-    basis = "legacy-v1-default-identity";
-  } else {
-    side.unverifiable.push("a deterministic-fixture identity carries no prompt template");
-    return side;
-  }
-  const expectedBytes = renderPromptContractArtifact(expected);
-  let verified = 0;
+  // Relationship between persisted execution evidence and the validated checkpoint units.
+  const checkpointUnits = new Map(verified.units.map((unit) => [`${unit.caseId}/${unit.treatmentId}`, unit]));
   for (const entry of execution.cases) {
     for (const treatment of entry.treatments) {
       const key = `${entry.caseId}/${treatment.treatmentId}`;
-      const first = treatment.attempts && treatment.attempts.length > 0 ? treatment.attempts[0]!.evidence : treatment;
-      const directory = first.realAgent?.agentArtifactDirectory ?? null;
-      if (directory === null) continue; // provider not invoked: nothing was prompted
-      try {
-        const bytes = (await readContained(realRoot, `${directory}/${PROMPT_CONTRACT_ARTIFACT_FILE}`, MAX_PROMPT_CONTRACT_BYTES)).toString("utf8");
-        if (bytes !== expectedBytes) {
-          side.unverifiable.push(reason(`prompt contract artifact for ${key} does not match the campaign identity`));
-          return side;
-        }
-        verified += 1;
-      } catch (error) {
-        if (basis === "legacy-v1-default-identity" && error instanceof EvidenceError && /missing or unreadable/.test(error.message)) continue; // pre-contract run
-        side.unverifiedUnits.set(key, "prompt-contract-unverified");
+      const unit = checkpointUnits.get(key);
+      if (!unit) {
+        side.unverifiable.push(reason(`execution unit ${key} is absent from the validated checkpoint`));
+        return side;
+      }
+      if (unit.state !== "completed") {
+        side.unverifiedUnits.set(key, `checkpoint-unit-${unit.state}`);
+        continue;
+      }
+      const attempts = treatment.attempts && treatment.attempts.length > 0 ? treatment.attempts : null;
+      const finalTaskSuccess = attempts ? attempts[attempts.length - 1]!.taskSuccess : null;
+      if ((finalTaskSuccess !== null && unit.taskSuccess !== finalTaskSuccess) || (unit.patchOutcome !== null && unit.patchOutcome !== treatment.patch.outcome) || (unit.patchCode !== null && unit.patchCode !== treatment.patch.code)) {
+        side.unverifiable.push(reason(`execution evidence for ${key} contradicts the checkpoint completion evidence`));
+        return side;
       }
     }
   }
-  side.promptContract = expected;
-  side.promptBasis = basis;
-  if (basis === "campaign-identity-v2-verified-contract" && verified === 0) {
-    side.unverifiable.push("no persisted prompt-contract.json artifact could verify the campaign identity's prompt contract");
-    side.promptBasis = "unverified";
+  if (verified.finalized === false) side.warnings.push("the V2 campaign checkpoint is not finalized");
+
+  // Prompt identity: independently established from persisted, integrity-checked prompt-contract artifacts.
+  const attemptDirectories: Array<{ unit: string; directory: string }> = [];
+  for (const entry of execution.cases) {
+    for (const treatment of entry.treatments) {
+      for (const evidence of attemptEvidenceOf(treatment)) {
+        const directory = evidence.realAgent?.agentArtifactDirectory ?? null;
+        if (directory !== null) attemptDirectories.push({ unit: `${entry.caseId}/${treatment.treatmentId}`, directory });
+      }
+    }
   }
+  const isV2 = identity.schemaVersion === CAMPAIGN_IDENTITY_VERSION_V2;
+  if (identity.config.providerId === "deterministic-fixture") {
+    side.unverifiable.push("a deterministic-fixture identity carries no prompt template");
+    return side;
+  }
+  if (attemptDirectories.length === 0) {
+    side.unverifiable.push("no provider attempt artifact exists to establish the prompt identity");
+    return side;
+  }
+
+  const parsed: Array<{ unit: string; contract: PromptContractV1 | null; problem: string | null }> = [];
+  for (const item of attemptDirectories) {
+    try {
+      const bytes = (await readContained(realRoot, `${item.directory}/${PROMPT_CONTRACT_ARTIFACT_FILE}`, MAX_PROMPT_CONTRACT_BYTES)).toString("utf8");
+      const document = JSON.parse(bytes) as { promptContract?: unknown; promptContractDigest?: unknown };
+      assertPromptContractShape(document.promptContract);
+      const contract = document.promptContract as PromptContractV1;
+      if (document.promptContractDigest !== promptContractDigest(contract) || bytes !== renderPromptContractArtifact(contract)) {
+        parsed.push({ unit: item.unit, contract: null, problem: "prompt-contract artifact is not self-consistent" });
+      } else {
+        parsed.push({ unit: item.unit, contract, problem: null });
+      }
+    } catch (error) {
+      parsed.push({ unit: item.unit, contract: null, problem: error instanceof EvidenceError ? error.message : "prompt-contract artifact is unreadable or malformed" });
+    }
+  }
+
+  let contract: PromptContractV1;
+  let basis: PromptIdentityBasis;
+  if (isV2) {
+    const expected = renderPromptContractArtifact(identity.promptContract);
+    for (const item of parsed) {
+      if (item.contract !== null && renderPromptContractArtifact(item.contract) !== expected) {
+        side.unverifiable.push(reason(`prompt contract artifact for ${item.unit} does not match the campaign identity`));
+        return side;
+      }
+      if (item.contract === null) {
+        if (/self-consistent|malformed|outside/.test(item.problem ?? "")) {
+          side.unverifiable.push(reason(`prompt contract artifact for ${item.unit} is invalid: ${item.problem}`));
+          return side;
+        }
+        side.unverifiedUnits.set(item.unit, "prompt-contract-unverified");
+      }
+    }
+    if (parsed.every((item) => item.contract === null)) {
+      side.unverifiable.push("no persisted prompt-contract.json artifact could verify the campaign identity's prompt contract");
+      return side;
+    }
+    contract = identity.promptContract;
+    basis = "campaign-identity-v2-verified-contract";
+  } else {
+    // A V1 identity does not bind a contract: every invoked attempt must carry a verifiable artifact and they must agree.
+    const missing = parsed.filter((item) => item.contract === null);
+    if (missing.length > 0) {
+      side.unverifiable.push(reason(`historical prompt identity cannot be proven: ${missing[0]!.problem} (${missing[0]!.unit})`));
+      return side;
+    }
+    const contracts = parsed.map((item) => item.contract as PromptContractV1);
+    const first = contracts[0] as PromptContractV1;
+    if (contracts.some((candidate) => renderPromptContractArtifact(candidate) !== renderPromptContractArtifact(first))) {
+      side.unverifiable.push("conflicting prompt contracts were persisted across the run's attempts");
+      return side;
+    }
+    if (first.providerId !== identity.config.providerId) {
+      side.unverifiable.push("the persisted prompt contract provider conflicts with the campaign identity provider");
+      return side;
+    }
+    if (!isLegacyDefaultPromptContract(first)) {
+      side.unverifiable.push("the persisted prompt contract conflicts with a V1 identity, which can only describe the legacy default prompt");
+      return side;
+    }
+    contract = first;
+    basis = "legacy-v1-persisted-contract-artifacts";
+  }
+  side.promptContract = contract;
+  side.promptBasis = basis;
   return side;
 }

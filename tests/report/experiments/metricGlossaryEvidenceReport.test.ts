@@ -9,12 +9,12 @@ import { renderPluginExperimentReportHtml } from "../../../src/report/experiment
 import { renderPluginExperimentReportText } from "../../../src/report/experiments/renderPluginExperimentReportText.js";
 import { escapeHtml, safeInternalHref } from "../../../src/report/experiments/htmlSafety.js";
 import {
-  AGENT_SUCCESS_UNMAPPED_METRIC_IDS,
   listMetricDescriptors,
   metricGlossaryAnchor,
   resolveMetricDescriptor,
 } from "../../../src/report/experiments/metricGlossary.js";
-import { buildMetricEvidenceCaveats, buildMetricEvidenceViews } from "../../../src/report/experiments/metricEvidence.js";
+import { buildMetricEvidenceCaveats, buildMetricEvidenceViews, type MetricReportEvidence } from "../../../src/report/experiments/metricEvidence.js";
+import { readFileSync } from "node:fs";
 
 const GENERATED_AT = "2026-06-23T00:00:00.000Z";
 const AGENT = "agent-success-rate";
@@ -106,21 +106,80 @@ describe("metric glossary descriptors", () => {
     expect(resolveMetricDescriptor(WARM, "agent-total-tokens")).not.toBeNull();
   });
 
-  it("has unique anchors and every agent-success metric is mapped or explicitly recorded as unmapped", () => {
+  it("has unique, well-formed anchors and a definition for every descriptor", () => {
     const anchors = listMetricDescriptors().map((descriptor) => descriptor.anchor);
     expect(new Set(anchors).size).toBe(anchors.length);
     for (const descriptor of listMetricDescriptors()) {
-      expect(descriptor.definition.length).toBeGreaterThan(0);
+      expect(descriptor.definition.length, descriptor.key).toBeGreaterThan(0);
+      expect(descriptor.interpretation.length, descriptor.key).toBeGreaterThan(0);
       expect(descriptor.anchor).toMatch(/^[a-z][a-z0-9-]*$/);
     }
-    const emitted = [...AGENT_SUCCESS_METRIC_IDS, ...Object.keys(AGENT_SUCCESS_MEAN_SOURCES)];
-    for (const id of emitted) {
-      const mapped = resolveMetricDescriptor(AGENT, `${AGENT}.${id}`) !== null;
-      const unmapped = AGENT_SUCCESS_UNMAPPED_METRIC_IDS.includes(id);
-      expect(mapped !== unmapped, `${id} must be exactly one of mapped or unmapped`).toBe(true);
+  });
+
+  it("resolves every metric id the metric calculation owners can emit (source-to-glossary inventory)", () => {
+    const read = (file: string): string => readFileSync(file, "utf8");
+    const literals = (text: string, pattern: RegExp): string[] => [...text.matchAll(pattern)].map((match) => match[1] as string);
+
+    // agent-success-rate: ids constructed by the metric constructors, plus the declared id vocabularies.
+    const agentFiles = ["analysis.ts", "repairAnalysis.ts", "metrics.ts"].map((name) => read(`src/experiments/plugins/agentSuccessRate/${name}`));
+    const agentIds = new Set<string>([...AGENT_SUCCESS_METRIC_IDS, ...Object.keys(AGENT_SUCCESS_MEAN_SOURCES)]);
+    for (const text of agentFiles) {
+      for (const id of literals(text, /\b(?:availableMetric|unavailableMetric|notApplicableMetric|ratioMetric|triMetric|duration|rate|un)\(\s*"([A-Za-z]+)"/g)) agentIds.add(id);
+      for (const id of literals(text, /\bretag\([^,]+,\s*"([A-Za-z]+)"/g)) agentIds.add(id);
     }
-    for (const id of AGENT_SUCCESS_UNMAPPED_METRIC_IDS) {
-      expect(resolveMetricDescriptor(AGENT, `${AGENT}.${id}`)).toBeNull();
+    expect(agentIds.size).toBeGreaterThan(50);
+    const unresolvedAgent = [...agentIds].filter((id) => resolveMetricDescriptor(AGENT, `${AGENT}.${id}`) === null).sort();
+    expect(unresolvedAgent).toEqual([]);
+
+    const NON_METRIC = /(^local-repository-subject-manifest$|-execution$|-analysis$|^raw-full-file$|^context-pack$|^my-dev-kit-guided$|^legacy-|^plugin-result$)/;
+    const emitted: Array<[string, string[]]> = [
+      ["warm-index-reuse", ["src/experiments/plugins/warmIndexReuse/metrics.ts"]],
+      ["incremental-change-staleness", ["src/experiments/plugins/incrementalChangeStaleness/plugin.ts"]],
+      ["context-window-scaling", ["src/experiments/plugins/contextWindowScaling/plugin.ts", "src/experiments/plugins/contextWindowScaling/metrics.ts"]],
+      ["retrieval-precision-recall", ["src/experiments/plugins/retrievalPrecisionRecall/metrics.ts"]],
+      ["retrieval-query-strategy-comparison", ["src/experiments/plugins/retrievalQueryStrategyComparison/metrics.ts"]],
+      ["context-pack-generation", ["src/experiments/plugins/contextPackGeneration/metrics.ts"]],
+      ["context-strategy-comparison", ["src/experiments/plugins/contextStrategyComparison/resultMapping.ts"]]
+    ];
+    for (const [pluginId, files] of emitted) {
+      const ids = new Set<string>();
+      for (const source of files) {
+        const text = read(source);
+        for (const id of literals(text, /(?:\bid:\s*|\b(?:ratio|count|metric)\(\s*)"([a-z0-9][a-z0-9-]*)"/g)) if (!NON_METRIC.test(id)) ids.add(id);
+      }
+      expect(ids.size, pluginId).toBeGreaterThan(0);
+      const unresolved = [...ids].filter((id) => resolveMetricDescriptor(pluginId, id) === null).sort();
+      expect({ pluginId, unresolved }).toEqual({ pluginId, unresolved: [] });
+    }
+  });
+
+  it("resolves documented bounded dynamic families deterministically and rejects everything else", () => {
+    const cws = "context-window-scaling";
+    for (const id of ["budget-8192-success", "budget-65536-correctness-score", "budget-8192-context-budget-utilization-percent", "context-budget-16384-fit-count", "context-budget-8192-success-rate-percent", "context-budget-8192-mean-context-budget-utilization-percent"]) {
+      expect(resolveMetricDescriptor(cws, id), id).not.toBeNull();
+    }
+    // One shared descriptor and anchor per family, independent of the parameter.
+    expect(resolveMetricDescriptor(cws, "budget-8192-success")).toBe(resolveMetricDescriptor(cws, "budget-65536-success"));
+    for (const plugin of ["retrieval-query-strategy-comparison", "context-pack-generation"]) {
+      for (const scope of ["overall", "localized", "cross-module", "broad-change"]) {
+        for (const suffix of ["comparison-case-count", "mean-file-f1", "mean-symbol-f1", "mean-fact-coverage"]) expect(resolveMetricDescriptor(plugin, `${scope}-${suffix}`), `${plugin}/${scope}-${suffix}`).not.toBeNull();
+      }
+    }
+    expect(resolveMetricDescriptor("context-pack-generation", "overall-mean-estimated-token-count")).not.toBeNull();
+    expect(resolveMetricDescriptor("retrieval-query-strategy-comparison", "overall-mean-retrieved-token-count")).not.toBeNull();
+    expect(resolveMetricDescriptor("context-strategy-comparison", "case-7-token-savings-percent")).not.toBeNull();
+    for (const [plugin, id] of [
+      [cws, "budget-0-success"],
+      [cws, "budget--1-success"],
+      [cws, "budget-8192-bogus"],
+      [cws, "budget-8192-success<script>"],
+      [cws, "context-budget-abc-fit-count"],
+      ["retrieval-query-strategy-comparison", "overall-mean-estimated-token-count"],
+      ["retrieval-query-strategy-comparison", "nonsense-mean-file-f1"],
+      ["warm-index-reuse", "budget-8192-success"],
+      ["retrieval-precision-recall", "x-token-savings-percent"]
+    ] as const) {
+      expect(resolveMetricDescriptor(plugin, id), `${plugin}/${id}`).toBeNull();
     }
   });
 
@@ -365,9 +424,68 @@ describe("compatibility", () => {
     expect(html).toContain("<h2 id=\"section-metrics-title\">Metrics</h2>");
   });
 
-  it("leaves the plain-text report format unchanged by the glossary projection", () => {
-    const text = renderPluginExperimentReportText(reportFor(AGENT, [metric(`${AGENT}.taskSuccess`, true)]));
-    expect(text).not.toMatch(/glossary|Evidence Caveats/i);
+  it("keeps the existing text sections and adds the same evidence caveats the HTML report shows", () => {
+    const report = reportFor(AGENT, [toExperimentMetric(unavailableMetric("agentTotalTokens", "tokens", "no usage."), { caseId: "c1" }), metric(`${AGENT}.taskSuccess`, true)]);
+    const text = renderPluginExperimentReportText(report);
     expect(text).toContain("value=true");
+    expect(text).toContain("Warnings, Skips, And Failures");
+    expect(text).toContain("Metric Evidence Caveats");
+    const caveats = buildMetricEvidenceCaveats(report, buildMetricEvidenceViews(report));
+    expect(caveats.length).toBeGreaterThan(0);
+    const html = renderPluginExperimentReportHtml(report);
+    for (const caveat of caveats) {
+      expect(text).toContain(caveat.text);
+      expect(html).toContain(escapeHtml(caveat.text));
+    }
+  });
+
+  it("preserves recorded token provenance and keeps aggregates unknown unless every contributor agrees", () => {
+    const attempt = (n: number, source: string | null, reliability: string | null, invoked = true, available = true) => ({
+      caseId: "c1",
+      treatmentId: "raw-full-file",
+      attemptNumber: n,
+      providerInvoked: invoked,
+      tokenSource: source,
+      tokenReliability: reliability,
+      totalTokensAvailable: available
+    });
+    const view = (id: string, evidence: MetricReportEvidence) =>
+      buildMetricEvidenceViews(reportFor(AGENT, [metric(`${AGENT}.${id}`, 10, { caseId: "c1", variantId: "raw-full-file", unit: "tokens" })]), evidence)[0]!;
+    const same: MetricReportEvidence = { agentSuccessAttempts: [attempt(1, "provider-reported", "high"), attempt(2, "provider-reported", "high")] };
+    expect(view("agentTotalTokens", same)).toMatchObject({ provenance: "provider-reported", reliability: "high" });
+    expect(view("firstAttemptProviderTokens", same)).toMatchObject({ provenance: "provider-reported", reliability: "high" });
+    expect(view("totalProviderTokens", same)).toMatchObject({ provenance: "provider-reported", reliability: "high" });
+    // Differing reliability: the aggregate provenance is shared, but no aggregate reliability is attributed.
+    const mixed: MetricReportEvidence = { agentSuccessAttempts: [attempt(1, "provider-reported", "high"), attempt(2, "provider-reported", "low")] };
+    expect(view("totalProviderTokens", mixed)).toMatchObject({ provenance: "provider-reported", reliability: "unknown" });
+    expect(view("agentTotalTokens", mixed)).toMatchObject({ reliability: "low" });
+    // An incomplete contributor leaves the aggregate fully unknown.
+    const incomplete: MetricReportEvidence = { agentSuccessAttempts: [attempt(1, "provider-reported", "high"), attempt(2, null, null, true, false)] };
+    expect(view("totalProviderTokens", incomplete)).toMatchObject({ provenance: "unknown", reliability: "unknown" });
+    // Estimated usage is never relabeled as provider usage; absent evidence stays unknown.
+    expect(view("agentTotalTokens", { agentSuccessAttempts: [attempt(1, "estimated-from-text", "low")] })).toMatchObject({ provenance: "estimated", reliability: "low" });
+    expect(view("agentTotalTokens", {})).toMatchObject({ provenance: "unknown", reliability: "unknown" });
+    expect(view("agentTotalTokens", { agentSuccessAttempts: [attempt(1, "otel", "medium")] })).toMatchObject({ provenance: "unknown" });
+  });
+
+  it("attributes cumulative warm-index token telemetry only over a uniformly known strict prefix", () => {
+    const agent = (source: string, reliability: string) => ({ tokenUsageSource: source, tokenUsageReliability: reliability });
+    const task = (ordinal: number, caseId: string, raw: ReturnType<typeof agent> | null) => ({ taskOrdinal: ordinal, caseId, rawAgent: raw, warmAgent: null, raw: {}, warm: {} });
+    const build = (tasks: unknown[]) =>
+      withWarmIndex(
+        reportFor(WARM, [
+          metric("cumulative-agent-total-tokens", 20, { variantId: "raw-full-file", caseId: "c2", unit: "tokens" }),
+          metric("agent-total-tokens", 10, { variantId: "raw-full-file", caseId: "c2", unit: "tokens" })
+        ]),
+        tasks,
+        null
+      );
+    const uniform = buildMetricEvidenceViews(build([task(1, "c1", agent("provider-reported", "high")), task(2, "c2", agent("provider-reported", "high"))]));
+    expect(uniform[0]).toMatchObject({ provenance: "provider-reported", reliability: "high" });
+    const mixed = buildMetricEvidenceViews(build([task(1, "c1", agent("provider-reported", "high")), task(2, "c2", agent("estimated-from-text", "low"))]));
+    expect(mixed[0]).toMatchObject({ provenance: "unknown", reliability: "unknown" });
+    expect(mixed[1]).toMatchObject({ provenance: "estimated", reliability: "low" });
+    const missing = buildMetricEvidenceViews(build([task(1, "c1", null), task(2, "c2", agent("provider-reported", "high"))]));
+    expect(missing[0]).toMatchObject({ provenance: "unknown", reliability: "unknown" });
   });
 });

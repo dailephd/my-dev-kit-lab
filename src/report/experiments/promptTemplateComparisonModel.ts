@@ -16,7 +16,7 @@ export const PROMPT_TEMPLATE_COMPARISON_JSON_FILE = "prompt-template-comparison.
 export const PROMPT_TEMPLATE_COMPARISON_TEXT_FILE = "prompt-template-comparison.txt";
 export const PROMPT_TEMPLATE_COMPARISON_HTML_FILE = "prompt-template-comparison.html";
 
-export type PromptIdentityBasis = "campaign-identity-v2-verified-contract" | "legacy-v1-default-identity" | "unverified";
+export type PromptIdentityBasis = "campaign-identity-v2-verified-contract" | "legacy-v1-persisted-contract-artifacts" | "unverified";
 
 /** Evidence for one side, already read and integrity-checked by the loader. */
 export type PromptComparisonSideEvidence = {
@@ -138,8 +138,10 @@ function attemptsOf(treatment: AgentSuccessTreatmentEvidenceV1): UnitAttempt[] {
 }
 
 /**
- * Classifies one attempt's response under the invalid-output definition. Only a completed provider response whose
- * persisted evidence proves a contract violation is invalid; provider/infrastructure outcomes are excluded.
+ * Classifies one attempt's response under the invalid-output definition. An attempt is eligible only when
+ * persisted evidence proves a completed provider response, and invalid only when that evidence also proves a
+ * contract violation. A provider status alone is never sufficient. Anything the evidence cannot establish is
+ * excluded with an explicit reason: it is neither valid nor invalid and never enters the denominator.
  */
 export function classifyResponseValidity(unit: UnitAttempt): Classified {
   const evidence = unit.evidence;
@@ -150,22 +152,27 @@ export function classifyResponseValidity(unit: UnitAttempt): Classified {
   if (status === "agent-unavailable") return { eligible: false, invalid: false, reason: "provider-unavailable" };
   if (status === "agent-limit-reached") return { eligible: false, invalid: false, reason: "provider-limit-reached" };
   if (status === "failed" || status === "skipped") return { eligible: false, invalid: false, reason: "provider-failure" };
-  if (category === "infrastructure-failure" || category === "evidence-incomplete" || category === "integrity-unproven" || category === "context-unavailable" || category === "baseline-invalid") {
+  // The provider run classifier's invalid-output status does not carry the application response contract result:
+  // the response is not evaluated against the prompt contract in that case, so it proves no specific violation.
+  if (status === "invalid-output") return { eligible: false, invalid: false, reason: "unverified-provider-invalid-output-status" };
+  if (category === "infrastructure-failure" || category === "evidence-incomplete" || category === "integrity-unproven" || category === "context-unavailable" || category === "baseline-invalid" || category === "cleanup-failed") {
     return { eligible: false, invalid: false, reason: `unverified-${category}` };
   }
-  if (status === "invalid-output") return { eligible: true, invalid: true, reason: "provider-invalid-output-status" };
   if (status !== "completed") return { eligible: false, invalid: false, reason: "unverified-provider-status" };
 
   const real = evidence.realAgent;
-  if (!real) return { eligible: false, invalid: false, reason: "missing-response-evidence" };
+  if (!real || real.providerInvoked !== true) return { eligible: false, invalid: false, reason: "missing-response-evidence" };
   const contractError = evidence.errors.find((error) => error.code.startsWith("OUTPUT_CONTRACT_"));
-  if (contractError) return { eligible: true, invalid: true, reason: contractError.code };
   if (!real.finalAnswerAvailable) {
-    const emptyProven = evidence.errors.some((error) => error.code === "PROVIDER_EMPTY_ANSWER") || category === "provider-empty-answer" || category === null;
-    return emptyProven
-      ? { eligible: true, invalid: true, reason: "provider-empty-answer" }
-      : { eligible: false, invalid: false, reason: "missing-response-evidence" };
+    // A completed provider process with no usable final answer: invalid only when the persisted evidence names it.
+    if (evidence.errors.some((error) => error.code === "PROVIDER_EMPTY_ANSWER")) return { eligible: true, invalid: true, reason: "provider-empty-answer" };
+    return { eligible: false, invalid: false, reason: "missing-response-evidence" };
   }
+  if (contractError) {
+    if (!evidence.patch.attempted) return { eligible: false, invalid: false, reason: "missing-response-evidence" };
+    return { eligible: true, invalid: true, reason: contractError.code };
+  }
+  if (!evidence.patch.attempted || evidence.patch.outcome === null) return { eligible: false, invalid: false, reason: "unverified-patch-pipeline-outcome" };
   if (evidence.patch.outcome === "parse-failure") return { eligible: true, invalid: true, reason: `malformed-diff${evidence.patch.code ? `:${evidence.patch.code}` : ""}` };
   // Policy rejection, git check/apply failure and failed task verification are well-formed responses.
   return { eligible: true, invalid: false, reason: "valid" };
@@ -335,8 +342,8 @@ export function buildPromptTemplateComparison(baseline: PromptComparisonSideEvid
       if (criterion.status === "unverifiable") reasons.push(`${criterion.id}: ${criterion.detail}`);
     }
     if ((baseline.promptContract as PromptContractV1).templateId === (candidate.promptContract as PromptContractV1).templateId) limitations.push(SAME_TEMPLATE_LIMITATION);
-    if (baseline.promptBasis === "legacy-v1-default-identity" || candidate.promptBasis === "legacy-v1-default-identity") {
-      limitations.push("A legacy V1 campaign identity carries no prompt contract; its template is the legacy default established from the identity's real-provider configuration.");
+    if (baseline.promptBasis === "legacy-v1-persisted-contract-artifacts" || candidate.promptBasis === "legacy-v1-persisted-contract-artifacts") {
+      limitations.push("A legacy V1 campaign identity does not bind a prompt contract; its template is established only from the persisted per-attempt prompt-contract.json artifacts of this run, which agree and match the legacy default.");
     }
   }
 

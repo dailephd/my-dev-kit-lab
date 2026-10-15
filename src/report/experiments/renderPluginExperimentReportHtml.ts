@@ -1,14 +1,20 @@
 import { getSpecializedReportSectionRegistry } from "./specializedReportSections.js";
 import type { PluginExperimentReport } from "./experimentReportModel.js";
 import { escapeHtml, safeInternalHref, sectionAnchorId } from "./htmlSafety.js";
-import { buildMetricEvidenceCaveats, buildMetricEvidenceViews, type MetricCaveatV1, type MetricEvidenceViewV1 } from "./metricEvidence.js";
+import {
+  buildMetricEvidenceCaveats,
+  buildMetricEvidenceViews,
+  type MetricCaveatV1,
+  type MetricEvidenceViewV1,
+  type MetricReportEvidence
+} from "./metricEvidence.js";
 import { listMetricDescriptors, type MetricDescriptorV1 } from "./metricGlossary.js";
 
 type NavEntry = { anchor: string; label: string };
 
-export function renderPluginExperimentReportHtml(report: PluginExperimentReport): string {
+export function renderPluginExperimentReportHtml(report: PluginExperimentReport, evidence?: MetricReportEvidence): string {
   const redactedTarget = report.target.privacyProjection === "external-local-redacted";
-  const views = buildMetricEvidenceViews(report);
+  const views = buildMetricEvidenceViews(report, evidence);
   const caveats = buildMetricEvidenceCaveats(report, views);
   const glossary = glossaryDescriptorsFor(views);
   const family = renderSpecializedSections(report);
@@ -239,7 +245,7 @@ function renderGlossary(descriptors: readonly MetricDescriptorV1[]): string {
   return `
   <section id="section-metric-glossary" aria-labelledby="section-metric-glossary-title">
     <h2 id="section-metric-glossary-title">Metric Glossary</h2>
-    <p class="muted">Definitions are condensed from docs/METRICS.md, the authoritative metric reference. They are descriptive; no composite score is produced.</p>
+    <p class="muted">Definitions are condensed from docs/METRICS.md, the authoritative metric reference. They are descriptive and are not combined into a single figure.</p>
     <dl>${descriptors
       .map((descriptor) => {
         const caveats = descriptor.caveats.length ? `<br /><strong>Caveats:</strong> ${descriptor.caveats.map((c) => escapeHtml(c)).join(" ")}` : "";

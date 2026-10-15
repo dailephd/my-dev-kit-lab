@@ -1,6 +1,6 @@
 import { mkdir, realpath, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { loadPromptComparisonSide } from "../report/experiments/promptTemplateComparisonEvidence.js";
+import { loadPromptComparisonSide, type PromptComparisonLoadOptions } from "../report/experiments/promptTemplateComparisonEvidence.js";
 import {
   buildPromptTemplateComparison,
   PROMPT_TEMPLATE_COMPARISON_HTML_FILE,
@@ -65,7 +65,7 @@ function overlaps(a: string, b: string): boolean {
 
 export type ComparePromptsResult = { report: PromptTemplateComparisonReportV1; paths: { json: string; text: string; html: string } };
 
-export async function runComparePrompts(args: ParsedComparePromptsArgs, cwd = process.cwd()): Promise<ComparePromptsResult> {
+export async function runComparePrompts(args: ParsedComparePromptsArgs, cwd = process.cwd(), options: PromptComparisonLoadOptions = {}): Promise<ComparePromptsResult> {
   const baselineRoot = path.resolve(cwd, args.baseline);
   const candidateRoot = path.resolve(cwd, args.candidate);
   const outRoot = path.resolve(cwd, args.out);
@@ -82,7 +82,7 @@ export async function runComparePrompts(args: ParsedComparePromptsArgs, cwd = pr
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
 
-  const [baseline, candidate] = await Promise.all([loadPromptComparisonSide(baselineRoot, "baseline"), loadPromptComparisonSide(candidateRoot, "candidate")]);
+  const [baseline, candidate] = await Promise.all([loadPromptComparisonSide(baselineRoot, "baseline", options), loadPromptComparisonSide(candidateRoot, "candidate", options)]);
   for (const side of [baseline, candidate]) {
     if (side.execution === null) {
       throw new Error(`The ${side.role} run evidence is unreadable or invalid: ${side.unverifiable.join("; ")}`);
@@ -101,9 +101,9 @@ export async function runComparePrompts(args: ParsedComparePromptsArgs, cwd = pr
   return { report, paths };
 }
 
-export async function runComparePromptsCommand(argv: string[]): Promise<number> {
+export async function runComparePromptsCommand(argv: string[], options: PromptComparisonLoadOptions = {}): Promise<number> {
   try {
-    const result = await runComparePrompts(parseComparePromptsArgs(argv));
+    const result = await runComparePrompts(parseComparePromptsArgs(argv), process.cwd(), options);
     const report = result.report;
     console.log(
       [

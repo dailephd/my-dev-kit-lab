@@ -6,6 +6,9 @@
 import type { ExperimentMetricValue } from "../../experiments/index.js";
 import { RAW_FULL_FILE_VARIANT_ID, WARM_INDEX_REUSE_VARIANT_ID } from "../../experiments/plugins/warmIndexReuse/plugin.js";
 import type { WarmIndexNumberMetricV1 } from "../../experiments/plugins/warmIndexReuse/metrics.js";
+import type { ExperimentRun } from "../../experiments/index.js";
+import type { AgentSuccessCaseEvidenceV1 } from "../../experiments/plugins/agentSuccessRate/executionTypes.js";
+import { attemptEvidenceOf } from "../../experiments/plugins/agentSuccessRate/attemptEvidence.js";
 import type { PluginExperimentReport } from "./experimentReportModel.js";
 import {
   pluginLocalMetricId,
@@ -63,6 +66,50 @@ const KIND_ORDER: readonly MetricCaveatKind[] = [
   "estimated-not-provider-usage",
   "glossary-missing",
 ];
+
+/**
+ * Producer token-telemetry evidence that exists at report-build time but is not carried in report.json. It is
+ * supplied out of band to the renderers; without it provenance and reliability stay explicitly unknown.
+ */
+export type AttemptTelemetryEvidence = {
+  caseId: string;
+  treatmentId: string;
+  attemptNumber: number;
+  providerInvoked: boolean;
+  /** Recorded token source (TokenUsageSource) or null when the attempt recorded no token usage. */
+  tokenSource: string | null;
+  tokenReliability: string | null;
+  totalTokensAvailable: boolean;
+};
+
+export type MetricReportEvidence = { agentSuccessAttempts?: readonly AttemptTelemetryEvidence[] };
+
+/** Collects per-attempt telemetry already recorded in agent-success execution evidence. Pure; no I/O. */
+export function collectMetricReportEvidence(run: ExperimentRun): MetricReportEvidence {
+  // Only the agent-success-rate plugin records per-attempt token telemetry in this shape.
+  if (run.pluginId !== "agent-success-rate") return {};
+  const cases = (run as unknown as { caseExecutionEvidence?: AgentSuccessCaseEvidenceV1[] }).caseExecutionEvidence;
+  if (!Array.isArray(cases)) return {};
+  const attempts: AttemptTelemetryEvidence[] = [];
+  for (const entry of cases) {
+    if (!entry || !Array.isArray(entry.treatments)) continue;
+    for (const treatment of entry.treatments) {
+      attemptEvidenceOf(treatment).forEach((evidence, index) => {
+        const usage = evidence.agentTokenUsage;
+        attempts.push({
+          caseId: entry.caseId,
+          treatmentId: treatment.treatmentId,
+          attemptNumber: index + 1,
+          providerInvoked: evidence.realAgent?.providerInvoked === true,
+          tokenSource: usage ? usage.source : null,
+          tokenReliability: usage ? usage.reliability : null,
+          totalTokensAvailable: usage !== null && typeof usage.totalTokens === "number"
+        });
+      });
+    }
+  }
+  return { agentSuccessAttempts: attempts };
+}
 
 const MAX_LISTED = 10;
 const MAX_REASONS = 3;
@@ -133,6 +180,73 @@ function warmIndexTelemetry(report: PluginExperimentReport): Map<string, Telemet
   return result;
 }
 
+function commonValue<T extends string>(values: readonly T[], unknownValue: T): T {
+  if (values.length === 0) return unknownValue;
+  const first = values[0] as T;
+  return values.every((value) => value === first) ? first : unknownValue;
+}
+
+/**
+ * Aggregate telemetry across contributing measurements. Provenance and reliability are attributed only when every
+ * contributor is known and identical; any missing or differing contributor leaves the aggregate unknown.
+ */
+function aggregateTelemetry(parts: ReadonlyArray<Telemetry | null>): Telemetry {
+  if (parts.length === 0 || parts.some((part) => part === null)) return { provenance: "unknown", reliability: "unknown" };
+  const known = parts as Telemetry[];
+  const provenance = commonValue(known.map((part) => part.provenance), "unknown" as MetricProvenance);
+  const reliability = commonValue(known.map((part) => part.reliability), "unknown" as MetricReliability);
+  return { provenance, reliability };
+}
+
+/** Cumulative warm-index token telemetry per variant/case: the strict prefix of tasks 1..N in the project. */
+function warmIndexCumulativeTelemetry(report: PluginExperimentReport): Map<string, Telemetry> {
+  const result = new Map<string, Telemetry>();
+  for (const project of report.warmIndexReuse?.projects ?? []) {
+    const tasks = [...project.tasks].sort((a, b) => a.taskOrdinal - b.taskOrdinal);
+    for (const [variantId, pick] of [
+      [RAW_FULL_FILE_VARIANT_ID, (task: (typeof tasks)[number]) => task.rawAgent],
+      [WARM_INDEX_REUSE_VARIANT_ID, (task: (typeof tasks)[number]) => task.warmAgent]
+    ] as const) {
+      const parts: Array<Telemetry | null> = [];
+      for (const task of tasks) {
+        const agent = pick(task);
+        parts.push(agent ? { provenance: provenanceOfTokenSource(agent.tokenUsageSource), reliability: reliabilityOf(agent.tokenUsageReliability) } : null);
+        result.set(telemetryKey(variantId, task.caseId), aggregateTelemetry(parts));
+      }
+    }
+  }
+  return result;
+}
+
+function agentSuccessTelemetry(
+  localId: string,
+  caseId: string | null,
+  variantId: string | null,
+  evidence: MetricReportEvidence | undefined
+): Telemetry | null {
+  if (!evidence?.agentSuccessAttempts || caseId === null || variantId === null) return null;
+  const attempts = evidence.agentSuccessAttempts
+    .filter((attempt) => attempt.caseId === caseId && attempt.treatmentId === variantId)
+    .sort((a, b) => a.attemptNumber - b.attemptNumber);
+  if (attempts.length === 0) return null;
+  const one = (attempt: AttemptTelemetryEvidence | undefined): Telemetry | null =>
+    attempt && attempt.providerInvoked && attempt.totalTokensAvailable && attempt.tokenSource !== null
+      ? { provenance: provenanceOfTokenSource(attempt.tokenSource), reliability: reliabilityOf(attempt.tokenReliability) }
+      : null;
+  switch (localId) {
+    case "firstAttemptProviderTokens":
+      return one(attempts[0]);
+    case "agentTotalTokens":
+    case "finalAttemptProviderTokens":
+      return one(attempts[attempts.length - 1]);
+    case "totalProviderTokens":
+      // Cumulative over the attempts that actually ran provider processes.
+      return aggregateTelemetry(attempts.filter((attempt) => attempt.providerInvoked).map(one));
+    default:
+      return null;
+  }
+}
+
 function warmUnavailableAgentTokenViews(report: PluginExperimentReport, telemetry: Map<string, Telemetry>): MetricEvidenceViewV1[] {
   const pluginId = report.plugin.id;
   const descriptor = resolveMetricDescriptor(pluginId, "agent-total-tokens");
@@ -167,9 +281,10 @@ function warmUnavailableAgentTokenViews(report: PluginExperimentReport, telemetr
 }
 
 /** Builds one evidence view per rendered metric, preserving report order. Pure; never mutates the report. */
-export function buildMetricEvidenceViews(report: PluginExperimentReport): MetricEvidenceViewV1[] {
+export function buildMetricEvidenceViews(report: PluginExperimentReport, evidence?: MetricReportEvidence): MetricEvidenceViewV1[] {
   const pluginId = report.plugin.id;
   const telemetry = warmIndexTelemetry(report);
+  const cumulative = warmIndexCumulativeTelemetry(report);
   const views: MetricEvidenceViewV1[] = report.metrics.map((metric) => {
     const descriptor = resolveMetricDescriptor(pluginId, metric.id);
     const parsed = metric.id.startsWith(AGENT_SUCCESS_PREFIX) && metric.description ? DESCRIPTION_PATTERN.exec(metric.description) : null;
@@ -180,9 +295,16 @@ export function buildMetricEvidenceViews(report: PluginExperimentReport): Metric
       reason = parsed[2] !== undefined && parsed[2].trim() !== "" ? parsed[2].trim() : null;
       if (availability === "available") reason = null;
     }
-    const known = telemetry.get(telemetryKey(metric.variantId ?? null, metric.caseId ?? null));
+    const localId = pluginLocalMetricId(pluginId, metric.id);
+    const key = telemetryKey(metric.variantId ?? null, metric.caseId ?? null);
     const tokenMetric = isTokenTelemetry(descriptor);
-    const perTask = tokenMetric && !pluginLocalMetricId(pluginId, metric.id).startsWith("cumulative-");
+    const known: Telemetry | null | undefined = !tokenMetric
+      ? null
+      : pluginId === "agent-success-rate"
+        ? agentSuccessTelemetry(localId, metric.caseId ?? null, metric.variantId ?? null, evidence)
+        : localId.startsWith("cumulative-")
+          ? cumulative.get(key)
+          : telemetry.get(key);
     return {
       metricId: metric.id,
       pluginId,
@@ -191,8 +313,8 @@ export function buildMetricEvidenceViews(report: PluginExperimentReport): Metric
       unit: metric.unit ?? descriptor?.unit ?? null,
       availability,
       reason,
-      provenance: tokenMetric ? (perTask && known ? known.provenance : "unknown") : basisProvenance(descriptor),
-      reliability: tokenMetric && perTask && known ? known.reliability : "unknown",
+      provenance: tokenMetric ? (known ? known.provenance : "unknown") : basisProvenance(descriptor),
+      reliability: tokenMetric && known ? known.reliability : "unknown",
       variantId: metric.variantId ?? null,
       caseId: metric.caseId ?? null,
       glossaryAnchor: descriptor?.anchor ?? null,

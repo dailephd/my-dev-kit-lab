@@ -2,6 +2,8 @@
 // authoritative source of metric meaning. This module performs no calculation and no I/O; it only maps a
 // plugin-scoped metric identity to presentation metadata and a stable in-document glossary anchor.
 
+import { APPENDED_ROWS, EXTRA_AGENT_SUCCESS_ROWS, EXTRA_GROUPS, FAMILIES } from "./metricGlossaryCatalog.js";
+
 export type MetricMeasurementBasis =
   | "measured"
   | "derived"
@@ -149,7 +151,7 @@ const GROUPS: Group[] = [
       { id: "symbol-precision", name: "Symbol precision", def: "Relevant retrieved symbol names / retrieved symbol names (exact, case-sensitive).", unit: "ratio", interp: "No fuzzy or semantic matching.", basis: "answer-key-set-measure" },
       { id: "symbol-recall", name: "Symbol recall", def: "Relevant retrieved symbol names / expected symbol names (exact, case-sensitive).", unit: "ratio", interp: "No fuzzy or semantic matching.", basis: "answer-key-set-measure" },
       { id: "fact-coverage", name: "Fact coverage", def: "Covered expected facts / all expected facts through explicit factIds-to-context mappings.", unit: "ratio", interp: "Unweighted; no fact-prose matching or model judge.", caveats: ["Unavailable when a required fact has no usable mapping."], basis: "answer-key-set-measure" },
-      { id: "irrelevant-context-ratio", name: "Irrelevant context ratio", def: "Irrelevant retrieved files / retrieved files.", unit: "ratio", interp: "A diagnostic complement of file precision, not an independent ranking metric.", basis: "answer-key-set-measure" },
+      { id: "irrelevant-context-ratio", name: "Irrelevant context ratio", def: "Irrelevant retrieved files / retrieved files.", unit: "ratio", interp: "A diagnostic complement of file precision, not an independent measure.", basis: "answer-key-set-measure" },
       { id: "retrieved-token-count", name: "Retrieved token count", def: "The selected retrieval context's totalEstimatedTokens, ceil(characters / 4).", unit: "tokens", interp: "Context-size evidence.", caveats: [ESTIMATE_CAVEAT, "Not a per-file relevant-token attribution."], basis: "estimated" },
     ],
   },
@@ -167,10 +169,10 @@ const GROUPS: Group[] = [
       { id: "estimated-token-count", name: "Estimated context tokens", def: "Estimated context size using ceil(character count / 4).", unit: "tokens", interp: "Not a provider tokenizer or billing measurement.", caveats: [ESTIMATE_CAVEAT], basis: "estimated" },
       { id: "tokens-saved", name: "Estimated tokens saved", def: "rawEstimatedTokens - packEstimatedTokens for a matched case.", unit: "tokens", interp: "Negative savings are valid and are not clamped.", caveats: [ESTIMATE_CAVEAT], basis: "estimated" },
       { id: "percent-saved", name: "Estimated percent saved", def: "tokensSaved / rawEstimatedTokens * 100 (zero when the raw estimate is zero).", unit: "percent", interp: "Negative values are valid and are not clamped.", caveats: [ESTIMATE_CAVEAT], basis: "estimated" },
-      { id: "estimated-token-delta", name: "Estimated token delta", def: "Pack-minus-raw estimated tokens for a matched case.", unit: "tokens", interp: "Descriptive; no composite score.", caveats: [ESTIMATE_CAVEAT], basis: "estimated" },
-      { id: "file-f1-delta", name: "File F1 delta", def: "Pack-minus-raw file F1 for a matched case.", unit: "score", interp: "Descriptive; no composite score.", basis: "answer-key-set-measure" },
-      { id: "symbol-f1-delta", name: "Symbol F1 delta", def: "Pack-minus-raw symbol F1 for a matched case.", unit: "score", interp: "Descriptive; no composite score.", basis: "answer-key-set-measure" },
-      { id: "fact-coverage-delta", name: "Fact coverage delta", def: "Pack-minus-raw fact coverage for a matched case.", unit: "score", interp: "Descriptive; no composite score.", basis: "answer-key-set-measure" },
+      { id: "estimated-token-delta", name: "Estimated token delta", def: "Pack-minus-raw estimated tokens for a matched case.", unit: "tokens", interp: "Descriptive only; values are not combined into one figure.", caveats: [ESTIMATE_CAVEAT], basis: "estimated" },
+      { id: "file-f1-delta", name: "File F1 delta", def: "Pack-minus-raw file F1 for a matched case.", unit: "score", interp: "Descriptive only; values are not combined into one figure.", basis: "answer-key-set-measure" },
+      { id: "symbol-f1-delta", name: "Symbol F1 delta", def: "Pack-minus-raw symbol F1 for a matched case.", unit: "score", interp: "Descriptive only; values are not combined into one figure.", basis: "answer-key-set-measure" },
+      { id: "fact-coverage-delta", name: "Fact coverage delta", def: "Pack-minus-raw fact coverage for a matched case.", unit: "score", interp: "Descriptive only; values are not combined into one figure.", basis: "answer-key-set-measure" },
     ],
   },
   {
@@ -183,28 +185,6 @@ const GROUPS: Group[] = [
   },
 ];
 
-/**
- * Agent-success metric ids the plugin can emit that docs/METRICS.md does not yet define. They stay renderable,
- * receive no invented definition and no glossary link, and produce a bounded missing-metadata warning.
- */
-export const AGENT_SUCCESS_UNMAPPED_METRIC_IDS: readonly string[] = Object.freeze([
-  "patchApplied",
-  "optionalFactsTotal",
-  "optionalFactsSatisfiedCount",
-  "attemptCount",
-  "repairAttemptCount",
-  "evaluableCaseCount",
-  "successfulCaseCount",
-  "initialAttemptSuccessfulCount",
-  "finalSuccessfulCount",
-  "repairAttemptedCaseCount",
-  "repairedCaseCount",
-  "meanAttemptsPerEvaluableCase",
-  "firstAttemptProviderDurationMs",
-  "finalAttemptProviderDurationMs",
-  "firstAttemptProviderTokens",
-  "finalAttemptProviderTokens",
-]);
 
 function slug(value: string): string {
   return value
@@ -217,40 +197,54 @@ export function metricGlossaryAnchor(pluginId: string, metricId: string): string
   return `metric-${slug(pluginId)}--${slug(metricId)}`;
 }
 
+function mergedGroups(): Group[] {
+  const groups: Group[] = GROUPS.map((group) => ({
+    ...group,
+    rows: [
+      ...group.rows,
+      ...(group.pluginId === "agent-success-rate" ? (EXTRA_AGENT_SUCCESS_ROWS as Row[]) : []),
+      ...((APPENDED_ROWS[group.pluginId] ?? []) as Row[])
+    ]
+  }));
+  return [...groups, ...(EXTRA_GROUPS as Group[])];
+}
+
 const DESCRIPTORS: readonly MetricDescriptorV1[] = (() => {
   const out: MetricDescriptorV1[] = [];
   const anchors = new Map<string, string>();
-  for (const group of GROUPS) {
-    for (const row of group.rows) {
-      const key = `${group.pluginId}#${row.id}`;
-      const anchor = metricGlossaryAnchor(group.pluginId, row.id);
-      const clash = anchors.get(anchor);
-      if (clash !== undefined && clash !== key) {
-        throw new Error(`Metric glossary anchor collision: ${key} and ${clash}.`);
-      }
-      if (anchors.has(anchor)) throw new Error(`Duplicate metric glossary entry: ${key}.`);
-      anchors.set(anchor, key);
-      out.push(
-        Object.freeze({
-          key,
-          pluginId: group.pluginId,
-          metricId: row.id,
-          displayName: row.name,
-          definition: row.def,
-          unit: row.unit ?? null,
-          anchor,
-          interpretation: row.interp,
-          caveats: Object.freeze([...(row.caveats ?? [])]),
-          measurementBasis: row.basis ?? "not-specified",
-          docsSection: group.docsSection,
-        })
-      );
-    }
-  }
+  const push = (pluginId: string, docsSection: string, row: Row): void => {
+    const key = `${pluginId}#${row.id}`;
+    const anchor = metricGlossaryAnchor(pluginId, row.id);
+    if (anchors.has(anchor)) throw new Error(`Duplicate or colliding metric glossary entry: ${key}.`);
+    anchors.set(anchor, key);
+    out.push(
+      Object.freeze({
+        key,
+        pluginId,
+        metricId: row.id,
+        displayName: row.name,
+        definition: row.def,
+        unit: row.unit ?? null,
+        anchor,
+        interpretation: row.interp,
+        caveats: Object.freeze([...(row.caveats ?? [])]),
+        measurementBasis: row.basis ?? "not-specified",
+        docsSection
+      })
+    );
+  };
+  for (const group of mergedGroups()) for (const row of group.rows) push(group.pluginId, group.docsSection, row);
+  for (const family of FAMILIES) push(family.pluginId, family.docsSection, { id: family.template, ...family.row });
   return Object.freeze(out);
 })();
 
 const BY_KEY = new Map(DESCRIPTORS.map((descriptor) => [descriptor.key, descriptor]));
+const FAMILIES_BY_PLUGIN = new Map<string, Array<{ pattern: RegExp; descriptor: MetricDescriptorV1 }>>();
+for (const family of FAMILIES) {
+  const list = FAMILIES_BY_PLUGIN.get(family.pluginId) ?? [];
+  list.push({ pattern: family.pattern, descriptor: BY_KEY.get(`${family.pluginId}#${family.template}`) as MetricDescriptorV1 });
+  FAMILIES_BY_PLUGIN.set(family.pluginId, list);
+}
 const PREFIX_BY_PLUGIN = new Map(GROUPS.filter((g) => g.prefix).map((g) => [g.pluginId, g.prefix as string]));
 
 /** All glossary descriptors, in deterministic table order. */
@@ -269,5 +263,10 @@ export function pluginLocalMetricId(pluginId: string, renderedMetricId: string):
  * a different plugin is a different metric and is never matched. Unknown ids return null.
  */
 export function resolveMetricDescriptor(pluginId: string, renderedMetricId: string): MetricDescriptorV1 | null {
-  return BY_KEY.get(`${pluginId}#${pluginLocalMetricId(pluginId, renderedMetricId)}`) ?? null;
+  const localId = pluginLocalMetricId(pluginId, renderedMetricId);
+  const exact = BY_KEY.get(`${pluginId}#${localId}`);
+  if (exact) return exact;
+  // Bounded dynamic families: a closed pattern per plugin; an id that matches no pattern stays unknown.
+  for (const family of FAMILIES_BY_PLUGIN.get(pluginId) ?? []) if (family.pattern.test(localId)) return family.descriptor;
+  return null;
 }
