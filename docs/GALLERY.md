@@ -19,7 +19,7 @@ The gallery manifest references artifacts from:
 - Visualization demo artifacts
 - Any additional screenshots captured during the pipeline
 
-Tutorial runs also produce a separate `tutorial-manifest.json`, WebM, screenshots, subtitles, and Markdown. v0.4.7 generates those tutorial artifacts but the current gallery does not consume or browse tutorial manifests; tutorial-manifest gallery integration remains future scope.
+Tutorial runs also produce a separate `tutorial-manifest.json`, WebM, screenshots, subtitles, and Markdown. The v0.9.3 implemented/unreleased candidate adds read-only tutorial-manifest consumption through `gallery build --source`; tutorial execution remains independent of gallery generation.
 
 ---
 
@@ -83,9 +83,11 @@ If the command reports a missing input, generate that artifact first or remove t
 
 ---
 
-## Browsing completed outputs with `--source` (v0.9.3, in development)
+## Browsing completed outputs with `--source` (v0.9.3, implemented/unreleased)
 
 `gallery build --source <path>` (repeatable) adds items for completed experiment, audit, security, Android validation and tutorial outputs. The gallery stays a static artifact browser: it never runs an experiment, audit, security validation or tutorial, never records or transcodes media, and never executes artifact content.
+
+The implemented/unreleased v0.9.3 candidate also recognizes `prompt-template-comparison.json` by its schema and links its JSON, HTML and text artifacts when available. Comparison eligibility and evidence limits are documented in [WORKFLOWS.md](WORKFLOWS.md#prompt-template-comparison-v093-implementedunreleased); a gallery `pass` status does not independently validate scientific comparability.
 
 - **Status.** Item `status` keeps the existing `pass`/`skipped`/`warning` vocabulary and reflects only what the producer recorded. The producer's own status (for a tutorial, `run.status`) is shown separately as a metric. A tutorial run that did not pass is never shown as passed, and a report without a recorded exit or verdict is a warning, not a pass.
 - **Tutorial runs.** The canonical `artifacts/tutorial-manifest.json` (`schemaVersion` `1.0.0`) supplies title, run identity, status, warnings and cleanup errors. A WebM video is embedded with controls and `preload="metadata"` (never autoplay), PNG/JPEG/WebP screenshots are shown as images, and the generated Markdown is linked as a file and never rendered as HTML. A missing optional artifact is listed as unavailable with a reason.
@@ -137,6 +139,10 @@ All paths in the manifest are relative POSIX paths under the gallery output dire
 - The gallery index is a static HTML file with no interactive filtering or search
 - Gallery entries are linked by relative path; moving the output directory breaks links
 - Filtering, tagging, search, and comparison views are not implemented
+- Filtering, tagging, search, and comparison views remain future scope.
+- Security, audit, and Android producers write JSON/text rather than HTML, so their gallery entries link to available artifacts only; no HTML report is synthesized.
+- Plugin-report gallery entries expose limited metadata. Legacy experiment reports continue to use the historical `--report` input rather than `--source` schema recognition.
+- Media validation checks supported extensions and header bytes. A media file on another drive from the gallery output may be unavailable because durable links remain relative; WebP/JPEG checks do not decode the full media stream.
 - The released affected-neighborhood evidence adds no gallery item and no plot. It appears only inside the existing warm-index `report.json`/`report.txt`/`report.html` sections, and the four warm-index charts and the three-item warm-index campaign gallery are unchanged.
 - An ordinary `warm-index-reuse` run (deterministic fake agent, `v0.5.0`/`v0.5.1`) has no dedicated gallery integration: `gallery build --plots` lists any `charts/*.svg` generically under the experiment-plots entry, and the plugin's `report.json`/`report.html` are not gallery entries for that path. A real-agent warm-index **campaign** run (`--campaign`, released in v0.5.2) is the exception — see "Warm-index campaign gallery" above
 

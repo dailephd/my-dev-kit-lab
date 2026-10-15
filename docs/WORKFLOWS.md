@@ -563,7 +563,7 @@ node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent 
 
 **Completion:** the run is complete when the reports and both scientific artifacts exist and the process exits `0`. Results are descriptive for a finite controlled corpus; no winner, ranking, composite score, or significance claim is produced.
 
-### Prompt-template comparison (v0.9.3, in development)
+### Prompt-template comparison (v0.9.3, implemented/unreleased)
 
 Run two real-agent campaigns that differ only in prompt template (for example `legacy-diff-v1` and `strict-diff-v1`) with the same provider, corpus, treatments, repair allowance and timeout, then compare the persisted outputs:
 
@@ -1077,3 +1077,5 @@ npm run audit -- --target /path/to/android/project --types security --android --
 Manual pentest is deferred until after `v1.0.0`.
 
 It is a human-led workflow and is not required for automated Android security validation.
+
+The reader performs bounded, read-only evidence validation and delegates complete checkpoint-store validation to the campaign owners against trusted task definitions authenticated by persisted task digests. If required historical corpus or artifact evidence is unavailable, that side is unverifiable and the comparison is `INCOMPARABLE`; checkpoint hashes alone do not establish semantic validity. V2 prompt-contract integrity is validated. V1 identity does not bind a prompt template: sidecar self-consistency or an intact prompt-artifact hash alone cannot prove historical template identity, so unsupported V1 evidence remains `UNVERIFIED`/`INCOMPARABLE`, without a winner or improvement rate. Only a completed provider response with persisted evidence of a response-contract violation enters the invalid-output numerator; bare `invalid-output` status and infrastructure outcomes are excluded from both numerator and denominator. Task-success and repair outcomes remain separate. Real-provider improvement remains `NOT_VERIFIED` pending authorized smoke evidence.

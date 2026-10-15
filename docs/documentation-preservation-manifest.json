@@ -447,8 +447,8 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.9.2",
-    "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.9.3",
+    "currentImplementedUnreleasedVersion": "0.9.3",
+    "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",
