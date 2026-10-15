@@ -13,6 +13,7 @@ const MAX_JSON_BYTES = 8 * 1024 * 1024;
 const TUTORIAL_MANIFEST_RELATIVE = "artifacts/tutorial-manifest.json";
 const SUPPORTED_AUDIT_SCHEMA = "1.0";
 const SUPPORTED_SECURITY_SCHEMA = 1;
+const PROMPT_COMPARISON_SCHEMA = "prompt-template-comparison/1.0.0";
 
 type Family =
   | "controlled-experiment"
@@ -21,7 +22,8 @@ type Family =
   | "audit-report"
   | "security-validation-report"
   | "android-validation-report"
-  | "tutorial-run";
+  | "tutorial-run"
+  | "prompt-template-comparison";
 
 type Json = Record<string, unknown>;
 type Found = { family: Family; file: string; root: string; data: Json };
@@ -85,6 +87,7 @@ function matchingFamilies(data: Json): Family[] {
     matches.push("android-validation-report");
   }
   if (num(data.totalRuns) !== null && num(data.completedRuns) !== null && Array.isArray(data.strategies)) matches.push("controlled-experiment");
+  if (typeof data.schemaVersion === "string" && data.schemaVersion.startsWith("prompt-template-comparison/")) matches.push("prompt-template-comparison");
   return matches;
 }
 
@@ -99,7 +102,7 @@ function classify(data: Json, label: string, file: string): Family | null {
 }
 
 const KNOWN_NAME =
-  /(^code-rot-audit\.json$|^experiment-summary\.json$|-android-security-validation\.json$|-security-validation\.json$|^report\.json$|^tutorial-manifest\.json$)/;
+  /(^code-rot-audit\.json$|^experiment-summary\.json$|-android-security-validation\.json$|-security-validation\.json$|^report\.json$|^tutorial-manifest\.json$|^prompt-template-comparison\.json$)/;
 
 async function collect(sourceArg: string): Promise<Found[]> {
   const label = sourceArg;
@@ -318,6 +321,87 @@ function readExperiment(found: Found, realOutDir: string): GalleryManifestItem {
 }
 
 // ---------------------------------------------------------------------------
+// Prompt-template comparison (v0.9.3)
+// ---------------------------------------------------------------------------
+
+async function readPromptComparison(found: Found, realOutDir: string): Promise<GalleryManifestItem> {
+  const data = found.data;
+  const name = path.basename(found.file);
+  if (data.schemaVersion !== PROMPT_COMPARISON_SCHEMA) {
+    throw new Error(`Gallery source ${name}: unsupported prompt comparison schemaVersion ${JSON.stringify(data.schemaVersion)}.`);
+  }
+  const comparison = data.comparison;
+  const baseline = data.baseline;
+  const candidate = data.candidate;
+  const cohort = data.cohort;
+  const invalid = data.invalidOutput;
+  const improvement = data.behavioralImprovement;
+  const bad = (what: string): never => {
+    throw new Error(`Gallery source ${name}: malformed prompt comparison (${what}).`);
+  };
+  if (!isObject(comparison) || (comparison.status !== "COMPARABLE" && comparison.status !== "INCOMPARABLE")) bad("comparison");
+  if (!isObject(baseline) || !isObject(candidate)) bad("baseline/candidate");
+  if (!isObject(cohort) || num((cohort as Json).matchedUnitCount) === null) bad("cohort");
+  if (!isObject(invalid) || !Array.isArray((invalid as Json).strata)) bad("invalidOutput");
+  if (!isObject(improvement) || (improvement.status !== "VERIFIED" && improvement.status !== "NOT_VERIFIED")) bad("behavioralImprovement");
+  const comparisonObj = comparison as Json;
+  const improvementObj = improvement as Json;
+  const status = comparisonObj.status as string;
+  const base = baseline as Json;
+  const cand = candidate as Json;
+  const coh = cohort as Json;
+  const overall = isObject((invalid as Json).overall) ? ((invalid as Json).overall as Json) : null;
+  const metrics: GalleryManifestMetric[] = [
+    { id: "comparison-status", label: "Comparison status", value: status },
+    { id: "baseline-template", label: "Baseline template", value: str(base.templateId) ?? "unverified" },
+    { id: "candidate-template", label: "Candidate template", value: str(cand.templateId) ?? "unverified" },
+    { id: "matched-units", label: "Matched units", value: num(coh.matchedUnitCount) as number },
+    { id: "eligible-units", label: "Eligible matched units", value: num(coh.eligibleMatchedUnitCount) ?? 0 },
+    { id: "behavioral-improvement", label: "Behavioral improvement", value: String((improvement as Json).status) }
+  ];
+  const rateOf = (side: unknown): number | null => (isObject(side) ? num((side as Json).ratePercent) : null);
+  if (overall) {
+    const b = rateOf(overall.baseline);
+    const c = rateOf(overall.candidate);
+    if (b !== null) metrics.push({ id: "baseline-invalid-output-rate", label: "Baseline invalid-output rate", value: Number(b.toFixed(2)), unit: "%" });
+    if (c !== null) metrics.push({ id: "candidate-invalid-output-rate", label: "Candidate invalid-output rate", value: Number(c.toFixed(2)), unit: "%" });
+    const diff = num(overall.percentagePointDifference);
+    if (diff !== null) metrics.push({ id: "invalid-output-difference", label: "Invalid-output difference (baseline minus candidate)", value: Number(diff.toFixed(2)), unit: "pp" });
+  }
+  const warnings: string[] = [];
+  if (status === "INCOMPARABLE") {
+    const reasons = Array.isArray(comparisonObj.incomparabilityReasons) ? (comparisonObj.incomparabilityReasons as unknown[]).filter((r): r is string => typeof r === "string") : [];
+    for (const reason of reasons.slice(0, 5)) warnings.push(`Incomparable: ${bounded(reason)}`);
+    if (reasons.length === 0) warnings.push("Incomparable: no reason recorded.");
+  }
+  if (improvementObj.status !== "VERIFIED") warnings.push(`Behavioral improvement is ${String(improvementObj.status)}: ${bounded(str(improvementObj.reason) ?? "no reason recorded")}`);
+  if (Array.isArray(data.limitations)) {
+    for (const limitation of (data.limitations as unknown[]).filter((l): l is string => typeof l === "string").slice(0, 3)) warnings.push(`Limitation: ${bounded(limitation)}`);
+  }
+  const html = await linkIfPresent(found.root, realOutDir, "prompt-template-comparison.html", "text");
+  const text = await linkIfPresent(found.root, realOutDir, "prompt-template-comparison.txt", "text");
+  if (html === null) warnings.push("HTML comparison report unavailable: prompt-template-comparison.html was not found.");
+  const json = outputRelativePath(realOutDir, found.file);
+  if (json === null) throw new Error(`Gallery source ${name} has no relative link from the gallery directory.`);
+  const identity = `${str(base.runId) ?? "baseline"}-vs-${str(cand.runId) ?? "candidate"}`;
+  return {
+    id: itemId("prompt-template-comparison", identity, found.file),
+    title: "Prompt template comparison",
+    description: `Baseline ${str(base.templateId) ?? "unverified"} versus candidate ${str(cand.templateId) ?? "unverified"} (${status}).`,
+    kind: "prompt-template-comparison",
+    status: status === "COMPARABLE" ? "pass" : "warning",
+    htmlPath: html ?? "",
+    summaryPath: json,
+    ...(text ? { artifactPaths: [text] } : {}),
+    sourceFamily: "prompt-template-comparison",
+    sourceId: identity,
+    tags: ["prompt-comparison"],
+    metrics,
+    warnings
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tutorial runs
 // ---------------------------------------------------------------------------
 
@@ -451,6 +535,9 @@ export async function readGallerySources(options: { sources: readonly string[]; 
           break;
         case "controlled-experiment":
           items.push(readExperiment(entry, options.realOutDir));
+          break;
+        case "prompt-template-comparison":
+          items.push(await readPromptComparison(entry, options.realOutDir));
           break;
       }
     }

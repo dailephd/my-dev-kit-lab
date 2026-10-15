@@ -10,6 +10,7 @@ import { runExperimentRunCommandFromArgs } from "../commands/runExperimentRunCom
 import { runRenderExperimentReportCommand } from "../commands/renderExperimentReportCommand.js";
 import { runGenerateExperimentPlotsCommand } from "../commands/generateExperimentPlotsCommand.js";
 import { runBuildGalleryCommand } from "../commands/buildGalleryCommand.js";
+import { runComparePromptsCommand } from "../commands/runComparePromptsCommand.js";
 import { runTutorialValidateCommandFromArgs } from "../commands/runTutorialValidateCommand.js";
 import { runTutorialRunCommandFromArgs } from "../commands/runTutorialRunCommand.js";
 import { createLabExecutionContext, discoverPackageRoot } from "../runtime/index.js";
@@ -28,6 +29,7 @@ import {
   renderPlotsHelp,
   renderReportHelp,
   renderReportRenderHelp,
+  renderReportComparePromptsHelp,
   renderSecurityHelp,
   renderTopLevelHelp,
   renderTutorialHelp,
@@ -260,6 +262,14 @@ async function runReportFamily(argv: string[], writers: LabCliWriters): Promise<
       return 0;
     }
     return runRenderExperimentReportCommand(rest);
+  }
+
+  if (subcommand === "compare-prompts") {
+    if (rest[0] === "--help" || rest[0] === "-h") {
+      writers.stdout(renderReportComparePromptsHelp());
+      return 0;
+    }
+    return runComparePromptsCommand(rest);
   }
 
   writers.stderr(renderUnknownCommandError(`report ${subcommand}`));

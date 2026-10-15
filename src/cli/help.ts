@@ -374,11 +374,31 @@ export function renderReportHelp(): string {
     "",
     "Usage:",
     "  my-dev-kit-lab report render [options]",
+    "  my-dev-kit-lab report compare-prompts --baseline <run-root> --candidate <run-root> --out <output-root>",
     "  my-dev-kit-lab report --help",
     "",
     "Commands:",
     "  render   Render an HTML/JSON experiment report from controlled-experiment artifacts.",
-    "           Run \"my-dev-kit-lab report render --help\" for details."
+    "           Run \"my-dev-kit-lab report render --help\" for details.",
+    "  compare-prompts   Compare two completed real-agent agent-success-rate runs by prompt template (read-only).",
+    "           Run \"my-dev-kit-lab report compare-prompts --help\" for details."
+  ].join("\n");
+}
+
+export function renderReportComparePromptsHelp(): string {
+  return [
+    "my-dev-kit-lab report compare-prompts - compare persisted evidence from two prompt-template runs",
+    "",
+    "Usage:",
+    "  my-dev-kit-lab report compare-prompts --baseline <run-root> --candidate <run-root> --out <output-root>",
+    "",
+    "Required (each exactly once):",
+    "  --baseline <run-root>    Completed agent-success-rate run output root (baseline template)",
+    "  --candidate <run-root>   Completed agent-success-rate run output root (candidate template)",
+    "  --out <output-root>      Output root; must not overlap either run root",
+    "",
+    "Writes prompt-template-comparison.json, .txt and .html. The command only reads persisted evidence:",
+    "it never invokes a provider, creates a campaign or modifies a checkpoint."
   ].join("\n");
 }
 

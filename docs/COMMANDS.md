@@ -33,6 +33,7 @@ my-dev-kit-lab [--workspace <path>] experiment run --experiment <id> [options]
 my-dev-kit-lab [--workspace <path>] experiment controlled [options]
 
 my-dev-kit-lab [--workspace <path>] report render [options]
+my-dev-kit-lab [--workspace <path>] report compare-prompts --baseline <run-root> --candidate <run-root> --out <output-root>
 my-dev-kit-lab [--workspace <path>] plots generate [options]
 my-dev-kit-lab [--workspace <path>] gallery build [options]
 
@@ -518,6 +519,18 @@ Runs the `context-strategy-comparison` plugin's legacy controlled-experiment pat
 | `--require-screenshot` | Fails unless a screenshot was captured; implies `--screenshot` |
 | `--max-prompt-chars <n>` / `--max-file-tree-entries <n>` | Optional positive integers |
 | `--plots <dir>` / `--visualizations <dir>` | Optional; included in the report when present |
+
+### `my-dev-kit-lab report compare-prompts` (v0.9.3, in development)
+
+| Option | Allowed value or default |
+|---|---|
+| `--baseline <run-root>` | Required, exactly once; a completed real-agent `agent-success-rate` output root |
+| `--candidate <run-root>` | Required, exactly once; a different completed real-agent `agent-success-rate` output root |
+| `--out <output-root>` | Required, exactly once; must not overlap either run root |
+
+The command compares persisted evidence only. It never invokes a provider, creates a campaign, modifies a checkpoint or runs a benchmark. It reads `agent-success-rate-execution.json`, `agent-success-rate-analysis.json` (when present), the campaign identity checkpoint and each attempt's `prompt-contract.json`, reusing the existing validators. Unknown or duplicate flags, empty values, identical roots, an overlapping output root and unreadable or schema-invalid execution evidence are rejected with a non-zero exit code and write nothing.
+
+It writes `prompt-template-comparison.json` (schema `prompt-template-comparison/1.0.0`), `prompt-template-comparison.txt` and `prompt-template-comparison.html`. Unverifiable prompt identity, a tampered checkpoint or prompt-contract artifact, or any provider, repair-allowance, timeout, non-template prompt-setting, execution, corpus, check or provider-build mismatch yields an `INCOMPARABLE` report with bounded reasons and no winner. For a `COMPARABLE` pair the report gives, per treatment and pooled, the matched first-attempt invalid-output counts and rates (`invalid eligible responses / eligible completed responses`), the baseline-minus-candidate percentage-point difference, exclusion reasons, and task-success outcomes reported separately. Provider timeouts, unavailability, limits and other infrastructure outcomes are excluded from the denominator; an empty denominator is reported as unavailable, not zero. `behavioralImprovement` is always `NOT_VERIFIED`: deterministic fixtures establish calculation correctness, not real-provider improvement. A completed comparison can be browsed with `gallery build --source <comparison-root>`.
 
 ### `my-dev-kit-lab plots generate [options]`
 

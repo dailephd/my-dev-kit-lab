@@ -563,6 +563,16 @@ node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent 
 
 **Completion:** the run is complete when the reports and both scientific artifacts exist and the process exits `0`. Results are descriptive for a finite controlled corpus; no winner, ranking, composite score, or significance claim is produced.
 
+### Prompt-template comparison (v0.9.3, in development)
+
+Run two real-agent campaigns that differ only in prompt template (for example `legacy-diff-v1` and `strict-diff-v1`) with the same provider, corpus, treatments, repair allowance and timeout, then compare the persisted outputs:
+
+```bash
+my-dev-kit-lab report compare-prompts --baseline <baseline-run-root> --candidate <candidate-run-root> --out <comparison-root>
+```
+
+Open `prompt-template-comparison.html`, or add `--source <comparison-root>` to `gallery build`. A `NOT_VERIFIED` behavioral-improvement status is expected until a separately authorized paired real-provider smoke has produced compatible evidence; the comparison itself performs no provider call.
+
 ### Campaign lifecycle (v0.9.1)
 
 Select cases and the fixed raw-full-file/context-pack treatments, then choose deterministic fixture execution or explicitly opt into Codex/Claude with `--include-real-agents`. A new campaign validates inputs and provider authorization, establishes content-based campaign identity, and writes an initial checkpoint before dispatch. Execute a selected workload or one case; each treatment is durably completed with its evidence and supporting artifacts before later work proceeds.
