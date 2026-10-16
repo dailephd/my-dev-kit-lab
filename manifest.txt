@@ -9,6 +9,7 @@ Inspected package: @dailephd/my-dev-kit-lab 0.8.2
 Inspection date: 2026-10-08
 Coverage: 420 tracked directories, 1,624 tracked files (Git tree, not local/ignored files)
 Status: proposed operating contract; not an authorized file-migration plan
+Historical inventory note: The Git tree, package version, inspection date, and file/directory counts above describe only the 2026-10-08 snapshot. They are not current release or Git tree assertions; verify the live repository before using counts or version evidence.
 
 READ THIS FIRST — MANDATORY AGENT INTAKE
 ----------------------------------------
