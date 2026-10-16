@@ -520,7 +520,7 @@ Runs the `context-strategy-comparison` plugin's legacy controlled-experiment pat
 | `--max-prompt-chars <n>` / `--max-file-tree-entries <n>` | Optional positive integers |
 | `--plots <dir>` / `--visualizations <dir>` | Optional; included in the report when present |
 
-### `my-dev-kit-lab report compare-prompts` (v0.9.3, implemented/unreleased)
+### `my-dev-kit-lab report compare-prompts` (v0.9.3 release)
 
 | Option | Allowed value or default |
 |---|---|
@@ -566,7 +566,7 @@ The context-size plot compares measured context estimates per case and treatment
 |---|---|
 | `--out <dir>` | Required |
 | `--report <dir>` / `--plots <dir>` / `--visualizations <dir>` / `--experiment <dir>` | Optional; included in the manifest when present |
-| `--source <path>` | Optional and repeatable (v0.9.3, implemented/unreleased). One explicit artifact root or supported manifest per occurrence |
+| `--source <path>` | Optional and repeatable (v0.9.3 release). One explicit artifact root or supported manifest per occurrence |
 
 `--source` reads completed outputs without running anything. Recognized families are identified from existing producer schemas: plugin experiment reports (`report.json`), warm-index campaign reports, controlled-experiment summaries (`experiment-summary.json`), standalone audit reports (`code-rot-audit.json`), security-validation reports (`*-security-validation.json`), Android validation reports (`*-android-security-validation.json`), tutorial runs (`<run-root>/artifacts/tutorial-manifest.json`, or that manifest file given explicitly), and prompt-template comparisons (`prompt-template-comparison.json`). Only the named root is read; nothing is discovered recursively and URLs are rejected. A missing, unreadable, malformed, unsupported-schema, unrecognized or ambiguous source fails the build with a non-zero exit code and no gallery item is invented. Legacy options and `--source` may be combined; sources keep their command-line order and repeats are listed once.
 
@@ -814,7 +814,7 @@ Current behavior:
 
 ### External-target package-content correction for npm commands (v0.9.2, final release-document state; registry publication is established separately)
 
-The existing `security:validate --target <path>` and `security:package -- --target <path>` entrypoints remain supported; the correction adds no command or flag. Lab self-validation retains its strict required inventory. External npm packages use their declared entrypoints, and missing declared entrypoints, invalid or incomplete package metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated. The security verdict policy, `--fail-on` behavior, and forbidden-file validation are unchanged. Prompt/report/gallery features are implemented/unreleased in the v0.9.3 candidate; see candidate state and remaining evidence dependency in [CURRENT_STATE.md](CURRENT_STATE.md). Earlier failed readiness attempts remain historical; the global planner accepted readiness for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
+The existing `security:validate --target <path>` and `security:package -- --target <path>` entrypoints remain supported; the correction adds no command or flag. Lab self-validation retains its strict required inventory. External npm packages use their declared entrypoints, and missing declared entrypoints, invalid or incomplete package metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated. The security verdict policy, `--fail-on` behavior, and forbidden-file validation are unchanged. Prompt/report/gallery features are included in the v0.9.3 release; see release state and validation limits in [CURRENT_STATE.md](CURRENT_STATE.md). Earlier failed readiness attempts remain historical; the global planner accepted readiness for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
 
 ## Audit commands
 

@@ -19,7 +19,7 @@ The gallery manifest references artifacts from:
 - Visualization demo artifacts
 - Any additional screenshots captured during the pipeline
 
-Tutorial runs also produce a separate `tutorial-manifest.json`, WebM, screenshots, subtitles, and Markdown. The v0.9.3 implemented/unreleased candidate adds read-only tutorial-manifest consumption through `gallery build --source`; tutorial execution remains independent of gallery generation.
+Tutorial runs also produce a separate `tutorial-manifest.json`, WebM, screenshots, subtitles, and Markdown. The v0.9.3 release adds read-only tutorial-manifest consumption through `gallery build --source`; tutorial execution remains independent of gallery generation.
 
 ---
 
@@ -83,11 +83,11 @@ If the command reports a missing input, generate that artifact first or remove t
 
 ---
 
-## Browsing completed outputs with `--source` (v0.9.3, implemented/unreleased)
+## Browsing completed outputs with `--source` (v0.9.3 release)
 
 `gallery build --source <path>` (repeatable) adds items for completed experiment, audit, security, Android validation and tutorial outputs. The gallery stays a static artifact browser: it never runs an experiment, audit, security validation or tutorial, never records or transcodes media, and never executes artifact content.
 
-The implemented/unreleased v0.9.3 candidate also recognizes `prompt-template-comparison.json` by its schema and links its JSON, HTML and text artifacts when available. Comparison eligibility and evidence limits are documented in [WORKFLOWS.md](WORKFLOWS.md#prompt-template-comparison-v093-implementedunreleased); a gallery `pass` status does not independently validate scientific comparability.
+The v0.9.3 release also recognizes `prompt-template-comparison.json` by its schema and links its JSON, HTML and text artifacts when available. Comparison eligibility and evidence limits are documented in [WORKFLOWS.md](WORKFLOWS.md#prompt-template-comparison-v093-release); a gallery `pass` status does not independently validate scientific comparability.
 
 - **Status.** Item `status` keeps the existing `pass`/`skipped`/`warning` vocabulary and reflects only what the producer recorded. The producer's own status (for a tutorial, `run.status`) is shown separately as a metric. A tutorial run that did not pass is never shown as passed, and a report without a recorded exit or verdict is a warning, not a pass.
 - **Tutorial runs.** The canonical `artifacts/tutorial-manifest.json` (`schemaVersion` `1.0.0`) supplies title, run identity, status, warnings and cleanup errors. A WebM video is embedded with controls and `preload="metadata"` (never autoplay), PNG/JPEG/WebP screenshots are shown as images, and the generated Markdown is linked as a file and never rendered as HTML. A missing optional artifact is listed as unavailable with a reason.

@@ -948,7 +948,7 @@ The plugin-specific progress projection is `my-dev-kit-lab-agent-success-rate-ca
 
 Evidence quality is metric-specific: task outcomes, token measurements, and duration can have different strong, partial, or unavailable classifications. Strong describes the completeness and provenance of the available evidence; it is not statistical significance. Partial evidence does not mean task failure. Missing token evidence is unavailable, never zero; estimated tokens are not provider usage. Duration is Lab-measured wall-clock time, not provider-native time. Comparisons use matched completed cases and state their denominator and exclusions; the existing paired direction is preserved. These descriptive comparisons establish no causal effect, winner, p-value, or general provider performance.
 
-## v0.9.3 report metric evidence and prompt comparison (implemented/unreleased)
+## v0.9.3 report metric evidence and prompt comparison
 
 The plugin report projects recorded metrics into value, unit, availability, reason, provenance, reliability, variant/case identity, and an optional glossary anchor. It adds deterministic caveats for unavailable/not-applicable values, estimates, unknown token provenance/reliability, partial campaign telemetry, and missing glossary metadata. These are presentation projections; the existing JSON report and scientific formulas are unchanged, and the text report presents the same caveats from the same projection. Unknown provenance remains unknown and is never promoted to high reliability.
 

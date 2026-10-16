@@ -563,7 +563,7 @@ node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent 
 
 **Completion:** the run is complete when the reports and both scientific artifacts exist and the process exits `0`. Results are descriptive for a finite controlled corpus; no winner, ranking, composite score, or significance claim is produced.
 
-### Prompt-template comparison (v0.9.3, implemented/unreleased)
+### Prompt-template comparison (v0.9.3 release)
 
 Run two real-agent campaigns that differ only in prompt template (for example `legacy-diff-v1` and `strict-diff-v1`) with the same provider, corpus, treatments, repair allowance and timeout, then compare the persisted outputs:
 

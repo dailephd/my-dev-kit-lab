@@ -842,7 +842,7 @@ The bundled corpus, project profiles, and canonical projects ship in the package
 
 ### Non-goals
 
-v0.9.1 adds campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry. The implemented/unreleased v0.9.3 candidate adds strict prompt modes and persisted prompt identity, a report-section registry, metric evidence projection, generalized gallery readers, and prompt comparison; see the v0.9.3 architecture section below. Real-provider effectiveness remains NOT_VERIFIED; the plugin does not add a weighted score, an automatic winner, or statistical-significance testing.
+v0.9.1 adds campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry. The v0.9.3 release adds strict prompt modes and persisted prompt identity, a report-section registry, metric evidence projection, generalized gallery readers, and prompt comparison; see the v0.9.3 architecture section below. Real-provider effectiveness remains NOT_VERIFIED; the plugin does not add a weighted score, an automatic winner, or statistical-significance testing.
 
 ## Target model
 
@@ -1233,7 +1233,7 @@ Shared agent telemetry contracts live under `src/agents/`; Codex and Claude adap
 
 Checkpoint and progress identifiers are `my-dev-kit-lab-agent-success-rate-campaign-checkpoint-v1`, `my-dev-kit-lab-agent-success-rate-campaign-checkpoint-v2`, and `my-dev-kit-lab-agent-success-rate-campaign-progress-v1`. They are separate operational persistence contracts. Scientific outputs remain `agent-success-rate-execution.json` (`my-dev-kit-lab-agent-success-rate-execution-v1`) and `agent-success-rate-analysis.json` (`my-dev-kit-lab-agent-success-rate-analysis-v1`); checkpoints and partial progress do not substitute for them.
 
-## v0.9.3 implemented/unreleased architecture
+## v0.9.3 release architecture
 
 Prompt settings and rendering are owned by `src/experiments/plugins/agentSuccessRate/realAgentPrompt.ts` and `promptContract.ts`; strict structured-diff parsing is in `strictDiffResponse.ts`. `campaignIdentity.ts` persists V2 prompt contracts when a prompt option is selected, and attempt artifacts include `prompt-contract.json`. Provider adapters remain unchanged. Prompt text expresses the bounded tool-use mode but does not enforce provider tool permissions.
 

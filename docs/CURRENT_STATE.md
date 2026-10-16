@@ -7,10 +7,10 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Current release-document and package version: `v0.9.2`.
-- Previous published release: `v0.9.1` (normalized provider telemetry and resumable campaigns).
-- Registry publication is established separately through external npm evidence; release-document status does not fabricate registry evidence.
-- Final release-document state: v0.9.2; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.2) is dated `2026-10-13`. npm registry status is a separate external fact.
+- Current release-document and prepared package version: `v0.9.3`.
+- Previous release: `v0.9.2` (external package-content validation and cross-platform corrections).
+- Latest externally verified npm release: `v0.9.2`. Registry publication is established separately through external npm evidence; prepared release-document status does not fabricate registry evidence.
+- Final release-document state: v0.9.3. The v0.9.2 GitHub Release is dated `2026-10-13`; the latest npm publication remains v0.9.2 until separate registry evidence establishes the v0.9.3 publication.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Previous published release: `v0.9.1` (2026-10-12).
 - Previous release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
@@ -20,7 +20,7 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
-- Current package version: `0.9.2`. Lifecycle: `v0.9.3` is implemented/unreleased on `feature/v0.9.3`; publication is not established and no finalized v0.9.3 release exists.
+- Prepared package version: `0.9.3` on `release/v0.9.3`. Release documents are in final-release state; latest externally verified npm package remains `0.9.2`.
 - Next future roadmap version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
@@ -29,15 +29,15 @@ This document records the repository's operational state. It is the source of tr
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
-## v0.9.3 implementation and acceptance state
+## v0.9.3 release and acceptance state
 
-Active planned version: `v0.10.0` is the next future roadmap version; v0.9.3 is the current implemented/unreleased candidate after Stage 4 completeness reconciliation.
+Active planned version: `v0.10.0` remains the next future roadmap version. The v0.9.3 release candidate is prepared on `release/v0.9.3`.
 
-The six implementation batches and bounded Stage 4 corrections are present on `feature/v0.9.3`. They add validator-accuracy maintenance; Codex/Claude prompt contracts and bounded prompt settings; a generic report-section registry; metric glossary metadata and shared reliability caveats; gallery readers including read-only tutorial-manifest consumption; and prompt-template comparison over persisted campaign evidence. Package metadata remains `0.9.2`.
+The six implementation batches and bounded Stage 4 corrections are included in v0.9.3. They add validator-accuracy maintenance; Codex/Claude prompt contracts and bounded prompt settings; a generic report-section registry; metric glossary metadata and shared reliability caveats; gallery readers including read-only tutorial-manifest consumption; and prompt-template comparison over persisted campaign evidence. Package metadata is `0.9.3`.
 
 The initial Stage 4 audit identified missing metric descriptors and prompt-comparison evidence defects; bounded correction tasks subsequently fixed and validated those implementation findings. Registered emitted metric IDs have evidence-based glossary descriptors and stable anchors, including bounded dynamic families; unknown external IDs remain explicitly unresolved. Reliability caveats use shared text/HTML evidence projection, preserve supported provenance, and retain UNKNOWN where producer evidence is unavailable. Prompt comparison validates checkpoint evidence through existing campaign owners; V1 template identity is UNVERIFIED without independent run-bound proof (sidecars and hashes alone are insufficient), while supported V2 evidence remains integrity-checked. Status-only provider `invalid-output` is excluded from numerator and denominator. No paid provider campaign was run: real-provider improvement remains `NOT_VERIFIED`, and bounded tool-use remains prompt guidance rather than enforcement.
 
-Stage 4 documentation reconciliation and implementation-completeness audit passed. Stage 5 technical readiness subsequently passed the full local suite (7,796 passed, 9 skipped), packed-package acceptance, security/code-rot checks, required three-OS Node 24 CI, and both hosted CodeQL analyses with no open applicable alerts. Its reported overall verdict remained BLOCKED solely because the roadmap had treated an unmeasured real-provider rate improvement as mandatory release evidence. The owner's 2026-10-15 roadmap clarification makes validated prompt contracts and evidence handling the v0.9.3 release acceptance, while live-provider improvement remains NOT_VERIFIED as a separately authorized, non-gating empirical objective. A concise Stage 5 readiness closeout for this documentation-corrected candidate remains required; Stage 6 release preparation and publication have not started.
+Stage 4 documentation reconciliation and implementation-completeness audit passed. Stage 5 readiness closeout passed: the full suite reported 7,796 passed and 9 skipped; package, security, code-rot, three-platform Node 24 CI and hosted CodeQL gates passed, with no applicable open alerts. The corrected roadmap accepts deterministic prompt contracts, invalid-output classification, matched denominators, verified prompt/checkpoint evidence, comparison reports, and regression/compatibility checks. Real-provider effectiveness remains NOT_VERIFIED as a separately authorized, non-gating empirical objective. Stage 6 prepared the 0.9.3 package and final release documentation; no publication action is recorded here.
 
 ## Operational state
 
@@ -64,7 +64,7 @@ Stage 4 documentation reconciliation and implementation-completeness audit passe
 - `v0.5.2` release branch: `release/v0.5.2` (historical release branch merged to `main`).
 - `v0.4.9` release branch: `release/v0.4.9` (merged to `main`)
 - Historical implementation branch: `feature/v0.4.9-native-select` (completed; implementation commit `741680b1e4e5d37c6aa0b3256dd70cde39a1d358`)
-- Historical release baseline before v0.9.0: `v0.8.2` context-pack generation experiments; the `v0.8.1` release added retrieval query strategy comparison. v0.9.1 is the previous published release.
+- Historical release baseline before v0.9.0: `v0.8.2` context-pack generation experiments; the `v0.8.1` release added retrieval query strategy comparison. v0.9.2 is the previous package release.
 - v0.8.2 release validation: local implementation, documentation, package, and full-suite gates passed; hosted validation evidence is available in GitHub Actions for the release branch.
 - v0.8.2 plugin contract: `context-pack-generation` always runs `raw-full-file` and `context-pack`; its report presents existing retrieval coverage and estimated size plus paired token savings and objective deltas, without a composite winner or ranking. External-local science uses real identities before redaction, persists no pack body, and renders a redacted preview.
 - Workflow stage (published release): v0.8.0 implementation, documentation reconciliation, readiness, and release preparation are complete; v0.8.0 is an earlier historical release, and `experiment run --experiment retrieval-precision-recall` is part of the current package.
@@ -93,7 +93,7 @@ Stage 4 documentation reconciliation and implementation-completeness audit passe
 - **v0.5.2 pre-release readiness:** documentation-reconciled candidate `d40496e64d5a50be8542ce55d6e1bd91265e51c9` passed local readiness and exact-candidate CI. Ordinary CI run `35923645081` passed six jobs; dedicated latest-Node readiness run `35927114131` passed Ubuntu, macOS, and Windows. Release blockers: 0. Full evidence is recorded in [v0.5.2-pre-release-readiness.md](reports/v0.5.2-pre-release-readiness.md).
 - Release blockers for the published `v0.5.2`: none.
 - Historical implementation source: `21453d5301568cb8b89afebe9362f90313403e8c` on `fix/v0.9.2-external-package-layout-validation`; documentation-reconciled candidate `128aceda255218ce27d198b4187660c6f545c870` failed pre-release readiness. That failure remains historical and was superseded by the accepted exact-SHA readiness and release-PR validation recorded below.
-- Release-PR correction `#56` was merged to `main`; exact merged-main CI and CodeQL evidence is recorded in Validation state. The current package version is v0.9.2; v0.9.3 is the implemented/unreleased candidate described above.
+- Release-PR correction `#56` was merged to `main`; exact merged-main CI and CodeQL evidence is recorded in Validation state. The v0.9.2 package remains the latest externally verified npm publication; the prepared v0.9.3 package is described above.
 - Baseline constraints: v0.9.2 remains the package baseline; preserve prior retrieval evidence and metric semantics. The v0.9.3 candidate implements strict prompt modes, the report section registry, and generalized gallery behavior, with acceptance gaps recorded above.
 - ECO-00 adoption on 2026-09-25 originally preserved the existing v0.6.1-v0.9.2 scope. The explicitly approved 2026-10-12 prioritization assigns the external-target package-content correction to v0.9.2 and moves the prior v0.9.2 scope intact to v0.9.3. The ECO-00 v0.10.0-v0.17.0 assignments remain unchanged; LAB-EVIDENCE-01 remains v0.10.0.
 
@@ -293,13 +293,13 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Latest release documentation is v0.9.2.
+Latest release documentation is v0.9.3; latest externally verified npm publication remains v0.9.2.
 
 The `published/current` designation is based on external npm evidence, not package metadata or release-document wording.
 
-The v0.9.3 prompt/report/gallery scope is implemented/unreleased; the smoke-campaign improvement criterion remains NOT_VERIFIED as recorded above. Later roadmap assignments are unchanged. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
+The prepared v0.9.3 release includes the prompt/report/gallery scope; real-provider effectiveness remains NOT_VERIFIED and non-gating. Later roadmap assignments are unchanged. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
 
-Exact next action: return the Stage 4 final completeness report to the global planner. The planner may prepare Stage 5 pre-release readiness, including adjudication of real-provider improvement evidence. Do not begin Stage 5 automatically. No release or publication has been initiated.
+Exact next action: Stage 7 — the separately authorized publication workflow, beginning with the release PR and required hosted checks. Do not begin Stage 7 automatically. Real-provider effectiveness remains NOT_VERIFIED and is not a release gate. npm publication, tagging, and GitHub Release creation have not occurred.
 
 
 ## Previous v0.9.1 release history

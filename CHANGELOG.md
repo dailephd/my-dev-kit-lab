@@ -2,9 +2,7 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased]
-
-### v0.9.3 implemented/unreleased candidate
+## [0.9.3] - 2026-10-16
 
 - Improved security-validator runtime evidence and secret-scan accuracy while retaining bounded proof and candidate-versus-confirmed finding distinctions.
 - Added configurable Codex and Claude real-agent prompt contracts, strict structured-diff validation, bounded prompt modes, and persisted campaign prompt identity. Provider enforcement and effectiveness remain unverified without authorized live-provider evidence.
