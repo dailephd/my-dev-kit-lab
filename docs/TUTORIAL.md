@@ -355,3 +355,5 @@ The small Todo projects are used in the fake-agent demo. The medium and large pr
 - Read [WORKFLOWS.md](WORKFLOWS.md) for detailed workflow diagrams
 - Read [COMMANDS.md](COMMANDS.md) for all command options
 - Read [ROADMAP.md](ROADMAP.md) to understand where the project is heading
+
+Completed tutorial runs can be added to a static gallery with `gallery build --source <run-root>`. The gallery reads the canonical tutorial manifest without changing tutorial execution or the manifest schema; it validates relative media paths and shows recorded run status and missing artifacts explicitly. See [GALLERY.md](GALLERY.md#browsing-completed-outputs-with-source-v093-release). This source reader is part of the v0.9.3 release.

@@ -109,6 +109,7 @@ if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(packageVersion)) {
 
 const latestPublished = String(manifest.currentFacts?.latestPublishedVersion || "");
 const finalReleaseDocumentState = manifest.currentFacts?.releaseDocumentState === "final-release-state";
+const currentReleaseDocumentVersion = String(manifest.currentFacts?.currentReleaseDocumentVersion || "");
 if (packageVersion === latestPublished) {
   const status = sections.get(packageVersion)?.status || "";
   if (finalReleaseDocumentState) {
@@ -117,6 +118,12 @@ if (packageVersion === latestPublished) {
     }
   } else if (!positivePublication(status)) {
     fail("docs/ROADMAP.md", `current package v${packageVersion} lifecycle`, "positively published", status || "missing", "mark the externally verified current package release as published");
+  }
+}
+if (finalReleaseDocumentState && currentReleaseDocumentVersion && packageVersion === currentReleaseDocumentVersion) {
+  const status = sections.get(currentReleaseDocumentVersion)?.status || "";
+  if (!/(?:release candidate prepared|final release-document state)/i.test(status) || positivePublication(status)) {
+    fail("docs/ROADMAP.md", `current release-document v${currentReleaseDocumentVersion} lifecycle`, "final release-document wording without a publication claim", status || "missing", "mark the prepared release-document state and keep external publication evidence distinct");
   }
 }
 const nextPlanned = String(manifest.currentFacts?.nextPlannedVersion || "");

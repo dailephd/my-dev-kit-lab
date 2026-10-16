@@ -447,8 +447,9 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.9.2",
+    "latestPublishedVersionEvidenceContext": "Historical pre-publication npm registry query on 2026-10-16; not a current publication claim.",
     "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.9.3",
+    "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",
@@ -484,6 +485,7 @@
     "candidateEvidenceMeaning": "review-only evidence, not a confirmed SecurityFinding or AuditIssue",
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
-    "releaseDocumentState": "final-release-state"
+    "releaseDocumentState": "final-release-state",
+    "currentReleaseDocumentVersion": "0.9.3"
   }
 }

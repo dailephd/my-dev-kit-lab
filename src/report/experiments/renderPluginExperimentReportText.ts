@@ -1,8 +1,9 @@
 import type { PluginExperimentReport } from "./experimentReportModel.js";
 import { pushDashList, fieldLine, pushSection } from "./renderSpecializedTextSections.js";
+import { buildMetricEvidenceCaveats, buildMetricEvidenceViews, type MetricReportEvidence } from "./metricEvidence.js";
 import { getSpecializedReportSectionRegistry } from "./specializedReportSections.js";
 
-export function renderPluginExperimentReportText(report: PluginExperimentReport): string {
+export function renderPluginExperimentReportText(report: PluginExperimentReport, evidence?: MetricReportEvidence): string {
   const lines: string[] = [];
 
   pushSection(lines, "Plugin Experiment Report");
@@ -52,6 +53,11 @@ export function renderPluginExperimentReportText(report: PluginExperimentReport)
       (metric) => `${metric.name} (${metric.id}) value=${metric.value ?? "unavailable"} unit=${metric.unit ?? ""}`
     )
   );
+
+  // Evidence caveats come from the same projection the HTML report uses; they supplement existing warnings.
+  pushSection(lines, "Metric Evidence Caveats");
+  const caveats = buildMetricEvidenceCaveats(report, buildMetricEvidenceViews(report, evidence));
+  pushDashList(lines, caveats.length === 0 ? ["none derived from the recorded evidence"] : caveats.map((caveat) => `${caveat.severity} ${caveat.text}`));
 
   // Specialized family sections come from the shared registry, in its deterministic order.
   for (const section of getSpecializedReportSectionRegistry().resolve(report)) {

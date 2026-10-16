@@ -3,6 +3,7 @@ import path from "node:path";
 import { resolveWithinRoot } from "../../core/pathSafety.js";
 import type { ExperimentPluginMetadata, ExperimentRun } from "../../experiments/index.js";
 import { buildPluginExperimentReport } from "./buildPluginExperimentReport.js";
+import { collectMetricReportEvidence } from "./metricEvidence.js";
 import { loadContextPackArtifacts } from "./loadContextPackArtifacts.js";
 import { renderPluginExperimentReportHtml } from "./renderPluginExperimentReportHtml.js";
 import { renderPluginExperimentReportText } from "./renderPluginExperimentReportText.js";
@@ -64,8 +65,9 @@ export async function writePluginExperimentReports(args: {
     `${JSON.stringify({ report, outputPaths: serializedPaths }, null, 2)}\n`,
     writeOptions
   );
-  await writeFile(outputPaths.htmlPath, renderPluginExperimentReportHtml(report), writeOptions);
-  await writeFile(outputPaths.textPath, renderPluginExperimentReportText(report), writeOptions);
+  const evidence = collectMetricReportEvidence(args.run);
+  await writeFile(outputPaths.htmlPath, renderPluginExperimentReportHtml(report, evidence), writeOptions);
+  await writeFile(outputPaths.textPath, renderPluginExperimentReportText(report, evidence), writeOptions);
   return { report, outputPaths };
 }
 

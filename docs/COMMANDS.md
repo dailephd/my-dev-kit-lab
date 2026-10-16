@@ -33,6 +33,7 @@ my-dev-kit-lab [--workspace <path>] experiment run --experiment <id> [options]
 my-dev-kit-lab [--workspace <path>] experiment controlled [options]
 
 my-dev-kit-lab [--workspace <path>] report render [options]
+my-dev-kit-lab [--workspace <path>] report compare-prompts --baseline <run-root> --candidate <run-root> --out <output-root>
 my-dev-kit-lab [--workspace <path>] plots generate [options]
 my-dev-kit-lab [--workspace <path>] gallery build [options]
 
@@ -519,6 +520,20 @@ Runs the `context-strategy-comparison` plugin's legacy controlled-experiment pat
 | `--max-prompt-chars <n>` / `--max-file-tree-entries <n>` | Optional positive integers |
 | `--plots <dir>` / `--visualizations <dir>` | Optional; included in the report when present |
 
+### `my-dev-kit-lab report compare-prompts` (v0.9.3 release)
+
+| Option | Allowed value or default |
+|---|---|
+| `--baseline <run-root>` | Required, exactly once; a completed real-agent `agent-success-rate` output root |
+| `--candidate <run-root>` | Required, exactly once; a different completed real-agent `agent-success-rate` output root |
+| `--out <output-root>` | Required, exactly once; must not overlap either run root |
+
+The command compares persisted evidence only. It never invokes a provider, creates a campaign, modifies a checkpoint or runs a benchmark. It reads `agent-success-rate-execution.json`, `agent-success-rate-analysis.json` (when present), the campaign identity checkpoint and each attempt's `prompt-contract.json`, reusing the existing validators. Unknown or duplicate flags, empty values, identical roots, an overlapping output root and unreadable or schema-invalid execution evidence are rejected with a non-zero exit code and write nothing.
+
+The nested help route `my-dev-kit-lab report compare-prompts --help` and the root `--help` synopsis document this command.
+
+It writes `prompt-template-comparison.json` (schema `prompt-template-comparison/1.0.0`), `prompt-template-comparison.txt` and `prompt-template-comparison.html`. Unverifiable prompt identity, a tampered checkpoint or prompt-contract artifact, or any provider, repair-allowance, timeout, non-template prompt-setting, execution, corpus, check or provider-build mismatch yields an `INCOMPARABLE` report with bounded reasons and no winner. Evidence is verified with the campaign owners' own validators: the complete checkpoint store read (every generation, history, completed-artifact integrity and V2 authorization state) runs against trusted task definitions authenticated by identity task digests; missing or mismatched historical corpus makes that side unverifiable and the comparison `INCOMPARABLE`. V1 identity does not bind a template: a self-validating `prompt-contract.json` sidecar, even with an intact prompt-artifact hash, does not prove which template generated a historical prompt. Without independent trustworthy evidence tied to the run, V1 prompt identity is `UNVERIFIED` and the side is `INCOMPARABLE`; no legacy template is inferred. Only a completed provider response with persisted proof of a contract violation (`OUTPUT_CONTRACT_*`, verified malformed diff, or named empty completed answer) counts as invalid output; bare provider `invalid-output` status is excluded from numerator and denominator. The report gives matched first-attempt rates and counts, baseline-minus-candidate percentage-point difference, exclusions, and task-success outcomes separately. Infrastructure outcomes are excluded; an empty denominator is unavailable, not zero. `behavioralImprovement` remains `NOT_VERIFIED`: no paired paid-provider smoke was authorized. A completed comparison can be browsed with `gallery build --source <comparison-root>`.
+
 ### `my-dev-kit-lab plots generate [options]`
 
 | Option | Allowed value or default |
@@ -551,6 +566,11 @@ The context-size plot compares measured context estimates per case and treatment
 |---|---|
 | `--out <dir>` | Required |
 | `--report <dir>` / `--plots <dir>` / `--visualizations <dir>` / `--experiment <dir>` | Optional; included in the manifest when present |
+| `--source <path>` | Optional and repeatable (v0.9.3 release). One explicit artifact root or supported manifest per occurrence |
+
+`--source` reads completed outputs without running anything. Recognized families are identified from existing producer schemas: plugin experiment reports (`report.json`), warm-index campaign reports, controlled-experiment summaries (`experiment-summary.json`), standalone audit reports (`code-rot-audit.json`), security-validation reports (`*-security-validation.json`), Android validation reports (`*-android-security-validation.json`), tutorial runs (`<run-root>/artifacts/tutorial-manifest.json`, or that manifest file given explicitly), and prompt-template comparisons (`prompt-template-comparison.json`). Only the named root is read; nothing is discovered recursively and URLs are rejected. A missing, unreadable, malformed, unsupported-schema, unrecognized or ambiguous source fails the build with a non-zero exit code and no gallery item is invented. Legacy options and `--source` may be combined; sources keep their command-line order and repeats are listed once.
+
+Gallery source readers do not require producers to emit HTML: security, audit and Android items expose their available JSON/text outputs. Plugin-report summaries expose limited metadata. Legacy experiment reports still use the historical `--report` input. Media checks use extension and header bytes; references on another drive may be unavailable because gallery links must remain relative. Markdown is linked, not rendered.
 
 ### `my-dev-kit-lab demo final [options]`
 
@@ -794,7 +814,7 @@ Current behavior:
 
 ### External-target package-content correction for npm commands (v0.9.2, final release-document state; registry publication is established separately)
 
-The existing `security:validate --target <path>` and `security:package -- --target <path>` entrypoints remain supported; the correction adds no command or flag. Lab self-validation retains its strict required inventory. External npm packages use their declared entrypoints, and missing declared entrypoints, invalid or incomplete package metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated. The security verdict policy, `--fail-on` behavior, and forbidden-file validation are unchanged. The original prompt/report/gallery feature scope remains planned for v0.9.3. Earlier failed readiness attempts remain historical; the global planner accepted readiness for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
+The existing `security:validate --target <path>` and `security:package -- --target <path>` entrypoints remain supported; the correction adds no command or flag. Lab self-validation retains its strict required inventory. External npm packages use their declared entrypoints, and missing declared entrypoints, invalid or incomplete package metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated. The security verdict policy, `--fail-on` behavior, and forbidden-file validation are unchanged. Prompt/report/gallery features are included in the v0.9.3 release; see release state and validation limits in [CURRENT_STATE.md](CURRENT_STATE.md). Earlier failed readiness attempts remain historical; the global planner accepted readiness for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`. See [ROADMAP.md](ROADMAP.md#v092--external-target-package-content-validator-correction).
 
 ## Audit commands
 

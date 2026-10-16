@@ -2,7 +2,12 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased]
+## [0.9.3] - 2026-10-16
+
+- Improved security-validator runtime evidence and secret-scan accuracy while retaining bounded proof and candidate-versus-confirmed finding distinctions.
+- Added configurable Codex and Claude real-agent prompt contracts, strict structured-diff validation, bounded prompt modes, and persisted campaign prompt identity. Provider enforcement and effectiveness remain unverified without authorized live-provider evidence.
+- Added a generic report-section registry, static HTML metric evidence and caveats, generalized gallery source readers, read-only tutorial-manifest consumption, and `report compare-prompts` artifacts.
+- Added evidence-based glossary descriptors and stable links for registered metrics, with explicit unresolved-metadata behavior for unknown IDs; text and HTML reports share reliability caveats. Prompt comparison validates persisted checkpoint/task/prompt evidence, fails closed for unverified V1 identity, and excludes status-only invalid-output claims. Real-provider invalid-output improvement remains NOT_VERIFIED; no paid smoke was run. The v0.9.3 acceptance clarification requires validated prompt/report evidence contracts, while any observed live-provider effectiveness is a separate authorized study, not a claimed release outcome.
 
 ## [0.9.2] - 2026-10-13
 

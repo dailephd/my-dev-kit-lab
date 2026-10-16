@@ -563,6 +563,16 @@ node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent 
 
 **Completion:** the run is complete when the reports and both scientific artifacts exist and the process exits `0`. Results are descriptive for a finite controlled corpus; no winner, ranking, composite score, or significance claim is produced.
 
+### Prompt-template comparison (v0.9.3 release)
+
+Run two real-agent campaigns that differ only in prompt template (for example `legacy-diff-v1` and `strict-diff-v1`) with the same provider, corpus, treatments, repair allowance and timeout, then compare the persisted outputs:
+
+```bash
+my-dev-kit-lab report compare-prompts --baseline <baseline-run-root> --candidate <candidate-run-root> --out <comparison-root>
+```
+
+Open `prompt-template-comparison.html`, or add `--source <comparison-root>` to `gallery build`. A `NOT_VERIFIED` behavioral-improvement status is expected until a separately authorized paired real-provider smoke has produced compatible evidence; this empirical outcome is not a v0.9.3 release-readiness gate. The comparison itself performs no provider call.
+
 ### Campaign lifecycle (v0.9.1)
 
 Select cases and the fixed raw-full-file/context-pack treatments, then choose deterministic fixture execution or explicitly opt into Codex/Claude with `--include-real-agents`. A new campaign validates inputs and provider authorization, establishes content-based campaign identity, and writes an initial checkpoint before dispatch. Execute a selected workload or one case; each treatment is durably completed with its evidence and supporting artifacts before later work proceeds.
@@ -1067,3 +1077,5 @@ npm run audit -- --target /path/to/android/project --types security --android --
 Manual pentest is deferred until after `v1.0.0`.
 
 It is a human-led workflow and is not required for automated Android security validation.
+
+The reader performs bounded, read-only evidence validation and delegates complete checkpoint-store validation to the campaign owners against trusted task definitions authenticated by persisted task digests. If required historical corpus or artifact evidence is unavailable, that side is unverifiable and the comparison is `INCOMPARABLE`; checkpoint hashes alone do not establish semantic validity. V2 prompt-contract integrity is validated. V1 identity does not bind a prompt template: sidecar self-consistency or an intact prompt-artifact hash alone cannot prove historical template identity, so unsupported V1 evidence remains `UNVERIFIED`/`INCOMPARABLE`, without a winner or improvement rate. Only a completed provider response with persisted evidence of a response-contract violation enters the invalid-output numerator; bare `invalid-output` status and infrastructure outcomes are excluded from both numerator and denominator. Task-success and repair outcomes remain separate. Real-provider improvement remains `NOT_VERIFIED` pending authorized smoke evidence.

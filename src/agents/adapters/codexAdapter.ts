@@ -148,7 +148,10 @@ export async function runCliAgent(request: AgentRunRequest, adapter: AgentAdapte
     env: request.env,
     timeoutMs: request.timeoutMs,
     stdinText: command.stdinText,
-    ...(launch ? { stdoutMaxBytes: 8 * 1024 * 1024, stderrMaxBytes: 1024 * 1024, terminateProcessTree: true } : {})
+    ...(launch ? { stdoutMaxBytes: 8 * 1024 * 1024, stderrMaxBytes: 1024 * 1024 } : {}),
+    // PATH-resolved providers can be Windows .cmd shims too. Always request tree termination
+    // for provider timeouts; trustedExecutable only controls additional output bounds.
+    terminateProcessTree: true
   });
   const ended = Date.now();
   const combinedOutput = `${measured.stdout}\n${measured.stderr}`;

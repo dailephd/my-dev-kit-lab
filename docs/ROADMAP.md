@@ -1434,7 +1434,7 @@ Shipped scope:
 * Every listed feature and acceptance item is implemented in the `agent-success-rate` plugin; see [COMMANDS.md](COMMANDS.md#agent-success-rate-v090), [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), and [METRICS.md](METRICS.md#agent-success-rate-metrics-v090).
 * The deterministic fixture mode and simulated Codex/Claude providers validate the patch pipeline and repair logic. A paid live-provider campaign has not been run; real-agent capability is implemented but not yet evidenced by live results.
 * v0.9.1 released with campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry.
-* Strict prompt modes, the report section registry, and generalized gallery presentation remain planned for v0.9.3 (moved intact from the previously assigned v0.9.2 after prioritizing its security-validator patch).
+* Strict prompt modes, the report section registry, and generalized gallery presentation were moved intact from the previously assigned v0.9.2 to v0.9.3 after prioritizing its security-validator patch; they are included in v0.9.3.
 * Release history for v0.9.0 is recorded in [CHANGELOG.md](../CHANGELOG.md).
 
 ### v0.9.1 — normalized provider telemetry and campaign scheduler
@@ -1531,9 +1531,9 @@ Explicit exclusions from this implementation task: automatic release or publicat
 
 ### v0.9.3 — hardened real-agent prompts and report/gallery generalization
 
-Status: **planned; not implemented**. Previously assigned to v0.9.2; the existing purpose, features, and acceptance criteria were moved intact under v0.9.3 by the 2026-10-12 release-sequence decision.
+Status: **final release-document state**. Package metadata is 0.9.3, and the release documentation describes that version. The six implementation batches and Stage 4 completeness corrections are included; source and deterministic evidence contracts pass. The release acceptance criteria below validate implemented behavior and evidence integrity. By the owner's 2026-10-15 roadmap clarification, observed real-provider effectiveness is a separately authorized empirical objective, NOT_VERIFIED and not a v0.9.3 release gate.
 
-Planned first batch — validator accuracy and external-target evidence (not implemented in v0.9.2):
+Completed first batch — validator accuracy and external-target evidence (implemented in v0.9.3; not part of the v0.9.2 package):
 
 * Repair the existing subprocess-injection scenario's installed-package evidence path. The argv round-trip exercise uses Lab's command runner correctly, but its separate source inspection resolves `commandRunner.ts` relative to the compiled package, where that TypeScript source is not shipped; this can yield a `blocked` framework result unrelated to the external target. Validate the actual applicable tool behavior through a packaged-safe mechanism, distinguish Lab-framework evidence from target-project security evidence, and preserve failure on real shell interpolation or incomplete required proof. Test source-checkout, packed-installed Lab, and external-target modes without weakening the verdict.
 * Repair the bounded secret scanner's lexical false positive for diagnostic template-string text such as `token: "${token}"`. The current generic quoted-assignment pattern can match that text within a larger template literal despite the value being runtime interpolation rather than a hardcoded credential. Use syntax-aware discrimination, not a file/path/identifier allowlist; retain detection for genuine literal credentials (including config, object-property, and known token formats), stable ordering, severity, and redacted reports. Test the observed Orchestrator cases and true-positive controls.
@@ -1568,12 +1568,14 @@ Features:
 
 Acceptance:
 
-* Invalid-output rate improves in smoke campaigns.
+* Deterministic prompt-contract smoke tests and persisted campaign evidence correctly classify completed malformed/empty responses, separate provider/infrastructure failures, enforce matched eligible denominators, and fail closed when prompt identity or checkpoint proof is inadequate. This tests the implemented measurement and validation contracts; it does not establish a real-provider rate improvement.
 * Reports compare prompt template versions.
 * Existing context-strategy report renders through generic report framework.
 * Warm-index, retrieval, context-window, audit, security, and mobile reports can share or link through consistent infrastructure where appropriate.
 * Gallery can browse multiple experiment and validation outputs.
 * Gallery can browse finalized tutorial artifacts through the canonical tutorial manifest without forcing tutorial execution to depend on gallery generation.
+
+The initial Stage 4 audit found glossary and comparison-evidence defects; bounded correction tasks fixed and validated those source findings. Stage 4 documentation and implementation-completeness status: **PASS**. Registered metric IDs resolve to evidence-based glossary descriptors and stable links, including bounded dynamic families; shared text/HTML caveats preserve known provenance and leave unavailable provenance unknown. Prompt comparison fails closed for unverified V1 identity, validates supported V2 and checkpoint evidence through existing campaign validators, excludes status-only invalid-output claims, and reports incomparable evidence explicitly. **Deferred empirical objective (not assigned to a release version and not a v0.9.3 gate):** “Invalid-output rate improves in smoke campaigns.” Assess this only through separately authorized, matched real-provider campaigns with verified run-bound prompt identity and eligible-response denominators. No such campaign was authorized, so improvement is **NOT_VERIFIED**; do not claim improvement, invent results, or treat deterministic fixtures as proof. This owner-directed 2026-10-15 acceptance clarification separates release-verifiable behavior from later empirical effectiveness without removing the original scientific objective or changing v0.10.0+ scope.
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 

@@ -12,6 +12,7 @@ export function renderTopLevelHelp(): string {
     "  my-dev-kit-lab [--workspace <path>] experiment run --experiment <id> [options]",
     "  my-dev-kit-lab [--workspace <path>] experiment controlled --cases <path> --out <dir> [options]",
     "  my-dev-kit-lab [--workspace <path>] report render --experiment <dir> --out <dir> [options]",
+    "  my-dev-kit-lab [--workspace <path>] report compare-prompts --baseline <run-root> --candidate <run-root> --out <output-root>",
     "  my-dev-kit-lab [--workspace <path>] plots generate --experiment <dir> --out <dir>",
     "  my-dev-kit-lab [--workspace <path>] gallery build --out <dir> [options]",
     "  my-dev-kit-lab tutorial validate --scenario <path> [--target-contract <path>]",
@@ -32,6 +33,7 @@ export function renderTopLevelHelp(): string {
     "  experiment run             Run a registered experiment plugin",
     "  experiment controlled    Run a controlled context-strategy-comparison experiment",
     "  report render             Render an experiment report from controlled-experiment artifacts",
+    "  report compare-prompts    Compare two completed real-agent runs by prompt template (read-only)",
     "  plots generate             Generate experiment plot artifacts",
     "  gallery build              Build a gallery manifest/index",
     "  tutorial validate          Validate a tutorial scenario and optional target contract",
@@ -374,11 +376,31 @@ export function renderReportHelp(): string {
     "",
     "Usage:",
     "  my-dev-kit-lab report render [options]",
+    "  my-dev-kit-lab report compare-prompts --baseline <run-root> --candidate <run-root> --out <output-root>",
     "  my-dev-kit-lab report --help",
     "",
     "Commands:",
     "  render   Render an HTML/JSON experiment report from controlled-experiment artifacts.",
-    "           Run \"my-dev-kit-lab report render --help\" for details."
+    "           Run \"my-dev-kit-lab report render --help\" for details.",
+    "  compare-prompts   Compare two completed real-agent agent-success-rate runs by prompt template (read-only).",
+    "           Run \"my-dev-kit-lab report compare-prompts --help\" for details."
+  ].join("\n");
+}
+
+export function renderReportComparePromptsHelp(): string {
+  return [
+    "my-dev-kit-lab report compare-prompts - compare persisted evidence from two prompt-template runs",
+    "",
+    "Usage:",
+    "  my-dev-kit-lab report compare-prompts --baseline <run-root> --candidate <run-root> --out <output-root>",
+    "",
+    "Required (each exactly once):",
+    "  --baseline <run-root>    Completed agent-success-rate run output root (baseline template)",
+    "  --candidate <run-root>   Completed agent-success-rate run output root (candidate template)",
+    "  --out <output-root>      Output root; must not overlap either run root",
+    "",
+    "Writes prompt-template-comparison.json, .txt and .html. The command only reads persisted evidence:",
+    "it never invokes a provider, creates a campaign or modifies a checkpoint."
   ].join("\n");
 }
 
@@ -466,7 +488,8 @@ export function renderGalleryBuildHelp(): string {
     "  --report <dir>           Path to a rendered report directory",
     "  --plots <dir>            Path to a plots output directory",
     "  --visualizations <dir>   Path to a visualization-demos output directory",
-    "  --experiment <dir>       Path to a controlled-experiment output directory"
+    "  --experiment <dir>       Path to a controlled-experiment output directory",
+    "  --source <path>          Artifact root or supported manifest to include; repeatable"
   ].join("\n");
 }
 

@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import path from "node:path";
 
 export type ForceTerminateProcessOptions = {
   /**
@@ -48,52 +49,72 @@ export type TerminateProcessTreeOptions = {
  * fire-and-forget and, off Windows, signals one pid only.
  *
  * Windows: `taskkill /pid <pid> /T /F` (shell:false) is awaited, bounded by
- * `waitTimeoutMs`, so the caller knows the tree was asked to die before it
- * proceeds.
+ * `waitTimeoutMs`. Returns false if the command fails or times out.
  *
  * Other platforms: the child must have been spawned `detached` so it leads its
  * own process group; the whole group is signalled via the negative pid. If no
  * group exists, the single pid is signalled as a fallback.
  *
- * Never throws: the target may already have exited.
+ * Never throws. Returns true only when termination was confirmed (or no PID was supplied).
  */
 export async function terminateProcessTree(
   pid: number | undefined,
   options: TerminateProcessTreeOptions = {}
-): Promise<void> {
+): Promise<boolean> {
   if (!pid) {
-    return;
+    return true;
   }
   const platform = options.platform ?? process.platform;
   if (platform === "win32") {
-    await new Promise<void>((resolve) => {
+    return await new Promise<boolean>((resolve) => {
       let timer: NodeJS.Timeout | undefined;
-      const finish = () => {
+      let settled = false;
+      const finish = (terminated: boolean) => {
+        if (settled) return;
+        settled = true;
         if (timer) clearTimeout(timer);
-        resolve();
+        resolve(terminated);
       };
-      const killer = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], {
-        shell: false,
-        stdio: "ignore",
-        windowsHide: true
-      });
-      timer = setTimeout(finish, options.waitTimeoutMs ?? 5000);
-      killer.on("error", finish);
-      killer.on("close", finish);
+      let killer;
+      try {
+        const systemRoot = Object.entries(process.env).find(([name]) => name.toLowerCase() === "systemroot")?.[1];
+        const taskkill = systemRoot ? path.join(systemRoot, "System32", "taskkill.exe") : "taskkill";
+        killer = spawn(taskkill, ["/pid", String(pid), "/T", "/F"], {
+          shell: false,
+          stdio: "ignore",
+          windowsHide: true
+        });
+      } catch {
+        finish(false);
+        return;
+      }
+      timer = setTimeout(() => {
+        if (killer.pid) {
+          try {
+            killer.kill();
+          } catch {
+            // The bounded helper may already have exited.
+          }
+        }
+        finish(false);
+      }, options.waitTimeoutMs ?? 5000);
+      killer.on("error", () => finish(false));
+      killer.on("close", (code) => finish(code === 0));
     });
-    return;
   }
   const signal = options.posixSignal ?? "SIGKILL";
   try {
     process.kill(-pid, signal);
-    return;
+    return true;
   } catch {
     // No process group for this pid (or it already exited); fall back to the single pid.
   }
   try {
     process.kill(pid, signal);
+    return true;
   } catch {
     // The process may have exited between the liveness check and this signal.
+    return false;
   }
 }
 

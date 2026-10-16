@@ -21,6 +21,7 @@ type DocumentationManifest = {
   };
   currentFacts: {
     latestPublishedVersion: string;
+    currentReleaseDocumentVersion?: string;
     nextPlannedVersion: string;
     releaseDocumentState?: string;
     currentImplementedUnreleasedVersion?: string | null;
@@ -63,7 +64,12 @@ function setReleaseDocumentState(root: string, finalReleaseDocument: boolean) {
   edit(root, "docs/documentation-preservation-manifest.json", (body) => {
     const value = JSON.parse(body) as DocumentationManifest;
     if (finalReleaseDocument) value.currentFacts.releaseDocumentState = "final-release-state";
-    else delete value.currentFacts.releaseDocumentState;
+    else {
+      delete value.currentFacts.releaseDocumentState;
+      value.currentFacts.latestPublishedVersion = value.currentFacts.currentReleaseDocumentVersion ?? packageMetadata.version;
+      delete value.currentFacts.currentReleaseDocumentVersion;
+      value.currentFacts.currentImplementedUnreleasedVersion = null;
+    }
     return `${JSON.stringify(value, null, 2)}\n`;
   });
 }
@@ -109,6 +115,8 @@ function replaceRoadmapVersionStatus(body: string, version: string, replacementS
 
 type DocumentationLifecycleFacts = {
   packageVersion: string;
+  activeReleaseDocumentVersion: string;
+  activeReleaseDocumentRoadmapVersion: string;
   latestPublishedVersion: string;
   nextPlannedVersion: string;
   latestPublishedRoadmapVersion: string;
@@ -125,6 +133,7 @@ function deriveDocumentationLifecycleFacts(
   const packageVersion = packageValue.version;
   const latestPublishedVersion = manifestValue.currentFacts.latestPublishedVersion;
   const isFinalReleaseDocument = manifestValue.currentFacts.releaseDocumentState === "final-release-state";
+  const currentReleaseDocumentVersion = manifestValue.currentFacts.currentReleaseDocumentVersion;
   const nextPlannedVersion = manifestValue.currentFacts.nextPlannedVersion;
 
   if (!semver.test(packageVersion)) {
@@ -136,10 +145,13 @@ function deriveDocumentationLifecycleFacts(
   if (!semver.test(nextPlannedVersion)) {
     throw new Error("Documentation lifecycle next planned version is invalid.");
   }
-  if (packageVersion !== latestPublishedVersion) {
+  const releaseDocumentMatchesPackage = isFinalReleaseDocument && currentReleaseDocumentVersion === packageVersion;
+  if (packageVersion !== latestPublishedVersion && !releaseDocumentMatchesPackage) {
     throw new Error("Package version must equal manifest latestPublishedVersion for documentation lifecycle tests.");
   }
 
+  const activeReleaseDocumentVersion = releaseDocumentMatchesPackage ? packageVersion : latestPublishedVersion;
+  const activeReleaseDocumentRoadmapVersion = `v${activeReleaseDocumentVersion}`;
   const latestPublishedRoadmapVersion = `v${latestPublishedVersion}`;
   const nextPlannedRoadmapVersion = `v${nextPlannedVersion}`;
   const requiredVersions = manifestValue.roadmap.requiredVersions;
@@ -159,6 +171,8 @@ function deriveDocumentationLifecycleFacts(
 
   return {
     packageVersion,
+    activeReleaseDocumentVersion,
+    activeReleaseDocumentRoadmapVersion,
     latestPublishedVersion,
     nextPlannedVersion,
     latestPublishedRoadmapVersion,
@@ -201,9 +215,9 @@ describe("release and current/planned state", () => {
     (root) => {
       setReleaseDocumentState(root, finalReleaseDocument);
       edit(root, "docs/ROADMAP.md", (body) => {
-        const activeStatus = finalReleaseDocument ? "Status: **final release-document state; publication pending**." : "Status: **published**.";
-        const prepared = replaceRoadmapVersionStatus(body, lifecycle.latestPublishedRoadmapVersion, activeStatus);
-        return replaceRoadmapVersionStatus(prepared, lifecycle.latestPublishedRoadmapVersion, "Status: **planned**.");
+        const activeStatus = finalReleaseDocument ? "Status: **release candidate prepared**." : "Status: **published**.";
+        const prepared = replaceRoadmapVersionStatus(body, lifecycle.activeReleaseDocumentRoadmapVersion, activeStatus);
+        return replaceRoadmapVersionStatus(prepared, lifecycle.activeReleaseDocumentRoadmapVersion, "Status: **planned**.");
       });
     },
     `${label} v${lifecycle.packageVersion} lifecycle`,
@@ -217,17 +231,18 @@ describe("release and current/planned state", () => {
     `next planned v${lifecycle.nextPlannedVersion} lifecycle`,
   ));
   it.each([false, true] as const)("LIFECYCLE-003 classifies unpublished wording for final-document=%s", (finalReleaseDocument) => {
+    const testedVersion = finalReleaseDocument ? lifecycle.latestPublishedVersion : lifecycle.activeReleaseDocumentVersion;
     const check = (root: string) => {
       setReleaseDocumentState(root, finalReleaseDocument);
       if (!finalReleaseDocument) {
-        edit(root, "docs/ROADMAP.md", (body) => replaceRoadmapVersionStatus(body, lifecycle.latestPublishedRoadmapVersion, "Status: **published**."));
+        edit(root, "docs/ROADMAP.md", (body) => replaceRoadmapVersionStatus(body, lifecycle.activeReleaseDocumentRoadmapVersion, "Status: **published**."));
       }
-      edit(root, "README.md", (body) => `${body}\nv${lifecycle.latestPublishedVersion} has not yet been published to npm.\n`);
+      edit(root, "README.md", (body) => `${body}\nv${testedVersion} has not yet been published to npm.\n`);
     };
     if (finalReleaseDocument) {
       withDocs(check, (run) => expect(run()).toContain("passed"));
     } else {
-      expectFailure(check, `v${lifecycle.latestPublishedVersion} publication claim`);
+      expectFailure(check, `v${testedVersion} publication claim`);
     }
   });
   it("LIFECYCLE-004 rejects a positive publication claim for the next planned version", () => expectFailure(
@@ -451,7 +466,7 @@ describe("release lifecycle and plugin preservation", () => {
 
 describe("documentation lifecycle transition derivation", () => {
   it("TRANSITION-001 current repository lifecycle facts derive successfully", () => {
-    expect(lifecycle.packageVersion).toBe(manifest.currentFacts.latestPublishedVersion);
+    expect(lifecycle.packageVersion).toBe(manifest.currentFacts.currentReleaseDocumentVersion ?? manifest.currentFacts.latestPublishedVersion);
   });
 
   it("TRANSITION-002 a synthetic release transition derives the next lifecycle without changing test source", () => {
@@ -492,7 +507,11 @@ describe("documentation lifecycle transition derivation", () => {
 
   it("TRANSITION-004 an invalid package/latest mismatch throws the exact setup error", () => {
     const mismatchedPackage: PackageMetadata = { version: lifecycle.nextPlannedVersion };
-    expect(() => deriveDocumentationLifecycleFacts(manifest, mismatchedPackage)).toThrow(
+    const invalidManifest: DocumentationManifest = {
+      ...manifest,
+      currentFacts: { ...manifest.currentFacts, currentReleaseDocumentVersion: undefined },
+    };
+    expect(() => deriveDocumentationLifecycleFacts(invalidManifest, mismatchedPackage)).toThrow(
       "Package version must equal manifest latestPublishedVersion for documentation lifecycle tests."
     );
   });

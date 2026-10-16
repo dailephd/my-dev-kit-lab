@@ -17,9 +17,9 @@
 // guaranteed to exist.
 // ---------------------------------------------------------------------------
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { createServer } from "node:net";
+import { createConnection, createServer } from "node:net";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
@@ -326,7 +326,9 @@ const FAKE_AGENT_LOG_ENV = "MY_DEV_KIT_LAB_FAKE_AGENT_LOG";
 // provider-specific piece -- it must always print a completed-style response (including for
 // "missing-tokens", which omits only the usage object, never the answer envelope itself).
 function fakeAgentFixtureBody(providerId, emitSuccessSource) {
-  return `import { appendFileSync } from "node:fs";
+  return `import { randomUUID } from "node:crypto";
+import { appendFileSync } from "node:fs";
+import { createServer } from "node:net";
 
 const args = process.argv.slice(2);
 if (args.includes("--version")) {
@@ -348,28 +350,44 @@ process.stdin.on("data", (chunk) => { stdin += chunk; });
 process.stdin.on("end", () => {
   const caseMatch = stdin.match(/Case ID:\\s*(\\S+)/);
   const contextMatch = stdin.match(/Context mode:\\s*(\\S+)/);
-  if (logPath) {
+  const recordInvocation = (probe = null) => {
+    if (!logPath) return;
     try {
       appendFileSync(
         logPath,
         JSON.stringify({
           provider: ${JSON.stringify(providerId)},
+          pid: process.pid,
+          probe,
           argv: args,
           caseId: caseMatch ? caseMatch[1] : null,
           contextMode: contextMatch ? contextMatch[1] : null
         }) + "\\n"
       );
     } catch {}
-  }
+  };
 
   // Never respond, and never let the event loop drain naturally: without a pending handle Node
   // would exit on its own the moment stdin ends, which would (wrongly) look like an empty/invalid
   // fast completion rather than a hang. The harness's own command-timeout/kill logic is what must
   // terminate this process, proving real timeout handling rather than a fixture-simulated one.
   if (mode === "timeout") {
-    setInterval(() => {}, 60 * 60 * 1000);
+    const probeToken = randomUUID();
+    const probe = createServer((socket) => socket.end(probeToken));
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      if (!address || typeof address === "string") {
+        process.exitCode = 1;
+        probe.close();
+        return;
+      }
+      recordInvocation({ port: address.port, token: probeToken });
+      setInterval(() => {}, 60 * 60 * 1000);
+    });
     return;
   }
+
+  recordInvocation();
 
   const appliesToThisCase = !failMatch || stdin.includes(failMatch);
 
@@ -3679,6 +3697,45 @@ async function main() {
         ? readFileSync(providerLogPath, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line))
         : [];
     const clearProviderLog = () => writeFileSync(providerLogPath, "", "utf8");
+    async function fixtureProbeIsReachable(probe) {
+      return await new Promise((resolve) => {
+        let settled = false;
+        let response = "";
+        const finish = (reachable) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          socket.destroy();
+          resolve(reachable);
+        };
+        const socket = createConnection({ host: "127.0.0.1", port: probe.port });
+        const timer = setTimeout(() => finish(false), 500);
+        socket.on("data", (chunk) => {
+          response += chunk.toString("utf8");
+          if (response.length >= probe.token.length) finish(response === probe.token);
+        });
+        socket.once("end", () => finish(response === probe.token));
+        socket.once("error", () => finish(false));
+      });
+    }
+
+    async function requireFixtureProcessesExited(gate, records) {
+      const pids = [...new Set(records.map((record) => record.pid).filter((pid) => Number.isSafeInteger(pid) && pid > 0))];
+      const invalidProbes = records.filter((record) => !Number.isInteger(record.probe?.port) || record.probe.port < 1 || record.probe.port > 65535 || typeof record.probe.token !== "string" || record.probe.token.length === 0);
+      if (pids.length !== records.length || pids.length === 0 || invalidProbes.length > 0) {
+        fail(gate, `Expected one fixture PID and live-process probe per provider invocation; found ${pids.length} PIDs for ${records.length} records, ${invalidProbes.length} invalid probes.`);
+      }
+      const deadline = Date.now() + 5000;
+      let alive = records;
+      while (alive.length > 0 && Date.now() < deadline) {
+        alive = [];
+        for (const record of records) {
+          if (await fixtureProbeIsReachable(record.probe)) alive.push(record);
+        }
+        if (alive.length > 0) await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      if (alive.length > 0) fail(gate, `Test-owned provider processes survived campaign completion: ${alive.map((record) => `${record.provider} PID ${record.pid}`).join(", ")}.`);
+    }
 
     // On POSIX, resolveCommand() resolves the installed CLI to its bare name (not an absolute
     // path) for a "direct" resolution kind, so spawning it still depends on PATH containing the
@@ -4036,11 +4093,12 @@ async function main() {
 
     // --- 9d.7 timeout classification (section 29) ------------------------
     const timeoutOut = path.join(dirs.campaigns, "codex-timeout");
-    runCampaignScenario(
+    const timeoutRun = runCampaignScenario(
       "WARM_INDEX_CAMPAIGN_TIMEOUT",
       campaignArgs("codex-full", timeoutOut, ["--case", "warm-medium-import-dedupe", "--timeout-ms", "250"]),
       campaignEnv({ mode: "timeout", playwrightBrowsersPath: dirs.browserCache })
     );
+    await requireFixtureProcessesExited("WARM_INDEX_CAMPAIGN_TIMEOUT_PROCESS_CLEANUP", timeoutRun.log);
     const timeoutReport = readCampaignReport(timeoutOut);
     const timeoutCampaign = timeoutReport?.warmIndexReuse?.agentCampaign;
     if (timeoutReport?.metadata?.status !== "completed") {
