@@ -1434,7 +1434,7 @@ Shipped scope:
 * Every listed feature and acceptance item is implemented in the `agent-success-rate` plugin; see [COMMANDS.md](COMMANDS.md#agent-success-rate-v090), [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), and [METRICS.md](METRICS.md#agent-success-rate-metrics-v090).
 * The deterministic fixture mode and simulated Codex/Claude providers validate the patch pipeline and repair logic. A paid live-provider campaign has not been run; real-agent capability is implemented but not yet evidenced by live results.
 * v0.9.1 released with campaign scheduling, resume, verified completed-unit reuse, provider-limit pause handling, and normalized provider telemetry.
-* Strict prompt modes, the report section registry, and generalized gallery presentation were moved intact from the previously assigned v0.9.2 to v0.9.3 after prioritizing its security-validator patch; they are included in the prepared v0.9.3 release.
+* Strict prompt modes, the report section registry, and generalized gallery presentation were moved intact from the previously assigned v0.9.2 to v0.9.3 after prioritizing its security-validator patch; they are included in v0.9.3.
 * Release history for v0.9.0 is recorded in [CHANGELOG.md](../CHANGELOG.md).
 
 ### v0.9.1 — normalized provider telemetry and campaign scheduler
@@ -1531,7 +1531,7 @@ Explicit exclusions from this implementation task: automatic release or publicat
 
 ### v0.9.3 — hardened real-agent prompts and report/gallery generalization
 
-Status: **release candidate prepared**. Package metadata and release documents are prepared for 0.9.3; the latest externally verified npm release remains 0.9.2 until publication. The six implementation batches and Stage 4 completeness corrections are present on the v0.9.3 release branch; source and deterministic evidence contracts pass. The release acceptance criteria below validate implemented behavior and evidence integrity. By the owner's 2026-10-15 roadmap clarification, observed real-provider effectiveness is a separately authorized empirical objective, NOT_VERIFIED and not a v0.9.3 release gate.
+Status: **final release-document state**. Package metadata is 0.9.3, and the release documentation describes that version. The six implementation batches and Stage 4 completeness corrections are included; source and deterministic evidence contracts pass. The release acceptance criteria below validate implemented behavior and evidence integrity. By the owner's 2026-10-15 roadmap clarification, observed real-provider effectiveness is a separately authorized empirical objective, NOT_VERIFIED and not a v0.9.3 release gate.
 
 Completed first batch — validator accuracy and external-target evidence (implemented in v0.9.3; not part of the v0.9.2 package):
 

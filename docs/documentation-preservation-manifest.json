@@ -447,6 +447,7 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.9.2",
+    "latestPublishedVersionEvidenceContext": "Historical pre-publication npm registry query on 2026-10-16; not a current publication claim.",
     "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
