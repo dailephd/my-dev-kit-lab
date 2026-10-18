@@ -2,13 +2,13 @@
 
 ## Current workflow families
 
-The repository supports experiment campaigns, evidence rendering, generic audits, automated security validation, Android validation, implementation verification, documentation reconciliation, and release operations. Cross-repository composition, including command-surface-derived handoffs not named below, is centralized in [my-dev-kit's command-surface compatibility map](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_DEVELOPMENT_WORKFLOWS.md#915-command-surface-compatibility-map). Each workflow below states its goal, prerequisites, steps, outputs, failure handling, and completion condition. Exact options belong in [COMMANDS.md](COMMANDS.md).
+The repository supports experiment campaigns, evidence rendering, generic audits, automated security validation, Android validation, implementation verification, documentation reconciliation, and release operations. Cross-repository composition, including command-surface-derived handoffs not named below, is centralized in [my-dev-kit's command-surface compatibility map](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_DEVELOPMENT_WORKFLOWS.md#918-command-surface-compatibility-map). Each workflow below states its goal, prerequisites, steps, outputs, failure handling, and completion condition. Exact options belong in [COMMANDS.md](COMMANDS.md).
 
 Android defaults remain static and start zero Gradle, external tool, and network processes. Release chronology belongs in [CHANGELOG.md](../CHANGELOG.md); future scope belongs in [ROADMAP.md](ROADMAP.md).
 
 ## Installed-package workflow (v0.4.6)
 
-This is the workflow for a user of the published package. It is separate from the contributor workflow below, which every other section in this document uses.
+This is the workflow for a user of the published package. Later sections label installed `my-dev-kit-lab` commands and contributor `npm run` commands explicitly; both delegate to the same command owners where an installed route exists.
 
 **Goal:** run supported my-dev-kit-lab commands against a project without cloning this repository.
 
@@ -68,7 +68,7 @@ npx playwright install chromium
 
 **Failure handling:** validation failures return usage/content errors without launching a browser. A missing Chromium runtime returns a nonzero `browser-unavailable` run with setup guidance; it does not trigger an automatic browser download. Assertion, process, target, artifact, and cleanup failures remain distinct in the result and manifest.
 
-**Completion:** the run passes only when every executed step and required artifact succeeds, cleanup errors are empty, and the manifest records the expected scenario and target identity. Product-specific demo sites and scenarios remain owned by their product repositories; gallery consumption of tutorial manifests remains future scope.
+**Completion:** the run passes only when every executed step and required artifact succeeds, cleanup errors are empty, and the manifest records the expected scenario and target identity. Product-specific demo sites and scenarios remain owned by their product repositories. In v0.9.3, a completed run can be browsed separately with `gallery build --source <run-root>`; tutorial execution does not depend on gallery generation.
 
 ## Contributor / source-checkout workflow
 
@@ -389,7 +389,7 @@ The run proceeds in this order:
 
 **Interpretation and limits:** the measures are set-based, not ranked. They are evidence about the executed cases only. The lifecycle expands only the top search candidate. No retrieval-strategy comparison, ranking, winner, or composite score exists in v0.8.0. In external-local output, `<redacted file N>`, `<redacted symbol N>`, and `<redacted fact N>` mean an identity existed and was withheld, not that the list is empty. The console summary of a successful run can still show the physical output directory even though durable files redact it. Very long platform paths can fail cleanly instead of running.
 
-**Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080) for exact definitions.
+**Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precisionrecall-evidence-v080) for exact definitions.
 
 ## Retrieval query strategy comparison experiment (v0.8.1)
 
@@ -565,7 +565,7 @@ node dist/scripts/cli.js experiment run --experiment agent-success-rate --agent 
 
 ### Prompt-template comparison (v0.9.3 release)
 
-Run two real-agent campaigns that differ only in prompt template (for example `legacy-diff-v1` and `strict-diff-v1`) with the same provider, corpus, treatments, repair allowance and timeout, then compare the persisted outputs:
+Start with two completed real-agent campaigns that differ only in prompt template (for example `legacy-diff-v1` and `strict-diff-v1`) with the same provider and provider build, corpus, treatments, repair allowance, timeout, and non-template prompt settings. When collecting a new authorized pair, select `--prompt-template legacy-diff-v1` and `--prompt-template strict-diff-v1` explicitly so campaign V2 identity binds each template; see the prompt-contract options in [COMMANDS.md](COMMANDS.md#agent-success-rate-v090). Then compare the persisted outputs:
 
 ```bash
 my-dev-kit-lab report compare-prompts --baseline <baseline-run-root> --candidate <candidate-run-root> --out <comparison-root>
@@ -573,11 +573,22 @@ my-dev-kit-lab report compare-prompts --baseline <baseline-run-root> --candidate
 
 Open `prompt-template-comparison.html`, or add `--source <comparison-root>` to `gallery build`. A `NOT_VERIFIED` behavioral-improvement status is expected until a separately authorized paired real-provider smoke has produced compatible evidence; this empirical outcome is not a v0.9.3 release-readiness gate. The comparison itself performs no provider call.
 
+**Archive review without another campaign:** given completed roots `evidence/legacy-run` and `evidence/strict-run`, choose a new, unused review root outside both inputs. This example writes comparison and gallery outputs to distinct sibling directories:
+
+```bash
+my-dev-kit-lab report compare-prompts --baseline evidence/legacy-run --candidate evidence/strict-run --out lab-output/prompt-review-001/comparison
+my-dev-kit-lab gallery build --source lab-output/prompt-review-001/comparison --out lab-output/prompt-review-001/gallery
+```
+
+The comparison reads persisted campaign evidence and the gallery reads the completed comparison. Neither command invokes a provider, resumes a campaign, or changes a checkpoint. Open `lab-output/prompt-review-001/gallery/gallery-index.html` and inspect the comparison's eligibility, matched denominator, exclusions, invalid-output rates, and separate task-success outcomes. Missing or unverifiable historical evidence remains `UNVERIFIED`/`INCOMPARABLE`; a gallery item does not turn it into proof of improvement.
+
+The reader performs bounded, read-only evidence validation and delegates complete checkpoint-store validation to the campaign owners against trusted task definitions authenticated by persisted task digests. If required historical corpus or artifact evidence is unavailable, that side is unverifiable and the comparison is `INCOMPARABLE`; checkpoint hashes alone do not establish semantic validity. V2 prompt-contract integrity is validated. V1 identity does not bind a prompt template: sidecar self-consistency or an intact prompt-artifact hash alone cannot prove historical template identity, so unsupported V1 evidence remains `UNVERIFIED`/`INCOMPARABLE`, without a winner or improvement rate. Only a completed provider response with persisted evidence of a response-contract violation enters the invalid-output numerator; bare `invalid-output` status and infrastructure outcomes are excluded from both numerator and denominator. Task-success and repair outcomes remain separate. Real-provider improvement remains `NOT_VERIFIED` pending authorized smoke evidence.
+
 ### Campaign lifecycle (v0.9.1)
 
 Select cases and the fixed raw-full-file/context-pack treatments, then choose deterministic fixture execution or explicitly opt into Codex/Claude with `--include-real-agents`. A new campaign validates inputs and provider authorization, establishes content-based campaign identity, and writes an initial checkpoint before dispatch. Execute a selected workload or one case; each treatment is durably completed with its evidence and supporting artifacts before later work proceeds.
 
-For continuation, invoke explicit resume with the expected checkpoint revision. The runner validates identity, immutable history, completed evidence, and artifact digests, then reuses verified completed units and continues pending work. A known provider limit pauses the campaign; continuation requires explicit authorization for the exact case, treatment, epoch, and revision. At most two execution epochs are supported per treatment. An uncertain invocation is not automatically replayed; resolve it through the supported explicit recovery contract. Version 1 checkpoints remain readable but unfinished v1 campaigns are not automatically migrated.
+For ordinary continuation, invoke `--agent-campaign resume` against the same `--out` with matching campaign inputs. The runner validates identity, immutable history, completed evidence, and artifact digests, then reuses verified completed units and continues pending work. `--expected-checkpoint-revision` is not a resume option. A known provider limit pauses the campaign; `--agent-campaign continue-limit` requires `--expected-checkpoint-revision`, `--limit-case`, `--limit-treatment`, `--limit-epoch`, and `--authorize-additional-invocation`, binding authorization to the exact case, treatment, epoch, and revision. At most two execution epochs are supported per treatment. An uncertain invocation is not automatically replayed; resolve it through the supported explicit recovery contract. Version 1 checkpoints remain readable but unfinished v1 campaigns are not automatically migrated.
 
 Review the versioned campaign progress JSON/HTML/text snapshots for operational counts and metric-specific evidence quality. They do not claim complete scientific results. After all selected work is validated and finalized, review the existing execution, analysis, and `report.json`/`report.html`/`report.txt` scientific outputs. Missing telemetry is unavailable evidence, not a task failure; a completed trusted-check failure remains a valid task outcome. There is no background scheduling or quota-reset polling.
 
@@ -726,7 +737,7 @@ npm run build-gallery -- --report lab-output/experiment-report-fake --plots lab-
 
 **Expected outputs:** JSON/HTML reports, plot data and SVG charts, a gallery manifest, and `gallery-index.html`.
 
-`generate-experiment-plots` (installed: `plots generate`) accepts warm-index output directories and writes their four charts, or context-window-scaling run directories and writes their three charts; legacy controlled-experiment directories keep the existing plot path. The generic `gallery build --plots` workflow can include a plots directory, but context-window-scaling has no dedicated gallery integration. Ordinary non-campaign warm-index outputs also have no dedicated gallery integration. A completed real-agent warm-index `--campaign` run is the exception: it automatically writes the bounded v0.5.2 campaign gallery described above.
+`generate-experiment-plots` (installed: `plots generate`) accepts warm-index output directories and writes their four charts, or context-window-scaling run directories and writes their three charts; legacy controlled-experiment directories keep the existing plot path. The generic `gallery build --plots` workflow can include a plots directory. In v0.9.3, `gallery build --source <run-root>` also includes a context-window-scaling or ordinary non-campaign warm-index plugin report; those ordinary runs do not automatically generate a dedicated gallery. A completed real-agent warm-index `--campaign` run automatically writes the bounded v0.5.2 campaign gallery described above.
 
 **Failure handling:** correct the missing or mismatched input directory reported by the failing renderer. Do not fabricate absent artifacts.
 
@@ -747,7 +758,7 @@ npm run security:validate
 Targeted example:
 
 ```powershell
-npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+npm run security:validate -- --target "C:\path\to\project"
 ```
 
 **Expected behavior and outputs:**
@@ -777,7 +788,7 @@ npm run audit
 Targeted example:
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
+npm run audit -- --target "C:\path\to\project" --types code-rot --fail-on none
 ```
 
 **Expected behavior and outputs:**
@@ -809,7 +820,7 @@ npm run audit -- --types security --fail-on none
 Targeted example:
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
+npm run audit -- --target "C:\path\to\project" --types security --fail-on none
 ```
 
 ```mermaid
@@ -871,7 +882,7 @@ flowchart LR
 
 **Goal and implemented behavior:** correct external npm package validation without weakening the strict Lab self inventory, forbidden-file validation, or the existing security verdict policy. External packages use their declared entrypoints; missing required entrypoints, invalid or incomplete metadata, failed package evidence, and forbidden contents remain blockers. The nine inherited Lab-only Orchestrator false positives are eliminated. Semgrep failures and incomplete scans cannot produce a false `PASS`; unavailable optional scanners remain explicitly `SKIPPED`.
 
-**Implementation evidence:** implementation commit `21453d5301568cb8b89afebe9362f90313403e8c` passed 7,590 full-suite tests with zero failures and eight existing conditional skips, 615 security tests, documentation checks, build, typecheck, verify, and packed-package checks. Lab self-security had no blocker or major findings and retained 160 minor findings. Orchestrator package validation passed; Orchestrator remains **NOT READY** with 21 major and 86 minor target-owned findings. Its immutability check passed across 11,074 files. These results belong to the implementation SHA and are not exact-SHA validation of a documentation-reconciled candidate. The separate readiness attempt failed on candidate `128aceda255218ce27d198b4187660c6f545c870`; a new exact-SHA readiness cycle is required after correction.
+**Historical v0.9.2 implementation evidence:** implementation commit `21453d5301568cb8b89afebe9362f90313403e8c` passed 7,590 full-suite tests with zero failures and eight existing conditional skips, 615 security tests, documentation checks, build, typecheck, verify, and packed-package checks. Lab self-security had no blocker or major findings and retained 160 minor findings. Orchestrator package validation passed; the inspected Orchestrator target was **NOT READY** with 21 major and 86 minor target-owned findings. Its immutability check passed across 11,074 files. These results belong to that implementation SHA and inspected target, not a later documentation-reconciled candidate or the current Orchestrator release. The separate readiness attempt failed on candidate `128aceda255218ce27d198b4187660c6f545c870` and required a new exact-SHA cycle; the accepted successor `d6289600273a0d573f8d71dcdd975546c683dc6b` is recorded below and in [CURRENT_STATE.md](CURRENT_STATE.md).
 
 The v0.9.3 prompt, report, and gallery feature requirements and acceptance criteria remain intact in [ROADMAP.md](ROADMAP.md). No package version bump, release, tag, merge, or publication is part of implementation or documentation reconciliation.
 
@@ -894,14 +905,14 @@ Required actions:
 
 1. reconcile README, roadmap, architecture, workflows, commands, and current-state docs with the checked-in implementation
 2. confirm current versus planned behavior is clearly separated
-3. remove stale roadmap assignments or relabel them as future/historical as appropriate
+3. preserve approved roadmap scope, version assignments, and order; correct evidence-backed current/planned/historical labels, and obtain owner authorization before changing roadmap scope or assignments
 4. run the required validation commands for the repository
 
 This workflow does not create a separate product version.
 
 The v0.9.2 implementation-stage evidence is documented separately from pre-release readiness. Its implementation SHA is `21453d5301568cb8b89afebe9362f90313403e8c`; those test and package results are not validation of a later documentation-reconciled SHA.
 
-The validated implementation SHA is `d6289600273a0d573f8d71dcdd975546c683dc6b`; inherited readiness was accepted as PASS_READY_FOR_RELEASE_PREP. Earlier failed readiness attempts remain historical and are superseded by the accepted exact-SHA result. Release preparation applies package version `0.9.2`, final release documentation, and the approved Node 24 CI policy on `release/v0.9.2`; hosted release-PR validation is a separate gate. The full v0.9.3 feature milestone is preserved. This workflow does not authorize merge, tagging, GitHub Release creation, or npm publication.
+In the historical v0.9.2 release-preparation sequence, the validated implementation SHA was `d6289600273a0d573f8d71dcdd975546c683dc6b`; inherited readiness was accepted as PASS_READY_FOR_RELEASE_PREP. Earlier failed readiness attempts remain historical and are superseded by that accepted exact-SHA result. That release preparation applied package version `0.9.2`, final release documentation, and the approved Node 24 CI policy on `release/v0.9.2`; hosted release-PR validation was a separate gate. The full v0.9.3 feature milestone was preserved and has since shipped as recorded in [CURRENT_STATE.md](CURRENT_STATE.md). This workflow does not authorize merge, tagging, GitHub Release creation, or npm publication.
 
 ## Pre-release readiness
 
@@ -1077,5 +1088,3 @@ npm run audit -- --target /path/to/android/project --types security --android --
 Manual pentest is deferred until after `v1.0.0`.
 
 It is a human-led workflow and is not required for automated Android security validation.
-
-The reader performs bounded, read-only evidence validation and delegates complete checkpoint-store validation to the campaign owners against trusted task definitions authenticated by persisted task digests. If required historical corpus or artifact evidence is unavailable, that side is unverifiable and the comparison is `INCOMPARABLE`; checkpoint hashes alone do not establish semantic validity. V2 prompt-contract integrity is validated. V1 identity does not bind a prompt template: sidecar self-consistency or an intact prompt-artifact hash alone cannot prove historical template identity, so unsupported V1 evidence remains `UNVERIFIED`/`INCOMPARABLE`, without a winner or improvement rate. Only a completed provider response with persisted evidence of a response-contract violation enters the invalid-output numerator; bare `invalid-output` status and infrastructure outcomes are excluded from both numerator and denominator. Task-success and repair outcomes remain separate. Real-provider improvement remains `NOT_VERIFIED` pending authorized smoke evidence.

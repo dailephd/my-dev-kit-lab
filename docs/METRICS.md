@@ -720,7 +720,7 @@ Status: released (v0.8.0). The `retrieval-precision-recall` plugin measures one 
 
 **Sources.** Standard set-based precision and recall come from established information-retrieval evaluation: Manning, Raghavan, and Schütze, *Introduction to Information Retrieval*, "Evaluation of unranked retrieval sets" (Stanford online edition, <https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-of-unranked-retrieval-sets-1.html>), and the National Institute of Standards and Technology's Text REtrieval Conference (TREC) material on relevance judgments, which treats relevance as a judged, answer-key property of a test collection (<https://trec.nist.gov/data/reljudge_eng.html>; program overview at <https://trec.nist.gov/>). Applying those formulas to file identities and exact symbol-name identities is this Lab's deterministic operationalization. Fact coverage (through the Lab's explicit `factIds` mapping contract) and irrelevant context ratio are Lab-specific deterministic diagnostics, not standardized TREC ranking metrics, and neither source defines the `factIds` contract.
 
-See [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080), [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-precisionrecall-architecture-v080).
+See [COMMANDS.md](COMMANDS.md#retrieval-precision-recall-v080), [WORKFLOWS.md](WORKFLOWS.md#retrieval-precisionrecall-experiment-v080), and [ARCHITECTURE.md](ARCHITECTURE.md#retrieval-precisionrecall-architecture-v080).
 
 ## Retrieval query strategy comparison metrics (v0.8.1)
 

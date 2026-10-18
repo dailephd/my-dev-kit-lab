@@ -1,6 +1,6 @@
 # Gallery
 
-The gallery is a static, browsable index of evidence produced by a my-dev-kit-lab experiment. It links reports, SVG charts, visualization demos, and optional screenshots without copying or reinterpreting their contents.
+The gallery is a static, browsable index of evidence produced by my-dev-kit-lab experiments, audits, security and Android validation, tutorials, and prompt-template comparisons. It links reports, SVG charts, visualization demos, optional screenshots, and supported tutorial media without copying or reinterpreting their contents.
 
 ---
 
@@ -50,18 +50,18 @@ flowchart TD
 
 ## Gallery manifest structure
 
-The `gallery-manifest.json` file lists every artifact in the gallery. Each entry includes:
+The `gallery-manifest.json` file records `generatedAt`, `projectName`, `title`, `description`, `outputDirectory`, the `items` array, and manifest-level `warnings`. Each `GalleryManifestItem` in `items` uses the fields defined in `src/gallery/types.ts`:
 
-- **type** — the artifact type: `report`, `plot`, `screenshot`, `demo`, or `index`
-- **path** — relative path to the artifact file
-- **label** — human-readable label for the gallery index
-- **metadata** — additional context such as experiment name, agent, strategy, or complexity level
+- **Identity and presentation:** `id`, `title`, `description`, and `kind` identify and describe the entry. The item field is `kind`, not `type`, and the human-readable label is `title`.
+- **Status and evidence:** `status` is `pass`, `skipped`, or `warning`; `metrics` and `warnings` are arrays. Optional `tags`, `sourceFamily`, and `sourceId` retain producer context without inventing a generic `metadata` object.
+- **Report and artifact links:** `htmlPath` is required and is an empty string when no HTML report exists. Optional `screenshotPath`, `summaryPath`, `runsPath`, and `artifactPaths` link available evidence; there is no single generic `path` field.
+- **Tutorial media links:** optional `videoPath`, `markdownPath`, and `screenshotPaths` expose supported existing media. Artifact links are POSIX paths relative to the gallery directory and may reference a sibling source with `../`, subject to the source-reader containment checks below.
 
 ---
 
 ## How to build a gallery
 
-Prerequisites:
+Prerequisites for this legacy report/plots example (the independent `--source` workflow below reads completed producer outputs directly):
 
 - a rendered experiment report
 - generated plot artifacts
@@ -132,18 +132,18 @@ The campaign gallery contains exactly three items, in this order:
 2. `warm-index-campaign-plots` — the same four warm-index charts (amortized index build cost, context size, correctness, cumulative token usage) as an ordinary warm-index run.
 3. `warm-index-execution` — the bounded `warm-index-execution.json` execution evidence.
 
-All paths in the manifest are relative POSIX paths under the gallery output directory; the manifest links to no raw agent stdout/stderr/telemetry file. The report item's status is `pass` only when the report screenshot was actually captured; a skipped or failed screenshot is recorded as a warning on that item rather than failing the gallery.
+Artifact links in the manifest are POSIX paths relative to the gallery output directory and can refer to the campaign's sibling or parent output locations; the manifest links to no raw agent stdout/stderr/telemetry file. The report item's status is `pass` only when the report screenshot was actually captured; a skipped or failed screenshot is recorded as a warning on that item rather than failing the gallery.
 
 ## Current limitations
 
 - The gallery index is a static HTML file with no interactive filtering or search
 - Gallery entries are linked by relative path; moving the output directory breaks links
-- Filtering, tagging, search, and comparison views are not implemented
-- Filtering, tagging, search, and comparison views remain future scope.
+- Interactive filtering, tagging, search, and comparison controls are not implemented; optional tag metadata can already be recorded in an item
+- Interactive filtering, tagging, search, and comparison views remain future scope.
 - Security, audit, and Android producers write JSON/text rather than HTML, so their gallery entries link to available artifacts only; no HTML report is synthesized.
 - Plugin-report gallery entries expose limited metadata. Legacy experiment reports continue to use the historical `--report` input rather than `--source` schema recognition.
 - Media validation checks supported extensions and header bytes. A media file on another drive from the gallery output may be unavailable because durable links remain relative; WebP/JPEG checks do not decode the full media stream.
 - The released affected-neighborhood evidence adds no gallery item and no plot. It appears only inside the existing warm-index `report.json`/`report.txt`/`report.html` sections, and the four warm-index charts and the three-item warm-index campaign gallery are unchanged.
-- An ordinary `warm-index-reuse` run (deterministic fake agent, `v0.5.0`/`v0.5.1`) has no dedicated gallery integration: `gallery build --plots` lists any `charts/*.svg` generically under the experiment-plots entry, and the plugin's `report.json`/`report.html` are not gallery entries for that path. A real-agent warm-index **campaign** run (`--campaign`, released in v0.5.2) is the exception — see "Warm-index campaign gallery" above
+- An ordinary `warm-index-reuse` run (deterministic fake agent, `v0.5.0`/`v0.5.1`) does not automatically generate a dedicated gallery: `gallery build --plots` lists any `charts/*.svg` generically under the experiment-plots entry, and the plugin's `report.json`/`report.html` are not gallery entries for that option alone. In v0.9.3, add `--source <run-root>` to include the plugin report through the generic source reader. A real-agent warm-index **campaign** run (`--campaign`, released in v0.5.2) automatically produces its dedicated gallery — see "Warm-index campaign gallery" above
 
 See [ROADMAP.md](ROADMAP.md) for the gallery UI roadmap item.
