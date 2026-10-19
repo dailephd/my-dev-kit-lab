@@ -10,10 +10,10 @@ This document records the repository's operational state. It is the source of tr
 - Current release-document and package version: `v0.9.3`.
 - Previous release: `v0.9.2` (external package-content validation and cross-platform corrections).
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
-- Final release-document state: v0.9.3. The v0.9.2 GitHub Release is dated `2026-10-13`.
+- Final release-document state: v0.9.3. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) was created on `2026-10-16`. npm publication status requires separate registry evidence.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
-- Previous published release: `v0.9.1` (2026-10-12).
-- Previous release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
+- Historical release: `v0.9.1` (2026-10-12), followed by `v0.9.2` on 2026-10-13.
+- Historical release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
 - v0.7.1 publication (historical), verified on `2026-10-03`: npm contained `@dailephd/my-dev-kit-lab@0.7.1` and `latest` resolved to `0.7.1` at that time; the [GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.7.1) is non-draft and non-prerelease. Annotated tag object `3117578e6a4cb551b757f90d5b3887a8f6272454` points to release commit `b9ddb3c4c15036e2983740e0a45f0374c14275f5`, merged through PR #43. This is release identity evidence; later documentation corrections do not move the tag or change the published package.
 - `v0.5.0` status: published; it is a historical release. The release PR is merged to `main`, tag `v0.5.0` and the GitHub Release exist, and `@dailephd/my-dev-kit-lab@0.5.0` is published on npm.
 - `v0.4.8` adds locator-anchored pointer gestures (`pointer-click` and `pointer-drag`) using normalized locator-relative fraction positions while existing `drag` remains element-to-element.

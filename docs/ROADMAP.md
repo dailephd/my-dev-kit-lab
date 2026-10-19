@@ -1531,7 +1531,7 @@ Explicit exclusions from this implementation task: automatic release or publicat
 
 ### v0.9.3 — hardened real-agent prompts and report/gallery generalization
 
-Status: **final release-document state**. Package metadata is 0.9.3, and the release documentation describes that version. The six implementation batches and Stage 4 completeness corrections are included; source and deterministic evidence contracts pass. The release acceptance criteria below validate implemented behavior and evidence integrity. By the owner's 2026-10-15 roadmap clarification, observed real-provider effectiveness is a separately authorized empirical objective, NOT_VERIFIED and not a v0.9.3 release gate.
+Status: **final release-document state; GitHub Release v0.9.3 created on 2026-10-16**. Package metadata is 0.9.3, and the release documentation describes that version. The six implementation batches and Stage 4 completeness corrections are included; source and deterministic evidence contracts pass. The release acceptance criteria below validate implemented behavior and evidence integrity. By the owner's 2026-10-15 roadmap clarification, observed real-provider effectiveness is a separately authorized empirical objective, NOT_VERIFIED and not a v0.9.3 release gate.
 
 Completed first batch — validator accuracy and external-target evidence (implemented in v0.9.3; not part of the v0.9.2 package):
 

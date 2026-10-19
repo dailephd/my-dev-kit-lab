@@ -398,9 +398,11 @@ describe("packed verifier v0.6.1 section guards (TST-B4-001, TST-B4-002, TST-B4-
     expect(section).not.toMatch(/compiledBinPath|npm link|\btsx\b|dist\/scripts\/cli\.js|REPO_ROOT, "dist"/);
   });
 
-  it("uses the real published upstream at the exact pin, never @latest or the fake kit", () => {
-    expect(section).toContain("UPSTREAM_MY_DEV_KIT_SPEC");
-    expect(section).toContain("BLOCKED_UPSTREAM_MY_DEV_KIT_BASELINE_CHANGED");
+  it("checks exact upstream version availability rather than comparing with the moving latest dist-tag", () => {
+    expect(section).toContain('["view", UPSTREAM_MY_DEV_KIT_SPEC, "version"]');
+    expect(section).not.toContain('["view", UPSTREAM_MY_DEV_KIT_PACKAGE, "version"]');
+    expect(section).toContain("BLOCKED_UPSTREAM_MY_DEV_KIT_PIN_UNAVAILABLE");
+    expect(section).toContain('["install", "--no-audit", "--no-fund", UPSTREAM_MY_DEV_KIT_SPEC]');
     expect(section).not.toMatch(/@latest|fakeKitCommand|fake-my-dev-kit|FAKE_MY_DEV_KIT/);
     expect(source).not.toMatch(/my-dev-kit@latest/);
   });
