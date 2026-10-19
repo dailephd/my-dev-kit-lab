@@ -28,10 +28,11 @@ src/
     plugins/contextStrategyComparison/       first implemented plugin; also owns the six v0.4.3 stage-context strategies
     plugins/warmIndexReuse/                  v0.5.0 warm-index-reuse plugin: config, case selection/grouping, warm index session (carrying the v0.6.0 index snapshot and the v0.6.1 baseline graph evidence), execution (with the v0.6.0 per-task freshness assessment and the v0.6.1 per-task affected-neighborhood assessment), bounded execution artifact, fake-agent evaluation, metrics
     plugins/incrementalChangeStaleness/      v0.6.2 plugin; four-treatment V2 execution and report extension in released v0.6.3
-    plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics
+    plugins/contextWindowScaling/             released v0.7.0 plugin: fixed self-target catalog, budget evidence, V1 execution artifact, deterministic evaluation, metrics; synthetic subjects in v0.7.1 and local-repository subjects in v0.7.2
     plugins/retrievalPrecisionRecall/         v0.8.0 plugin: bundled and external-local retrieval-quality execution, aggregation, execution artifact, external privacy projection
     plugins/retrievalQueryStrategyComparison/ v0.8.1 plugin: seven-strategy matched execution, scientific analysis, separate execution and analysis artifacts, external-local safety lifecycle and privacy projection
     plugins/contextPackGeneration/           v0.8.2 plugin: fixed raw-versus-pack execution, retrieval-quality analysis, pack artifact, report preview, external-local privacy projection
+    plugins/agentSuccessRate/                v0.9.0 plugin: disposable patch evaluation and trusted checks, deterministic/real-agent execution; campaign identity/checkpoints/recovery in v0.9.1 and prompt contracts in v0.9.3
   evaluation/                                benchmark, controlled-run, scoring, and metrics logic
     indexSnapshot.ts                         v0.6.0 (released; retained): interprets bounded my-dev-kit manifest/symbol-index evidence; records indexed-file identity (SHA-256, size, modified time), the my-dev-kit tool-version evidence, index-command evidence, and the generated-artifact inventory
     indexFreshness.ts                        v0.6.0 (released; retained): read-only comparison of snapshot-listed files with their current state; owns the four-state freshness classification; never reindexes
@@ -80,6 +81,8 @@ scripts/
 The supporting ownership roots are `src/agents` for provider adapters, `src/prompts` for prompt variants/complexity, and `src/visualizationDemos` for visualization runs. They remain shared by the experiment/report flow rather than becoming separate pipelines.
 
 ### System diagram
+
+The diagram shows selected plugin paths through the shared runtime; the module map above lists all eight registered plugins.
 
 ```mermaid
 flowchart TD
@@ -682,7 +685,7 @@ The compiled runtime ships in `dist/`. The exact-tarball gate proves installed p
 
 ### Non-goals
 
-Outside v0.8.0: ranked retrieval metrics (such as MRR or NDCG), retrieval-strategy comparison, context packs, real-agent evaluation, winner selection, and automatic strategy selection. Retrieval-strategy comparison was later added by the separate v0.8.1 plugin described below; the other items remain later roadmap work.
+Outside v0.8.0: ranked retrieval metrics (such as MRR or NDCG), retrieval-strategy comparison, context packs, real-agent evaluation, winner selection, and automatic strategy selection. Retrieval-strategy comparison and its bounded Pareto interpretation were later added by the separate v0.8.1 plugin, context packs by v0.8.2, and agent-success evaluation by v0.9.0, as described below. Ranked metrics and automatic strategy selection remain outside the implemented retrieval-precision-recall plugin; its results still name no winner.
 
 ## Retrieval query strategy comparison architecture (v0.8.1)
 
@@ -877,7 +880,7 @@ The contributor `scripts/*.ts` npm-script entrypoints are thin adapters over the
 
 ### Packed-package acceptance boundary
 
-`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate that builds, packs, installs the exact tarball into a clean temporary consumer, invokes the consumer-local binary, and checks package and target immutability. It proves all seven plugins are registered, exercises installed context-pack discovery, description, bundled and external-local runs, report preview, privacy, unsupported-flag rejection, and immutability, and checks real published my-dev-kit 1.12.5 compatibility. It also retains the established installed-package checks for prior experiment, audit, security, workspace, plot, and tutorial routes. The gate does not require `tsx`, TypeScript, Vitest, or Playwright in the consumer for the routes it exercises.
+`scripts/verify-packed-package.mjs` (`npm run verify:packed-package`) is a permanent, Node-only, cross-platform gate that builds, packs, installs the exact tarball into a clean temporary consumer, invokes the consumer-local binary, and checks package and target immutability. The current CLI registers eight plugins. The gate checks plugin registration, exercises installed context-pack discovery, description, bundled and external-local runs, report preview, privacy, unsupported-flag rejection, and immutability, and retains the compatibility check against published my-dev-kit 1.12.5. It also retains the established installed-package checks for prior experiment, audit, security, workspace, plot, and tutorial routes, plus the agent-success acceptance described above. That pinned compatibility evidence is not an assertion that every later cross-repository version combination has been revalidated. The gate does not require `tsx`, TypeScript, Vitest, or Playwright in the consumer for the routes it exercises.
 
 ## Automated security-validation architecture
 
@@ -1023,20 +1026,20 @@ src/
     ...                      thin installed-CLI owners for tutorial validate/run
 ```
 
-The exact filenames may be adjusted during implementation planning, but the responsibility boundaries are fixed:
+The filenames above describe the implemented owners; their responsibility boundaries are:
 
 * **Shared browser runtime, not screenshot ownership:** `src/browser` owns Playwright module loading, package/browser availability classification, Chromium launch defaults, and common cleanup. `src/screenshot` continues to own one-shot report screenshots. `src/tutorial` owns persistent tutorial sessions, actions, assertions, overlays, step screenshots, recording, and timing.
 * **Managed processes reuse existing process rules:** `src/runtime/managedProcess.ts` reuses `resolveCommand`, `shell:false`, current Windows shim behavior, and existing process-tree cleanup conventions. It adds start-without-waiting, bounded stdout/stderr logs, readiness probes/timeouts, explicit stop, graceful/forced cleanup, and failure/abort cleanup without a second command resolver.
 * **Scenario and process trust are separate:** a versioned declarative `TutorialScenarioV1` carries user-visible tutorial steps. A separate trusted target/demo contract carries materialization/start/readiness/application information. Tutorial steps cannot contain arbitrary shell commands or arbitrary JavaScript/page-evaluation callbacks.
-* **Bounded action vocabulary:** the first version is expected to support `goto`, `click`, `fill`, `press`, `hover`, `drag`, and `wait-for`.
-* **Bounded locators and assertions:** locators should cover accessible role/name, text, CSS, and stable test/demo identifiers. Assertions should cover visibility, text equality/containment, URL/path state, DOM attribute/state, HTTP JSON fields, local JSON artifact fields, and file existence.
+* **Bounded action vocabulary:** v0.4.7 supports `goto`, `click`, `fill`, `press`, `hover`, `drag`, and `wait-for`; the released pointer and native-select extensions below bring the current vocabulary to ten actions.
+* **Bounded locators and assertions:** locators cover accessible role/name, text, CSS, and stable test/demo identifiers. Assertions cover visibility, text equality/containment, URL/path state, DOM attribute/state, HTTP JSON fields, local JSON artifact fields, and file existence.
 * **One scenario is the text/timing source of truth:** narration in the scenario drives visible explanation plus generated SRT, VTT, and Markdown. The runner records actual step boundaries instead of maintaining independent subtitle timings.
 * **Runtime evidence, not recording alone:** a required assertion failure makes the tutorial run unsuccessful even if a video file exists. Video is human-reviewable runtime recording, not a substitute for runtime verification.
 * **Workspace separation:** source demo template, disposable target working copy, tutorial artifacts, logs, and temporary browser/video data are distinct. Generated tutorial output belongs under the configured lab workspace/output, never under the installed package or product source template.
 * **Installed-package behavior:** the implemented commands are `my-dev-kit-lab tutorial validate --scenario <path>` and `my-dev-kit-lab tutorial run --scenario <path> ...`. Validation does not require Chromium. Recording requires the configured browser runtime and fails explicitly with setup guidance when unavailable rather than silently passing without video.
 * **Playwright packaging:** Playwright is an exact runtime dependency of the package. Browser-binary presence is checked separately at runtime, with no package-install hook or automatic download. The current optional one-shot screenshot semantics do not define the tutorial command's required-browser behavior.
 * **Canonical artifacts:** v0.4.7 produces `tutorial.webm`, named step screenshots, `tutorial.srt`, `tutorial.vtt`, `tutorial.md`, process logs, and a versioned `tutorial-manifest.json`. FFmpeg/MP4 and generated audio narration remain outside v0.4.7.
-* **Gallery is downstream:** v0.4.7 produces a canonical tutorial manifest but does not require gallery integration. Later report/gallery generalization may consume that manifest; tutorial execution does not depend on gallery generation.
+* **Gallery is downstream:** v0.4.7 produces a canonical tutorial manifest but does not require gallery integration. The v0.9.3 `gallery build --source` reader consumes that manifest; tutorial execution does not depend on gallery generation.
 
 Cross-repository boundary:
 
@@ -1129,15 +1132,15 @@ The `page.evaluate` in the real-browser integration test is test instrumentation
 
 The v0.5.1 expanded warm-index benchmark suite and v0.5.2 real-agent warm-index campaigns are released; see their current architecture sections above. Context-window scaling is released in v0.7.0, with optional synthetic input added in v0.7.1 and local-repository subjects added in v0.7.2. The released v0.6.0 freshness and v0.6.1 affected-neighborhood evidence remain available, and the v0.6.2 incremental-change baseline is extended by released v0.6.3. See the corresponding architecture sections above.
 
-The following layers remain planned and must not be treated as current behavior:
+Current and planned status of the remaining layers:
 
-- JVM package/environment rot or Gradle/Maven dependency freshness checks
-- the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
-- cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
-- a human-led manual pentest workflow after `v1.0.0`
-- retrieval-quality plugins (v0.8.x) and agent-success plugins (v0.9.x)
-- normalized telemetry, scheduling, prompt hardening, and generalized report/gallery publication
-- later gallery consumption of the canonical tutorial manifest
+- Planned: JVM package/environment rot or Gradle/Maven dependency freshness checks
+- Planned: the `quality`, `project`, and `all` audit types, and any project-wide default audit behavior combining multiple audit types
+- Planned: cross-type issue deduplication or release-readiness aggregation across audit families beyond the current per-type additive report fields
+- Planned: a human-led manual pentest workflow after `v1.0.0`
+- Released: retrieval-quality and context-pack plugins (v0.8.0–v0.8.2) and the agent-success plugin (v0.9.0), described in their architecture sections above
+- Released: normalized telemetry and explicit bounded campaign scheduling/resume in v0.9.1, then prompt hardening and generalized report/gallery readers in v0.9.3; automatic background scheduling, quota-reset polling, and public hosting are not added by those releases
+- Released: read-only gallery consumption of the canonical tutorial manifest in v0.9.3; tutorial execution remains independent
 
 `v0.4.3` stage-specific bounded-context and workflow-instruction evaluation is implemented and published (see "Stage-context evaluation architecture (v0.4.3)" above). `v0.4.5` context-integrity evaluation is implemented and published (see "Context-integrity evaluation architecture (v0.4.5)" above).
 
@@ -1150,7 +1153,7 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | Plugin and result types | `src/experiments/types.ts` |
 | Plugin registry | `src/experiments/registry.ts` |
 | Generic runner | `src/experiments/runner.ts` |
-| Current plugins | `src/experiments/plugins/contextStrategyComparison/plugin.ts`, `src/experiments/plugins/warmIndexReuse/plugin.ts`, `src/experiments/plugins/retrievalQueryStrategyComparison/plugin.ts` |
+| Current plugins | The eight `plugin.ts` owners under `src/experiments/plugins/contextStrategyComparison/`, `warmIndexReuse/`, `incrementalChangeStaleness/`, `contextWindowScaling/`, `retrievalPrecisionRecall/`, `retrievalQueryStrategyComparison/`, `contextPackGeneration/`, and `agentSuccessRate/`, registered by `src/experiments/defaultRegistry.ts` |
 | Plugin report model | `src/report/experiments/experimentReportModel.ts` |
 | Controlled experiment types | `src/evaluation/controlledExperimentTypes.ts` |
 | Shared local target metadata | `src/core/localProjectTarget.ts` |

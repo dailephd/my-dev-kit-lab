@@ -232,7 +232,7 @@ The report shows a **token savings** value for each paired comparison between `r
 
 **Important notes:**
 - In fake-agent runs, token counts are estimated using `Math.ceil(characterCount / 4)`. These are context-size estimates, not provider billing totals.
-- Claude does not expose token totals; token savings comparisons are unavailable for Claude runs.
+- Claude token totals depend on the actual CLI evidence for the run; token savings comparisons remain unavailable when either paired run lacks a usable total.
 - Codex may expose token totals but can produce timeouts or invalid-output runs.
 - Small projects may show negative token savings because raw-full-file is cheaper when the entire project fits easily in context. Larger, more localized tasks are where my-dev-kit is expected to become more useful.
 
@@ -301,7 +301,7 @@ Real-agent runs can produce four outcome types:
 
 The report shows warnings for runs with missing token totals or non-completed outcomes. Partial results are still useful for understanding which runs completed and what correctness scores were achieved on completed runs.
 
-**Do not interpret partial real-agent results as proof of token savings.** The current implementation establishes the experiment infrastructure. The released v0.5.0 `warm-index-reuse` plugin adds fake-agent evidence about amortizing one index across repeated tasks, and the released v0.5.1 expanded benchmark corpus (`benchmarks/contracts/warm-index-benchmark-cases.json`, six tasks per benchmark project) provides deterministic evidence as task count grows. Stronger evidence still requires wider real-agent warm-index campaign adoption (released in v0.5.2 and available in the installed CLI), attention to provider limitations, and future experiment types such as index freshness, incremental-change, and context-window scaling. See [ROADMAP.md](ROADMAP.md).
+**Do not interpret partial real-agent results as proof of token savings.** The current implementation establishes the experiment infrastructure. The released v0.5.0 `warm-index-reuse` plugin adds fake-agent evidence about amortizing one index across repeated tasks, and the released v0.5.1 expanded benchmark corpus (`benchmarks/contracts/warm-index-benchmark-cases.json`, six tasks per benchmark project) provides deterministic evidence as task count grows. Stronger empirical evidence still requires wider real-agent warm-index campaign adoption (released in v0.5.2 and available in the installed CLI) and attention to provider limitations. Index freshness (v0.6.0), incremental-change/staleness (v0.6.2–v0.6.3), and context-window scaling (v0.7.0, extended in v0.7.1–v0.7.2) are also released, with their own bounded evidence and interpretation limits; they do not by themselves establish real-agent token savings. See [WORKFLOWS.md](WORKFLOWS.md) for those current procedures and [ROADMAP.md](ROADMAP.md) for remaining scope.
 
 ---
 
@@ -356,4 +356,4 @@ The small Todo projects are used in the fake-agent demo. The medium and large pr
 - Read [COMMANDS.md](COMMANDS.md) for all command options
 - Read [ROADMAP.md](ROADMAP.md) to understand where the project is heading
 
-Completed tutorial runs can be added to a static gallery with `gallery build --source <run-root>`. The gallery reads the canonical tutorial manifest without changing tutorial execution or the manifest schema; it validates relative media paths and shows recorded run status and missing artifacts explicitly. See [GALLERY.md](GALLERY.md#browsing-completed-outputs-with-source-v093-release). This source reader is part of the v0.9.3 release.
+Completed tutorial runs can be added to a static gallery with `gallery build --source <run-root>`. The gallery reads the canonical tutorial manifest without changing tutorial execution or the manifest schema; it validates relative media paths and shows recorded run status and missing artifacts explicitly. See [GALLERY.md](GALLERY.md#browsing-completed-outputs-with---source-v093-release). This source reader is part of the v0.9.3 release.

@@ -163,7 +163,7 @@ Runtime semantics:
 - Distinct endpoints: `pointer-drag` endpoints (`from` and `to`) must be distinct. Zero-length pointer drags (`from.x === to.x && from.y === to.y`) fail validation.
 - Mouse movement: `pointer-drag` executes real Playwright mouse moves with a fixed 8-step sequence (`mouse.move(start)`, `mouse.down()`, `mouse.move(end, { steps: 8 })`, `mouse.up()`).
 
-Every command and family also accepts `--help`/`-h` for bounded usage text. `--help`/`--version` with no other arguments, and no arguments at all, print top-level help and exit `0`.
+Every command and family also accepts `--help`/`-h` for bounded usage text. With no command, `--help`/`-h` or no arguments prints top-level help and exits `0`; `--version`/`-V` prints the package version and exits `0`.
 
 ### Global `--workspace` option
 
@@ -198,7 +198,7 @@ Same command owner and options as `npm run experiment:run` (see "Experiment comm
 - The default `--cases` (`examples/token-savings-cases.json`) and default `--project-profiles` (`benchmarks/contracts/benchmark-project-profiles.json`) resolve as bundled package resources, independent of the invocation directory.
 - When `--out` is omitted, the implicit output root is `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/` (same subdirectory shape as the source-checkout default, rooted under the workspace instead of the tool root).
 
-`experiment run --help` groups options as common options, a my-dev-kit command override for `warm-index-reuse`, `incremental-change-staleness`, and `context-window-scaling`, `context-window-scaling`-only budget and synthetic-input options, `warm-index-reuse`-only campaign options, and `context-strategy-comparison`-only options. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--target`, `--case`, `--synthetic-config`, `--local-subject-config`, `--context-budgets`, and `--kit-command`. It uses its bundled four-case catalog against the Lab itself by default, generated repositories with `--synthetic-config`, or an explicitly selected local Git repository with `--target` plus `--local-subject-config`; the three subject modes are mutually exclusive. In the v0.8.0 source, `--experiment retrieval-precision-recall` accepts `--out`, `--case`, `--benchmark-project`, and `--kit-command` in bundled mode, and `--out`, `--target`, `--local-subject-config`, and `--kit-command` in external mode. `--experiment retrieval-query-strategy-comparison` (released in v0.8.1) accepts exactly the same bundled and external option sets as `retrieval-precision-recall`, plus the `--kit-command` override; it has no strategy option.
+`experiment run --help` groups common options and the plugin-specific surfaces described below: my-dev-kit command overrides, context-window budget and synthetic inputs, local-repository subjects, warm-index campaigns, context-strategy options, and agent-success execution, prompt contracts, and campaign recovery. The `--kit-command` override is accepted by `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, `retrieval-query-strategy-comparison`, and `context-pack-generation`, and by `agent-success-rate` in real-agent mode only. Plugin-specific options are rejected for other plugins rather than ignored. With `--experiment context-window-scaling`, the accepted options are `--out`, `--target`, `--case`, `--synthetic-config`, `--local-subject-config`, `--context-budgets`, and `--kit-command`. It uses its bundled four-case catalog against the Lab itself by default, generated repositories with `--synthetic-config`, or an explicitly selected local Git repository with `--target` plus `--local-subject-config`; the three subject modes are mutually exclusive. `--experiment retrieval-precision-recall` (released in v0.8.0) accepts `--out`, `--case`, `--benchmark-project`, and `--kit-command` in bundled mode, and `--out`, `--target`, `--local-subject-config`, and `--kit-command` in external mode. `retrieval-query-strategy-comparison` (v0.8.1) and `context-pack-generation` (v0.8.2) accept the same bundled and external option sets; neither has a strategy option.
 
 #### `warm-index-reuse`
 
@@ -279,7 +279,7 @@ Behavior:
 my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U1,L2 --kit-command "node /path/to/my-dev-kit/bin/cli.js" --out <dir>
 ```
 
-See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
+See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-introduced-in-v062-four-treatment-workflow-in-v063).
 
 #### `context-window-scaling` (released in v0.7.0; `--synthetic-config` added in v0.7.1; local-repository mode added in v0.7.2)
 
@@ -395,7 +395,7 @@ A successful bundled run writes `retrieval-precision-recall-execution.json`, `re
 
 A safety or execution failure in an external-local run exits nonzero and writes no normal artifact, report, or manifest family; partial private artifacts are not kept for inspection. One failing case fails the whole run. Durable external output redacts the repository path, file, symbol, and fact identities, case titles, and retrieval warning text, and keeps the numeric metrics. The console summary of a successful run can still show the physical output directory, so treat console output as local. Very long output or target paths can fail cleanly under platform path limits.
 
-See [WORKFLOWS.md](WORKFLOWS.md#retrieval-precision-recall-experiment-v080) and [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080).
+See [WORKFLOWS.md](WORKFLOWS.md#retrieval-precisionrecall-experiment-v080) and [METRICS.md](METRICS.md#retrieval-precisionrecall-evidence-v080).
 
 #### `retrieval-query-strategy-comparison` (v0.8.1)
 
@@ -470,20 +470,30 @@ my-dev-kit-lab experiment run --experiment agent-success-rate --agent <codex|cla
 | `--agent <codex\|claude>` | Selects exactly one real provider. Requires `--include-real-agents` |
 | `--include-real-agents` | Explicit authorization to invoke the selected provider. Requires `--agent`. Without both flags no provider is ever launched |
 | `--timeout-ms <ms>` | Real-agent mode only. Positive integer per provider attempt; default `240000`, maximum `1800000` |
-| `--repair-attempts <0\|1\|2>` | Real-agent mode only. Repairs allowed after the initial attempt; default `0`; at most three attempts per treatment |
+| `--repair-attempts <0\|1\|2>` | Repairs allowed after the initial attempt; default `0`. A nonzero value requires real-agent mode; explicit `0` also works in deterministic-fixture mode. At most three attempts per treatment |
 | `--kit-command <command>` | Real-agent mode only. The my-dev-kit command used for `context-pack` retrieval; default `npx @dailephd/my-dev-kit@latest` |
 
-The default is **deterministic-fixture mode**: it applies each task's reference patch in a disposable copy, runs the trusted checks, and invokes no coding agent, so it needs no provider and no network. Its results validate the evaluation pipeline and the corpus; they do not measure agent ability or context effectiveness (`contextEffectEvaluated` is `false`). **Real-agent mode** is entered only by `--agent` together with `--include-real-agents`; neither flag works alone. The selected provider receives source-only context and returns a unified diff over standard input; the Lab validates the diff against a patch policy and applies it itself.
+The default is **deterministic-fixture mode**: it applies each task's reference patch in a disposable copy, runs the trusted checks, and invokes no coding agent, so it needs no provider and no network. Its results validate the evaluation pipeline and the corpus; they do not measure agent ability or context effectiveness (`contextEffectEvaluated` is `false`). **Real-agent mode** is entered only by `--agent` together with `--include-real-agents`; neither flag works alone. The selected provider receives source-only context on standard input and returns a unified diff under the default template, or a structured JSON diff response under `strict-diff-v1`; the Lab validates the diff against a patch policy and applies it itself.
 
-The command is self-target only: `--target` is rejected, as is every option outside the table. In particular `--agents` is not an alias for `--agent`, arbitrary provider command templates (`--command-template-*`) are not accepted, and campaign options (`--campaign`, `--max-runs`, `--continue-on-failure`, `--require-agents`) are not supported. Multiple providers, comma lists, unknown provider names, a `--repair-attempts` outside 0–2, a `--timeout-ms` that is not a positive integer up to 1800000, and `--timeout-ms`, `--repair-attempts`, or `--kit-command` without real-agent mode are rejected before any output directory is created and before any provider is launched.
+The command is self-target only: `--target` is rejected, as is every option outside the base table and the prompt-contract and campaign options below. In particular `--agents` is not an alias for `--agent`, arbitrary provider command templates (`--command-template-*`) are not accepted, and the other plugins' options (`--campaign`, `--max-runs`, `--continue-on-failure`, `--require-agents`) are not supported. Multiple providers, comma lists, unknown provider names, a `--repair-attempts` outside 0–2, a `--timeout-ms` that is not a positive integer up to 1800000, and `--timeout-ms`, nonzero `--repair-attempts`, or `--kit-command` without real-agent mode are rejected before any output directory is created and before any provider is launched.
 
 The process exits `0` when the run completes and `1` when the run fails (including controlled infrastructure failures, which never report task success) or when an option is rejected. It writes `report.json`, `report.html`, `report.txt`, `agent-success-rate-execution.json`, and `agent-success-rate-analysis.json`, plus supporting `diffs/` patch artifacts and, in real-agent mode, `contexts/` and `agents/` evidence. See [WORKFLOWS.md](WORKFLOWS.md#agent-success-rate-evaluation-v090), [METRICS.md](METRICS.md#agent-success-rate-metrics-v090), and [ARCHITECTURE.md](ARCHITECTURE.md#agent-success-rate-evaluation-architecture-v090).
+
+**Prompt-contract options (v0.9.3):** these options belong only to `agent-success-rate`. Selecting any prompt option persists a V2 prompt contract in campaign identity; attempts retain `prompt-contract.json`. Use an explicit template on both sides when producing evidence intended for later prompt-template comparison. These settings do not enable a provider: real-agent execution still requires `--agent` and `--include-real-agents`.
+
+| Option | Allowed values, default, and behavior |
+|---|---|
+| `--prompt-template <id>` | `legacy-diff-v1` (default) or `strict-diff-v1`; strict mode requires a single JSON object containing `schemaVersion` and `patch` |
+| `--prompt-length <mode>` | `standard` (default) or `short`; short reduces instruction text while retaining the context and restrictions |
+| `--prompt-explanation <mode>` | `legacy` (default) or `none`; `none` rejects extra explanatory prose |
+| `--prompt-tool-use <mode>` | `prohibited` (default) or `bounded`; bounded mode still has a zero-command budget in this release |
+| `--max-command-count <0>` | Only `0` is accepted; default `0`. This is prompt guidance and persisted identity, not enforcement of provider tool permissions |
 
 ##### Campaign execution (v0.9.1)
 
 These options are available in the v0.9.1 package. The base command is `my-dev-kit-lab experiment run --experiment agent-success-rate`. Existing `--out`, `--case`, `--agent`, `--include-real-agents`, `--timeout-ms`, and `--repair-attempts` retain their v0.9.0 meanings.
 
-Campaign-specific options are `--agent-campaign <new|resume|continue-limit>`, `--one-case`, `--campaign-source-root <directory>`, `--timeout-preset <standard|extended|maximum>`, `--expected-checkpoint-revision <positive-integer>`, `--limit-case <id>`, `--limit-treatment <raw-full-file|context-pack>`, `--limit-epoch <epoch-id>`, and `--authorize-additional-invocation`. Campaign mode requires a stable output root. `--campaign-source-root` supplies a verified source checkout and is required when installed source proof is unavailable. `--one-case` processes at most the first unfinished selected case, with both treatments mandatory. Resume validates campaign identity and checkpoint revision; completed units are reused only after evidence and artifact verification. Provider-limit continuation uses `--agent-campaign continue-limit` and requires explicit authorization bound to the exact case, treatment, epoch UUID, and positive checkpoint generation. Uncertain invocations fail closed.
+Campaign-specific options are `--agent-campaign <new|resume|continue-limit>`, `--one-case`, `--campaign-source-root <directory>`, `--timeout-preset <standard|extended|maximum>`, `--expected-checkpoint-revision <positive-integer>`, `--limit-case <id>`, `--limit-treatment <raw-full-file|context-pack>`, `--limit-epoch <epoch-id>`, and `--authorize-additional-invocation`. Campaign mode requires a stable explicit `--out`. `--campaign-source-root` supplies a verified source checkout and is required when installed source proof is unavailable. `--one-case` processes at most the first unfinished selected case, with both treatments mandatory. Resume validates campaign identity and stored checkpoint history; completed units are reused only after evidence and artifact verification. `--expected-checkpoint-revision` is accepted only with `--agent-campaign continue-limit`, together with `--limit-case`, `--limit-treatment`, `--limit-epoch`, and `--authorize-additional-invocation`; it is rejected for `new` and `resume`. Provider-limit continuation requires that explicit authorization to match the exact case, treatment, epoch UUID, and positive checkpoint generation. Uncertain invocations fail closed.
 
 `--campaign` remains a `warm-index-reuse` option and is not an `agent-success-rate` alias. Real provider execution requires `--include-real-agents`; no credentials are accepted through campaign flags. Codex and Claude presets are each 240000 ms (`standard`), 900000 ms (`extended`), and 1800000 ms (`maximum`). A preset conflicts with an explicitly supplied `--timeout-ms`. These are operational limits, not measured performance recommendations.
 
@@ -586,13 +596,13 @@ The historical form — the same flags `demo final` accepts, without the `demo f
 
 ## Cross-tool compatibility handoffs
 
-The canonical command-by-command composition map is [my-dev-kit ecosystem workflow section 9.15](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_DEVELOPMENT_WORKFLOWS.md#915-command-surface-compatibility-map).
+The canonical command-by-command composition map is [my-dev-kit ecosystem workflow section 9.18](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_DEVELOPMENT_WORKFLOWS.md#918-command-surface-compatibility-map).
 
 Useful current combinations:
 
 - `audit` and `security validate` findings can seed my-dev-kit search/lookup/slice/source investigation against the same target. They are candidate findings, not source-owner or deletion decisions.
 - The `context-strategy-comparison` plugin owns raw-full-file versus my-dev-kit-guided experiments. The released stage-context strategies can consume my-dev-kit capsule/audit evidence and Orchestrator `WorkflowInstructionPacket` evidence through programmatic `v043StrategyInputs` / `v043RunAssurance` configuration. There are no installed CLI flags for arbitrary live stage-context artifact paths.
-- `demo final --kit-command <command>` and `experiment run --experiment <id> --kit-command <command>` are the installed surfaces that explicitly accept a my-dev-kit-compatible command. `experiment run` accepts `--kit-command` for `warm-index-reuse` and `incremental-change-staleness`; it is rejected for `context-strategy-comparison`.
+- `demo final --kit-command <command>` and `experiment run --experiment <id> --kit-command <command>` are the installed surfaces that explicitly accept a my-dev-kit-compatible command. `experiment run` accepts `--kit-command` for `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, `retrieval-query-strategy-comparison`, and `context-pack-generation`, plus `agent-success-rate` in real-agent mode only; it is rejected for `context-strategy-comparison`.
 - Tutorial PNG screenshots are ordinary image files and may be deliberately selected as Observer external-reference inputs. The tutorial manifest, assertions, authentication state, and behavior do not transfer with the image.
 - `report render --visualizations` and `gallery build --visualizations` expect Lab visualization-demo artifacts. Arbitrary my-dev-kit graph-view directories or Observer evidence roots are not documented drop-in replacements.
 - Lab does not generically ingest Observer observations/comparisons/evaluations or Orchestrator export handoffs. Use a registered experiment/adapter or cite those results separately.
@@ -613,7 +623,7 @@ Current repository validation commands:
 - `npm run verify`
 - `npm run docs:check`
 
-Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm test` runs the canonical complete Vitest suite (every `tests/**/*.spec.ts` file, including the focused subsets listed below). `npm run verify` runs the non-test verification chain (build, benchmark-fixture verification) and intentionally excludes the test suite, so complete validation requires both `npm run test` and `npm run verify`, in either order but each exactly once; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
+Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm test` runs the canonical complete Vitest suite selected by the repository's test configuration, including the focused subsets listed below. `npm run verify` runs the non-test verification chain (build, benchmark-fixture verification) and intentionally excludes the test suite, so complete validation requires both `npm run test` and `npm run verify`, in either order but each exactly once; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
 
 Focused validation scripts from `package.json` are developer conveniences that each run a subset of files already executed by `npm test`; they are not additional required gates and are not chained into `verify`:
 
@@ -640,8 +650,11 @@ Current implemented commands:
 - `npm run experiment:run -- --experiment context-strategy-comparison`
 - `npm run experiment:run -- --experiment warm-index-reuse`
 - `npm run experiment:run -- --experiment incremental-change-staleness` (introduced in v0.6.2; four-treatment behavior in v0.6.3)
+- `npm run experiment:run -- --experiment context-window-scaling` (v0.7.0; synthetic and local-repository inputs added in v0.7.1 and v0.7.2)
 - `npm run experiment:run -- --experiment retrieval-precision-recall` (v0.8.0)
 - `npm run experiment:run -- --experiment retrieval-query-strategy-comparison` (v0.8.1)
+- `npm run experiment:run -- --experiment context-pack-generation` (v0.8.2)
+- `npm run experiment:run -- --experiment agent-success-rate` (v0.9.0; campaigns in v0.9.1 and prompt contracts in v0.9.3)
 - `npm run run-controlled-experiment`
 - `npm run generate-prompt-variants`
 - `npm run run-agent-prompt`
@@ -656,7 +669,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 ```
 
 ```powershell
-npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --agents fake-agent --complexities short --no-screenshot
+npm run experiment:run -- --experiment context-strategy-comparison --target "C:\path\to\project" --agents fake-agent --complexities short --no-screenshot
 ```
 
 ```bash
@@ -670,7 +683,7 @@ Deterministic one-case `retrieval-precision-recall` run from a source checkout, 
 npm run experiment:run -- --experiment retrieval-precision-recall --case warm-medium-import-dedupe --kit-command "node tests/fixtures/fake-my-dev-kit-cli.js" --out lab-output/retrieval-precision-recall
 ```
 
-`experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above. `experiment:run` options for `incremental-change-staleness` are `--out`, `--case`, and `--kit-command` only; see [`incremental-change-staleness`](#incremental-change-staleness-v062) above.
+`experiment:run` options for `warm-index-reuse` are the common options plus `--kit-command`; see [`warm-index-reuse`](#warm-index-reuse) above. `experiment:run` options for `incremental-change-staleness` are `--out`, `--case`, and `--kit-command` only; see [`incremental-change-staleness`](#incremental-change-staleness-introduced-in-v062-four-treatment-behavior-in-v063) above.
 
 `experiment:run` options for `context-strategy-comparison`:
 
@@ -678,7 +691,7 @@ npm run experiment:run -- --experiment retrieval-precision-recall --case warm-me
 |---|---|
 | `--experiment <id>` | Required; `context-strategy-comparison` for this table (`warm-index-reuse` options are documented above) |
 | `--target <path>` | Optional; defaults to self mode |
-| `--out <dir>` | Defaults to `lab-output/context-strategy-comparison` |
+| `--out <dir>` | Source-checkout default `lab-output/experiments/context-strategy-comparison/<target>/<run>/`; installed default uses the same layout beneath `<workspace>` |
 | `--cases <path>` | Defaults to `examples/token-savings-cases.json` |
 | `--project-profiles <path>` | Defaults to `benchmarks/contracts/benchmark-project-profiles.json` |
 | `--case <ids>` | Optional comma-separated case filter |
@@ -694,9 +707,10 @@ npm run experiment:run -- --experiment retrieval-precision-recall --case warm-me
 
 Current behavior:
 
-- `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, and `retrieval-query-strategy-comparison` are the registered plugins
+- `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, `retrieval-query-strategy-comparison`, `context-pack-generation`, and `agent-success-rate` are the eight registered plugins
 - `context-strategy-comparison` and ordinary `warm-index-reuse` runs support optional `--target`; omitting it uses self mode
 - `incremental-change-staleness` does not accept `--target` and always uses the bundled benchmark projects
+- `agent-success-rate` is also self-target only; `context-window-scaling` and the three retrieval/context-pack plugins accept a local Git target only with `--local-subject-config`
 - when a plugin supports an explicit target, experiment execution does not modify that target project
 
 Outputs are written beneath the selected `--out` directory. Invalid experiment IDs or configuration fail with a nonzero exit code. Real-agent commands can also record structured partial outcomes such as timeouts, unavailable agents, usage limits, or invalid output.
@@ -724,7 +738,7 @@ This takes no arguments. It loads both frozen fixtures, evaluates each through t
 | Command | Purpose |
 |---|---|
 | `npm run render-experiment-report` | Render JSON and HTML from experiment artifacts |
-| `npm run generate-experiment-plots` | Produce plot data and deterministic SVG charts from a legacy controlled-experiment or `warm-index-reuse` output directory |
+| `npm run generate-experiment-plots` | Produce plot data and deterministic SVG charts from a legacy controlled-experiment, `warm-index-reuse`, or `context-window-scaling` output directory |
 | `npm run run-visualization-demos` | Run my-dev-kit visualization examples |
 | `npm run build-gallery` | Build a gallery manifest and static HTML index |
 | `npm run capture-demo-report` | Capture an optional report screenshot |
@@ -798,7 +812,7 @@ npm run security:validate -- --profile node-cli-package --format json
 ```
 
 ```powershell
-npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+npm run security:validate -- --target "C:\path\to\project"
 ```
 
 Current behavior:
@@ -864,9 +878,9 @@ npm run audit -- --target /path/to/android/project --types security --android --
 ```
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot,security --fail-on none
+npm run audit -- --target "C:\path\to\project" --types code-rot --fail-on none
+npm run audit -- --target "C:\path\to\project" --types security --fail-on none
+npm run audit -- --target "C:\path\to\project" --types code-rot,security --fail-on none
 ```
 
 Current behavior:
