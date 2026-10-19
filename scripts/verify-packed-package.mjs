@@ -1424,12 +1424,13 @@ async function main() {
       }
     };
 
-    // Upstream pin: the registry must still report the pinned version (never silently test a newer one).
-    const registryView = runNpm(resolveCommand, ["view", UPSTREAM_MY_DEV_KIT_PACKAGE, "version"], { cwd: dirs.consumer, gate: "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT" });
+    // Verify that the exact historical upstream pin remains available. The registry's
+    // moving latest dist-tag is NOT the identity of this reproducible acceptance run.
+    const registryView = runNpm(resolveCommand, ["view", UPSTREAM_MY_DEV_KIT_SPEC, "version"], { cwd: dirs.consumer, gate: "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT" });
     if (registryView.status !== 0 || registryView.stdout.trim() !== UPSTREAM_MY_DEV_KIT_VERSION) {
       fail(
         "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT",
-        `BLOCKED_UPSTREAM_MY_DEV_KIT_BASELINE_CHANGED: registry reports ${JSON.stringify(registryView.stdout?.trim())}, expected ${UPSTREAM_MY_DEV_KIT_VERSION}.`,
+        `BLOCKED_UPSTREAM_MY_DEV_KIT_PIN_UNAVAILABLE: registry lookup for ${UPSTREAM_MY_DEV_KIT_SPEC} returned ${JSON.stringify(registryView.stdout?.trim())}, expected ${UPSTREAM_MY_DEV_KIT_VERSION}.`,
         describeChildResult(registryView)
       );
     }
