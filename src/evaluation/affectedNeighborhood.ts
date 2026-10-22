@@ -7,7 +7,13 @@ export const AFFECTED_NEIGHBORHOOD_GRAPH_EVIDENCE_SCHEMA_VERSION = "my-dev-kit-l
 export const AFFECTED_NEIGHBORHOOD_SEED_MAPPING_SCHEMA_VERSION = "my-dev-kit-lab-affected-neighborhood-seed-mapping-v1";
 
 const MANIFEST_FILE = "manifest.json";
-const SUPPORTED_SYMBOL_INDEX_SCHEMA_VERSION = "2";
+/**
+ * Schema 2 (my-dev-kit 1.13.x) identifies a symbol by file path + name. Schema 3 (my-dev-kit 1.14.x)
+ * additionally persists each symbol's actual graph `nodeId`, which may be a distinct `symbolq:` identity
+ * for same-named members. Both are understood; anything else is rejected.
+ */
+const SUPPORTED_SYMBOL_INDEX_SCHEMA_VERSIONS: readonly string[] = ["2", "3"];
+const SCHEMA_WITH_PERSISTED_SYMBOL_NODE_IDS = "3";
 const SUPPORTED_CODE_GRAPH_ARTIFACT_KIND = "code-graph";
 const SUPPORTED_CODE_GRAPH_VERSION_PATTERN = /^1\./;
 // Same bounds as the v0.6.0 freshness/snapshot evidence lists.
@@ -40,7 +46,8 @@ export type AffectedNeighborhoodGraphWarningCode =
   | "conflicting-duplicate-edge-id"
   | "dangling-edge"
   | "invalid-symbol-file-entry"
-  | "invalid-symbol-entry";
+  | "invalid-symbol-entry"
+  | "symbol-node-id-missing";
 
 export type AffectedNeighborhoodGraphWarningV1 = {
   code: AffectedNeighborhoodGraphWarningCode;
@@ -65,12 +72,34 @@ export type AffectedNeighborhoodGraphEdgeV1 = {
   kind: string;
 };
 
-/** Baseline symbol records of one indexed file, collapsed to unique names. */
+/**
+ * One baseline symbol identity of an indexed file. `nodeId` is the graph node ID the symbol index
+ * actually persisted (schema 3), or the upstream `symbol:<file>#<name>` identity for schema 2, where
+ * it is the only identity there is. It is null when a schema-3 record persisted no usable `nodeId`:
+ * such a symbol is never given a guessed identity and cannot be mapped.
+ */
+export type AffectedNeighborhoodSymbolRecordV1 = {
+  name: string;
+  nodeId: string | null;
+  /** True when `nodeId` was read from the symbol index; false when it is the schema-2 file+name identity. */
+  persisted: boolean;
+};
+
+/** Baseline symbol records of one indexed file. */
 export type AffectedNeighborhoodSymbolFileV1 = {
   /** Unique baseline symbol names, code-unit sorted. */
   symbolNames: readonly string[];
-  /** Names the symbol index lists more than once in this file (each is still one identity). */
+  /** Records the symbol index repeats with an identical identity (each is still one identity). */
   duplicateSymbolNames: readonly string[];
+  /**
+   * One entry per distinct baseline identity, sorted by `nodeId` then `name`. A name may appear
+   * several times with different persisted `nodeId`s (same-named qualified members); each is its own
+   * identity and none is collapsed or preferred. Absent on evidence built before schema 3 support,
+   * in which case each name in `symbolNames` is the schema-2 file+name identity.
+   */
+  records?: readonly AffectedNeighborhoodSymbolRecordV1[];
+  /** Names that carry more than one distinct identity in this file, code-unit sorted. */
+  sameNameSymbolNames?: readonly string[];
 };
 
 /**
@@ -165,16 +194,21 @@ function sortWarnings(warnings: AffectedNeighborhoodGraphWarningV1[]): AffectedN
 }
 
 type SymbolIndexInterpretation = {
+  /** The accepted symbol-index schema version, exactly as persisted. */
+  schemaVersion: string;
   indexedFilePaths: string[];
   symbolFiles: Map<string, AffectedNeighborhoodSymbolFileV1>;
   warnings: AffectedNeighborhoodGraphWarningV1[];
 };
 
 /**
- * Policy: reads indexed-file membership and baseline symbols from a symbol-index artifact. Only
- * schema version 2 is understood. A file entry whose symbol list is malformed keeps its
- * membership but yields no symbol record; a malformed symbol entry is dropped with a warning.
- * Pure.
+ * Policy: reads indexed-file membership and baseline symbol identities from a symbol-index artifact.
+ * Schema versions 2 and 3 are understood; anything else is unsupported. Under schema 2 a symbol's
+ * identity is its upstream file+name node ID. Under schema 3 it is the `nodeId` the index persisted,
+ * which is never reconstructed from the simple name: same-named members keep distinct identities,
+ * and a record without a usable `nodeId` stays visible as an unmappable identity with a warning
+ * instead of receiving a guessed one. A file entry whose symbol list is malformed keeps its
+ * membership but yields no symbol record; a malformed symbol entry is dropped with a warning. Pure.
  */
 export function interpretSymbolIndexForNeighborhood(
   symbolIndex: unknown
@@ -182,9 +216,11 @@ export function interpretSymbolIndexForNeighborhood(
   if (!isRecord(symbolIndex)) {
     return { ok: false, message: "Symbol index is not a JSON object." };
   }
-  if (symbolIndex.schemaVersion !== SUPPORTED_SYMBOL_INDEX_SCHEMA_VERSION) {
-    return { ok: false, message: `Symbol index schemaVersion is not the supported ${SUPPORTED_SYMBOL_INDEX_SCHEMA_VERSION}.` };
+  const schemaVersion = symbolIndex.schemaVersion;
+  if (typeof schemaVersion !== "string" || !SUPPORTED_SYMBOL_INDEX_SCHEMA_VERSIONS.includes(schemaVersion)) {
+    return { ok: false, message: `Symbol index schemaVersion is not a supported version (${SUPPORTED_SYMBOL_INDEX_SCHEMA_VERSIONS.join(", ")}).` };
   }
+  const persistsNodeIds = schemaVersion === SCHEMA_WITH_PERSISTED_SYMBOL_NODE_IDS;
   if (!Array.isArray(symbolIndex.files)) {
     return { ok: false, message: "Symbol index does not list indexed files." };
   }
@@ -208,29 +244,57 @@ export function interpretSymbolIndexForNeighborhood(
       });
       continue;
     }
-    const seen = new Set<string>();
+    const identities = new Map<string, AffectedNeighborhoodSymbolRecordV1>();
     const duplicates = new Set<string>();
+    const missingNodeIdNames = new Set<string>();
     for (const symbol of entry.symbols) {
       if (!isRecord(symbol) || !nonEmptyString(symbol.name)) {
         warnings.push({ code: "invalid-symbol-entry", subject: boundedText(filePath), message: "Symbol index entry lacks a symbol name and was ignored." });
         continue;
       }
-      if (seen.has(symbol.name)) {
-        duplicates.add(symbol.name);
+      const name = symbol.name;
+      let identity: AffectedNeighborhoodSymbolRecordV1;
+      let identityKey: string;
+      if (!persistsNodeIds) {
+        identity = { name, nodeId: symbolNodeId(filePath, name), persisted: false };
+        identityKey = identity.nodeId as string;
+      } else if (nonEmptyString(symbol.nodeId)) {
+        identity = { name, nodeId: symbol.nodeId, persisted: true };
+        identityKey = `id:${symbol.nodeId}`;
+      } else {
+        // No persisted identity: one unmappable identity per name, never a reconstructed one.
+        identity = { name, nodeId: null, persisted: true };
+        identityKey = `missing:${name}`;
+        missingNodeIdNames.add(name);
       }
-      seen.add(symbol.name);
+      if (identities.has(identityKey)) {
+        duplicates.add(name);
+        continue;
+      }
+      identities.set(identityKey, identity);
     }
-    records.set(filePath, {
-      symbolNames: [...seen].sort(compareCodeUnits),
-      duplicateSymbolNames: [...duplicates].sort(compareCodeUnits),
-    });
+    for (const name of [...missingNodeIdNames].sort(compareCodeUnits)) {
+      warnings.push({
+        code: "symbol-node-id-missing",
+        subject: boundedText(`${filePath}#${name}`),
+        message: "Schema-3 symbol record has no usable persisted nodeId; its identity is not guessed and it cannot be mapped to a graph node.",
+      });
+    }
+    const sortedRecords = [...identities.values()].sort(
+      (left, right) => compareCodeUnits(left.nodeId ?? "", right.nodeId ?? "") || compareCodeUnits(left.name, right.name)
+    );
+    const names = [...new Set(sortedRecords.map((record) => record.name))].sort(compareCodeUnits);
+    const sameName = names.filter((name) => sortedRecords.filter((record) => record.name === name).length > 1);
+    // Schema-2 evidence keeps its original shape: each name is its only identity, so no per-record data is added.
+    const fileRecord: AffectedNeighborhoodSymbolFileV1 = { symbolNames: names, duplicateSymbolNames: [...duplicates].sort(compareCodeUnits) };
+    records.set(filePath, persistsNodeIds ? { ...fileRecord, records: sortedRecords, sameNameSymbolNames: sameName } : fileRecord);
   }
   const indexedFilePaths = [...paths].sort(compareCodeUnits);
   const symbolFiles = new Map<string, AffectedNeighborhoodSymbolFileV1>();
   for (const key of [...records.keys()].sort(compareCodeUnits)) {
     symbolFiles.set(key, records.get(key) as AffectedNeighborhoodSymbolFileV1);
   }
-  return { ok: true, value: { indexedFilePaths, symbolFiles, warnings } };
+  return { ok: true, value: { schemaVersion, indexedFilePaths, symbolFiles, warnings } };
 }
 
 type CodeGraphInterpretation = {
@@ -376,7 +440,7 @@ export async function loadAffectedNeighborhoodGraphEvidence(options: {
     }
     const symbolIndexSummary = {
       path: normalizePath(path.relative(path.resolve(indexDir), symbolIndexFile)),
-      schemaVersion: SUPPORTED_SYMBOL_INDEX_SCHEMA_VERSION,
+      schemaVersion: symbols.value.schemaVersion,
     };
 
     const warnings = [...symbols.value.warnings];
@@ -446,7 +510,11 @@ export async function loadAffectedNeighborhoodGraphEvidence(options: {
 
 export type AffectedNeighborhoodNodeLookupV1 =
   | { ok: true; nodeId: string }
-  | { ok: false; expectedNodeId: string; reason: "graph-node-missing" | "graph-node-kind-mismatch" };
+  | {
+      ok: false;
+      expectedNodeId: string;
+      reason: "graph-node-missing" | "graph-node-kind-mismatch" | "graph-node-path-mismatch" | "symbol-node-id-missing";
+    };
 
 function lookupNode(evidence: AffectedNeighborhoodGraphEvidenceV1, expectedNodeId: string, kind: string): AffectedNeighborhoodNodeLookupV1 {
   const node = evidence.nodes.get(expectedNodeId);
@@ -459,9 +527,38 @@ export function lookupFileNode(evidence: AffectedNeighborhoodGraphEvidenceV1, fi
   return lookupNode(evidence, fileNodeId(filePath), "file");
 }
 
-/** Same-file symbol lookup. Never searches for a same-named symbol in another file. */
+/**
+ * Same-file symbol lookup by the upstream file+name identity. Never searches for a same-named symbol
+ * in another file. This is the schema-2 identity only; it does not find a qualified (`symbolq:`) member.
+ */
 export function lookupSymbolNode(evidence: AffectedNeighborhoodGraphEvidenceV1, filePath: string, symbolName: string): AffectedNeighborhoodNodeLookupV1 {
   return lookupNode(evidence, symbolNodeId(filePath, symbolName), "symbol");
+}
+
+/**
+ * Exact lookup of one baseline symbol identity. The node must exist under the identity the index
+ * actually recorded, be a `symbol` node, and (when the graph names a path) belong to the same
+ * file; otherwise it is unresolved. A record without a persisted identity is never mapped, and no
+ * identity is derived from its name.
+ */
+export function lookupSymbolRecordNode(
+  evidence: AffectedNeighborhoodGraphEvidenceV1,
+  filePath: string,
+  record: AffectedNeighborhoodSymbolRecordV1
+): AffectedNeighborhoodNodeLookupV1 {
+  if (record.nodeId === null) return { ok: false, expectedNodeId: "", reason: "symbol-node-id-missing" };
+  const lookup = lookupNode(evidence, record.nodeId, "symbol");
+  if (!lookup.ok) return lookup;
+  const node = evidence.nodes.get(lookup.nodeId);
+  if (node && node.path !== null && normalizePath(node.path) !== filePath) {
+    return { ok: false, expectedNodeId: record.nodeId, reason: "graph-node-path-mismatch" };
+  }
+  return lookup;
+}
+
+/** The baseline identities of one indexed file; evidence without per-record data keeps the schema-2 file+name identity. */
+function symbolRecordsOf(filePath: string, file: AffectedNeighborhoodSymbolFileV1): readonly AffectedNeighborhoodSymbolRecordV1[] {
+  return file.records ?? file.symbolNames.map((name) => ({ name, nodeId: symbolNodeId(filePath, name), persisted: false }));
 }
 
 export type AffectedNeighborhoodUnresolvedReason =
@@ -469,6 +566,8 @@ export type AffectedNeighborhoodUnresolvedReason =
   | "graph-unavailable"
   | "graph-node-missing"
   | "graph-node-kind-mismatch"
+  | "graph-node-path-mismatch"
+  | "symbol-node-id-missing"
   | "symbol-index-record-missing";
 
 export type AffectedNeighborhoodMappingStatus = "mapped" | "unresolved";
@@ -638,19 +737,22 @@ export function mapAffectedNeighborhoodSeeds(input: {
     if (record.duplicateSymbolNames.length > 0) {
       warn(
         "duplicate-symbol-records",
-        `Baseline symbol index lists ${record.duplicateSymbolNames.length} symbol name(s) more than once; each counts as one identity.`,
+        `Baseline symbol index repeats ${record.duplicateSymbolNames.length} identical symbol record(s); each counts as one identity.`,
         filePath
       );
     }
-    for (const name of record.symbolNames) {
+    // Each distinct baseline identity is a seed in its own right: same-named members that the index
+    // persisted with different node IDs are never merged, and none is reconstructed from the name.
+    for (const identity of symbolRecordsOf(filePath, record)) {
+      const name = identity.name;
       symbolIdentityCount += 1;
-      const symbolExpectedId = symbolNodeId(filePath, name);
+      const symbolExpectedId = identity.nodeId ?? "";
       let symbolResolvedId: string | null = null;
       let symbolReason: AffectedNeighborhoodUnresolvedReason | null = null;
       if (!codeGraphLoaded) {
         symbolReason = "graph-unavailable";
       } else {
-        const lookup = lookupSymbolNode(graph, filePath, name);
+        const lookup = lookupSymbolRecordNode(graph, filePath, identity);
         if (lookup.ok) symbolResolvedId = lookup.nodeId;
         else symbolReason = lookup.reason;
       }
@@ -658,7 +760,12 @@ export function mapAffectedNeighborhoodSeeds(input: {
         mappedSymbolCount += 1;
         seeds.add(symbolResolvedId);
       } else {
-        unresolved.push({ subject: "changed-symbol", path: boundedText(filePath), name: boundedText(name), reason: symbolReason as AffectedNeighborhoodUnresolvedReason });
+        unresolved.push({
+          subject: "changed-symbol",
+          path: boundedText(filePath),
+          name: boundedText(name),
+          reason: symbolReason as AffectedNeighborhoodUnresolvedReason,
+        });
       }
       changedSymbols.push({
         path: filePath,
@@ -727,7 +834,12 @@ export const AFFECTED_NEIGHBORHOOD_ASSESSMENT_SCHEMA_VERSION = "my-dev-kit-lab-a
 export type AffectedTaskRelationship = "related" | "unrelated" | "unknown";
 export type ReindexRecommendation = "recommended" | "not-indicated" | "unknown";
 
-export type AffectedNeighborhoodTaskUnresolvedReason = "graph-node-missing" | "graph-node-kind-mismatch" | "invalid-entry";
+export type AffectedNeighborhoodTaskUnresolvedReason =
+  | "graph-node-missing"
+  | "graph-node-kind-mismatch"
+  | "graph-node-path-mismatch"
+  | "symbol-node-id-missing"
+  | "invalid-entry";
 
 export type AffectedNeighborhoodTaskUnresolvedV1 = {
   subject: "expected-file" | "expected-symbol";
@@ -822,10 +934,41 @@ function normalizeExpectedPath(value: string): string {
 }
 
 /**
+ * Candidate graph nodes for one expected symbol in one expected file. A request matches a baseline
+ * identity by its simple name or by that identity's exact persisted node ID; every matching identity
+ * is a distinct candidate (same-named members are never collapsed). A file the symbol index has no
+ * record for keeps the schema-2 file+name lookup. Nothing is derived from the name beyond that.
+ */
+function resolveExpectedSymbolInFile(
+  graph: AffectedNeighborhoodGraphEvidenceV1,
+  filePath: string,
+  request: string
+): { nodeIds: string[]; identityMissing: boolean; pathMismatch: boolean } {
+  const file = graph.symbolFiles.get(filePath);
+  if (!file) {
+    const lookup = lookupSymbolNode(graph, filePath, request);
+    return { nodeIds: lookup.ok ? [lookup.nodeId] : [], identityMissing: false, pathMismatch: !lookup.ok && lookup.reason === "graph-node-path-mismatch" };
+  }
+  const nodeIds: string[] = [];
+  let identityMissing = false;
+  let pathMismatch = false;
+  for (const identity of symbolRecordsOf(filePath, file)) {
+    if (identity.name !== request && identity.nodeId !== request) continue;
+    const lookup = lookupSymbolRecordNode(graph, filePath, identity);
+    if (lookup.ok) nodeIds.push(lookup.nodeId);
+    else if (lookup.reason === "symbol-node-id-missing") identityMissing = true;
+    else if (lookup.reason === "graph-node-path-mismatch") pathMismatch = true;
+  }
+  return { nodeIds, identityMissing, pathMismatch };
+}
+
+/**
  * Policy: maps a task's expected files and symbols to baseline graph nodes. Files resolve only to
  * their exact `file:` node. A symbol resolves only within the task's own expected files and only
- * when exactly one same-name node exists there; zero matches is unresolved and several is
- * ambiguous (no winner is picked, no node is added). Never searches the rest of the graph. Pure.
+ * when exactly one matching identity exists there; zero matches is unresolved and several (in one
+ * file or across files, including same-named members with distinct persisted node IDs) is
+ * ambiguous (no winner is picked, no node is added). A request that is itself a persisted node ID
+ * resolves to exactly that identity. Never searches the rest of the graph. Pure.
  */
 export function mapAffectedNeighborhoodTask(input: {
   graph: AffectedNeighborhoodGraphEvidenceV1;
@@ -897,16 +1040,20 @@ export function mapAffectedNeighborhoodTask(input: {
   const resolvedSymbols: Array<{ name: string; nodeId: string }> = [];
   for (const name of expectedSymbols) {
     // Scope is the task's expected files, whether or not their own file node resolved.
-    const candidates = uniqueSorted(
-      expectedFiles.flatMap((filePath) => {
-        const lookup = lookupSymbolNode(graph, filePath, name);
-        return lookup.ok ? [lookup.nodeId] : [];
-      })
-    );
-    if (candidates.length === 1) {
+    const found = expectedFiles.map((filePath) => resolveExpectedSymbolInFile(graph, filePath, name));
+    const candidates = uniqueSorted(found.flatMap((entry) => entry.nodeIds));
+    // A same-name identity that persisted no node ID cannot be excluded, so a lone mappable candidate
+    // is not trusted as "the" owner when such a sibling exists.
+    const identityMissing = found.some((entry) => entry.identityMissing);
+    if (candidates.length === 1 && !identityMissing) {
       resolvedSymbols.push({ name, nodeId: candidates[0] });
-    } else if (candidates.length === 0) {
-      unresolved.push({ subject: "expected-symbol", name: boundedText(name), reason: "graph-node-missing" });
+    } else if (candidates.length <= 1) {
+      const reason: AffectedNeighborhoodTaskUnresolvedReason = identityMissing
+        ? "symbol-node-id-missing"
+        : found.some((entry) => entry.pathMismatch)
+          ? "graph-node-path-mismatch"
+          : "graph-node-missing";
+      unresolved.push({ subject: "expected-symbol", name: boundedText(name), reason });
     } else {
       ambiguous.push({ name: boundedText(name), candidateNodeIds: candidates });
     }

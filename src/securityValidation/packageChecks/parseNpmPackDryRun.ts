@@ -22,26 +22,12 @@ export function parseNpmPackDryRun(stdout: string): NpmPackDryRunParseResult {
   }
 
   if (/^[\[{]/.test(stdout.trim())) {
-    try {
-      const inventory: unknown = JSON.parse(stdout);
-      if (!Array.isArray(inventory) || inventory.length !== 1 ||
-          !inventory[0] || !Array.isArray(inventory[0].files) || !inventory[0].files.length) {
-        return { files: [], parseError: "npm pack JSON must contain exactly one nonempty package inventory" };
-      }
-      const files: string[] = [];
-      for (const file of inventory[0].files) {
-        if (!file || typeof file.path !== "string" || !safeInventoryPath(file.path)) {
-          return { files: [], parseError: "npm pack JSON contains a malformed or unsafe file path" };
-        }
-        // JSON paths are package-relative, unlike text tarball paths. Add the
-        // archive root exactly once so a real nested package/ directory cannot
-        // masquerade as a root entrypoint in the existing detectors.
-        files.push(`package/${file.path.replace(/\\/g, "/").replace(/^(\.\/)+/, "")}`);
-      }
-      return { files };
-    } catch {
-      return { files: [], parseError: "npm pack JSON is unparseable" };
-    }
+    const parsed = parseNpmPackJsonEntry(stdout);
+    if (!parsed.entry) return { files: [], parseError: parsed.parseError };
+    // JSON paths are package-relative, unlike text tarball paths. Add the
+    // archive root exactly once so a real nested package/ directory cannot
+    // masquerade as a root entrypoint in the existing detectors.
+    return { files: parsed.entry.files.map((file) => `package/${file}`) };
   }
 
   const files: string[] = [];
@@ -89,6 +75,55 @@ export function parseNpmPackDryRun(stdout: string): NpmPackDryRunParseResult {
     return { files: [], parseError: "npm pack contains an unsafe file path" };
   }
   return { files, totalSize };
+}
+
+export type NpmPackJsonEntry = {
+  name?: string;
+  version?: string;
+  filename?: string;
+  // Package-relative, slash-normalized, validated paths.
+  files: string[];
+};
+
+export type NpmPackJsonEntryResult = { entry?: NpmPackJsonEntry; parseError?: string };
+
+// Validated single-package entry from `npm pack --json` (or --dry-run --json) output, accepting both
+// the npm 11 array shape and the npm 12 identity-keyed object shape. Exactly one package with a
+// nonempty, safe file list is required; anything else is an error, never an empty success.
+export function parseNpmPackJsonEntry(stdout: string): NpmPackJsonEntryResult {
+  try {
+    const packages = packageInventories(JSON.parse(stdout));
+    const inventory = packages?.length === 1 ? packages[0] : null;
+    if (!isPlainObject(inventory) || !Array.isArray(inventory.files) || !inventory.files.length) {
+      return { parseError: "npm pack JSON must contain exactly one nonempty package inventory" };
+    }
+    const files: string[] = [];
+    for (const file of inventory.files) {
+      if (!file || typeof file.path !== "string" || !safeInventoryPath(file.path)) {
+        return { parseError: "npm pack JSON contains a malformed or unsafe file path" };
+      }
+      files.push(file.path.replace(/\\/g, "/").replace(/^(\.\/)+/, ""));
+    }
+    const text = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+    return { entry: { name: text(inventory.name), version: text(inventory.version), filename: text(inventory.filename), files } };
+  } catch {
+    return { parseError: "npm pack JSON is unparseable" };
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// The package inventories in `npm pack --json` output. npm 11 and earlier print an array of package
+// objects; npm 12 prints one object keyed by package identity whose values are the package objects.
+// Anything else (including a bare package object, or a keyed object holding non-objects) is not a
+// recognized shape and yields null, so it can never be read as an empty or successful package.
+function packageInventories(output: unknown): unknown[] | null {
+  if (Array.isArray(output)) return output;
+  if (!isPlainObject(output)) return null;
+  const packages = Object.values(output);
+  return packages.every(isPlainObject) ? packages : null;
 }
 
 function safeInventoryPath(file: string): boolean {

@@ -121,7 +121,74 @@ describe("runCliSecuritySuiteCheck", () => {
       expect(result.findings[0]?.title).toContain("Target test:security script failed");
       expect(result.findings[0]?.evidence).toContain("cwd=");
       expect(result.findings[0]?.evidence).toContain("exitCode=1");
-      expect(result.findings[0]?.evidence).toContain("stderr=SECURITY_FAIL_CWD=");
+      // npm 12 may print "npm notice" lines before the target script's own stderr, so the target-produced
+      // marker is located inside the bounded stderr evidence rather than assumed to be its first line.
+      const evidence = result.findings[0]?.evidence ?? "";
+      expect(evidence).toContain("stderr=");
+      expect(
+        normalizeExistingPath(extractReportedPath(evidence.slice(evidence.indexOf("stderr=") + "stderr=".length), "SECURITY_FAIL_CWD="))
+      ).toBe(normalizedTargetRoot);
+    } finally {
+      cleanup(targetRoot);
+    }
+  }, 15000);
+
+  it("still passes a zero-exit target script whose stderr carries unrelated noise", async () => {
+    const targetRoot = makeTempProject("sec-target-noise-pass-");
+    try {
+      writeJson(path.join(targetRoot, "package.json"), {
+        name: "target-noise-pass-project",
+        version: "1.0.0",
+        scripts: { "test:security": "node security-noise.js" },
+      });
+      fs.writeFileSync(
+        path.join(targetRoot, "security-noise.js"),
+        "console.error('npm notice unrelated noise');\nconsole.error('SECURITY_FAIL_CWD=not-a-failure');\n",
+        "utf8"
+      );
+      const target = resolveValidationTarget(targetRoot, process.cwd());
+
+      const result = await runCliSecuritySuiteCheck({
+        toolRoot: process.cwd(),
+        target,
+        timeoutMs: 30_000,
+      });
+
+      expect(result.status).toBe("passed");
+      expect(result.exitCode).toBe(0);
+      expect(result.findings).toHaveLength(0);
+    } finally {
+      cleanup(targetRoot);
+    }
+  }, 15000);
+
+  it("fails a nonzero target script even when its stderr has only unrelated noise", async () => {
+    const targetRoot = makeTempProject("sec-target-noise-fail-");
+    try {
+      writeJson(path.join(targetRoot, "package.json"), {
+        name: "target-noise-fail-project",
+        version: "1.0.0",
+        scripts: { "test:security": "node security-noise-fail.js" },
+      });
+      fs.writeFileSync(
+        path.join(targetRoot, "security-noise-fail.js"),
+        "console.error('npm notice unrelated noise');\nprocess.exit(3);\n",
+        "utf8"
+      );
+      const target = resolveValidationTarget(targetRoot, process.cwd());
+
+      const result = await runCliSecuritySuiteCheck({
+        toolRoot: process.cwd(),
+        target,
+        timeoutMs: 30_000,
+      });
+
+      expect(result.status).toBe("failed");
+      expect(result.exitCode).toBe(3);
+      expect(result.findings).toHaveLength(1);
+      expect(result.findings[0]?.severity).toBe("major");
+      expect(result.findings[0]?.evidence).toContain("exitCode=3");
+      expect(result.findings[0]?.evidence).not.toContain("SECURITY_FAIL_CWD=");
     } finally {
       cleanup(targetRoot);
     }

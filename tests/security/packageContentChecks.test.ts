@@ -201,10 +201,12 @@ describe("required npm package contents", () => {
     });
 
     expect(command.exitCode, command.stderr).toBe(0);
-    const inventory = JSON.parse(command.stdout) as Array<{
-      files: Array<{ path: string }>;
-    }>;
-    const files = inventory[0]?.files.map((entry) => entry.path) ?? [];
+    // The production parser understands the npm 11 array and the npm 12 keyed-object shapes; an
+    // unrecognized shape is a parse error here instead of an empty (vacuously passing) file list.
+    const parsed = parseNpmPackDryRun(command.stdout);
+    expect(parsed.parseError).toBeUndefined();
+    expect(parsed.files.length).toBeGreaterThan(0);
+    const files = parsed.files.map((file) => file.slice("package/".length));
     const required = detectMissingRequiredContents({
       files,
       requiredFiles: REQUIRED_PACKAGE_CONTENTS,
@@ -239,10 +241,12 @@ describe("required npm package contents", () => {
     });
 
     expect(command.exitCode, command.stderr).toBe(0);
-    const inventory = JSON.parse(command.stdout) as Array<{
-      files: Array<{ path: string }>;
-    }>;
-    const files = inventory[0]?.files.map((entry) => entry.path) ?? [];
+    // The production parser understands the npm 11 array and the npm 12 keyed-object shapes; an
+    // unrecognized shape is a parse error here instead of an empty (vacuously passing) file list.
+    const parsed = parseNpmPackDryRun(command.stdout);
+    expect(parsed.parseError).toBeUndefined();
+    expect(parsed.files.length).toBeGreaterThan(0);
+    const files = parsed.files.map((file) => file.slice("package/".length));
 
     const stillPresent = files.filter((file) =>
       [
@@ -259,5 +263,154 @@ describe("required npm package contents", () => {
     );
 
     expect(stillPresent).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseNpmPackDryRun -- npm 11 and npm 12 JSON inventories (v0.9.4)
+//
+// `npm pack --dry-run --json` prints an array with one package object on npm 11 and earlier, and
+// one object keyed by package identity on npm 12. REAL_PACKAGE is the package body npm printed for the
+// my-dev-kit 1.14.0 candidate (identical under both versions; the files list is trimmed to six real
+// entries). The two wrappers below are exactly the two shapes captured from npm 11.19.0 and 12.2.0.
+// ---------------------------------------------------------------------------
+const REAL_PACKAGE = {
+  id: "@dailephd/my-dev-kit@1.13.0",
+  name: "@dailephd/my-dev-kit",
+  version: "1.13.0",
+  size: 818375,
+  unpackedSize: 4554589,
+  shasum: "29169e6a862ccfddb0a1e0faca3a1a91093e78ae",
+  integrity: "sha512-rJywT/5C64vdrJOQXkk4cqz+OZq8yjy+AZieiMutbpgCwZF5ywaJArZZncEJ6ZGRe7ZI4KwYnVBAtux1WQFECQ==",
+  filename: "dailephd-my-dev-kit-1.13.0.tgz",
+  files: [
+    { path: "LICENSE", size: 1069, mode: 420 },
+    { path: "README.md", size: 47697, mode: 420 },
+    { path: "dist/assets/tree-sitter-rust-orchard.wasm", size: 2014566, mode: 420 },
+    { path: "dist/cli.js", size: 1485271, mode: 420 },
+    { path: "examples/basic-rust-workspace/crates/core/tests/worker_tests.rs", size: 129, mode: 420 },
+    { path: "package.json", size: 3270, mode: 420 },
+  ],
+  entryCount: 60,
+  bundled: [],
+};
+const EXPECTED_PACKAGE_FILES = REAL_PACKAGE.files.map((file) => `package/${file.path}`);
+const NPM11_SHAPE = JSON.stringify([REAL_PACKAGE], null, 2);
+const NPM12_SHAPE = JSON.stringify({ "@dailephd/my-dev-kit": REAL_PACKAGE }, null, 2);
+const withFiles = (files: unknown) => ({ ...REAL_PACKAGE, files });
+
+describe("parseNpmPackDryRun -- npm 11 and npm 12 JSON inventories", () => {
+  it.each([
+    ["npm 11 (array of one package)", NPM11_SHAPE],
+    ["npm 12 (object keyed by package identity)", NPM12_SHAPE],
+  ])("reads the real %s shape with archive-root paths", (_label, output) => {
+    expect(parseNpmPackDryRun(output)).toEqual({ files: EXPECTED_PACKAGE_FILES });
+  });
+
+  it("gives identical results for both shapes, so detection cannot depend on the npm version", () => {
+    const forbidden = (output: string) =>
+      detectForbiddenContents({
+        files: parseNpmPackDryRun(output).files,
+        forbiddenPatterns: DEFAULT_SECURITY_CONFIG.forbiddenPackagePatterns,
+        allowedExceptions: DEFAULT_SECURITY_CONFIG.allowedPackageExceptions,
+        checkId: "shape",
+      });
+    expect(parseNpmPackDryRun(NPM11_SHAPE)).toEqual(parseNpmPackDryRun(NPM12_SHAPE));
+    expect(forbidden(NPM11_SHAPE)).toEqual(forbidden(NPM12_SHAPE));
+    expect(forbidden(NPM12_SHAPE).matches).toEqual([]);
+  });
+
+  it("does not broaden the private-content policy: the same forbidden files are found in either shape", () => {
+    const poisoned = withFiles([...REAL_PACKAGE.files, { path: "lab-output/run/report.json", size: 1, mode: 420 }, { path: ".env", size: 1, mode: 420 }]);
+    for (const output of [JSON.stringify([poisoned]), JSON.stringify({ "@dailephd/my-dev-kit": poisoned })]) {
+      const parsed = parseNpmPackDryRun(output);
+      const result = detectForbiddenContents({
+        files: parsed.files,
+        forbiddenPatterns: DEFAULT_SECURITY_CONFIG.forbiddenPackagePatterns,
+        allowedExceptions: DEFAULT_SECURITY_CONFIG.allowedPackageExceptions,
+        checkId: "shape",
+      });
+      expect(result.matches.map((match) => match.file)).toEqual(["lab-output/run/report.json", ".env"]);
+    }
+    expect(DEFAULT_SECURITY_CONFIG.allowedPackageExceptions).toEqual([]);
+  });
+
+  it("normalizes package-relative paths and adds the archive root exactly once", () => {
+    const output = JSON.stringify({ "pkg": withFiles([{ path: "./README.md" }, { path: "dist\\cli.js" }, { path: "package/index.js" }, { path: "././lib/a.js" }]) });
+    expect(parseNpmPackDryRun(output).files).toEqual(["package/README.md", "package/dist/cli.js", "package/package/index.js", "package/lib/a.js"]);
+  });
+
+  const MALFORMED = "npm pack JSON must contain exactly one nonempty package inventory";
+  it.each([
+    ["an empty array", "[]"],
+    ["an empty object", "{}"],
+    ["two packages in an array", JSON.stringify([REAL_PACKAGE, REAL_PACKAGE])],
+    ["two packages in a keyed object", JSON.stringify({ a: REAL_PACKAGE, b: REAL_PACKAGE })],
+    ["a bare package object that is not wrapped", JSON.stringify(REAL_PACKAGE)],
+    ["a keyed object holding a non-object", JSON.stringify({ a: 1 })],
+    ["a keyed object holding an array", JSON.stringify({ a: [REAL_PACKAGE] })],
+    ["a keyed object mixing a package with a scalar", JSON.stringify({ a: REAL_PACKAGE, b: "x" })],
+    ["an array of a scalar", "[1]"],
+    ["an array of null", "[null]"],
+    ["an empty files list", JSON.stringify({ a: withFiles([]) })],
+    ["a missing files list", JSON.stringify([{ ...REAL_PACKAGE, files: undefined }])],
+    ["a non-array files value", JSON.stringify({ a: withFiles({ path: "README.md" }) })],
+    ["a null package", JSON.stringify({ a: null })],
+  ])("rejects %s without treating it as an empty successful package", (_label, output) => {
+    expect(parseNpmPackDryRun(output)).toEqual({ files: [], parseError: MALFORMED });
+  });
+
+  it.each([
+    ["truncated JSON", NPM12_SHAPE.slice(0, 80)],
+    ["trailing text after the JSON", `${NPM12_SHAPE}\nnpm notice done`],
+    ["unterminated string", '{"a":{"files":[{"path":"x}]}}'],
+  ])("reports %s as unparseable", (_label, output) => {
+    expect(parseNpmPackDryRun(output)).toEqual({ files: [], parseError: "npm pack JSON is unparseable" });
+  });
+
+  it.each([
+    ["traversal", "../outside.js"],
+    ["embedded traversal", "dist/../../outside.js"],
+    ["an absolute POSIX path", "/etc/passwd"],
+    ["a Windows drive path", "C:\\Windows\\system.ini"],
+    ["a UNC-style path", "\\\\server\\share\\x"],
+    ["an empty segment", "dist//cli.js"],
+    ["a dot segment", "dist/./cli.js"],
+    ["a control character", "dist/cli\u0000.js"],
+    ["a newline", "dist/cli\n.js"],
+    ["an empty path", ""],
+    ["only a dot", "."],
+  ])("rejects an unsafe path (%s) in either shape", (_label, unsafe) => {
+    const hostile = withFiles([...REAL_PACKAGE.files, { path: unsafe }]);
+    for (const output of [JSON.stringify([hostile]), JSON.stringify({ "@dailephd/my-dev-kit": hostile })]) {
+      expect(parseNpmPackDryRun(output)).toEqual({ files: [], parseError: "npm pack JSON contains a malformed or unsafe file path" });
+    }
+  });
+
+  it.each([
+    ["a missing path", { size: 1 }],
+    ["a numeric path", { path: 7 }],
+    ["a null path", { path: null }],
+    ["a null entry", null],
+    ["a scalar entry", "README.md"],
+  ])("rejects a malformed file entry (%s)", (_label, entry) => {
+    for (const hostile of [[withFiles([...REAL_PACKAGE.files, entry])], { x: withFiles([...REAL_PACKAGE.files, entry]) }]) {
+      expect(parseNpmPackDryRun(JSON.stringify(hostile))).toEqual({
+        files: [],
+        parseError: "npm pack JSON contains a malformed or unsafe file path",
+      });
+    }
+  });
+
+  it("does not let a hostile key pollute prototypes or change the result", () => {
+    const hostile = '{"__proto__":{"polluted":true,"files":[{"path":"README.md"}]}}';
+    const parsed = parseNpmPackDryRun(hostile);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(parsed).toEqual({ files: ["package/README.md"] });
+  });
+
+  it("still parses the human-readable text form and the empty-output error", () => {
+    expect(parseNpmPackDryRun("npm notice === Tarball Contents ===\nnpm notice 1.2kB README.md\nnpm notice === Tarball Details ===\n").files).toEqual(["README.md"]);
+    expect(parseNpmPackDryRun("")).toEqual({ files: [], parseError: "npm pack --dry-run produced no output" });
   });
 });

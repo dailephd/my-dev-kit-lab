@@ -561,6 +561,40 @@ async function loadResolveCommand() {
   return module.resolveCommand;
 }
 
+// The npm pack --json shape differs by npm version (npm 11: array; npm 12: object keyed by package identity). Reuse the
+// validated single-package normalization owned by the security package checks instead of a second, permissive parser.
+async function loadPackJsonEntryParser() {
+  const modulePath = path.join(REPO_ROOT, "dist", "src", "securityValidation", "packageChecks", "parseNpmPackDryRun.js");
+  if (!existsSync(modulePath)) {
+    fail(
+      "BUILD_REQUIRED",
+      `Compiled module not found: ${path.relative(REPO_ROOT, modulePath)}. Run "npm run build" before "npm run verify:packed-package".`
+    );
+  }
+  return (await import(pathToFileURL(modulePath).href)).parseNpmPackJsonEntry;
+}
+
+// Validates `npm pack --json` stdout into exactly one package entry that is this package and names the one tarball on disk.
+function resolvePackEntry(parsePackJsonEntry, stdout, { expectedName, expectedVersion, tarballFilename }) {
+  const { entry, parseError } = parsePackJsonEntry(stdout);
+  if (!entry) {
+    fail("PACK", `npm pack --json output is not a valid single-package inventory: ${parseError}.`, String(stdout).slice(0, 2000));
+  }
+  if (entry.name !== expectedName || entry.version !== expectedVersion) {
+    fail("PACK", `npm pack --json package identity ("${entry.name}@${entry.version}") does not match the expected "${expectedName}@${expectedVersion}".`);
+  }
+  if (!entry.filename) {
+    fail("PACK", "npm pack --json entry has no tarball filename.");
+  }
+  if (entry.filename !== tarballFilename) {
+    fail(
+      "PACK",
+      `npm pack --json filename ("${entry.filename}") does not match the single tarball found on disk ("${tarballFilename}").`
+    );
+  }
+  return entry;
+}
+
 function runNpm(resolveCommand, args, options) {
   const resolved = resolveCommand("npm", { cwd: options.cwd });
   if (resolved.resolutionKind === "unavailable") {
@@ -731,25 +765,13 @@ async function main() {
     if (packResult.status !== 0) {
       fail("PACK", "npm pack failed.", describeChildResult(packResult));
     }
-    let packJson;
-    try {
-      packJson = JSON.parse(packResult.stdout);
-    } catch (error) {
-      fail("PACK", `npm pack --json produced unparseable output: ${error.message}`, packResult.stdout);
-    }
-    if (!Array.isArray(packJson) || packJson.length !== 1) {
-      fail("PACK", `Expected exactly one npm pack result entry, got ${packJson?.length ?? 0}.`);
-    }
-    const packEntry = packJson[0];
-    const tarballFilenameFromJson = packEntry.filename;
     const packDirEntries = readdirSync(dirs.pack);
     const tarballFilename = findExactlyOneTarball(packDirEntries);
-    if (tarballFilenameFromJson && tarballFilenameFromJson !== tarballFilename) {
-      fail(
-        "PACK",
-        `npm pack --json filename ("${tarballFilenameFromJson}") does not match the single tarball found on disk ("${tarballFilename}").`
-      );
-    }
+    const packEntry = resolvePackEntry(await loadPackJsonEntryParser(), packResult.stdout, {
+      expectedName: EXPECTED_PACKAGE_NAME,
+      expectedVersion: EXPECTED_PACKAGE_VERSION,
+      tarballFilename
+    });
     const tarballPath = path.resolve(dirs.pack, tarballFilename);
     if (!existsSync(tarballPath)) {
       fail("PACK", `Resolved tarball path does not exist: ${tarballPath}`);
@@ -760,7 +782,7 @@ async function main() {
     // -----------------------------------------------------------------
     // 2. Verify critical tarball contents (same artifact, not re-packed).
     // -----------------------------------------------------------------
-    const tarballFiles = new Set((packEntry.files ?? []).map((entry) => entry.path.replace(/\\/g, "/")));
+    const tarballFiles = new Set(packEntry.files);
     const missingRequired = missingRequiredTarballPaths(tarballFiles, REQUIRED_TARBALL_PATHS);
     if (missingRequired.length > 0) {
       fail("PACK_CONTENTS", `Required runtime file(s) missing from the packed tarball: ${missingRequired.join(", ")}`);
@@ -4273,9 +4295,27 @@ async function main() {
   }
 }
 
-export { describeChildResult, fail, isolatedProviderEnv, loadResolveCommand, resolveConsumerBinCommand, runInstalledCli, writeFakeAgentLauncher };
+export { describeChildResult, fail, isolatedProviderEnv, loadPackJsonEntryParser, loadResolveCommand, resolvePackEntry, resolveConsumerBinCommand, runInstalledCli, writeFakeAgentLauncher };
 
-const isMain = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
-if (isMain) {
-  await main();
+// Node resolves the entry module through symlinks/junctions, so compare real paths; a lexical comparison made an
+// aliased invocation silently run nothing and exit 0 without any verdict.
+function isMainModule() {
+  if (!process.argv[1]) return false;
+  try {
+    return pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url;
+  } catch {
+    return false;
+  }
+}
+
+if (isMainModule()) {
+  try {
+    await main();
+  } catch (error) {
+    // Failures raised before main()'s own gate handling (for example BUILD_REQUIRED) still emit a verdict marker.
+    console.error("PACKED_PACKAGE_VERDICT: FAIL");
+    console.error(`FAILED_GATE: ${error instanceof PackedPackageGateError ? error.gate : "UNEXPECTED_ERROR"}`);
+    console.error(error instanceof PackedPackageGateError ? error.message : error);
+    process.exitCode = 1;
+  }
 }
