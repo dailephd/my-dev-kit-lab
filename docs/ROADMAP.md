@@ -16,7 +16,7 @@ flowchart LR
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2] --> V093[v0.9.3]
-  V093 --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
+  V093 --> V094[v0.9.4] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
   V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
   V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
@@ -1576,6 +1576,37 @@ Acceptance:
 * Gallery can browse finalized tutorial artifacts through the canonical tutorial manifest without forcing tutorial execution to depend on gallery generation.
 
 The initial Stage 4 audit found glossary and comparison-evidence defects; bounded correction tasks fixed and validated those source findings. Stage 4 documentation and implementation-completeness status: **PASS**. Registered metric IDs resolve to evidence-based glossary descriptors and stable links, including bounded dynamic families; shared text/HTML caveats preserve known provenance and leave unavailable provenance unknown. Prompt comparison fails closed for unverified V1 identity, validates supported V2 and checkpoint evidence through existing campaign validators, excludes status-only invalid-output claims, and reports incomparable evidence explicitly. **Deferred empirical objective (not assigned to a release version and not a v0.9.3 gate):** “Invalid-output rate improves in smoke campaigns.” Assess this only through separately authorized, matched real-provider campaigns with verified run-bound prompt identity and eligible-response denominators. No such campaign was authorized, so improvement is **NOT_VERIFIED**; do not claim improvement, invent results, or treat deterministic fixtures as proof. This owner-directed 2026-10-15 acceptance clarification separates release-verifiable behavior from later empirical effectiveness without removing the original scientific objective or changing v0.10.0+ scope.
+
+### v0.9.4 — Kit schema-3 and npm 12 compatibility correction
+
+Status: **implemented; unreleased; documentation reconciled on the compatibility branch and awaiting acceptance; pre-release readiness not yet established**. Package metadata remains 0.9.3; no version bump, tag, GitHub Release, or npm publication exists for v0.9.4.
+
+Purpose:
+
+* Keep the existing `incremental-change-staleness` experiment and the Lab package validation working against current my-dev-kit symbol-index and npm output formats, without adding a feature.
+
+Scope:
+
+* Accept my-dev-kit symbol-index schema `2` (unchanged behavior) and schema `3`. Schema-3 identities are the persisted `nodeId` values (qualified `symbolq:` IDs); they are never rebuilt from a file path and a simple name. Same-name symbols in one file stay distinct, ambiguous simple names are reported as ambiguous, and missing or mismatched identities stay unresolved. Other schema values are rejected.
+* Keep reading code graphs through the existing major-one reader, including schema `1.1.0`. This is artifact-version compatibility, not proof that each graph relationship is correct and not compiler-level resolution.
+* Accept the validated `npm pack` JSON inventory formats of npm 11 (array) and npm 12 (object keyed by package identity) in the package content checks and in the packed-package verifier. Exactly one package with a nonempty, safe file list is required; anything else fails.
+* Correct the packed-package verifier so a supported symlink or junction invocation still runs, early failures print `PACKED_PACKAGE_VERDICT: FAIL`, and verified failures exit nonzero. Correct the npm 12 output-prefix assumption in one target-security test without weakening it.
+
+Backward compatibility:
+
+* Schema-2 evidence keeps its original shape and results. Execution and report schema names, treatment order, and comparison semantics are unchanged.
+
+Security invariants:
+
+* The security-verdict policy and the meaning of major findings are unchanged. No package-content exception, waiver, or blanket test/fixture exemption is added. A malformed or empty package inventory is never treated as successful evidence.
+
+Exclusions:
+
+* No new experiment plugin, metric or report schema, command flag, product architecture, or dependency. No v0.10.0 or later scope moves into this version.
+
+Acceptance:
+
+* Schema-2, schema-3, ambiguity, and missing-identity tests pass; all six staleness scenarios with all four treatments completed against the audited my-dev-kit candidate; package and verifier tests pass for npm 11 and npm 12; the full suite, security suite, benchmark checks, and packed-package verifier pass with their final markers and exit codes; the Windows, Ubuntu, and macOS Node 24 CI jobs pass at the exact commit. Hosted CI uses npm 11; npm 12 evidence is local. Operational state and evidence references are in [CURRENT_STATE.md](CURRENT_STATE.md).
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 

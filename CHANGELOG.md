@@ -2,6 +2,16 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
+### Kit schema-3 and npm 12 compatibility (v0.9.4 candidate; not released)
+
+- Accepted my-dev-kit symbol-index schema `3` in addition to schema `2` for the `incremental-change-staleness` affected-neighborhood evidence. Schema-3 symbols use their persisted qualified `nodeId`; identities are not reconstructed from paths and simple names. Same-name symbols in one file stay distinct, ambiguous names are reported as ambiguous, and missing or mismatched identities stay unresolved. Other schema values are rejected, and schema-2 results are unchanged.
+- Package content checks and `npm run verify:packed-package` accept the npm 11 and npm 12 `npm pack --json` formats through one validator that requires exactly one package, a nonempty file list, and safe relative paths.
+- Corrected the packed-package verifier so a symlink or junction invocation runs, early failures print `PACKED_PACKAGE_VERDICT: FAIL`, and verified failures exit nonzero.
+- Corrected the npm 12 output-prefix assumption in the target `test:security` test without weakening its assertions.
+- Security-verdict policy, report and execution schemas, commands, and the package version are unchanged.
+
 ## [0.9.3] - 2026-10-16
 
 - Improved security-validator runtime evidence and secret-scan accuracy while retaining bounded proof and candidate-versus-confirmed finding distinctions.

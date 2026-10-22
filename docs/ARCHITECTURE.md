@@ -426,6 +426,50 @@ Baseline bootstrap is requested as an incremental changed-files build into a bra
 - `warm-index-reuse`, the released v0.6.1 affected-neighborhood semantics, and `changedSymbolCount` are unchanged. The plugin remains self-only.
 - Not added: a new plugin, `graph-diff` dependency, true-symbol-diff metric, multi-hop traversal, automatic refresh policy, treatment ranking, safety score, real-agent campaign requirement, new plot/screenshot/gallery item, external-target support, or a public Lab `--refresh-scope` flag.
 
+## Kit schema-3 and package-inventory compatibility architecture (v0.9.4, implemented; unreleased)
+
+Status: implemented on `fix/v0.9.4-kit-schema3-compat`; unreleased. This adds no component, graph engine, experiment runner, or report schema. It changes how two existing owners read external formats.
+
+**Producer/consumer flow for the `incremental-change-staleness` experiment.** `src/evaluation/affectedNeighborhood.ts` is the existing owner of symbol-index interpretation; the experiment plugin and its reports consume its output unchanged.
+
+```text
+my-dev-kit artifact (symbol index schema 2 or 3, code graph major 1)
+  -> existing Lab symbol-index interpretation (affectedNeighborhood.ts)
+  -> persisted symbol and graph identities (schema 3: the persisted nodeId, e.g. symbolq:...)
+  -> affected-neighborhood seed mapping (changed file/symbol -> graph nodes)
+  -> existing experiment treatments (stale-index, changed-files-refresh,
+     affected-neighborhood-refresh, full-refresh)
+  -> existing evaluation, comparisons, and reports
+```
+
+Invariants:
+
+* Schema `2` and `3` are the only accepted symbol-index schemas; any other value is rejected rather than interpreted. Schema-2 evidence keeps its original shape and results.
+* A schema-3 symbol's identity is its persisted `nodeId`. It is never rebuilt from a file path and a simple name, so two symbols with the same name in one file (for example a trait declaration and its implementation) are two identities.
+* A symbol resolves only when its node exists in the graph, is a `symbol` node, and (when the graph states a path) belongs to the same file. Missing, empty, non-string, kind-mismatched, path-mismatched, or absent identities stay unresolved with an explicit reason; they are never guessed.
+* A simple expected name that matches several identities in the expected files is reported ambiguous with its candidate identities. An exact persisted node ID selects one.
+* Only files selected by the scenario become indexed members or seeds.
+* Code graph `1.1.0` is read through the existing major-one reader. Version compatibility is not proof that each relationship is correct, and the analysis is not compiler-level resolution.
+* Graph and seed-mapping evidence carry a `complete`, `partial`, or `unavailable` status. Any unresolved or ambiguous symbol makes the seed mapping `partial`, and unusable graph evidence is `unavailable`; incomplete evidence is never reported as complete.
+
+**Package verification flow.** `src/securityValidation/packageChecks/parseNpmPackDryRun.ts` owns inventory normalization; the verifier reuses it rather than adding a parser.
+
+```text
+npm pack JSON (npm 11: array; npm 12: object keyed by package identity)
+  -> validated single-package inventory (parseNpmPackJsonEntry)
+  -> package security checks (required public files, forbidden private files)
+     and the packed-package verifier (identity, tarball filename, installed-consumer gates)
+  -> existing security verdict (verdict policy unchanged)
+```
+
+Invariants:
+
+* Exactly one package entry with a nonempty `files` list is required. Empty, multiple, bare-object, malformed, or truncated input is an error, never an empty success.
+* Paths must be relative and safe; traversal, absolute, drive, UNC, control-character, and empty-segment paths are rejected. The archive root is added once.
+* `scripts/verify-packed-package.mjs` additionally requires the expected package name and version and a filename equal to the single tarball on disk. Package-content checks and every installed-consumer gate, including `AGENT_SUCCESS_OUTPUT_ROOT`, run as before.
+* The verifier resolves the entry script through real paths so a symlink or junction invocation still executes, and a failure before its normal gate handling still prints `PACKED_PACKAGE_VERDICT: FAIL`. A valid result needs exit code 0 and `PACKED_PACKAGE_VERDICT: PASS`.
+* No second graph engine, second experiment runner, report-schema change, or security-policy change exists.
+
 ## Context-window scaling architecture (v0.7.0)
 
 Status: **published in v0.7.0**.
