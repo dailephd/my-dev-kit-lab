@@ -276,7 +276,7 @@ Behavior:
 - no `graph-diff` dependency, no numeric stale-risk score, no treatment winner or ranking, and no safety score are produced
 
 ```text
-my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U1,L2 --kit-command "node /path/to/my-dev-kit/bin/cli.js" --out <dir>
+my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U1,L2 --kit-command "node /path/to/my-dev-kit/dist/cli.js" --out <dir>
 ```
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
