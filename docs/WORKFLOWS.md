@@ -297,9 +297,11 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
    ```powershell
    npm run experiment:run -- `
      --experiment incremental-change-staleness `
-     --kit-command "node C:\path\to\my-dev-kit\bin\cli.js" `
+     --kit-command "node C:\path\to\my-dev-kit\dist\cli.js" `
      --out lab-output\staleness-kit-candidate
    ```
+
+   `C:\path\to\my-dev-kit` is a placeholder: substitute the directory of your built my-dev-kit checkout or installed `@dailephd/my-dev-kit` package. The executable is that package's `dist/cli.js` (its declared `bin` entry); there is no `bin/cli.js`. Check it first with `node <path>\dist\cli.js --version`.
 
    Schema `2` and `3` are detected from the built index; do not look for a schema option. The default `--kit-command` is unchanged.
 2. Read `report.txt` or `report.json`. Confirm all selected scenarios are `ready`, each shows four treatments in the persisted order, and each partial treatment shows requested versus applied scope. A `FALLBACK_FULL` treatment is not partial-refresh evidence.
