@@ -284,9 +284,9 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 **Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.5` for all six scenarios with all four treatments, requires both partial treatments to be applied without fallback, checks operational discrimination between changed-files and affected-neighborhood refresh, and keeps the canonical benchmarks and both installed packages immutable. It introduces no new plot, screenshot, or gallery item.
 
-## Kit schema-3 compatibility and package-verification workflow (v0.9.4, implemented; unreleased)
+## Kit schema-3 compatibility and package-verification workflow (v0.9.4)
 
-**Goal:** run the existing staleness experiment against a my-dev-kit that writes symbol-index schema `3`, and verify the package with either npm 11 or npm 12, from the source checkout on `fix/v0.9.4-kit-schema3-compat`. The installed 0.9.3 package does not include these changes.
+**Goal:** run the existing staleness experiment against a my-dev-kit that writes symbol-index schema `3`, and verify the package with either npm 11 or npm 12, from the v0.9.4 package or source checkout.
 
 **Prerequisites:** Node 24 or later, `npm ci` and `npm run build` completed, and a my-dev-kit command to test. A custom command must be my-dev-kit 1.12.5 or later.
 

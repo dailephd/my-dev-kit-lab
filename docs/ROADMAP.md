@@ -1579,7 +1579,7 @@ The initial Stage 4 audit found glossary and comparison-evidence defects; bounde
 
 ### v0.9.4 — Kit schema-3 and npm 12 compatibility correction
 
-Status: **implemented; unreleased; documentation reconciled on the compatibility branch and awaiting acceptance; pre-release readiness not yet established**. Package metadata remains 0.9.3; no version bump, tag, GitHub Release, or npm publication exists for v0.9.4.
+Status: **release candidate prepared; final release-document state**. Package metadata is 0.9.4; v0.9.4 scope and acceptance criteria are retained below. External publication evidence is established through the registry and release records, not this status line.
 
 Purpose:
 

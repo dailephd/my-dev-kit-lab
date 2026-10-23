@@ -281,9 +281,9 @@ my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
-#### Schema-3 compatibility and package-validation scripts (v0.9.4, implemented; unreleased)
+#### Schema-3 compatibility and package-validation scripts (v0.9.4)
 
-No new command, flag, or compatibility selector was added. In the source checkout on `fix/v0.9.4-kit-schema3-compat`:
+No new command, flag, or compatibility selector was added. In the v0.9.4 package and source checkout:
 
 * `experiment run --experiment incremental-change-staleness` reads my-dev-kit symbol-index schema `2` or `3` automatically from the index the `--kit-command` builds; there is no `--schema-version` option. Output files and schema names are unchanged. In the evidence, a qualified (`symbolq:`) identity is used exactly as persisted, an `ambiguous` mapping lists several candidate identities for one simple name, and an unresolved symbol carries an explicit reason instead of a guessed ID. Each partial treatment still records requested versus applied scope (`APPLIED_PARTIAL` or `FALLBACK_FULL`).
 * `npm run security:package` runs the package content checks. Both npm 11 and npm 12 `npm pack --json` output formats are accepted; malformed, empty, multiple-package, or unsafe-path inventories fail.

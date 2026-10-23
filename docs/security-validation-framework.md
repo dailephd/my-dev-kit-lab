@@ -209,7 +209,7 @@ Current report/schema details:
 
 Lab self-validation retains its strict required inventory. External packages are checked against their declared supported entrypoints; missing required entrypoints, malformed or incomplete package metadata, failed or unparseable package evidence, and forbidden contents remain blockers. This eliminates the nine inherited Lab-only Orchestrator false positives without weakening forbidden-file validation. Package inventory and metadata failures cannot pass. The security verdict policy is unchanged. Prompt/report/gallery work is included in v0.9.3; the initial glossary and comparison-evidence defects were corrected, and real-provider effectiveness remains NOT_VERIFIED and is a non-gating empirical follow-up under the corrected v0.9.3 roadmap acceptance. See [CURRENT_STATE.md](CURRENT_STATE.md) and the preserved acceptance criteria in [ROADMAP.md](ROADMAP.md#v093--hardened-real-agent-prompts-and-reportgallery-generalization).
 
-### Package inventory parsing and packed-package verification (v0.9.4, implemented; unreleased)
+### Package inventory parsing and packed-package verification (v0.9.4)
 
 * **Accepted inventory formats:** the package content checks parse the `npm pack --json` output of npm 11 (an array of package objects) and npm 12 (one object keyed by package identity). No other shape is accepted.
 * **Strict single package:** exactly one package with a nonempty file list is required. Empty, multiple-package, bare-object, malformed, truncated, or trailing-text input fails the check; an unparseable inventory is never treated as an empty successful one.

@@ -426,9 +426,9 @@ Baseline bootstrap is requested as an incremental changed-files build into a bra
 - `warm-index-reuse`, the released v0.6.1 affected-neighborhood semantics, and `changedSymbolCount` are unchanged. The plugin remains self-only.
 - Not added: a new plugin, `graph-diff` dependency, true-symbol-diff metric, multi-hop traversal, automatic refresh policy, treatment ranking, safety score, real-agent campaign requirement, new plot/screenshot/gallery item, external-target support, or a public Lab `--refresh-scope` flag.
 
-## Kit schema-3 and package-inventory compatibility architecture (v0.9.4, implemented; unreleased)
+## Kit schema-3 and package-inventory compatibility architecture (v0.9.4)
 
-Status: implemented on `fix/v0.9.4-kit-schema3-compat`; unreleased. This adds no component, graph engine, experiment runner, or report schema. It changes how two existing owners read external formats.
+Status: final release-document state for v0.9.4. This adds no component, graph engine, experiment runner, or report schema. It changes how two existing owners read external formats.
 
 **Producer/consumer flow for the `incremental-change-staleness` experiment.** `src/evaluation/affectedNeighborhood.ts` is the existing owner of symbol-index interpretation; the experiment plugin and its reports consume its output unchanged.
 
