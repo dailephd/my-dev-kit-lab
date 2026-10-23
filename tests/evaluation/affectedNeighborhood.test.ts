@@ -10,6 +10,7 @@ import {
   loadAffectedNeighborhoodGraphEvidence,
   lookupFileNode,
   lookupSymbolNode,
+  lookupSymbolRecordNode,
   mapAffectedNeighborhoodSeeds,
   mapAffectedNeighborhoodTask,
   traverseAffectedNeighborhood,
@@ -51,6 +52,8 @@ type IndexOptions = {
   graph?: { nodes: GraphNode[]; edges: GraphEdge[] } | null;
   codeGraphContent?: unknown;
   manifestArtifacts?: Record<string, unknown>;
+  /** Overrides the symbol-index `schemaVersion` (the helper default is the my-dev-kit 1.13 value, "2"). */
+  symbolSchemaVersion?: unknown;
 };
 
 /** Writes a real-shaped manifest, symbol index (with symbols), and code graph for the fixture. */
@@ -63,7 +66,7 @@ function writeGraphIndex(fixture: Fixture, options: IndexOptions = {}): void {
     symbols: options.symbolRecords?.[p] ?? symbols[p].map((name) => ({ name, kind: "function" })),
   }));
   writeIndex(fixture, listed, {
-    symbolIndex: { files },
+    symbolIndex: { files, ...("symbolSchemaVersion" in options ? { schemaVersion: options.symbolSchemaVersion } : {}) },
     manifest: { artifacts: options.manifestArtifacts ?? { symbolIndex: "symbol-index.json", codeGraph: "code-graph.json" } },
   });
   if (options.graph !== null) {
@@ -1168,5 +1171,370 @@ describe("affected-neighborhood assessment against real my-dev-kit 1.12.4 graph 
     expect(result.taskOverlapNodeIds).toContain("file:src/store/taskStore.ts");
     expect(result.relationship).toBe("related");
     expect(result.reindexRecommendation).toBe("recommended");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// v0.9.4: my-dev-kit 1.14.0 (symbol-index schema 3, code graph 1.1.0) compatibility.
+//
+// Schema 3 persists each symbol's actual graph `nodeId`. Same-named members therefore have distinct
+// `symbolq:` identities that cannot be reconstructed as `symbol:<file>#<name>`. The symbol records
+// below are copied from real my-dev-kit 1.14.0 index output (Python `Worker.run`, Rust trait-declared
+// and impl-defined `run`); only the Rust file path is shortened to fit this fixture's source roots.
+// ---------------------------------------------------------------------------------------------
+const PY_FILE = "src/worker.py";
+const PY_WORKER = "symbol:src/worker.py#Worker";
+const PY_RUN = "symbolq:src%2Fworker.py#python%2Fclass%3AWorker#run#0";
+const PY_RECORDS = [
+  { name: "Worker", kind: "class", location: { file: PY_FILE, line: 1, endLine: 3 }, exported: true, signature: "class Worker:", nodeId: PY_WORKER },
+  {
+    name: "run",
+    kind: "method",
+    location: { file: PY_FILE, line: 2, endLine: 3 },
+    exported: false,
+    signature: "def run(self):",
+    ownerKey: "python/class:Worker",
+    qualifiedName: "Worker.run",
+    nodeId: PY_RUN,
+  },
+];
+
+const RS_FILE = "src/tasks.rs";
+const RS_RUNNER = "symbol:src/tasks.rs#Runner";
+const RS_WORKER = "symbol:src/tasks.rs#Worker";
+const RS_RUN_TRAIT = "symbolq:src%2Ftasks.rs#rust%3Atrait_item%3ARunner%401%3A0#run#0";
+const RS_RUN_IMPL = "symbolq:src%2Ftasks.rs#rust%3Aimpl%3AWorker%3Atrait%3ARunner%4017%3A263#run#0";
+const RS_RECORDS = [
+  { name: "Runner", kind: "trait", location: { file: RS_FILE, line: 1, endLine: 4 }, exported: false, signature: "pub trait Runner", nodeId: RS_RUNNER },
+  {
+    name: "run",
+    kind: "method",
+    location: { file: RS_FILE, line: 3, endLine: 3 },
+    exported: false,
+    signature: "fn run(&self) -> u32;",
+    ownerKey: "rust:trait_item:Runner@1:0",
+    qualifiedName: "rust:trait_item:Runner@1:0::run",
+    nodeId: RS_RUN_TRAIT,
+  },
+  { name: "Worker", kind: "struct", location: { file: RS_FILE, line: 6, endLine: 9 }, exported: false, signature: "pub struct Worker", nodeId: RS_WORKER },
+  {
+    name: "run",
+    kind: "method",
+    location: { file: RS_FILE, line: 18, endLine: 20 },
+    exported: false,
+    signature: "fn run(&self) -> u32",
+    ownerKey: "rust:impl:Worker:trait:Runner@17:263",
+    qualifiedName: "rust:impl:Worker:trait:Runner@17:263::run",
+    nodeId: RS_RUN_IMPL,
+  },
+];
+
+type Record3 = { name: string; nodeId?: unknown } & Record<string, unknown>;
+const SCHEMA3_FILES: Record<string, Record3[]> = { [PY_FILE]: PY_RECORDS, [RS_FILE]: RS_RECORDS };
+const SCHEMA3_SOURCES = { [PY_FILE]: "class Worker:\n    def run(self):\n        pass\n", [RS_FILE]: "pub trait Runner {\n    fn run(&self) -> u32;\n}\n" };
+
+/** A real-shaped code graph for the given symbol records: persisted node IDs, never name-derived ones. */
+function graphOfRecords(files: Record<string, Record3[]>): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const nodes: GraphNode[] = [];
+  const edges: GraphEdge[] = [];
+  for (const [file, records] of Object.entries(files)) {
+    nodes.push({ id: `file:${file}`, kind: "file", label: path.basename(file), path: file });
+    for (const record of records) {
+      if (typeof record.nodeId !== "string" || record.nodeId === "") continue;
+      nodes.push({ id: record.nodeId, kind: "symbol", label: record.name, path: file });
+      edges.push({ id: `file:${file}--defines-->${record.nodeId}`, source: `file:${file}`, target: record.nodeId, kind: "defines" });
+    }
+  }
+  return { nodes, edges };
+}
+
+function schema3Options(files: Record<string, Record3[]> = SCHEMA3_FILES, extra: Partial<IndexOptions> = {}): IndexOptions {
+  return {
+    symbols: Object.fromEntries(Object.entries(files).map(([file, records]) => [file, records.map((record) => record.name)])),
+    symbolRecords: files,
+    symbolSchemaVersion: "3",
+    graph: graphOfRecords(files),
+    codeGraphContent: { artifactKind: "code-graph", schemaVersion: "1.1.0", ...graphOfRecords(files) },
+    ...extra,
+  };
+}
+
+const prepare3 = (options: IndexOptions = schema3Options(), sources: Record<string, string> = SCHEMA3_SOURCES) => prepare(options, sources);
+
+describe("my-dev-kit 1.14.0 symbol-index schema 3 and code graph 1.1.0", () => {
+  it("accepts schema 2 and schema 3 and reports the version it read", async () => {
+    const v2 = await prepare();
+    const v3 = await prepare3();
+
+    expect(v2.graph.symbolIndex).toEqual({ path: "symbol-index.json", schemaVersion: "2" });
+    expect(v3.graph.symbolIndex).toEqual({ path: "symbol-index.json", schemaVersion: "3" });
+    expect(v3.graph.codeGraph).toEqual({ path: "code-graph.json", artifactKind: "code-graph", schemaVersion: "1.1.0" });
+    expect(v3.graph.status).toBe("complete");
+    expect(v3.graph.warnings).toEqual([]);
+  });
+
+  it("keeps schema-2 evidence exactly as before: names are the identities and no per-record data is added", async () => {
+    const { graph } = await prepare();
+
+    expect(graph.symbolFiles.get("src/a.ts")).toEqual({ symbolNames: ["a", "helper"], duplicateSymbolNames: [] });
+    expect(lookupSymbolNode(graph, "src/a.ts", "helper")).toEqual({ ok: true, nodeId: "symbol:src/a.ts#helper" });
+  });
+
+  it("keeps a repeated schema-2 name as one identity, as in my-dev-kit 1.13", async () => {
+    const { fixture, snapshot, graph } = await prepare({ symbolRecords: { "src/a.ts": [{ name: "a" }, { name: "a" }, { name: "helper" }], "src/nested/b.ts": [{ name: "b" }], "tests/a.test.ts": [] } });
+    writeFileSync(abs(fixture, "src/a.ts"), "export const a = 99;\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(graph.symbolFiles.get("src/a.ts")?.duplicateSymbolNames).toEqual(["a"]);
+    expect(result.changedSymbolCount).toBe(2);
+    expect(result.seedNodeIds).toEqual(["file:src/a.ts", "symbol:src/a.ts#a", "symbol:src/a.ts#helper"]);
+    expect(result.warnings).toEqual([expect.objectContaining({ code: "duplicate-symbol-records", path: "src/a.ts" })]);
+  });
+
+  it("maps ordinary schema-3 symbols through their persisted node IDs", async () => {
+    const { fixture, snapshot, graph } = await prepare3();
+    writeFileSync(abs(fixture, PY_FILE), "class Worker:\n    def run(self):\n        return 1\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(result.changedFiles).toEqual([
+      { path: PY_FILE, changeType: "modified", expectedNodeId: `file:${PY_FILE}`, resolvedNodeId: `file:${PY_FILE}`, status: "mapped", unresolvedReason: null },
+    ]);
+    expect(result.changedSymbols.find((entry) => entry.name === "Worker")).toMatchObject({ expectedNodeId: PY_WORKER, resolvedNodeId: PY_WORKER, status: "mapped" });
+  });
+
+  it("maps a qualified Python member to its persisted symbolq identity, never to symbol:<file>#<name>", async () => {
+    const { fixture, snapshot, graph } = await prepare3();
+    writeFileSync(abs(fixture, PY_FILE), "class Worker:\n    def run(self):\n        return 1\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(result.status).toBe("complete");
+    expect(result.seedNodeIds).toEqual([`file:${PY_FILE}`, PY_RUN, PY_WORKER].sort());
+    expect(result.changedSymbols.find((entry) => entry.name === "run")).toEqual({
+      path: PY_FILE,
+      name: "run",
+      expectedNodeId: PY_RUN,
+      resolvedNodeId: PY_RUN,
+      status: "mapped",
+      unresolvedReason: null,
+    });
+    expect(result.seedNodeIds).not.toContain(`symbol:${PY_FILE}#run`);
+    expect(graph.nodes.has(`symbol:${PY_FILE}#run`)).toBe(false);
+  });
+
+  it("keeps distinct same-named Rust impl members as separate identities and seeds", async () => {
+    const { fixture, snapshot, graph } = await prepare3();
+    writeFileSync(abs(fixture, RS_FILE), "pub trait Runner {\n    fn run(&self) -> u32;\n}\n// changed\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(graph.symbolFiles.get(RS_FILE)?.symbolNames).toEqual(["Runner", "Worker", "run"]);
+    expect(graph.symbolFiles.get(RS_FILE)?.sameNameSymbolNames).toEqual(["run"]);
+    expect(graph.symbolFiles.get(RS_FILE)?.duplicateSymbolNames).toEqual([]);
+    expect(result.status).toBe("complete");
+    expect(result.changedSymbolCount).toBe(4);
+    expect(result.mappedChangedSymbolNodeCount).toBe(4);
+    expect(result.changedSymbols.filter((entry) => entry.name === "run").map((entry) => entry.resolvedNodeId)).toEqual([RS_RUN_IMPL, RS_RUN_TRAIT]);
+    expect(result.seedNodeIds).toEqual([`file:${RS_FILE}`, RS_RUN_IMPL, RS_RUN_TRAIT, RS_RUNNER, RS_WORKER].sort());
+    expect(result.warnings.map((warning) => warning.code)).not.toContain("duplicate-symbol-records");
+  });
+
+  it("resolves a qualified owner by its exact persisted node ID and nothing else", async () => {
+    const { graph } = await prepare3();
+    const impl = graph.symbolFiles.get(RS_FILE)?.records?.find((record) => record.nodeId === RS_RUN_IMPL);
+
+    expect(impl).toEqual({ name: "run", nodeId: RS_RUN_IMPL, persisted: true });
+    expect(lookupSymbolRecordNode(graph, RS_FILE, impl as NonNullable<typeof impl>)).toEqual({ ok: true, nodeId: RS_RUN_IMPL });
+    // The upstream file+name identity does not exist for a qualified member and is not fabricated.
+    expect(lookupSymbolNode(graph, RS_FILE, "run")).toEqual({ ok: false, expectedNodeId: `symbol:${RS_FILE}#run`, reason: "graph-node-missing" });
+  });
+
+  it("reports a simple name with several identities as ambiguous, and resolves an exact node ID or unique name", async () => {
+    const { graph } = await prepare3();
+
+    const result = mapAffectedNeighborhoodTask({ graph, expectedFiles: [RS_FILE], expectedSymbols: ["run", RS_RUN_IMPL, "Worker", "absent"] });
+
+    expect(result.ambiguousSymbols).toEqual([{ name: "run", candidateNodeIds: [RS_RUN_IMPL, RS_RUN_TRAIT].sort() }]);
+    expect(result.resolvedSymbols).toEqual([
+      { name: RS_RUN_IMPL, nodeId: RS_RUN_IMPL },
+      { name: "Worker", nodeId: RS_WORKER },
+    ].sort((left, right) => (left.name < right.name ? -1 : 1)));
+    expect(result.unresolved).toEqual([{ subject: "expected-symbol", name: "absent", reason: "graph-node-missing" }]);
+    expect(result.resolvedTaskNodeIds).not.toContain(RS_RUN_TRAIT);
+    expect(result.status).toBe("partial");
+  });
+
+  it("treats the same simple name in two expected files as ambiguous, not as the first match", async () => {
+    const { graph } = await prepare3();
+
+    const result = mapAffectedNeighborhoodTask({ graph, expectedFiles: [PY_FILE, RS_FILE], expectedSymbols: ["Worker"] });
+
+    expect(result.ambiguousSymbols).toEqual([{ name: "Worker", candidateNodeIds: [PY_WORKER, RS_WORKER].sort() }]);
+    expect(result.resolvedSymbols).toEqual([]);
+    // Only the two exact file nodes resolve; neither ambiguous candidate is added.
+    expect(result.resolvedTaskNodeIds).toEqual([`file:${PY_FILE}`, `file:${RS_FILE}`].sort());
+  });
+
+  it("never guesses an identity for a schema-3 record without a persisted nodeId", async () => {
+    const records = RS_RECORDS.map((record) => (record.nodeId === RS_RUN_IMPL ? { ...record, nodeId: undefined } : record));
+    const { fixture, snapshot, graph } = await prepare3(schema3Options({ [RS_FILE]: records }), { [RS_FILE]: SCHEMA3_SOURCES[RS_FILE] });
+    writeFileSync(abs(fixture, RS_FILE), "pub trait Runner {\n    fn run(&self) -> u32;\n}\n// changed\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(graph.status).toBe("partial");
+    expect(graph.warnings).toEqual([expect.objectContaining({ code: "symbol-node-id-missing", subject: `${RS_FILE}#run` })]);
+    expect(graph.symbolFiles.get(RS_FILE)?.records).toContainEqual({ name: "run", nodeId: RS_RUN_TRAIT, persisted: true });
+    expect(graph.symbolFiles.get(RS_FILE)?.records).toContainEqual({ name: "run", nodeId: null, persisted: true });
+    expect(result.status).toBe("partial");
+    expect(result.changedSymbolCount).toBe(4);
+    expect(result.mappedChangedSymbolNodeCount).toBe(3);
+    const missing = result.changedSymbols.find((entry) => entry.resolvedNodeId === null);
+    expect(missing).toEqual({ path: RS_FILE, name: "run", expectedNodeId: "", resolvedNodeId: null, status: "unresolved", unresolvedReason: "symbol-node-id-missing" });
+    expect(result.seedNodeIds).not.toContain(RS_RUN_IMPL);
+    expect(result.seedNodeIds.some((id) => id.includes("impl%3AWorker"))).toBe(false);
+    expect(result.unresolved).toContainEqual({ subject: "changed-symbol", path: RS_FILE, name: "run", reason: "symbol-node-id-missing" });
+
+    // A same-name identity with no persisted ID cannot be excluded, so the one mappable `run` is not trusted as the owner.
+    const task = mapAffectedNeighborhoodTask({ graph, expectedFiles: [RS_FILE], expectedSymbols: ["run"] });
+    expect(task.resolvedSymbols).toEqual([]);
+    expect(task.unresolved).toEqual([{ subject: "expected-symbol", name: "run", reason: "symbol-node-id-missing" }]);
+    expect(mapAffectedNeighborhoodTask({ graph, expectedFiles: [RS_FILE], expectedSymbols: [RS_RUN_TRAIT] }).resolvedSymbols).toEqual([{ name: RS_RUN_TRAIT, nodeId: RS_RUN_TRAIT }]);
+  });
+
+  it.each([null, 7, "", {}])("treats a non-string persisted nodeId %j as missing, not as an identity", async (nodeId) => {
+    const records = PY_RECORDS.map((record) => (record.name === "run" ? { ...record, nodeId } : record));
+    const { graph } = await prepare3(schema3Options({ [PY_FILE]: records }), { [PY_FILE]: SCHEMA3_SOURCES[PY_FILE] });
+
+    expect(graph.warnings.map((warning) => warning.code)).toEqual(["symbol-node-id-missing"]);
+    expect(graph.symbolFiles.get(PY_FILE)?.records).toContainEqual({ name: "run", nodeId: null, persisted: true });
+  });
+
+  it("leaves a persisted identity whose graph endpoint is missing unresolved and unseeded", async () => {
+    const files = { [PY_FILE]: PY_RECORDS };
+    const full = graphOfRecords(files);
+    const graphWithoutRun = { nodes: full.nodes.filter((node) => node.id !== PY_RUN), edges: full.edges.filter((edge) => edge.target !== PY_RUN) };
+    const { fixture, snapshot, graph } = await prepare3(schema3Options(files, { graph: graphWithoutRun, codeGraphContent: { artifactKind: "code-graph", schemaVersion: "1.1.0", ...graphWithoutRun } }), { [PY_FILE]: SCHEMA3_SOURCES[PY_FILE] });
+    writeFileSync(abs(fixture, PY_FILE), "class Worker:\n    def run(self):\n        return 1\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(result.status).toBe("partial");
+    expect(result.seedNodeIds).toEqual([`file:${PY_FILE}`, PY_WORKER].sort());
+    expect(result.changedSymbols.find((entry) => entry.name === "run")).toMatchObject({ expectedNodeId: PY_RUN, resolvedNodeId: null, unresolvedReason: "graph-node-missing" });
+    expect(mapAffectedNeighborhoodTask({ graph, expectedFiles: [PY_FILE], expectedSymbols: ["run"] }).unresolved).toEqual([
+      { subject: "expected-symbol", name: "run", reason: "graph-node-missing" },
+    ]);
+  });
+
+  it("does not select a node that belongs to another file, even when the persisted ID names it", async () => {
+    const stolen = PY_RECORDS.map((record) => (record.name === "run" ? { ...record, nodeId: "symbol:src/other.py#run" } : record));
+    const graphIn = graphOfRecords({ [PY_FILE]: PY_RECORDS });
+    graphIn.nodes.push({ id: "symbol:src/other.py#run", kind: "symbol", label: "run", path: "src/other.py" });
+    const { fixture, snapshot, graph } = await prepare3(
+      schema3Options({ [PY_FILE]: stolen }, { graph: graphIn, codeGraphContent: { artifactKind: "code-graph", schemaVersion: "1.1.0", ...graphIn } }),
+      { [PY_FILE]: SCHEMA3_SOURCES[PY_FILE] }
+    );
+    writeFileSync(abs(fixture, PY_FILE), "class Worker:\n    def run(self):\n        return 1\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(result.seedNodeIds).not.toContain("symbol:src/other.py#run");
+    expect(result.changedSymbols.find((entry) => entry.name === "run")).toMatchObject({ resolvedNodeId: null, unresolvedReason: "graph-node-path-mismatch" });
+    expect(mapAffectedNeighborhoodTask({ graph, expectedFiles: [PY_FILE], expectedSymbols: ["run"] }).unresolved).toEqual([
+      { subject: "expected-symbol", name: "run", reason: "graph-node-path-mismatch" },
+    ]);
+  });
+
+  it("keeps the first record of a duplicated graph node ID and warns instead of merging identities", async () => {
+    const graphIn = graphOfRecords({ [PY_FILE]: PY_RECORDS });
+    graphIn.nodes.push({ id: PY_RUN, kind: "symbol", label: "run", path: "src/elsewhere.py" });
+    const { graph } = await prepare3(schema3Options({ [PY_FILE]: PY_RECORDS }, { graph: graphIn, codeGraphContent: { artifactKind: "code-graph", schemaVersion: "1.1.0", ...graphIn } }), {
+      [PY_FILE]: SCHEMA3_SOURCES[PY_FILE],
+    });
+
+    expect(graph.status).toBe("partial");
+    expect(graph.warnings).toEqual([expect.objectContaining({ code: "duplicate-node-id", subject: PY_RUN })]);
+    expect(graph.nodes.get(PY_RUN)?.path).toBe(PY_FILE);
+  });
+
+  it("collapses an identical repeated schema-3 record but still warns", async () => {
+    const records = [...PY_RECORDS, PY_RECORDS[1]];
+    const { fixture, snapshot, graph } = await prepare3(schema3Options({ [PY_FILE]: records }), { [PY_FILE]: SCHEMA3_SOURCES[PY_FILE] });
+    writeFileSync(abs(fixture, PY_FILE), "class Worker:\n    def run(self):\n        return 1\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(graph.symbolFiles.get(PY_FILE)?.duplicateSymbolNames).toEqual(["run"]);
+    expect(result.changedSymbolCount).toBe(2);
+    expect(result.warnings).toEqual([expect.objectContaining({ code: "duplicate-symbol-records", path: PY_FILE })]);
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["a number", 3],
+    ["null", null],
+    ["empty", ""],
+    ["a different type", ["3"]],
+  ])("rejects a corrupt symbol-index schemaVersion (%s) as unsupported evidence", async (_label, version) => {
+    const { graph } = await prepare3(schema3Options(SCHEMA3_FILES, { symbolSchemaVersion: version }));
+
+    expect(graph.status).toBe("unavailable");
+    // The index snapshot (which also reads the symbol index) may already reject a non-string version.
+    expect(["index-snapshot-unavailable", "symbol-index-unsupported"]).toContain(graph.unavailable?.code);
+    expect(graph.indexedFilePaths).toEqual([]);
+    expect(graph.symbolFiles.size).toBe(0);
+  });
+
+  it.each(["1", "4", "3.0", "2.0.0", "v3", " 3", "03"])("rejects the unknown symbol-index schemaVersion %j", async (version) => {
+    const { graph } = await prepare3(schema3Options(SCHEMA3_FILES, { symbolSchemaVersion: version }));
+
+    expect(graph.status).toBe("unavailable");
+    expect(graph.unavailable).toMatchObject({ code: "symbol-index-unsupported", message: expect.stringContaining("supported version") });
+  });
+
+  it("derives membership only from the persisted symbol index and never from unselected files", async () => {
+    const { fixture, snapshot, graph } = await prepare3(undefined, { ...SCHEMA3_SOURCES, "scripts/unselected.py": "class Hidden:\n    pass\n" });
+    writeFileSync(abs(fixture, "scripts/unselected.py"), "class Hidden:\n    pass\n# changed\n");
+
+    const result = map(snapshot, await assess(fixture, snapshot), graph);
+
+    expect(graph.indexedFilePaths).toEqual([PY_FILE, RS_FILE].sort());
+    expect(result.changedFiles).toEqual([]);
+    expect(result.seedNodeIds).toEqual([]);
+    expect(result.status).toBe("complete");
+  });
+
+  it("accepts code graph 1.x and rejects an unsupported major version", async () => {
+    const supported = await prepare3(schema3Options(SCHEMA3_FILES, { codeGraphContent: { artifactKind: "code-graph", schemaVersion: "1.1.0", ...graphOfRecords(SCHEMA3_FILES) } }));
+    const unsupported = await prepare3(schema3Options(SCHEMA3_FILES, { codeGraphContent: { artifactKind: "code-graph", schemaVersion: "2.0.0", ...graphOfRecords(SCHEMA3_FILES) } }));
+
+    expect(supported.graph.codeGraph?.schemaVersion).toBe("1.1.0");
+    expect(supported.graph.nodes.has(RS_RUN_IMPL)).toBe(true);
+    expect(unsupported.graph.status).toBe("partial");
+    expect(unsupported.graph.codeGraph).toBeNull();
+    expect(unsupported.graph.warnings).toEqual([expect.objectContaining({ code: "code-graph-unsupported" })]);
+  });
+
+  it("resolves qualified symbols completely, so an unchanged-file task is classified instead of left unknown", async () => {
+    const { fixture, snapshot, graph } = await prepare3();
+    writeFileSync(abs(fixture, RS_FILE), "pub trait Runner {\n    fn run(&self) -> u32;\n}\n// changed\n");
+    const seedMapping = map(snapshot, await assess(fixture, snapshot), graph);
+
+    const exact = assessAffectedNeighborhood({ graph, seedMapping, task: { expectedFiles: [RS_FILE], expectedSymbols: [RS_RUN_IMPL] } });
+    const unchangedFile = assessAffectedNeighborhood({ graph, seedMapping, task: { expectedFiles: [PY_FILE], expectedSymbols: ["run", "Worker"] } });
+
+    expect(exact.relationship).toBe("related");
+    expect(exact.taskOverlapNodeIds).toContain(RS_RUN_IMPL);
+    expect(exact.taskOverlapNodeIds).not.toContain(RS_RUN_TRAIT);
+    // Before schema-3 support `run` could not be found in this file at all, which left the task "unknown".
+    expect(unchangedFile.taskMapping.status).toBe("complete");
+    expect(unchangedFile.taskMapping.resolvedSymbols).toEqual([
+      { name: "Worker", nodeId: PY_WORKER },
+      { name: "run", nodeId: PY_RUN },
+    ]);
+    expect(unchangedFile.relationship).toBe("unrelated");
   });
 });

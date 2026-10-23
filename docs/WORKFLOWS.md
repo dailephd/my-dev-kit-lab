@@ -284,6 +284,48 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 **Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.5` for all six scenarios with all four treatments, requires both partial treatments to be applied without fallback, checks operational discrimination between changed-files and affected-neighborhood refresh, and keeps the canonical benchmarks and both installed packages immutable. It introduces no new plot, screenshot, or gallery item.
 
+## Kit schema-3 compatibility and package-verification workflow (v0.9.4)
+
+**Goal:** run the existing staleness experiment against a my-dev-kit that writes symbol-index schema `3`, and verify the package with either npm 11 or npm 12, from the v0.9.4 package or source checkout.
+
+**Prerequisites:** Node 24 or later, `npm ci` and `npm run build` completed, and a my-dev-kit command to test. A custom command must be my-dev-kit 1.12.5 or later.
+
+**Steps:**
+
+1. Run the experiment with the my-dev-kit candidate and an output directory outside the inspected sources. PowerShell:
+
+   ```powershell
+   npm run experiment:run -- `
+     --experiment incremental-change-staleness `
+     --kit-command "node C:\path\to\my-dev-kit\dist\cli.js" `
+     --out lab-output\staleness-kit-candidate
+   ```
+
+   `C:\path\to\my-dev-kit` is a placeholder: substitute the directory of your built my-dev-kit checkout or installed `@dailephd/my-dev-kit` package. The executable is that package's `dist/cli.js` (its declared `bin` entry); there is no `bin/cli.js`. Check it first with `node <path>\dist\cli.js --version`.
+
+   Schema `2` and `3` are detected from the built index; do not look for a schema option. The default `--kit-command` is unchanged.
+2. Read `report.txt` or `report.json`. Confirm all selected scenarios are `ready`, each shows four treatments in the persisted order, and each partial treatment shows requested versus applied scope. A `FALLBACK_FULL` treatment is not partial-refresh evidence.
+3. Interpret qualified identities: a `symbolq:` node ID is the persisted identity. Several same-name symbols in one file are separate seeds. An `ambiguous` mapping means a simple name matched several candidates; resolve it by naming the persisted node ID instead of choosing one. An unresolved symbol (missing identity, wrong node kind, wrong file, or absent from the graph) makes the seed-mapping status `partial` instead of `complete`; it is not a pass.
+4. For a bounded compatibility smoke that does not touch your project, add `--case U1,L2` to step 1. The experiment is self-only and works on disposable copies of the bundled benchmark projects.
+5. Validate the package contents: `npm run security:package`.
+6. Run the exact-tarball gate and record both signals. PowerShell:
+
+   ```powershell
+   node scripts/verify-packed-package.mjs *> verify-packed.log
+   $LASTEXITCODE
+   Select-String -Path verify-packed.log -Pattern 'PACKED_PACKAGE_VERDICT'
+   ```
+
+   `npm run verify:packed-package` behaves the same. A pass is exit code 0 and `PACKED_PACKAGE_VERDICT: PASS`; anything else, including a FAIL marker with exit code 0, is a failing gate.
+
+**Expected outputs:** the staleness execution artifact and reports (names and schemas unchanged); the verifier log with its final verdict line.
+
+**Failures:** an unsupported symbol-index schema, a malformed or multi-package `npm pack` inventory, or an unsafe inventory path fails explicitly. A missing build fails the verifier with `FAILED_GATE: BUILD_REQUIRED`.
+
+**Test environment:** run the full suite with the operating-system temporary directory (outside any Git repository). A temporary root inside the Lab repository makes Git discover the enclosing repository and causes unrelated test failures.
+
+**Completion:** staleness reports show the schema-3 identities as described above, `npm run security:package` passes, and the packed-package verifier ends with exit code 0 and `PACKED_PACKAGE_VERDICT: PASS`.
+
 ## Context-window scaling experiment (v0.7.0)
 
 **Status:** released in v0.7.0; the synthetic-repository input (`--synthetic-config`) was added in v0.7.1, and the local-repository mode was added in v0.7.2 and remains available in the current release. By default this plugin uses a bundled four-case catalog and fixed self target and does not accept real-agent campaign options; an external `--target` is accepted only together with `--local-subject-config`.

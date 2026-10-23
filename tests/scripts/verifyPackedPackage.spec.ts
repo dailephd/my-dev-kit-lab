@@ -1,7 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { parseNpmPackJsonEntry } from "../../src/securityValidation/packageChecks/parseNpmPackDryRun.js";
 import {
   diffSnapshots,
   findExactlyOneTarball,
@@ -294,5 +297,146 @@ describe("snapshotDirectory / diffSnapshots", () => {
     expect(changes).toContain("modified: changed.txt");
     expect(changes).toContain("added: added.txt");
     expect(changes).toHaveLength(3);
+  });
+});
+
+describe("resolvePackEntry (npm 11 and npm 12 `npm pack --json` shapes)", () => {
+  const NAME = "@dailephd/my-dev-kit-lab";
+  const VERSION = "0.9.3";
+  const TARBALL = "dailephd-my-dev-kit-lab-0.9.3.tgz";
+  const packEntry = (overrides: Record<string, unknown> = {}) => ({
+    id: `${NAME}@${VERSION}`,
+    name: NAME,
+    version: VERSION,
+    size: 1159149,
+    filename: TARBALL,
+    files: [
+      { path: "package.json", size: 3000, mode: 420 },
+      { path: "dist/scripts/cli.js", size: 900, mode: 493 }
+    ],
+    ...overrides
+  });
+  const npm11 = (entry: unknown = packEntry()) => JSON.stringify([entry], null, 2);
+  const npm12 = (entry: unknown = packEntry()) => JSON.stringify({ [NAME]: entry }, null, 2);
+  const expected = { expectedName: NAME, expectedVersion: VERSION, tarballFilename: TARBALL };
+
+  // The verifier is a shebang script that Vite's transform cannot load, so it runs natively in a child process.
+  // The real validated parser result is passed in, and resolvePackEntry's own checks run unchanged.
+  async function resolve(stdout: string, overrides: Partial<typeof expected> = {}) {
+    const script = [
+      `const { resolvePackEntry } = await import(${JSON.stringify(pathToFileURL(path.resolve("scripts/verify-packed-package.mjs")).href)});`,
+      "const input = JSON.parse((await import(\"node:fs\")).readFileSync(0, \"utf8\"));",
+      "try {",
+      "  const entry = resolvePackEntry(() => input.parsed, input.stdout, input.options);",
+      "  console.log(JSON.stringify({ ok: true, entry }));",
+      "} catch (error) {",
+      "  console.log(JSON.stringify({ ok: false, message: String(error.message) }));",
+      "}"
+    ].join("\n");
+    const input = JSON.stringify({ parsed: parseNpmPackJsonEntry(stdout), stdout, options: { ...expected, ...overrides } });
+    const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", input, maxBuffer: 64 * 1024 * 1024 });
+    if (run.status !== 0) throw new Error(`child failed: ${run.stderr}`);
+    const outcome = JSON.parse(run.stdout) as { ok: boolean; entry?: { filename: string; files: string[] }; message?: string };
+    if (!outcome.ok) throw new Error(outcome.message);
+    return outcome.entry as { filename: string; files: string[] };
+  }
+
+  it.each([
+    ["npm 11 array", npm11],
+    ["npm 12 identity-keyed object", npm12]
+  ])("accepts the %s shape and yields validated package-relative files", async (_label, render) => {
+    const entry = await resolve(render());
+    expect(entry.filename).toBe(TARBALL);
+    expect(entry.files).toEqual(["package.json", "dist/scripts/cli.js"]);
+  });
+
+  it("returns identical entries for both shapes", async () => {
+    expect(await resolve(npm12())).toEqual(await resolve(npm11()));
+  });
+
+  it.each([
+    ["an empty array", "[]"],
+    ["an empty object", "{}"],
+    ["multiple array entries", JSON.stringify([packEntry(), packEntry()])],
+    ["multiple keyed entries", JSON.stringify({ a: packEntry(), b: packEntry() })],
+    ["a bare package object", JSON.stringify(packEntry())],
+    ["malformed JSON", "[{ not json"],
+    ["empty output", ""],
+    ["empty files", npm12(packEntry({ files: [] }))],
+    ["missing files", npm11(packEntry({ files: undefined }))],
+    ["a parent-traversal path", npm12(packEntry({ files: [{ path: "../escape.js" }] }))],
+    ["an absolute path", npm11(packEntry({ files: [{ path: "/etc/passwd" }] }))],
+    ["a drive path", npm12(packEntry({ files: [{ path: "C:/Windows/x.js" }] }))]
+  ])("rejects %s as a PACK gate failure", async (_label, stdout) => {
+    await expect(resolve(stdout)).rejects.toThrow(/\[PACK\]/);
+  });
+
+  it("rejects a missing filename", async () => {
+    await expect(resolve(npm12(packEntry({ filename: undefined })))).rejects.toThrow(/no tarball filename/);
+  });
+
+  it("rejects a filename that does not match the tarball on disk", async () => {
+    await expect(resolve(npm11(packEntry({ filename: "other-0.9.3.tgz" })))).rejects.toThrow(/does not match the single tarball/);
+  });
+
+  it("rejects a different package identity", async () => {
+    await expect(resolve(npm12(packEntry({ name: "someone-else" })))).rejects.toThrow(/package identity/);
+    await expect(resolve(npm11(packEntry({ version: "9.9.9" })))).rejects.toThrow(/package identity/);
+  });
+
+  it("lets the existing required-path check reject an inventory without runtime files", async () => {
+    const entry = await resolve(npm12(packEntry({ files: [{ path: "README.md" }] })));
+    const missing = missingRequiredTarballPaths(new Set(entry.files), ["package.json", "dist/scripts/cli.js"]);
+    expect(missing).toEqual(["package.json", "dist/scripts/cli.js"]);
+  });
+
+  it("accepts the real `npm pack --dry-run --json` output of the installed npm", async () => {
+    const run = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      shell: process.platform === "win32",
+      maxBuffer: 64 * 1024 * 1024
+    });
+    expect(run.status).toBe(0);
+    const pkg = JSON.parse(readFileSync(path.resolve("package.json"), "utf8")) as { name: string; version: string };
+    const tarball = `${pkg.name.replace(/^@/, "").replace("/", "-")}-${pkg.version}.tgz`;
+    const entry = await resolve(run.stdout, { expectedName: pkg.name, expectedVersion: pkg.version, tarballFilename: tarball });
+    expect(entry.files).toContain("package.json");
+    expect(entry.files.length).toBeGreaterThan(10);
+  }, 120_000);
+});
+
+describe("verify-packed-package entrypoint verdict integrity", () => {
+  // A copy without dist/ fails the BUILD_REQUIRED gate before main()'s gate handling, the earliest failure path.
+  function makeBuildlessCopy(): string {
+    const root = makeTempDir("vpp-buildless-");
+    mkdirSync(path.join(root, "scripts"));
+    for (const file of ["verify-packed-package.mjs", "verifyPackedPackageAgentSuccess.mjs"]) {
+      writeFileSync(path.join(root, "scripts", file), readFileSync(path.resolve("scripts", file)));
+    }
+    writeFileSync(path.join(root, "package.json"), readFileSync(path.resolve("package.json")));
+    return root;
+  }
+
+  function runVerifier(scriptPath: string, cwd: string) {
+    return spawnSync(process.execPath, [scriptPath], { cwd, encoding: "utf8" });
+  }
+
+  it("exits nonzero and prints the FAIL verdict marker when a gate fails before the main gate handling", () => {
+    const root = makeBuildlessCopy();
+    const run = runVerifier(path.join(root, "scripts", "verify-packed-package.mjs"), root);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("PACKED_PACKAGE_VERDICT: FAIL");
+    expect(run.stderr).toContain("FAILED_GATE: BUILD_REQUIRED");
+    expect(run.stdout).not.toContain("PACKED_PACKAGE_VERDICT: PASS");
+  });
+
+  it("still runs (and fails) when invoked through a directory link instead of silently doing nothing", () => {
+    const root = makeBuildlessCopy();
+    const link = path.join(makeTempDir("vpp-link-"), "linked");
+    symlinkSync(root, link, process.platform === "win32" ? "junction" : "dir");
+    const run = runVerifier(path.join(link, "scripts", "verify-packed-package.mjs"), link);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("PACKED_PACKAGE_VERDICT: FAIL");
   });
 });

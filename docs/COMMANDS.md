@@ -276,10 +276,18 @@ Behavior:
 - no `graph-diff` dependency, no numeric stale-risk score, no treatment winner or ranking, and no safety score are produced
 
 ```text
-my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U1,L2 --kit-command "node /path/to/my-dev-kit/bin/cli.js" --out <dir>
+my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U1,L2 --kit-command "node /path/to/my-dev-kit/dist/cli.js" --out <dir>
 ```
 
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
+
+#### Schema-3 compatibility and package-validation scripts (v0.9.4)
+
+No new command, flag, or compatibility selector was added. In the v0.9.4 package and source checkout:
+
+* `experiment run --experiment incremental-change-staleness` reads my-dev-kit symbol-index schema `2` or `3` automatically from the index the `--kit-command` builds; there is no `--schema-version` option. Output files and schema names are unchanged. In the evidence, a qualified (`symbolq:`) identity is used exactly as persisted, an `ambiguous` mapping lists several candidate identities for one simple name, and an unresolved symbol carries an explicit reason instead of a guessed ID. Each partial treatment still records requested versus applied scope (`APPLIED_PARTIAL` or `FALLBACK_FULL`).
+* `npm run security:package` runs the package content checks. Both npm 11 and npm 12 `npm pack --json` output formats are accepted; malformed, empty, multiple-package, or unsafe-path inventories fail.
+* `npm run verify:packed-package` (equivalent to `node scripts/verify-packed-package.mjs`) requires a prior `npm run build`. It ends with `PACKED_PACKAGE_VERDICT: PASS` and exit code 0, or `PACKED_PACKAGE_VERDICT: FAIL` with a `FAILED_GATE:` line and exit code 1. Treat a run as passing only when both hold; a FAIL marker is a failure regardless of any wrapper's exit status.
 
 #### `context-window-scaling` (released in v0.7.0; `--synthetic-config` added in v0.7.1; local-repository mode added in v0.7.2)
 

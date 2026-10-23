@@ -7,10 +7,10 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Current release-document and package version: `v0.9.3`.
-- Previous release: `v0.9.2` (external package-content validation and cross-platform corrections).
+- Current release-document and package version: `v0.9.4`.
+- Previous release: `v0.9.3` (prompt, report, metric, gallery, and comparison improvements).
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
-- Final release-document state: v0.9.3. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) was created on `2026-10-16`. npm publication status requires separate registry evidence.
+- Final release-document state: v0.9.4. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) remains historical release evidence; npm publication status is established through registry evidence.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Historical release: `v0.9.1` (2026-10-12), followed by `v0.9.2` on 2026-10-13.
 - Historical release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
@@ -20,8 +20,9 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
-- Package version: `0.9.3`. Release documents are in final-release state.
+- Package version: `0.9.4`. Release documents are in final-release state.
 - Next future roadmap version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
+- Current release: v0.9.4 (Kit schema-3 and npm 12 compatibility correction); see the v0.9.4 section below.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -29,15 +30,29 @@ This document records the repository's operational state. It is the source of tr
 
 See [CHANGELOG.md](../CHANGELOG.md) for release history and [ROADMAP.md](ROADMAP.md) for the complete future plan.
 
-## v0.9.3 release and acceptance state
+## v0.9.3 historical release and acceptance state
 
-Active planned version: `v0.10.0` remains the next future roadmap version. The current release is v0.9.3.
+At the v0.9.3 release, active planned version `v0.10.0` remained the next future roadmap version.
 
-The six implementation batches and bounded Stage 4 corrections are included in v0.9.3. They add validator-accuracy maintenance; Codex/Claude prompt contracts and bounded prompt settings; a generic report-section registry; metric glossary metadata and shared reliability caveats; gallery readers including read-only tutorial-manifest consumption; and prompt-template comparison over persisted campaign evidence. Package metadata is `0.9.3`.
+The six implementation batches and bounded Stage 4 corrections were included in v0.9.3. They added validator-accuracy maintenance; Codex/Claude prompt contracts and bounded prompt settings; a generic report-section registry; metric glossary metadata and shared reliability caveats; gallery readers including read-only tutorial-manifest consumption; and prompt-template comparison over persisted campaign evidence. Package metadata was `0.9.3`.
 
 The initial Stage 4 audit identified missing metric descriptors and prompt-comparison evidence defects; bounded correction tasks subsequently fixed and validated those implementation findings. Registered emitted metric IDs have evidence-based glossary descriptors and stable anchors, including bounded dynamic families; unknown external IDs remain explicitly unresolved. Reliability caveats use shared text/HTML evidence projection, preserve supported provenance, and retain UNKNOWN where producer evidence is unavailable. Prompt comparison validates checkpoint evidence through existing campaign owners; V1 template identity is UNVERIFIED without independent run-bound proof (sidecars and hashes alone are insufficient), while supported V2 evidence remains integrity-checked. Status-only provider `invalid-output` is excluded from numerator and denominator. No paid provider campaign was run: real-provider improvement remains `NOT_VERIFIED`, and bounded tool-use remains prompt guidance rather than enforcement.
 
 Stage 4 documentation reconciliation and implementation-completeness audit passed. Stage 5 readiness closeout passed: the full suite reported 7,796 passed and 9 skipped; package, security, code-rot, three-platform Node 24 CI and hosted CodeQL gates passed, with no applicable open alerts. The corrected roadmap accepts deterministic prompt contracts, invalid-output classification, matched denominators, verified prompt/checkpoint evidence, comparison reports, and regression/compatibility checks. Real-provider effectiveness remains NOT_VERIFIED as a separately authorized, non-gating empirical objective. Release preparation finalized the 0.9.3 package metadata and release documentation.
+
+## v0.9.4 release and acceptance state
+
+v0.9.4 is the current release-document and package state; `v0.10.0` remains the next future feature milestone. Release scope: Kit symbol-index schema-3 qualified-identity compatibility alongside schema 2; npm 11 and npm 12 package-inventory support; correct packed-package verifier behavior; and patched development-only security dependencies. Report, experiment, and security-verdict contracts are unchanged. The accepted implementation readiness result is `PASS_READY_FOR_RELEASE_PREP`; release-preparation validation is a separate gate. See [ROADMAP.md](ROADMAP.md#v094--kit-schema-3-and-npm-12-compatibility-correction).
+
+- Implementation branch: `fix/v0.9.4-kit-schema3-compat`. Accepted implementation commit: `97393177272c6173a230b6c693254e9067a4dde4`, which changes exactly seven files: `src/evaluation/affectedNeighborhood.ts`, `src/securityValidation/packageChecks/parseNpmPackDryRun.ts`, `scripts/verify-packed-package.mjs`, `tests/evaluation/affectedNeighborhood.test.ts`, `tests/security/packageContentChecks.test.ts`, `tests/security/cliSecuritySuiteCheck.test.ts`, and `tests/scripts/verifyPackedPackage.spec.ts`. Documentation reconciliation is a later commit on the same branch and changes no implementation file.
+- Schema compatibility: my-dev-kit symbol-index schemas `2` and `3` are accepted and all other values are rejected. Schema-3 symbols use their persisted qualified `nodeId` (`symbolq:` identities); identities are not reconstructed from paths and simple names. Same-name symbols in one file stay distinct, ambiguous simple names are reported as ambiguous, and missing, invalid, kind-mismatched, path-mismatched, or absent-from-graph identities stay unresolved. Code graph `1.1.0` is read by the existing major-one reader; that is version compatibility, not proof of each relationship or compiler-level resolution.
+- Experiment evidence: during implementation validation all six `incremental-change-staleness` scenarios (U1, L2, E1, P1, I1, T1) completed with all 24 treatments against the audited my-dev-kit v1.14.0 candidate, and schema-2 differential output against my-dev-kit 1.13.0 matched byte for byte for the compared fields. This is scenario-scoped evidence, not proof that incremental indexing never becomes stale. The default `--kit-command` is unchanged.
+- Package validation: the package content checks and the packed-package verifier accept the npm 11 array and npm 12 identity-keyed `npm pack --json` formats through one shared validator that requires exactly one package, a nonempty file list, and safe relative paths. The verifier also requires the expected package identity and the tarball filename on disk. It runs when invoked through a symlink or junction, prints `PACKED_PACKAGE_VERDICT: FAIL` for early failures, and exits nonzero on verified failures. A valid packed-package qualification needs both exit code 0 and `PACKED_PACKAGE_VERDICT: PASS`. The `AGENT_SUCCESS_OUTPUT_ROOT` and other package-isolation gates are unchanged.
+- Security: the security-verdict policy, major-finding blocking semantics, and package-content checks are unchanged; no exception or waiver was added.
+- Local validation on npm 12.2.0 (Node 24.20.0, clean host TEMP): full suite 7,893 passed and 0 failed; security 690/690; benchmark tests 373/373; typecheck, build, documentation check, benchmark verification, fuzz smoke, and the packed-package verifier passed. On npm 11.19.0: 538/538 focused compatibility tests and a passing packed-package verifier.
+- Hosted CI for the implementation commit (run `39828150612`): Windows, Ubuntu, and macOS on Node 24 all succeeded, including the full suite and the packed-package verifier. The hosted matrix installs npm 11.19.0, so npm 12 has local evidence only.
+- Test environment: some Lab tests fail when the temporary-directory root is inside the Lab Git repository, because Git discovers the enclosing repository. Use the operating-system temporary directory (or any location outside a Git repository) for full-suite runs.
+- The standardized pre-release readiness audit passed for the exact implementation candidate. Release-preparation checks qualify the versioned release commit separately. Publication follows the separate standardized publication workflow.
 
 ## Operational state
 
@@ -302,6 +317,8 @@ The v0.9.3 release includes the prompt/report/gallery scope; real-provider effec
 Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm publication) is established through the corresponding GitHub and npm records, not package metadata alone. Real-provider effectiveness remains NOT_VERIFIED and is not a release gate.
 
 Exact next action is determined by the applicable release workflow and verified external GitHub and npm state.
+
+For v0.9.4, the next permissible action after acceptance of the documentation reconciliation is the separately authorized pre-release readiness audit; release preparation and publication are not started.
 
 
 ## Previous v0.9.1 release history
