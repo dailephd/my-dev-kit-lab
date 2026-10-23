@@ -10,6 +10,7 @@ All notable changes to my-dev-kit-lab are documented here.
 - Package content checks and `npm run verify:packed-package` accept the npm 11 and npm 12 `npm pack --json` formats through one validator that requires exactly one package, a nonempty file list, and safe relative paths.
 - Corrected the packed-package verifier so a symlink or junction invocation runs, early failures print `PACKED_PACKAGE_VERDICT: FAIL`, and verified failures exit nonzero.
 - Corrected the npm 12 output-prefix assumption in the target `test:security` test without weakening its assertions.
+- Patched vulnerable development-only dependencies by pinning Vite to 7.3.7 and Vitest to 4.1.12 (with `@vitest/mocker` 4.1.12), which clears the dependency-audit advisories GHSA-587h-7wmj-h5pm, GHSA-qxg6-89mg-rqv8, and GHSA-xp26-3454-mjgp. The published runtime dependencies and package contents are unchanged.
 - Security-verdict policy, report and execution schemas, commands, and the package version are unchanged.
 
 ## [0.9.3] - 2026-10-16
