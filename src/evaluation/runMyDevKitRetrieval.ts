@@ -2,7 +2,7 @@ import path from "node:path";
 import { countEstimatedTokens, countTextChars, tokenCountMethod } from "../core/countTokens.js";
 import { runMeasuredCommand, type MeasuredCommandResult } from "../core/runMeasuredCommand.js";
 import { interpretToolVersionOutput, type IndexSnapshotToolV1 } from "./indexSnapshot.js";
-import { buildRetrievalEvidenceFromCommands } from "./retrievalQuality/buildRetrievalEvidence.js";
+import { buildRetrievalEvidenceFromCommands, normalizeRetrievedRepositoryPath } from "./retrievalQuality/buildRetrievalEvidence.js";
 import type { CoreGraphRetrievalQueryStrategyId } from "./retrievalQueryStrategies.js";
 import { buildQueryStrategyEvidenceFromRetrievalEvidence } from "./retrievalQueryStrategyEvidence.js";
 import type {
@@ -303,7 +303,82 @@ function selectRetrievalStrategyContextText(
   return ordered.find((text) => text && text.trim().length > 0) ?? "";
 }
 
-const STRATEGY_DOWNSTREAM_COMMANDS: Record<CoreGraphRetrievalQueryStrategyId, readonly ("lookup" | "slice" | "source")[]> = {
+/**
+ * Opt-in bounded multi-source protocol. The default retrieval expands only the first search candidate and
+ * its `filesRead` names that selected file. When a caller supplies these options, the SAME search result is
+ * additionally expanded, in rank order, into at most `maxSourceFiles` distinct candidate files, each with one
+ * bounded `source` command. Candidates come only from the actual search output; no answer key participates.
+ */
+export type MyDevKitBoundedSourceOptions = {
+  /** Fixed budget of distinct candidate files that receive a `source` command. */
+  maxSourceFiles: number;
+  /** Explicit `--limit` passed to the one `search` command; a result count at this limit means truncation. */
+  searchLimit: number;
+};
+
+export const BOUNDED_SOURCE_PROTOCOL_ID = "bounded-multi-source-v1";
+export const DEFAULT_BOUNDED_SOURCE_OPTIONS: MyDevKitBoundedSourceOptions = { maxSourceFiles: 8, searchLimit: 40 };
+
+export type MyDevKitBoundedSourceCandidate = { file: string; nodeId: string };
+export type MyDevKitBoundedSourceAttempt = MyDevKitBoundedSourceCandidate & {
+  /** True only when the `source` command for this candidate exited successfully. */
+  sourced: boolean;
+};
+
+export type MyDevKitBoundedCoverageV1 = {
+  protocol: typeof BOUNDED_SOURCE_PROTOCOL_ID;
+  maxSourceFiles: number;
+  searchLimit: number;
+  searchResultCount: number;
+  /** True when the search returned as many results as the explicit limit allowed, so more may exist. */
+  searchTruncated: boolean;
+  /** Distinct safe candidate files found in the search results (before the budget was applied). */
+  eligibleCandidateFileCount: number;
+  /** True when more distinct candidate files existed than the budget allowed to be sourced. */
+  candidateBudgetExhausted: boolean;
+  /** File/symbol results dropped because their file identity was unsafe or they carried no node id. */
+  rejectedCandidateCount: number;
+  /** One entry per planned candidate in rank order; `sourced` reflects the actual command outcome. */
+  attempts: MyDevKitBoundedSourceAttempt[];
+};
+
+export type MyDevKitBoundedRetrievalResult = MyDevKitRetrievalResult & { boundedCoverage: MyDevKitBoundedCoverageV1 };
+
+export function isBoundedRetrievalResult(result: MyDevKitRetrievalResult): result is MyDevKitBoundedRetrievalResult {
+  return (result as { boundedCoverage?: { protocol?: unknown } }).boundedCoverage?.protocol === BOUNDED_SOURCE_PROTOCOL_ID;
+}
+
+/**
+ * Pure, deterministic candidate plan over search results. Only `file`/`symbol` entries (or legacy entries that
+ * carry no `kind`) with a node id and a safe repository-relative path are eligible; edges and other kinds are
+ * ignored. The first occurrence of each normalized file wins, rank order is preserved, and the plan is cut at
+ * `maxSourceFiles`. Never inspects an answer key.
+ */
+export function planBoundedSourceCandidates(
+  results: readonly Record<string, unknown>[],
+  maxSourceFiles: number
+): { candidates: MyDevKitBoundedSourceCandidate[]; eligibleFileCount: number; rejectedCount: number } {
+  const budget = Number.isInteger(maxSourceFiles) && maxSourceFiles > 0 ? maxSourceFiles : 0;
+  const seen = new Set<string>();
+  const eligible: MyDevKitBoundedSourceCandidate[] = [];
+  let rejectedCount = 0;
+  for (const entry of results) {
+    const kind = entry.kind;
+    if (kind !== undefined && kind !== "file" && kind !== "symbol") continue;
+    const fields = pickCandidateFields(entry);
+    const file = normalizeRetrievedRepositoryPath(fields.file);
+    if (file === null || fields.nodeId === undefined) {
+      rejectedCount += 1;
+      continue;
+    }
+    if (seen.has(file)) continue;
+    seen.add(file);
+    eligible.push({ file, nodeId: fields.nodeId });
+  }
+  return { candidates: eligible.slice(0, budget), eligibleFileCount: eligible.length, rejectedCount };
+}
+
+const STRATEGY_DOWNSTREAM_COMMANDS:Record<CoreGraphRetrievalQueryStrategyId, readonly ("lookup" | "slice" | "source")[]> = {
   "keyword-search": [],
   "symbol-lookup": ["lookup"],
   "graph-neighborhood": ["slice"],
@@ -323,6 +398,8 @@ export async function runMyDevKitRetrievalStrategyFromIndex(options: {
   indexDir: string;
   commandsDir: string;
   requireKit: boolean;
+  /** Opt-in only; omitted keeps the historical first-candidate-only behavior unchanged. */
+  boundedSource?: MyDevKitBoundedSourceOptions;
 }): Promise<MyDevKitRetrievalResult> {
   const started = Date.now();
   const warnings: string[] = [];
@@ -334,7 +411,15 @@ export async function runMyDevKitRetrievalStrategyFromIndex(options: {
     commandString: options.kitCommand,
     cwd: process.cwd(),
     outDir: commandsDir,
-    extraArgs: ["search", "--index", indexDir, "--query", options.evaluationCase.query, "--json"]
+    extraArgs: [
+      "search",
+      "--index",
+      indexDir,
+      "--query",
+      options.evaluationCase.query,
+      ...(options.boundedSource ? ["--limit", String(options.boundedSource.searchLimit)] : []),
+      "--json"
+    ]
   });
   commands.push(searchCommand);
   if (!searchCommand.ok) {
@@ -386,8 +471,28 @@ export async function runMyDevKitRetrievalStrategyFromIndex(options: {
     }
   }
 
-  const contextText = selectRetrievalStrategyContextText(options.strategyId, outputs);
-  const filesRead = selectedFile ? [selectedFile] : [];
+  let contextText = selectRetrievalStrategyContextText(options.strategyId, outputs);
+  let filesRead = selectedFile ? [selectedFile] : [];
+  let boundedCoverage: MyDevKitBoundedCoverageV1 | undefined;
+  if (options.boundedSource && downstream.includes("source")) {
+    const bounded = await expandBoundedSourceCandidates({
+      bounded: options.boundedSource,
+      candidates,
+      selectedNodeId,
+      selectedSourceOk: commands.some((command) => command.commandId === "source" && command.ok),
+      kitCommand: options.kitCommand,
+      indexDir,
+      commandsDir,
+      commands,
+      warnings
+    });
+    boundedCoverage = bounded.coverage;
+    // Bounded mode: filesRead names only files whose own `source` command succeeded, in rank order.
+    filesRead = bounded.coverage.attempts.filter((attempt) => attempt.sourced).map((attempt) => attempt.file);
+    if (bounded.extraSourceTexts.length > 0) {
+      contextText = [contextText, ...bounded.extraSourceTexts].filter((text) => text.length > 0).join("\n\n");
+    }
+  }
   const retrievalEvidence = buildRetrievalEvidenceFromCommands(commands, { nodeId: selectedNodeId, file: selectedFile });
 
   return {
@@ -405,8 +510,97 @@ export async function runMyDevKitRetrievalStrategyFromIndex(options: {
     selectedSymbol,
     retrievalEvidence,
     queryStrategyEvidence: buildQueryStrategyEvidenceFromRetrievalEvidence(options.strategyId, retrievalEvidence),
+    ...(boundedCoverage ? { boundedCoverage } : {}),
     durationMs: Date.now() - started
   };
+}
+
+async function expandBoundedSourceCandidates(args: {
+  bounded: MyDevKitBoundedSourceOptions;
+  candidates: Record<string, unknown>[];
+  selectedNodeId: string | undefined;
+  selectedSourceOk: boolean;
+  kitCommand: string;
+  indexDir: string;
+  commandsDir: string;
+  commands: MeasuredCommandResult[];
+  warnings: string[];
+}): Promise<{ coverage: MyDevKitBoundedCoverageV1; extraSourceTexts: string[] }> {
+  const plan = planBoundedSourceCandidates(args.candidates, args.bounded.maxSourceFiles);
+  const attempts: MyDevKitBoundedSourceAttempt[] = [];
+  const extraSourceTexts: string[] = [];
+  for (const [index, candidate] of plan.candidates.entries()) {
+    if (candidate.nodeId === args.selectedNodeId) {
+      // The first search candidate already received its `source` command in the historical lifecycle.
+      attempts.push({ ...candidate, sourced: args.selectedSourceOk });
+      continue;
+    }
+    const command = await runMeasuredCommand({
+      commandId: `source-candidate-${index + 1}`,
+      commandString: args.kitCommand,
+      cwd: process.cwd(),
+      outDir: args.commandsDir,
+      extraArgs: ["source", "--index", args.indexDir, "--node", candidate.nodeId, "--max-lines", "160", "--format", "numbered"]
+    });
+    args.commands.push(command);
+    if (!command.ok) {
+      args.warnings.push(`my-dev-kit source command failed for bounded candidate ${index + 1}.`);
+    } else if (command.stdout.length > 0) {
+      extraSourceTexts.push(command.stdout);
+    }
+    attempts.push({ ...candidate, sourced: command.ok });
+  }
+  const resultCount = args.candidates.length;
+  return {
+    coverage: {
+      protocol: BOUNDED_SOURCE_PROTOCOL_ID,
+      maxSourceFiles: args.bounded.maxSourceFiles,
+      searchLimit: args.bounded.searchLimit,
+      searchResultCount: resultCount,
+      searchTruncated: resultCount >= args.bounded.searchLimit,
+      eligibleCandidateFileCount: plan.eligibleFileCount,
+      candidateBudgetExhausted: plan.eligibleFileCount > plan.candidates.length,
+      rejectedCandidateCount: plan.rejectedCount,
+      attempts
+    },
+    extraSourceTexts
+  };
+}
+
+/**
+ * Opt-in bounded multi-source retrieval for evaluations that must observe more than one file (for example
+ * multi-file required-file evidence). Reuses the shared strategy executor; default top-one retrieval and the
+ * meaning of its `filesRead` are unchanged for every other caller. The result always carries
+ * `boundedCoverage`, including when the search yielded no usable candidate.
+ */
+export async function runMyDevKitBoundedRetrievalFromIndex(options: {
+  evaluationCase: EvaluationCase;
+  kitCommand: string;
+  indexDir: string;
+  commandsDir: string;
+  requireKit: boolean;
+  boundedSource?: MyDevKitBoundedSourceOptions;
+}): Promise<MyDevKitRetrievalResult> {
+  const boundedSource = options.boundedSource ?? DEFAULT_BOUNDED_SOURCE_OPTIONS;
+  const result = await runMyDevKitRetrievalStrategyFromIndex({ ...options, strategyId: "combined-graph-guided", boundedSource });
+  if (isBoundedRetrievalResult(result)) return result;
+  // Skipped before expansion (search failed or yielded no candidate): still declare the protocol, nothing sourced.
+  const skipped: MyDevKitBoundedRetrievalResult = {
+    ...result,
+    filesRead: [],
+    boundedCoverage: {
+      protocol: BOUNDED_SOURCE_PROTOCOL_ID,
+      maxSourceFiles: boundedSource.maxSourceFiles,
+      searchLimit: boundedSource.searchLimit,
+      searchResultCount: 0,
+      searchTruncated: false,
+      eligibleCandidateFileCount: 0,
+      candidateBudgetExhausted: false,
+      rejectedCandidateCount: 0,
+      attempts: []
+    }
+  };
+  return skipped;
 }
 
 /**

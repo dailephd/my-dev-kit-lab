@@ -58,7 +58,7 @@ export function treatmentBlock(scenario: IncrementalChangeStalenessReportScenari
     ["Estimated context tokens", retrieval.status === "not-run" ? "unavailable" : String(retrieval.totalEstimatedTokens)],
     ["Retrieval duration (ms)", retrieval.status === "not-run" ? "unavailable" : String(retrieval.durationMs)],
     ["Fake-agent status", display(treatment.fakeAgent?.status, "not run")],
-    ["Correctness score", correctness && correctness.available && correctness.score !== null ? String(correctness.score) : "unavailable"],
+    ["Synthetic fake-agent correctness score", correctness && correctness.available && correctness.score !== null ? String(correctness.score) : "unavailable"],
     ["Required-file evidence", treatment.requiredFileEvidence.status],
     ["Required-file reason", display(treatment.requiredFileEvidence.reason, "not applicable")],
     ["Affected-neighborhood relationship", treatment.affectedNeighborhood.relationship],

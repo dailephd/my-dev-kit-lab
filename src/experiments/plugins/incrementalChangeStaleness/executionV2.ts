@@ -3,10 +3,10 @@ import { resolveWithinRoot } from "../../../core/pathSafety.js";
 import type { AffectedNeighborhoodAssessmentV1 } from "../../../evaluation/affectedNeighborhood.js";
 import type { IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import type { BenchmarkProjectProfile, MyDevKitIncrementalRefreshEvidence, MyDevKitRetrievalResult } from "../../../evaluation/types.js";
-import { classifyStaleRisk, compareCorrectness, compareRequiredFileEvidence, type RequiredFileEvidenceV1 } from "./comparison.js";
+import { classifyStaleRisk, compareCorrectness, compareRequiredFileEvidenceAgainstReference, type RequiredFileEvidenceV1 } from "./comparison.js";
 import {
   compareCandidateCorrectness,
-  compareCandidateRequiredFileEvidence,
+  compareCandidateRequiredFileEvidenceAgainstReference,
   classifyPartialRefreshAgainstFull,
   type CandidateCorrectnessRelationV2,
   type CandidateRequiredFileRelationV2,
@@ -285,7 +285,7 @@ export function buildReferenceComparisons(treatments: readonly IncrementalChange
 
   // Historical v0.6.2 semantics, unchanged.
   const staleCorrectness = compareCorrectness(correctnessComparable(stale.fakeAgent), correctnessComparable(reference.fakeAgent));
-  const staleRequired = compareRequiredFileEvidence(stale.requiredFileEvidence, reference.requiredFileEvidence);
+  const staleRequired = compareRequiredFileEvidenceAgainstReference(stale.requiredFileEvidence, reference.requiredFileEvidence);
   const staleRisk = classifyStaleRisk(staleCorrectness, staleRequired);
   const comparisons: IncrementalChangeStalenessReferenceComparisonV2[] = [
     {
@@ -307,7 +307,7 @@ export function buildReferenceComparisons(treatments: readonly IncrementalChange
       throw new Error(`${candidateTreatmentId} has no incremental refresh execution to compare.`);
     }
     const correctnessRelation = compareCandidateCorrectness(correctnessComparable(candidate.fakeAgent), correctnessComparable(reference.fakeAgent));
-    const requiredFileEvidenceRelation = compareCandidateRequiredFileEvidence(candidate.requiredFileEvidence, reference.requiredFileEvidence);
+    const requiredFileEvidenceRelation = compareCandidateRequiredFileEvidenceAgainstReference(candidate.requiredFileEvidence, reference.requiredFileEvidence);
     const classified = classifyPartialRefreshAgainstFull({
       realization: candidate.refreshExecution.realization,
       correctnessRelation,

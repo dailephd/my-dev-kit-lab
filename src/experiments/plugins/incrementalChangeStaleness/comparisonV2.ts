@@ -1,6 +1,7 @@
 import {
   compareCorrectness,
   compareRequiredFileEvidence,
+  compareRequiredFileEvidenceAgainstReference,
   type CorrectnessComparableV1,
   type CorrectnessRelationV1,
   type RequiredFileEvidenceRelationV1,
@@ -34,6 +35,18 @@ export function compareCandidateRequiredFileEvidence(
   reference: Pick<RequiredFileEvidenceV1, "status">
 ): CandidateRequiredFileRelationV2 {
   return neutral(compareRequiredFileEvidence(candidate, reference));
+}
+
+/**
+ * Candidate-vs-reference required-file relation with the reference-adequacy gate: equal weakness (both
+ * missing) is `unknown`, not `same`, because an insufficient full-refresh reference cannot support a
+ * no-regression statement. Every other outcome follows `compareCandidateRequiredFileEvidence`.
+ */
+export function compareCandidateRequiredFileEvidenceAgainstReference(
+  candidate: Pick<RequiredFileEvidenceV1, "status">,
+  reference: Pick<RequiredFileEvidenceV1, "status">
+): CandidateRequiredFileRelationV2 {
+  return neutral(compareRequiredFileEvidenceAgainstReference(candidate, reference));
 }
 
 /** Scoped to the frozen evidence dimensions only; not a safety verdict, winner, recommendation, or quality score. */

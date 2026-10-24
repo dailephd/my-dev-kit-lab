@@ -2,6 +2,14 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
+### Staleness experiment evidence correction
+
+- The `incremental-change-staleness` experiment now retrieves through an opt-in bounded multi-source protocol in the shared retrieval owner (`runMyDevKitBoundedRetrievalFromIndex`) so multi-file required evidence can be observed; default top-one retrieval and the meaning of its `filesRead` are unchanged for every other caller. Only files whose own `source` command succeeded count as read.
+- Required-file evidence reports `unknown` instead of `missing` when the bounded protocol cannot observe the requirement, and a full-refresh reference that did not itself observe the required files can no longer make equal results look like `same`/no observed regression: the relation is `unknown` and the classification `inconclusive`.
+- The V2 report labels the fake-agent score as synthetic, distinguishes read from merely surfaced files, and states that runtime command-log paths are not retained after cleanup. Persisted V1/V2 schemas, treatment ordering, scenarios, answer keys and the fake agent and scorer are unchanged.
+
 ## [0.9.4] - 2026-10-23
 
 ### Kit schema-3 and npm 12 compatibility
