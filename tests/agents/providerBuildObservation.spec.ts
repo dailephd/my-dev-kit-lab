@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { existsSync, realpathSync, writeFileSync } from "node:fs";
 import { readFile, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -5,12 +7,23 @@ import { observeProviderBuild, trustedProviderLaunch, trustedProviderObservation
 import { runAgentPrompt } from "../../src/agents/runAgentPrompt.js";
 import type { AgentRunRequest } from "../../src/agents/types.js";
 import { makeProviderShim } from "../experiments/agentSuccessRate/realAgentTestHelpers.js";
-import { useSandboxTestCleanup } from "../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
+import { makeTempDir, useSandboxTestCleanup } from "../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
 
 useSandboxTestCleanup();
 function request(shim: ReturnType<typeof makeProviderShim>, capability: Awaited<ReturnType<typeof observeProviderBuild>>): AgentRunRequest {
   return { runId: "bound-test", agentId: capability.providerId, promptVariant: { id: "transport", strategy: "raw-full-file", complexityLevel: "short" } as AgentRunRequest["promptVariant"], promptText: "Case ID: bound\nContext mode: raw-full-file\n", cwd: shim.dir, outDir: path.join(shim.dir, "artifacts"), env: shim.env, timeoutMs: 5000, promptTransport: "stdin", trustedExecutable: capability };
 }
+// Controlled ancestor package scopes for the fake provider's temp location. "inherited" keeps whichever scope the run's TEMP
+// sits under; the others place the shim beneath a disposable directory with its own package.json.
+type ShimScope = "inherited" | "module" | "commonjs" | "untyped";
+const SHIM_SCOPES: readonly ShimScope[] = ["inherited", "module", "commonjs", "untyped"];
+function shimParent(scope: ShimScope): string | undefined {
+  if (scope === "inherited") return undefined;
+  const dir = makeTempDir("lab-asr-scope-");
+  writeFileSync(path.join(dir, "package.json"), JSON.stringify(scope === "untyped" ? {} : { type: scope }), "utf8");
+  return dir;
+}
+const shimBin = (shim: ReturnType<typeof makeProviderShim>) => shim.env.PATH!.split(path.delimiter)[0]!;
 describe("source-grounded provider capability, fake processes only", () => {
   it.each(["codex", "claude"] as const)("RSP-005/RSP-006 actual %s observation is task-free and bound to adapter launch", async provider => {
     const shim = makeProviderShim(provider); const cap = await observeProviderBuild(provider, { env: shim.env });
@@ -42,12 +55,28 @@ describe("source-grounded provider capability, fake processes only", () => {
     const entry = launch.prefix[0]!; await writeFile(entry, (await readFile(entry, "utf8")) + "\n// replaced\n");
     await expect(trustedProviderObservation(cap, "codex")).rejects.toThrow("PROVIDER_BUILD_CHANGED"); expect(shim.invocationKeys()).toEqual([]);
   }, 60000);
-  it("RSP-008 substituted PATH cannot redirect a bound invocation", async () => {
-    const original = makeProviderShim("codex"), other = makeProviderShim("codex");
+  it.each(SHIM_SCOPES)("RSP-008 substituted PATH cannot redirect a bound invocation (%s ancestor package scope)", async scope => {
+    const parentDir = shimParent(scope);
+    const original = makeProviderShim("codex", { parentDir }), other = makeProviderShim("codex", { parentDir });
     const cap = await observeProviderBuild("codex", { env: original.env });
+    const launch = await trustedProviderLaunch(cap, "codex");
+    expect(path.dirname(launch.prefix[0]!)).toBe(realpathSync(shimBin(original))); expect(path.dirname(launch.prefix[0]!)).not.toBe(realpathSync(shimBin(other)));
     original.respond("bound", "raw-full-file", "original"); other.respond("bound", "raw-full-file", "substitution");
     const req = request(original, cap); req.env = { ...original.env, PATH: other.env.PATH, Path: other.env.Path };
-    expect((await runAgentPrompt(req)).finalAnswerText).toBe("original"); expect(other.invocationKeys()).toEqual([]);
+    expect((await runAgentPrompt(req)).finalAnswerText).toBe("original"); expect(other.invocationKeys()).toEqual([]); expect(original.invocationKeys()).toEqual(["bound.raw-full-file"]);
+  }, 60000);
+  it("module-scope negative control: without a shim-owned CommonJS boundary a type:module ancestor breaks the version probe fail-closed", async () => {
+    const parentDir = shimParent("module")!;
+    const broken = makeProviderShim("codex", { parentDir, omitModuleBoundary: true }), bounded = makeProviderShim("codex", { parentDir });
+    const entry = (shim: ReturnType<typeof makeProviderShim>) => path.join(shimBin(shim), process.platform === "win32" ? "shim.js" : "codex");
+    const probe = spawnSync(process.execPath, [entry(broken), "--version"], { encoding: "utf8", timeout: 10000 });
+    expect(probe.status).not.toBe(0); expect(probe.stderr).toContain("require is not defined");
+    await expect(observeProviderBuild("codex", { env: broken.env })).rejects.toThrow("PROVIDER_BUILD_UNVERIFIABLE"); expect(broken.invocationKeys()).toEqual([]);
+    const fixed = spawnSync(process.execPath, [entry(bounded), "--version"], { encoding: "utf8", timeout: 10000 });
+    expect(fixed.status).toBe(0); expect(fixed.stdout.trim()).toBe("shim 1.0.0");
+    const marker = path.join(shimBin(bounded), "package.json");
+    expect(existsSync(marker)).toBe(true); expect(JSON.parse(await readFile(marker, "utf8")).type).toBe("commonjs"); expect(marker.startsWith(parentDir)).toBe(true);
+    expect(existsSync(path.join(shimBin(broken), "package.json"))).toBe(false);
   }, 60000);
   it("RSP-005 version flood is bounded and creates no provider task", async () => {
     const shim = makeProviderShim("codex"); const bin = shim.env.PATH!.split(path.delimiter)[0]!;
