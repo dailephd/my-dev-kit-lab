@@ -326,6 +326,8 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 **Test environment:** run the full suite with the operating-system temporary directory (outside any Git repository). A temporary root inside the Lab repository makes Git discover the enclosing repository and causes unrelated test failures.
 
+When a bounded validation must keep process temporary files inside the checkout, use a short dedicated temporary root and constrain Vitest discovery with `--dir tests`; an unrestricted path filter can also match ignored historical test copies under `tmp/`. This is a test-runner layout safeguard, not a product runtime requirement. Keep the independent clean-clone full-suite result and the aborted broad-path attempt distinct in evidence.
+
 **Completion:** staleness reports show the schema-3 identities as described above, `npm run security:package` passes, and the packed-package verifier ends with exit code 0 and `PACKED_PACKAGE_VERDICT: PASS`.
 
 ## Context-window scaling experiment (v0.7.0)

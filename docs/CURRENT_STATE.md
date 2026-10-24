@@ -7,7 +7,8 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Current release-document and package version: `v0.9.4`.
+- Latest published baseline and package version: `v0.9.4` (`package.json` remains `0.9.4`).
+- Implemented but unreleased candidate: `v0.9.5`; documentation reconciliation and standardized pre-release readiness remain pending. The npm registry has no `@dailephd/my-dev-kit-lab@0.9.5` version.
 - Previous release: `v0.9.3` (prompt, report, metric, gallery, and comparison improvements).
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
 - Final release-document state: v0.9.4. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) remains historical release evidence; npm publication status is established through registry evidence.
@@ -21,8 +22,8 @@ This document records the repository's operational state. It is the source of tr
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
 - Package version: `0.9.4`. Release documents are in final-release state.
-- Next future roadmap version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
-- Current release: v0.9.4 (Kit schema-3 and npm 12 compatibility correction); see the v0.9.4 section below.
+- Next planned feature version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
+- Latest published release: v0.9.4 (Kit schema-3 and npm 12 compatibility correction); the v0.9.5 candidate is not a release.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -53,6 +54,12 @@ v0.9.4 is the current release-document and package state; `v0.10.0` remains the 
 - Hosted CI for the implementation commit (run `39828150612`): Windows, Ubuntu, and macOS on Node 24 all succeeded, including the full suite and the packed-package verifier. The hosted matrix installs npm 11.19.0, so npm 12 has local evidence only.
 - Test environment: some Lab tests fail when the temporary-directory root is inside the Lab Git repository, because Git discovers the enclosing repository. Use the operating-system temporary directory (or any location outside a Git repository) for full-suite runs.
 - The standardized pre-release readiness audit passed for the exact implementation candidate. Release-preparation checks qualify the versioned release commit separately. Publication follows the separate standardized publication workflow.
+
+## v0.9.5 implemented candidate state
+
+The exact implementation candidate is `9d6f5c605072080a2831385f611d243e2e03ddd1` on `fix/v0.9.5-staleness-evidence` (tree `4c9220f6c969ae115055eccc38fbf721f328b99d`). Package metadata remains `0.9.4`; v0.9.5 remains an unreleased candidate. The candidate contains C1–C6 changes summarized in [ROADMAP.md](ROADMAP.md#v095-staleness-evidence-and-validation-boundaries).
+
+The C6 report records a local Windows Node 24.20.0 / npm 12.2.0 full-suite run in an independent clone: 558 files (554 passed, 4 skipped), 8,015 tests passed, 9 skipped, 0 failed (Vitest 4.1.12). This is one host run, not hosted CI or standardized readiness evidence. The earlier C5 count was 21 skipped; the retained C5 raw evidence inspected during this reconciliation does not provide a reliable per-test skip inventory, so the 12-test difference remains unknown. Cross-platform validation, the standardized pre-release audit, and release preparation remain pending. The host source of the transient Windows `EPERM` remains unidentified.
 
 ## Operational state
 
@@ -318,7 +325,7 @@ Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm 
 
 Exact next action is determined by the applicable release workflow and verified external GitHub and npm state.
 
-For v0.9.4, the next permissible action after acceptance of the documentation reconciliation is the separately authorized pre-release readiness audit; release preparation and publication are not started.
+For the implemented v0.9.5 candidate, the next gate after this documentation reconciliation is the separately authorized standardized pre-release readiness audit against the exact reconciled SHA. Cross-platform evidence and unresolved skip-count reconciliation remain readiness questions; release preparation and publication are not started.
 
 
 ## Previous v0.9.1 release history

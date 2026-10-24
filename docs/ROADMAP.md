@@ -16,7 +16,7 @@ flowchart LR
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2] --> V093[v0.9.3]
-  V093 --> V094[v0.9.4] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
+  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
   V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
   V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
@@ -1607,6 +1607,31 @@ Exclusions:
 Acceptance:
 
 * Schema-2, schema-3, ambiguity, and missing-identity tests pass; all six staleness scenarios with all four treatments completed against the audited my-dev-kit candidate; package and verifier tests pass for npm 11 and npm 12; the full suite, security suite, benchmark checks, and packed-package verifier pass with their final markers and exit codes; the Windows, Ubuntu, and macOS Node 24 CI jobs pass at the exact commit. Hosted CI uses npm 11; npm 12 evidence is local. Operational state and evidence references are in [CURRENT_STATE.md](CURRENT_STATE.md).
+
+### v0.9.5 — staleness evidence and validation boundaries
+
+Status: **implemented; unreleased; documentation-reconciled candidate and standardized pre-release readiness pending**.
+
+Purpose:
+
+* Correct the evidentiary limits of incremental-change-staleness evaluation and harden the Lab's existing disposable validation boundaries without changing the frozen my-dev-kit v1.14.0 candidate.
+
+Implemented scope:
+
+* The staleness experiment uses an opt-in, rank-ordered candidate budget of up to eight files, reports incomplete or unknown required-file evidence explicitly, treats inadequate full-refresh comparisons as inconclusive, and labels synthetic fake-agent evidence separately from observed retrieval evidence. The budget does not guarantee that every required file is included.
+* The disposable fake-provider fixture has an explicit CommonJS package boundary; benchmark Git work is pinned to its initialized repository and fails closed on unsafe discovery or redirects; adversarial CLI traversal evidence verifies actual destinations inside bounded disposable enclosures.
+* Tutorial and non-Git fixtures establish their intended execution boundaries. Windows synthetic-repository publication has a finite retry for transient `EPERM` rename failures; a cleanup diagnostic does not replace the primary error.
+
+Dependencies and boundaries:
+
+* Builds on the v0.9.4 implementation and preserves its package/schema baseline. It adds no Lab CLI flag, experiment schema, dependency, or v0.10.0 scope.
+* The v0.9.5 C1 evidence correction does not retroactively repair the historical failed evaluation of the frozen Kit v1.14.0 candidate; a new valid Lab release and a separate Kit audit would be needed for that claim.
+* The transient Windows host cause remains unidentified, POSIX retry behavior has no dedicated cross-platform run, and the standardized readiness gate has not been run for the reconciled candidate.
+
+Acceptance:
+
+* Documentation reconciliation preserves every historical and future version entry, accurately distinguishes the unreleased candidate from published v0.9.4, and passes the documentation-preservation checker.
+* The exact reconciled SHA subsequently passes the separately authorized standardized pre-release audit, including required Windows, Linux, and macOS evidence. A local C6 suite pass alone is not release readiness.
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 
