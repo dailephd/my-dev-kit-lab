@@ -10,6 +10,7 @@ export type BenchmarkSandboxErrorCode =
   | "COPY_MISMATCH"
   | "GIT_UNAVAILABLE"
   | "GIT_FAILED"
+  | "GIT_REPOSITORY_MISMATCH"
   | "BASELINE_NOT_CLEAN";
 
 const MAX_MESSAGE_LENGTH = 500;
