@@ -8,6 +8,21 @@ function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "audit-target-test-"));
 }
 
+/**
+ * TEMP may live inside a checkout, where Git discovery would resolve a plain directory into the ancestor worktree. Bound
+ * discovery at the directory's parent (Git searches the directory itself but not the ceiling) and restore the variable.
+ */
+function withGitCeiling<T>(dir: string, action: () => T): T {
+  const previous = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = fs.realpathSync.native(path.dirname(dir));
+  try {
+    return action();
+  } finally {
+    if (previous === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = previous;
+  }
+}
+
 function cleanup(...dirs: string[]): void {
   for (const d of dirs) {
     try {
@@ -74,7 +89,7 @@ describe("resolveAuditTarget — external target", () => {
   it("gitRoot is null when the target is not a git repo", () => {
     const tmp = makeTempDir();
     try {
-      const target = resolveAuditTarget(tmp, process.cwd());
+      const target = withGitCeiling(tmp, () => resolveAuditTarget(tmp, process.cwd()));
       expect(target.gitRoot).toBeNull();
     } finally {
       cleanup(tmp);

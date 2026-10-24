@@ -14,6 +14,7 @@ import {
   makeTempDir,
   minimalConfig,
   removeTempDir,
+  withGitDiscoveryCeiling,
   writeRepositoryFile,
 } from "./fixtureRepository.js";
 
@@ -66,7 +67,48 @@ describe("RSP-006 Git identity", () => {
 
   it("rejects a directory that is not a Git repository", async () => {
     writeFileSync(path.join(root, "file.txt"), "x");
-    expect(await repositoryErrorCode(() => readRepositoryIdentity(root))).toBe("NOT_A_GIT_REPOSITORY");
+    // TEMP may live inside a checkout; bound discovery so the fixture is genuinely outside any worktree.
+    expect(await withGitDiscoveryCeiling(root, () => repositoryErrorCode(() => readRepositoryIdentity(root)))).toBe(
+      "NOT_A_GIT_REPOSITORY"
+    );
+  });
+
+  describe("fixture Git discovery boundary", () => {
+    it("distinguishes a plain directory inside an ancestor worktree from one outside every worktree", async () => {
+      createCommittedRepository(root);
+      const plain = path.join(root, "plain");
+      mkdirSync(plain);
+      // Control: with no boundary the ancestor worktree is found, which is the in-checkout TEMP situation.
+      expect(await repositoryErrorCode(() => readRepositoryIdentity(plain))).toBe("NOT_WORKTREE_ROOT");
+      // With discovery bounded at the plain directory's parent, the ancestor worktree is not reachable.
+      expect(await withGitDiscoveryCeiling(plain, () => repositoryErrorCode(() => readRepositoryIdentity(plain)))).toBe(
+        "NOT_A_GIT_REPOSITORY"
+      );
+    });
+
+    it("still finds a repository initialized below the boundary and rejects its subdirectory", async () => {
+      const inner = path.join(root, "inner");
+      mkdirSync(inner);
+      const expected = createCommittedRepository(inner);
+      await withGitDiscoveryCeiling(inner, async () => {
+        const { identity, repositoryRoot } = await readRepositoryIdentity(inner);
+        expect(repositoryRoot).toBe(inner);
+        expect(identity.commit).toBe(expected);
+        expect(await repositoryErrorCode(() => readRepositoryIdentity(path.join(inner, "src")))).toBe("NOT_WORKTREE_ROOT");
+      });
+    });
+
+    it("restores the previous discovery environment, including after a failure", async () => {
+      const before = process.env.GIT_CEILING_DIRECTORIES;
+      expect(() =>
+        withGitDiscoveryCeiling(root, () => {
+          throw new Error("boom");
+        })
+      ).toThrow("boom");
+      expect(process.env.GIT_CEILING_DIRECTORIES).toBe(before);
+      await withGitDiscoveryCeiling(root, async () => undefined);
+      expect(process.env.GIT_CEILING_DIRECTORIES).toBe(before);
+    });
   });
 
   it("rejects a nested directory instead of treating the parent worktree as the selected root", async () => {

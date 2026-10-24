@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -53,13 +53,23 @@ describe("runExperiment", () => {
       return makeRun(context);
     });
 
-    const result = await runExperiment({
-      pluginId: "probe",
-      registry,
-      runId: "probe-external",
-      targetPath: targetRoot,
-      toolRoot: process.cwd(),
-    });
+    // TEMP may live inside a checkout; bound Git discovery at the target's parent so the target is genuinely
+    // outside every worktree (Git searches the target itself, not the ceiling), then restore the variable.
+    const previousCeiling = process.env.GIT_CEILING_DIRECTORIES;
+    process.env.GIT_CEILING_DIRECTORIES = realpathSync.native(path.dirname(targetRoot));
+    let result: Awaited<ReturnType<typeof runExperiment>>;
+    try {
+      result = await runExperiment({
+        pluginId: "probe",
+        registry,
+        runId: "probe-external",
+        targetPath: targetRoot,
+        toolRoot: process.cwd(),
+      });
+    } finally {
+      if (previousCeiling === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+      else process.env.GIT_CEILING_DIRECTORIES = previousCeiling;
+    }
 
     expect(result.target.isSelf).toBe(false);
     expect(result.target.kind).toBe("external-local");

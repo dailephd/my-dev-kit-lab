@@ -18,6 +18,32 @@ export function makeTempDir(prefix = "lrs-fixture-"): string {
   return realpathSync.native(mkdtempSync(path.join(os.tmpdir(), prefix)));
 }
 
+/**
+ * Runs `action` with Git discovery bounded at the parent of `directory` (GIT_CEILING_DIRECTORIES), so a plain fixture
+ * directory is never resolved into an ancestor worktree (for example when TEMP lives inside a checkout). The ceiling is the
+ * canonical parent, which Git does not search, while `directory` itself and everything below it still are: a repository
+ * initialized there is found normally. The previous value is restored when the action settles.
+ */
+export function withGitDiscoveryCeiling<T>(directory: string, action: () => T): T {
+  const ceiling = realpathSync.native(path.dirname(path.resolve(directory)));
+  const previous = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = [ceiling, previous].filter((value): value is string => Boolean(value)).join(path.delimiter);
+  const restore = (): void => {
+    if (previous === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = previous;
+  };
+  let result: T;
+  try {
+    result = action();
+  } catch (error) {
+    restore();
+    throw error;
+  }
+  if (result instanceof Promise) return result.finally(restore) as T;
+  restore();
+  return result;
+}
+
 export function removeTempDir(directory: string): void {
   rmSync(directory, { recursive: true, force: true });
 }
