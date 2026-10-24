@@ -8,7 +8,7 @@ This document records the repository's operational state. It is the source of tr
 
 - Package: `@dailephd/my-dev-kit-lab`
 - Latest published baseline and package version: `v0.9.4` (`package.json` remains `0.9.4`).
-- Implemented but unreleased candidate: `v0.9.5`; documentation reconciliation and standardized pre-release readiness remain pending. The npm registry has no `@dailephd/my-dev-kit-lab@0.9.5` version.
+- Implemented but unreleased candidate: `v0.9.5`; local implementation and the separate documentation reconciliation are complete. The latest standardized pre-release audit stopped at Gate C with `NEEDS_CORRECTION`; release-readiness remains pending. The npm registry has no `@dailephd/my-dev-kit-lab@0.9.5` version.
 - Previous release: `v0.9.3` (prompt, report, metric, gallery, and comparison improvements).
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
 - Final release-document state: v0.9.4. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) remains historical release evidence; npm publication status is established through registry evidence.
@@ -59,7 +59,9 @@ v0.9.4 is the current release-document and package state; `v0.10.0` remains the 
 
 The exact implementation candidate is `9d6f5c605072080a2831385f611d243e2e03ddd1` on `fix/v0.9.5-staleness-evidence` (tree `4c9220f6c969ae115055eccc38fbf721f328b99d`). Package metadata remains `0.9.4`; v0.9.5 remains an unreleased candidate. The candidate contains C1–C6 changes summarized in [ROADMAP.md](ROADMAP.md#v095-staleness-evidence-and-validation-boundaries).
 
-The C6 report records a local Windows Node 24.20.0 / npm 12.2.0 full-suite run in an independent clone: 558 files (554 passed, 4 skipped), 8,015 tests passed, 9 skipped, 0 failed (Vitest 4.1.12). This is one host run, not hosted CI or standardized readiness evidence. The earlier C5 count was 21 skipped; the retained C5 raw evidence inspected during this reconciliation does not provide a reliable per-test skip inventory, so the 12-test difference remains unknown. Cross-platform validation, the standardized pre-release audit, and release preparation remain pending. The host source of the transient Windows `EPERM` remains unidentified.
+The C6 report records a local Windows Node 24.20.0 / npm 12.2.0 full-suite run in an independent clone: 558 files (554 passed, 4 skipped), 8,015 tests passed, 9 skipped, 0 failed (Vitest 4.1.12). This is one host run, not hosted CI or standardized readiness evidence. C5 reported 21 skipped tests: 12 prompt-comparison tests were skipped downstream of its campaign-fixture failure, distinct from the nine platform/real-Kit conditional skips retained in C6. C6 passed all 40 prompt-comparison tests. The skip-count difference is reconciled; it does not establish that every earlier failure was benign. The host source of the transient Windows `EPERM` remains unidentified.
+
+The C1–C6 implementation and separate post-C6 documentation reconciliation completed locally; reconciliation was committed at `edae1d26d1718ea6f4912b367499a7444aef7c08`. These are historical successful validations, not a release-readiness verdict. The first standardized audit attempt was `BLOCKED` before gates because the governing documents were unavailable. The resumed attempt against that reconciled SHA returned `NEEDS_CORRECTION` at Gate C; the remaining fresh install, behavioral, package, security, and dependency gates were not completed. It recorded limited identity and preservation checks, but required hosted exact-SHA Windows/Linux/macOS CI and CodeQL evidence was unavailable. A fresh complete A–Q audit must use the new commit from this separate documentation correction, subject to separate authorization. Release preparation and publication have not started. The frozen my-dev-kit v1.14.0 candidate requires its own separate audit and does not inherit Lab readiness.
 
 ## Operational state
 
@@ -315,7 +317,7 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Latest release documentation and package version: v0.9.3. External publication is established through npm registry evidence.
+Latest release documentation and package version: v0.9.4. External publication is established through npm registry evidence.
 
 The `published/current` designation is based on external npm evidence, not package metadata or release-document wording.
 
@@ -325,7 +327,7 @@ Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm 
 
 Exact next action is determined by the applicable release workflow and verified external GitHub and npm state.
 
-For the implemented v0.9.5 candidate, the next gate after this documentation reconciliation is the separately authorized standardized pre-release readiness audit against the exact reconciled SHA. Cross-platform evidence and unresolved skip-count reconciliation remain readiness questions; release preparation and publication are not started.
+For the implemented, unreleased v0.9.5 candidate, the next gate is a separately authorized, fresh complete standardized pre-release readiness audit against the new documentation-correction commit. The earlier `BLOCKED` and Gate C `NEEDS_CORRECTION` attempts remain historical; no readiness pass is inherited. The C5/C6 skip-count difference is reconciled, while required hosted exact-SHA Windows/Linux/macOS CI and CodeQL evidence remains unavailable. Release preparation and publication have not started.
 
 
 ## Previous v0.9.1 release history
