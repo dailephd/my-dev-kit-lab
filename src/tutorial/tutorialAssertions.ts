@@ -93,6 +93,13 @@ export function resolveAssertionRequestUrl(applicationUrl: string, suppliedPath:
     );
   }
   const base = new URL(applicationUrl);
+  // Defend the exported assertion boundary as well as the validated tutorial
+  // caller: same-origin alone does not make an unchecked remote origin local.
+  const hostname = base.hostname.replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
+  if ((base.protocol !== "http:" && base.protocol !== "https:") ||
+      !["localhost", "127.0.0.1", "::1"].includes(hostname)) {
+    throw new Error("HTTP assertion application origin must use HTTP(S) on loopback.");
+  }
   const resolved = new URL(suppliedPath, base);
   if (resolved.protocol !== base.protocol || resolved.hostname !== base.hostname || resolved.port !== base.port) {
     throw new Error(

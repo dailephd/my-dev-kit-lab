@@ -2,7 +2,8 @@ import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createServer } from "node:http";
 import { validateTutorialScenario } from "../../src/tutorial/scenarioValidation.js";
 import { validateTutorialTargetContract } from "../../src/tutorial/targetContractValidation.js";
 import { resolveTutorialNavigationUrl } from "../../src/tutorial/tutorialActions.js";
@@ -18,6 +19,7 @@ import { createFakePage, minimalScenario, minimalTargetContract } from "./tutori
 
 const tempDirs: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
@@ -58,6 +60,55 @@ describe("scenario navigation cannot leave the application origin", () => {
 });
 
 describe("HTTP assertions cannot leave the application origin", () => {
+  it("rejects an unchecked remote application origin before fetch, including direct API callers", async () => {
+    const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response('{"ok":true}'));
+    for (const applicationUrl of ["http://example.invalid/", "https://192.0.2.1/", "file:///fixture/"]) {
+      const result = await executeTutorialAssertion(createFakePage(),
+        { type: "http-json-equals", path: "/api", pointer: "/ok", expected: true },
+        { applicationUrl, targetRoot: makeTempDir() });
+      expect(result.status).toBe("failed");
+    }
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("rejects cross-origin paths before fetch", async () => {
+    const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response('{"ok":true}'));
+    for (const suppliedPath of ["//example.invalid/api", "/\\example.invalid/api", "https://example.invalid/api"]) {
+      const result = await executeTutorialAssertion(createFakePage(),
+        { type: "http-json-equals", path: suppliedPath, pointer: "/ok", expected: true },
+        { applicationUrl: APP_URL, targetRoot: makeTempDir() });
+      expect(result.status).toBe("failed");
+    }
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("accepts local JSON and never follows a server redirect", async () => {
+    let redirected = 0;
+    const server = createServer((req, res) => {
+      if (req.url === "/redirect") {
+        res.writeHead(302, { location: "/destination" });
+        res.end();
+      } else {
+        if (req.url === "/destination") redirected++;
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end('{"ok":true}');
+      }
+    });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("missing loopback listener");
+      const context = { applicationUrl: `http://127.0.0.1:${address.port}/`, targetRoot: makeTempDir() };
+      expect((await executeTutorialAssertion(createFakePage(),
+        { type: "http-json-equals", path: "/api", pointer: "/ok", expected: true }, context)).status).toBe("passed");
+      expect((await executeTutorialAssertion(createFakePage(),
+        { type: "http-json-equals", path: "/redirect", pointer: "/ok", expected: true }, context)).status).toBe("failed");
+      expect(redirected).toBe(0);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
+  });
+
   it("rejects absolute and protocol-relative assertion paths", () => {
     for (const target of ["http://example.com/api", "//example.com/api", "https://example.com/api"]) {
       expect(() => resolveAssertionRequestUrl(APP_URL, target)).toThrow();

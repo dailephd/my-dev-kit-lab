@@ -193,6 +193,7 @@ Current report/schema details:
 - The adversarial suite provides meaningful automated CLI/package coverage, but it is not exhaustive attack simulation.
 - Secret scanning is bounded and cannot prove exhaustive secret absence across every possible file or encoding.
 - The network/local-first scenario is a bounded static assumption check, not proof of runtime network isolation.
+- Two reviewed local HTTP sites (managed-process readiness and tutorial HTTP JSON assertions) are separately reported as known-intentional only when the exact source SHA-256, expected single fetch match, and reviewed tutorial caller/validation source identities match. Changed source, extra matches, or missing/changed caller evidence fails closed as unexpected major under the unchanged verdict policy. This static recognition does not prove runtime network isolation.
 - Profile-specific behavior beyond profile-based selection/default checks is not implemented.
 - Package-boundary severity is currently applied at the result level, not per evidence item.
 - Some checks depend on locally installed tools or network-backed package metadata.
