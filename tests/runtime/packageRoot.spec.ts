@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { discoverPackageRoot } from "../../src/runtime/packageRoot.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -43,17 +43,40 @@ describe("discoverPackageRoot", () => {
     }
   });
 
-  it("fails clearly when no matching package can be found", () => {
-    const isolatedDir = mkdtempSync(path.join(os.tmpdir(), "package-root-missing-"));
-    // A project-local temporary directory can inherit the real Lab manifest.
-    // Start at the filesystem root, which has no enclosing project ancestors.
-    const isolatedRoot = path.parse(isolatedDir).root;
+  it("fails clearly when no matching package can be found without real root I/O", async () => {
+    // These paths belong exclusively to a simulated filesystem. Never delegate
+    // any of its probes (including lexical root termination) to the real OS.
+    const root = path.parse(REPO_ROOT).root;
+    const ancestor = path.join(root, "simulated-unrelated-ancestor");
+    const start = path.join(ancestor, "nested");
+    const probes = [start, ancestor, root].map(dir => path.join(dir, "package.json"));
+    const exists = vi.fn((candidate: string) => {
+      if (!probes.includes(candidate)) throw new Error(`Unexpected simulated probe: ${candidate}`);
+      return candidate === probes[1];
+    });
+    const read = vi.fn((candidate: string) => {
+      if (candidate !== probes[1]) throw new Error(`Unexpected simulated read: ${candidate}`);
+      return JSON.stringify({ name: "unrelated-package" });
+    });
+    const stat = vi.fn(() => { throw new Error("No real filesystem stat is permitted"); });
+    vi.doMock("node:fs", async () => ({
+      ...await vi.importActual<typeof import("node:fs")>("node:fs"),
+      existsSync: exists,
+      readFileSync: read,
+      statSync: stat,
+    }));
+    vi.resetModules();
     try {
-      expect(() => discoverPackageRoot(isolatedRoot)).toThrow(
+      const simulated = await import("../../src/runtime/packageRoot.js");
+      expect(() => simulated.discoverPackageRoot(start)).toThrow(
         /Unable to locate the "@dailephd\/my-dev-kit-lab" package root/
       );
+      expect(exists.mock.calls.map(([candidate]) => candidate)).toEqual(probes);
+      expect(read.mock.calls).toEqual([[probes[1], "utf8"]]);
+      expect(stat).not.toHaveBeenCalled();
     } finally {
-      rmSync(isolatedDir, { recursive: true, force: true });
+      vi.doUnmock("node:fs");
+      vi.resetModules();
     }
   });
 });
