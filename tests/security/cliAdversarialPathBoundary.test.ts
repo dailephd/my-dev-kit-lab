@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
@@ -490,28 +490,56 @@ describe("CLI adversarial path boundary — containment preflight (process-free)
 });
 
 describe("CLI adversarial path boundary — traversal checks leave protected paths untouched", () => {
-  function stat(file: string): string {
-    try {
-      const s = statSync(file);
-      return `${s.size}:${s.mtimeMs}`;
-    } catch {
-      return "absent";
-    }
-  }
-
-  it("never creates or modifies etc/passwd/manifest.json under the checkout or drive root", async () => {
-    const guarded = [
-      path.resolve(process.cwd(), "etc", "passwd", "manifest.json"),
-      path.join(path.parse(process.cwd()).root, "etc", "passwd", "manifest.json"),
-    ];
-    const before = guarded.map(stat);
-    for (const { check } of TRAVERSAL_CHECKS) {
-      for (const testInput of PATH_TRAVERSAL_CASES) {
-        await check(getAdversarialCliTarget(), testInput);
+  for (const { flag, idStem, check } of TRAVERSAL_CHECKS) {
+    for (const testInput of PATH_TRAVERSAL_CASES) {
+      for (const unsafe of [false, true]) {
+        it(`${flag} ${testInput.id}: ${unsafe ? "observes a contained unsafe write" : "preserves fixture sentinels on rejection"}`, async () => {
+          const name = `protected-${flag.slice(2)}-${testInput.id}-${unsafe}`;
+          const marker = path.join(stubRoot, `${name}.json`);
+          const target = makeStubTarget(name, `
+let enclosure = process.cwd();
+while (!path.basename(enclosure).includes("-encl-")) {
+  const parent = path.dirname(enclosure);
+  if (parent === enclosure) throw new Error("missing disposable enclosure");
+  enclosure = parent;
+}
+const relative = path.relative(enclosure, val);
+if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("uncontained destination");
+const protectedFiles = [path.join(process.cwd(), "source", "index.ts"), path.join(enclosure, "outside", "outside-sentinel.txt")];
+const snapshot = () => protectedFiles.map(p => fs.readFileSync(p, "utf8"));
+const before = snapshot();
+const destination = path.join(val, "manifest.json");
+const existedBefore = fs.existsSync(destination);
+if (${unsafe}) {
+  fs.mkdirSync(val, { recursive: true });
+  fs.writeFileSync(destination, "contained-unsafe-write\\n", "utf8");
+}
+fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({
+  enclosure, relative, before, after: snapshot(), existedBefore,
+  destinationChanged: fs.existsSync(destination) && fs.readFileSync(destination, "utf8") === "contained-unsafe-write\\n"
+}));
+process.exit(${unsafe ? 0 : 2});
+`);
+          const result = await check(target, testInput);
+          const witness = JSON.parse(readFileSync(marker, "utf8"));
+          expect(witness.before).toEqual(["export const x = 1;\n", "must-not-be-modified\n"]);
+          expect(witness.after).toEqual(witness.before);
+          expect(witness.existedBefore).toBe(false);
+          expect(witness.destinationChanged).toBe(unsafe);
+          expect(witness.relative.startsWith("..")).toBe(false);
+          if (unsafe && ESCAPING_CASE_IDS.includes(testInput.id)) {
+            expectEscapeFailure(result, idStem, testInput);
+          } else {
+            expect(result.status).toBe("passed");
+            expect(result.findings).toHaveLength(0);
+          }
+          // The existing helper owns cleanup; sibling witnesses remain readable.
+          expect(existsSync(witness.enclosure)).toBe(false);
+          expect(existsSync(marker)).toBe(true);
+        });
       }
     }
-    expect(guarded.map(stat)).toEqual(before);
-  });
+  }
 });
 
 // ---------------------------------------------------------------------------
