@@ -1610,7 +1610,7 @@ Acceptance:
 
 ### v0.9.5 — staleness evidence and validation boundaries
 
-Status: **implemented; unreleased; documentation-reconciled candidate and standardized pre-release readiness pending**.
+Status: **implemented; unreleased; documentation reconciliation complete; standardized pre-release readiness pending**.
 
 Purpose:
 
@@ -1621,12 +1621,13 @@ Implemented scope:
 * The staleness experiment uses an opt-in, rank-ordered candidate budget of up to eight files, reports incomplete or unknown required-file evidence explicitly, treats inadequate full-refresh comparisons as inconclusive, and labels synthetic fake-agent evidence separately from observed retrieval evidence. The budget does not guarantee that every required file is included.
 * The disposable fake-provider fixture has an explicit CommonJS package boundary; benchmark Git work is pinned to its initialized repository and fails closed on unsafe discovery or redirects; adversarial CLI traversal evidence verifies actual destinations inside bounded disposable enclosures.
 * Tutorial and non-Git fixtures establish their intended execution boundaries. Windows synthetic-repository publication has a finite retry for transient `EPERM` rename failures; a cleanup diagnostic does not replace the primary error.
+* Installed-consumer comparisons reuse the producer's reference-aware semantics. Security witnesses remain project-contained; reviewed local HTTP classification binds exact source identities and physical provenance while retaining major findings for unreviewed calls. Shared bounded collection includes ordinary source files while excluding actual generated directories.
 
 Dependencies and boundaries:
 
 * Builds on the v0.9.4 implementation and preserves its package/schema baseline. It adds no Lab CLI flag, experiment schema, dependency, or v0.10.0 scope.
 * The v0.9.5 C1 evidence correction does not retroactively repair the historical failed evaluation of the frozen Kit v1.14.0 candidate; a new valid Lab release and a separate Kit audit would be needed for that claim.
-* The transient Windows host cause remains unidentified, POSIX retry behavior has no dedicated cross-platform run, and the standardized readiness gate has not been run for the reconciled candidate.
+* The transient Windows host cause remains unidentified, POSIX retry behavior has no dedicated cross-platform run, and the exact reconciled candidate still requires a fresh complete standardized readiness audit. Earlier failed/incomplete audits remain historical.
 
 Acceptance:
 
