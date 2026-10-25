@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { resolveValidationTarget } from "../../src/securityValidation/validate/resolveTarget.js";
 import { runCliSecuritySuiteCheck } from "../../src/securityValidation/validate/runCliSecuritySuiteCheck.js";
+import * as runner from "../../src/securityValidation/commandRunner.js";
+import type { CommandExecutionResult } from "../../src/securityValidation/types.js";
 
 function makeTempProject(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -32,6 +34,51 @@ function extractReportedPath(summary: string, prefix: string): string {
 }
 
 describe("runCliSecuritySuiteCheck", () => {
+  it.each([
+    { exitCode: null, signal: "SIGTERM" as const, timedOut: false },
+    { exitCode: null, signal: null, timedOut: true, treeTerminated: true },
+    { exitCode: 0, signal: null, timedOut: true, treeTerminated: true },
+    { exitCode: 0, signal: null, timedOut: false, treeTerminated: false },
+    { exitCode: null, signal: null, timedOut: false, spawnError: "spawn ENOENT" },
+  ])("retains truthful failed process evidence and never reconstructs success: %j", async processResult => {
+    const cmd: CommandExecutionResult = {
+      command: "npm", args: ["run", "test:security"], cwd: process.cwd(),
+      durationMs: 1234, stdout: "784 tests passed", stderr: "", skipped: false,
+      timeoutMs: 180000, resolutionKind: "direct", ...processResult,
+    };
+    const spy = vi.spyOn(runner, "runSecurityCommand").mockResolvedValue(cmd);
+    try {
+      const result = await runCliSecuritySuiteCheck({ toolRoot: process.cwd(), target: resolveValidationTarget(undefined, process.cwd()), timeoutMs: 60000 });
+      expect(spy.mock.calls[0]?.[0].timeoutMs).toBe(180000);
+      expect(result.status).toBe("failed");
+      expect(result.exitCode).toBe(cmd.exitCode);
+      expect(result.findings[0]?.severity).toBe("major");
+      const evidence = result.findings[0]?.evidence;
+      expect(evidence).toContain(`timedOut=${cmd.timedOut}`);
+      expect(evidence).toContain(`signal=${String(cmd.signal)}`);
+      expect(evidence).toContain("timeoutMs=180000");
+      expect(evidence).toContain("durationMs=1234");
+      if (cmd.spawnError) expect(evidence).toContain("spawnError=spawn ENOENT");
+    } finally { spy.mockRestore(); }
+  });
+
+  it("bounds and sanitizes untrusted stdout/stderr evidence without changing a nonzero exit", async () => {
+    const spy = vi.spyOn(runner, "runSecurityCommand").mockResolvedValue({
+      command: "npm", args: [], cwd: process.cwd(), exitCode: 9, durationMs: 1,
+      stdout: "\x1b[31m" + "x".repeat(1000) + "UNRETAINED", stderr: "\x00bad\x1b[0m",
+      timedOut: false, skipped: false,
+    });
+    try {
+      const result = await runCliSecuritySuiteCheck({ toolRoot: process.cwd(), target: resolveValidationTarget(undefined, process.cwd()), timeoutMs: 60000 });
+      expect(result.status).toBe("failed");
+      expect(result.exitCode).toBe(9);
+      expect(result.stdoutSummary).toHaveLength(500);
+      expect(result.stderrSummary).toBe("bad");
+      expect(result.findings[0]?.evidence).not.toMatch(/[\x00\x1b]|UNRETAINED/);
+      expect(result.findings[0]?.evidence).toContain("signal=unknown");
+    } finally { spy.mockRestore(); }
+  });
+
   it("runs target test:security in the target cwd and passes when the script exits 0", async () => {
     const targetRoot = makeTempProject("sec target pass ");
     const packageJsonPath = path.join(targetRoot, "package.json");

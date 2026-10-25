@@ -1,5 +1,5 @@
 import { runSecurityCommand, resolveNpmCommand } from "../commandRunner.js";
-import type { SecurityCheckResult } from "../types.js";
+import type { CommandExecutionResult, SecurityCheckResult } from "../types.js";
 import type { SecurityValidationTarget } from "./resolveTarget.js";
 
 export async function runCliSecuritySuiteCheck(options: {
@@ -75,10 +75,17 @@ export async function runCliSecuritySuiteCheck(options: {
     timeoutMs: Math.min(options.timeoutMs * 3, 180_000),
   });
   const finishedAt = new Date().toISOString();
-  const passed = cmd.exitCode === 0;
+  const passed = cmd.exitCode === 0 && !cmd.timedOut && !cmd.spawnError && cmd.treeTerminated !== false;
   const name = isSelf
     ? "CLI adversarial test suite (tool self-tests)"
     : "Target security test suite";
+  const outcome = cmd.timedOut
+    ? `exceeded its ${cmd.timeoutMs ?? "configured"} ms deadline (exit code ${String(cmd.exitCode)}).`
+    : cmd.spawnError
+      ? "could not be started; see process error evidence."
+      : cmd.treeTerminated === false
+        ? "did not confirm process-tree cleanup."
+        : `exited with code ${String(cmd.exitCode)}.`;
 
   return {
     id: "cli-adversarial-suite",
@@ -98,8 +105,8 @@ export async function runCliSecuritySuiteCheck(options: {
             severity: "major",
             category: "cli-adversarial",
             description: isSelf
-              ? `Tool-root test:security exited with code ${String(cmd.exitCode)}.`
-              : `Target-root test:security exited with code ${String(cmd.exitCode)}.`,
+              ? `Tool-root test:security ${outcome}`
+              : `Target-root test:security ${outcome}`,
             evidence: buildEvidence(cmd),
             recommendation: isSelf
               ? "Fix failing tool security tests before release."
@@ -116,20 +123,23 @@ export async function runCliSecuritySuiteCheck(options: {
 }
 
 function summarizeOutput(value: string): string | undefined {
-  const normalized = value.replace(/\r\n/g, "\n").trim();
+  const normalized = value.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+    .replace(/\r\n/g, "\n").trim();
   if (!normalized) {
     return undefined;
   }
   return normalized.slice(0, 500);
 }
 
-function buildEvidence(cmd: {
-  cwd: string;
-  exitCode: number | null;
-  stdout: string;
-  stderr: string;
-}): string {
-  const parts = [`cwd=${cmd.cwd}`, `exitCode=${String(cmd.exitCode)}`];
+function buildEvidence(cmd: CommandExecutionResult): string {
+  const parts = [
+    `cwd=${cmd.cwd}`, `exitCode=${String(cmd.exitCode)}`,
+    `timedOut=${cmd.timedOut}`, `signal=${cmd.signal === undefined ? "unknown" : String(cmd.signal)}`,
+    `timeoutMs=${cmd.timeoutMs ?? "unknown"}`, `durationMs=${cmd.durationMs}`,
+    `resolutionKind=${cmd.resolutionKind ?? "unknown"}`, `treeTerminated=${cmd.treeTerminated ?? "not-requested"}`,
+  ];
+  if (cmd.spawnError) parts.push(`spawnError=${summarizeOutput(cmd.spawnError)}`);
   const stdoutSummary = summarizeOutput(cmd.stdout);
   const stderrSummary = summarizeOutput(cmd.stderr);
   if (stdoutSummary) {

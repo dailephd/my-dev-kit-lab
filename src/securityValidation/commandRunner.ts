@@ -1,5 +1,6 @@
 import { spawn, type SpawnOptionsWithStdioTuple, type StdioNull, type StdioPipe } from "node:child_process";
 import { resolveCommand } from "../core/resolveCommand.js";
+import { terminateProcessTree } from "../core/processTree.js";
 import type { CommandExecutionResult } from "./types.js";
 
 // Prefer the unqualified npm command and let the shared resolver locate
@@ -19,6 +20,8 @@ export function buildSecurityCommandSpawnOptions(options: {
   return {
     cwd: options.cwd,
     shell: false,
+    windowsHide: true,
+    detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"],
     env: options.env,
   };
@@ -68,6 +71,8 @@ export async function runSecurityCommand(options: {
       stdout: "",
       stderr: resolved.warnings.join("\n"),
       timedOut: false,
+      resolutionKind: resolved.resolutionKind,
+      timeoutMs: options.timeoutMs,
       skipped: false,
     };
   }
@@ -78,6 +83,12 @@ export async function runSecurityCommand(options: {
     let timedOut = false;
     let settled = false;
     let timeout: NodeJS.Timeout | undefined;
+    let closeGrace: NodeJS.Timeout | undefined;
+    let termination: Promise<boolean> | undefined;
+    let treeTerminated: boolean | undefined;
+    let signal: NodeJS.Signals | null | undefined;
+    let exitCode: number | null = null;
+    let spawnError: string | undefined;
 
     let child;
     try {
@@ -92,6 +103,9 @@ export async function runSecurityCommand(options: {
         stdout: "",
         stderr: spawnErr instanceof Error ? spawnErr.message : String(spawnErr),
         timedOut: false,
+        spawnError: spawnErr instanceof Error ? spawnErr.message : String(spawnErr),
+        resolutionKind: resolved.resolutionKind,
+        timeoutMs: options.timeoutMs,
         skipped: false,
       });
       return;
@@ -104,38 +118,12 @@ export async function runSecurityCommand(options: {
       stderr += chunk.toString("utf8");
     });
 
-    child.on("error", (error) => {
+    const finish = async () => {
       if (settled) return;
       settled = true;
       if (timeout) clearTimeout(timeout);
-      resolve({
-        command,
-        args,
-        cwd: options.cwd,
-        exitCode: null,
-        durationMs: Date.now() - started,
-        stdout,
-        stderr: error.message,
-        timedOut,
-        skipped: false,
-      });
-    });
-
-    if (options.timeoutMs > 0) {
-      timeout = setTimeout(() => {
-        timedOut = true;
-        try {
-          child.kill("SIGTERM");
-        } catch {
-          // Process may have already exited.
-        }
-      }, options.timeoutMs);
-    }
-
-    child.on("close", (exitCode) => {
-      if (settled) return;
-      settled = true;
-      if (timeout) clearTimeout(timeout);
+      if (termination) await termination;
+      if (closeGrace) clearTimeout(closeGrace);
       resolve({
         command,
         args,
@@ -145,8 +133,47 @@ export async function runSecurityCommand(options: {
         stdout,
         stderr,
         timedOut,
+        signal,
+        spawnError,
+        resolutionKind: resolved.resolutionKind,
+        timeoutMs: options.timeoutMs,
+        treeTerminated,
         skipped: false,
       });
+    };
+
+    child.on("error", (error) => {
+      spawnError = error.message;
+      stderr += `${stderr ? "\n" : ""}${error.message}`;
+      void finish();
+    });
+
+    if (options.timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        timedOut = true;
+        // Keep the parent alive until its entire owned tree is addressed.
+        // Killing only npm's cmd parent can strand its children and their pipes.
+        termination = terminateProcessTree(child.pid, { waitTimeoutMs: 5000 }).then((terminated) => {
+          treeTerminated = terminated;
+          return terminated;
+        });
+        void termination.then(() => {
+          if (settled) return;
+          // A failed tree operation or a pipe that never closes must not make
+          // the command wait indefinitely beyond its deadline and kill grace.
+          closeGrace = setTimeout(() => {
+            child.stdout.destroy();
+            child.stderr.destroy();
+            void finish();
+          }, 1000);
+        });
+      }, options.timeoutMs);
+    }
+
+    child.on("close", (code, exitSignal) => {
+      exitCode = code;
+      signal = exitSignal;
+      void finish();
     });
   });
 }
