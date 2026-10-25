@@ -1,7 +1,7 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME,
   SyntheticRepositoryMaterializationError,
@@ -345,7 +345,18 @@ describe("synthetic repository materialization", () => {
     const transient = (code = "EPERM"): NodeJS.ErrnoException =>
       Object.assign(new Error(`${code}: injected host error, rename`), { code, errno: -4048, syscall: "rename" });
 
-    /** Scripted publication rename: entry n is thrown on attempt n; attempts beyond the script perform the real rename. */
+    // Model successful publication without a host rename adding an unscripted EPERM.
+    // The default-I/O materialization tests above exercise the real atomic rename.
+    function publishSuccessfully(from: string, to: string): void {
+      expect(path.relative(realpathSync(root), path.dirname(from))).not.toMatch(/^\.\.|^[A-Za-z]:/);
+      expect(path.dirname(from)).toBe(path.dirname(to));
+      expect(path.basename(from)).toMatch(/^\.synthetic-staging/);
+      expect(existsSync(to)).toBe(false);
+      cpSync(from, to, { recursive: true, force: false, errorOnExist: true });
+      rmSync(from, { recursive: true });
+    }
+
+    /** Entry n is thrown on attempt n; subsequent entries model a successful publication. */
     function scripted(script: Array<Error | undefined>, platform: NodeJS.Platform = "win32") {
       const attempts: Array<{ from: string; to: string }> = [];
       const delays: number[] = [];
@@ -358,7 +369,7 @@ describe("synthetic repository materialization", () => {
           attempts.push({ from, to });
           const outcome = script[attempts.length - 1];
           if (outcome) throw outcome;
-          renameSync(from, to);
+          publishSuccessfully(from, to);
         },
       };
       return { io, attempts, delays };
@@ -388,6 +399,41 @@ describe("synthetic repository materialization", () => {
       expect(delays).toEqual([]);
       expect(result.reusedExistingMaterialization).toBe(false);
       expectIdenticalToBaseline(plan, contended);
+    });
+
+    it("keeps independent publication scripts and their attempt counts isolated", () => {
+      const contended = path.join(root, "contended-root");
+      const failed = scripted([transient("EACCES")]);
+      expect(failure(() => materializeSyntheticRepository(planFor(), contended, failed.io)).code).toBe("io-failure");
+      const fresh = scripted([]);
+      materializeSyntheticRepository(planFor(), contended, fresh.io);
+      expect(failed.attempts).toHaveLength(1);
+      expect(failed.delays).toEqual([]);
+      expect(fresh.attempts).toHaveLength(1);
+      expect(fresh.delays).toEqual([]);
+      expectIdenticalToBaseline(planFor(), contended);
+    });
+
+    it("preserves the primary rename failure when owned staging cleanup also fails", async () => {
+      const cleanup = vi.fn(() => { throw new Error("injected cleanup failure"); });
+      vi.doMock("node:fs", async () => ({
+        ...await vi.importActual<typeof import("node:fs")>("node:fs"),
+        rmSync: cleanup,
+      }));
+      vi.resetModules();
+      try {
+        const isolated = await import("../../../src/evaluation/syntheticRepository/materialize.js");
+        const { io, attempts, delays } = scripted([transient("EACCES")]);
+        expect(() => isolated.materializeSyntheticRepository(planFor(), root, io)).toThrow(
+          /io-failure.*EACCES.*cleanup of the owned staging directory failed: injected cleanup failure/
+        );
+        expect(attempts).toHaveLength(1);
+        expect(delays).toEqual([]);
+        expect(cleanup).toHaveBeenCalledExactlyOnceWith(attempts[0].from, { recursive: true, force: true });
+      } finally {
+        vi.doUnmock("node:fs");
+        vi.resetModules();
+      }
     });
 
     it("one EPERM then success is exactly two attempts, one 25 ms wait, and a fully verified identical output", () => {
@@ -565,7 +611,7 @@ describe("synthetic repository materialization", () => {
         renameDirectory: (from: string, to: string): void => {
           attempts += 1;
           if (attempts === 1) throw transient();
-          renameSync(from, to);
+          publishSuccessfully(from, to);
           writeFileSync(path.join(to, "repository", "unlisted.txt"), "tampered\n");
         },
       };
@@ -585,7 +631,7 @@ describe("synthetic repository materialization", () => {
         renameDirectory: (from: string, to: string): void => {
           attempts += 1;
           if (attempts <= 2) throw transient();
-          renameSync(from, to);
+          publishSuccessfully(from, to);
         },
       });
       const elapsed = Date.now() - started;
