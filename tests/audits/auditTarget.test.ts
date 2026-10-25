@@ -109,10 +109,47 @@ describe("resolveAuditTarget — external target", () => {
 
   it("resolves a relative path against process.cwd()", () => {
     const tmp = makeTempDir();
-    const relative = path.relative(process.cwd(), tmp);
-    const target = resolveAuditTarget(relative, process.cwd());
-    expect(path.resolve(target.rootPath)).toBe(path.resolve(tmp));
-    cleanup(tmp);
+    try {
+      const relative = path.relative(process.cwd(), tmp);
+      const target = resolveAuditTarget(relative, process.cwd());
+      // Windows cwd and TEMP can spell the same existing directory with different case.
+      if (process.platform === "win32") {
+        expect(fs.realpathSync.native(target.rootPath)).toBe(fs.realpathSync.native(tmp));
+      } else {
+        expect(path.resolve(target.rootPath)).toBe(path.resolve(tmp));
+      }
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
+  it("compares existing fixture identities without conflating distinct directories", () => {
+    const parent = makeTempDir();
+    const expected = path.join(parent, "Case Target With Spaces");
+    const distinct = path.join(parent, "Different Target With Spaces");
+    fs.mkdirSync(expected);
+    fs.mkdirSync(distinct);
+    try {
+      const spelling = process.platform === "win32"
+        ? path.join(parent, "cASE tARGET wITH sPACES")
+        : expected;
+      const target = resolveAuditTarget(path.relative(process.cwd(), spelling), process.cwd());
+      if (process.platform === "win32") {
+        const expectedStat = fs.statSync(expected, { bigint: true });
+        const actualStat = fs.statSync(target.rootPath, { bigint: true });
+        expect(actualStat.dev).toBe(expectedStat.dev);
+        expect(actualStat.ino).toBe(expectedStat.ino);
+        expect(fs.realpathSync.native(target.rootPath)).toBe(fs.realpathSync.native(expected));
+        expect(fs.realpathSync.native(target.rootPath)).not.toBe(fs.realpathSync.native(distinct));
+      } else {
+        expect(path.resolve(target.rootPath)).toBe(path.resolve(expected));
+        expect(path.resolve(target.rootPath)).not.toBe(path.resolve(distinct));
+        expect(path.resolve(expected)).not.toBe(path.resolve(parent, "cASE tARGET wITH sPACES"));
+      }
+      expect(target.safeReportOutputRoot).toBe(path.join(path.resolve(process.cwd()), "reports", "audits"));
+    } finally {
+      cleanup(parent);
+    }
   });
 
   it("handles a Windows-style path with spaces", () => {
