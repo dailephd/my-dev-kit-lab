@@ -14,3 +14,7 @@ benchmarks/projects/task-analytics-large-mixed/py/task_analytics/metrics.py text
 benchmarks/projects/task-analytics-large-mixed/ts/src/services/buildAnalyticsSnapshot.ts text eol=crlf
 benchmarks/projects/task-analytics-large-mixed/py/tests/test_quality.py text eol=crlf
 benchmarks/projects/task-workflow-medium-ts/src/services/completeTask.ts text eol=crlf
+
+# Reviewed local HTTP callsites have LF-canonical source identities.
+src/runtime/managedProcess.ts text eol=lf
+src/tutorial/tutorialAssertions.ts text eol=lf

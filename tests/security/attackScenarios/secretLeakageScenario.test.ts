@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import fs, { mkdirSync, mkdtempSync, readFileSync, writeFileSync, symlinkSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SECRET_LEAKAGE_SCENARIO } from "../../../src/securityValidation/attackScenarios/scenarios/secretLeakageScenario.js";
 import { renderJsonReport, renderTextReport } from "../../../src/securityValidation/report/renderSecurityReport.js";
 import type { SecurityReport } from "../../../src/securityValidation/report/securityReportTypes.js";
@@ -38,6 +38,7 @@ function makeCtx(targetRoot: string): AttackScenarioContext {
 
 const cleanupDirs: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(cleanupDirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
 });
 
@@ -49,6 +50,37 @@ function makeFixtureDir(prefix: string): string {
 }
 
 describe("SECRET_LEAKAGE_SCENARIO", () => {
+  it("detects regular secrets beside refused links without reading outside", async () => {
+    const root = makeFixtureDir("secret-provenance-");
+    const outside = makeFixtureDir("secret-owned-outside-");
+    const target = path.join(outside, "outside.ts");
+    const link = path.join(root, "src/linked.ts");
+    writeFileSync(target, "export const harmless = true;\n");
+    writeFileSync(path.join(root, "src/creds.ts"),
+      'export const token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";\n');
+    try { symlinkSync(target, link, "file"); }
+    catch (error) {
+      if (!["EPERM", "EACCES"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+      writeFileSync(link, "");
+      const inspect = fs.lstatSync;
+      vi.spyOn(fs, "lstatSync").mockImplementation(((file: fs.PathLike, ...args: any[]) => {
+        const stat = (inspect as any)(file, ...args);
+        return file === link ? Object.assign(Object.create(stat), { isSymbolicLink: () => true }) : stat;
+      }) as typeof fs.lstatSync);
+      console.info("LINK_CONTROL: injected secret collector refusal; real link creation denied");
+    }
+    const read = fs.readFileSync;
+    const reads = vi.spyOn(fs, "readFileSync").mockImplementation(((file: fs.PathOrFileDescriptor, ...args: any[]) => {
+      if (file === target || file === link) throw new Error("outside source must not be read");
+      return (read as any)(file, ...args);
+    }) as typeof fs.readFileSync);
+    const outcome = await SECRET_LEAKAGE_SCENARIO.run(makeCtx(root));
+    expect(outcome.status).toBe("failed");
+    expect(outcome.severity).toBe("blocker");
+    expect(outcome.evidence.some(e => e.kind === "secret-leak" && e.filePath === "src/creds.ts")).toBe(true);
+    expect(reads.mock.calls.some(([file]) => file === target || file === link)).toBe(false);
+  });
+
   it("a high-confidence private key fixture produces a finding (failed)", async () => {
     const root = makeFixtureDir("secret-privkey-");
     writeFileSync(
