@@ -49,6 +49,25 @@ function makeFixtureDir(prefix: string): string {
 }
 
 describe("NETWORK_ASSUMPTION_SCENARIO", () => {
+  it.each(["build", "dist", "node_modules", "coverage", "Build"])("scans an ordinary source file named %s", async name => {
+    const root = makeFixtureDir("net-file-type-");
+    writeFileSync(path.join(root, "src", name), "export const request = url => fetch(url);\n");
+    const outcome = await NETWORK_ASSUMPTION_SCENARIO.run(makeCtx(root));
+    expect(outcome.status).toBe("failed");
+    expect(outcome.severity).toBe("major");
+    expect(outcome.evidence.some(e => e.filePath === `src/${name}`)).toBe(true);
+  });
+
+  it.each(["build", "dist", "node_modules", "coverage"])("still excludes the generated %s directory", async name => {
+    const root = makeFixtureDir("net-directory-type-");
+    mkdirSync(path.join(root, "src", name));
+    writeFileSync(path.join(root, "src", name, "generated.ts"), "fetch(url);\n");
+    writeFileSync(path.join(root, "src", "ordinary.ts"), "export const local = true;\n");
+    const outcome = await NETWORK_ASSUMPTION_SCENARIO.run(makeCtx(root));
+    expect(outcome.status).toBe("passed");
+    expect(outcome.evidence.some(e => e.filePath?.startsWith(`src/${name}/`))).toBe(false);
+  });
+
   const reviewedFiles = [
     "src/runtime/managedProcess.ts", "src/tutorial/tutorialAssertions.ts",
     "src/tutorial/runTutorial.ts", "src/tutorial/tutorialSession.ts", "src/tutorial/targetContractValidation.ts",
@@ -79,6 +98,40 @@ describe("NETWORK_ASSUMPTION_SCENARIO", () => {
       console.info("LINK_CONTROL: injected lstat refusal; host denied real link creation");
     }
   }
+
+  it.each(process.platform === "win32" ? ["runtime", "src"] : ["runtime"])("never trusts different-case %s spelling", async segment => {
+    const root = reviewedFixture();
+    const from = path.join(root, segment === "src" ? "src" : "src/runtime");
+    const to = path.join(root, segment === "src" ? "Src" : "src/Runtime");
+    // Two renames also work on case-insensitive Windows filesystems.
+    renameSync(from, from + "-rename");
+    renameSync(from + "-rename", to);
+    const outcome = await NETWORK_ASSUMPTION_SCENARIO.run(makeCtx(root));
+    expect(outcome.status).toBe("failed");
+    expect(outcome.severity).toBe("major");
+    const observed = segment === "src" ? "Src/runtime/managedProcess.ts" : "src/Runtime/managedProcess.ts";
+    expect(outcome.evidence.some(e => e.filePath === observed)).toBe(true);
+    expect(outcome.evidence.filter(e => e.source === "known-intentional local HTTP use").map(e => e.filePath))
+      .not.toContain("src/runtime/managedProcess.ts");
+  });
+
+  it("refuses a link named like an excluded directory without reading its target", async () => {
+    const root = makeFixtureDir("net-exclusion-alias-");
+    const outside = makeFixtureDir("net-exclusion-owned-");
+    const target = path.join(outside, "target.ts"), link = path.join(root, "src/build");
+    writeFileSync(target, "fetch(url);\n");
+    linkFixture(target, link);
+    const read = fs.readFileSync;
+    const reads = vi.spyOn(fs, "readFileSync").mockImplementation(((file: fs.PathOrFileDescriptor, ...args: any[]) => {
+      if (file === target || file === link) throw new Error("linked target must not be read");
+      return (read as any)(file, ...args);
+    }) as typeof fs.readFileSync);
+    const outcome = await NETWORK_ASSUMPTION_SCENARIO.run(makeCtx(root));
+    expect(reads.mock.calls.some(([file]) => file === target || file === link)).toBe(false);
+    expect(outcome.status).toBe("failed");
+    expect(outcome.severity).toBe("major");
+    expect(outcome.evidence.some(e => e.source === "source provenance refusal" && e.filePath === "src/build")).toBe(true);
+  });
 
   it.each(["LF", "CRLF"])("recognizes exactly unchanged reviewed %s content and callers", async mode => {
     const root = reviewedFixture();

@@ -50,6 +50,14 @@ function makeFixtureDir(prefix: string): string {
 }
 
 describe("SECRET_LEAKAGE_SCENARIO", () => {
+  it.each(["build", "dist", "node_modules", "coverage"])("detects credentials in a regular source file named %s", async name => {
+    const root = makeFixtureDir("secret-file-type-");
+    writeFileSync(path.join(root, "src", name), 'export const token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";\n');
+    const outcome = await SECRET_LEAKAGE_SCENARIO.run(makeCtx(root));
+    expect(outcome.status).toBe("failed");
+    expect(outcome.evidence.some(e => e.filePath === `src/${name}`)).toBe(true);
+  });
+
   it("detects regular secrets beside refused links without reading outside", async () => {
     const root = makeFixtureDir("secret-provenance-");
     const outside = makeFixtureDir("secret-owned-outside-");

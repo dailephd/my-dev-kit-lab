@@ -69,6 +69,7 @@ export function collectBoundedSourceFiles(
 ): ScannedFile[] {
   const root = path.resolve(targetRoot);
   const issueMap = new Map<string, string>();
+  const inspectedPaths = new Map<string, string>();
   const relative = (file: string): string => path.relative(root, file).replace(/\\/g, "/") || ".";
   const refuse = (file: string, reason: string): undefined => {
     issueMap.set(relative(file), reason);
@@ -91,9 +92,11 @@ export function collectBoundedSourceFiles(
         if (stat.isSymbolicLink()) return refuse(current, "symlink-or-junction");
         if (!stat.isDirectory() && !stat.isFile()) return refuse(current, "non-regular-path");
         if (stat.isFile() && stat.nlink > 1) return refuse(current, "multiply-linked-source");
-        if (!samePhysicalPath(fs.realpathSync.native(current), current)) {
+        const physical = fs.realpathSync.native(current);
+        if (!samePhysicalPath(physical, current)) {
           return refuse(current, "physical-path-alias");
         }
+        inspectedPaths.set(current, physical);
       } catch (error) {
         // Missing optional files are normal for generic external targets.
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") refuse(current, "unreadable-path");
@@ -125,13 +128,19 @@ export function collectBoundedSourceFiles(
         try { entries = fs.readdirSync(file).sort(); }
         catch { refuse(file, "unreadable-directory"); return; }
         for (const name of entries) {
-          if (EXCLUDED_SOURCE_DIRECTORIES.has(name)) continue;
           const child = path.join(file, name);
           // Root-level wildcard globs must not traverse unrelated directories.
-          if (recursive || path.matchesGlob(relative(child), pattern)) visit(child);
+          if (recursive || path.matchesGlob(relative(child), pattern)) {
+            // Exclusions name generated directories, never ordinary files.
+            // Inspect first so a link with an excluded name stays reportable.
+            if (EXCLUDED_SOURCE_DIRECTORIES.has(name) && inspect(child)?.isDirectory()) continue;
+            visit(child);
+          }
         }
       } else if (path.matchesGlob(rel, pattern) && !/\.(?:tmp|temp|log|pyc)$|~$/.test(rel)) {
-        candidateMap.set(rel, file);
+        // Windows identity comparisons may ignore case for containment, but
+        // reviewed trust must use observed spelling, including the glob base.
+        candidateMap.set(relative(inspectedPaths.get(file)!), file);
       }
     }
     visit(path.resolve(root, base));
