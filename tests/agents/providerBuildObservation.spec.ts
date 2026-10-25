@@ -60,7 +60,12 @@ describe("source-grounded provider capability, fake processes only", () => {
     const original = makeProviderShim("codex", { parentDir }), other = makeProviderShim("codex", { parentDir });
     const cap = await observeProviderBuild("codex", { env: original.env });
     const launch = await trustedProviderLaunch(cap, "codex");
-    expect(path.dirname(launch.prefix[0]!)).toBe(realpathSync(shimBin(original))); expect(path.dirname(launch.prefix[0]!)).not.toBe(realpathSync(shimBin(other)));
+    // Compare physical fixture identities using the same native resolution as
+    // fs/promises.realpath in the producer (ordinary realpathSync can retain
+    // the supplied TEMP casing on Windows). No provider evidence is rewritten.
+    const launchBin = realpathSync.native(path.dirname(launch.prefix[0]!));
+    expect(launchBin).toBe(realpathSync.native(shimBin(original)));
+    expect(launchBin).not.toBe(realpathSync.native(shimBin(other)));
     original.respond("bound", "raw-full-file", "original"); other.respond("bound", "raw-full-file", "substitution");
     const req = request(original, cap); req.env = { ...original.env, PATH: other.env.PATH, Path: other.env.Path };
     expect((await runAgentPrompt(req)).finalAnswerText).toBe("original"); expect(other.invocationKeys()).toEqual([]); expect(original.invocationKeys()).toEqual(["bound.raw-full-file"]);
