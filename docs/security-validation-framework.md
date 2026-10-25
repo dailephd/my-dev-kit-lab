@@ -63,6 +63,8 @@ Target resolution reads available package, lockfile, and Git metadata without mo
 
 For an external target, `security:validate` runs the target's `npm run test:security` from that target when the script exists. Missing target scripts and optional tools remain explicit in the results.
 
+When `cli-adversarial` is selected, the nested `npm run test:security` check is required, not an optional scanner. Its deadline remains three times the configured command timeout, capped at 180000 ms. The security command runner uses bounded process-tree termination on timeout, awaits cleanup, and bounds the remaining pipe-close wait. A pass requires exit 0 without a timeout, start error, or reported cleanup failure. Nonzero or null exits, signals, deadlines and cleanup failures remain failure evidence; diagnostics retain the actual outcome with bounded, sanitized output. The failed suite remains a major finding under the unchanged blocking verdict policy.
+
 Validation records target-mutation evidence. It does not clean, reset, or otherwise hide a mutation after the run; an unexpected change must remain visible and affect interpretation.
 
 Target-aware behavior is implemented in:

@@ -14,6 +14,7 @@ All notable changes to my-dev-kit-lab are documented here.
 - Packed-consumer staleness acceptance reuses the installed producer's reference-aware comparisons for all six scenarios and all three comparisons per scenario, including ordered reason codes; it retains the production artifact validator and does not change the scientific standard.
 - Replaced drive-root adversarial test probes with enclosed safe/unsafe witnesses. Network scanning recognizes two narrowly reviewed local HTTP sites only with strict source identities (CRLF-to-LF normalization only), expected fetch counts, caller evidence, and physical provenance; unreviewed calls and reportable provenance refusals remain major findings.
 - Corrected shared bounded source collection so ordinary files named like generated directories remain eligible, while actual generated directories stay excluded and case aliases cannot inherit reviewed trust.
+- Security command timeouts now use bounded process-tree termination; required nested security-suite failures retain actual timeout, exit, signal, start-error and cleanup evidence without weakening major-finding severity.
 - These changes add no Lab CLI flags, experiment schemas, package version bump, or release claim. The candidate remains package version 0.9.4 and v0.9.5 is unreleased.
 
 ## [0.9.4] - 2026-10-23

@@ -806,6 +806,8 @@ npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 
 Reports are written beneath `reports/security/` unless `--out` is supplied.
 
+When the selected checks include `cli-adversarial`, inspect the required nested `npm run test:security` result as well as its test summary. Printed passing tests alone do not establish success: a timeout, nonzero or null exit, start error, or reported process-tree cleanup failure remains failed evidence and a blocking major finding. Timeout handling terminates the process tree with bounded cleanup; the deadline and verdict severity are unchanged. See the [security framework](security-validation-framework.md#target-aware-validation) for the process-result contract.
+
 **Failure handling:** treat unavailable optional tools as `skipped`, not passed. Investigate failed checks and inconclusive environments from the generated report; do not weaken thresholds to hide findings.
 
 **Completion:** the selected checks finish, the report records every pass/failure/skip, and the target mutation evidence shows no unintended change.
