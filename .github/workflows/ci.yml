@@ -30,7 +30,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
+          # Playwright 1.60.0 supports Ubuntu 24.04, not Ubuntu 26.04.
+          - ubuntu-24.04
           - macos-latest
           - windows-latest
         node-version:
