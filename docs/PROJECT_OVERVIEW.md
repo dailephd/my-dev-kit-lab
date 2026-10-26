@@ -16,7 +16,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The latest published package baseline remains v0.9.4. The implemented v0.9.5 candidate corrects staleness-evidence interpretation and strengthens disposable validation boundaries; it is unreleased and package metadata remains 0.9.4. Its documentation reconciliation is complete; the separate standardized readiness gate remains pending. See [CURRENT_STATE.md](CURRENT_STATE.md).
+The v0.9.5 release corrects staleness-evidence interpretation and strengthens disposable validation boundaries while preserving default retrieval behavior. It adds no Lab CLI flags, experiment schemas, or dependencies. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational publication evidence.
 
 Version v0.9.3 adds hardened prompt contracts, extensible reports with metric evidence, broader gallery inputs, and prompt-template comparison. Security verdict strictness is unchanged. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the release state.
 

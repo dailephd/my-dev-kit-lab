@@ -7,11 +7,12 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Latest published baseline and package version: `v0.9.4` (`package.json` remains `0.9.4`).
-- Implemented but unreleased candidate: `v0.9.5`; local implementation corrections and documentation reconciliation are complete. The latest standardized audit attempt, on `f2441c2787cbf90f37e7e3c26f9cc34f9e31fcf5` on 2026-10-25, returned `NEEDS_CORRECTION`; later scoped corrections do not constitute a readiness pass. A fresh complete audit of the reconciled candidate remains pending. The retained registry evidence establishes the release baseline; no registry query was repeated in this documentation stage.
+- Latest release: v0.9.4 remains the externally verified npm baseline; release candidate package and document version: v0.9.5.
+- Exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed local and hosted standardized readiness on 2026-10-26. Release preparation is recorded separately; npm reported baseline `0.9.4` and an explicit not-found result for `0.9.5` before the versioned release artifact was prepared.
+- Current release: `v0.9.5` release-document and package target.
 - Previous release: `v0.9.3` (prompt, report, metric, gallery, and comparison improvements).
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
-- Final release-document state: v0.9.4. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) remains historical release evidence; npm publication status is established through registry evidence.
+- Final release-document and package version: v0.9.5. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) remains historical release evidence; npm publication status is established through registry evidence.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Historical release: `v0.9.1` (2026-10-12), followed by `v0.9.2` on 2026-10-13.
 - Historical release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
@@ -21,9 +22,9 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
-- Package version: `0.9.4`. Release documents are in final-release state.
+- Package version: `0.9.5`. Release documents are in final-release state.
 - Next planned feature version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
-- Latest published release: v0.9.4 (Kit schema-3 and npm 12 compatibility correction); the v0.9.5 candidate is not a release.
+- Latest externally verified published baseline at preparation: v0.9.4 (Kit schema-3 and npm 12 compatibility correction); v0.9.5 publication remains an external lifecycle step.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -41,9 +42,9 @@ The initial Stage 4 audit identified missing metric descriptors and prompt-compa
 
 Stage 4 documentation reconciliation and implementation-completeness audit passed. Stage 5 readiness closeout passed: the full suite reported 7,796 passed and 9 skipped; package, security, code-rot, three-platform Node 24 CI and hosted CodeQL gates passed, with no applicable open alerts. The corrected roadmap accepts deterministic prompt contracts, invalid-output classification, matched denominators, verified prompt/checkpoint evidence, comparison reports, and regression/compatibility checks. Real-provider effectiveness remains NOT_VERIFIED as a separately authorized, non-gating empirical objective. Release preparation finalized the 0.9.3 package metadata and release documentation.
 
-## v0.9.4 release and acceptance state
+## v0.9.4 historical release and acceptance state
 
-v0.9.4 is the current release-document and package state; `v0.10.0` remains the next future feature milestone. Release scope: Kit symbol-index schema-3 qualified-identity compatibility alongside schema 2; npm 11 and npm 12 package-inventory support; correct packed-package verifier behavior; and patched development-only security dependencies. Report, experiment, and security-verdict contracts are unchanged. The accepted implementation readiness result is `PASS_READY_FOR_RELEASE_PREP`; release-preparation validation is a separate gate. See [ROADMAP.md](ROADMAP.md#v094--kit-schema-3-and-npm-12-compatibility-correction).
+v0.9.4 is the earlier release and package baseline; `v0.10.0` remains the next future feature milestone. Release scope: Kit symbol-index schema-3 qualified-identity compatibility alongside schema 2; npm 11 and npm 12 package-inventory support; correct packed-package verifier behavior; and patched development-only security dependencies. Report, experiment, and security-verdict contracts are unchanged. The accepted implementation readiness result is `PASS_READY_FOR_RELEASE_PREP`. See [ROADMAP.md](ROADMAP.md#v094--kit-schema-3-and-npm-12-compatibility-correction).
 
 - Implementation branch: `fix/v0.9.4-kit-schema3-compat`. Accepted implementation commit: `97393177272c6173a230b6c693254e9067a4dde4`, which changes exactly seven files: `src/evaluation/affectedNeighborhood.ts`, `src/securityValidation/packageChecks/parseNpmPackDryRun.ts`, `scripts/verify-packed-package.mjs`, `tests/evaluation/affectedNeighborhood.test.ts`, `tests/security/packageContentChecks.test.ts`, `tests/security/cliSecuritySuiteCheck.test.ts`, and `tests/scripts/verifyPackedPackage.spec.ts`. Documentation reconciliation is a later commit on the same branch and changes no implementation file.
 - Schema compatibility: my-dev-kit symbol-index schemas `2` and `3` are accepted and all other values are rejected. Schema-3 symbols use their persisted qualified `nodeId` (`symbolq:` identities); identities are not reconstructed from paths and simple names. Same-name symbols in one file stay distinct, ambiguous simple names are reported as ambiguous, and missing, invalid, kind-mismatched, path-mismatched, or absent-from-graph identities stay unresolved. Code graph `1.1.0` is read by the existing major-one reader; that is version compatibility, not proof of each relationship or compiler-level resolution.
@@ -57,7 +58,7 @@ v0.9.4 is the current release-document and package state; `v0.10.0` remains the 
 
 ## v0.9.5 implemented candidate state
 
-The latest implementation source is `dac4e91b83bb77eea5e74e8f17b8b9178d41cf6d` on `fix/v0.9.5-staleness-evidence` (tree `12b5efc3de20cac762e20e4e44f6c83b73ca9397`). This documentation-only reconciliation follows that source; it does not rerun its behavioral validation. Package metadata remains `0.9.4`; v0.9.5 remains an unreleased candidate. Its C1–C6 and subsequent consistency/security corrections retain the scope in [ROADMAP.md](ROADMAP.md#v095--staleness-evidence-and-validation-boundaries).
+The exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` (tree `fbdca883388abb598a2697d124139601bcb8f643`) passed standardized local and hosted readiness. The versioned release-preparation commit is validated separately. Its scope remains in [ROADMAP.md](ROADMAP.md#v095--staleness-evidence-and-validation-boundaries).
 
 The C6 report records a local Windows Node 24.20.0 / npm 12.2.0 full-suite run on 2026-10-24 at `9d6f5c605072080a2831385f611d243e2e03ddd1` in an independent clone: 558 files (554 passed, 4 skipped), 8,015 tests passed, 9 skipped, 0 failed (Vitest 4.1.12). This is one host run, not hosted CI or standardized readiness evidence. C5 reported 21 skipped tests: 12 prompt-comparison tests were skipped downstream of its campaign-fixture failure, distinct from the nine platform/real-Kit conditional skips retained in C6. C6 passed all 40 prompt-comparison tests. The skip-count difference is reconciled; it does not establish that every earlier failure was benign. The host source of the transient Windows `EPERM` remains unidentified.
 
@@ -73,7 +74,7 @@ The canonical run on `bbbe801646f4e208ff746dd21ca12f961b84a920` on 2026-10-25 ha
 
 The latest retained canonical run on 2026-10-25 belongs to `dac4e91b83bb77eea5e74e8f17b8b9178d41cf6d`: 558 files (554 passed, 4 skipped), 8,102 tests passed, 0 failed, 9 skipped, exit 0. The same six real-Kit, one published-upstream and two platform conditional skips remain. Integrated security on that exact implementation SHA and date exited 0: 19 checks, 15 passed, 1 warned, 0 failed and 3 optional scanner skips; the mandatory nested security suite passed all 46 files and 793 tests with exit 0. OSV-Scanner, local CodeQL availability preflight and Semgrep were unavailable and skipped, not passed; five informational dependency notices remained. Typecheck, build and documentation checks also exited 0 in that implementation task. These are preserved Windows local observations, not fresh validation on the subsequent documentation SHA, installed-consumer acceptance, hosted evidence, or a complete A–Q pass.
 
-A fresh complete A–Q audit must use the exact final documentation-reconciled SHA, subject to separate authorization. Required hosted exact-SHA Windows/Linux/macOS CI and CodeQL evidence has not been verified. Release preparation and publication have not started. The frozen my-dev-kit v1.14.0 candidate requires a valid Lab release followed by its own separate reevaluation/audit and does not inherit Lab readiness.
+The exact implementation candidate passed A?Q and F1?F16 readiness; Windows, Ubuntu, macOS, CodeQL JavaScript/TypeScript and Actions passed on that SHA. The v0.9.5 release-preparation commit receives distinct exact-commit package validation. The frozen my-dev-kit v1.14.0 candidate requires a valid Lab release followed by its own separate reevaluation/audit and does not inherit Lab readiness.
 
 ## Operational state
 
@@ -329,7 +330,7 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Latest release documentation and package version: v0.9.4. External publication is established through npm registry evidence.
+Release documentation and package version: v0.9.5. The latest published package baseline remains v0.9.4 until external publication is verified.
 
 The `published/current` designation is based on external npm evidence, not package metadata or release-document wording.
 
@@ -339,7 +340,7 @@ Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm 
 
 Exact next action is determined by the applicable release workflow and verified external GitHub and npm state.
 
-For the implemented, unreleased v0.9.5 candidate, the next gate is a separately authorized, fresh complete standardized pre-release readiness audit against the exact final post-correction documentation-reconciled commit. The earlier `BLOCKED`, Gate C `NEEDS_CORRECTION`, and `d0718993` and `f2441c27` A–Q `NEEDS_CORRECTION` attempts remain historical; no readiness pass is inherited. The retained 8,102 passed / 0 failed / 9 skipped result belongs only to implementation source `dac4e91b83bb77eea5e74e8f17b8b9178d41cf6d` on 2026-10-25; this documentation SHA has no fresh full-suite or packed-consumer validation. Required hosted exact-SHA Windows/Linux/macOS CI and CodeQL evidence remains unverified. Release preparation and publication have not started.
+The v0.9.5 implementation candidate passed exact-SHA readiness. Release-preparation validation establishes the versioned package artifact separately. The next workflow after release preparation is the standardized GitHub release and npm publication workflow, which must verify current external state and follow its own authorization requirements. No claim of npm publication is made here.
 
 
 ## Previous v0.9.1 release history

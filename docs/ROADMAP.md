@@ -1610,7 +1610,7 @@ Acceptance:
 
 ### v0.9.5 — staleness evidence and validation boundaries
 
-Status: **implemented; unreleased; documentation reconciliation complete; standardized pre-release readiness pending**.
+Status: **final release-document state; release candidate prepared**.
 
 Purpose:
 
@@ -1631,8 +1631,8 @@ Dependencies and boundaries:
 
 Acceptance:
 
-* Documentation reconciliation preserves every historical and future version entry, accurately distinguishes the unreleased candidate from published v0.9.4, and passes the documentation-preservation checker.
-* The exact reconciled SHA subsequently passes the separately authorized standardized pre-release audit, including required Windows, Linux, and macOS evidence. A local C6 suite pass alone is not release readiness.
+* Final release-document state preserves every historical and future version entry, keeps external publication evidence separate, and passes the documentation-preservation checker.
+* Implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed exact-SHA standardized readiness, including Windows, Linux, macOS, and hosted CodeQL. The versioned release-preparation commit receives its own package and release validation.
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 

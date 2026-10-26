@@ -690,7 +690,7 @@ Availability: the first three are always present for a validated incremental tre
 
 `no-observed-regression-relative-to-full` means only that the executed scenario showed no regression under those two evidence dimensions. It does not establish equivalence or safety and does not show that full refresh is unnecessary. `not-comparable-as-partial-refresh` says the run gives no evidence about the requested partial behavior. There is no winner, ranking, composite score, safety score, safe-to-skip-refresh flag, or stale-risk percentage. Ordinary per-treatment correctness `score` remains the existing deterministic fake-agent evidence.
 
-**Evidence families and the reference-adequacy gate (unreleased, post-v0.9.4).** The staleness experiment keeps five kinds of evidence distinct and never converts one into another:
+**Evidence families and the reference-adequacy gate (v0.9.5).** The staleness experiment keeps five kinds of evidence distinct and never converts one into another:
 
 - *Source read*: a file whose own `source` command succeeded under the bounded multi-source retrieval protocol (`bounded-multi-source-v1`: one `search` with an explicit limit, then at most 8 distinct candidate files in search rank order, each with one `source` command). `retrieval.filesRead` and `requiredFileEvidence.observedFiles` carry only these. Candidates come only from the actual search output; the answer key never selects them.
 - *Surfaced*: a file or symbol that search, lookup or slice merely returned. It is not credited as read.

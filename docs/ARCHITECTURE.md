@@ -1038,7 +1038,7 @@ These analyzers provide candidate evidence. They do not provide type checking, f
 
 `src/report` remains the shared report layer. `src/report/experiments` extends it for plugin metadata rather than creating a parallel reporting product. The v0.5.0 `warmIndexReuse` report section (`warmIndexReuseReportModel.ts`, `buildWarmIndexReuseReport.ts`, `renderWarmIndexReuseHtml.ts`, and the text renderer) is populated for `warm-index-reuse` runs and `null` for other plugins. Plots, screenshots, visualization demos, and gallery output consume experiment artifacts and remain reusable across future plugins.
 
-## v0.9.5 implementation boundaries (unreleased)
+## v0.9.5 implementation boundaries
 
 The v0.9.5 candidate extends existing owners rather than adding a parallel runtime. `src/evaluation/runMyDevKitRetrieval.ts` retains the shared retrieval strategy contract; only the staleness experiment opts into its bounded multi-file evidence path. Its eight-file candidate budget is an implementation limit, not a coverage guarantee. Inadequate reference evidence remains inconclusive, and synthetic fake-agent scoring is labeled separately from observed Kit retrieval.
 

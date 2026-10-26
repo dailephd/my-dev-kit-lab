@@ -451,8 +451,8 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.9.4",
-    "latestPublishedVersionEvidenceContext": "Release-document target state is v0.9.4. This manifest records intended document facts only and is not independent npm publication evidence; verify the registry directly for actual publication state.",
-    "currentImplementedUnreleasedVersion": "0.9.5",
+    "latestPublishedVersionEvidenceContext": "Latest published package baseline is v0.9.4. This manifest records intended document facts only and is not independent npm publication evidence; verify the registry directly for actual publication state.",
+    "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
@@ -490,6 +490,6 @@
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
     "releaseDocumentState": "final-release-state",
-    "currentReleaseDocumentVersion": "0.9.4"
+    "currentReleaseDocumentVersion": "0.9.5"
   }
 }
