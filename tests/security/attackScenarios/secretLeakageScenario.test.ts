@@ -43,7 +43,7 @@ afterEach(async () => {
 });
 
 function makeFixtureDir(prefix: string): string {
-  const root = mkdtempSync(path.join(os.tmpdir(), prefix));
+  const root = mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), prefix));
   mkdirSync(path.join(root, "src"), { recursive: true });
   cleanupDirs.push(root);
   return root;
@@ -234,7 +234,7 @@ describe("SECRET_LEAKAGE_SCENARIO", () => {
   });
 
   it("a target with no scan-worthy files passes with clear bounded-scan wording", async () => {
-    const root = mkdtempSync(path.join(os.tmpdir(), "secret-empty-"));
+    const root = mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), "secret-empty-"));
     cleanupDirs.push(root);
     const outcome = await SECRET_LEAKAGE_SCENARIO.run(makeCtx(root));
     expect(outcome.status).toBe("passed");

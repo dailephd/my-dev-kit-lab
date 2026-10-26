@@ -42,7 +42,7 @@ afterEach(async () => {
 });
 
 function makeFixtureDir(prefix: string): string {
-  const root = mkdtempSync(path.join(os.tmpdir(), prefix));
+  const root = mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), prefix));
   mkdirSync(path.join(root, "src"), { recursive: true });
   cleanupDirs.push(root);
   return root;
@@ -358,7 +358,7 @@ describe("NETWORK_ASSUMPTION_SCENARIO", () => {
   });
 
   it("missing/unscannable source skips cleanly (passes with bounded-scan wording, does not crash)", async () => {
-    const root = mkdtempSync(path.join(os.tmpdir(), "net-empty-"));
+    const root = mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), "net-empty-"));
     cleanupDirs.push(root);
     const outcome = await NETWORK_ASSUMPTION_SCENARIO.run(makeCtx(root));
     expect(outcome.status).toBe("passed");
