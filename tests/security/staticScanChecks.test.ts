@@ -8,6 +8,7 @@ import { runSecurityValidation } from "../../src/securityValidation/validate/run
 import { buildSecurityReportFromSummary } from "../../src/securityValidation/report/buildSecurityReport.js";
 import { renderJsonReport } from "../../src/securityValidation/report/renderSecurityReport.js";
 import type { CommandExecutionResult } from "../../src/securityValidation/types.js";
+import { DEFAULT_SECURITY_CONFIG, resolveSemgrepCommandTimeoutMs } from "../../src/securityValidation/config.js";
 
 afterEach(() => vi.restoreAllMocks());
 const cleanOutput = { results: [], errors: [], paths: { scanned: ["src/index.ts"] } };
@@ -153,6 +154,25 @@ describe("parseSemgrepJson — unit tests", () => {
 });
 
 describe("Semgrep execution evidence contract", () => {
+  it("uses a bounded Windows Semgrep process allowance without changing shared tool budgets", async () => {
+    expect(resolveSemgrepCommandTimeoutMs(DEFAULT_SECURITY_CONFIG, "win32")).toBe(300_000);
+    expect(resolveSemgrepCommandTimeoutMs(DEFAULT_SECURITY_CONFIG, "linux")).toBe(60_000);
+    expect(resolveSemgrepCommandTimeoutMs(DEFAULT_SECURITY_CONFIG, "darwin")).toBe(60_000);
+    expect(resolveSemgrepCommandTimeoutMs({ commandTimeoutMs: 60_000, semgrepCommandTimeoutMs: 900_000 }, "win32")).toBe(300_000);
+    expect(resolveSemgrepCommandTimeoutMs({ commandTimeoutMs: 60_000, semgrepCommandTimeoutMs: 5000 }, "win32")).toBe(5000);
+    for (const invalid of [0, -1, Infinity, NaN]) {
+      expect(() => resolveSemgrepCommandTimeoutMs({ commandTimeoutMs: 60_000, semgrepCommandTimeoutMs: invalid }, "win32")).toThrow(/positive finite/);
+    }
+    const command = mockExecution();
+    const now = new Date().toISOString();
+    const codeqlSpy = vi.spyOn(codeql, "runCodeqlCheck").mockResolvedValue({ id: "codeql-scan", name: "CodeQL", category: "static-scan",
+      status: "skipped", severity: "skipped", startedAt: now, finishedAt: now, durationMs: 0, findings: [], skippedReason: "Optional tool unavailable" });
+    await runSecurityValidation({ cwd: process.cwd(), selectedChecks: ["static"] });
+    expect(command).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ timeoutMs: process.platform === "win32" ? 300_000 : 60_000 }));
+    expect(codeqlSpy).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ timeoutMs: 60_000 }));
+    expect(DEFAULT_SECURITY_CONFIG.commandTimeoutMs).toBe(60_000);
+  });
+
   it("SG-01/14 passes only completed exit-0 clean scan evidence with the existing check ID", async () => {
     const command = mockExecution();
     expect(await scan()).toMatchObject({ id: "semgrep-scan", status: "passed", exitCode: 0, findings: [] });

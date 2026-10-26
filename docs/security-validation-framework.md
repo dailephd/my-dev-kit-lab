@@ -67,6 +67,8 @@ When `cli-adversarial` is selected, the nested `npm run test:security` check is 
 
 Validation records target-mutation evidence. It does not clean, reset, or otherwise hide a mutation after the run; an unexpected change must remain visible and affect interpretation.
 
+Classic security validation gives Windows Semgrep a separate 300000 ms process wall-clock deadline. The programmatic `semgrepCommandTimeoutMs` configuration may select a shorter positive finite deadline; Windows values are capped at 300000 ms. Other platforms retain `commandTimeoutMs` unless that Semgrep-only configuration is supplied. This does not change Semgrep per-rule timeouts, detection rules, severities, fail-on thresholds, other tool deadlines, or bounded process-tree cleanup. Missing or partial scanner JSON and required scanner timeouts remain unsuccessful validation evidence.
+
 Target-aware behavior is implemented in:
 
 - `src/securityValidation/validate/resolveTarget.ts`

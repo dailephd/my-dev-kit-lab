@@ -10,6 +10,8 @@ export type SecurityValidationConfig = {
   forbiddenPackagePatterns: string[];
   allowedPackageExceptions: string[];
   commandTimeoutMs: number;
+  // Optional Semgrep-only process deadline; does not change rule timeouts.
+  semgrepCommandTimeoutMs?: number;
   requireOsvScanner: boolean;
 };
 
@@ -52,3 +54,17 @@ export const DEFAULT_SECURITY_CONFIG: SecurityValidationConfig = {
   commandTimeoutMs: 60_000,
   requireOsvScanner: false,
 };
+
+// Windows native Semgrep startup can exceed the shared one-minute deadline.
+// Keep this allowance local to Semgrep, bounded, and independently cancellable.
+export function resolveSemgrepCommandTimeoutMs(
+  config: Pick<SecurityValidationConfig, "commandTimeoutMs" | "semgrepCommandTimeoutMs">,
+  platform: NodeJS.Platform = process.platform
+): number {
+  const timeoutMs = config.semgrepCommandTimeoutMs ??
+    (platform === "win32" ? 300_000 : config.commandTimeoutMs);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error("Semgrep process timeout must be a positive finite duration.");
+  }
+  return platform === "win32" ? Math.min(timeoutMs, 300_000) : timeoutMs;
+}
