@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runSecurityCommand } from "../../src/securityValidation/commandRunner.js";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { terminateProcessTree } from "../../src/core/processTree.js";
@@ -73,7 +73,7 @@ describe("security command process evidence and deadlines", () => {
   });
 
   it("awaits bounded timeout cleanup of the npm parent and owned descendant", async () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), "wc process tree "));
+    const dir = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "wc process tree "));
     const pidFile = path.join(dir, "owned-child.json");
     const parentFile = path.join(dir, "owned-parent.json");
     let ownedPid: number | undefined;
@@ -91,7 +91,11 @@ describe("security command process evidence and deadlines", () => {
       expect(record.marker).toBe("wc-owned-child");
       ownedPid = record.pid;
       let alive = true;
-      try { process.kill(ownedPid!, 0); } catch { alive = false; }
+      const cleanupDeadline = Date.now() + 2000;
+      while (alive && Date.now() < cleanupDeadline) {
+        try { process.kill(ownedPid!, 0); } catch { alive = false; }
+        if (alive) await new Promise((resolve) => setTimeout(resolve, 50));
+      }
       expect(alive, "a timed-out security command must not leave the owned descendant alive").toBe(false);
       expect(result.treeTerminated).toBe(true);
     } finally {
