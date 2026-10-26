@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -29,7 +29,8 @@ export function useSandboxTestCleanup(): void {
 }
 
 export function makeTempDir(prefix = "lab-sbx-"): string {
-  const dir = mkdtempSync(path.join(os.tmpdir(), prefix));
+  // Size boundary fixtures from physical paths, including Windows 8.3 and macOS /var aliases.
+  const dir = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), prefix));
   tempDirs.push(dir);
   return dir;
 }

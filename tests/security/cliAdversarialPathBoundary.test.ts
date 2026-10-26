@@ -497,7 +497,8 @@ describe("CLI adversarial path boundary — traversal checks leave protected pat
           const name = `protected-${flag.slice(2)}-${testInput.id}-${unsafe}`;
           const marker = path.join(stubRoot, `${name}.json`);
           const target = makeStubTarget(name, `
-let enclosure = process.cwd();
+// The harness passes a physical destination; cwd may retain a Windows 8.3 alias.
+let enclosure = fs.realpathSync.native(process.cwd());
 while (!path.basename(enclosure).includes("-encl-")) {
   const parent = path.dirname(enclosure);
   if (parent === enclosure) throw new Error("missing disposable enclosure");
@@ -521,6 +522,8 @@ fs.writeFileSync(${JSON.stringify(marker)}, JSON.stringify({
 process.exit(${unsafe ? 0 : 2});
 `);
           const result = await check(target, testInput);
+          expect(result.status, JSON.stringify(result)).not.toBe("skipped");
+          expect(existsSync(marker), `stub witness missing: ${JSON.stringify(result)}`).toBe(true);
           const witness = JSON.parse(readFileSync(marker, "utf8"));
           expect(witness.before).toEqual(["export const x = 1;\n", "must-not-be-modified\n"]);
           expect(witness.after).toEqual(witness.before);

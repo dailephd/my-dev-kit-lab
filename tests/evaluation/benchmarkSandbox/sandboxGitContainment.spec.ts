@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { symlink } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -318,6 +319,22 @@ describe("benchmark sandbox Git repository containment", () => {
 });
 
 describe("verifySandboxRepositoryBinding", () => {
+  it("constructs physical fixture roots when the host temporary directory is an alias", async () => {
+    const parent = makeTempDir("lab-temp-identity-");
+    const backing = path.join(parent, "physical-temporary-directory");
+    const alias = path.join(parent, "alias");
+    mkdirSync(backing);
+    await symlink(backing, alias, process.platform === "win32" ? "junction" : "dir");
+    const temporaryDirectory = vi.spyOn(os, "tmpdir").mockReturnValue(alias);
+    try {
+      const fixture = makeTempDir("physical-fixture-");
+      expect(fixture).toBe(realpathSync.native(fixture));
+      expect(path.dirname(fixture)).toBe(realpathSync.native(backing));
+    } finally {
+      temporaryDirectory.mockRestore();
+    }
+  });
+
   it("accepts a freshly initialized sandbox repository", async () => {
     const tripwire = makeTripwire();
     const runtimeRoot = path.join(tripwire, "runtime");
@@ -351,10 +368,14 @@ describe("benchmark sandbox Git containment at the observed Windows path-length 
     const tripwire = makeTripwire();
     const before = fingerprint(tripwire);
     const sandboxId = `len${length}`;
+    expect(tripwire).toBe(realpathSync.native(tripwire));
     const runtimeRoot = runtimeRootForProjectLength(tripwire, sandboxId, length);
     expect(path.join(runtimeRoot, sandboxId, "project").length).toBe(length);
     const outcome = (await codeOf(createBenchmarkSandbox({ canonicalProjectRoot: makeCanonicalFixture(), runtimeRoot, sandboxId }))) ?? "created";
-    if (outcome === "created") trackSandbox(runtimeRoot, sandboxId);
+    if (outcome === "created") {
+      trackSandbox(runtimeRoot, sandboxId);
+      expect(realpathSync.native(path.join(runtimeRoot, sandboxId, "project")).length).toBe(length);
+    }
     return { tripwire, before, runtimeRoot, outcome, detail: outcome === "created" ? "" : lastErrorDetail, sandboxId };
   }
 
