@@ -7,7 +7,7 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Latest release: v0.9.4 remains the externally verified npm baseline; release candidate package and document version: v0.9.5.
+- Latest release: v0.9.5 in final release-document and package state. External npm publication status is established directly from live registry evidence.
 - Exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed local and hosted standardized readiness on 2026-10-26. Release preparation is recorded separately; npm reported baseline `0.9.4` and an explicit not-found result for `0.9.5` before the versioned release artifact was prepared.
 - Current release: `v0.9.5` release-document and package target.
 - Previous release: `v0.9.3` (prompt, report, metric, gallery, and comparison improvements).
@@ -24,7 +24,7 @@ This document records the repository's operational state. It is the source of tr
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
 - Package version: `0.9.5`. Release documents are in final-release state.
 - Next planned feature version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
-- Latest externally verified published baseline at preparation: v0.9.4 (Kit schema-3 and npm 12 compatibility correction); v0.9.5 publication remains an external lifecycle step.
+- The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -330,7 +330,7 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Release documentation and package version: v0.9.5. The latest published package baseline remains v0.9.4 until external publication is verified.
+Release documentation and package version: v0.9.5. This document records the final release-document state; current npm publication status is verified from the registry.
 
 The `published/current` designation is based on external npm evidence, not package metadata or release-document wording.
 
@@ -340,7 +340,7 @@ Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm 
 
 Exact next action is determined by the applicable release workflow and verified external GitHub and npm state.
 
-The v0.9.5 implementation candidate passed exact-SHA readiness. Release-preparation validation establishes the versioned package artifact separately. The next workflow after release preparation is the standardized GitHub release and npm publication workflow, which must verify current external state and follow its own authorization requirements. No claim of npm publication is made here.
+The v0.9.5 implementation candidate passed exact-SHA readiness, and the versioned package artifact passed release-preparation validation. GitHub and npm lifecycle facts are established from their respective live records; this document does not substitute for those records.
 
 
 ## Previous v0.9.1 release history

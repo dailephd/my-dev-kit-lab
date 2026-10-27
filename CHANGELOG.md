@@ -2,7 +2,7 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [0.9.5]
+## [0.9.5] - 2026-10-27
 
 ### Staleness experiment evidence correction
 
