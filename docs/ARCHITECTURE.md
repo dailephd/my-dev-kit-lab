@@ -470,6 +470,36 @@ Invariants:
 * The verifier resolves the entry script through real paths so a symlink or junction invocation still executes, and a failure before its normal gate handling still prints `PACKED_PACKAGE_VERDICT: FAIL`. A valid result needs exit code 0 and `PACKED_PACKAGE_VERDICT: PASS`.
 * No second graph engine, second experiment runner, report-schema change, or security-policy change exists.
 
+## Planned v0.9.6 source-completeness correction (not implemented)
+
+This is a **planned patch**, not a claim about v0.9.5 runtime behavior. The existing implementation in `src/evaluation/runMyDevKitRetrieval.ts` owns ranked, opt-in `bounded-multi-source-v1` selection, source-command execution, the typed retrieval result and source-command telemetry. `src/experiments/plugins/incrementalChangeStaleness/execution.ts` owns the opt-in call and its required-file evidence evaluation. `comparison.ts` and `comparisonV2.ts` exclusively own comparison classification. V1/V2 artifact writers and reports continue to consume the results without recomputing source state.
+
+The intended Lab-only flow is:
+
+```text
+verified scenario post-mutation index + original query
+  -> Kit search (limit 40; returned order unchanged)
+  -> first 20 eligible distinct file identities, in stable search order
+  -> actual source --node (one per selected file; reuse the selected primary result)
+  -> bounded missing module headers for at most first eight ranked eligible files
+  -> for test-source imports only: bounded unique local dependency closure (depth <= 2, <= 8 extra source calls, <= 160 lines per call)
+  -> deduplicated successful source transcript/region provenance
+  -> existing staleness evidence and comparisons, with insufficient full-reference content classified inconclusive
+  -> existing V1/V2 artifacts and reports, without embedding new raw source bodies
+```
+
+Planned invariants:
+
+- The selection phase sees the original query, returned search candidates, verified index and actual source/import facts only. Expected files and correctness assertions may evaluate evidence afterward, never direct candidate selection or expansion.
+- A successful source command is **file observation**, not proof that every required fact is supported. Partial module headers, unresolved imports, incomplete negative assertions or missing production calculations must not justify `no-observed-regression` relative to `full-refresh`.
+- For a primary source excerpt beginning after line one, a single optional header request covers only the uncovered range within lines 1–24; a previously equivalent transcript is reused, never rerun. Source regions use canonical file/node identity and explicit line ranges; failed, unsafe, unavailable or ambiguous source requests are reported, not guessed.
+- The test dependency path follows only explicitly identified safe project-local imports and grounded direct edges; cycles, duplicates, outside-root paths, third-party modules, unresolved links and caps stop expansion. Dependency order and tie-breaking are deterministic and independent of answer keys.
+- Existing `MyDevKitBoundedSourceOptions` defaults, historical first-candidate retrieval, public command surface, V1/V2 serialized shapes, synthetic-agent evidence, four treatments and refresh-realization classifications remain unchanged unless a separate migration is explicitly approved.
+- Existing source/process measurement owners retain call/latency/output accounting; shared source results count once, and any diagnostic-only assertion-to-line witnesses must remain outside persisted V1/V2 schema.
+- The numerical caps are a **fixed correction candidate** justified by D3/D4 observations, not independently proven adequate. Six-scenario real-Kit source-content acceptance must establish adequacy before release readiness. D4's two invalid traces remain invalid and cannot be reused as accepted proof.
+
+No second index engine, source retriever, evaluation framework, report writer, new CLI flag or cross-repository implementation is authorized. The planned patch does not implement Lab v0.10.0's executable-evidence foundation or Kit v1.15.0/v2.0.0 architecture.
+
 ## Context-window scaling architecture (v0.7.0)
 
 Status: **published in v0.7.0**.
