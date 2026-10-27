@@ -23,6 +23,7 @@ This document records the repository's operational state. It is the source of tr
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
 - Package version: `0.9.5`. Release documents are in final-release state.
+- Next planned corrective version: `v0.9.6` (bounded full-refresh reference adequacy; planned only, not implemented or published). This patch precedes the next feature milestone without changing it.
 - Next planned feature version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
 - The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
@@ -75,6 +76,14 @@ The canonical run on `bbbe801646f4e208ff746dd21ca12f961b84a920` on 2026-10-25 ha
 The latest retained canonical run on 2026-10-25 belongs to `dac4e91b83bb77eea5e74e8f17b8b9178d41cf6d`: 558 files (554 passed, 4 skipped), 8,102 tests passed, 0 failed, 9 skipped, exit 0. The same six real-Kit, one published-upstream and two platform conditional skips remain. Integrated security on that exact implementation SHA and date exited 0: 19 checks, 15 passed, 1 warned, 0 failed and 3 optional scanner skips; the mandatory nested security suite passed all 46 files and 793 tests with exit 0. OSV-Scanner, local CodeQL availability preflight and Semgrep were unavailable and skipped, not passed; five informational dependency notices remained. Typecheck, build and documentation checks also exited 0 in that implementation task. These are preserved Windows local observations, not fresh validation on the subsequent documentation SHA, installed-consumer acceptance, hosted evidence, or a complete A–Q pass.
 
 The exact implementation candidate passed A?Q and F1?F16 readiness; Windows, Ubuntu, macOS, CodeQL JavaScript/TypeScript and Actions passed on that SHA. The v0.9.5 release-preparation commit passed distinct exact-source package and regression validation. The frozen my-dev-kit v1.14.0 candidate requires a valid Lab release followed by its own separate reevaluation/audit and does not inherit Lab readiness.
+
+## v0.9.6 planned corrective work — not implemented
+
+The next Lab work item is a narrowly scoped `v0.9.6` correction to full-refresh reference evidence in the existing `incremental-change-staleness` retrieval/evaluation pipeline. Its approved design and acceptance criteria are in [ROADMAP.md](ROADMAP.md#v096--bounded-full-refresh-reference-adequacy-correction). This note does not change the shipped v0.9.5 package or its historical readiness evidence.
+
+The frozen Kit v1.14.0 candidate remains `dac8cd5c4dc5e3a0845859113ea6b474e9099adc`; its R3 readiness verdict is `BLOCKED`. D3 found all required source files by a ranked budget of 24 but adequate retrieved source content in only three of six scenarios. The omitted evidence is P1's numeric declaration, I1's import region, and T1's production calculation dependencies. D4 reported that bounded headers and dependency closure could recover those facts, but its formal verdict was `NEEDS_CORRECTION_D4_EVIDENCE_INVALID` following two redundant header reruns; it did not establish a valid six-of-six protocol. Neither study demonstrated a Kit product defect, and neither changed either repository.
+
+Immediate authorized sequence: implement and validate Lab v0.9.6 on its own feature branch, reconcile its documentation, complete Lab readiness and separate publication authorization, then run a complete new Kit v1.14.0 readiness audit against the unchanged candidate using the verified published Lab patch. Only `PASS_READY_FOR_RELEASE_PREP` permits Kit release preparation. Kit v1.15.0 follows Kit v1.14.0 publication; Lab v0.10.0 remains the next Lab feature milestone after the patch and does not inherit its retrieval scope.
 
 ## Operational state
 
