@@ -23,7 +23,7 @@ This document records the repository's operational state. It is the source of tr
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
 - Package version: `0.9.5`. Release documents are in final-release state.
-- Next planned feature version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
+- Next planned feature version: `v0.10.0`. Its first workstream is the planned Kit-backed source audit migration (`LAB-KIT-01`); the existing executable-evidence foundation (`LAB-EVIDENCE-01`) and every later roadmap assignment remain required.
 - The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
@@ -219,6 +219,7 @@ The released `v0.6.1` affected-neighborhood evidence is described under "Impleme
 
 The following remain planned, not implemented:
 
+- LAB-KIT-01: Kit as the sole production source-analysis/retrieval provider, a managed Kit dependency for source audits, five-language findings compatibility, evidence-gated retirement of Lab's native source analyzers, and Rust reuse through the same general consumer boundary. The six gates are assigned first within v0.10.0; the current implementation still uses the native analyzers described in [ARCHITECTURE.md](ARCHITECTURE.md#language-analyzer-boundary).
 - the `quality` code-quality detector family and audit type
 - project-wide default audit behavior combining multiple audit types (`project`/`all` audit types)
 - cross-type issue deduplication or release-readiness aggregation across audit families
@@ -339,6 +340,8 @@ The v0.9.3 release includes the prompt/report/gallery scope; real-provider effec
 Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm publication) is established through the corresponding GitHub and npm records, not package metadata alone. Real-provider effectiveness remains NOT_VERIFIED and is not a release gate.
 
 Exact next action is determined by the applicable release workflow and verified external GitHub and npm state.
+
+For the next feature implementation, begin with the [LAB-KIT-01 evidence-requirements gate](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01), coordinated with Kit's first v1.15.0 workstream. This is a planned migration, not completed integration, analyzer removal, Rust support, or new validation evidence. The v0.10.0 executable-evidence foundation remains in the same milestone after that first workstream.
 
 The v0.9.5 implementation candidate passed exact-SHA readiness, and the versioned package artifact passed release-preparation validation. GitHub and npm lifecycle facts are established from their respective live records; this document does not substitute for those records.
 

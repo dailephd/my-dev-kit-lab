@@ -152,6 +152,8 @@ v0.8.0 retrieval precision/recall and v0.8.1 retrieval query strategy comparison
 
 Context-pack generation experiments shipped in v0.8.2.
 
+The first planned v0.10.0 workstream is [Kit-backed source audit migration (LAB-KIT-01)](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01). Kit will become the sole production source-analysis and retrieval provider; Lab will keep detector policy, experiments, verification, findings, and reports. Ordinary Lab installation will obtain its compatible Kit dependency for source auditing, while non-source workflows will not initialize Kit or require an index. The native Lab analyzers remain current during migration; their retirement at gate 5 requires the evidence and five-language compatibility gates to pass. Gate 6 then demonstrates Rust reuse through the same general consumer boundary before the workstream is complete. The original executable-evidence foundation remains required in v0.10.0, and every later roadmap assignment is preserved. Separate products can share this explicit producer dependency while remaining usable in caller-directed workflows.
+
 ## v0.9.1 campaign capabilities
 
 The published v0.9.1 release adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports while preserving existing provider adapters and scientific artifact contracts.

@@ -392,7 +392,14 @@
     ],
     "requiredContentLabels": [
       "Purpose:",
-      "Acceptance:"
+      "Acceptance:",
+      "LAB-KIT-01",
+      "Freeze detector evidence requirements.",
+      "Complete Kit evidence capabilities.",
+      "Integrate the Kit bridge with temporary legacy comparison.",
+      "Prove five-language findings parity.",
+      "Retire duplicated production source analysis.",
+      "Prove Rust reuse through the same boundary."
     ],
     "requiredDeferredMarkers": [
       "Post-v1 / version TBD",

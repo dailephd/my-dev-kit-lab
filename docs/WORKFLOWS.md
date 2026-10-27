@@ -844,6 +844,25 @@ Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json
 
 **Completion:** reports are written, target files remain unchanged, and every issue is interpreted as evidence rather than proof.
 
+### Planned Kit-backed source audit migration (LAB-KIT-01)
+
+This development procedure is planned for the first workstream of [v0.10.0](ROADMAP.md#v0100--ecosystem-executable-evidence-foundation-lab-evidence-01). The code-rot workflow above remains the implemented behavior until that workstream is complete. Kit's producer work is assigned first within [v1.15.0](https://github.com/dailephd/my-dev-kit/blob/main/docs/ROADMAP.md); existing executable-evidence work in Lab and later roadmap versions remain required.
+
+**Inputs:** verified Lab and Kit candidates, the ten-detector/source-reader inventory, exact evidence requirements and coverage rules, deterministic fixtures for the five currently supported languages, and the planned Rust extension. Use commit and package hashes for candidates; publication is not a prerequisite for coordinated development. Preserve prior findings and failure evidence.
+
+**Ordered procedure:**
+
+1. Freeze each detector's input fields, predicates, applicability, uncertainty, inventory scope, retrieval selectors, continuation semantics, and fixtures before modifying its producer or replacing analysis. Include shared source readers and source-dependent security/Android consumers. Review direct source-text and local import-resolution paths; merely enumerating the four analyzer files is insufficient.
+2. Implement and verify the missing evidence in Kit. Reject a partial top-ranked retrieval result as evidence of whole-repository absence. Confirm visibility, explicit versus inferred exports, structured resolution failures, stable qualified identities, and complete declared coverage.
+3. Integrate Kit through the existing consumer and process owners. Resolve selected rule requirements before collecting source facts. Keep native analyzers temporarily for explicitly selected differential validation and expose which path supplied each result. Verify installed Lab can resolve its managed Kit dependency without a source checkout or an unpinned package fetch.
+4. Compare normalized findings and evidence on TypeScript, JavaScript, Python, Java, Kotlin, and mixed fixtures. Resolve every difference as equivalence or a reviewed correction with its own evidence; preserve missing/unsupported/incomplete states. Check source and installed routes, platform behavior, target/package immutability, and non-source operations that must not invoke Kit.
+5. Remove duplicated production analyzers and source-extraction paths only after the full dependency inventory and parity evidence pass. Review remaining imports and callers to prove no hidden legacy fallback survives. Update ownership and public contracts in the same implementation change while retaining historical evidence.
+6. Exercise Rust through the same general bridge and applicable rules without adding a Lab parser or changing its general core for that language. Include a real supported positive case, a detected issue, and insufficient-capability/coverage cases. The migration is incomplete until this reuse gate passes.
+
+**Outputs and failure handling:** use the existing authorized report/workspace owners for the contract inventory, differential findings, reviewed deltas, removal inventory, and exact-package acceptance evidence. The implementation plan must bind their exact filenames and paths through `LabExecutionContext` and the placement manifest before writing them. A failed gate retains its evidence and prevents retirement or a migration-complete claim; it does not permit weaker rules, fabricated empty facts, silent parser fallback, or automatic approval of changed findings. Required source-analysis failure must stay visible in the result and cannot produce a clean audit.
+
+**Completion:** all six [roadmap gates](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01) pass, Kit is the sole production source-analysis/retrieval provider, and Lab's policy, verification, reports, and non-source workflows retain their independent ownership. This procedure does not authorize release or publication actions.
+
 ## Security-validation audit adapter
 
 **Goal:** include standalone security-validation results in the shared audit report.
