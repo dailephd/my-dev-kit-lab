@@ -828,6 +828,8 @@ The existing `security:validate --target <path>` and `security:package -- --targ
 
 The generic audit framework runs conservative repository-health checks. It is separate from `security:validate`: selecting the `security` audit type adapts the standalone validator's results into the audit report while preserving the original security report.
 
+The [planned LAB-KIT-01 migration](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01) changes the source-evidence provider in v0.10.0. It is not implemented and adds no currently available command or flag. The syntax and behavior below describe the current package; implementation must preserve parity between installed commands and source-checkout aliases through the same audit owner.
+
 Current implemented command:
 
 - `npm run audit`
