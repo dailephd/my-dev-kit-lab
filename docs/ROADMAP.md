@@ -1627,12 +1627,12 @@ Dependencies and boundaries:
 
 * Builds on the v0.9.4 implementation and preserves its package/schema baseline. It adds no Lab CLI flag, experiment schema, dependency, or v0.10.0 scope.
 * The v0.9.5 C1 evidence correction does not retroactively repair the historical failed evaluation of the frozen Kit v1.14.0 candidate; a new valid Lab release and a separate Kit audit would be needed for that claim.
-* The transient Windows host cause remains unidentified, POSIX retry behavior has no dedicated cross-platform run, and the exact reconciled candidate still requires a fresh complete standardized readiness audit. Earlier failed/incomplete audits remain historical.
+* The transient Windows host cause remains unidentified, and POSIX retry behavior has no dedicated cross-platform run. The exact implementation candidate passed standardized readiness, and the release-preparation source passed its separate package and regression validation. Earlier failed/incomplete audits remain historical.
 
 Acceptance:
 
 * Final release-document state preserves every historical and future version entry, keeps external publication evidence separate, and passes the documentation-preservation checker.
-* Implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed exact-SHA standardized readiness, including Windows, Linux, macOS, and hosted CodeQL. The versioned release-preparation commit receives its own package and release validation.
+* Implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed exact-SHA standardized readiness, including Windows, Linux, macOS, and hosted CodeQL. The versioned release-preparation commit passed its own exact-source package and regression validation.
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 
