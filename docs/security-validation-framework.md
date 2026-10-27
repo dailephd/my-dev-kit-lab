@@ -63,7 +63,11 @@ Target resolution reads available package, lockfile, and Git metadata without mo
 
 For an external target, `security:validate` runs the target's `npm run test:security` from that target when the script exists. Missing target scripts and optional tools remain explicit in the results.
 
+When `cli-adversarial` is selected, the nested `npm run test:security` check is required, not an optional scanner. Its deadline remains three times the configured command timeout, capped at 180000 ms. The security command runner uses bounded process-tree termination on timeout, awaits cleanup, and bounds the remaining pipe-close wait. A pass requires exit 0 without a timeout, start error, or reported cleanup failure. Nonzero or null exits, signals, deadlines and cleanup failures remain failure evidence; diagnostics retain the actual outcome with bounded, sanitized output. The failed suite remains a major finding under the unchanged blocking verdict policy.
+
 Validation records target-mutation evidence. It does not clean, reset, or otherwise hide a mutation after the run; an unexpected change must remain visible and affect interpretation.
+
+Classic security validation gives Windows Semgrep a separate 300000 ms process wall-clock deadline. The programmatic `semgrepCommandTimeoutMs` configuration may select a shorter positive finite deadline; Windows values are capped at 300000 ms. Other platforms retain `commandTimeoutMs` unless that Semgrep-only configuration is supplied. This does not change Semgrep per-rule timeouts, detection rules, severities, fail-on thresholds, other tool deadlines, or bounded process-tree cleanup. Missing or partial scanner JSON and required scanner timeouts remain unsuccessful validation evidence.
 
 Target-aware behavior is implemented in:
 
@@ -193,6 +197,8 @@ Current report/schema details:
 - The adversarial suite provides meaningful automated CLI/package coverage, but it is not exhaustive attack simulation.
 - Secret scanning is bounded and cannot prove exhaustive secret absence across every possible file or encoding.
 - The network/local-first scenario is a bounded static assumption check, not proof of runtime network isolation.
+- Two reviewed local HTTP sites (managed-process readiness and tutorial HTTP JSON assertions) are separately reported as known-intentional only when exact observed source paths, full source SHA-256 identities after CRLF-to-LF normalization only, the expected single fetch match, and reviewed tutorial caller/validation identities match. No trimming or other content normalization is accepted. The two callsites have explicit LF checkout attributes; dependent caller digests tolerate LF/CRLF representation. Runtime guards constrain HTTP(S) to loopback, keep tutorial requests on the application origin, and use bounded requests with manual redirects.
+- The shared bounded collector inspects path components before traversal/reads and refuses symlinks/junctions, multiply linked files, and ambiguous physical provenance. Case aliases cannot inherit reviewed-source trust. Ordinary source files named `build`, `dist`, `node_modules`, or `coverage` remain eligible under the configured globs; exclusions apply to actual generated directories. Changed source, extra matches, missing/changed caller evidence, and reportable provenance refusals remain unexpected major findings under the unchanged verdict policy. Rechecks narrow races; neither static recognition nor bounded collection proves runtime network isolation or exhaustive coverage.
 - Profile-specific behavior beyond profile-based selection/default checks is not implemented.
 - Package-boundary severity is currently applied at the result level, not per evidence item.
 - Some checks depend on locally installed tools or network-backed package metadata.

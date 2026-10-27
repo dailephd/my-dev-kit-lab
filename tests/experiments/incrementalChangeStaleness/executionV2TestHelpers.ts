@@ -53,6 +53,7 @@ export async function prepareAndExecuteV2(
   const searchMap = Object.entries(options.searchByTreatment ?? {}).map(([treatment, mode]) => ({
     whenIndexDirContains: `/${treatment}/${treatment === "stale-index" ? "baseline" : "refreshed"}`,
     file: mode === "present" ? required[0] : "src/unrelated/other.ts",
+    ...(mode === "present" ? { extraFiles: required.slice(1) } : {}),
     symbol: "someSymbol"
   }));
   const kit = writeIncrementalLifecycleFakeKit(makeKitDir(tracked), { ...options.kit, ...(searchMap.length > 0 ? { searchMap } : {}) });

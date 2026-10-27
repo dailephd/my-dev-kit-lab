@@ -1,7 +1,7 @@
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME,
   SyntheticRepositoryMaterializationError,
@@ -340,4 +340,306 @@ describe("synthetic repository materialization", () => {
     // Measured at ~21 s locally (rendering, hashing, staged write, verification of 20 002 files); the per-test
     // timeout leaves headroom for slower machines without changing the global test timeout.
   }, 180_000);
+
+  describe("bounded tolerance of a transient Windows EPERM at the staging publication rename", () => {
+    const transient = (code = "EPERM"): NodeJS.ErrnoException =>
+      Object.assign(new Error(`${code}: injected host error, rename`), { code, errno: -4048, syscall: "rename" });
+
+    // Model successful publication without a host rename adding an unscripted EPERM.
+    // The default-I/O materialization tests above exercise the real atomic rename.
+    function publishSuccessfully(from: string, to: string): void {
+      expect(path.relative(realpathSync(root), path.dirname(from))).not.toMatch(/^\.\.|^[A-Za-z]:/);
+      expect(path.dirname(from)).toBe(path.dirname(to));
+      expect(path.basename(from)).toMatch(/^\.synthetic-staging/);
+      expect(existsSync(to)).toBe(false);
+      cpSync(from, to, { recursive: true, force: false, errorOnExist: true });
+      rmSync(from, { recursive: true });
+    }
+
+    /** Entry n is thrown on attempt n; subsequent entries model a successful publication. */
+    function scripted(script: Array<Error | undefined>, platform: NodeJS.Platform = "win32") {
+      const attempts: Array<{ from: string; to: string }> = [];
+      const delays: number[] = [];
+      const io = {
+        platform,
+        sleep: (milliseconds: number): void => {
+          delays.push(milliseconds);
+        },
+        renameDirectory: (from: string, to: string): void => {
+          attempts.push({ from, to });
+          const outcome = script[attempts.length - 1];
+          if (outcome) throw outcome;
+          publishSuccessfully(from, to);
+        },
+      };
+      return { io, attempts, delays };
+    }
+
+    function baselineOf(plan: SyntheticRepositoryPlanV1) {
+      const baselineRoot = path.join(root, "baseline-root");
+      const baseline = materializeSyntheticRepository(plan, baselineRoot);
+      return { baseline, tree: snapshot(path.join(baselineRoot, plan.caseId)), manifestText: readFileSync(baseline.manifestPath, "utf8") };
+    }
+
+    function expectIdenticalToBaseline(plan: SyntheticRepositoryPlanV1, contendedRoot: string): void {
+      const { tree, manifestText } = baselineOf(plan);
+      const caseDirectory = path.join(contendedRoot, plan.caseId);
+      expect(snapshot(caseDirectory)).toEqual(tree);
+      expect(readFileSync(path.join(caseDirectory, SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME), "utf8")).toBe(manifestText);
+      expect(verifySyntheticRepositoryMaterialization({ manifestPath: path.join(caseDirectory, SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME), repositoryRoot: path.join(caseDirectory, "repository") }).ok).toBe(true);
+      expect(readdirSync(contendedRoot)).toEqual([plan.caseId]);
+    }
+
+    it("an uncontended rename is one attempt with no delay and the same output", () => {
+      const plan = planFor({ id: "tol-case" });
+      const contended = path.join(root, "contended-root");
+      const { io, attempts, delays } = scripted([]);
+      const result = materializeSyntheticRepository(plan, contended, io);
+      expect(attempts).toHaveLength(1);
+      expect(delays).toEqual([]);
+      expect(result.reusedExistingMaterialization).toBe(false);
+      expectIdenticalToBaseline(plan, contended);
+    });
+
+    it("keeps independent publication scripts and their attempt counts isolated", () => {
+      const contended = path.join(root, "contended-root");
+      const failed = scripted([transient("EACCES")]);
+      expect(failure(() => materializeSyntheticRepository(planFor(), contended, failed.io)).code).toBe("io-failure");
+      const fresh = scripted([]);
+      materializeSyntheticRepository(planFor(), contended, fresh.io);
+      expect(failed.attempts).toHaveLength(1);
+      expect(failed.delays).toEqual([]);
+      expect(fresh.attempts).toHaveLength(1);
+      expect(fresh.delays).toEqual([]);
+      expectIdenticalToBaseline(planFor(), contended);
+    });
+
+    it("preserves the primary rename failure when owned staging cleanup also fails", async () => {
+      const cleanup = vi.fn(() => { throw new Error("injected cleanup failure"); });
+      vi.doMock("node:fs", async () => ({
+        ...await vi.importActual<typeof import("node:fs")>("node:fs"),
+        rmSync: cleanup,
+      }));
+      vi.resetModules();
+      try {
+        const isolated = await import("../../../src/evaluation/syntheticRepository/materialize.js");
+        const { io, attempts, delays } = scripted([transient("EACCES")]);
+        expect(() => isolated.materializeSyntheticRepository(planFor(), root, io)).toThrow(
+          /io-failure.*EACCES.*cleanup of the owned staging directory failed: injected cleanup failure/
+        );
+        expect(attempts).toHaveLength(1);
+        expect(delays).toEqual([]);
+        expect(cleanup).toHaveBeenCalledExactlyOnceWith(attempts[0].from, { recursive: true, force: true });
+      } finally {
+        vi.doUnmock("node:fs");
+        vi.resetModules();
+      }
+    });
+
+    it("one EPERM then success is exactly two attempts, one 25 ms wait, and a fully verified identical output", () => {
+      const plan = planFor({ id: "tol-case" });
+      const contended = path.join(root, "contended-root");
+      const { io, attempts, delays } = scripted([transient()]);
+      materializeSyntheticRepository(plan, contended, io);
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]).toEqual(attempts[0]);
+      expect(delays).toEqual([25]);
+      expectIdenticalToBaseline(plan, contended);
+    });
+
+    it("two EPERM then success is exactly three attempts with 25 ms then 75 ms waits and an identical output", () => {
+      const plan = planFor({ id: "tol-case", language: "python" });
+      const contended = path.join(root, "contended-root");
+      const { io, attempts, delays } = scripted([transient(), transient()]);
+      materializeSyntheticRepository(plan, contended, io);
+      expect(attempts).toHaveLength(3);
+      expect(delays).toEqual([25, 75]);
+      expectIdenticalToBaseline(plan, contended);
+    });
+
+    it("three consecutive EPERM is a hard io-failure after exactly three attempts, with owned staging removed and neighbors untouched", () => {
+      const sibling = materializeSyntheticRepository(planFor({ id: "sibling-case" }), root);
+      const marker = path.join(root, "unrelated.txt");
+      writeFileSync(marker, "keep\n");
+      const before = snapshot(root);
+      const { io, attempts, delays } = scripted([transient(), transient(), transient()]);
+      const error = failure(() => materializeSyntheticRepository(planFor({ id: "tol-case" }), root, io));
+      expect(error.code).toBe("io-failure");
+      expect(error.message).toMatch(/after 3 attempts/);
+      expect(attempts).toHaveLength(3);
+      expect(delays).toEqual([25, 75]);
+      expect(readdirSync(root).sort()).toEqual(["sibling-case", "unrelated.txt"]);
+      expect(readFileSync(marker, "utf8")).toBe("keep\n");
+      expect(snapshot(root)).toEqual(before);
+      expect(verifySyntheticRepositoryMaterialization({ manifestPath: sibling.manifestPath, repositoryRoot: sibling.repositoryRoot }).ok).toBe(true);
+      // the failed attempt left nothing behind, so the same plan can still be materialized afterwards
+      expect(materializeSyntheticRepository(planFor({ id: "tol-case" }), root).reusedExistingMaterialization).toBe(false);
+    });
+
+    for (const code of ["EACCES", "ENOENT", "EEXIST"]) {
+      it(`${code} at the rename is exactly one attempt, no delay, and the existing io-failure with staging removed`, () => {
+        const { io, attempts, delays } = scripted([transient(code)]);
+        const error = failure(() => materializeSyntheticRepository(planFor({ id: "tol-case" }), root, io));
+        expect(error.code).toBe("io-failure");
+        expect(error.message).toContain(code);
+        expect(attempts).toHaveLength(1);
+        expect(delays).toEqual([]);
+        expect(readdirSync(root)).toEqual([]);
+      });
+    }
+
+    it("EPERM on a non-Windows platform is exactly one attempt and no delay", () => {
+      const { io, attempts, delays } = scripted([transient()], "linux");
+      const error = failure(() => materializeSyntheticRepository(planFor({ id: "tol-case" }), root, io));
+      expect(error.code).toBe("io-failure");
+      expect(attempts).toHaveLength(1);
+      expect(delays).toEqual([]);
+      expect(readdirSync(root)).toEqual([]);
+    });
+
+    it("a destination that appears before a retry is the existing collision and is never renamed into, overwritten or removed", () => {
+      const plan = planFor({ id: "tol-case" });
+      const caseDirectory = path.join(root, plan.caseId);
+      const attempts: string[] = [];
+      const io = {
+        platform: "win32" as const,
+        sleep: (): void => undefined,
+        renameDirectory: (from: string): void => {
+          attempts.push(from);
+          mkdirSync(caseDirectory);
+          writeFileSync(path.join(caseDirectory, "foreign.txt"), "foreign\n");
+          throw transient();
+        },
+      };
+      const error = failure(() => materializeSyntheticRepository(plan, root, io));
+      expect(error.code).toBe("collision");
+      expect(attempts).toHaveLength(1);
+      expect(readdirSync(caseDirectory)).toEqual(["foreign.txt"]);
+      expect(readFileSync(path.join(caseDirectory, "foreign.txt"), "utf8")).toBe("foreign\n");
+      expect(readdirSync(root)).toEqual([plan.caseId]);
+    });
+
+    it("an owned staging directory that disappears before a retry fails closed without another rename", () => {
+      const sibling = materializeSyntheticRepository(planFor({ id: "sibling-case" }), root);
+      const before = snapshot(root);
+      let attempts = 0;
+      const io = {
+        platform: "win32" as const,
+        sleep: (): void => undefined,
+        renameDirectory: (from: string): void => {
+          attempts += 1;
+          rmSync(from, { recursive: true, force: true });
+          throw transient();
+        },
+      };
+      const error = failure(() => materializeSyntheticRepository(planFor({ id: "tol-case" }), root, io));
+      expect(error.code).toBe("io-failure");
+      expect(error.message).toMatch(/disappeared/);
+      expect(attempts).toBe(1);
+      expect(snapshot(root)).toEqual(before);
+      expect(readdirSync(root)).toEqual(["sibling-case"]);
+      expect(verifySyntheticRepositoryMaterialization({ manifestPath: sibling.manifestPath, repositoryRoot: sibling.repositoryRoot }).ok).toBe(true);
+    });
+
+    it("an owned staging path that becomes a link out of the root fails closed and leaves the link target untouched", () => {
+      const outside = makeTempRoot("synthetic outside ");
+      let linkPath: string | undefined;
+      try {
+        writeFileSync(path.join(outside, "victim.txt"), "victim\n");
+        let attempts = 0;
+        const io = {
+          platform: "win32" as const,
+          sleep: (): void => undefined,
+          renameDirectory: (from: string): void => {
+            attempts += 1;
+            rmSync(from, { recursive: true, force: true });
+            try {
+              symlinkSync(outside, from, process.platform === "win32" ? "junction" : "dir");
+              linkPath = from;
+            } catch {
+              // links unavailable: the staging directory is simply gone, which is the sibling fail-closed case
+            }
+            throw transient();
+          },
+        };
+        const error = failure(() => materializeSyntheticRepository(planFor({ id: "tol-case" }), root, io));
+        expect(["path-escape", "io-failure"]).toContain(error.code);
+        expect(attempts).toBe(1);
+        expect(readFileSync(path.join(outside, "victim.txt"), "utf8")).toBe("victim\n");
+        expect(readdirSync(outside)).toEqual(["victim.txt"]);
+        expect(existsSync(path.join(root, "tol-case"))).toBe(false);
+      } finally {
+        if (linkPath !== undefined) {
+          try {
+            unlinkSync(linkPath);
+          } catch {
+            rmSync(linkPath, { recursive: false, force: true });
+          }
+        }
+        removeTempRoot(outside);
+      }
+    });
+
+    it("reuses an exact existing materialization with zero rename attempts", () => {
+      const plan = planFor({ id: "tol-case" });
+      materializeSyntheticRepository(plan, root);
+      const before = snapshot(root);
+      const { io, attempts, delays } = scripted([transient()]);
+      const result = materializeSyntheticRepository(plan, root, io);
+      expect(result.reusedExistingMaterialization).toBe(true);
+      expect(attempts).toHaveLength(0);
+      expect(delays).toEqual([]);
+      expect(snapshot(root)).toEqual(before);
+    });
+
+    it("a changed or foreign existing destination stays a collision with zero rename attempts", () => {
+      const plan = planFor({ id: "tol-case" });
+      mkdirSync(path.join(root, plan.caseId));
+      writeFileSync(path.join(root, plan.caseId, "foreign.txt"), "foreign\n");
+      const { io, attempts } = scripted([transient()]);
+      expect(failure(() => materializeSyntheticRepository(plan, root, io)).code).toBe("collision");
+      expect(attempts).toHaveLength(0);
+      expect(readFileSync(path.join(root, plan.caseId, "foreign.txt"), "utf8")).toBe("foreign\n");
+    });
+
+    it("re-verifies a retried publication and reports, without deleting, an output that fails verification", () => {
+      const plan = planFor({ id: "tol-case" });
+      let attempts = 0;
+      const io = {
+        platform: "win32" as const,
+        sleep: (): void => undefined,
+        renameDirectory: (from: string, to: string): void => {
+          attempts += 1;
+          if (attempts === 1) throw transient();
+          publishSuccessfully(from, to);
+          writeFileSync(path.join(to, "repository", "unlisted.txt"), "tampered\n");
+        },
+      };
+      const error = failure(() => materializeSyntheticRepository(plan, root, io));
+      expect(error.code).toBe("io-failure");
+      expect(error.message).toMatch(/failed verification after the staging rename succeeded on attempt 2/);
+      expect(attempts).toBe(2);
+      expect(existsSync(path.join(root, plan.caseId, "repository", "unlisted.txt"))).toBe(true);
+    });
+
+    it("uses the default synchronous bounded wait (about 100 ms in total) when only the rename and platform are injected", () => {
+      const plan = planFor({ id: "tol-case" });
+      let attempts = 0;
+      const started = Date.now();
+      materializeSyntheticRepository(plan, root, {
+        platform: "win32",
+        renameDirectory: (from: string, to: string): void => {
+          attempts += 1;
+          if (attempts <= 2) throw transient();
+          publishSuccessfully(from, to);
+        },
+      });
+      const elapsed = Date.now() - started;
+      expect(attempts).toBe(3);
+      // lower bound proves the two fixed waits really happen; the generous upper bound only rules out unbounded waiting
+      expect(elapsed).toBeGreaterThanOrEqual(90);
+      expect(elapsed).toBeLessThan(10_000);
+      expect(verifySyntheticRepositoryMaterialization({ manifestPath: path.join(root, plan.caseId, SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME), repositoryRoot: path.join(root, plan.caseId, "repository") }).ok).toBe(true);
+    });
+  });
 });

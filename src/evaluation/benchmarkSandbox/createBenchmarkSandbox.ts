@@ -3,7 +3,7 @@ import { copyFile, lstat, mkdir, realpath, rm, stat, writeFile } from "node:fs/p
 import path from "node:path";
 import { resolveWithinRoot } from "../../core/pathSafety.js";
 import { BenchmarkSandboxError } from "./errors.js";
-import { excerptGitFailure, runSandboxGit, type GitExecutionTarget, type GitResult } from "./gitExecutor.js";
+import { excerptGitFailure, runSandboxGit, verifySandboxRepositoryBinding, type GitExecutionTarget, type GitResult } from "./gitExecutor.js";
 import {
   BENCHMARK_SANDBOX_EXCLUDED_NAMES,
   isSameOrInside,
@@ -118,6 +118,14 @@ export async function createBenchmarkSandbox(options: CreateBenchmarkSandboxOpti
 
     const git: GitExecutionTarget = { projectRoot, evidenceRoot };
     await mustGit(git, ["init", "-q", `--initial-branch=${BENCHMARK_SANDBOX_BASELINE_BRANCH}`], "init");
+    // A zero exit from init is not proof that later commands reach this repository: on some hosts Git discovery
+    // skips the new .git and selects an ancestor. Nothing may be configured, staged or committed before this passes.
+    const binding = await verifySandboxRepositoryBinding(git);
+    if (!binding.ok) {
+      throw binding.unavailable
+        ? new BenchmarkSandboxError("GIT_UNAVAILABLE", "the git executable is not available.")
+        : new BenchmarkSandboxError("GIT_REPOSITORY_MISMATCH", binding.reason);
+    }
     await mustGit(git, ["config", "user.name", "my-dev-kit-lab sandbox"], "config-name");
     await mustGit(git, ["config", "user.email", "sandbox@my-dev-kit-lab.invalid"], "config-email");
     await mustGit(git, ["config", "commit.gpgsign", "false"], "config-gpg");

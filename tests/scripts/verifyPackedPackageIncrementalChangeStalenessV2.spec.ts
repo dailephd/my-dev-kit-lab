@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
+import { buildReferenceComparisons } from "../../src/experiments/plugins/incrementalChangeStaleness/executionV2.js";
+import { correctnessComparable } from "../../src/experiments/plugins/incrementalChangeStaleness/execution.js";
 import {
   HISTORICAL_V1_UPSTREAM_MY_DEV_KIT_VERSION,
   INCREMENTAL_CHANGE_STALENESS_EXECUTION_SCHEMA_VERSION_V2_EXPECTED,
@@ -106,6 +111,105 @@ function artifact(overrides: (index: number, id: string) => Json | undefined = (
 }
 
 const withForcedNeighbor = (index: number) => (index === 2 ? { affected: FORCED_AFFECTED } : undefined);
+
+describe("installed producer comparison contract", () => {
+  // Exercise the Node-only verifier through native Node, as its other tests do.
+  async function verify(value: Json) {
+    const code = `
+import { readFileSync } from 'node:fs';
+const verifier = await import(${JSON.stringify(pathToFileURL(path.resolve("scripts/verify-packed-package.mjs")).href)});
+const installed = await import(${JSON.stringify(pathToFileURL(path.resolve("dist/src/experiments/plugins/incrementalChangeStaleness/executionV2.js")).href)});
+try { console.log(JSON.stringify({rows: verifier.evaluateInstalledStalenessComparisons(JSON.parse(readFileSync(0, 'utf8')), installed)})); }
+catch(error) { console.log(JSON.stringify({error: error.message})); }
+`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "--eval", code], {
+      input: JSON.stringify(value), encoding: "utf8", windowsHide: true, timeout: 20_000
+    });
+    if (result.status !== 0) throw new Error(result.stderr || String(result.error));
+    const parsed = JSON.parse(result.stdout);
+    if (parsed.error) throw new Error(parsed.error);
+    return parsed.rows;
+  }
+  function scientificArtifact(status = "present", score: number | null = 0): Json {
+    const value = artifact(withForcedNeighbor);
+    for (const scenario of value.scenarios) {
+      for (const t of scenario.treatments) {
+        t.fakeAgent.correctness.score = score;
+        t.requiredFileEvidence.status = status;
+      }
+      scenario.referenceComparisons = buildReferenceComparisons(scenario.treatments);
+    }
+    return value;
+  }
+
+  it("preserves zero and sufficient equal evidence, and matches all 18 producer comparisons", async () => {
+    expect(correctnessComparable({ correctness: { available: true, score: 0 } } as any)).toEqual({ available: true, score: 0 });
+    const rows = await verify(scientificArtifact());
+    expect(rows).toHaveLength(6);
+    for (const row of rows) {
+      expect(row.differences).toEqual([]);
+      expect(row.computed).toHaveLength(3);
+      expect(row.computed[0].comparison.correctnessRelation).toBe("same");
+      expect(row.computed[0].comparison.requiredFileEvidenceRelation).toBe("same");
+    }
+  });
+
+  it("equal missing evidence is unknown/inconclusive for stale and both partials", async () => {
+    const rows = await verify(scientificArtifact("missing"));
+    for (const row of rows) {
+      expect(row.differences).toEqual([]);
+      expect(row.computed[0].comparison.requiredFileEvidenceRelation).toBe("unknown");
+      expect(row.computed[0].comparison.staleRiskClassification).toBe("inconclusive");
+      for (const partial of row.computed.slice(1)) {
+        expect(partial.requiredFileEvidenceRelation).toBe("unknown");
+        expect(partial.classification).toBe("inconclusive");
+      }
+    }
+  });
+
+  it.each(["absent-agent", "unavailable", "null-score"])("keeps %s correctness unknown", async mode => {
+    const value = scientificArtifact();
+    for (const scenario of value.scenarios) {
+      for (const t of scenario.treatments) {
+        if (mode === "absent-agent") t.fakeAgent = null;
+        else if (mode === "unavailable") t.fakeAgent.correctness.available = false;
+        else t.fakeAgent.correctness.score = null;
+      }
+      scenario.referenceComparisons = buildReferenceComparisons(scenario.treatments);
+    }
+    for (const row of await verify(value)) {
+      expect(row.differences).toEqual([]);
+      expect(row.computed[0].comparison.correctnessRelation).toBe("unknown");
+      expect(row.computed.slice(1).every((c: Json) => c.correctnessRelation === "unknown")).toBe(true);
+    }
+  });
+
+  it("rejects incomplete schema, execution, and missing score instead of interpreting absence as success", async () => {
+    const value = scientificArtifact();
+    delete value.scenarios[0].treatments[0].fakeAgent.correctness.score;
+    await expect(verify(value)).rejects.toThrow("Incomplete comparison input");
+    await expect(verify({ ...scientificArtifact(), schemaVersion: "v1" })).rejects.toThrow("Incomplete V2");
+    const failed = scientificArtifact();
+    failed.scenarios[0].treatments[0].status = "failed";
+    await expect(verify(failed)).rejects.toThrow("Incomplete comparison input");
+  });
+
+  it("reports tampering in every dimension, including reason codes and their order", async () => {
+    const value = scientificArtifact("missing", null);
+    for (const scenario of value.scenarios) {
+      scenario.referenceComparisons[0].comparison.reasonCodes.reverse();
+      scenario.referenceComparisons[1].correctnessRelation = "same";
+      scenario.referenceComparisons[2].classification = "no-observed-regression-relative-to-full";
+    }
+    for (const row of await verify(value)) {
+      expect(row.differences.map((d: Json) => d.field)).toEqual([
+        "referenceComparisons[0].comparison.reasonCodes",
+        "referenceComparisons[1].correctnessRelation",
+        "referenceComparisons[2].classification"
+      ]);
+    }
+  });
+});
 
 describe("upstream pin for v0.6.3 acceptance", () => {
   it("requires 1.12.5 for current acceptance while keeping 1.12.4 as a distinct historical value", () => {

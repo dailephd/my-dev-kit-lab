@@ -1,9 +1,10 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readdirSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BrowserLaunchResult } from "../../src/browser/index.js";
 import { createLabExecutionContext } from "../../src/runtime/labExecutionContext.js";
 import { runTutorial } from "../../src/tutorial/runTutorial.js";
@@ -15,9 +16,13 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
+/** Parent for fixture directories; the module-scope controls point it at an explicit ancestor. */
+let fixtureParent: string | undefined;
+
 function makeTempDir(prefix = "tutorial-run-"): string {
-  const dir = mkdtempSync(path.join(os.tmpdir(), prefix));
-  tempDirs.push(dir);
+  const dir = mkdtempSync(path.join(fixtureParent ?? os.tmpdir(), prefix));
+  // Directories under an explicit ancestor are removed with it; removing nested paths concurrently races on Windows.
+  if (fixtureParent === undefined) tempDirs.push(dir);
   return dir;
 }
 
@@ -76,6 +81,17 @@ server.listen(port, "127.0.0.1", () => {
 const NEVER_READY_SCRIPT = `setInterval(() => {}, 1000); console.log("alive but not listening");`;
 const EXIT_EARLY_SCRIPT = `console.log("starting"); setTimeout(() => process.exit(4), 150);`;
 
+/**
+ * Writes the CommonJS prepare/server scripts together with their own package scope. Node resolves the module type of
+ * `*.js` from the nearest package.json, so without this the scripts would inherit whatever ancestor happens to contain the
+ * temp directory (for example this repository's `"type": "module"` when TEMP lives inside the checkout).
+ */
+function writeContractScripts(contractRoot: string, serverScript?: string): void {
+  writeFileSync(path.join(contractRoot, "package.json"), JSON.stringify({ private: true, type: "commonjs" }), "utf8");
+  writeFileSync(path.join(contractRoot, "prepare.js"), PREPARE_SCRIPT, "utf8");
+  writeFileSync(path.join(contractRoot, "server.js"), serverScript ?? SERVER_SCRIPT, "utf8");
+}
+
 function writeFixture(options: {
   scenario?: Partial<TutorialScenarioV1>;
   targetContract?: Partial<TutorialTargetContractV1>;
@@ -89,8 +105,7 @@ function writeFixture(options: {
   const workspaceRoot = makeTempDir("tutorial-workspace-");
   const outDir = path.join(makeTempDir("tutorial-out-"), "run");
 
-  writeFileSync(path.join(contractRoot, "prepare.js"), PREPARE_SCRIPT, "utf8");
-  writeFileSync(path.join(contractRoot, "server.js"), options.processScript ?? SERVER_SCRIPT, "utf8");
+  writeContractScripts(contractRoot, options.processScript);
 
   const applicationUrl = `http://127.0.0.1:${options.port}/`;
 
@@ -902,5 +917,89 @@ describe("runTutorial - output location", () => {
 
     expect(result.status).toBe("passed");
     expect(result.paths!.runRoot).toBe(path.join(fixture.invocationCwd, "relative-run"));
+  });
+});
+
+describe.each([
+  { label: "an explicit type:module ancestor", ancestorPackage: { name: "esm-ancestor", type: "module" } },
+  { label: "a neutral (untyped) ancestor", ancestorPackage: { name: "neutral-ancestor" } }
+])("runTutorial - fixture module scope under $label", ({ ancestorPackage }) => {
+  let ancestor: string;
+  beforeEach(() => {
+    ancestor = makeTempDir("tutorial-ancestor-");
+    writeFileSync(path.join(ancestor, "package.json"), JSON.stringify(ancestorPackage), "utf8");
+    fixtureParent = ancestor;
+  });
+  afterEach(() => {
+    fixtureParent = undefined;
+  });
+
+  it("executes the CommonJS prepare and server scripts and passes", async () => {
+    const port = await reservePort();
+    const fixture = writeFixture({ port });
+    expect(path.dirname(fixture.contractRoot)).toBe(ancestor);
+    const browser = createFakeBrowser({ page: createFakePage({ url: `http://127.0.0.1:${port}/` }) });
+
+    const result = await runTutorial({
+      scenarioPath: fixture.scenarioPath,
+      targetContractPath: fixture.targetContractPath,
+      context: context(fixture),
+      outDir: fixture.outDir,
+      launchBrowser: fakeLauncher(browser),
+      generateRunId: () => RUN_ID
+    });
+
+    expect(result.status).toBe("passed");
+    expect(result.cleanupErrors).toEqual([]);
+  });
+
+  it("still fails a genuinely failing prepare command for its own reason", async () => {
+    const port = await reservePort();
+    const fixture = writeFixture({ port });
+    const contract = JSON.parse(await readFile(fixture.targetContractPath, "utf8")) as TutorialTargetContractV1;
+    contract.prepare.env = { PREPARE_SHOULD_FAIL: "1" };
+    writeFileSync(fixture.targetContractPath, JSON.stringify(contract), "utf8");
+
+    const result = await runTutorial({
+      scenarioPath: fixture.scenarioPath,
+      targetContractPath: fixture.targetContractPath,
+      context: context(fixture),
+      outDir: fixture.outDir,
+      launchBrowser: async () => {
+        throw new Error("browser must not launch");
+      },
+      generateRunId: () => RUN_ID
+    });
+
+    expect(result.status).toBe("prepare-failed");
+    expect(result.error).toContain("prepare command exited with");
+    const stderr = await readFile(path.join(result.paths!.logsRoot, "prepare", "prepare.stderr.txt"), "utf8");
+    // The script ran as CommonJS and refused on purpose; it did not crash on module scope.
+    expect(stderr).toContain("prepare refused");
+    expect(stderr).not.toContain("require is not defined");
+  });
+});
+
+describe("runTutorial - fixture module scope control", () => {
+  afterEach(() => {
+    fixtureParent = undefined;
+  });
+
+  it("shows the CommonJS scripts depend on their own package scope under a type:module ancestor", async () => {
+    const ancestor = makeTempDir("tutorial-ancestor-");
+    writeFileSync(path.join(ancestor, "package.json"), JSON.stringify({ name: "esm-ancestor", type: "module" }), "utf8");
+    fixtureParent = ancestor;
+    const port = await reservePort();
+    const fixture = writeFixture({ port });
+    const target = path.join(makeTempDir("tutorial-control-target-"), "target");
+    const run = (): string =>
+      execFileSync(process.execPath, ["prepare.js", target], { cwd: fixture.contractRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+
+    expect(run()).toContain("prepared");
+    expect(JSON.parse(await readFile(path.join(target, "out", "report.json"), "utf8"))).toEqual({ counts: { tasks: 3 } });
+
+    // Without the fixture-local package scope the same script is an ES module and cannot use require().
+    await rm(path.join(fixture.contractRoot, "package.json"));
+    expect(run).toThrow(/require is not defined/);
   });
 });

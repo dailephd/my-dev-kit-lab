@@ -6,7 +6,7 @@ import { checkRetrievalRedactionTruthfulness, scanDurableOutputDirectory, type P
 import { parseRunExperimentArgs, runExperimentRunCommandFromArgs } from "../../src/commands/runExperimentRunCommand.js";
 import { loadLocalRepositorySubject, serializeLocalRepositorySubjectManifest } from "../../src/evaluation/localRepositorySubject/index.js";
 import { createLabExecutionContext } from "../../src/runtime/index.js";
-import { commitAll, git, initRepository, makeTempDir, removeTempDir, tryCreateSymlink, writeRepositoryFile } from "../evaluation/localRepositorySubject/fixtureRepository.js";
+import { commitAll, git, initRepository, makeTempDir, removeTempDir, tryCreateSymlink, withGitDiscoveryCeiling, writeRepositoryFile } from "../evaluation/localRepositorySubject/fixtureRepository.js";
 import { listTree } from "../experiments/contextWindowScaling/localSubjectFixture.js";
 import type { LocalSubjectFixture } from "../experiments/contextWindowScaling/localSubjectFixture.js";
 import { createRprLocalSubjectFixture, readKitLog, RPR_MARKERS, rprLocalSubjectCases, writeUpstreamShapedKit } from "../experiments/retrievalPrecisionRecall/localSubjectFixture.js";
@@ -451,7 +451,8 @@ describe("public external-local run: failure atomicity and privacy", () => {
     expect(existsSync(outDir)).toBe(false);
     const plain = makeTempDir("rpr-plain-");
     dirs.push(plain);
-    const nonGit = await failureRun(["--target", plain]);
+    // TEMP may live inside a checkout; bound Git discovery so the plain directory is genuinely outside every worktree.
+    const nonGit = await withGitDiscoveryCeiling(plain, () => failureRun(["--target", plain]));
     expect(nonGit.code).toBe(1);
     expect(nonGit.stderr).toContain("NOT_A_GIT_REPOSITORY");
     writeFileSync(configPath, "{ not json");

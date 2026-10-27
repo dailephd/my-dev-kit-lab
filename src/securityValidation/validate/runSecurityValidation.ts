@@ -9,7 +9,7 @@ import { runAllFuzzTargets } from "../fuzz/fuzzHarness.js";
 import { ALL_FUZZ_TARGETS } from "../fuzz/fuzzTargets.js";
 import { calculateVerdict, summarizeVerdictReasoning } from "./verdict.js";
 import { resolveValidationTarget, targetDescription as describeTarget } from "./resolveTarget.js";
-import { DEFAULT_SECURITY_CONFIG } from "../config.js";
+import { DEFAULT_SECURITY_CONFIG, resolveSemgrepCommandTimeoutMs } from "../config.js";
 import type { SecurityCheckResult, SecurityFinding, SecurityValidationSummary } from "../types.js";
 import type { SecurityValidationConfig } from "../config.js";
 import { runCliSecuritySuiteCheck } from "./runCliSecuritySuiteCheck.js";
@@ -144,7 +144,7 @@ export async function runSecurityValidation(
         await runSemgrepCheck({
           targetRoot: target.targetRoot,
           toolRoot,
-          timeoutMs: config.commandTimeoutMs,
+          timeoutMs: resolveSemgrepCommandTimeoutMs(config),
         })
       );
     } catch (err) {

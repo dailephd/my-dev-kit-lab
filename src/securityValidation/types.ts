@@ -140,6 +140,12 @@ export type CommandExecutionResult = {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** Internal process diagnostics; check reports retain these in bounded evidence. */
+  signal?: NodeJS.Signals | null;
+  spawnError?: string;
+  resolutionKind?: string;
+  timeoutMs?: number;
+  treeTerminated?: boolean;
   skipped: boolean;
   skippedReason?: string;
 };

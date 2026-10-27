@@ -1,6 +1,7 @@
 import type { AttackScenario, AttackScenarioContext, AttackScenarioRunOutcome } from "../attackScenario.js";
 import { makeEvidence } from "../exploitEvidence.js";
-import { collectBoundedSourceFiles, lineNumberAt } from "../boundedSourceScan.js";
+import { collectBoundedSourceFiles, lineNumberAt, type SourceProvenanceIssue } from "../boundedSourceScan.js";
+import { createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // v0.2.2 Batch 4 — network / local-first assumption scenario.
@@ -37,11 +38,30 @@ function isKnownIntentionalPath(relativePath: string): boolean {
   return KNOWN_NETWORK_INTENTIONAL_PREFIXES.some((p) => relativePath.startsWith(p));
 }
 
+// Reviewed source identities, not file exemptions. A changed site, extra match,
+// missing dependency, or changed caller precondition invalidates recognition.
+const REVIEWED_LOCAL_HTTP_SITES = [
+  { file: "src/runtime/managedProcess.ts", symbol: "waitForReadiness", sha256: "978dacaf401cac3c3f6fdc96ca92163b766b14bead7f3a7c49b1ca28d8ac3900", dependencies: {} },
+  { file: "src/tutorial/tutorialAssertions.ts", symbol: "http-json-equals / resolveAssertionRequestUrl", sha256: "eba83bd94342d108e1ecc8491e09e584360095823332dffe2df28e49ecf011b3", dependencies: {
+    "src/tutorial/runTutorial.ts": "ded69670f0aec6ad31e714e77c6a8e769abcb28fcdc68b81584fd582e593e298",
+    "src/tutorial/tutorialSession.ts": "08e0317600754a033ebf8022e984e941c60786bbc3c9baafc3fa7be3ccdd90ce",
+    "src/tutorial/targetContractValidation.ts": "da6c51c36827bf3d9b7375cdd71e488d35732f389f989a7dbc462b21063a96a6",
+    "src/tutorial/loadTutorialContracts.ts": "10e17f851febf783076d2d7ad5de70f6e950308819ec30edaecf749ba4b11c7a",
+    "src/tutorial/validationPrimitives.ts": "e49258d33d0a88d051fa783d8e2236827940ed5895fd1ce844b9f58b4ec08cb1"
+  } }
+] as const;
+
+// Normalize only checkout EOLs for these exact reviewed-content comparisons.
+// The tutorialSession identity is the verified LF form of the reviewed CRLF text.
+const sourceDigest = (content: string): string => createHash("sha256").update(content.replace(/\r\n/g, "\n"), "utf8").digest("hex");
+
 type NetworkMatch = {
   id: string;
   file: string;
   line: number;
   intentional: boolean;
+  reviewedSite?: string;
+  provenanceReason?: string;
 };
 
 function scanFileForNetworkApis(relativePath: string, content: string): NetworkMatch[] {
@@ -74,7 +94,13 @@ export const NETWORK_ASSUMPTION_SCENARIO: AttackScenario = {
     "No obvious unexpected network API usage is found in the bounded local-first source paths inspected.",
   evidenceRequirements: ["observation"],
   run: async (ctx: AttackScenarioContext): Promise<AttackScenarioRunOutcome> => {
-    const files = collectBoundedSourceFiles(ctx.target.targetRoot);
+    const provenanceIssues: SourceProvenanceIssue[] = [];
+    const reviewedPaths = new Set<string>(REVIEWED_LOCAL_HTTP_SITES.flatMap(site => [site.file, ...Object.keys(site.dependencies)]));
+    const files = collectBoundedSourceFiles(ctx.target.targetRoot, undefined, provenanceIssues, [...reviewedPaths]);
+    // Size/binary exclusions remain bounded-scan policy for ordinary sources;
+    // they can never establish the identity of a reviewed site or precondition.
+    const refusals = provenanceIssues.filter(issue =>
+      !["oversized-source", "binary-source"].includes(issue.reason) || reviewedPaths.has(issue.relativePath));
     const isolationCaveat = makeEvidence({
       kind: "observation",
       source: "scope statement",
@@ -84,7 +110,7 @@ export const NETWORK_ASSUMPTION_SCENARIO: AttackScenario = {
       observedBehavior: "Static-source-only claim; no runtime network instrumentation was performed.",
     });
 
-    if (files.length === 0) {
+    if (files.length === 0 && refusals.length === 0) {
       return {
         status: "passed",
         confidence: "low",
@@ -102,9 +128,30 @@ export const NETWORK_ASSUMPTION_SCENARIO: AttackScenario = {
       };
     }
 
-    const allMatches: NetworkMatch[] = [];
+    const allMatches: NetworkMatch[] = refusals.map(issue => ({
+      id: "untrusted-source-provenance", file: issue.relativePath, line: 1,
+      intentional: false, provenanceReason: issue.reason
+    }));
     for (const file of files) {
       allMatches.push(...scanFileForNetworkApis(file.relativePath, file.content));
+    }
+    const byPath = new Map(files.map(file => [file.relativePath, file.content]));
+    for (const site of REVIEWED_LOCAL_HTTP_SITES) {
+      const content = byPath.get(site.file);
+      if (content === undefined) continue;
+      const siteMatches = allMatches.filter(match => match.file === site.file);
+      const recognized = sourceDigest(content) === site.sha256 &&
+        siteMatches.length === 1 && siteMatches[0]?.id === "fetch-call" &&
+        Object.entries(site.dependencies).every(([file, sha256]) => {
+          const dependency = byPath.get(file);
+          return dependency !== undefined && sourceDigest(dependency) === sha256;
+        });
+      if (recognized) {
+        siteMatches[0]!.intentional = true;
+        siteMatches[0]!.reviewedSite = `${site.symbol}; LF-normalized source SHA-256 ${site.sha256}`;
+      } else if (siteMatches.length === 0) {
+        allMatches.push({ id: "reviewed-local-http-source-mismatch", file: site.file, line: 1, intentional: false });
+      }
     }
     allMatches.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
 
@@ -126,17 +173,25 @@ export const NETWORK_ASSUMPTION_SCENARIO: AttackScenario = {
         confidence: "high",
         expectedBehavior:
           "npm audit / npm outdated (deps check) may contact the npm registry; OSV-Scanner may contact the OSV API; Semgrep's npx fallback may contact the npm registry. These are expected when those check groups are selected via --checks and are not local-first source violations.",
-        observedBehavior: `${intentional.length} match(es) found under known network-using paths (${KNOWN_NETWORK_INTENTIONAL_PREFIXES.join(", ")}).`,
+        observedBehavior: `${intentional.filter(m => !m.reviewedSite).length} match(es) found under known network-using paths (${KNOWN_NETWORK_INTENTIONAL_PREFIXES.join(", ")}).`,
       }),
+      ...intentional.filter(m => m.reviewedSite).map(m => makeEvidence({
+        kind: "observation", source: "known-intentional local HTTP use", filePath: m.file, line: m.line,
+        confidence: "medium",
+        expectedBehavior: "Exactly one reviewed fetch-call with unchanged local HTTP guards and caller preconditions. Bounded static findings do not prove full runtime network isolation.",
+        observedBehavior: `Recognized '${m.id}' in ${m.file}:${m.line} (${m.reviewedSite}).`
+      })),
       ...unexpected.slice(0, 20).map((m) =>
         makeEvidence({
           kind: "observation",
-          source: `pattern '${m.id}'`,
+          source: m.provenanceReason ? "source provenance refusal" : `pattern '${m.id}'`,
           filePath: m.file,
           line: m.line,
           confidence: "medium",
           expectedBehavior: "No unexpected direct network API usage in local-first source paths.",
-          observedBehavior: `Detected '${m.id}' usage in ${m.file}:${m.line}.`,
+          observedBehavior: m.provenanceReason
+            ? `Untrusted source path ${m.file}: ${m.provenanceReason}; source content was not accepted.`
+            : `Detected '${m.id}' usage in ${m.file}:${m.line}.`,
         })
       ),
     ];

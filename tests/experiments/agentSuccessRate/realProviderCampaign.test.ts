@@ -1,4 +1,5 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { runExperimentRunCommandFromArgs } from "../../../src/commands/runExperimentRunCommand.js";
@@ -62,11 +63,23 @@ describe("explicit real-provider campaign routing through fake process transport
     expect((await executeAgentSuccessCampaign(prepared, args)).errors).toContain("REAL_PROVIDER_REQUIRES_V2");
     const result = await executeAgentSuccessCampaignV2(prepared, args); expect(result.errors).toEqual([]); expect(result.status).toBe("completed"); expect(result.checkpoint!.units.every(u => u.completion!.taskSuccess)).toBe(true); expect(shim.invocationKeys()).toHaveLength(2);
   }, 120000);
-  it("RSP-003 empty output never falls back to a correct fixture", async () => {
+  // The fake-only fixture creates its shim under os.tmpdir(); stubbing the temp variables places it beneath a controlled ancestor package scope.
+  it.each(["inherited", "module", "untyped"] as const)("RSP-003 empty output never falls back to a correct fixture (%s ancestor package scope)", async scope => {
+    try {
+      if (scope !== "inherited") {
+        const scopeDir = await campaignTemp(); await writeFile(path.join(scopeDir, "package.json"), JSON.stringify(scope === "untyped" ? {} : { type: scope }));
+        for (const key of ["TEMP", "TMP", "TMPDIR"]) vi.stubEnv(key, scopeDir);
+        expect(path.resolve(os.tmpdir())).toBe(path.resolve(scopeDir));
+      }
+      await emptyOutputNeverFallsBack();
+    } finally { vi.unstubAllEnvs(); }
+  }, 120000);
+  async function emptyOutputNeverFallsBack() {
     const f = await cliFixture(); f.shim.behave(f.task.id, "raw-full-file", { emptyOutput: true });
     const r = await captureCommand(() => runExperimentRunCommandFromArgs([...f.base, "--agent-campaign", "new", "--agent", "codex", "--include-real-agents"], { context: f.context, campaignRuntime: f.runtime }));
     expect(r.code).toBe(1); const cp = await latestCheckpoint(f.outputRoot); expect(cp.units[0]!.completion).toBeNull(); const evidence = cp.units[0]!.epochs[0]!.terminal!.evidence; expect(evidence.realAgent!.providerStatus).toBe("completed"); expect(evidence.realAgent!.finalAnswerAvailable).toBe(false); expect(evidence.errors.some(e => e.code === "PROVIDER_EMPTY_ANSWER")).toBe(true); expect(evidence.patch.attempted).toBe(false); expect(cp.finalization).toBeNull();
-  }, 120000);
+    expect(f.shim.invocationKeys()).toContain(`${f.task.id}.raw-full-file`);
+  }
   it("RSP-015 failed context prevents that provider invocation without fabricating a pack", async () => {
     const f = await cliFixture(); const runtime = { ...f.runtime, contextDependencies: makeSourceBackedKit({ failIndex: true }).dependencies };
     const r = await captureCommand(() => runExperimentRunCommandFromArgs([...f.base, "--agent-campaign", "new", "--agent", "codex", "--include-real-agents"], { context: f.context, campaignRuntime: runtime }));

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -183,7 +183,7 @@ afterEach(async () => {
 
 describe("security:validate verdict/fail-on integration against a controlled fixture", () => {
   it("LAB-PKG-15/16 default full validation executes all existing groups and passes resolved self identity to package checks", async () => {
-    const reportDir = mkdtempSync(path.join(os.tmpdir(), "default-gate-report-"));
+    const reportDir = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "default-gate-report-"));
     cleanupDirs.push(reportDir);
     const successful = (id: string) => makeControlledCheck({ id, name: id, status: "passed", severity: "informational" });
     const codeqlSpy = vi.spyOn(codeql, "runCodeqlCheck").mockResolvedValue(successful("codeql-scan"));
@@ -203,7 +203,7 @@ describe("security:validate verdict/fail-on integration against a controlled fix
     ]);
   });
   async function runDepsPackageValidation() {
-    const reportDir = mkdtempSync(path.join(os.tmpdir(), "verdict-deps-package-report-"));
+    const reportDir = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "verdict-deps-package-report-"));
     cleanupDirs.push(reportDir);
     return runSecurityValidation({
       cwd: toolRoot,
@@ -217,7 +217,7 @@ describe("security:validate verdict/fail-on integration against a controlled fix
   }
 
   it("a fixture with a real secret exits nonzero (verdict not-ready) regardless of --fail-on", async () => {
-    const root = mkdtempSync(path.join(os.tmpdir(), "verdict-secret-"));
+    const root = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "verdict-secret-"));
     cleanupDirs.push(root);
     mkdirSync(path.join(root, "src"), { recursive: true });
     writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "fixture", version: "1.0.0" }), "utf8");
@@ -240,7 +240,7 @@ describe("security:validate verdict/fail-on integration against a controlled fix
   }, 30_000);
 
   it("a scoped low-only-finding run behaves according to --fail-on threshold", async () => {
-    const reportDir = mkdtempSync(path.join(os.tmpdir(), "verdict-deps-report-"));
+    const reportDir = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), "verdict-deps-report-"));
     cleanupDirs.push(reportDir);
     const summary = await runSecurityValidation({
       cwd: toolRoot,

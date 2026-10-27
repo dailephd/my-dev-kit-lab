@@ -2,6 +2,21 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.9.5] - 2026-10-27
+
+### Staleness experiment evidence correction
+
+- The `incremental-change-staleness` experiment now retrieves through an opt-in bounded multi-source protocol in the shared retrieval owner (`runMyDevKitBoundedRetrievalFromIndex`) so multi-file required evidence can be observed; default top-one retrieval and the meaning of its `filesRead` are unchanged for every other caller. Only files whose own `source` command succeeded count as read.
+- Required-file evidence reports `unknown` instead of `missing` when the bounded protocol cannot observe the requirement, and a full-refresh reference that did not itself observe the required files can no longer make equal results look like `same`/no observed regression: the relation is `unknown` and the classification `inconclusive`.
+- The V2 report labels the fake-agent score as synthetic, distinguishes read from merely surfaced files, and states that runtime command-log paths are not retained after cleanup. Persisted V1/V2 schemas, treatment ordering, scenarios, answer keys and the fake agent and scorer are unchanged.
+- The validation harness now gives disposable provider shims an explicit CommonJS package boundary; pins benchmark Git operations to their own initialized repository and rejects ancestor discovery and dangerous per-call redirects; and contains adversarial `--out`/`--index` traversal tests inside disposable enclosures before launching the tested CLI.
+- Tutorial and non-Git fixtures now establish their package and repository boundaries explicitly. On Windows, synthetic repository publication retries only transient `EPERM` rename failures, with a finite three-attempt limit; if staging cleanup also fails, its diagnostic is appended while the primary materialization error remains the reported error.
+- Packed-consumer staleness acceptance reuses the installed producer's reference-aware comparisons for all six scenarios and all three comparisons per scenario, including ordered reason codes; it retains the production artifact validator and does not change the scientific standard.
+- Replaced drive-root adversarial test probes with enclosed safe/unsafe witnesses. Network scanning recognizes two narrowly reviewed local HTTP sites only with strict source identities (CRLF-to-LF normalization only), expected fetch counts, caller evidence, and physical provenance; unreviewed calls and reportable provenance refusals remain major findings.
+- Corrected shared bounded source collection so ordinary files named like generated directories remain eligible, while actual generated directories stay excluded and case aliases cannot inherit reviewed trust.
+- Security command timeouts now use bounded process-tree termination; required nested security-suite failures retain actual timeout, exit, signal, start-error and cleanup evidence without weakening major-finding severity.
+- No Lab CLI flags, experiment schemas, or dependencies were added. Default retrieval behavior outside this experiment remains unchanged; persisted V1/V2 schemas, treatment ordering, scenarios, answer keys, fake agent, and scorer remain unchanged.
+
 ## [0.9.4] - 2026-10-23
 
 ### Kit schema-3 and npm 12 compatibility

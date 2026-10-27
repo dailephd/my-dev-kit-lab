@@ -26,7 +26,8 @@ let fallbackReady: IncrementalChangeStalenessScenarioExecutionV2;
 let failed: IncrementalChangeStalenessScenarioExecutionV2;
 
 beforeAll(async () => {
-  ready = (await prepareAndExecuteV2(tracked, "U1")).execution;
+  // Adequate reference control: every treatment sources every required file.
+  ready = (await prepareAndExecuteV2(tracked, "U1", { searchByTreatment: { "stale-index": "present", "changed-files-refresh": "present", "affected-neighborhood-refresh": "present", "full-refresh": "present" } })).execution;
   fallbackReady = (
     await prepareAndExecuteV2(tracked, "T1", {
       kit: { refresh: { "changed-files": "fallback" } },

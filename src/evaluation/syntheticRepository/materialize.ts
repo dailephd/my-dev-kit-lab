@@ -43,12 +43,37 @@ export type SyntheticRepositoryMaterialization = {
   reusedExistingMaterialization: boolean;
 };
 
-/** Injectable I/O seam so failure cleanup can be exercised; defaults to node:fs. */
+/**
+ * Injectable I/O seam so failure cleanup and the bounded publication-rename retry can be exercised
+ * deterministically; every member defaults to the real node:fs / process behavior.
+ */
 export type SyntheticRepositoryMaterializationIo = {
   writeFile: (absolutePath: string, bytes: Buffer) => void;
+  /** The single atomic staging-directory publication rename. */
+  renameDirectory: (from: string, to: string) => void;
+  /** Synchronous wait between eligible rename attempts. */
+  sleep: (milliseconds: number) => void;
+  /** Platform that selects the retry policy; the retry applies on win32 only. */
+  platform: NodeJS.Platform;
 };
 
 const STAGING_PREFIX = ".synthetic-staging-";
+
+/** Total attempts at the publication rename (initial try plus two retries); Windows EPERM only. */
+const PUBLISH_RENAME_MAX_ATTEMPTS = 3;
+/** Fixed waits before the second and third attempts (100 ms maximum for one materialization). */
+const PUBLISH_RENAME_RETRY_DELAYS_MS = [25, 75] as const;
+
+/** Raised when the owned staging directory can no longer be proven to be ours; cleanup must not touch it. */
+class UnownedStagingError extends SyntheticRepositoryMaterializationError {}
+
+function sleepSync(milliseconds: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function isTransientWindowsRenameError(error: unknown, platform: NodeJS.Platform): boolean {
+  return platform === "win32" && typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "EPERM";
+}
 
 function withinRealRoot(realRoot: string, candidate: string): boolean {
   try {
@@ -94,12 +119,70 @@ function describeExisting(
   return { reusable: true };
 }
 
+/** Proves, before a rename retry, that the owned staging directory is still ours and the destination is still free. */
+function assertStagingStillPublishable(realRoot: string, staging: string, caseDirectory: string, caseId: string): void {
+  let rootStillVerified = false;
+  try {
+    rootStillVerified = realpathSync(realRoot) === realRoot;
+  } catch {
+    rootStillVerified = false;
+  }
+  if (!rootStillVerified) {
+    throw new UnownedStagingError("path-escape", ["output root no longer resolves to the verified physical root; the staging rename was not retried."]);
+  }
+  let stats;
+  try {
+    stats = lstatSync(staging);
+  } catch {
+    throw new UnownedStagingError("io-failure", ["owned staging directory disappeared before the staging rename retry; nothing was published."]);
+  }
+  if (stats.isSymbolicLink() || !stats.isDirectory() || path.dirname(staging) !== realRoot || !withinRealRoot(realRoot, staging)) {
+    throw new UnownedStagingError("path-escape", ["owned staging directory is no longer a plain directory inside the output root; the staging rename was not retried."]);
+  }
+  if (exists(caseDirectory)) {
+    throw new SyntheticRepositoryMaterializationError("collision", [`output child ${caseId} appeared during materialization; nothing was overwritten.`]);
+  }
+}
+
+/**
+ * The single atomic publication of a verified staging directory. On Windows an externally induced, brief EPERM from this
+ * one rename is retried up to the fixed budget (3 attempts, 25 ms then 75 ms apart) after the ownership and destination
+ * guards are re-proven; every other error, and every non-Windows platform, gets exactly one attempt. Returns the number
+ * of attempts used.
+ */
+function publishStagingDirectory(options: {
+  staging: string;
+  caseDirectory: string;
+  caseId: string;
+  realRoot: string;
+  renameDirectory: (from: string, to: string) => void;
+  sleep: (milliseconds: number) => void;
+  platform: NodeJS.Platform;
+}): number {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      options.renameDirectory(options.staging, options.caseDirectory);
+      return attempt;
+    } catch (error) {
+      if (!isTransientWindowsRenameError(error, options.platform)) throw error;
+      if (attempt >= PUBLISH_RENAME_MAX_ATTEMPTS) {
+        throw new SyntheticRepositoryMaterializationError("io-failure", [
+          `final staging directory rename failed with EPERM after ${attempt} attempts (retry budget exhausted); nothing was copied, overwritten or published.`,
+        ]);
+      }
+      options.sleep(PUBLISH_RENAME_RETRY_DELAYS_MS[attempt - 1]);
+      assertStagingStillPublishable(options.realRoot, options.staging, options.caseDirectory, options.caseId);
+    }
+  }
+}
+
 /**
  * Materializes a frozen Batch 1 plan below `outputRoot/<caseId>/` as `repository/` plus a sibling
  * `synthetic-repository-manifest.json`. The plan is the single semantic source of truth: it is verified, never
  * re-planned or repaired. A deterministic existing directory is reused only when its manifest and every file
  * match the requested generation exactly; any other existing child is a collision. Writes go to an owned staging
- * directory that is verified and then renamed into place; on failure only that staging directory is removed.
+ * directory that is verified and then renamed into place (a brief, externally induced Windows EPERM at that single
+ * rename is retried within a fixed budget, see `publishStagingDirectory`); on failure only that staging directory is removed.
  */
 export function materializeSyntheticRepository(
   plan: SyntheticRepositoryPlanV1,
@@ -187,12 +270,43 @@ export function materializeSyntheticRepository(
     if (exists(caseDirectory)) {
       throw new SyntheticRepositoryMaterializationError("collision", [`output child ${plan.caseId} appeared during materialization; nothing was overwritten.`]);
     }
-    renameSync(staging, caseDirectory);
+    const attempts = publishStagingDirectory({
+      staging,
+      caseDirectory,
+      caseId: plan.caseId,
+      realRoot,
+      renameDirectory: io.renameDirectory ?? renameSync,
+      sleep: io.sleep ?? sleepSync,
+      platform: io.platform ?? process.platform,
+    });
     staging = undefined;
+    if (attempts > 1) {
+      // The staged tree was verified before the rename; after a retried publication the destination is re-verified too.
+      // It now holds this invocation's output, so a failure here is reported and the destination is left in place.
+      const publishedManifest = path.join(caseDirectory, SYNTHETIC_REPOSITORY_MANIFEST_FILE_NAME);
+      const published = verifySyntheticRepositoryMaterialization({
+        manifestPath: publishedManifest,
+        repositoryRoot: path.join(caseDirectory, SYNTHETIC_REPOSITORY_REPOSITORY_DIRECTORY),
+      });
+      if (!published.ok || readFileSync(publishedManifest, "utf8") !== manifestText) {
+        throw new SyntheticRepositoryMaterializationError("io-failure", [
+          `published output for ${plan.caseId} failed verification after the staging rename succeeded on attempt ${attempts}; the destination was left in place for inspection.`,
+          ...published.issues,
+        ]);
+      }
+    }
   } catch (error) {
-    if (staging !== undefined) rmSync(staging, { recursive: true, force: true });
-    if (error instanceof SyntheticRepositoryMaterializationError) throw error;
-    throw new SyntheticRepositoryMaterializationError("io-failure", [error instanceof Error ? error.message : String(error)]);
+    let cleanupFailure: string | undefined;
+    if (staging !== undefined && !(error instanceof UnownedStagingError)) {
+      try {
+        rmSync(staging, { recursive: true, force: true });
+      } catch (cleanupError) {
+        cleanupFailure = `cleanup of the owned staging directory failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`;
+      }
+    }
+    const reported = error instanceof SyntheticRepositoryMaterializationError ? error : new SyntheticRepositoryMaterializationError("io-failure", [error instanceof Error ? error.message : String(error)]);
+    if (cleanupFailure === undefined) throw reported;
+    throw new SyntheticRepositoryMaterializationError(reported.code, [...reported.errors, cleanupFailure]);
   }
   return result(false);
 }

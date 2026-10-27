@@ -10,7 +10,11 @@ import { classifyAgentRunOutcome } from "../../../evaluation/classifyAgentRunOut
 import type { IndexFreshnessAssessmentV1 } from "../../../evaluation/indexFreshness.js";
 import { parseAgentAnswer } from "../../../evaluation/parseAgentAnswer.js";
 import { readEvaluationCases } from "../../../evaluation/readEvaluationCases.js";
-import { runMyDevKitRetrievalFromIndex } from "../../../evaluation/runMyDevKitRetrieval.js";
+import {
+  isBoundedRetrievalResult,
+  runMyDevKitBoundedRetrievalFromIndex,
+  type MyDevKitBoundedRetrievalResult
+} from "../../../evaluation/runMyDevKitRetrieval.js";
 import { scoreCorrectness } from "../../../evaluation/scoreCorrectness.js";
 import type { CorrectnessScore } from "../../../evaluation/controlledExperimentTypes.js";
 import type { BenchmarkProjectProfile, BenchmarkTaskAnswerKey, EvaluationCase, MyDevKitRetrievalResult } from "../../../evaluation/types.js";
@@ -19,7 +23,7 @@ import {
   buildRequiredFileEvidence,
   classifyStaleRisk,
   compareCorrectness,
-  compareRequiredFileEvidence,
+  compareRequiredFileEvidenceAgainstReference,
   type CorrectnessComparableV1,
   type CorrectnessRelationV1,
   type RequiredFileEvidenceRelationV1,
@@ -215,7 +219,9 @@ export async function runIncrementalChangeStalenessTreatmentRetrieval(args: {
   indexDir: string;
   commandsDir: string;
 }): Promise<MyDevKitRetrievalResult> {
-  return runMyDevKitRetrievalFromIndex({
+  // Opt-in bounded multi-source protocol: the staleness experiment must observe multi-file requirements,
+  // which the default first-candidate-only retrieval cannot. Candidates derive from the search output only.
+  return runMyDevKitBoundedRetrievalFromIndex({
     evaluationCase: args.derivedTask,
     kitCommand: args.kitCommand,
     indexDir: args.indexDir,
@@ -225,9 +231,50 @@ export async function runIncrementalChangeStalenessTreatmentRetrieval(args: {
 }
 
 /**
+ * Required-file evidence under the bounded multi-source protocol. "Observed" means a successful `source`
+ * command for that file, never a search match. Fails closed: a protocol that cannot source as many files as
+ * are required, a failed source command, or rejected candidate identities leave unsourced required files
+ * `unknown` instead of `missing`. A `missing` result is relative to the fixed candidate budget and says so.
+ */
+function buildBoundedRequiredFileEvidence(args: {
+  requiredFiles: readonly string[];
+  retrieval: MyDevKitBoundedRetrievalResult;
+}): RequiredFileEvidenceV1 {
+  const coverage = args.retrieval.boundedCoverage;
+  const observedFiles = coverage.attempts.filter((attempt) => attempt.sourced).map((attempt) => attempt.file);
+  const unknown = (unknownReason: string) =>
+    buildRequiredFileEvidence({ requiredFiles: args.requiredFiles, observedFiles, observedFilesComplete: false, unknownReason });
+
+  const required = buildRequiredFileEvidence({ requiredFiles: args.requiredFiles, observedFiles, observedFilesComplete: true });
+  if (required.requiredFiles.length > coverage.maxSourceFiles) {
+    return unknown(
+      `Coverage-limited: the bounded retrieval protocol sources at most ${coverage.maxSourceFiles} candidate file(s) but ${required.requiredFiles.length} are required.`
+    );
+  }
+  if (required.status === "present") return required;
+  const failedAttempts = coverage.attempts.filter((attempt) => !attempt.sourced).length;
+  if (failedAttempts > 0) {
+    return unknown(`${failedAttempts} bounded source command(s) failed; unsourced required files cannot be classified as absent.`);
+  }
+  if (coverage.rejectedCandidateCount > 0) {
+    return unknown(
+      `${coverage.rejectedCandidateCount} search candidate(s) were rejected (unsafe file identity or no node id); unsourced required files cannot be classified as absent.`
+    );
+  }
+  return {
+    ...required,
+    reason:
+      `Required file(s) were not sourced within the bounded retrieval protocol (${observedFiles.length} of up to ${coverage.maxSourceFiles} candidate file(s) sourced; ` +
+      `${coverage.eligibleCandidateFileCount} eligible; search truncated: ${coverage.searchTruncated ? "yes" : "no"}; candidate budget exhausted: ${coverage.candidateBudgetExhausted ? "yes" : "no"}). ` +
+      "This is not an exhaustive source-set assessment."
+  };
+}
+
+/**
  * Section 27: a `failed` retrieval status means the actual-files-read set cannot be trusted as
  * complete (unknown); `completed` and `skipped` (search ran and legitimately found no candidate)
- * both provide a complete, trustworthy files-read set, possibly empty.
+ * both provide a complete, trustworthy files-read set, possibly empty. A result produced by the opt-in
+ * bounded protocol is evaluated against its own declared coverage instead.
  */
 export function buildIncrementalChangeStalenessRequiredFileEvidence(args: {
   requiredFiles: readonly string[];
@@ -242,6 +289,9 @@ export function buildIncrementalChangeStalenessRequiredFileEvidence(args: {
     });
   }
   const status = classifyIncrementalChangeStalenessRetrieval(args.retrieval);
+  if (status !== "failed" && isBoundedRetrievalResult(args.retrieval)) {
+    return buildBoundedRequiredFileEvidence({ requiredFiles: args.requiredFiles, retrieval: args.retrieval });
+  }
   return buildRequiredFileEvidence({
     requiredFiles: args.requiredFiles,
     observedFiles: args.retrieval.filesRead,
@@ -648,7 +698,7 @@ export async function executeIncrementalChangeStalenessScenario(options: {
   });
 
   const correctnessRelation = compareCorrectness(correctnessComparable(stale.fakeAgent), correctnessComparable(fullRefresh.fakeAgent));
-  const requiredFileEvidenceRelation = compareRequiredFileEvidence(stale.requiredFileEvidence, fullRefresh.requiredFileEvidence);
+  const requiredFileEvidenceRelation = compareRequiredFileEvidenceAgainstReference(stale.requiredFileEvidence, fullRefresh.requiredFileEvidence);
   const classification = classifyStaleRisk(correctnessRelation, requiredFileEvidenceRelation);
 
   return {

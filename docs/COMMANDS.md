@@ -621,7 +621,7 @@ Current repository validation commands:
 - `npm run verify`
 - `npm run docs:check`
 
-Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm test` runs the canonical complete Vitest suite (every `tests/**/*.spec.ts` file, including the focused subsets listed below). `npm run verify` runs the non-test verification chain (build, benchmark-fixture verification) and intentionally excludes the test suite, so complete validation requires both `npm run test` and `npm run verify`, in either order but each exactly once; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
+Use `npm ci` for a reproducible clean install when `package-lock.json` is present. Use `npm install` during normal dependency development. `npm test` runs the canonical complete Vitest collection, including `.spec.ts` and `.test.ts` files and canonical benchmark tests. Focused subsets below do not replace that complete collection; see [WORKFLOWS.md](WORKFLOWS.md#kit-schema-3-compatibility-and-package-verification-workflow-v094) for temporary-path and discovery safeguards. `npm run verify` runs the non-test verification chain (build, benchmark-fixture verification) and intentionally excludes the test suite, so complete validation requires both `npm run test` and `npm run verify`, in either order but each exactly once; `npm run docs:check` validates documentation structure, lifecycle claims, required releases, roadmap order, and protected capability families.
 
 Focused validation scripts from `package.json` are developer conveniences that each run a subset of files already executed by `npm test`; they are not additional required gates and are not chained into `verify`:
 
@@ -702,7 +702,7 @@ npm run experiment:run -- --experiment retrieval-precision-recall --case warm-me
 
 Current behavior:
 
-- `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, and `retrieval-query-strategy-comparison` are the registered plugins
+- The eight registered plugins are `context-strategy-comparison`, `warm-index-reuse`, `incremental-change-staleness`, `context-window-scaling`, `retrieval-precision-recall`, `retrieval-query-strategy-comparison`, `context-pack-generation`, and `agent-success-rate`
 - `context-strategy-comparison` and ordinary `warm-index-reuse` runs support optional `--target`; omitting it uses self mode
 - `incremental-change-staleness` does not accept `--target` and always uses the bundled benchmark projects
 - when a plugin supports an explicit target, experiment execution does not modify that target project

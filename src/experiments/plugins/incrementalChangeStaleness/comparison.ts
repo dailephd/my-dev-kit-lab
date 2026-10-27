@@ -102,6 +102,20 @@ export function compareRequiredFileEvidence(
   return "same";
 }
 
+/**
+ * Reference-adequacy gate over the section 30 rules. Equal evidence only supports "same" when the full-refresh
+ * reference itself observed every required file: two treatments that both lack the required files are equally
+ * insufficient, which is not evidence that the candidate did not regress. That case is `unknown`. A candidate
+ * that observed files the insufficient reference did not is still reported as better; nothing else changes.
+ */
+export function compareRequiredFileEvidenceAgainstReference(
+  candidate: Pick<RequiredFileEvidenceV1, "status">,
+  reference: Pick<RequiredFileEvidenceV1, "status">
+): RequiredFileEvidenceRelationV1 {
+  const relation = compareRequiredFileEvidence(candidate, reference);
+  return relation === "same" && reference.status !== "present" ? "unknown" : relation;
+}
+
 export type StaleRiskClassificationV1 = "observed-stale-regression" | "no-observed-stale-regression" | "inconclusive";
 
 export type StaleRiskReasonCode =

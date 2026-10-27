@@ -163,7 +163,7 @@ export type IncrementalFakeKitOptions = {
   /** A full (non-incremental) index whose --out contains this text fails. */
   failFullWhenOutContains?: string;
   /** `search` returns this single file when the --index path contains the given text (otherwise no candidates). */
-  searchMap?: Array<{ whenIndexDirContains: string; file: string; symbol: string }>;
+  searchMap?: Array<{ whenIndexDirContains: string; file: string; symbol: string; /** Additional ranked files returned after `file`. */ extraFiles?: string[] }>;
 };
 
 /**
@@ -191,7 +191,7 @@ export function writeIncrementalLifecycleFakeKit(
       `if (args[0] === "search" && options.searchMap) {`,
       `  const indexDir = String(args[args.indexOf("--index") + 1]).split(String.fromCharCode(92)).join("/");`,
       `  const matched = options.searchMap.find((entry) => indexDir.includes(entry.whenIndexDirContains));`,
-      `  console.log(JSON.stringify({ results: matched ? [{ nodeId: "file:" + matched.file, file: matched.file, symbol: matched.symbol }] : [] }));`,
+      `  console.log(JSON.stringify({ results: matched ? [matched.file, ...(matched.extraFiles ?? [])].map((file) => ({ nodeId: "file:" + file, file, symbol: matched.symbol })) : [] }));`,
       `  process.exit(0);`,
       `}`,
       `if (args[0] !== "index") { const r = spawnSync(process.execPath, [${JSON.stringify(graphScript)}, ...args], { stdio: "inherit" }); process.exit(r.status ?? 1); }`,

@@ -32,7 +32,8 @@ let fallback: IncrementalChangeStalenessScenarioExecutionV2;
 let failed: IncrementalChangeStalenessScenarioExecutionV2;
 
 beforeAll(async () => {
-  ready = (await prepareAndExecuteV2(tracked, "U1")).execution;
+  // Adequate reference control: every treatment sources every required file.
+  ready = (await prepareAndExecuteV2(tracked, "U1", { searchByTreatment: { "stale-index": "present", "changed-files-refresh": "present", "affected-neighborhood-refresh": "present", "full-refresh": "present" } })).execution;
   fallback = (
     await prepareAndExecuteV2(tracked, "T1", {
       kit: { refresh: { "affected-neighborhood": "fallback" } },
@@ -171,13 +172,23 @@ describe("V2 text report", () => {
     expect(text).toContain("does not imply that full refresh is unnecessary");
   });
 
+  it("labels synthetic correctness, read-versus-surfaced files and non-retained command logs truthfully", async () => {
+    const { text } = await report([ready]);
+    expect(text).toContain("Synthetic fake-agent correctness score:");
+    expect(text).toContain("not measured my-dev-kit answer correctness");
+    expect(text).toContain("a file merely surfaced by search, lookup or slice was not read");
+    expect(text).toContain("not an exhaustive source-set assessment");
+    expect(text).toContain("two equally insufficient treatments are reported as unknown/inconclusive");
+    expect(text).toContain("they are not retained and must not be relied on as links");
+  });
+
   it("shows a failed scenario as unavailable without fabricated zero evidence", async () => {
     const { text, json } = await report([failed]);
     expect(json.report.incrementalChangeStaleness.scenarios[0].treatments).toEqual([]);
     expect(text).toContain("Not produced: the scenario failed before any treatment evidence existed.");
     expect(text).toContain("baseline-bootstrap-contract-mismatch");
     expect(text).not.toContain("Context characters: 0");
-    expect(text).not.toContain("Correctness score: 0");
+    expect(text).not.toContain("Synthetic fake-agent correctness score: 0");
     expect(text).toContain("Reference classification: inconclusive");
   });
 });

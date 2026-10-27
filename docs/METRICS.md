@@ -646,7 +646,7 @@ The `incremental-change-staleness` plugin reuses the six existing v0.6.1 affecte
 **Required-file relation** (per scenario, comparing the two treatments' required-file status):
 
 - `stale-worse`: `stale-index` is `missing` while `full-refresh` is `present`.
-- `same`: both treatments have the same status (including `missing`/`missing`).
+- `same`: both treatments have the same status, except that `missing`/`missing` is `unknown` (see the reference-adequacy gate below).
 - `stale-better`: `stale-index` is `present` while `full-refresh` is `missing`.
 - `unknown`: either treatment's status is `unknown`.
 
@@ -689,6 +689,16 @@ Availability: the first three are always present for a validated incremental tre
 - `changed-files-refresh` vs `full-refresh` and `affected-neighborhood-refresh` vs `full-refresh` use neutral candidate relations (`candidate-worse`, `same`, `candidate-better`, `unknown`) for deterministic fake-agent correctness and for the required-file status, with the frozen precedence: (1) `not-comparable-as-partial-refresh` if the candidate fell back to a full rebuild (`FALLBACK_FULL`); (2) `observed-regression-relative-to-full` if correctness or required-file presence is `candidate-worse`; (3) `inconclusive` if either relation is `unknown`; (4) otherwise `no-observed-regression-relative-to-full`.
 
 `no-observed-regression-relative-to-full` means only that the executed scenario showed no regression under those two evidence dimensions. It does not establish equivalence or safety and does not show that full refresh is unnecessary. `not-comparable-as-partial-refresh` says the run gives no evidence about the requested partial behavior. There is no winner, ranking, composite score, safety score, safe-to-skip-refresh flag, or stale-risk percentage. Ordinary per-treatment correctness `score` remains the existing deterministic fake-agent evidence.
+
+**Evidence families and the reference-adequacy gate (v0.9.5).** The staleness experiment keeps five kinds of evidence distinct and never converts one into another:
+
+- *Source read*: a file whose own `source` command succeeded under the bounded multi-source retrieval protocol (`bounded-multi-source-v1`: one `search` with an explicit limit, then at most 8 distinct candidate files in search rank order, each with one `source` command). `retrieval.filesRead` and `requiredFileEvidence.observedFiles` carry only these. Candidates come only from the actual search output; the answer key never selects them.
+- *Surfaced*: a file or symbol that search, lookup or slice merely returned. It is not credited as read.
+- *Expected but not observed*: `requiredFileEvidence.missingFiles`. `missing` is relative to the fixed candidate budget and is not an exhaustive source-set assessment; its reason states the budget and truncation flags. Unsourced required files are `unknown` (not `missing`) when the protocol cannot source as many files as are required, a bounded source command failed, or candidate identities were rejected.
+- *Synthetic agent correctness*: the deterministic fake agent reports only two expected facts, so scenarios requiring three or more facts score 0.75 (0.70 for T1) and never pass. This is not measured my-dev-kit answer correctness, is identical across treatments, and cannot discriminate between them.
+- *Candidate relative to full refresh*: the relation and classification fields. Full refresh is the reference, not an automatically adequate treatment: an equal required-file status supports `same` only when the full-refresh reference itself is `present`. `missing`/`missing` is reported as `unknown`, so an all-equal but insufficient experiment is `inconclusive`, never `no-observed-regression`.
+
+Fact-context-target coverage from `retrievalQuality` is not used here: five of the six frozen scenario answer keys carry no `factIds` mappings, so that metric would be unavailable.
 
 **Report presentation.** `report.incrementalChangeStaleness` (schema `my-dev-kit-lab-incremental-change-staleness-report-v2`) holds the summary counts (including per-treatment applied-partial, fallback, and classification counts), per-scenario lifecycle, four treatments and three comparisons identified by explicit treatment IDs, and fixed limitations text. Unavailable evidence is written as `unavailable` or `not applicable`, never zero. Historical V1 reports keep their original two-treatment presentation.
 

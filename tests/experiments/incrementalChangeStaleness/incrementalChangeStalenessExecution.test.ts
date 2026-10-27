@@ -323,17 +323,19 @@ describe("full scenario execution (L2, controllable fixture)", () => {
     expect(full.retrieval?.commands.filter((command) => command.commandId === "search")).toHaveLength(1);
 
     // Each treatment's single-file read differs (proving distinct index/target authority) but
-    // neither satisfies both required files, so both are "missing" -> required-file relation "same".
+    // neither satisfies both required files, so both are "missing". Two equally insufficient treatments
+    // are not evidence of "same": the full-refresh reference did not observe the required files, so the
+    // required-file relation is "unknown" (v0.9.5 reference-adequacy gate).
     expect(stale.requiredFileEvidence.status).toBe("missing");
     expect(stale.requiredFileEvidence.observedFiles).toEqual(["src/store/taskStore.ts"]);
     expect(full.requiredFileEvidence.status).toBe("missing");
     expect(full.requiredFileEvidence.observedFiles).toEqual(["src/services/completeTask.ts"]);
-    expect(execution.comparison.requiredFileEvidenceRelation).toBe("same");
+    expect(execution.comparison.requiredFileEvidenceRelation).toBe("unknown");
     // The deterministic fake agent always answers from the (shared) resolved answer key regardless
-    // of retrieved content, so correctness is also "same" here -> no observed stale-specific
-    // regression under either frozen evidence dimension for this fixture.
+    // of retrieved content, so its (synthetic) correctness is "same" here and cannot rescue the
+    // inadequate reference: the classification is inconclusive, never "no observed regression".
     expect(execution.comparison.correctnessRelation).toBe("same");
-    expect(execution.comparison.staleRiskClassification).toBe("no-observed-stale-regression");
+    expect(execution.comparison.staleRiskClassification).toBe("inconclusive");
   }, 60_000);
 
   it("full-refresh reading the sole required file while stale misses it -> stale-worse required-file relation -> observed-stale-regression (TST-B4-041, 046)", async () => {

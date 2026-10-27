@@ -282,7 +282,9 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 **Completion:** the run reports `completed` (or a reviewed `partial` state), each ready scenario shows four treatments in the persisted order and three reference comparisons, the report's incremental-change-staleness section and limitations are present, and the packaged benchmark projects and scenario catalog remain unchanged. Interpret the results as scenario-scoped evidence: an applied partial refresh in one run does not guarantee the next run cannot fall back, and there is no `graph-diff` dependency, no numeric stale-risk score, no treatment winner, and no global safety verdict. Historical V1 artifacts from the two-treatment release remain readable.
 
-**Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.5` for all six scenarios with all four treatments, requires both partial treatments to be applied without fallback, checks operational discrimination between changed-files and affected-neighborhood refresh, and keeps the canonical benchmarks and both installed packages immutable. It introduces no new plot, screenshot, or gallery item.
+**Reading the evidence (v0.9.5):** treat the fake-agent correctness score as a synthetic label, not Kit correctness. A file counts as read only when its own `source` command succeeded under the bounded retrieval protocol; a `missing` required file is relative to that protocol's candidate budget; and a comparison whose full-refresh reference did not itself observe every required file is `inconclusive`, even when all treatments are equal. The command-log paths recorded in the persisted telemetry point at run-owned files that cleanup removes. See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062).
+
+**Installed-package validation:** the exact-tarball packed-package gate (`npm run verify:packed-package`) proves the installed CLI against the real registry package `@dailephd/my-dev-kit@1.12.5` for all six scenarios with all four treatments, requires both partial treatments to be applied without fallback, checks operational discrimination between changed-files and affected-neighborhood refresh, and keeps the canonical benchmarks and both installed packages immutable. In v0.9.5, it also reuses the installed producer's reference-aware comparison builder for all 18 comparisons and ordered reason codes, alongside the unchanged production artifact validator. Inadequate full-refresh required-file evidence stays unknown/inconclusive; a verifier pass establishes agreement, not a stronger scientific result. Historical packed runs apply only to their tested source/delta. It introduces no new plot, screenshot, or gallery item.
 
 ## Kit schema-3 compatibility and package-verification workflow (v0.9.4)
 
@@ -322,7 +324,11 @@ This is the current source workflow. The v0.6.2 release ran two treatments (`sta
 
 **Failures:** an unsupported symbol-index schema, a malformed or multi-package `npm pack` inventory, or an unsafe inventory path fails explicitly. A missing build fails the verifier with `FAILED_GATE: BUILD_REQUIRED`.
 
-**Test environment:** run the full suite with the operating-system temporary directory (outside any Git repository). A temporary root inside the Lab repository makes Git discover the enclosing repository and causes unrelated test failures.
+**Test environment:** use the task-authorized short temporary root and its canonical physical spelling for `TEMP`, `TMP`, and `TMPDIR`; keep package caches and command output in their approved locations. Disposable CommonJS scripts need their own package scope, and non-Git fixtures need bounded Git discovery. The v0.9.5 fixtures establish these boundaries; an in-checkout temporary root alone does not establish isolation. Very long Windows paths still fail closed.
+
+For focused validation, constrain Vitest discovery with `--dir tests` and exact current test paths: an unrestricted path filter can also match ignored historical test copies under `tmp/`. This focused selection excludes canonical benchmark tests and is not a full-suite substitute. A canonical run requires its separately authorized isolated checkout and a verified complete collection, including benchmark tests and no historical temporary-tree copies. Preserve each run's actual source SHA, command, collection and result; never attribute ancestor results to a later documentation commit.
+
+Adversarial `--out`/`--index` witnesses must remain inside disposable project-contained enclosures, including intentionally unsafe destinations and protected sentinels. Inspect the current test source before launching validation; do not probe drive-root/system paths or execute historical test copies to establish containment.
 
 **Completion:** staleness reports show the schema-3 identities as described above, `npm run security:package` passes, and the packed-package verifier ends with exit code 0 and `PACKED_PACKAGE_VERDICT: PASS`.
 
@@ -799,6 +805,8 @@ npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 - this is automated validation, not manual pentest
 
 Reports are written beneath `reports/security/` unless `--out` is supplied.
+
+When the selected checks include `cli-adversarial`, inspect the required nested `npm run test:security` result as well as its test summary. Printed passing tests alone do not establish success: a timeout, nonzero or null exit, start error, or reported process-tree cleanup failure remains failed evidence and a blocking major finding. Timeout handling terminates the process tree with bounded cleanup; the deadline and verdict severity are unchanged. See the [security framework](security-validation-framework.md#target-aware-validation) for the process-result contract.
 
 **Failure handling:** treat unavailable optional tools as `skipped`, not passed. Investigate failed checks and inconclusive environments from the generated report; do not weaken thresholds to hide findings.
 

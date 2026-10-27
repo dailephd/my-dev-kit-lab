@@ -8,6 +8,21 @@ function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "audit-target-test-"));
 }
 
+/**
+ * TEMP may live inside a checkout, where Git discovery would resolve a plain directory into the ancestor worktree. Bound
+ * discovery at the directory's parent (Git searches the directory itself but not the ceiling) and restore the variable.
+ */
+function withGitCeiling<T>(dir: string, action: () => T): T {
+  const previous = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = fs.realpathSync.native(path.dirname(dir));
+  try {
+    return action();
+  } finally {
+    if (previous === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = previous;
+  }
+}
+
 function cleanup(...dirs: string[]): void {
   for (const d of dirs) {
     try {
@@ -74,7 +89,7 @@ describe("resolveAuditTarget — external target", () => {
   it("gitRoot is null when the target is not a git repo", () => {
     const tmp = makeTempDir();
     try {
-      const target = resolveAuditTarget(tmp, process.cwd());
+      const target = withGitCeiling(tmp, () => resolveAuditTarget(tmp, process.cwd()));
       expect(target.gitRoot).toBeNull();
     } finally {
       cleanup(tmp);
@@ -94,10 +109,47 @@ describe("resolveAuditTarget — external target", () => {
 
   it("resolves a relative path against process.cwd()", () => {
     const tmp = makeTempDir();
-    const relative = path.relative(process.cwd(), tmp);
-    const target = resolveAuditTarget(relative, process.cwd());
-    expect(path.resolve(target.rootPath)).toBe(path.resolve(tmp));
-    cleanup(tmp);
+    try {
+      const relative = path.relative(process.cwd(), tmp);
+      const target = resolveAuditTarget(relative, process.cwd());
+      // Windows cwd and TEMP can spell the same existing directory with different case.
+      if (process.platform === "win32") {
+        expect(fs.realpathSync.native(target.rootPath)).toBe(fs.realpathSync.native(tmp));
+      } else {
+        expect(path.resolve(target.rootPath)).toBe(path.resolve(tmp));
+      }
+    } finally {
+      cleanup(tmp);
+    }
+  });
+
+  it("compares existing fixture identities without conflating distinct directories", () => {
+    const parent = makeTempDir();
+    const expected = path.join(parent, "Case Target With Spaces");
+    const distinct = path.join(parent, "Different Target With Spaces");
+    fs.mkdirSync(expected);
+    fs.mkdirSync(distinct);
+    try {
+      const spelling = process.platform === "win32"
+        ? path.join(parent, "cASE tARGET wITH sPACES")
+        : expected;
+      const target = resolveAuditTarget(path.relative(process.cwd(), spelling), process.cwd());
+      if (process.platform === "win32") {
+        const expectedStat = fs.statSync(expected, { bigint: true });
+        const actualStat = fs.statSync(target.rootPath, { bigint: true });
+        expect(actualStat.dev).toBe(expectedStat.dev);
+        expect(actualStat.ino).toBe(expectedStat.ino);
+        expect(fs.realpathSync.native(target.rootPath)).toBe(fs.realpathSync.native(expected));
+        expect(fs.realpathSync.native(target.rootPath)).not.toBe(fs.realpathSync.native(distinct));
+      } else {
+        expect(path.resolve(target.rootPath)).toBe(path.resolve(expected));
+        expect(path.resolve(target.rootPath)).not.toBe(path.resolve(distinct));
+        expect(path.resolve(expected)).not.toBe(path.resolve(parent, "cASE tARGET wITH sPACES"));
+      }
+      expect(target.safeReportOutputRoot).toBe(path.join(path.resolve(process.cwd()), "reports", "audits"));
+    } finally {
+      cleanup(parent);
+    }
   });
 
   it("handles a Windows-style path with spaces", () => {

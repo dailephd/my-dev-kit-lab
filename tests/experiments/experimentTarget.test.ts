@@ -8,6 +8,21 @@ function makeTempDir(prefix = "experiment-target-test-"): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
+/**
+ * TEMP may live inside a checkout, where Git discovery would resolve a plain directory into the ancestor worktree. Bound
+ * discovery at the directory's parent (Git searches the directory itself but not the ceiling) and restore the variable.
+ */
+function withGitCeiling<T>(dir: string, action: () => T): T {
+  const previous = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = fs.realpathSync.native(path.dirname(dir));
+  try {
+    return action();
+  } finally {
+    if (previous === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = previous;
+  }
+}
+
 function cleanup(...dirs: string[]): void {
   for (const dir of dirs) {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -73,7 +88,7 @@ describe("resolveExperimentTarget", () => {
   it("handles targets without git metadata", () => {
     const tmp = makeTempDir();
     try {
-      const target = resolveExperimentTarget(tmp, process.cwd());
+      const target = withGitCeiling(tmp, () => resolveExperimentTarget(tmp, process.cwd()));
       expect(target.hasGit).toBe(false);
       expect(target.branch).toBeNull();
       expect(target.commit).toBeNull();

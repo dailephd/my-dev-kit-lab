@@ -5,7 +5,9 @@ import type { AdversarialCliTarget } from "./adversarialCliConfig.js";
 import { buildCliCommand } from "./adversarialCliConfig.js";
 import type { PathTestInput } from "./pathCases.js";
 import { makeFinding, runAdversarialCheck, skippedCheck } from "./runAdversarialCheck.js";
-import { createTempWorkspace, diffSnapshots, snapshotDir } from "./tempWorkspace.js";
+import { createTempWorkspace, diffSnapshots, snapshotDir, snapshotTreeStrict } from "./tempWorkspace.js";
+import type { TempWorkspace } from "./tempWorkspace.js";
+import { classifyTraversalValue, proveContainment } from "./traversalContainment.js";
 
 // ---------------------------------------------------------------------------
 // Path traversal checks
@@ -72,32 +74,98 @@ export async function checkRootPathTraversal(
 }
 
 /**
- * Checks that a path traversal input to --out does not write outside the workspace.
+ * Shared mechanism for the --out and --index traversal checks.
+ *
+ * A traversing value is only handed to the CLI when its attempted destination
+ * is proven (before launch) to stay inside a NEW disposable enclosure that
+ * nests the workspace deep enough for the value. The whole enclosure is
+ * snapshotted before and after the run, so a write to the ACTUAL attempted
+ * destination is detected even when the unrelated outsideDir sentinel is
+ * untouched. Values that cannot be confined are not executed and are reported
+ * as skipped with a BLOCKED_BEFORE_LAUNCH reason, never as passed.
  */
-export async function checkOutPathTraversal(
+type TraversalFlagConfig = {
+  flag: "--out" | "--index";
+  workspacePrefix: string;
+  idStem: "path-traversal-out" | "path-traversal-index";
+  nameStem: string;
+  title: string;
+  recommendation: string;
+  declaredDir: (workspace: TempWorkspace) => string;
+};
+
+const OUT_TRAVERSAL: TraversalFlagConfig = {
+  flag: "--out",
+  workspacePrefix: "p4-out-",
+  idStem: "path-traversal-out",
+  nameStem: "Path traversal via --out",
+  title: "Write escaped workspace via --out traversal",
+  recommendation: "Validate --out argument is within an allowed prefix before writing.",
+  declaredDir: (workspace) => workspace.outputDir,
+};
+
+const INDEX_TRAVERSAL: TraversalFlagConfig = {
+  flag: "--index",
+  workspacePrefix: "p4-idx-",
+  idStem: "path-traversal-index",
+  nameStem: "Path traversal via --index",
+  title: "Write escaped workspace via --index traversal",
+  recommendation: "Validate --index argument is within an allowed prefix.",
+  declaredDir: (workspace) => workspace.indexDir,
+};
+
+function isUnder(relativePath: string, relativeDir: string): boolean {
+  return relativePath === relativeDir || relativePath.startsWith(relativeDir + path.sep);
+}
+
+async function checkContainedTraversal(
+  config: TraversalFlagConfig,
   target: AdversarialCliTarget,
   testInput: PathTestInput
 ): Promise<SecurityCheckResult> {
-  const workspace = createTempWorkspace("p4-out-");
-  try {
-    const beforeOutside = snapshotDir(workspace.outsideDir);
+  const id = `${config.idStem}-${testInput.id}`;
+  const name = `${config.nameStem}: ${testInput.description}`;
+  const blocked = (reason: string): SecurityCheckResult =>
+    skippedCheck({
+      id,
+      name,
+      category: "cli-adversarial",
+      reason: `BLOCKED_BEFORE_LAUNCH: ${reason}`,
+    });
 
-    // Build an escaped --out path that points outside the workspace.
-    // We use the actual outsideDir path so we can check for writes there.
-    const escapedOut = testInput.value.startsWith("/") || /^[A-Za-z]:\\/.test(testInput.value)
-      ? testInput.value  // absolute path given in test input
-      : path.resolve(workspace.outputDir, testInput.value); // resolve relative from output
+  const plan = classifyTraversalValue(testInput.value);
+  if (plan.kind === "refused") return blocked(plan.reason);
+
+  const workspace = createTempWorkspace(config.workspacePrefix, { nestDepth: plan.nestDepth });
+  try {
+    const enclosureDir = workspace.enclosureDir as string;
+    const declaredDir = config.declaredDir(workspace);
+    const proof = proveContainment({
+      value: testInput.value,
+      baseDir: declaredDir,
+      enclosureDir,
+      declaredDir,
+    });
+    if (!proof.ok) return blocked(proof.reason);
+
+    let before;
+    try {
+      before = snapshotTreeStrict(enclosureDir);
+    } catch (error) {
+      return blocked(`enclosure is not inspectable before launch: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     const { command, args } = buildCliCommand(target, [
       "--root",
       workspace.sourceDir,
-      "--out",
-      escapedOut,
+      config.flag,
+      proof.destination,
     ]);
+    const allowedRelative = path.relative(proof.enclosure, proof.declared);
 
-    const result = await runAdversarialCheck({
-      id: `path-traversal-out-${testInput.id}`,
-      name: `Path traversal via --out: ${testInput.description}`,
+    return await runAdversarialCheck({
+      id,
+      name,
       category: "cli-adversarial",
       severity: "blocker",
       command,
@@ -106,87 +174,85 @@ export async function checkOutPathTraversal(
       timeoutMs: target.timeoutMs,
       evaluate: (cmdResult) => {
         const findings = [];
-        const afterOutside = snapshotDir(workspace.outsideDir);
-        const outsideDiff = diffSnapshots(beforeOutside, afterOutside);
-        if (outsideDiff.added.length > 0 || outsideDiff.modified.length > 0) {
+        // A child that never produced an exit code (and did not time out) did
+        // not execute; the runner reports asynchronous spawn failures this way.
+        if (cmdResult.spawnError || (cmdResult.exitCode === null && !cmdResult.timedOut)) {
           findings.push(
             makeFinding({
-              id: `path-traversal-out-${testInput.id}-escape`,
-              title: "Write escaped workspace via --out traversal",
+              id: `${id}-not-executed`,
+              title: `CLI did not run for ${config.flag} traversal check`,
+              severity: "major",
+              category: "cli-adversarial",
+              description: `Spawn error: ${cmdResult.spawnError ?? cmdResult.stderr.slice(0, 200)}`,
+              evidence: `${config.flag} value: ${proof.destination}`,
+              recommendation: "Fix the CLI invocation so the traversal check actually executes.",
+            })
+          );
+        }
+        let after;
+        try {
+          after = snapshotTreeStrict(enclosureDir);
+        } catch (error) {
+          findings.push(
+            makeFinding({
+              id: `${id}-inspection-lost`,
+              title: `Cannot inspect enclosure after ${config.flag} traversal`,
               severity: "blocker",
               category: "cli-adversarial",
-              description: `CLI wrote outside workspace: ${outsideDiff.added.join(", ")}`,
-              evidence: `--out value: ${escapedOut}, stdout: ${cmdResult.stdout.slice(0, 200)}`,
-              recommendation: "Validate --out argument is within an allowed prefix before writing.",
+              description: `Post-run snapshot failed: ${error instanceof Error ? error.message : String(error)}`,
+              evidence: `${config.flag} value: ${proof.destination}`,
+              recommendation: "Treat the traversal outcome as unknown; investigate before release.",
+            })
+          );
+          return findings;
+        }
+        const diff = diffSnapshots(before, after);
+        const outside = (list: string[]) => list.filter((rel) => !isUnder(rel, allowedRelative));
+        const added = outside(diff.added);
+        const modified = outside(diff.modified);
+        const removed = outside(diff.removed);
+        if (added.length + modified.length + removed.length > 0) {
+          const changed = [...added, ...modified, ...removed].map((rel) => path.join(proof.enclosure, rel));
+          findings.push(
+            makeFinding({
+              id: `${id}-escape`,
+              title: config.title,
+              severity: "blocker",
+              category: "cli-adversarial",
+              description:
+                `CLI wrote outside workspace: added [${added.join(", ")}], modified [${modified.join(", ")}], removed [${removed.join(", ")}]`,
+              evidence: `${config.flag} value: ${proof.destination}, stdout: ${cmdResult.stdout.slice(0, 200)}`,
+              affectedFiles: changed,
+              recommendation: config.recommendation,
             })
           );
         }
         return findings;
       },
     });
-
-    return result;
   } finally {
     await workspace.cleanup();
   }
 }
 
 /**
- * Checks that a path traversal input to --index does not allow writes outside workspace.
+ * Checks that a path traversal input to --out does not write outside the declared output directory.
+ */
+export async function checkOutPathTraversal(
+  target: AdversarialCliTarget,
+  testInput: PathTestInput
+): Promise<SecurityCheckResult> {
+  return checkContainedTraversal(OUT_TRAVERSAL, target, testInput);
+}
+
+/**
+ * Checks that a path traversal input to --index does not write outside the declared index directory.
  */
 export async function checkIndexPathTraversal(
   target: AdversarialCliTarget,
   testInput: PathTestInput
 ): Promise<SecurityCheckResult> {
-  const workspace = createTempWorkspace("p4-idx-");
-  try {
-    const beforeOutside = snapshotDir(workspace.outsideDir);
-
-    const escapedIndex = testInput.value.startsWith("/") || /^[A-Za-z]:\\/.test(testInput.value)
-      ? testInput.value
-      : path.resolve(workspace.indexDir, testInput.value);
-
-    const { command, args } = buildCliCommand(target, [
-      "--root",
-      workspace.sourceDir,
-      "--index",
-      escapedIndex,
-    ]);
-
-    const result = await runAdversarialCheck({
-      id: `path-traversal-index-${testInput.id}`,
-      name: `Path traversal via --index: ${testInput.description}`,
-      category: "cli-adversarial",
-      severity: "blocker",
-      command,
-      args,
-      cwd: workspace.root,
-      timeoutMs: target.timeoutMs,
-      evaluate: (cmdResult) => {
-        const findings = [];
-        const afterOutside = snapshotDir(workspace.outsideDir);
-        const outsideDiff = diffSnapshots(beforeOutside, afterOutside);
-        if (outsideDiff.added.length > 0 || outsideDiff.modified.length > 0) {
-          findings.push(
-            makeFinding({
-              id: `path-traversal-index-${testInput.id}-escape`,
-              title: "Write escaped workspace via --index traversal",
-              severity: "blocker",
-              category: "cli-adversarial",
-              description: `CLI wrote outside workspace: ${outsideDiff.added.join(", ")}`,
-              evidence: `--index value: ${escapedIndex}, stdout: ${cmdResult.stdout.slice(0, 200)}`,
-              recommendation: "Validate --index argument is within an allowed prefix.",
-            })
-          );
-        }
-        return findings;
-      },
-    });
-
-    return result;
-  } finally {
-    await workspace.cleanup();
-  }
+  return checkContainedTraversal(INDEX_TRAVERSAL, target, testInput);
 }
 
 // ---------------------------------------------------------------------------

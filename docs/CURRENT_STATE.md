@@ -7,10 +7,12 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Current release-document and package version: `v0.9.4`.
+- Latest release: v0.9.5 in final release-document and package state. External npm publication status is established directly from live registry evidence.
+- Exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed local and hosted standardized readiness on 2026-10-26. Release preparation is recorded separately; npm reported baseline `0.9.4` and an explicit not-found result for `0.9.5` before the versioned release artifact was prepared.
+- Current release: `v0.9.5` release-document and package target.
 - Previous release: `v0.9.3` (prompt, report, metric, gallery, and comparison improvements).
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
-- Final release-document state: v0.9.4. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) remains historical release evidence; npm publication status is established through registry evidence.
+- Final release-document and package version: v0.9.5. The [v0.9.3 GitHub Release](https://github.com/dailephd/my-dev-kit-lab/releases/tag/v0.9.3) remains historical release evidence; npm publication status is established through registry evidence.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Historical release: `v0.9.1` (2026-10-12), followed by `v0.9.2` on 2026-10-13.
 - Historical release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
@@ -20,9 +22,9 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
-- Package version: `0.9.4`. Release documents are in final-release state.
-- Next future roadmap version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
-- Current release: v0.9.4 (Kit schema-3 and npm 12 compatibility correction); see the v0.9.4 section below.
+- Package version: `0.9.5`. Release documents are in final-release state.
+- Next planned feature version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
+- The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
 - `v0.4.5` delivers context-integrity validation against published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3`; see [ROADMAP.md](ROADMAP.md) for its preserved scope and the future plan.
@@ -40,9 +42,9 @@ The initial Stage 4 audit identified missing metric descriptors and prompt-compa
 
 Stage 4 documentation reconciliation and implementation-completeness audit passed. Stage 5 readiness closeout passed: the full suite reported 7,796 passed and 9 skipped; package, security, code-rot, three-platform Node 24 CI and hosted CodeQL gates passed, with no applicable open alerts. The corrected roadmap accepts deterministic prompt contracts, invalid-output classification, matched denominators, verified prompt/checkpoint evidence, comparison reports, and regression/compatibility checks. Real-provider effectiveness remains NOT_VERIFIED as a separately authorized, non-gating empirical objective. Release preparation finalized the 0.9.3 package metadata and release documentation.
 
-## v0.9.4 release and acceptance state
+## v0.9.4 historical release and acceptance state
 
-v0.9.4 is the current release-document and package state; `v0.10.0` remains the next future feature milestone. Release scope: Kit symbol-index schema-3 qualified-identity compatibility alongside schema 2; npm 11 and npm 12 package-inventory support; correct packed-package verifier behavior; and patched development-only security dependencies. Report, experiment, and security-verdict contracts are unchanged. The accepted implementation readiness result is `PASS_READY_FOR_RELEASE_PREP`; release-preparation validation is a separate gate. See [ROADMAP.md](ROADMAP.md#v094--kit-schema-3-and-npm-12-compatibility-correction).
+v0.9.4 is the earlier release and package baseline; `v0.10.0` remains the next future feature milestone. Release scope: Kit symbol-index schema-3 qualified-identity compatibility alongside schema 2; npm 11 and npm 12 package-inventory support; correct packed-package verifier behavior; and patched development-only security dependencies. Report, experiment, and security-verdict contracts are unchanged. The accepted implementation readiness result is `PASS_READY_FOR_RELEASE_PREP`. See [ROADMAP.md](ROADMAP.md#v094--kit-schema-3-and-npm-12-compatibility-correction).
 
 - Implementation branch: `fix/v0.9.4-kit-schema3-compat`. Accepted implementation commit: `97393177272c6173a230b6c693254e9067a4dde4`, which changes exactly seven files: `src/evaluation/affectedNeighborhood.ts`, `src/securityValidation/packageChecks/parseNpmPackDryRun.ts`, `scripts/verify-packed-package.mjs`, `tests/evaluation/affectedNeighborhood.test.ts`, `tests/security/packageContentChecks.test.ts`, `tests/security/cliSecuritySuiteCheck.test.ts`, and `tests/scripts/verifyPackedPackage.spec.ts`. Documentation reconciliation is a later commit on the same branch and changes no implementation file.
 - Schema compatibility: my-dev-kit symbol-index schemas `2` and `3` are accepted and all other values are rejected. Schema-3 symbols use their persisted qualified `nodeId` (`symbolq:` identities); identities are not reconstructed from paths and simple names. Same-name symbols in one file stay distinct, ambiguous simple names are reported as ambiguous, and missing, invalid, kind-mismatched, path-mismatched, or absent-from-graph identities stay unresolved. Code graph `1.1.0` is read by the existing major-one reader; that is version compatibility, not proof of each relationship or compiler-level resolution.
@@ -51,8 +53,28 @@ v0.9.4 is the current release-document and package state; `v0.10.0` remains the 
 - Security: the security-verdict policy, major-finding blocking semantics, and package-content checks are unchanged; no exception or waiver was added.
 - Local validation on npm 12.2.0 (Node 24.20.0, clean host TEMP): full suite 7,893 passed and 0 failed; security 690/690; benchmark tests 373/373; typecheck, build, documentation check, benchmark verification, fuzz smoke, and the packed-package verifier passed. On npm 11.19.0: 538/538 focused compatibility tests and a passing packed-package verifier.
 - Hosted CI for the implementation commit (run `39828150612`): Windows, Ubuntu, and macOS on Node 24 all succeeded, including the full suite and the packed-package verifier. The hosted matrix installs npm 11.19.0, so npm 12 has local evidence only.
-- Test environment: some Lab tests fail when the temporary-directory root is inside the Lab Git repository, because Git discovers the enclosing repository. Use the operating-system temporary directory (or any location outside a Git repository) for full-suite runs.
+- Historical v0.9.4 test-environment limitation: some non-Git fixtures discovered the enclosing repository when temporary files were inside the Lab checkout. The v0.9.5 fixture corrections establish explicit package/discovery boundaries; current safe temporary-path and collection guidance is in [WORKFLOWS.md](WORKFLOWS.md#kit-schema-3-compatibility-and-package-verification-workflow-v094).
 - The standardized pre-release readiness audit passed for the exact implementation candidate. Release-preparation checks qualify the versioned release commit separately. Publication follows the separate standardized publication workflow.
+
+## v0.9.5 implemented candidate state
+
+The exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` (tree `fbdca883388abb598a2697d124139601bcb8f643`) passed standardized local and hosted readiness. The versioned release-preparation commit is validated separately. Its scope remains in [ROADMAP.md](ROADMAP.md#v095--staleness-evidence-and-validation-boundaries).
+
+The C6 report records a local Windows Node 24.20.0 / npm 12.2.0 full-suite run on 2026-10-24 at `9d6f5c605072080a2831385f611d243e2e03ddd1` in an independent clone: 558 files (554 passed, 4 skipped), 8,015 tests passed, 9 skipped, 0 failed (Vitest 4.1.12). This is one host run, not hosted CI or standardized readiness evidence. C5 reported 21 skipped tests: 12 prompt-comparison tests were skipped downstream of its campaign-fixture failure, distinct from the nine platform/real-Kit conditional skips retained in C6. C6 passed all 40 prompt-comparison tests. The skip-count difference is reconciled; it does not establish that every earlier failure was benign. The host source of the transient Windows `EPERM` remains unidentified.
+
+The C1–C6 source culminated at `9d6f5c605072080a2831385f611d243e2e03ddd1` (tree `4c9220f6c969ae115055eccc38fbf721f328b99d`); post-C6 reconciliation was committed at `edae1d26d1718ea6f4912b367499a7444aef7c08`. The first standardized audit was `BLOCKED` before gates; its resumed attempt stopped at Gate C with `NEEDS_CORRECTION`, followed by documentation correction `d07189937778e579edeabd21bae4042df0b82ea4`. The separate A–Q attempt on `d0718993` passed Gate C but failed installed-package Gate H at U1, blocked Gate E on an unsafe test probe, and retained a major network finding at Gate I. Those failed/incomplete audit records remain historical; subsequent corrections do not retroactively pass them.
+
+The installed-consumer verifier now reuses the installed producer's reference-aware comparisons, including ordered reason codes, without changing the scientific standard. Its retained packed-consumer pass covered all 18 comparisons on `9b32e6ed75e6f705883d2b420d84142626222b4e` plus the W1 changes subsequently committed at `bb1162c2006e1e6eb619db3c9e2e6d15d441a09f`; it is not a packed-consumer pass at the latest source SHA. The unsafe adversarial test was replaced with enclosed safe/unsafe witnesses; its focused run passed 63 tests. Network classification now recognizes the two narrowly reviewed local HTTP sites only with strict source identities and provenance. EOL/symlink correction `df16b1f33621bc92e73c5e85897da4dba04a1781` was followed by `645b5b2`, which restores regular-file collection (including `src/build`) while retaining generated-directory exclusions and refusing case-aliased reviewed trust.
+
+The preceding retained local canonical run on 2026-10-25 belongs to source `645b5b2712de9b27c75542bce34f89e6aec54039`: 558 files (554 passed, 4 skipped), 8,091 tests passed, 0 failed, 9 skipped, exit 0. Collection included 17 canonical benchmark test files and no historical temporary-tree test copies. Six skips require the real-Kit opt-in, one requires the published-upstream smoke opt-in, and two are platform conditions (non-Windows executable semantics and the macOS temporary-path alias). Typecheck, build, documentation checks and scoped network validation also passed in that correction run. This is Windows scoped implementation evidence, not a new suite on this documentation commit, a full security pass, hosted CI, or A–Q readiness. Earlier recovery suites (8,047/4/9 at `bb1162c`, then 8,070/5/9 at `df16b1f`) remain failed historical runs.
+
+The later standardized audit attempt on `f2441c2787cbf90f37e7e3c26f9cc34f9e31fcf5` on 2026-10-25 blocked the canonical suite on an unsafe package-root test, failed four Windows provider-path assertions, and retained a major nested-security-suite failure. Subsequent corrections simulate missing-package-root discovery without real root I/O and compare native physical Windows fixture identities. Both are test-only corrections; package discovery, user-visible path spelling, and reviewed-source trust are unchanged. The security runner now performs bounded process-tree termination and retains timeout, exit, signal, start-error and cleanup evidence. The historical nested failure's exact trigger remains unknown; corrected lifecycle handling does not reconstruct it.
+
+The canonical run on `bbbe801646f4e208ff746dd21ca12f961b84a920` on 2026-10-25 had 8,099 passed, 1 failed and 9 skipped; integrated security was not run at that checkpoint. The final correction changes only the deterministic synthetic-publication test seam, separating scripted success from a real host rename. Production publication still permits at most three Windows transient `EPERM` attempts with 25/75 ms waits and ownership checks; persistent failures and Windows path-depth limits remain. No host lock owner has been identified.
+
+The latest retained canonical run on 2026-10-25 belongs to `dac4e91b83bb77eea5e74e8f17b8b9178d41cf6d`: 558 files (554 passed, 4 skipped), 8,102 tests passed, 0 failed, 9 skipped, exit 0. The same six real-Kit, one published-upstream and two platform conditional skips remain. Integrated security on that exact implementation SHA and date exited 0: 19 checks, 15 passed, 1 warned, 0 failed and 3 optional scanner skips; the mandatory nested security suite passed all 46 files and 793 tests with exit 0. OSV-Scanner, local CodeQL availability preflight and Semgrep were unavailable and skipped, not passed; five informational dependency notices remained. Typecheck, build and documentation checks also exited 0 in that implementation task. These are preserved Windows local observations, not fresh validation on the subsequent documentation SHA, installed-consumer acceptance, hosted evidence, or a complete A–Q pass.
+
+The exact implementation candidate passed A?Q and F1?F16 readiness; Windows, Ubuntu, macOS, CodeQL JavaScript/TypeScript and Actions passed on that SHA. The v0.9.5 release-preparation commit receives distinct exact-commit package validation. The frozen my-dev-kit v1.14.0 candidate requires a valid Lab release followed by its own separate reevaluation/audit and does not inherit Lab readiness.
 
 ## Operational state
 
@@ -308,7 +330,7 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Latest release documentation and package version: v0.9.3. External publication is established through npm registry evidence.
+Release documentation and package version: v0.9.5. This document records the final release-document state; current npm publication status is verified from the registry.
 
 The `published/current` designation is based on external npm evidence, not package metadata or release-document wording.
 
@@ -318,7 +340,7 @@ Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm 
 
 Exact next action is determined by the applicable release workflow and verified external GitHub and npm state.
 
-For v0.9.4, the next permissible action after acceptance of the documentation reconciliation is the separately authorized pre-release readiness audit; release preparation and publication are not started.
+The v0.9.5 implementation candidate passed exact-SHA readiness, and the versioned package artifact passed release-preparation validation. GitHub and npm lifecycle facts are established from their respective live records; this document does not substitute for those records.
 
 
 ## Previous v0.9.1 release history

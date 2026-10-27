@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import {
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -32,6 +34,12 @@ export type TempWorkspace = {
   indexDir: string;
   /** A directory OUTSIDE the workspace root — sentinel for escape detection. */
   outsideDir: string;
+  /**
+   * Disposable outer enclosure holding the whole workspace. Only set when the
+   * workspace was created with `nestDepth`; every path a traversal can reach
+   * from the workspace is then confined to this directory.
+   */
+  enclosureDir?: string;
   /** Clean up all temp directories. */
   cleanup: () => Promise<void>;
 };
@@ -40,13 +48,38 @@ export type TempWorkspace = {
 // Workspace creation
 // ---------------------------------------------------------------------------
 
-export function createTempWorkspace(prefix = "adv-cli-"): TempWorkspace {
-  const root = mkdtempSync(path.join(os.tmpdir(), prefix));
+export type TempWorkspaceOptions = {
+  /**
+   * Nest the workspace this many short directories below a NEW disposable
+   * enclosure so a relative traversal of up to that many parent components
+   * stays inside the enclosure. The sentinel outsideDir is created inside the
+   * enclosure as well.
+   */
+  nestDepth?: number;
+};
+
+export function createTempWorkspace(
+  prefix = "adv-cli-",
+  options: TempWorkspaceOptions = {}
+): TempWorkspace {
+  let enclosureDir: string | undefined;
+  let root: string;
+  let outsideDir: string;
+  if (options.nestDepth === undefined) {
+    root = mkdtempSync(path.join(os.tmpdir(), prefix));
+    // Create outside dir as a sibling of root (not inside it).
+    outsideDir = mkdtempSync(path.join(os.tmpdir(), `${prefix}outside-`));
+  } else {
+    enclosureDir = mkdtempSync(path.join(os.tmpdir(), `${prefix}encl-`));
+    const nest = Array.from({ length: options.nestDepth }, (_, i) => `d${i + 1}`);
+    root = path.join(enclosureDir, ...nest, "ws");
+    outsideDir = path.join(enclosureDir, "outside");
+    mkdirSync(root, { recursive: true });
+    mkdirSync(outsideDir, { recursive: true });
+  }
   const sourceDir = path.join(root, "source");
   const outputDir = path.join(root, "output");
   const indexDir = path.join(root, "index");
-  // Create outside dir as a sibling of root (not inside it).
-  const outsideDir = mkdtempSync(path.join(os.tmpdir(), `${prefix}outside-`));
 
   mkdirSync(sourceDir, { recursive: true });
   mkdirSync(outputDir, { recursive: true });
@@ -74,7 +107,12 @@ export function createTempWorkspace(prefix = "adv-cli-"): TempWorkspace {
     outputDir,
     indexDir,
     outsideDir,
+    enclosureDir,
     cleanup: async () => {
+      if (enclosureDir) {
+        await rm(enclosureDir, { recursive: true, force: true });
+        return;
+      }
       await Promise.all([
         rm(root, { recursive: true, force: true }),
         rm(outsideDir, { recursive: true, force: true }),
@@ -129,6 +167,39 @@ function collectSnapshots(
         absolutePath: abs,
         contentHash: hashFile(abs),
       });
+    }
+  }
+}
+
+/**
+ * Strict snapshot of a whole tree: records directories and links as well as
+ * files, never follows links, and THROWS when any entry cannot be inspected.
+ * Used where an unreadable tree must not be mistaken for an unchanged one.
+ */
+export function snapshotTreeStrict(dir: string): FileSnapshot[] {
+  const snapshots: FileSnapshot[] = [];
+  collectStrict(dir, dir, snapshots);
+  return snapshots.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+}
+
+function collectStrict(baseDir: string, currentDir: string, out: FileSnapshot[]): void {
+  for (const entry of readdirSync(currentDir)) {
+    const abs = path.join(currentDir, entry);
+    const stat = lstatSync(abs);
+    const relativePath = path.relative(baseDir, abs);
+    if (stat.isSymbolicLink()) {
+      out.push({ relativePath, absolutePath: abs, contentHash: `<link:${readlinkSync(abs)}>` });
+    } else if (stat.isDirectory()) {
+      out.push({ relativePath, absolutePath: abs, contentHash: "<dir>" });
+      collectStrict(baseDir, abs, out);
+    } else if (stat.isFile()) {
+      out.push({
+        relativePath,
+        absolutePath: abs,
+        contentHash: createHash("sha256").update(readFileSync(abs)).digest("hex"),
+      });
+    } else {
+      out.push({ relativePath, absolutePath: abs, contentHash: "<special>" });
     }
   }
 }

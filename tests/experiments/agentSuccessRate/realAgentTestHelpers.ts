@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { AgentRunRequest, AgentRunResult } from "../../../src/agents/types.js";
 import type { MeasuredCommandResult, RunMeasuredCommandOptions } from "../../../src/core/runMeasuredCommand.js";
@@ -62,12 +62,21 @@ export type ProviderShim = {
   invocationKeys(): string[];
 };
 
-export function makeProviderShim(provider: "codex" | "claude", options: { withExecutable?: boolean } = {}): ProviderShim {
-  const root = makeTempDir("lab-asr-shim-");
+// The shim script is CommonJS. Node resolves the module type from the nearest package.json above the entry file, so the
+// helper owns a disposable CommonJS boundary next to the entry instead of inheriting whatever ancestor package scope
+// (for example this repository's "type": "module") the temp location happens to sit under. The marker lives in the
+// shim temp directory and is removed with it; it is never part of the package or a tracked fixture.
+const SHIM_MODULE_BOUNDARY = JSON.stringify({ private: true, type: "commonjs" });
+
+// `parentDir` places the shim under a caller-owned directory (the caller owns its cleanup) so tests can control the ancestor
+// package scope. `omitModuleBoundary` is a negative control only; it reproduces the original ancestor-scope failure.
+export function makeProviderShim(provider: "codex" | "claude", options: { withExecutable?: boolean; parentDir?: string; omitModuleBoundary?: boolean } = {}): ProviderShim {
+  const root = options.parentDir ? mkdtempSync(path.join(options.parentDir, "lab-asr-shim-")) : makeTempDir("lab-asr-shim-");
   const binDir = path.join(root, "bin with spaces");
   const dir = path.join(root, "state");
   mkdirSync(binDir, { recursive: true });
   mkdirSync(dir, { recursive: true });
+  if (!options.omitModuleBoundary) writeFileSync(path.join(binDir, "package.json"), SHIM_MODULE_BOUNDARY, "utf8");
   const scriptPath = path.join(binDir, "shim.js");
   writeFileSync(scriptPath, SHIM_SCRIPT, "utf8");
   if (options.withExecutable !== false) {

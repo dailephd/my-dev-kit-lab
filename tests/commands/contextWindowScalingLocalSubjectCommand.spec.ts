@@ -8,7 +8,7 @@ import { parseRunExperimentArgs, runExperimentRunCommandFromArgs } from "../../s
 import { loadLocalRepositorySubject, serializeLocalRepositorySubjectManifest } from "../../src/evaluation/localRepositorySubject/index.js";
 import { createDefaultExperimentPluginRegistry, runExperiment } from "../../src/experiments/index.js";
 import { createLabExecutionContext } from "../../src/runtime/index.js";
-import { commitAll, initRepository, makeTempDir, minimalCase, minimalConfig, removeTempDir, writeRepositoryFile } from "../evaluation/localRepositorySubject/fixtureRepository.js";
+import { commitAll, initRepository, makeTempDir, minimalCase, minimalConfig, removeTempDir, withGitDiscoveryCeiling, writeRepositoryFile } from "../evaluation/localRepositorySubject/fixtureRepository.js";
 import {
   MARKERS,
   createLocalSubjectFixture,
@@ -140,7 +140,12 @@ describe("RSP subject-mode matrix: parsing and validation", () => {
     const plain = makeTempDir("lrs-b3-plain-");
     scratchDirs.push(plain);
     let output = capture();
-    expect(await runExperimentRunCommandFromArgs(runArgs().map((value) => (value === fixture.root ? plain : value)))).toBe(1);
+    // TEMP may live inside a checkout; bound Git discovery so the plain directory is genuinely outside every worktree.
+    expect(
+      await withGitDiscoveryCeiling(plain, () =>
+        runExperimentRunCommandFromArgs(runArgs().map((value) => (value === fixture.root ? plain : value)))
+      )
+    ).toBe(1);
     expect(output.stderr()).toContain("NOT_A_GIT_REPOSITORY");
     expect(existsSync(outDir)).toBe(false);
     vi.restoreAllMocks();

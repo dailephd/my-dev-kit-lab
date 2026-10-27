@@ -123,6 +123,27 @@ describe("TARGET_SANDBOX_SCENARIO", () => {
     expect(outcome.evidence.some((e) => e.filePath === "tracked.txt")).toBe(true);
   });
 
+  it("keeps ignored scanner temp artifacts separate from protected target changes", async () => {
+    const root = makeGitRepo();
+    cleanupDirs.push(root);
+    writeFileSync(path.join(root, ".gitignore"), "tmp/s95/\n", "utf8");
+    git(root, "add .gitignore");
+    git(root, 'commit -q -m "authorize scanner temp root"');
+    const ctx: AttackScenarioContext = {
+      toolRoot: root, target: fakeTarget(root, true), profile: "node-cli-package",
+      config: DEFAULT_SECURITY_CONFIG, targetSnapshotBefore: captureTargetSnapshot(root, true),
+    };
+    mkdirSync(path.join(root, "tmp", "s95", "semgrep-mcp"), { recursive: true });
+    writeFileSync(path.join(root, "tmp", "s95", "runtime.tmp"), "scanner-owned\n");
+    expect((await TARGET_SANDBOX_SCENARIO.run(ctx)).status).toBe("passed");
+    writeFileSync(path.join(root, "tracked.txt"), "protected file changed\n");
+    writeFileSync(path.join(root, "unexpected-output.txt"), "outside approved temp root\n");
+    const outcome = await TARGET_SANDBOX_SCENARIO.run(ctx);
+    expect(outcome.status).toBe("failed");
+    expect(outcome.evidence.some((e) => e.filePath === "tracked.txt")).toBe(true);
+    expect(outcome.evidence.some((e) => e.filePath === "unexpected-output.txt")).toBe(true);
+  });
+
   it("detects a newly-appeared generated-artifact path as a failure with artifact-safety category", async () => {
     const root = makeGitRepo();
     cleanupDirs.push(root);

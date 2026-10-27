@@ -25,6 +25,7 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { AGENT_SUCCESS_GATE_LABELS, AGENT_SUCCESS_REQUIRED_TARBALL_PATHS, runAgentSuccessPackedAcceptance } from "./verifyPackedPackageAgentSuccess.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -694,6 +695,46 @@ function assertWebm(filePath, gate) {
 // ---------------------------------------------------------------------------
 // Main gate sequence
 // ---------------------------------------------------------------------------
+
+// The injected module must come from the consumer being checked. No scientific
+// comparison or correctness normalization is reconstructed in this verifier.
+export function evaluateInstalledStalenessComparisons(artifact, installedExecution) {
+  const ids = ["stale-index", "changed-files-refresh", "affected-neighborhood-refresh", "full-refresh"];
+  if (artifact?.schemaVersion !== "my-dev-kit-lab-incremental-change-staleness-execution-v2" ||
+      !isDeepStrictEqual(artifact.scenarios?.map(s => s.scenarioId), INCREMENTAL_CHANGE_STALENESS_SCENARIO_IDS_LOCAL)) {
+    throw new Error("Incomplete V2 schema/scenario evidence.");
+  }
+  return artifact.scenarios.map(scenario => {
+    if (scenario.status !== "ready" || !isDeepStrictEqual(scenario.treatments?.map(t => t.treatmentId), ids)) {
+      throw new Error(`[${scenario.scenarioId}] Incomplete ordered treatment execution evidence.`);
+    }
+    for (const treatment of scenario.treatments) {
+      const correctness = treatment.fakeAgent?.correctness;
+      if (treatment.status !== "completed" || !treatment.requiredFileEvidence || !treatment.refreshExecution ||
+          (treatment.fakeAgent !== null && (!correctness || typeof correctness.available !== "boolean" ||
+          !(correctness.score === null || (typeof correctness.score === "number" && Number.isFinite(correctness.score)))))) {
+        throw new Error(`[${scenario.scenarioId}/${treatment.treatmentId}] Incomplete comparison input evidence.`);
+      }
+    }
+    const computed = installedExecution.buildReferenceComparisons(scenario.treatments);
+    const differences = [];
+    const compare = (persisted, expected, field) => {
+      if (isDeepStrictEqual(persisted, expected)) return;
+      if (expected && typeof expected === "object" && !Array.isArray(expected) && persisted && typeof persisted === "object") {
+        for (const key of new Set([...Object.keys(expected), ...Object.keys(persisted)])) compare(persisted[key], expected[key], `${field}.${key}`);
+      } else {
+        differences.push({ field, persisted: persisted === undefined ? { unavailable: true } : persisted, computed: expected });
+      }
+    };
+    // Object key order is irrelevant; array order (including reasonCodes) is evidence.
+    if (!Array.isArray(scenario.referenceComparisons) || scenario.referenceComparisons.length !== computed.length) {
+      compare(scenario.referenceComparisons, computed, "referenceComparisons");
+    } else {
+      computed.forEach((comparison, index) => compare(scenario.referenceComparisons[index], comparison, `referenceComparisons[${index}]`));
+    }
+    return { scenarioId: scenario.scenarioId, persisted: scenario.referenceComparisons, computed, differences };
+  });
+}
 
 async function main() {
   const gateStartedAt = Date.now();
@@ -3042,6 +3083,47 @@ async function main() {
     } catch (error) {
       productionValidatorError = error.message;
     }
+    const installedExecution = await installedModule("experiments", "plugins", "incrementalChangeStaleness", "executionV2.js");
+    let comparisonRows = null;
+    let comparisonInputError = null;
+    try {
+      comparisonRows = evaluateInstalledStalenessComparisons(icsArtifact, installedExecution);
+    } catch (error) {
+      comparisonInputError = error.message;
+    }
+    // Opt-in private capture happens BEFORE any failing acceptance assertion or
+    // run-owned consumer cleanup. It contains no retrieval bodies or raw source.
+    if (process.env.MY_DEV_KIT_LAB_CAPTURE_STALENESS === "1") {
+      const cloneSuffix = path.join("tmp", "lab-v0.9.5-release-recovery-20261024", "validation-clone");
+      const projectRoot = REPO_ROOT.endsWith(cloneSuffix) ? path.resolve(REPO_ROOT, "../../..") : REPO_ROOT;
+      const evidenceDir = path.join(projectRoot, "tmp", "lab-v0.9.5-release-recovery-20261024", "evidence", "w1");
+      if (realpathSync(evidenceDir).toLowerCase() !== evidenceDir.toLowerCase()) throw new Error("Diagnostic evidence directory is aliased.");
+      const digest = file => createHash("sha256").update(readFileSync(file)).digest("hex");
+      const moduleNames = ["execution.js", "executionV2.js", "comparison.js", "comparisonV2.js", "executionArtifactV2.js"];
+      const capture = {
+        kind: "installed-consumer-staleness-comparison-capture", historicalU1Values: "UNAVAILABLE",
+        captured: Array.isArray(icsArtifact.scenarios) && icsArtifact.scenarios.some(s => s.scenarioId === "U1" && s.treatments?.length === 4),
+        lab: { name: installedPackageJson.name, version: installedPackageJson.version, tarballSha256,
+          packageJsonSha256: digest(path.join(sandboxPackageRoot, "package.json")) },
+        kit: { name: upstreamPackageJson.name, version: upstreamPackageJson.version,
+          packageJsonSha256: digest(path.join(upstreamPackageRoot, "package.json")),
+          lock: readJsonFile(path.join(dirs.upstream, "package-lock.json"), "STALENESS_DIAGNOSTIC").packages[`node_modules/${UPSTREAM_MY_DEV_KIT_PACKAGE}`] },
+        modules: Object.fromEntries(moduleNames.map(name => [name, digest(path.join(sandboxPackageRoot, "dist", "src", "experiments", "plugins", "incrementalChangeStaleness", name))])),
+        toolchain: { node: process.version, platform: process.platform, arch: process.arch, npm: process.env.npm_config_user_agent ?? null,
+          command: "npm run verify:packed-package", candidate: gitOutput(["rev-parse", "HEAD"]).trim(),
+          tree: gitOutput(["rev-parse", "HEAD^{tree}"]).trim(),
+          workingChanges: gitOutput(["diff", "--name-only"]).trim().split("\n").filter(Boolean),
+          verifierSha256: digest(fileURLToPath(import.meta.url)) },
+        productionValidatorError, comparisonInputError, comparisons: comparisonRows,
+        scenarios: icsArtifact.scenarios.map(s => ({ scenarioId: s.scenarioId, status: s.status,
+          treatments: s.treatments.map(t => ({ treatmentId: t.treatmentId, status: t.status,
+            fakeAgent: t.fakeAgent === null ? null : { status: t.fakeAgent?.status, correctness: t.fakeAgent?.correctness,
+              error: t.fakeAgent?.error ? { sha256: createHash("sha256").update(String(t.fakeAgent.error)).digest("hex") } : null },
+            requiredFileEvidence: t.requiredFileEvidence, realization: t.refreshExecution })),
+          persisted: s.referenceComparisons }))
+      };
+      writeFileSync(path.join(evidenceDir, "u1-comparison-capture.json"), `${JSON.stringify(capture, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    }
     const icsAcceptance = evaluateIncrementalChangeStalenessV2Acceptance(icsArtifact);
     const icsReportJson = readJsonFile(path.join(icsOut, "report.json"), "INCREMENTAL_CHANGE_STALENESS_REPORT").report;
     const icsReportText = readFileSync(path.join(icsOut, "report.txt"), "utf8");
@@ -3127,24 +3209,10 @@ async function main() {
       }
     }
 
-    // Reuse (never reimplement) the installed package's own pure stale-risk comparison module.
-    const installedComparison = await installedModule("experiments", "plugins", "incrementalChangeStaleness", "comparison.js");
-    for (const scenario of icsArtifact.scenarios) {
-      const byId = (id) => scenario.treatments.find((treatment) => treatment.treatmentId === id);
-      const correctnessComparable = (treatment) =>
-        treatment?.fakeAgent?.correctness?.available ? { available: true, score: treatment.fakeAgent.correctness.score } : { available: false };
-      const stale = byId("stale-index");
-      const full = byId("full-refresh");
-      const persisted = scenario.referenceComparisons.find((comparison) => comparison.candidateTreatmentId === "stale-index").comparison;
-      const correctnessRelation = installedComparison.compareCorrectness(correctnessComparable(stale), correctnessComparable(full));
-      const requiredRelation = installedComparison.compareRequiredFileEvidence(stale.requiredFileEvidence, full.requiredFileEvidence);
-      const classification = installedComparison.classifyStaleRisk(correctnessRelation, requiredRelation);
-      if (
-        correctnessRelation !== persisted.correctnessRelation ||
-        requiredRelation !== persisted.requiredFileEvidenceRelation ||
-        classification.staleRiskClassification !== persisted.staleRiskClassification
-      ) {
-        fail("INCREMENTAL_CHANGE_STALENESS_COMPARISON", `[${scenario.scenarioId}] persisted stale-vs-full comparison disagrees with the installed pure comparison helper.`);
+    if (comparisonInputError) fail("INCREMENTAL_CHANGE_STALENESS_COMPARISON", comparisonInputError);
+    for (const row of comparisonRows) {
+      if (row.differences.length > 0) {
+        fail("INCREMENTAL_CHANGE_STALENESS_COMPARISON", `[${row.scenarioId}] persisted comparisons disagree with the installed producer: ${JSON.stringify(row.differences)}`);
       }
     }
 
@@ -3176,7 +3244,7 @@ async function main() {
     console.log("INCREMENTAL_CHANGE_STALENESS_REALIZATION: PASS (changed-files and affected-neighborhood APPLIED_PARTIAL for every scenario; stale NO_REFRESH; full FULL_REFRESH; refreshed states fresh)");
     console.log(`INCREMENTAL_CHANGE_STALENESS_DISCRIMINATION: PASS (forced neighbors: ${icsAcceptance.forcedNeighborScenarios.join(",")}; geometry difference: ${icsAcceptance.geometryDifferenceScenarios.join(",")})`);
     console.log("INCREMENTAL_CHANGE_STALENESS_REPORT: PASS (report.json/report.txt/report.html consistent with the V2 execution artifact; limitations present; no aggregate verdict)");
-    console.log("INCREMENTAL_CHANGE_STALENESS_COMPARISON: PASS (persisted stale-vs-full comparison agrees with the installed pure comparison helper)");
+    console.log("INCREMENTAL_CHANGE_STALENESS_COMPARISON: PASS (all six scenarios, all three persisted comparisons and ordered reasonCodes agree with the installed producer)");
     console.log("INCREMENTAL_CHANGE_STALENESS_IMMUTABILITY: PASS (installed Lab package, installed upstream package, canonical benchmarks, source git status unchanged)");
     console.log(`INCREMENTAL_CHANGE_STALENESS_EVIDENCE: ${icsEvidencePath}`);
 
