@@ -447,14 +447,15 @@
       "0.9.1",
       "0.9.2",
       "0.9.3",
-      "0.9.4"
+      "0.9.4",
+      "0.9.5"
     ]
   },
   "currentFacts": {
     "latestPublishedVersion": "0.9.5",
     "latestPublishedVersionEvidenceContext": "Latest reported published Lab package is v0.9.5; this manifest is documentation intent, not independent npm registry verification. Verify live registry state before any release operation.",
-    "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.9.6",
+    "currentImplementedUnreleasedVersion": "0.9.6",
+    "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
+import { realpathSync } from "node:fs";
 import { resolveLocalProjectTarget } from "../../src/core/localProjectTarget.js";
 import { relativeWithinRoot, resolveWithinRoot } from "../../src/core/pathSafety.js";
 
@@ -19,7 +20,8 @@ describe("android target path handling — ANDROID-B1-09", () => {
   it("resolves a relative target path the same way as its absolute equivalent", () => {
     const relativePath = path.relative(process.cwd(), COMPOSE_APP_FIXTURE);
     const local = resolveLocalProjectTarget(relativePath, TOOL_ROOT);
-    expect(local.targetRoot).toBe(path.resolve(COMPOSE_APP_FIXTURE));
+    // cwd and the module path may spell the same Windows directory differently.
+    expect(realpathSync.native(local.targetRoot)).toBe(realpathSync.native(COMPOSE_APP_FIXTURE));
   });
 
   it("normalizes manifest-relative paths to forward slashes via existing pathSafety helpers", () => {

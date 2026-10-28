@@ -16,7 +16,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The v0.9.5 release corrects staleness-evidence interpretation and strengthens disposable validation boundaries while preserving default retrieval behavior. It adds no Lab CLI flags, experiment schemas, or dependencies. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational publication evidence.
+The published baseline is v0.9.5. The bounded full-refresh reference adequacy correction is implemented in unreleased v0.9.6; pre-release readiness has not run. The v0.9.5 release corrected staleness-evidence interpretation and strengthened disposable validation boundaries while preserving default retrieval behavior. It adds no Lab CLI flags, experiment schemas, or dependencies. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational publication evidence.
 
 Version v0.9.3 adds hardened prompt contracts, extensible reports with metric evidence, broader gallery inputs, and prompt-template comparison. Security verdict strictness is unchanged. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the release state.
 

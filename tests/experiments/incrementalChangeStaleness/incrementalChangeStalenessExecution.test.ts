@@ -11,6 +11,7 @@ import {
   checkIncrementalChangeStalenessAffectedNeighborhoodSymmetry,
   classifyIncrementalChangeStalenessRetrieval,
   executeIncrementalChangeStalenessScenario,
+  defaultIncrementalChangeStalenessExecutionDeps,
   resolveIncrementalChangeStalenessQueryAndAnswer
 } from "../../../src/experiments/plugins/incrementalChangeStaleness/execution.js";
 import { prepareIncrementalChangeStalenessScenarioLifecycle } from "../../../src/experiments/plugins/incrementalChangeStaleness/lifecycle.js";
@@ -24,7 +25,8 @@ import {
   makeKitDir,
   makeRunOwnedRoot,
   repoRoot,
-  resolveScenario
+  resolveScenario,
+  sourceEvidenceFakeKitSupport
 } from "./lifecycleTestHelpers.js";
 
 const tracked: string[] = [];
@@ -247,6 +249,7 @@ function writeSearchControlledKit(
     [
       `import { spawnSync } from "node:child_process";`,
       `const args = process.argv.slice(2);`,
+      sourceEvidenceFakeKitSupport(inner.logPath),
       `const innerScript = ${JSON.stringify(path.join(dir, "fake-kit-graph.mjs"))};`,
       `if (args[0] === "search") {`,
       `  const idx = args.indexOf("--index");`,
@@ -261,6 +264,7 @@ function writeSearchControlledKit(
       `  process.exit(0);`,
       `}`,
       `const result = spawnSync(process.execPath, [innerScript, ...args], { stdio: "inherit" });`,
+      `if (args[0] === "index" && result.status === 0) patchSourceIndex(args[args.indexOf("--out") + 1]);`,
       `process.exit(result.status ?? 1);`
     ].join("\n")
   );
@@ -297,6 +301,9 @@ describe("full scenario execution (L2, controllable fixture)", () => {
     expect(lifecycle.status).toBe("ready");
     const projectProfiles = await loadProjectProfiles();
 
+    type RetrievalArgs = Parameters<typeof defaultIncrementalChangeStalenessExecutionDeps.runRetrieval>[0];
+    const retrievalArgs: RetrievalArgs[] = [];
+    const agentTasks: RetrievalArgs["derivedTask"][] = [];
     const execution = await executeIncrementalChangeStalenessScenario({
       repoRoot,
       scenario: resolved.scenario,
@@ -304,7 +311,17 @@ describe("full scenario execution (L2, controllable fixture)", () => {
       baseCase: resolved.baseCase,
       projectProfiles,
       runOwnedRoot,
-      cwd: repoRoot
+      cwd: repoRoot,
+      deps: {
+        runRetrieval: async (args) => {
+          retrievalArgs.push(args);
+          return defaultIncrementalChangeStalenessExecutionDeps.runRetrieval(args);
+        },
+        runFakeAgent: async (args) => {
+          agentTasks.push(args.derivedTask);
+          return defaultIncrementalChangeStalenessExecutionDeps.runFakeAgent(args);
+        }
+      }
     });
 
     expect(execution.status).toBe("ready");
@@ -313,6 +330,12 @@ describe("full scenario execution (L2, controllable fixture)", () => {
 
     // TST-B4-017/019: correct active-index authority per treatment.
     if (lifecycle.status !== "ready") throw new Error("unreachable");
+    for (const [index, id] of (["stale-index", "full-refresh"] as const).entries()) {
+      expect(retrievalArgs[index].activeIndex).toBe(lifecycle.session.treatments[id].activeRetrieval.index);
+      expect(retrievalArgs[index].indexDir).toBe(lifecycle.session.treatments[id].activeRetrieval.index.indexDir);
+      expect(agentTasks[index]).toBe(retrievalArgs[index].derivedTask);
+      expect(agentTasks[index].absoluteTargetRoot).not.toBe(retrievalArgs[index].activeIndex.targetRoot);
+    }
     expect(stale.activeIndexPhase).toBe("baseline");
     expect(full.activeIndexPhase).toBe("refreshed");
     expect(lifecycle.session.treatments["stale-index"].activeRetrieval.index.indexDir).toContain(path.join("stale-index", "baseline"));
@@ -368,7 +391,7 @@ describe("full scenario execution (L2, controllable fixture)", () => {
     });
     expect(execution.status).toBe("ready");
     expect(execution.stale!.requiredFileEvidence.status).toBe("missing");
-    expect(execution.fullRefresh!.requiredFileEvidence.status).toBe("present");
+    expect(execution.fullRefresh!.requiredFileEvidence.status, JSON.stringify(execution.fullRefresh!.requiredFileEvidence)).toBe("present");
     expect(execution.comparison.requiredFileEvidenceRelation).toBe("stale-worse");
     expect(execution.comparison.staleRiskClassification).toBe("observed-stale-regression");
     expect(execution.comparison.reasonCodes).toContain("stale-missing-required-file");

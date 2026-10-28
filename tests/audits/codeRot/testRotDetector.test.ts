@@ -557,6 +557,33 @@ describe("TEST_ROT_DETECTOR — JVM standard-library/third-party import suppress
 });
 
 describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
+  it.each(["tmp", ".my-dev-kit-workflow"])("excludes generated %s inputs while retaining current tests and source facts", async (generated) => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/current.py", "value = 1\n");
+      writeFile(root, "tests/test_current.py", "def test_current():\n    assert True\n");
+      writeFile(root, "tests/current.test.ts", 'it.only("current", () => {});\n');
+      writeFile(root, `${generated}/history/tests/copied.test.ts`, 'it.only("historical", () => {});\n');
+      writeFile(root, `${generated}/history/src/copied.py`, "historical = True\n");
+      writeFile(root, `${generated}-notes/tests/current.test.ts`, 'it.only("retained", () => {});\n');
+      const ctx = await buildContextWithSourceFacts(root);
+      expect(ctx.inventory.files.some((file) => file.relativePath.startsWith(`${generated}/`))).toBe(false);
+      expect(ctx.sourceFacts!.files.some((file) => file.relativePath.startsWith(`${generated}/`))).toBe(false);
+      expect(ctx.sourceFacts!.files.map((file) => file.relativePath)).toEqual(expect.arrayContaining(["src/current.py", "tests/test_current.py"]));
+      expect(ctx.inventory.excludedDirectorySummary).toContainEqual({ name: generated, occurrences: 1 });
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const focused = issues.filter((issue) => issue.title.includes(".only("));
+      expect(focused.map((issue) => issue.affectedFiles[0]).sort()).toEqual([`${generated}-notes/tests/current.test.ts`, "tests/current.test.ts"].sort());
+      expect(focused.every((issue) => issue.severity === "high")).toBe(true);
+      // Exclusion applies to descendants, never an explicitly selected target.
+      const explicit = await run(path.join(root, generated, "history"));
+      expect(explicit.some((issue) => issue.title.includes(".only(") && issue.severity === "high")).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
   it("produces no .only findings against this repo's own current test suite", async () => {
     const issues = await run(process.cwd());
     expect(issues.some((i) => i.title.includes(".only("))).toBe(false);

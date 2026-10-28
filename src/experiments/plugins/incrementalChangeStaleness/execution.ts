@@ -12,6 +12,7 @@ import { parseAgentAnswer } from "../../../evaluation/parseAgentAnswer.js";
 import { readEvaluationCases } from "../../../evaluation/readEvaluationCases.js";
 import {
   isBoundedRetrievalResult,
+  boundedSourceContentIssue,
   runMyDevKitBoundedRetrievalFromIndex,
   type MyDevKitBoundedRetrievalResult
 } from "../../../evaluation/runMyDevKitRetrieval.js";
@@ -56,6 +57,7 @@ import type { IncrementalChangeStalenessTreatmentId, IncrementalChangeStalenessV
 // ---------------------------------------------------------------------------
 
 const SCOREABLE_STATUSES = new Set(["completed", "invalid-output"]);
+type ActiveRetrievalIndexAuthority = Pick<IncrementalChangeStalenessIndexEvidenceV1, "indexDir" | "targetRoot" | "sourceRoots">;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -217,6 +219,7 @@ export async function runIncrementalChangeStalenessTreatmentRetrieval(args: {
   derivedTask: EvaluationCase;
   kitCommand: string;
   indexDir: string;
+  activeIndex: ActiveRetrievalIndexAuthority;
   commandsDir: string;
 }): Promise<MyDevKitRetrievalResult> {
   // Opt-in bounded multi-source protocol: the staleness experiment must observe multi-file requirements,
@@ -225,8 +228,20 @@ export async function runIncrementalChangeStalenessTreatmentRetrieval(args: {
     evaluationCase: args.derivedTask,
     kitCommand: args.kitCommand,
     indexDir: args.indexDir,
+    activeIndex: args.activeIndex,
     commandsDir: args.commandsDir,
-    requireKit: false
+    requireKit: false,
+    boundedSource: {
+      searchLimit: 40,
+      maxSourceFiles: 20,
+      enrichment: {
+        headerEligibleFilePrefix: 8,
+        headerMaxEndLine: 24,
+        maxDependencyDepth: 2,
+        maxDependencySourceCalls: 8,
+        maxSourceLinesPerCall: 160
+      }
+    }
   });
 }
 
@@ -241,7 +256,7 @@ function buildBoundedRequiredFileEvidence(args: {
   retrieval: MyDevKitBoundedRetrievalResult;
 }): RequiredFileEvidenceV1 {
   const coverage = args.retrieval.boundedCoverage;
-  const observedFiles = coverage.attempts.filter((attempt) => attempt.sourced).map((attempt) => attempt.file);
+  const observedFiles = args.retrieval.filesRead;
   const unknown = (unknownReason: string) =>
     buildRequiredFileEvidence({ requiredFiles: args.requiredFiles, observedFiles, observedFilesComplete: false, unknownReason });
 
@@ -251,7 +266,10 @@ function buildBoundedRequiredFileEvidence(args: {
       `Coverage-limited: the bounded retrieval protocol sources at most ${coverage.maxSourceFiles} candidate file(s) but ${required.requiredFiles.length} are required.`
     );
   }
-  if (required.status === "present") return required;
+  if (required.status === "present") {
+    const contentIssue = boundedSourceContentIssue(args.retrieval, args.requiredFiles);
+    return contentIssue ? unknown(`Source content is incomplete: ${contentIssue}`) : required;
+  }
   const failedAttempts = coverage.attempts.filter((attempt) => !attempt.sourced).length;
   if (failedAttempts > 0) {
     return unknown(`${failedAttempts} bounded source command(s) failed; unsourced required files cannot be classified as absent.`);
@@ -466,7 +484,7 @@ export async function executeTreatmentEvaluation<T extends IncrementalChangeStal
   treatmentId: T;
   baselineFreshness: IndexFreshnessAssessmentV1;
   activeIndexPhase: IncrementalChangeStalenessIndexRole;
-  activeIndexDir: string;
+  activeIndex: ActiveRetrievalIndexAuthority;
   derivedTask: EvaluationCase;
   affectedNeighborhood: AffectedNeighborhoodAssessmentV1;
   requiredFiles: readonly string[];
@@ -496,7 +514,8 @@ export async function executeTreatmentEvaluation<T extends IncrementalChangeStal
     retrieval = await args.deps.runRetrieval({
       derivedTask: args.derivedTask,
       kitCommand: args.kitCommand,
-      indexDir: args.activeIndexDir,
+      indexDir: args.activeIndex.indexDir,
+      activeIndex: args.activeIndex,
       commandsDir: args.retrievalCommandsDir
     });
     retrievalStatus = classifyIncrementalChangeStalenessRetrieval(retrieval);
@@ -562,7 +581,7 @@ async function executeOneTreatment(args: {
     treatmentId: args.treatmentId,
     baselineFreshness: treatment.changeAuthority.postMutationBaselineFreshness,
     activeIndexPhase: treatment.activeRetrieval.role,
-    activeIndexDir: treatment.activeRetrieval.index.indexDir,
+    activeIndex: treatment.activeRetrieval.index,
     derivedTask: args.derivedTask,
     affectedNeighborhood: args.affectedNeighborhood,
     requiredFiles: args.requiredFiles,
