@@ -25,15 +25,16 @@ function norm(value: string): string {
 }
 
 function recordingDeps() {
-  const retrievals: Array<{ indexDir: string; commandsDir: string; taskId: string; query: string }> = [];
-  const agents: Array<{ outDir: string; runId: string; taskId: string; query: string }> = [];
+  type RetrievalArgs = Parameters<IncrementalChangeStalenessExecutionDeps["runRetrieval"]>[0];
+  const retrievals: Array<{ indexDir: string; commandsDir: string; taskId: string; query: string; activeIndex: RetrievalArgs["activeIndex"]; task: RetrievalArgs["derivedTask"]; before: RetrievalArgs["derivedTask"] }> = [];
+  const agents: Array<{ outDir: string; runId: string; taskId: string; query: string; task: RetrievalArgs["derivedTask"] }> = [];
   const deps: IncrementalChangeStalenessExecutionDeps = {
     runRetrieval: async (args) => {
-      retrievals.push({ indexDir: args.indexDir, commandsDir: args.commandsDir, taskId: args.derivedTask.id, query: args.derivedTask.query });
+      retrievals.push({ indexDir: args.indexDir, commandsDir: args.commandsDir, taskId: args.derivedTask.id, query: args.derivedTask.query, activeIndex: args.activeIndex, task: args.derivedTask, before: structuredClone(args.derivedTask) });
       return defaultIncrementalChangeStalenessExecutionDeps.runRetrieval(args);
     },
     runFakeAgent: async (args) => {
-      agents.push({ outDir: args.outDir, runId: args.runId, taskId: args.derivedTask.id, query: args.derivedTask.query });
+      agents.push({ outDir: args.outDir, runId: args.runId, taskId: args.derivedTask.id, query: args.derivedTask.query, task: args.derivedTask });
       return defaultIncrementalChangeStalenessExecutionDeps.runFakeAgent(args);
     }
   };
@@ -51,6 +52,10 @@ describe("v0.6.3 four-treatment execution", () => {
     expect(agents).toHaveLength(4);
     ORDER.forEach((id, index) => {
       expect(retrievals[index].indexDir).toBe(lifecycle.session.treatments[id].activeRetrieval.index.indexDir);
+      expect(retrievals[index].activeIndex).toBe(lifecycle.session.treatments[id].activeRetrieval.index);
+      expect(agents[index].task).toBe(retrievals[index].task);
+      expect(agents[index].task).toEqual(retrievals[index].before);
+      expect(agents[index].task.absoluteTargetRoot).not.toBe(retrievals[index].activeIndex.targetRoot);
       expect(norm(retrievals[index].commandsDir)).toContain(`/commands/U1/${id}/retrieval`);
       expect(norm(agents[index].outDir)).toContain(`/agents/U1/${id}`);
       expect(agents[index].runId.endsWith(`.${id}`)).toBe(true);

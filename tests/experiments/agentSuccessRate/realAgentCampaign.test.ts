@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+// Install the existing package-boundary fixture before loading the registry.
+import { makeToolRoot } from "./agentSuccessRateTestHelpers.js";
 import { assertReadAgentSuccessCorpus } from "../../../src/evaluation/agentSuccess/index.js";
 import { snapshotProjectTree } from "../../../src/evaluation/benchmarkSandbox/index.js";
 import { createDefaultExperimentPluginRegistry } from "../../../src/experiments/defaultRegistry.js";
@@ -17,7 +19,17 @@ const PROJECTS = ["agent-success-task-board-node", "agent-success-inventory-node
 
 describe("REA simulated real-agent campaign over the six canonical tasks", () => {
   it("REA-058/060: 6 cases, 12 provider attempts, independent sandboxes and trusted evaluation, with the reference patch only on the shim side", async () => {
-    const toolRoot = process.cwd();
+    const sourceRoot = process.cwd();
+    // Model an installed package alongside project-owned TEMP, rather than
+    // making the entire host checkout a protected root around that TEMP.
+    const toolRoot = makeToolRoot({});
+    mkdirSync(path.join(toolRoot, "benchmarks", "contracts"), { recursive: true });
+    for (const file of ["agent-success-rate-tasks.json", "agent-success-rate-project-profiles.json"]) {
+      cpSync(path.join(sourceRoot, "benchmarks", "contracts", file), path.join(toolRoot, "benchmarks", "contracts", file));
+    }
+    for (const project of PROJECTS) {
+      cpSync(path.join(sourceRoot, "benchmarks", "projects", project), path.join(toolRoot, "benchmarks", "projects", project), { recursive: true });
+    }
     const corpus = assertReadAgentSuccessCorpus(toolRoot);
     expect(corpus.tasks).toHaveLength(6);
 
@@ -33,6 +45,7 @@ describe("REA simulated real-agent campaign over the six canonical tasks", () =>
     const canonicalBefore = await Promise.all(
       PROJECTS.map(async (project) => snapshotProjectTree(path.join(toolRoot, "benchmarks", "projects", project), { excludedNames: [".git"] }))
     );
+    const sourceBefore = await Promise.all(PROJECTS.map((project) => snapshotProjectTree(path.join(sourceRoot, "benchmarks", "projects", project), { excludedNames: [".git"] })));
     const kit = makeSourceBackedKit();
     const outDir = path.join(makeTempDir("lab-asr-campaign-"), "out");
     const run = await runExperiment({
@@ -100,6 +113,7 @@ describe("REA simulated real-agent campaign over the six canonical tasks", () =>
       PROJECTS.map(async (project) => snapshotProjectTree(path.join(toolRoot, "benchmarks", "projects", project), { excludedNames: [".git"] }))
     );
     expect(canonicalAfter).toEqual(canonicalBefore);
+    expect(await Promise.all(PROJECTS.map((project) => snapshotProjectTree(path.join(sourceRoot, "benchmarks", "projects", project), { excludedNames: [".git"] })))).toEqual(sourceBefore);
     expect(existsSync(path.join(outDir, "sandboxes"))).toBe(false);
     expect(readdirSync(path.join(outDir, "agents"))).toEqual([...PROJECTS].sort());
   }, 900_000);

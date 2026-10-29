@@ -2,6 +2,15 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.9.6] - 2026-10-28
+
+### Full-refresh source-content evidence and validation corrections
+
+- The `incremental-change-staleness` full-refresh reference now enriches bounded source content with headers for omitted declarations and imports, and a bounded, query-anchored dependency closure. Original source ranking and capped selection remain in force.
+- Numbered source regions are verified for complete coverage and reused; equivalent source requests are not repeated. Evidence records the active treatment and index identity. Unknown or insufficient source content remains inconclusive.
+- Historical retrieval defaults, four-treatment order and semantics, and V1/V2 artifact compatibility are preserved. No public command, option, or experiment schema is added.
+- Canonical test discovery now distinguishes Lab test modules from benchmark-corpus fixtures and excludes generated output. Audit inventory boundaries are corrected without weakening security or scientific contracts.
+
 ## [0.9.5] - 2026-10-27
 
 ### Staleness experiment evidence correction

@@ -247,7 +247,7 @@ export async function executeIncrementalChangeStalenessScenarioV2(options: {
       treatmentId,
       baselineFreshness: lifecycleTreatment.changeAuthority.postMutationBaselineFreshness,
       activeIndexPhase: lifecycleTreatment.activeRetrieval.role,
-      activeIndexDir: lifecycleTreatment.activeRetrieval.index.indexDir,
+      activeIndex: lifecycleTreatment.activeRetrieval.index,
       derivedTask,
       affectedNeighborhood: affected[treatmentId],
       requiredFiles: resolved.expectedFiles,

@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { runLabCli } from "../../src/cli/index.js";
 import { parseRunExperimentArgs } from "../../src/commands/runExperimentRunCommand.js";
 import { snapshotProjectTree } from "../../src/evaluation/benchmarkSandbox/index.js";
+import * as packageDiscovery from "../../src/runtime/packageRoot.js";
+import { cliFixture, useCampaignCleanup } from "../experiments/agentSuccessRate/realProviderCampaignTestHelpers.js";
+
+useCampaignCleanup();
 
 const ID = "agent-success-rate";
 const tempDirs: string[] = [];
@@ -171,14 +175,23 @@ describe("RPR agent-success-rate experiment run, describe and help through the i
   it("RPR-029/030/036/037/053 + deterministic CLI campaign: bundled six-task corpus, both treatments, reports, no mutation", async () => {
     const workspace = makeTemp("asr-cli-ws-");
     const outDir = path.join(makeTemp("asr-cli-out-"), "run");
-    const repoRoot = process.cwd();
+    const { toolRoot: repoRoot } = await cliFixture();
     const projectsRoot = path.join(repoRoot, "benchmarks", "projects");
     const projects = ["agent-success-task-board-node", "agent-success-inventory-node"];
     const before = new Map<string, Awaited<ReturnType<typeof snapshotProjectTree>>>();
     for (const project of projects) before.set(project, await snapshotProjectTree(path.join(projectsRoot, project), { excludedNames: [".git"] }));
     const packageHadLabOutput = existsSync(path.join(repoRoot, "lab-output"));
 
-    const result = await capture(["--workspace", workspace, "experiment", "run", ...asr("--out", outDir)]);
+    // Exercise real package discovery from a disposable installed package.
+    // Its sibling TEMP/output stays outside that package without leaving Lab.
+    const discover = packageDiscovery.discoverPackageRoot;
+    const discovery = vi.spyOn(packageDiscovery, "discoverPackageRoot").mockImplementation(() => discover(repoRoot));
+    let result: Awaited<ReturnType<typeof capture>>;
+    try {
+      result = await capture(["--workspace", workspace, "experiment", "run", ...asr("--out", outDir)]);
+    } finally {
+      discovery.mockRestore();
+    }
     expect(result.code, result.stderr).toBe(0);
     expect(result.stdout).toContain("Execution mode: deterministic-fixture");
     expect(result.stdout).toContain("Provider: none");

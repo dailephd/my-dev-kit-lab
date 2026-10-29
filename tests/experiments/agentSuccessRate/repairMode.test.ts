@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { defaultAgentSuccessRateDependencies } from "../../../src/experiments/plugins/agentSuccessRate/index.js";
 import { useSandboxTestCleanup } from "../../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
+// Install the enclosed package identity before loading the plugin under test.
 import { makeTask, runAgentSuccess } from "./agentSuccessRateTestHelpers.js";
+import { defaultAgentSuccessRateDependencies } from "../../../src/experiments/plugins/agentSuccessRate/index.js";
 import {
   DECOY_REFERENCE_PATCH,
   GOOD_ANSWER,

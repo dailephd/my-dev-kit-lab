@@ -366,6 +366,7 @@
       "v0.9.3",
       "v0.9.4",
       "v0.9.5",
+      "v0.9.6",
       "v0.10.0",
       "v0.11.0",
       "v0.12.0",
@@ -397,11 +398,11 @@
     "requiredDeferredMarkers": [
       "Post-v1 / version TBD",
       "manual pentest",
-      "v0.9.2 \u2014 external-target package-content validator correction"
+      "v0.9.2 — external-target package-content validator correction"
     ],
     "forbiddenVersionRangeHeadings": [
       "v0.5.x-v0.9.x",
-      "v0.5.x\u2013v0.9.x",
+      "v0.5.x–v0.9.x",
       "v0.3.0-v0.3.4"
     ]
   },
@@ -446,12 +447,13 @@
       "0.9.1",
       "0.9.2",
       "0.9.3",
-      "0.9.4"
+      "0.9.4",
+      "0.9.5"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.9.4",
-    "latestPublishedVersionEvidenceContext": "Latest published package baseline is v0.9.4. This manifest records intended document facts only and is not independent npm publication evidence; verify the registry directly for actual publication state.",
+    "latestPublishedVersion": "0.9.5",
+    "latestPublishedVersionEvidenceContext": "npm registry preflight on 2026-10-28 verified published baseline 0.9.5 and returned E404 for target 0.9.6; target publication remains an external fact requiring live verification.",
     "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
@@ -490,6 +492,6 @@
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
     "releaseDocumentState": "final-release-state",
-    "currentReleaseDocumentVersion": "0.9.5"
+    "currentReleaseDocumentVersion": "0.9.6"
   }
 }

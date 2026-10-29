@@ -1,5 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
+// Establish the installed-package fixture before report imports load the plugin.
+import { makeTask, makeToolRoot, runAgentSuccess } from "../../experiments/agentSuccessRate/agentSuccessRateTestHelpers.js";
 import type { ExperimentRun } from "../../../src/experiments/index.js";
 import { agentSuccessRateMetadata, type AgentSuccessRateRun } from "../../../src/experiments/plugins/agentSuccessRate/index.js";
 import {
@@ -12,7 +14,6 @@ import {
   type PluginExperimentReport
 } from "../../../src/report/experiments/index.js";
 import { useSandboxTestCleanup } from "../../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
-import { makeTask, makeToolRoot, runAgentSuccess } from "../../experiments/agentSuccessRate/agentSuccessRateTestHelpers.js";
 import { DECOY_REFERENCE_PATCH, GOOD_ANSWER, NOOP_ANSWER, makeScriptedProvider, runRepair } from "../../experiments/agentSuccessRate/repairTestHelpers.js";
 
 useSandboxTestCleanup();

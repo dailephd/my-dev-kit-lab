@@ -1634,6 +1634,48 @@ Acceptance:
 * Final release-document state preserves every historical and future version entry, keeps external publication evidence separate, and passes the documentation-preservation checker.
 * Implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed exact-SHA standardized readiness, including Windows, Linux, macOS, and hosted CodeQL. The versioned release-preparation commit passed its own exact-source package and regression validation.
 
+
+### v0.9.6 — bounded full-refresh reference adequacy correction
+
+Status: **final release-document state; release candidate prepared; registry evidence remains external**.
+
+Purpose:
+
+* Restore a defensible, independently sourced `full-refresh` comparison reference for the six frozen `incremental-change-staleness` scenarios so the separately frozen my-dev-kit v1.14.0 candidate can undergo a new, valid readiness audit. Do not alter that Kit candidate.
+
+Scope:
+
+* Extend the existing opt-in bounded retrieval owner in `src/evaluation/runMyDevKitRetrieval.ts` and its existing staleness evaluation caller in `src/experiments/plugins/incrementalChangeStaleness/execution.ts`; reuse existing measured subprocess, index, comparison, and report owners. Do not add a retrieval engine, registered experiment, command, or independent evaluator.
+* Preserve the original scenario query and returned Kit search ranking. The bounded baseline uses `searchLimit=40` and a maximum of **20 distinct ranked eligible source files**, with one source call per distinct file unless an equivalent source result is already available. Search candidates and source expansions must be selected without inspecting frozen answer keys or expected file paths; failures and exhausted budgets remain explicit.
+* Supply additional **bounded source-region evidence** when the original `source --node` excerpt omits earlier module declarations or imports: visit up to the first **eight** eligible ranked files in original order and retrieve missing leading source ranges no wider than lines 1–24; skip a header already completely covered by a verified result. R6 verified the actual Kit `source` command and numbered range semantics against the installed frozen candidate.
+* For retrieved test files only, follow **explicit, safely resolved project-local imports and directly justified dependency links**, at most two edges from the test, using at most eight additional source calls per scenario (including their needed headers), each at most 160 lines. No unrestricted traversal, third-party expansion, keyword guessing, answer-key-driven source selection, or broad file dump. Reuse equivalent source evidence once; never rerun a header merely to obtain a favorable result.
+* Separate successful file sourcing from **sufficient source-content support**. The existing evaluation and comparison owners must leave insufficient or unverifiable reference content **unknown/inconclusive**, even when all required file paths were observed. Negative import assertions need a complete relevant import-region witness; named defaults need the actual declaration; test-derived production facts need grounded production source. A successful index or search alone is not an adequate reference.
+* Retain compact, verifiable source-command provenance and cost/coverage evidence through the existing bounded retrieval/result and report paths. Preserve historical top-one retrieval for other callers, current V1/V2 persisted artifact/report schemas and readers, four-treatment order and semantics, `APPLIED_PARTIAL` versus `FALLBACK_FULL`, and separate synthetic-agent versus actual-retrieval evidence.
+
+Historical evidence and current limitations:
+
+* D3 (`reports/v0.9.5-six-scenario-reference-coverage-d3-20261027.txt`, local-only) established that the ranked budget of 24 reached every required file, while strict source-content adequacy remained 3/6: P1 lacked the constant declaration, I1 lacked imports, and T1 lacked production dependencies. The required files were all discoverable at `searchLimit=40`; increasing it to 80 did not cure source-content omissions. No Kit defect was demonstrated.
+* D4 (`reports/v0.9.5-source-scope-feasibility-d4-20261027.txt`, local-only) reported promising header/dependency evidence but ended `NEEDS_CORRECTION_D4_EVIDENCE_INVALID` because two redundant header reruns violated its reuse rule. Its reported 6/6 content support is **not** an accepted feasibility PASS or a replacement for implementation acceptance. The 20/40/8/8/2 configuration above is a planner-selected **bounded correction design to verify**, not a proven passing implementation or a new universal retrieval default.
+
+Implementation status:
+
+* The shared retrieval owner now supplies the opt-in staleness-only enrichment path. It preserves ranked primary candidates and adds verified numbered source intervals, bounded header enrichment and eligible test-root dependency closure with explicit active treatment/index identity. Covered regions are reused; incomplete source evidence remains unknown/inconclusive.
+* R6 acceptance passed for all six references, 24 treatments, 18 comparisons and 25 source assertions; no source transcripts were missing and no equivalent source request was redundant. One comparison correctly remained inconclusive because the available evidence did not justify a stronger conclusion.
+* R7 canonical qualification passed 8/8 npm-script shards across 542 source test files: 8,143 passed, zero failed, nine existing skips, and zero failed setups. Typecheck, build and docs check passed. This is sharded source-test qualification only; monolithic canonical execution, installed-Lab-package qualification and standardized pre-release readiness were not performed.
+* The only approved design detail implemented more specifically is query-anchored eligibility for test dependency roots, with verified reuse across selectors; this enforces the original bounded, evidence-grounded expansion constraint. No public Lab CLI option, experiment, metric or V1/V2 schema was added.
+
+Acceptance:
+
+* Unit/integration regressions prove deterministic, first-occurrence deduplication, exact ranked-prefix selection, bounded header/dependency expansion, zero redundant equivalent source calls, cap and failure behavior, import-absence completeness, constant provenance, test-to-production evidence, and strict answer-key isolation.
+* A genuine installed-candidate Kit invocation (not a fake or substituted published Kit) completes all six frozen scenarios with adequate, independently traceable source content and all four treatments, using the same algorithm and caps in each scenario; no replay based on D4's two invalid traces is counted as a pass. Require per-assertion source support in focused validation, not merely `filesRead` path coverage.
+* Existing comparison and artifact readers remain compatible; inconclusive evidence is not promoted to success, no fake-agent correctness or test assertion is weakened, and source text is not newly persisted into V1/V2 execution artifacts.
+* Focused regressions, the canonical Lab suite, typecheck, build, documentation preservation, security, packed-package verification, and exact-candidate cross-platform readiness pass in their appropriate **separate** implementation/documentation/readiness stages. Lab publication is separately authorized; Kit v1.14.0 must then receive a complete new readiness audit using the exact newly published Lab validator before any Kit release preparation.
+
+Exclusions:
+
+* No Kit source changes, Kit candidate SHA change, automatic refresh policy, new public CLI flag, new metric, new report or experiment schema, real-provider requirement, deferred v0.10.0 scope, or Kit v1.15.0 scope. This patch does not redesign Kit artifacts or Kit's future retrieval API.
+* No automatic release preparation or publication. v0.10.0 and later roadmap sections remain separately planned, unchanged in meaning and order.
+
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 
 Status: **planned; not implemented**.

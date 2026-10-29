@@ -16,7 +16,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The v0.9.5 release corrects staleness-evidence interpretation and strengthens disposable validation boundaries while preserving default retrieval behavior. It adds no Lab CLI flags, experiment schemas, or dependencies. See [CURRENT_STATE.md](CURRENT_STATE.md) for operational publication evidence.
+The current release-document and package metadata version is v0.9.6. Its bounded full-refresh source-content correction passed exact-candidate standardized readiness and preserves historical retrieval defaults and artifact contracts. The prior verified npm package baseline was v0.9.5; registry publication is an external fact recorded separately in [CURRENT_STATE.md](CURRENT_STATE.md).
 
 Version v0.9.3 adds hardened prompt contracts, extensible reports with metric evidence, broader gallery inputs, and prompt-template comparison. Security verdict strictness is unchanged. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the release state.
 
@@ -156,7 +156,7 @@ Context-pack generation experiments shipped in v0.8.2.
 
 The published v0.9.1 release adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports while preserving existing provider adapters and scientific artifact contracts.
 
-Current package and release-document version: v0.9.5. v0.9.4 is the previous package release; v0.9.1, v0.9.2, and v0.9.3 are earlier releases. The next planned feature milestone remains v0.10.0.
+Current package and release-document version: v0.9.6. v0.9.5 is the prior verified npm package baseline; v0.9.1, v0.9.2, and v0.9.3 are earlier releases. The next planned feature milestone remains v0.10.0.
 
 The preceding v0.9.2 release includes external npm package entrypoint validation, strict Lab self-package inventory, corrected Semgrep failure evidence, and campaign filesystem identity, path-safety, and cross-platform corrections. The v0.9.1 campaign capabilities remain included.
 
@@ -170,6 +170,6 @@ v0.9.4 is a maintenance release with Kit symbol-index schema-3 compatibility alo
 
 ## Version lifecycle
 
-The package version is `0.9.5`. The v0.9.5 release corrects bounded evidence collection and uncertainty handling in the incremental-change-staleness experiment, preserves default retrieval behavior, and strengthens disposable test and validation boundaries. It adds no command, flag, experiment schema, or dependency. The v0.9.4 release supports my-dev-kit symbol-index schema 3 alongside schema 2, preserves qualified identities, handles ambiguity conservatively, supports npm 11 and npm 12 package inventories, corrects packed-package verifier behavior, and patches development-only security dependencies. Security-verdict policy is unchanged. The v0.9.3 release added hardened real-agent prompt contracts, registered report sections, HTML metric evidence and caveats, generalized gallery readers, tutorial-manifest consumption, and prompt-template comparison. Stage 4 verified registered metric glossary links and fail-closed prompt-comparison evidence handling. Real-provider effectiveness remains NOT_VERIFIED, and bounded tool-use enforcement has not been verified. The next future roadmap version remains `v0.10.0`. See [CURRENT_STATE.md](CURRENT_STATE.md) and [ROADMAP.md](ROADMAP.md).
+The package version is `0.9.6`. Bounded full-refresh reference adequacy improves source-content evidence while preserving default retrieval, four treatments, V1/V2 readers, and inconclusive outcomes for incomplete evidence. The v0.9.5 release corrected bounded evidence collection and strengthened disposable validation.
 
-The v0.9.2 release documentation and package metadata contain the final release state. Registry publication is established separately through npm evidence. The next future roadmap version is v0.10.0.
+The v0.9.6 release-document and package metadata contain the final release state. Registry publication is established separately through live npm evidence; the verified pre-preparation baseline was 0.9.5. The next planned feature version is v0.10.0.
