@@ -453,8 +453,8 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.9.5",
-    "latestPublishedVersionEvidenceContext": "Latest reported published Lab package is v0.9.5; this manifest is documentation intent, not independent npm registry verification. Verify live registry state before any release operation.",
-    "currentImplementedUnreleasedVersion": "0.9.6",
+    "latestPublishedVersionEvidenceContext": "npm registry preflight on 2026-10-28 verified published baseline 0.9.5 and returned E404 for target 0.9.6; target publication remains an external fact requiring live verification.",
+    "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
@@ -492,6 +492,6 @@
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
     "releaseDocumentState": "final-release-state",
-    "currentReleaseDocumentVersion": "0.9.5"
+    "currentReleaseDocumentVersion": "0.9.6"
   }
 }

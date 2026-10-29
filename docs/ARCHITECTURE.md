@@ -470,9 +470,9 @@ Invariants:
 * The verifier resolves the entry script through real paths so a symlink or junction invocation still executes, and a failure before its normal gate handling still prints `PACKED_PACKAGE_VERDICT: FAIL`. A valid result needs exit code 0 and `PACKED_PACKAGE_VERDICT: PASS`.
 * No second graph engine, second experiment runner, report-schema change, or security-policy change exists.
 
-## Planned v0.9.6 source-completeness correction (not implemented)
+## Historical v0.9.6 source-completeness design
 
-This is a **planned patch**, not a claim about v0.9.5 runtime behavior. The existing implementation in `src/evaluation/runMyDevKitRetrieval.ts` owns ranked, opt-in `bounded-multi-source-v1` selection, source-command execution, the typed retrieval result and source-command telemetry. `src/experiments/plugins/incrementalChangeStaleness/execution.ts` owns the opt-in call and its required-file evidence evaluation. `comparison.ts` and `comparisonV2.ts` exclusively own comparison classification. V1/V2 artifact writers and reports continue to consume the results without recomputing source state.
+This section preserves the pre-implementation design record for historical context; the final implemented v0.9.6 architecture is documented below.
 
 The intended Lab-only flow is:
 
@@ -1068,7 +1068,7 @@ These analyzers provide candidate evidence. They do not provide type checking, f
 
 `src/report` remains the shared report layer. `src/report/experiments` extends it for plugin metadata rather than creating a parallel reporting product. The v0.5.0 `warmIndexReuse` report section (`warmIndexReuseReportModel.ts`, `buildWarmIndexReuseReport.ts`, `renderWarmIndexReuseHtml.ts`, and the text renderer) is populated for `warm-index-reuse` runs and `null` for other plugins. Plots, screenshots, visualization demos, and gallery output consume experiment artifacts and remain reusable across future plugins.
 
-## v0.9.6 bounded full-refresh reference adequacy (implemented; unreleased)
+## v0.9.6 bounded full-refresh reference adequacy
 
 `src/evaluation/runMyDevKitRetrieval.ts` remains the shared retrieval owner. The incremental-change-staleness execution opts into a bounded multi-source/enrichment path; other callers retain historical top-one retrieval. The original query and returned Kit ranking are preserved. Staleness uses search limit 40 and up to 20 distinct ranked primary source files. Header enrichment visits at most the first eight eligible ranked files and ends no later than line 24. Each source call is capped at 160 lines.
 

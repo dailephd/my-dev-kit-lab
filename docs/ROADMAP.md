@@ -1637,7 +1637,7 @@ Acceptance:
 
 ### v0.9.6 — bounded full-refresh reference adequacy correction
 
-Status: **implemented; unreleased; pre-release readiness pending**.
+Status: **final release-document state; release candidate prepared; registry evidence remains external**.
 
 Purpose:
 
