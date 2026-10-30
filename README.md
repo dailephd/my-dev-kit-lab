@@ -10,7 +10,7 @@ The v0.9.3 release added hardened prompt contracts and output validation, extens
 
 v0.9.0 adds the `agent-success-rate` plugin, the eighth registered experiment plugin, which evaluates implementation patches under the `raw-full-file` and `context-pack` treatments.
 
-v0.9.5 is the prior verified npm package baseline. The v0.9.6 release-document and package contract is final in this source; registry publication is established separately.
+v0.9.6 is the current released package version in this repository. The GitHub tag and merged release PR are verified; a subsequent merged recovery PR records npm publication. The v0.9.5 npm preflight is historical. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for the evidence and its limits.
 
 The v0.9.2 release corrected external npm package entrypoint validation, preserved strict Lab self-package validation, eliminated nine inherited false positives, corrected Semgrep failed/incomplete-scan evidence, and included campaign filesystem identity, path-safety, and cross-platform corrections. Security verdict strictness is unchanged. The v0.9.2 release-document state is final; actual npm publication is established separately through registry evidence.
 
@@ -18,7 +18,7 @@ The v0.9.3 release adds configurable Codex/Claude prompt contracts, strict struc
 
 The v0.9.4 release supports my-dev-kit symbol-index schema 3 alongside schema 2, preserves qualified symbol identities, and handles ambiguous names conservatively. Package inventory validation supports npm 11 and npm 12 formats, and the packed-package verifier reports early failures reliably. Development-only Vite and Vitest dependencies are patched; security-verdict policy is unchanged. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/COMMANDS.md](docs/COMMANDS.md), and [docs/WORKFLOWS.md](docs/WORKFLOWS.md).
 
-The v0.9.6 release-document state covers bounded full-refresh source-content evidence for incremental-change-staleness. It preserves original source ranking, bounded selection, default top-one retrieval for other callers, four-treatment semantics, and V1/V2 compatibility. Header enrichment and query-anchored dependency closure improve evidence completeness; inadequate or unknown source content remains inconclusive. The validated implementation passed standardized readiness. Registry publication is verified separately. The prior v0.9.5 release introduced bounded multi-source evidence and stronger disposable validation boundaries. Neither release adds Lab CLI flags or experiment schemas.
+The v0.9.6 release-document state covers bounded full-refresh source-content evidence for incremental-change-staleness. It preserves original source ranking, bounded selection, default top-one retrieval for other callers, four-treatment semantics, and V1/V2 compatibility. Header enrichment and query-anchored dependency closure improve evidence completeness; inadequate or unknown source content remains inconclusive. The validated implementation passed standardized readiness. GitHub publication is reflected by the v0.9.6 tag; the recovery PR records npm publication, which was not freshly queried in this documentation pass. The prior v0.9.5 release introduced bounded multi-source evidence and stronger disposable validation boundaries. Neither release adds Lab CLI flags or experiment schemas.
 
 v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--version`, `security validate`, `audit`, the `experiment` family, `report render`, `plots generate`, `gallery build`, `demo final`, and the historical direct final-demo invocation form), a writable lab workspace model kept separate from the installed package and the inspected target, and a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`). See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for status detail and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime path model. The "Installed CLI" section below documents the shipped command surface; the source-checkout `npm run` workflow in Quickstart remains available for contributors.
 
@@ -174,7 +174,7 @@ npm run experiment:list
 npm run experiment:describe -- --experiment context-strategy-comparison
 npm run experiment:run -- `
   --experiment context-strategy-comparison `
-  --target "Z:\Users\newuser\Projects\my-dev-kit-v1" `
+  --target "C:\path\to\target-project" `
   --agents fake-agent `
   --complexities short `
   --no-screenshot

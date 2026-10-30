@@ -797,7 +797,7 @@ npm run security:validate
 Targeted example:
 
 ```powershell
-npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+npm run security:validate -- --target "C:\path\to\target-project"
 ```
 
 **Expected behavior and outputs:**
@@ -829,7 +829,7 @@ npm run audit
 Targeted example:
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types code-rot --fail-on none
 ```
 
 **Expected behavior and outputs:**
@@ -861,7 +861,7 @@ npm run audit -- --types security --fail-on none
 Targeted example:
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types security --fail-on none
 ```
 
 ```mermaid

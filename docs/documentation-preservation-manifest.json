@@ -452,8 +452,8 @@
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.9.5",
-    "latestPublishedVersionEvidenceContext": "npm registry preflight on 2026-10-28 verified published baseline 0.9.5 and returned E404 for target 0.9.6; target publication remains an external fact requiring live verification.",
+    "latestPublishedVersion": "0.9.6",
+    "latestPublishedVersionEvidenceContext": "The v0.9.6 GitHub tag exists and release PR #70 merged; merged recovery PR #72 records npm 0.9.6 already published. The v0.9.5 npm preflight from 2026-10-28 is historical; this documentation pass did not query the live npm registry.",
     "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
@@ -491,7 +491,7 @@
     "candidateEvidenceMeaning": "review-only evidence, not a confirmed SecurityFinding or AuditIssue",
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
-    "releaseDocumentState": "final-release-state",
+    "releaseDocumentState": "published",
     "currentReleaseDocumentVersion": "0.9.6"
   }
 }

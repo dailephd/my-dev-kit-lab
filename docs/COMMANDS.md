@@ -664,7 +664,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 ```
 
 ```powershell
-npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --agents fake-agent --complexities short --no-screenshot
+npm run experiment:run -- --experiment context-strategy-comparison --target "C:\path\to\target-project" --agents fake-agent --complexities short --no-screenshot
 ```
 
 ```bash
@@ -806,7 +806,7 @@ npm run security:validate -- --profile node-cli-package --format json
 ```
 
 ```powershell
-npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+npm run security:validate -- --target "C:\path\to\target-project"
 ```
 
 Current behavior:
@@ -872,9 +872,9 @@ npm run audit -- --target /path/to/android/project --types security --android --
 ```
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot,security --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types code-rot --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types security --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types code-rot,security --fail-on none
 ```
 
 Current behavior:
