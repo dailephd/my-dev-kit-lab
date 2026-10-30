@@ -345,11 +345,11 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Latest documented release: v0.9.6. The 2026-10-28 v0.9.5 npm registry preflight is historical; npm publication of v0.9.6 is recorded in merged PR #72 but was not independently queried in this documentation pass.
+Latest release: v0.9.6. The 2026-10-28 v0.9.5 npm registry preflight is historical; npm publication of v0.9.6 is recorded in merged PR #72 but was not independently queried in this documentation pass.
 
 Current released documentation and package version: v0.9.6.
 
-The published designation is supported by the GitHub v0.9.6 tag and merged release PR, with npm publication additionally recorded in the recovery PR. The underlying registry state was not rechecked here.
+The `published/current` designation is supported by the GitHub v0.9.6 tag and merged release PR, with npm publication additionally recorded in the recovery PR. The underlying registry state was not rechecked here.
 
 The v0.9.3 release includes the prompt/report/gallery scope; real-provider effectiveness remains NOT_VERIFIED and non-gating. Later roadmap assignments are unchanged. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
 
