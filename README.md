@@ -174,7 +174,7 @@ npm run experiment:list
 npm run experiment:describe -- --experiment context-strategy-comparison
 npm run experiment:run -- `
   --experiment context-strategy-comparison `
-  --target "Z:\Users\newuser\Projects\my-dev-kit-v1" `
+  --target "C:\path\to\target-project" `
   --agents fake-agent `
   --complexities short `
   --no-screenshot
