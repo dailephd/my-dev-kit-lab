@@ -16,7 +16,7 @@ flowchart LR
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2] --> V093[v0.9.3]
-  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
+  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V096[v0.9.6] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
   V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
   V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
@@ -1579,7 +1579,7 @@ The initial Stage 4 audit found glossary and comparison-evidence defects; bounde
 
 ### v0.9.4 — Kit schema-3 and npm 12 compatibility correction
 
-Status: **release candidate prepared; final release-document state**. Package metadata is 0.9.4; v0.9.4 scope and acceptance criteria are retained below. External publication evidence is established through the registry and release records, not this status line.
+Status: **published**. The v0.9.4 scope and acceptance criteria below are historical; the GitHub version tag exists.
 
 Purpose:
 
@@ -1610,7 +1610,7 @@ Acceptance:
 
 ### v0.9.5 — staleness evidence and validation boundaries
 
-Status: **final release-document state; release candidate prepared**.
+Status: **published**. The v0.9.5 scope and validation evidence below are historical; the GitHub version tag exists.
 
 Purpose:
 
@@ -1637,7 +1637,7 @@ Acceptance:
 
 ### v0.9.6 — bounded full-refresh reference adequacy correction
 
-Status: **final release-document state; release candidate prepared; registry evidence remains external**.
+Status: **published**. The GitHub v0.9.6 tag exists, and the merged v0.9.6 recovery pull request records npm publication. Source and acceptance evidence below remains historical; no live npm-registry query was performed in this documentation reconciliation.
 
 Purpose:
 
