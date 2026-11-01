@@ -24,7 +24,7 @@ This document records the repository's operational state. It is the source of tr
 - Validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
 - Package version: `0.9.6`. Release documents are in final-release state.
 - VERIFIED_LATEST_NPM_PUBLICATION: v0.9.5 (historical registry baseline). RELEASE_DOCUMENT_AND_PACKAGE_VERSION: v0.9.6 (final release-document state). NEXT_PLANNED_FEATURE: v0.10.0. Current registry status is established from live npm evidence.
-- Next planned feature version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
+- Next planned feature version: `v0.10.0`. Its first workstream is the Kit-backed source audit migration (`LAB-KIT-01`), followed by the existing executable-evidence foundation (`LAB-EVIDENCE-01`); all later roadmap assignments remain unchanged.
 - The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
@@ -342,6 +342,8 @@ For the published `v0.6.1`: release blockers — none. Readiness candidate `b9b1
 For released `v0.6.3`: release blockers: none. R6 passed local security, package, and cross-platform validation; exact-SHA GitHub CodeQL produced zero results for both configured languages and the release ref had zero open alerts. Earlier R1-R5 issues are historical and resolved.
 
 ## Next step
+
+The planned LAB-KIT-01 implementation next action is a managed Kit provider bridge and five-language comparison against a pinned, qualified Kit source-audit candidate. Native-analyzer retirement and Rust reuse have not been established merely by source-only Kit implementation or by this documentation change. This planned migration is separate from the existing v0.9.6 release lifecycle recorded below.
 
 Latest release-document version: v0.9.6. Latest verified npm publication: v0.9.5, based on the 2026-10-28 registry preflight.
 
