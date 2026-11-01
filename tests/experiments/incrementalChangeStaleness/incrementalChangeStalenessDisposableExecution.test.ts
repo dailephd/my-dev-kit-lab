@@ -141,10 +141,14 @@ describe("createDisposableTreatmentTarget", () => {
 
   it("rejects a runRoot outside the repository", async () => {
     const outsideRoot = mkdtempSync(path.join(os.tmpdir(), "ics-outside-"));
+    // TEMP may itself be inside Lab. Use an enclosed repository boundary so the witness
+    // remains outside the tested repository without creating files outside the workspace.
+    const enclosedRepoRoot = path.join(outsideRoot, "repository");
+    mkdirSync(enclosedRepoRoot);
     try {
       await expect(
         createDisposableTreatmentTarget({
-          repoRoot,
+          repoRoot: enclosedRepoRoot,
           runRoot: outsideRoot,
           scenarioId: "TEST-E",
           treatmentId: "stale-index",

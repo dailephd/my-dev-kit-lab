@@ -464,6 +464,17 @@ describe("public external-local run: failure atomicity and privacy", () => {
 });
 
 describe("path hardening for external-local retrieval-precision-recall", () => {
+  function longParent(base: string, segments: number, name: string, withinLimit: boolean): string {
+    let result = base;
+    for (let index = 0; index < segments; index++) {
+      const candidate = path.join(result, `${name}-${index}-${"x".repeat(17)}`);
+      // Reserve room for the private scratch, index and command artifacts. A
+      // project-owned TEMP may already supply most of the intended path length.
+      if (withinLimit && candidate.length > 160) break;
+      result = candidate;
+    }
+    return result;
+  }
   /** Runs a fresh repository + config + output at the given (possibly awkward) locations. */
   async function runAt(options: { targetParent: string; configDir: string; outParent: string }): Promise<{
     code: number;
@@ -532,7 +543,8 @@ describe("path hardening for external-local retrieval-precision-recall", () => {
   ])("TST-B4-041 handles a %s long target path with success or a clean, non-mutating, bounded failure", async (_label, segments, minimumLength) => {
     const base = makeTempDir("rpr-longtarget-");
     dirs.push(base);
-    const longTargetParent = path.join(base, ...Array.from({ length: segments }, (_, index) => `long-target-seg-${index}-${"t".repeat(17)}`));
+    const longTargetParent = longParent(base, segments, "long-target-seg", _label === "within-limit");
+    if (_label === "within-limit") expect(longTargetParent.length).toBeLessThanOrEqual(160);
     const result = await runAt({ targetParent: longTargetParent, configDir: path.join(base, "cfg"), outParent: path.join(base, "out") });
     expect(longTargetParent.length).toBeGreaterThan(minimumLength);
     expectSuccessOrCleanFailure(result);
@@ -545,7 +557,8 @@ describe("path hardening for external-local retrieval-precision-recall", () => {
   ])("TST-B4-042 handles a %s long output path with success or a clean, non-mutating, bounded failure", async (_label, segments, minimumLength) => {
     const base = makeTempDir("rpr-longout-");
     dirs.push(base);
-    const longOut = path.join(base, ...Array.from({ length: segments }, (_, index) => `long-output-seg-${index}-${"o".repeat(17)}`));
+    const longOut = longParent(base, segments, "long-output-seg", _label === "within-limit");
+    if (_label === "within-limit") expect(longOut.length).toBeLessThanOrEqual(160);
     const result = await runAt({ targetParent: path.join(base, "tgt"), configDir: path.join(base, "cfg"), outParent: longOut });
     expect(longOut.length).toBeGreaterThan(minimumLength);
     expectSuccessOrCleanFailure(result);

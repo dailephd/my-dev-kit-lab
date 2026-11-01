@@ -66,6 +66,45 @@ export function makeKitDir(tracked: string[]): string {
 
 export type LifecycleFakeKit = { command: string; logPath: string };
 
+/** Source-aware subprocess fixture support for tests that explicitly model an adequate reference. */
+export function sourceEvidenceFakeKitSupport(logPath: string): string {
+  return `
+import * as sourceFs from 'node:fs';
+import sourcePath from 'node:path';
+function patchSourceIndex(out) {
+  const manifest=JSON.parse(sourceFs.readFileSync(sourcePath.join(out,'manifest.json'),'utf8'));
+  const indexPath=sourcePath.join(out,'symbol-index.json'), graphPath=sourcePath.join(out,'code-graph.json');
+  const index=JSON.parse(sourceFs.readFileSync(indexPath,'utf8')), graph=JSON.parse(sourceFs.readFileSync(graphPath,'utf8'));
+  for(const file of index.files) {
+    const text=sourceFs.readFileSync(sourcePath.join(manifest.projectRoot,file.path),'utf8');
+    const names=[...text.matchAll(/^(?:export\\s+)?(?:async\\s+)?(?:def|class|function|interface)\\s+(\\w+)/gm)].map(match=>match[1]);
+    file.symbols=[...new Set(names)].map(name=>({name,kind:'function'}));
+    for(const symbol of file.symbols) {
+      const id='symbol:'+file.path+'#'+symbol.name;
+      if(!graph.nodes.some(node=>node.id===id)) graph.nodes.push({id,kind:'symbol',path:file.path,label:symbol.name});
+    }
+  }
+  sourceFs.writeFileSync(indexPath,JSON.stringify(index)); sourceFs.writeFileSync(graphPath,JSON.stringify(graph));
+}
+if(args[0]==='source') {
+  const get=flag=>args[args.indexOf(flag)+1];
+  const indexDir=get('--index'), manifest=JSON.parse(sourceFs.readFileSync(sourcePath.join(indexDir,'manifest.json'),'utf8'));
+  const index=JSON.parse(sourceFs.readFileSync(sourcePath.join(indexDir,'symbol-index.json'),'utf8'));
+  const node=args.includes('--node')?get('--node'):null;
+  const file=node?node.slice(node.indexOf(':')+1).split('#')[0]:get('--file');
+  if(index.files.some(entry=>entry.path===file)) {
+    sourceFs.appendFileSync(${JSON.stringify(logPath)},'source\\n');
+    const rows=sourceFs.readFileSync(sourcePath.join(manifest.projectRoot,file),'utf8').trimEnd().split(/\\r?\\n/);
+    const start=args.includes('--start')?+get('--start'):1;
+    const end=Math.min(args.includes('--end')?+get('--end'):rows.length,start+(+get('--max-lines')||160)-1,rows.length);
+    console.log(rows.slice(start-1,end).map((line,i)=>(start+i)+' | '+line).join('\\n'));
+    console.log(end===rows.length?'[EOF: '+file+' ('+rows.length+' lines total)]':'[CONTINUE: '+file+' from line '+(end+1)+' (reason: window-capped)]');
+    process.exit(0);
+  }
+}
+`;
+}
+
 /**
  * Real-shaped fake my-dev-kit: manifest + symbol index + code graph for every
  * .ts/.js/.py file under the `--src` roots (relative to `--root`), a fixed
@@ -188,6 +227,7 @@ export function writeIncrementalLifecycleFakeKit(
       `import { spawnSync } from "node:child_process";`,
       `const options = ${JSON.stringify(options)};`,
       `const args = process.argv.slice(2);`,
+      ...(options.searchMap ? [sourceEvidenceFakeKitSupport(graph.logPath)] : []),
       `if (args[0] === "search" && options.searchMap) {`,
       `  const indexDir = String(args[args.indexOf("--index") + 1]).split(String.fromCharCode(92)).join("/");`,
       `  const matched = options.searchMap.find((entry) => indexDir.includes(entry.whenIndexDirContains));`,
@@ -201,7 +241,7 @@ export function writeIncrementalLifecycleFakeKit(
       `const incremental = args.includes("--incremental");`,
       `if (!incremental) {`,
       `  if (options.failFullWhenOutContains && normalizedOut.includes(options.failFullWhenOutContains)) { process.stderr.write("forced full index failure"); process.exit(1); }`,
-      `  const r = spawnSync(process.execPath, [${JSON.stringify(graphScript)}, ...args], { stdio: "inherit" }); process.exit(r.status ?? 1);`,
+      `  const r = spawnSync(process.execPath, [${JSON.stringify(graphScript)}, ...args], { stdio: "inherit" }); if(r.status===0 && options.searchMap) patchSourceIndex(out); process.exit(r.status ?? 1);`,
       `}`,
       `const scope = args[args.indexOf("--refresh-scope") + 1];`,
       `const cachePath = path.join(out, "cache-metadata.json");`,
@@ -211,6 +251,7 @@ export function writeIncrementalLifecycleFakeKit(
       `const forwarded = args.filter((value, i) => value !== "--incremental" && value !== "--refresh-scope" && args[i - 1] !== "--refresh-scope");`,
       `const r = spawnSync(process.execPath, [${JSON.stringify(graphScript)}, ...forwarded], { stdio: ["ignore", "pipe", "inherit"] });`,
       `if ((r.status ?? 1) !== 0) process.exit(r.status ?? 1);`,
+      ...(options.searchMap ? [`patchSourceIndex(out);`] : []),
       `fs.writeFileSync(cachePath, JSON.stringify({ cache: "fake" }));`,
       `const base = { requestedScope: scope, appliedScope: scope, selectionStatus: "applied", fallbackReason: null, seedFileCount: scope === "affected-neighborhood" ? 1 : null, seedSymbolCount: scope === "affected-neighborhood" ? 2 : null, affectedNodeCount: scope === "affected-neighborhood" ? 5 : null, affectedEdgeCount: scope === "affected-neighborhood" ? 4 : null, forcedNeighborReanalysisFileCount: 0, forcedNeighborSample: [], freshExtractionFileCount: 1, reusedFileCount: 9 };`,
       `const fallback = (reason) => ({ ...base, appliedScope: "full", selectionStatus: "fallback-full", fallbackReason: reason, seedFileCount: null, seedSymbolCount: null, affectedNodeCount: null, affectedEdgeCount: null, freshExtractionFileCount: 10, reusedFileCount: 0 });`,

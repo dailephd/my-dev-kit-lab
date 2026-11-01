@@ -149,15 +149,30 @@ describe("attack scenario result consistency (Batch 6)", () => {
   }, 30_000);
 
   it("result order is deterministic across repeated runs", async () => {
+    // The adjacent test covers real scenario execution. Isolate runner ordering
+    // with in-memory scenarios so expensive security operations do not dominate it.
+    const orderOnlyScenarios: AttackScenario[] = SCENARIO_REGISTRY.map(
+      (scenario): AttackScenario => ({
+        ...scenario,
+        skipCondition: undefined,
+        run: async () => ({ status: "passed", confidence: "high", evidence: [] }),
+      })
+    );
     const options = {
+      scenarios: orderOnlyScenarios,
       selectedChecks: ["boundary", "subprocess", "secrets", "network"] as const,
       profile: "node-cli-package" as const,
       toolRoot: process.cwd(),
       target: fakeTarget(),
       config: DEFAULT_SECURITY_CONFIG,
     };
+    const expectedIds = SCENARIO_REGISTRY.map((scenario) => scenario.id);
     const first = await runAttackScenarios(options);
     const second = await runAttackScenarios(options);
-    expect(first.map((r) => r.scenarioId)).toEqual(second.map((r) => r.scenarioId));
+    const firstIds = first.map((result) => result.scenarioId);
+    const secondIds = second.map((result) => result.scenarioId);
+    expect(firstIds).toEqual(expectedIds);
+    expect(secondIds).toEqual(expectedIds);
+    expect(secondIds).toEqual(firstIds);
   }, 30_000);
 });

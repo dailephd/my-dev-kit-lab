@@ -165,6 +165,10 @@ const EXCLUDED_DIR_NAMES = new Set([
   ".my-dev-kit-v1",
   ".my-dev-kit-lab",
   ".my-dev-kit-context",
+  // Local workflow checkouts/evidence and temporary fixtures are generated
+  // inputs, not the selected project's current source/test inventory.
+  ".my-dev-kit-workflow",
+  "tmp",
   "__pycache__",
   ".idea",
   ".vscode",

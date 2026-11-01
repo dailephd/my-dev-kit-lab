@@ -1,5 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { vi } from "vitest";
 import { assertAgentSuccessTask, type AgentSuccessTaskV1 } from "../../../src/evaluation/agentSuccess/index.js";
 import { runExperiment } from "../../../src/experiments/runner.js";
 import type { ExperimentRun } from "../../../src/experiments/types.js";
@@ -11,7 +13,26 @@ import type {
 } from "../../../src/experiments/plugins/agentSuccessRate/index.js";
 import { FIXTURE_FILES, FIX_PATCH, baseTaskInput, makeTempDir, writeProjectFiles } from "../../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
 
-export { FIXTURE_FILES, FIX_PATCH, baseTaskInput, makeTempDir, writeProjectFiles };
+export { FIXTURE_FILES, FIX_PATCH, baseTaskInput, makeTempDir, writeProjectFiles } from "../../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
+
+const packageFixture = vi.hoisted(() => ({ sourceRoot: "", installedRoot: "" }));
+vi.mock("node:url", async (original) => {
+  const actual = await original<typeof import("node:url")>();
+  return {
+    ...actual,
+    fileURLToPath: (...args: Parameters<typeof actual.fileURLToPath>) => {
+      const result = actual.fileURLToPath(...args);
+      // Model a separate installed package, rather than making project-owned TEMP
+      // a descendant of the protected source package. All real path checks remain real.
+      return packageFixture.installedRoot && path.resolve(result) === packageFixture.sourceRoot
+        ? packageFixture.installedRoot : result;
+    }
+  };
+});
+const sourcePackageRoot = path.resolve(fileURLToPath(new URL("../../../", import.meta.url)));
+export function agentSuccessFixturePackageRoot(): string {
+  return packageFixture.installedRoot;
+}
 
 export const README_PATCH = ["diff --git a/docs/readme.md b/docs/readme.md", "--- a/docs/readme.md", "+++ b/docs/readme.md", "@@ -1 +1,2 @@", " # Fixture", "+extra", ""].join("\n");
 
@@ -19,6 +40,9 @@ export const PROTECTED_PATCH = ["diff --git a/protected.txt b/protected.txt", "-
 
 /** A controlled tool root that mirrors the benchmarks/projects layout. Nothing is committed to the real benchmarks. */
 export function makeToolRoot(projects: Readonly<Record<string, Readonly<Record<string, string>>>> = { fixture: FIXTURE_FILES }): string {
+  packageFixture.sourceRoot = sourcePackageRoot;
+  packageFixture.installedRoot = makeTempDir("lab-asr-package-");
+  writeFileSync(path.join(packageFixture.installedRoot, "package.json"), '{"name":"@dailephd/my-dev-kit-lab","version":"0.0.0","private":true}\n');
   const toolRoot = makeTempDir("lab-asr-tool-");
   writeFileSync(path.join(toolRoot, "package.json"), '{"name":"asr-tool-root","version":"0.0.0"}\n');
   for (const [project, files] of Object.entries(projects)) {

@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { describe, expect, it } from "vitest";
 import { snapshotProjectTree } from "../../../src/evaluation/benchmarkSandbox/index.js";
 import { FIXTURE_FILES, FIX_PATCH, makeTempDir, useSandboxTestCleanup } from "../../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
-import { PROTECTED_PATCH, README_PATCH, makeTask, makeToolRoot, runAgentSuccess } from "./agentSuccessRateTestHelpers.js";
+import { PROTECTED_PATCH, README_PATCH, agentSuccessFixturePackageRoot, makeTask, makeToolRoot, runAgentSuccess } from "./agentSuccessRateTestHelpers.js";
 import { fakeAgentResult, makeProviderShim, makeSeamAgent, makeSourceBackedKit, type ProviderShim } from "./realAgentTestHelpers.js";
 import type { AgentRunResult, TokenUsageSource, TokenUsageReliability } from "../../../src/agents/types.js";
 import { parseAgentTokenUsage } from "../../../src/agents/index.js";
@@ -120,7 +121,7 @@ describe("REA simulated real-agent pipeline (codex shim, stdin transport)", () =
 
       // REA-024/041: neutral cwd outside every protected root, removed afterwards
       const cwd = meta.cwd;
-      for (const root of [toolRoot, outDir, canonical, process.cwd()]) expect(isInside(root, cwd), root).toBe(false);
+      for (const root of [toolRoot, outDir, canonical, agentSuccessFixturePackageRoot()]) expect(isInside(root, cwd), root).toBe(false);
       expect(existsSync(cwd)).toBe(false);
       expect(real.cwdCleanup).toEqual({ attempted: true, removed: true, reason: null });
 
@@ -279,17 +280,24 @@ describe("REA simulated real-agent pipeline (claude shim)", () => {
 });
 
 describe("P2 normalized telemetry at the provider proposal boundary", () => {
-  async function proposal(result: AgentRunResult, invoke = true) {
+  async function proposal(result: AgentRunResult, invoke = true, protectedRoots = [makeTempDir("lab-asr-p2-protected-")]) {
     let calls = 0;
     const context = { availability: "available" as const, reason: null, selectionPolicyId: "test", myDevKitVersion: null, includedSourceFiles: [], contextChars: 4, estimatedContextTokens: 1, text: "code" };
     const source = createRealAgentProposalSource({
-      settings: { providerId: "codex", timeoutMs: 100, outDir: makeTempDir("lab-asr-p2-out-"), protectedRoots: [process.cwd()], privateRoots: [], runAgent: async () => { calls++; return result; } },
+      settings: { providerId: "codex", timeoutMs: 100, outDir: makeTempDir("lab-asr-p2-out-"), protectedRoots, privateRoots: [], runAgent: async () => { calls++; return result; } },
       runId: "p2", task: projectAgentFacingTask(makeTask()), forbidden: [],
       contexts: { "raw-full-file": { ...context, treatmentId: "raw-full-file" }, "context-pack": { ...context, treatmentId: "context-pack" } }
     });
     const returned = await source({ treatmentId: "raw-full-file", invoke });
     return { returned, calls };
   }
+
+  it("rejects a provider cwd beneath a protected project-owned temporary root", async () => {
+    const { returned, calls } = await proposal(fakeAgentResult(), true, [os.tmpdir()]);
+    expect(calls).toBe(0);
+    expect(returned.realAgent?.providerStatusReason).toBe("provider-cwd-not-neutral");
+    expect(returned.errors).toEqual(expect.arrayContaining([expect.objectContaining({ code: "AGENT_CWD_NOT_NEUTRAL" })]));
+  });
 
   const sources: Array<[TokenUsageSource, string]> = [["provider-reported", "provider-reported"], ["cli-json", "cli-reported"], ["agent-reported", "parsed-from-output"], ["estimated-from-text", "estimated"], ["otel", "unavailable"], ["unavailable", "unavailable"]];
   it.each(sources)("P2-TEL-003/004 maps %s in the actual provider path", async (source, evidenceLevel) => {

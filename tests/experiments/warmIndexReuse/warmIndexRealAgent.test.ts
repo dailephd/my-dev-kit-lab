@@ -1,9 +1,11 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { EvaluationCase } from "../../../src/evaluation/types.js";
+import { readEvaluationCases } from "../../../src/evaluation/readEvaluationCases.js";
+import { readBenchmarkProjectProfiles } from "../../../src/evaluation/index.js";
 import { createDefaultExperimentPluginRegistry, runExperiment } from "../../../src/experiments/index.js";
 import {
   evaluateWarmIndexRealAgentCampaign,
@@ -117,18 +119,19 @@ async function runCampaign(
   caseIds: string[],
   presetId: "codex-full" | "claude-full",
   env: NodeJS.ProcessEnv,
-  timeoutMs = 5000
+  timeoutMs = 5000,
+  toolRoot = process.cwd()
 ) {
   const outputRoot = tempDir("warm-real-agent-");
   const preset = getWarmIndexCampaignPreset(presetId);
-  const cases = await loadProductionWarmIndexCases();
+  const cases = await readEvaluationCases(path.join(toolRoot, "benchmarks/contracts/warm-index-benchmark-cases.json"), toolRoot);
   const run = (await runExperiment({
     pluginId: "warm-index-reuse",
     registry: createDefaultExperimentPluginRegistry(),
     outputRoot,
     config: { kitCommand: fakeKitCommand, campaignPreset: presetId, includeRealAgents: true, timeoutMs, caseIds },
-    inputs: { cases, projectProfiles: await loadBundledProjectProfiles(), env },
-    toolRoot: process.cwd(),
+    inputs: { cases, projectProfiles: await readBenchmarkProjectProfiles(path.join(toolRoot, "benchmarks/contracts/benchmark-project-profiles.json"), toolRoot), env },
+    toolRoot,
     runId: "warm-real-agent-run",
   })) as WarmIndexReuseRun;
   return { run, outputRoot, preset };
@@ -295,10 +298,12 @@ describe("v0.5.2 Batch 3 -- neutral working directory isolation", () => {
     const productionCases = await loadProductionWarmIndexCases();
     const selectedCase = productionCases.find((evaluationCase) => evaluationCase.id === selectedCaseId)!;
 
-    const { run } = await runCampaign([selectedCaseId], "codex-full", env);
+    const repoRoot = tempDir("warm-neutral-package-");
+    cpSync(path.join(process.cwd(), "benchmarks"), path.join(repoRoot, "benchmarks"), { recursive: true });
+    cpSync(path.join(process.cwd(), "package.json"), path.join(repoRoot, "package.json"));
+    const { run } = await runCampaign([selectedCaseId], "codex-full", env, 5000, repoRoot);
     const [task] = run.agentEvidence[0].tasks;
-    const repoRoot = path.resolve(process.cwd());
-    const targetRoot = path.resolve(selectedCase.absoluteTargetRoot);
+    const targetRoot = path.resolve(repoRoot, selectedCase.targetRoot);
 
     for (const side of [task.raw!, task.warm!]) {
       const recorded = JSON.parse(readFileSync(side.artifactPaths.agentRunResultPath!, "utf8")) as { cwd: string };

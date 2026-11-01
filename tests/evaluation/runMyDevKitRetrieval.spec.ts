@@ -71,6 +71,10 @@ describe("runMyDevKitRetrieval", () => {
     });
     expect(result.skipped).toBe(false);
     expect(result.commands.map((command) => command.commandId)).toEqual(["index", "search", "lookup", "slice", "source"]);
+    // v0.9.6 enrichment is opt-in: historical retrieval has neither the ranked search limit nor headers/dependencies.
+    expect(result.commands.find((command) => command.commandId === "search")?.args).not.toContain("--limit");
+    expect(result.commands.filter((command) => command.args.includes("source"))).toHaveLength(1);
+    expect(result.commands.at(-1)?.args).not.toContain("--start");
     expect(result.selectedNodeId).toBe("todo-ts:createTask");
     expect(result.totalEstimatedTokens).toBeGreaterThan(0);
   });

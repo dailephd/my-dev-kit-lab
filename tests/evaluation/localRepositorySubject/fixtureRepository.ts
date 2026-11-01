@@ -45,7 +45,12 @@ export function withGitDiscoveryCeiling<T>(directory: string, action: () => T): 
 }
 
 export function removeTempDir(directory: string): void {
-  rmSync(directory, { recursive: true, force: true });
+  rmSync(directory, {
+    recursive: true,
+    force: true,
+    maxRetries: process.platform === "win32" ? 3 : 0,
+    retryDelay: 100,
+  });
 }
 
 /** Creates an initialized fixture Git repository (branch `main`, no commits yet) at an existing empty directory. */
