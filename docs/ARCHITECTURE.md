@@ -939,6 +939,30 @@ This section documents the current installed-package architecture, shipped in v0
 
 A fifth root, **targetRoot** (the inspected external project, or packageRoot itself in self mode), is unrelated to and never conflated with workspaceRoot — target directories remain non-destructive/read-only by default regardless of workspace configuration.
 
+### Planned v0.9.7 incremental-experiment writable-root boundary
+
+**Status: conditional patch design, not an implemented v0.9.6 guarantee.** The Kit v1.15.0 readiness handoff reports an installed-package `BLOCKED_OUTPUT_PATH_CONTRACT` for the `incremental-change-staleness` plugin; exact tarball reproduction is required before a product change. The published v0.9.6 source provides a plausible cause even though its installed-package outcome has not been independently reproduced here:
+
+* `src/runtime/labExecutionContext.ts` distinguishes immutable `packageRoot`/`resourceRoot` from writable `workspaceRoot`.
+* `src/commands/runExperimentRunCommand.ts` supplies `packageRoot` as `toolRoot` to `src/experiments/runner.ts` and separately chooses persisted `outputRoot`.
+* `src/experiments/plugins/incrementalChangeStaleness/plugin.ts` derives its claimed run-owned disposable root from `context.toolRoot`, and its cleanup re-derives that same root.
+* `src/experiments/plugins/incrementalChangeStaleness/disposableTarget.ts` currently requires the disposable root to be inside `repoRoot`, which for this self-only execution also identifies packaged benchmark resources. `lifecycle.ts` and `lifecycleV2.ts` place targets, indexes and command logs beneath the resulting writable run root.
+
+**Required post-fix ownership** (subject to exact 0.9.6 installed-package reproduction):
+
+| Responsibility | Root contract |
+| --- | --- |
+| Packaged canonical scenario catalog, benchmark project sources and project profiles | Read-only `resourceRoot`/`packageRoot`, verified as immutable |
+| Installed CLI working-directory and relative path interpretation | `invocationCwd`, honoring existing per-option rules |
+| Default/explicit caller-owned writable scratch | Authorized `workspaceRoot`, or another separately specified and contained runtime root if a validated programmatic caller requires it |
+| Claimed run marker, disposable treatment copies, temporary indexes and subprocess logs | One uniquely owned runtime directory under the authorized writable root, never under installed package resources |
+| Execution artifact, JSON/text/HTML reports | Independent persisted `outputRoot` controlled by existing `--out`/default semantics |
+| Cleanup | Only the exact run-owned runtime directory after marker, real-path containment, collision and cross-run ownership checks |
+
+Move the validation boundary with the mutable root: do not retain a `repoRoot` check that requires runtime writes inside the immutable package, and do not weaken protections for canonical benchmark source reads or path traversal, reparse links, collisions, or retained failed-run evidence. Reuse the existing runner and CLI/public contracts; where a private execution-context field is needed, propagate one explicit writable runtime identity rather than repurposing `toolRoot`, silently deriving it from `--out`, or creating a second workspace framework. Preserve the four-treatment scientific contract and the separate output/report artifacts. The patch is deliberately isolated from `feature/v0.10.0-kit-backed-source-audits`, `LAB-KIT-01`, and `LAB-EVIDENCE-01`.
+
+See the exact reproduction and acceptance gates in [ROADMAP.md](ROADMAP.md#v097--installed-incremental-experiment-writable-root-containment-urgent-conditional-patch) and the ordered [hotfix workflow](WORKFLOWS.md#conditional-v097-installed-incremental-experiment-hotfix). No new public `--runtime-root` option is planned.
+
 ### Router → command owners → subsystem owners
 
 The installed bin (`dist/scripts/cli.js`, source `scripts/cli.ts`) is a thin process adapter: it reads `process.argv`, calls `src/cli/runLabCli.ts`'s `runLabCli()`, and sets `process.exitCode` from the returned number. It owns no routing or product logic itself.
