@@ -50,7 +50,8 @@
         "incremental-change-staleness",
         "--synthetic-config",
         "agent-success-rate",
-        "external-target package-content correction"
+        "external-target package-content correction",
+        "v0.9.7"
       ]
     },
     "docs/PROJECT_OVERVIEW.md": {
@@ -77,7 +78,8 @@
         "incremental-change-staleness",
         "agent-success-rate",
         "external-target package-content correction",
-        "v0.9.3"
+        "v0.9.3",
+        "v0.9.7"
       ]
     },
     "docs/CURRENT_STATE.md": {
@@ -120,7 +122,8 @@
         "agent-success-rate",
         "pre-release readiness",
         "external-target package-content correction",
-        "v0.9.3"
+        "v0.9.3",
+        "v0.9.7"
       ]
     },
     "docs/ARCHITECTURE.md": {
@@ -160,7 +163,8 @@
         "syntheticInputs",
         "agent-success-rate",
         "external-target package-content correction",
-        "v0.9.3"
+        "v0.9.3",
+        "v0.9.7"
       ]
     },
     "docs/COMMANDS.md": {
@@ -199,7 +203,8 @@
         "synthetic-repositories",
         "agent-success-rate",
         "--repair-attempts",
-        "external-target package-content correction"
+        "external-target package-content correction",
+        "v0.9.7"
       ]
     },
     "docs/WORKFLOWS.md": {
@@ -239,7 +244,8 @@
         "synthetic-repositories",
         "agent-success-rate",
         "Agent-success-rate evaluation",
-        "external-target package-content correction"
+        "external-target package-content correction",
+        "v0.9.7"
       ]
     },
     "docs/TUTORIAL.md": {
@@ -367,6 +373,7 @@
       "v0.9.4",
       "v0.9.5",
       "v0.9.6",
+      "v0.9.7",
       "v0.10.0",
       "v0.11.0",
       "v0.12.0",
@@ -455,7 +462,7 @@
     "latestPublishedVersion": "0.9.5",
     "latestPublishedVersionEvidenceContext": "npm registry preflight on 2026-10-28 verified published baseline 0.9.5 and returned E404 for target 0.9.6; target publication remains an external fact requiring live verification.",
     "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.10.0",
+    "nextPlannedVersion": "0.9.7",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",
