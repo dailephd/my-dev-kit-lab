@@ -72,6 +72,19 @@ function setReleaseDocumentState(root: string, finalReleaseDocument: boolean) {
     }
     return `${JSON.stringify(value, null, 2)}\n`;
   });
+  if (finalReleaseDocument) {
+    // Build a pre-publication fixture from the now-published repository baseline.
+    // Neutralize only the active version's publication windows before mutations.
+    const marker = `v${lifecycle.activeReleaseDocumentVersion}`;
+    for (const file of ["README.md", "docs/PROJECT_OVERVIEW.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/WORKFLOWS.md", "docs/security-validation-framework.md"]) {
+      edit(root, file, (body) => body.split("\n").map((line) => {
+        return line.split(/(?=v\d+\.\d+\.\d+\b)/).map((window) =>
+          window.startsWith(marker) ? window.replace(/\bpublished\b/gi, "release-recorded") : window
+        ).join("");
+      }).join("\n"));
+    }
+    edit(root, "docs/ROADMAP.md", (body) => replaceRoadmapVersionStatus(body, `v${lifecycle.activeReleaseDocumentVersion}`, "Status: **release candidate prepared; final release-document state**."));
+  }
 }
 
 function expectFailure(change: (root: string) => void, message: string) {
@@ -257,6 +270,19 @@ describe("release and current/planned state", () => {
     (root) => edit(root, "README.md", (body) => `${body}\nThe documentation set is internally consistent.\n`),
     (run) => expect(run()).toContain("passed"),
   ));
+  it("LIFECYCLE-007 rejects a positive publication claim in the synthetic prepared fixture", () => expectFailure(
+    (root) => {
+      setReleaseDocumentState(root, true);
+      edit(root, "README.md", (body) => `${body}\nv${lifecycle.activeReleaseDocumentVersion} is published.\n`);
+    },
+    `v${lifecycle.activeReleaseDocumentVersion} publication claim`,
+  ));
+  if (manifest.currentFacts.currentImplementedUnreleasedVersion) {
+    it.each(["is published", "is not implemented"])("LIFECYCLE-008 rejects an implemented/unreleased version that %s", (claim) => expectFailure(
+      (root) => edit(root, "README.md", (body) => `${body}\nv${manifest.currentFacts.currentImplementedUnreleasedVersion} ${claim}.\n`),
+      `v${manifest.currentFacts.currentImplementedUnreleasedVersion}`,
+    ));
+  }
 });
 
 describe("capability, family, and boundary preservation", () => {

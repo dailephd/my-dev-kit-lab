@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
 import { readBenchmarkProjectProfiles } from "../../../evaluation/benchmarkMetadata.js";
@@ -28,6 +29,10 @@ import {
   INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS,
   INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_INTENTS,
   removeIncrementalChangeStalenessRuntimeRoot,
+  assertAbsoluteRuntimePath,
+  assertIncrementalRuntimeLocation,
+  ensureRuntimeDirectory,
+  verifyRuntimeDirectory,
   type IncrementalChangeStalenessTreatmentId,
   type IncrementalChangeStalenessV2TreatmentId
 } from "./disposableTarget.js";
@@ -46,7 +51,7 @@ export const INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID = "incremental-change-stalen
 export const STALE_INDEX_VARIANT_ID: IncrementalChangeStalenessTreatmentId = "stale-index";
 export const FULL_REFRESH_VARIANT_ID: IncrementalChangeStalenessTreatmentId = "full-refresh";
 
-/** Marker proving a runtime directory was created by (and belongs to) one plugin run. */
+/** Marker checked against the invocation's private claim; not authority on its own. */
 export const INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER = ".incremental-change-staleness-run-owner.json";
 
 export const incrementalChangeStalenessMetadata: ExperimentPluginMetadata = {
@@ -101,31 +106,75 @@ const V1_TREATMENT_VARIANTS: ExperimentVariant[] = [
   }
 ];
 
-export function resolveIncrementalChangeStalenessRunOwnedRoot(toolRoot: string, runId: string): string {
-  return resolveWithinRoot(path.resolve(toolRoot), path.join(DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE, sanitizePathSegment(runId)));
+export function resolveIncrementalChangeStalenessRunOwnedRoot(writableWorkspaceRoot: string, runId: string): string {
+  assertAbsoluteRuntimePath(writableWorkspaceRoot);
+  const segment = sanitizePathSegment(runId);
+  if (segment === "." || segment === "..") throw new Error("Invalid incremental runtime run ID path segment.");
+  const parent = resolveWithinRoot(writableWorkspaceRoot, DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE);
+  return resolveWithinRoot(parent, segment);
 }
 
-async function claimRunOwnedRoot(runOwnedRoot: string, runId: string): Promise<void> {
+type DirectoryIdentity = { root: string; dev: number; ino: number };
+type RunClaim = DirectoryIdentity & { toolRoot: string; workspaceRoot: string; parents: DirectoryIdentity[]; runId: string; claimId: string };
+// Context identity belongs to one runner invocation, including its finally cleanup.
+const runClaims = new WeakMap<ExperimentExecutionContext, RunClaim>();
+
+async function claimRunOwnedRoot(context: ExperimentExecutionContext, runOwnedRoot: string): Promise<void> {
+  if (runClaims.has(context)) throw new Error("This invocation already claimed a runtime root.");
+  const workspaceRoot = context.writableWorkspaceRoot;
+  assertAbsoluteRuntimePath(workspaceRoot);
+  assertIncrementalRuntimeLocation(context.toolRoot, workspaceRoot);
+  await verifyRuntimeDirectory(context.toolRoot);
+  if (context.outputRoot) {
+    const output = path.resolve(context.outputRoot);
+    for (const [root, candidate] of [[runOwnedRoot, output], [output, runOwnedRoot]]) {
+      const relative = path.relative(root, candidate);
+      if (relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))) {
+        throw new Error("Incremental runtime and report output roots must not overlap.");
+      }
+    }
+  }
   if (existsSync(runOwnedRoot)) {
     throw new Error(`Incremental-change-staleness run-owned runtime root already exists; refusing to reuse it: ${runOwnedRoot}`);
   }
-  await mkdir(path.dirname(runOwnedRoot), { recursive: true });
+  await ensureRuntimeDirectory(workspaceRoot, path.dirname(runOwnedRoot));
   // Non-recursive: fails if another run claimed the same directory in the meantime.
   await mkdir(runOwnedRoot);
+  const realRoot = await verifyRuntimeDirectory(runOwnedRoot);
+  const info = await lstat(runOwnedRoot);
+  const claimId = randomUUID();
   await writeFile(
     path.join(runOwnedRoot, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER),
-    `${JSON.stringify({ pluginId: INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID, runId }, null, 2)}\n`,
-    "utf8"
+    `${JSON.stringify({ pluginId: INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID, runId: context.runId, claimId }, null, 2)}\n`,
+    { encoding: "utf8", flag: "wx" }
   );
+  const parents: DirectoryIdentity[] = [];
+  for (const root of [workspaceRoot, path.join(workspaceRoot, "runtime"), path.dirname(runOwnedRoot)]) {
+    const real = await verifyRuntimeDirectory(root);
+    const parentInfo = await lstat(root);
+    parents.push({ root: real, dev: parentInfo.dev, ino: parentInfo.ino });
+  }
+  runClaims.set(context, { root: realRoot, toolRoot: path.resolve(context.toolRoot), workspaceRoot: path.resolve(workspaceRoot), parents, runId: context.runId, claimId, dev: info.dev, ino: info.ino });
 }
 
-async function isOwnedByRun(runOwnedRoot: string, runId: string): Promise<boolean> {
+async function isOwnedByRun(runOwnedRoot: string, claim: RunClaim): Promise<boolean> {
   try {
+    const realRoot = await verifyRuntimeDirectory(runOwnedRoot);
+    for (const parent of claim.parents) {
+      const real = await verifyRuntimeDirectory(parent.root);
+      const info = await lstat(parent.root);
+      if (real !== parent.root || info.dev !== parent.dev || info.ino !== parent.ino) return false;
+    }
+    const info = await lstat(runOwnedRoot);
+    if (realRoot !== claim.root || info.dev !== claim.dev || info.ino !== claim.ino) return false;
+    const markerInfo = await lstat(path.join(runOwnedRoot, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER));
+    if (markerInfo.isSymbolicLink() || !markerInfo.isFile()) return false;
     const marker = JSON.parse(await readFile(path.join(runOwnedRoot, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER), "utf8")) as {
       pluginId?: unknown;
       runId?: unknown;
+      claimId?: unknown;
     };
-    return marker.pluginId === INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID && marker.runId === runId;
+    return marker.pluginId === INCREMENTAL_CHANGE_STALENESS_PLUGIN_ID && marker.runId === claim.runId && marker.claimId === claim.claimId;
   } catch {
     return false;
   }
@@ -133,16 +182,24 @@ async function isOwnedByRun(runOwnedRoot: string, runId: string): Promise<boolea
 
 /**
  * Removes the run-owned runtime root (targets, indexes, command logs, agent artifacts) only when
- * it carries this run's ownership marker. Never touches the shared runtime parent, canonical
- * benchmarks, or any other run's directory. Called by the framework's `cleanup` phase, strictly
- * after `run()` has already written the persisted execution artifact to the (separate) output root.
+ * this invocation successfully claimed it and its marker and directory still match.
+ * Never touches the shared runtime parent, canonical
+ * benchmarks, or any other run's directory. Called by the framework's finally phase on
+ * both success and failure; successful runs persist artifacts before this cleanup.
  */
-export async function cleanupIncrementalChangeStalenessRun(toolRoot: string, runId: string): Promise<boolean> {
-  const runOwnedRoot = resolveIncrementalChangeStalenessRunOwnedRoot(toolRoot, runId);
-  if (!(await isOwnedByRun(runOwnedRoot, runId))) {
+export async function cleanupIncrementalChangeStalenessRun(toolRoot: string, runId: string, context?: ExperimentExecutionContext): Promise<boolean> {
+  if (!context) return false;
+  const claim = runClaims.get(context);
+  if (!claim) return false;
+  // Consume authority even when verification fails; later calls cannot gain authority.
+  runClaims.delete(context);
+  if (claim.toolRoot !== path.resolve(toolRoot) || claim.runId !== runId) return false;
+  if (typeof context.writableWorkspaceRoot !== "string" || path.resolve(context.writableWorkspaceRoot) !== claim.workspaceRoot) return false;
+  const runOwnedRoot = claim.root;
+  if (!(await isOwnedByRun(runOwnedRoot, claim))) {
     return false;
   }
-  await removeIncrementalChangeStalenessRuntimeRoot(toolRoot, runOwnedRoot);
+  await removeIncrementalChangeStalenessRuntimeRoot(claim.workspaceRoot, runOwnedRoot, claim.toolRoot);
   return true;
 }
 
@@ -161,8 +218,9 @@ export const incrementalChangeStalenessPlugin: ExperimentPlugin<IncrementalChang
       );
     }
     const startedAt = context.startedAt.toISOString();
-    const runOwnedRoot = resolveIncrementalChangeStalenessRunOwnedRoot(context.toolRoot, context.runId);
-    await claimRunOwnedRoot(runOwnedRoot, context.runId);
+    assertAbsoluteRuntimePath(context.writableWorkspaceRoot);
+    const runOwnedRoot = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot, context.runId);
+    await claimRunOwnedRoot(context, runOwnedRoot);
 
     const resolvedScenarios = await resolveIncrementalChangeStalenessScenarios({
       repoRoot: context.toolRoot,
@@ -175,6 +233,8 @@ export const incrementalChangeStalenessPlugin: ExperimentPlugin<IncrementalChang
 
     const executions: IncrementalChangeStalenessScenarioExecutionV2[] = [];
     for (const resolved of resolvedScenarios) {
+      const claim = runClaims.get(context);
+      if (!claim || !(await isOwnedByRun(runOwnedRoot, claim))) throw new Error("Unverified current invocation runtime claim.");
       const lifecycle = await prepareIncrementalChangeStalenessScenarioLifecycleV2({
         repoRoot: context.toolRoot,
         runOwnedRoot,
@@ -218,7 +278,7 @@ export const incrementalChangeStalenessPlugin: ExperimentPlugin<IncrementalChang
     return result.summary ?? summarizeExperimentRun(result);
   },
   async cleanup(context: ExperimentExecutionContext<IncrementalChangeStalenessConfig>) {
-    await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId);
+    await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context);
   }
 };
 

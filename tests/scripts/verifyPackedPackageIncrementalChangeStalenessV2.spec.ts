@@ -17,6 +17,28 @@ import {
 
 type Json = Record<string, any>;
 
+describe("installed incremental runtime log containment", () => {
+  it("accepts nested workspace logs and rejects escapes, relative paths, and absent evidence", () => {
+    const script = `
+      import path from 'node:path';
+      const { validateIncrementalRuntimeLogPaths: validate } = await import(${JSON.stringify(pathToFileURL(path.resolve("scripts/verify-packed-package.mjs")).href)});
+      const root = path.resolve('runtime fixture with spaces', 'owned-run');
+      const logs = file => ({ scenarios: [{ treatments: [{ commands: [{ stdoutPath: file }] }] }] });
+      const results = [
+        validate(logs(path.join(root, 'commands', 'stdout.txt')), root),
+        validate(logs(path.resolve(root, '..', 'foreign', 'stdout.txt')), root),
+        validate(logs(path.join(root + '-sibling', 'stdout.txt')), root),
+        validate(logs('relative.txt'), root),
+        validate({}, root)
+      ];
+      console.log(JSON.stringify(results.map(problems => problems.length)));
+    `;
+    const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script], { encoding: "utf8", windowsHide: true });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual([0, 1, 1, 1, 1]);
+  });
+});
+
 const INTENTS: Record<string, string> = {
   "stale-index": "no-refresh-reference",
   "changed-files-refresh": "changed-files-partial-refresh",

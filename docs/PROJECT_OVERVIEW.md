@@ -1,5 +1,7 @@
 # Project Overview
 
+v0.9.7 is IMPLEMENTED / UNRELEASED: the incremental-change-staleness correction separates immutable package resources from workspace-owned disposable runtime state. Package metadata remains 0.9.6. Separate standardized pre-release readiness is pending; see [current state](CURRENT_STATE.md) and [architecture](ARCHITECTURE.md).
+
 ## What is my-dev-kit-lab?
 
 my-dev-kit-lab is for maintainers, release engineers, coding-agent researchers, and contributors who need evidence about repository-context choices and local project health. A retrieval strategy can look efficient without selecting the right evidence. A project can also appear release-ready without consistent package, CLI, audit, or Android checks.
@@ -16,7 +18,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The current release-document and package metadata version is v0.9.6. Its bounded full-refresh source-content correction passed exact-candidate standardized readiness and preserves historical retrieval defaults and artifact contracts. The prior verified npm package baseline was v0.9.5; registry publication is an external fact recorded separately in [CURRENT_STATE.md](CURRENT_STATE.md).
+The current released package and documentation version is v0.9.6. Its bounded full-refresh source-content correction passed exact-candidate standardized readiness and preserves historical retrieval defaults and artifact contracts. GitHub tag and release-PR evidence establish the release identity; the later merged recovery PR records npm publication. The prior v0.9.5 registry preflight is historical; see [CURRENT_STATE.md](CURRENT_STATE.md) for evidence limits.
 
 Version v0.9.3 adds hardened prompt contracts, extensible reports with metric evidence, broader gallery inputs, and prompt-template comparison. Security verdict strictness is unchanged. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the release state.
 
@@ -152,11 +154,13 @@ v0.8.0 retrieval precision/recall and v0.8.1 retrieval query strategy comparison
 
 Context-pack generation experiments shipped in v0.8.2.
 
+The first planned v0.10.0 workstream is [Kit-backed source audit migration (LAB-KIT-01)](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01). Kit will become the sole production source-analysis and retrieval provider; Lab will keep detector policy, experiments, verification, findings, and reports. Ordinary Lab installation will obtain its compatible Kit dependency for source auditing, while non-source workflows will not initialize Kit or require an index. The native Lab analyzers remain current during migration; their retirement at gate 5 requires the evidence and five-language compatibility gates to pass. Gate 6 then demonstrates Rust reuse through the same general consumer boundary before the workstream is complete. The original executable-evidence foundation remains required in v0.10.0, and every later roadmap assignment is preserved. Separate products can share this explicit producer dependency while remaining usable in caller-directed workflows.
+
 ## v0.9.1 campaign capabilities
 
 The published v0.9.1 release adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports while preserving existing provider adapters and scientific artifact contracts.
 
-Current package and release-document version: v0.9.6. v0.9.5 is the prior verified npm package baseline; v0.9.1, v0.9.2, and v0.9.3 are earlier releases. The next planned feature milestone remains v0.10.0.
+Current released package and documentation version: v0.9.6. v0.9.5 and earlier versions are historical releases. The next planned feature milestone remains v0.10.0.
 
 The preceding v0.9.2 release includes external npm package entrypoint validation, strict Lab self-package inventory, corrected Semgrep failure evidence, and campaign filesystem identity, path-safety, and cross-platform corrections. The v0.9.1 campaign capabilities remain included.
 
@@ -172,4 +176,4 @@ v0.9.4 is a maintenance release with Kit symbol-index schema-3 compatibility alo
 
 The package version is `0.9.6`. Bounded full-refresh reference adequacy improves source-content evidence while preserving default retrieval, four treatments, V1/V2 readers, and inconclusive outcomes for incomplete evidence. The v0.9.5 release corrected bounded evidence collection and strengthened disposable validation.
 
-The v0.9.6 release-document and package metadata contain the final release state. Registry publication is established separately through live npm evidence; the verified pre-preparation baseline was 0.9.5. The next planned feature version is v0.10.0.
+The v0.9.6 release-document and package metadata describe the published release. Its GitHub tag exists and merged recovery PR #72 records npm publication; live npm metadata was independently confirmed on 2026-11-07. The v0.9.5 pre-preparation baseline is historical. The next planned feature version is v0.10.0.

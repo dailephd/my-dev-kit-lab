@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
-import { cp, lstat, mkdir, readdir, readFile, realpath } from "node:fs/promises";
+import { cp, lstat, readdir, readFile, realpath } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { resolveWithinRoot } from "../../../core/pathSafety.js";
+import { ensureRuntimeDirectory, verifyRuntimeDirectory } from "./disposableTarget.js";
 
 /**
  * Narrow v0.6.3 lifecycle-preparation helper: copies one already-produced my-dev-kit index
@@ -29,11 +30,12 @@ export async function cloneIncrementalChangeStalenessIndexDirectory(runOwnedRoot
     throw new Error(`Index clone destination ${destination} must not be inside the source ${source}.`);
   }
 
+  await verifyRuntimeDirectory(source);
   const sourceFiles = await listRegularFiles(source);
 
   // The destination parent must be real-path contained by the real run-owned root (no symlink escape).
   const parent = path.dirname(destination);
-  await mkdir(parent, { recursive: true });
+  await ensureRuntimeDirectory(root, parent);
   const [realParent, realRoot] = await Promise.all([realpath(parent), realpath(root)]);
   const parentRelative = path.relative(realRoot, realParent);
   if (parentRelative === ".." || parentRelative.startsWith(`..${path.sep}`) || path.isAbsolute(parentRelative)) {

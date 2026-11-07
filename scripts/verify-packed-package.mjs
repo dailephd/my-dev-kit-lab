@@ -609,6 +609,7 @@ function runNpm(resolveCommand, args, options) {
     ...args
   ];
   return spawnSync(resolved.command, fullArgs, {
+    windowsHide: true,
     cwd: options.cwd,
     encoding: "utf8",
     env: options.env ?? process.env,
@@ -640,6 +641,7 @@ function runInstalledCli(resolved, consumerDir, args, extraEnv) {
     ...args
   ];
   return spawnSync(resolved.command, fullArgs, {
+    windowsHide: true,
     cwd: consumerDir,
     encoding: "utf8",
     env: extraEnv,
@@ -734,6 +736,27 @@ export function evaluateInstalledStalenessComparisons(artifact, installedExecuti
     }
     return { scenarioId: scenario.scenarioId, persisted: scenario.referenceComparisons, computed, differences };
   });
+}
+
+// Persisted command references remain useful after owned runtime cleanup.
+export function validateIncrementalRuntimeLogPaths(artifact, runtimeRoot) {
+  const problems = [];
+  let count = 0;
+  const visit = (value) => {
+    if (!value || typeof value !== "object") return;
+    for (const [key, entry] of Object.entries(value)) {
+      if ((key === "stdoutPath" || key === "stderrPath") && typeof entry === "string") {
+        count++;
+        const relative = path.relative(runtimeRoot, entry);
+        if (!path.isAbsolute(entry) || relative === "" || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+          problems.push(`${key} is outside the invocation runtime root: ${entry}`);
+        }
+      } else visit(entry);
+    }
+  };
+  visit(artifact);
+  if (count === 0) problems.push("No persisted subprocess command-log references were observed.");
+  return problems;
 }
 
 async function main() {
@@ -3057,7 +3080,7 @@ async function main() {
     const icsRun = runInstalledCli(
       sandboxCliCommand,
       dirs.mutableConsumer,
-      ["experiment", "run", "--experiment", "incremental-change-staleness", "--kit-command", realKitCommand, "--out", icsOut],
+      ["--workspace", dirs.workspace, "experiment", "run", "--experiment", "incremental-change-staleness", "--kit-command", realKitCommand, "--out", icsOut],
       sandboxEnv
     );
     if (icsRun.status !== 0) {
@@ -3077,6 +3100,14 @@ async function main() {
 
     // The production V2 artifact validator of the INSTALLED package (never a looser acceptance parser).
     const installedArtifactModule = await installedModule("experiments", "plugins", "incrementalChangeStaleness", "executionArtifactV2.js");
+    const installedPlugin = await installedModule("experiments", "plugins", "incrementalChangeStaleness", "plugin.js");
+    const icsRuntimeRoot = installedPlugin.resolveIncrementalChangeStalenessRunOwnedRoot(dirs.workspace, icsArtifact.runId);
+    const runtimeProblems = validateIncrementalRuntimeLogPaths(icsArtifact, icsRuntimeRoot);
+    if (existsSync(icsRuntimeRoot) || !existsSync(path.dirname(icsRuntimeRoot))) {
+      runtimeProblems.push("Owned runtime cleanup did not remove only the run directory while preserving its parent.");
+    }
+    if (runtimeProblems.length > 0) fail("INCREMENTAL_CHANGE_STALENESS_RUNTIME_CONTAINMENT", runtimeProblems.join("\n"));
+    console.log("INCREMENTAL_CHANGE_STALENESS_RUNTIME_CONTAINMENT: PASS (workspace command logs; owned run removed; runtime parent and reports preserved)");
     let productionValidatorError = null;
     try {
       installedArtifactModule.validateIncrementalChangeStalenessExecutionArtifactV2(icsArtifact);
@@ -3141,7 +3172,7 @@ async function main() {
     const icsGitBranch = gitOutput(["branch", "--show-current"]);
     const icsPackageVersion = packEntry.version;
     const writeIcsEvidence = (finalVerdict, immutability) => {
-      const reportPath = path.join(REPO_ROOT, ".my-dev-kit-context", "reports", "v0.6.3-real-upstream-partial-refresh-acceptance.txt");
+      const reportPath = path.join(tempRoot, "v0.6.3-real-upstream-partial-refresh-acceptance.txt");
       const cell = (value) => (value === null || value === undefined ? "null" : Array.isArray(value) ? JSON.stringify(value) : String(value));
       const lines = [
         "my-dev-kit-lab v0.6.3 real-upstream partial-refresh acceptance (local-only evidence; not public documentation)",
@@ -4359,7 +4390,11 @@ async function main() {
     }
     process.exitCode = 1;
   } finally {
-    await rm(tempRoot, { recursive: true, force: true });
+    if (process.env.MY_DEV_KIT_LAB_KEEP_PACKED_FIXTURE === "1") {
+      console.log(`PACKED_PACKAGE_RETAINED_FIXTURE: ${tempRoot}`);
+    } else {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
   }
 }
 

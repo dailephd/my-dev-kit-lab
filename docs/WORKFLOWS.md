@@ -797,7 +797,7 @@ npm run security:validate
 Targeted example:
 
 ```powershell
-npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+npm run security:validate -- --target "C:\path\to\target-project"
 ```
 
 **Expected behavior and outputs:**
@@ -829,7 +829,7 @@ npm run audit
 Targeted example:
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types code-rot --fail-on none
 ```
 
 **Expected behavior and outputs:**
@@ -846,6 +846,25 @@ Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json
 
 **Completion:** reports are written, target files remain unchanged, and every issue is interpreted as evidence rather than proof.
 
+### Planned Kit-backed source audit migration (LAB-KIT-01)
+
+This development procedure is planned for the first workstream of [v0.10.0](ROADMAP.md#v0100--ecosystem-executable-evidence-foundation-lab-evidence-01). The code-rot workflow above remains the implemented behavior until that workstream is complete. Kit's producer work is assigned first within [v1.15.0](https://github.com/dailephd/my-dev-kit/blob/main/docs/ROADMAP.md); existing executable-evidence work in Lab and later roadmap versions remain required.
+
+**Inputs:** verified Lab and Kit candidates, the ten-detector/source-reader inventory, exact evidence requirements and coverage rules, deterministic fixtures for the five currently supported languages, and the planned Rust extension. Use commit and package hashes for candidates; publication is not a prerequisite for coordinated development. Preserve prior findings and failure evidence.
+
+**Ordered procedure:**
+
+1. Freeze each detector's input fields, predicates, applicability, uncertainty, inventory scope, retrieval selectors, continuation semantics, and fixtures before modifying its producer or replacing analysis. Include shared source readers and source-dependent security/Android consumers. Review direct source-text and local import-resolution paths; merely enumerating the four analyzer files is insufficient.
+2. Implement and verify the missing evidence in Kit. Reject a partial top-ranked retrieval result as evidence of whole-repository absence. Confirm visibility, explicit versus inferred exports, structured resolution failures, stable qualified identities, and complete declared coverage.
+3. Integrate Kit through the existing consumer and process owners. Resolve selected rule requirements before collecting source facts. Keep native analyzers temporarily for explicitly selected differential validation and expose which path supplied each result. Verify installed Lab can resolve its managed Kit dependency without a source checkout or an unpinned package fetch.
+4. Compare normalized findings and evidence on TypeScript, JavaScript, Python, Java, Kotlin, and mixed fixtures. Resolve every difference as equivalence or a reviewed correction with its own evidence; preserve missing/unsupported/incomplete states. Check source and installed routes, platform behavior, target/package immutability, and non-source operations that must not invoke Kit.
+5. Remove duplicated production analyzers and source-extraction paths only after the full dependency inventory and parity evidence pass. Review remaining imports and callers to prove no hidden legacy fallback survives. Update ownership and public contracts in the same implementation change while retaining historical evidence.
+6. Exercise Rust through the same general bridge and applicable rules without adding a Lab parser or changing its general core for that language. Include a real supported positive case, a detected issue, and insufficient-capability/coverage cases. The migration is incomplete until this reuse gate passes.
+
+**Outputs and failure handling:** use the existing authorized report/workspace owners for the contract inventory, differential findings, reviewed deltas, removal inventory, and exact-package acceptance evidence. The implementation plan must bind their exact filenames and paths through `LabExecutionContext` and the placement manifest before writing them. A failed gate retains its evidence and prevents retirement or a migration-complete claim; it does not permit weaker rules, fabricated empty facts, silent parser fallback, or automatic approval of changed findings. Required source-analysis failure must stay visible in the result and cannot produce a clean audit.
+
+**Completion:** all six [roadmap gates](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01) pass, Kit is the sole production source-analysis/retrieval provider, and Lab's policy, verification, reports, and non-source workflows retain their independent ownership. This procedure does not authorize release or publication actions.
+
 ## Security-validation audit adapter
 
 **Goal:** include standalone security-validation results in the shared audit report.
@@ -861,7 +880,7 @@ npm run audit -- --types security --fail-on none
 Targeted example:
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types security --fail-on none
 ```
 
 ```mermaid
@@ -1131,3 +1150,13 @@ Manual pentest is deferred until after `v1.0.0`.
 It is a human-led workflow and is not required for automated Android security validation.
 
 The reader performs bounded, read-only evidence validation and delegates complete checkpoint-store validation to the campaign owners against trusted task definitions authenticated by persisted task digests. If required historical corpus or artifact evidence is unavailable, that side is unverifiable and the comparison is `INCOMPARABLE`; checkpoint hashes alone do not establish semantic validity. V2 prompt-contract integrity is validated. V1 identity does not bind a prompt template: sidecar self-consistency or an intact prompt-artifact hash alone cannot prove historical template identity, so unsupported V1 evidence remains `UNVERIFIED`/`INCOMPARABLE`, without a winner or improvement rate. Only a completed provider response with persisted evidence of a response-contract violation enters the invalid-output numerator; bare `invalid-output` status and infrastructure outcomes are excluded from both numerator and denominator. Task-success and repair outcomes remain separate. Real-provider improvement remains `NOT_VERIFIED` pending authorized smoke evidence.
+
+## v0.9.7 installed incremental runtime containment (IMPLEMENTED / UNRELEASED)
+
+Use the built candidate's existing installed CLI with `--workspace <authorized-workspace>` before `experiment run`; keep persisted `--out` separate from its disposable runtime subtree. The package and canonical benchmarks are read-only resources. The command forwards the existing workspace through the runner; only incremental execution requires that internal writable identity. Invalid roots, links/junctions, collisions and overlapping runtime/report destinations fail safely without package-relative fallback.
+
+Actual installed acceptance requires the exact packed candidate in a clean consumer, execution outside the package, independently authorized workspace/output, enforced package write denial plus a denial witness, unchanged package/benchmark hashes and no package runtime write attempts. Verify all six scenarios and four treatments, actual `APPLIED_PARTIAL` versus `FALLBACK_FULL`, three comparisons per ready scenario, artifact/report schemas and current-run cleanup. Include missing/invalid workspace, traversal, junction/reparse, marker/directory substitution, collision and retained interrupted-state negatives. Historical Kit 1.12.5 packed acceptance and PATH-012 remain required; Kit 1.14.0 installed scientific evidence is a separate identity.
+
+Successful cleanup removes only the current invocation's verified disposable copies, indexes and logs; persisted reports survive. Interrupted runs may leave diagnostic state that another invocation cannot adopt or delete automatically. Keep short authorized task roots on Windows because genuine process-start path limits remain supported infrastructure failures.
+
+Implementation completion recorded PASS_WITH_NOTES, including 8,192 passing canonical tests and nine existing skips. It is not standardized pre-release readiness. Run that workflow separately before release preparation; preserve the npm-last publication invariant. A locally patched tarball with metadata 0.9.6 is not the published npm 0.9.6 package. I1 stale-index remains inconclusive; partial-refresh evidence is bounded to the observed scenarios and cannot establish universal safety.

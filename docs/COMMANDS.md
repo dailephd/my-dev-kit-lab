@@ -664,7 +664,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 ```
 
 ```powershell
-npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --agents fake-agent --complexities short --no-screenshot
+npm run experiment:run -- --experiment context-strategy-comparison --target "C:\path\to\target-project" --agents fake-agent --complexities short --no-screenshot
 ```
 
 ```bash
@@ -806,7 +806,7 @@ npm run security:validate -- --profile node-cli-package --format json
 ```
 
 ```powershell
-npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
+npm run security:validate -- --target "C:\path\to\target-project"
 ```
 
 Current behavior:
@@ -827,6 +827,8 @@ The existing `security:validate --target <path>` and `security:package -- --targ
 ## Audit commands
 
 The generic audit framework runs conservative repository-health checks. It is separate from `security:validate`: selecting the `security` audit type adapts the standalone validator's results into the audit report while preserving the original security report.
+
+The [planned LAB-KIT-01 migration](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01) changes the source-evidence provider in v0.10.0. It is not implemented and adds no currently available command or flag. The syntax and behavior below describe the current package; implementation must preserve parity between installed commands and source-checkout aliases through the same audit owner.
 
 Current implemented command:
 
@@ -872,9 +874,9 @@ npm run audit -- --target /path/to/android/project --types security --android --
 ```
 
 ```powershell
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
-npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot,security --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types code-rot --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types security --fail-on none
+npm run audit -- --target "C:\path\to\target-project" --types code-rot,security --fail-on none
 ```
 
 Current behavior:
@@ -895,3 +897,15 @@ Current report details:
 - The audit command has no `--checks`, `--profile`, `--languages`, or `--frameworks` option. Android audit integration uses only `--android`.
 
 Unsupported command/profile names such as `android-compose`, `security:pentest`, `security:android`, `mobile:detect`, and `mobile:validate` are not current syntax. See [ROADMAP.md](ROADMAP.md) for approved future scope.
+
+### v0.9.7 implemented/unreleased incremental runtime correction
+
+The implemented candidate uses the existing global workspace option before the experiment family:
+
+```text
+my-dev-kit-lab --workspace ./lab-state experiment run --experiment incremental-change-staleness --out ./experiment-results
+```
+
+`--out` continues to select persisted artifacts/reports; relative output resolves from the invocation directory and the installed default remains `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/`. Disposable incremental state uses `<workspace>/runtime/incremental-change-staleness/<sanitized-run-id>/`, including copies, indexes, command logs and agent scratch. This internal writable root is not a CLI option. Missing/invalid workspace, unsafe ancestry, report/runtime overlap or an existing run collision fails safely. Normal cleanup removes current-owned runtime state, so persisted log paths can identify files already removed. Interrupted state requires explicit investigation; markers alone cannot authorize cleanup.
+
+This correction is IMPLEMENTED / UNRELEASED and is not available in the published v0.9.6 package. Its local candidate still reports package metadata 0.9.6. Self-only targets, scenario/treatment IDs, supported Kit commands, options, error classification and artifact/report schemas above remain unchanged.

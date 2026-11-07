@@ -16,7 +16,7 @@ flowchart LR
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2] --> V093[v0.9.3]
-  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
+  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V096[v0.9.6] --> V097[v0.9.7] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
   V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
   V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
@@ -1579,7 +1579,7 @@ The initial Stage 4 audit found glossary and comparison-evidence defects; bounde
 
 ### v0.9.4 — Kit schema-3 and npm 12 compatibility correction
 
-Status: **release candidate prepared; final release-document state**. Package metadata is 0.9.4; v0.9.4 scope and acceptance criteria are retained below. External publication evidence is established through the registry and release records, not this status line.
+Status: **published**. The v0.9.4 scope and acceptance criteria below are historical; the GitHub version tag exists.
 
 Purpose:
 
@@ -1610,7 +1610,7 @@ Acceptance:
 
 ### v0.9.5 — staleness evidence and validation boundaries
 
-Status: **final release-document state; release candidate prepared**.
+Status: **published**. The v0.9.5 scope and validation evidence below are historical; the GitHub version tag exists.
 
 Purpose:
 
@@ -1637,7 +1637,7 @@ Acceptance:
 
 ### v0.9.6 — bounded full-refresh reference adequacy correction
 
-Status: **final release-document state; release candidate prepared; registry evidence remains external**.
+Status: **published**. The GitHub v0.9.6 tag exists, and the merged v0.9.6 recovery pull request records npm publication. Source and acceptance evidence below remains historical; live npm metadata was independently confirmed on 2026-11-07.
 
 Purpose:
 
@@ -1676,6 +1676,34 @@ Exclusions:
 * No Kit source changes, Kit candidate SHA change, automatic refresh policy, new public CLI flag, new metric, new report or experiment schema, real-provider requirement, deferred v0.10.0 scope, or Kit v1.15.0 scope. This patch does not redesign Kit artifacts or Kit's future retrieval API.
 * No automatic release preparation or publication. v0.10.0 and later roadmap sections remain separately planned, unchanged in meaning and order.
 
+### v0.9.7 — installed incremental-experiment writable-root containment
+
+Status: **IMPLEMENTED / UNRELEASED**. Implementation completion: PASS_WITH_NOTES. Package metadata remains 0.9.6; separate standardized pre-release readiness is pending.
+
+Purpose:
+
+* Correct the reproduced installed-package runtime-root defect: published v0.9.6 derives incremental disposable state from its immutable package/tool root despite separate workspace and report destinations.
+* Unblock the Lab dependency of Kit v1.15.0 readiness after a fixed Lab is separately qualified and published. Kit candidate `9a2606c050eb2a8c3005d76471d0a40df05f4f5d` remains unchanged; Kit must independently retry its blocked validation.
+
+Implemented scope:
+
+* Preserve immutable packageRoot/resourceRoot and existing toolRoot resource/target identity. Propagate the existing authorized workspace through the command and runner as additive optional `writableWorkspaceRoot`; the incremental plugin requires it and has no package, output or current-directory fallback.
+* Place disposable copies, baseline/refreshed indexes, evaluations and command logs under `<workspace>/runtime/incremental-change-staleness/<sanitized-run-id>/`. Persist reports independently under the existing `--out` contract.
+* Enforce independent canonical-source and mutable-runtime containment, traversal and Windows junction/reparse protection, exclusive current-invocation ownership, random marker claims, directory identity checks, collision refusal and cleanup of only the current owned run. Interrupted state is retained without restart adoption.
+* Preserve U1, L2, E1, P1, I1, T1; `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, `full-refresh`; actual requested/applied partial versus `FALLBACK_FULL` reporting; comparison rules, metrics, V1/V2 artifacts and other plugin interfaces. No new public CLI flag or schema.
+
+Acceptance:
+
+* Completed implementation evidence covers workspace propagation, missing/invalid workspace failure, source/runtime/report separation, canonical fixture immutability, collisions, marker/directory substitution, junction/traversal refusal and current-owned cleanup.
+* Actual installed-candidate acceptance used a read-only package, separate authorized workspace and persisted output, all six scenarios and four treatments, real published Kit 1.14.0, and unchanged artifact/report validation. Historical packed acceptance retains real Kit 1.12.5 and PATH-012. A local patched tarball identifying metadata 0.9.6 is distinct from published npm 0.9.6.
+* Batch 5 recorded 8,192 passing tests, nine existing skips, 795 passing security tests, typecheck, normal verification, 13 benchmark checks and unchanged exact-candidate packed acceptance. This establishes implementation completion; it does not establish hosted or cross-platform readiness for this patch.
+* Remaining gates: separate standardized pre-release readiness, exact-candidate cross-platform/security/package qualification, separately authorized release preparation and publication, then independent Kit readiness retry. The historical Batch 4 output-authority violation and partially verified ignored-metadata restoration remain historical; clean B4-R1 acceptance is separate.
+
+Dependencies and exclusions:
+
+* This urgent patch belongs between v0.9.6 and v0.10.0. Carry its correction forward without importing unfinished v0.10.0 implementation into the patch.
+* LAB-KIT-01 remains the first v0.10.0 workstream, followed by LAB-EVIDENCE-01. Every later assignment remains intact. No Kit source/dependency change, scientific redesign or automatic publication.
+
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 
 Status: **planned; not implemented**.
@@ -1683,6 +1711,38 @@ Status: **planned; not implemented**.
 Purpose:
 
 * Provide the Lab-owned producer/certification side of the ECO-00 executable-evidence interface without replacing native Kit, Observer, Orchestrator, or Lab artifacts.
+* Make Kit the sole production provider of source-code analysis and retrieval for Lab, so another supported programming language can reuse Lab's existing audit rules without another Lab parser.
+
+Implementation order: complete the Kit-backed source audit migration (`LAB-KIT-01`) below as the first workstream, then complete the existing executable-evidence foundation. Both are required for this milestone. Every existing LAB-EVIDENCE-01 feature and acceptance item below remains assigned to v0.10.0; v0.11.0 and all later assignments remain intact. The producer prerequisite is the first workstream of [Kit v1.15.0](https://github.com/dailephd/my-dev-kit/blob/main/docs/ROADMAP.md). Exact, hash-pinned Kit candidates may be used for coordinated development and acceptance before either product is published.
+
+The shared owner map and ten-detector evidence matrix are canonical in [ECO-SOURCE-01](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_COORDINATED_ROADMAP.md#79-kit-backed-lab-source-audits--2026-10-27). Kit's exact producer responsibilities belong to [KIT-FACTS-01](https://github.com/dailephd/my-dev-kit/blob/main/docs/ROADMAP.md#kit-facts-01-source-evidence-for-lab-audits); this Lab plan owns the consumer migration and findings acceptance. Wire fields and selector/continuation behavior must be frozen together at gate 1 before implementation.
+
+#### First workstream: Kit-backed source audit migration (LAB-KIT-01)
+
+This is approved future architecture, not a description of the v0.9.5 implementation. Kit owns source discovery, language parsing, symbols, references, source relationships, and source retrieval. Lab owns detector policy, audit findings, verification, experiments, reports, and verdicts. Lab continues to parse its native evidence, documentation, package/configuration inputs, and external-tool results where those are domain inputs rather than a second source-language analysis system. A large language model or another explicit caller may coordinate the four independently usable products; this migration does not make Lab a general workflow orchestrator or require Observer or Orchestrator for source audits.
+
+After cutover, Lab declares a compatible Kit runtime dependency for source auditing. Ordinary Lab installation obtains that dependency; a source audit resolves the installed package and supported machine-readable interface without a sibling checkout, a manual Kit installation, or an unpinned `npx ...@latest` invocation. Acquisition and process behavior reuse the existing installed-package, workspace, retrieval, and managed-process owners. Non-source operations do not initialize Kit, require an index, or invoke source analysis. The selected detector requirements must be resolved before source collection; the current runner's unconditional collection is not the target design.
+
+The migration has six ordered completion gates:
+
+1. **Freeze detector evidence requirements.** Inventory all ten registered code-rot detectors, their shared helpers, and other production consumers that extract or retrieve source facts, including source-dependent security and Android paths. For each decision, record the exact consumed field or predicate, scope, source owner, producer capability, language applicability, uncertainty rule, retrieval selector, continuation/completion rule, and positive/negative fixture. The initial source-facts mapping covers file identity/path, language, role, parse status and diagnostics; import specifier/kind/bindings and resolution outcome; export name/kind/origin; declaration identity/kind/visibility/export status/location; and source occurrences required by current rules. Require reference-resolution facts only where a consumer needs them; this migration does not require complete reference, data-flow, or control-flow analysis. Preserve exact identifier literals, process-call/literal/option occurrences, test skip/only/title and embedded command evidence, and fixture-basename references where the existing decisions use them. Keep comparison grouping separate from producer/analyzer identity. Explicitly distinguish Python `__all__` evidence from inferred exports and Java/Kotlin visibility from a generic exported boolean. Include nested Java declarations and `.kts`, `.mts`, and `.cts` inventory/analysis coverage in the parity contract. This gate must map direct source-text reads and local import-resolution helpers as well as `SourceFactsSnapshot`; a file/symbol graph alone is insufficient.
+2. **Complete Kit evidence capabilities.** Kit supplies every frozen source-analysis requirement through its versioned producer contract, with source identity, freshness, coverage, limitations, and structured unresolved states. Whole-repository rules enumerate their complete declared inventory and all continuation pages, or report incomplete evidence. A task-oriented top-ranked retrieval subset must never stand in for a complete audit inventory. Preserve qualified symbol identities and language-specific evidence provenance; absent or unsupported facts do not become empty successful results. No Lab parser is removed at this gate.
+3. **Integrate the Kit bridge with temporary legacy comparison.** Extend `src/evaluation/upstreamArtifacts/`, the existing Kit retrieval/process boundary, `src/audits/core/collectSourceFacts.ts`, and `auditRunner.ts` according to their established ownership. The bridge validates producer, contract, target/source identity, required capabilities, coverage, and freshness before adapting evidence to detector inputs. Reuse the audit registry and report/exit-policy owners. Keep the existing analyzers temporarily for explicit differential comparison; never silently substitute them after a requested Kit analysis fails. Record the selected producer and policy profile. Native facts, Kit facts, and findings remain distinguishable throughout migration.
+4. **Prove five-language findings parity.** Run both paths against deterministic TypeScript, JavaScript, Python, Java, Kotlin, and mixed-language fixtures, comparing normalized findings, evidence, severity, applicability, omissions, and failure outcomes. Preserve stable finding identity where the underlying rule and subject are unchanged. Account explicitly for producer identity and ordering differences; do not relabel Kit as a legacy analyzer to manufacture agreement. Every changed finding needs either demonstrated equivalence or an explicitly reviewed correction with a fixture and rationale. Zero findings from missing evidence is a failure. Verify fresh, stale, incomplete, unsupported, ambiguous, malformed, and truncated evidence, plus real installed-consumer operation on supported platforms. This gate establishes semantic compatibility, not blanket byte equality or an unsupported superiority claim.
+5. **Retire duplicated production source analysis.** Remove the old TypeScript/JavaScript, Python, Java, and Kotlin analyzers, their production registry path, and all superseded source-reading, import-resolution, and extraction helpers only after gates 1–4 prove every affected responsibility. Retain domain policy and historical compatibility evidence. Update imports, exports, dependencies, public behavior documentation, and placement ownership together. Source auditing then requires compatible Kit evidence and has no standalone parser fallback. Missing required Kit capability, failed analysis, or incomplete required coverage produces an explicit unavailable/incomplete/error outcome; it cannot yield a clean audit verdict. Prove that non-source operations still run without initializing or invoking Kit.
+6. **Prove Rust reuse through the same boundary.** Reuse Kit's Rust adapter and extend its producer facts only where required, then exercise Lab's unchanged general source-audit bridge and applicable existing rules against ordinary Rust positive/negative fixtures and inadequate-evidence cases. The ordinary language addition must require no Rust parser, analyzer registration, or language-specific branch in Lab's general audit core. Rule applicability is declared from the supplied capabilities; specialist policies remain explicit and unsupported checks remain unavailable. This is required completion evidence for the workstream, not a future promise after native analyzers are removed.
+
+The installed-package acceptance must use the actual packed Lab and compatible packed Kit candidate or released dependency, recording both identities and hashes. An end-user audit may create only authorized workspace/index/report artifacts; it must not write into the target repository or installed packages. Existing command families and source-checkout aliases must reach the same audit owner. Any necessary new public option, report field, failure state, or placement must be specified before implementation and checked across installed and source-checkout surfaces; this roadmap does not invent currently available syntax.
+
+Required source prerequisites are separate from severity thresholds: missing, incompatible, stale, failed, or incomplete required Kit evidence makes the planned source audit incomplete and uses the existing runtime-failure exit code `2`, including when `--fail-on none` is selected. An unsupported optional rule may be skipped only under its frozen applicability contract, with the omission visible. Exit codes `0` and `1` retain their existing finding-threshold meanings only after required evidence has been established. Native-source fallback cannot convert a failed Kit prerequisite into success.
+
+The final state has one source-analysis producer, one Lab audit framework, and explicit evidence coverage. No shared-analysis repository, extracted common parser package, permanent native-parser alternative, or new generic audit runner is introduced.
+
+#### Coordinated transition after Kit producer completion
+
+Once a hash-pinned Kit candidate supports the versioned complete-inventory and exact source-evidence contract, begin Lab's managed-provider bridge and deterministic differential comparisons immediately; do not wait for unrelated Kit KIT-API-01 work. Inventory all remaining source-text, fixture, registry, import-resolution, security and Android source readers and their scope/completeness obligations—not merely the four native language analyzer modules. Keep native analyzers only in an explicit temporary comparison path until all required five-language and mixed-fixture findings are classified. Missing or unsupported required evidence blocks cutover even if a Kit producer artifact exists. Retire duplicated production readers at Gate 5, then prove Rust through the same general bridge at Gate 6. Lab's LAB-EVIDENCE-01 and later reserved milestones remain intact.
+
+#### Executable-evidence foundation retained in this milestone
 
 Features:
 
@@ -1696,6 +1756,8 @@ Features:
 
 Acceptance:
 
+* All six LAB-KIT-01 gates pass, including reviewed findings equivalence or corrections for all five existing languages, retirement of duplicated production source analysis, and Rust reuse through the same consumer boundary.
+* Required source evidence cannot be silently replaced by a legacy parser or treated as a clean audit when incomplete. Non-source command paths remain independent of Kit analysis and index availability.
 * A deterministic CLI fixture and a deterministic full-stack fixture can produce or import bounded verification evidence.
 * Required evidence failures remain failures even if unrelated evidence passes.
 * Exact package/contract identities and immutable result references can be written into a tested/certified compatibility bundle.
@@ -1995,6 +2057,8 @@ my-dev-kit-lab mobile support does not mean:
 ## Architecture direction
 
 Future versions must extend the existing experiment, audit, security-validation, Android, report, gallery, installed-CLI, workspace, and process/runtime ownership boundaries rather than create parallel runners, adapters, command resolvers, or presentation systems. The planned tutorial runtime must keep persistent browser/session ownership separate from the existing one-shot report screenshot owner, and product-specific demo/scenario ownership outside the lab. Production indexing and workflow orchestration remain outside my-dev-kit-lab. See [ARCHITECTURE.md](ARCHITECTURE.md) for current ownership and each version section above for planned dependencies and exclusions.
+
+The planned LAB-KIT-01 workstream makes Kit the sole production source-analysis and retrieval provider while Lab retains audit and validation policy. Existing standalone source analyzers are a temporary migration baseline: gate 5 retires them only after gates 1–4 pass, and gate 6 then proves Rust reuse before the workstream is complete. They are not a second long-term extension path. The broader ecosystem remains coordinated through explicit evidence contracts and caller-directed workflows.
 
 ## Validation expectations for every release
 

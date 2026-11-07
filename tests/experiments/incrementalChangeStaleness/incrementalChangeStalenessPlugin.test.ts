@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   contextStrategyComparisonPlugin,
   createDefaultExperimentPluginRegistry,
@@ -26,6 +26,9 @@ import {
 } from "../../../src/experiments/plugins/incrementalChangeStaleness/scenarioSelection.js";
 import { readProductionIncrementalChangeStalenessScenarioCatalog } from "../../../src/experiments/plugins/incrementalChangeStaleness/scenarioCatalog.js";
 import { writeFakeKitVariant } from "../warmIndexReuse/warmIndexTestHelpers.js";
+import { resolveExperimentTarget } from "../../../src/experiments/target.js";
+import type { ExperimentExecutionContext } from "../../../src/experiments/types.js";
+import type { IncrementalChangeStalenessConfig } from "../../../src/experiments/plugins/incrementalChangeStaleness/config.js";
 import {
   expectCanonicalFilesUnchanged,
   expectNoIndexOutputInCanonicalProjects,
@@ -40,10 +43,12 @@ import {
 
 const tracked: string[] = [];
 const trackedRunIds: string[] = [];
+let workspaceRoot: string;
+beforeEach(() => { workspaceRoot = makeRunOwnedRoot(tracked, "ics-workspace-"); });
 afterEach(async () => {
   await Promise.all(tracked.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   for (const runId of trackedRunIds.splice(0)) {
-    await rm(resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId), { recursive: true, force: true });
+    await rm(resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId), { recursive: true, force: true });
   }
   expectCanonicalFilesUnchanged();
   expectNoIndexOutputInCanonicalProjects();
@@ -153,11 +158,12 @@ describe("config and scenario selection (TST-B3-004, 005, 029)", () => {
         outputRoot: outDir(),
         config: { caseIds: ["L2", "Q7"], kitCommand: kit.command },
         toolRoot: repoRoot,
+        writableWorkspaceRoot: workspaceRoot,
         runId
       })
     ).rejects.toThrow("unknown scenario id");
     expect(readKitLog(kit.logPath)).toEqual([]);
-    expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId))).toBe(false);
+    expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId))).toBe(false);
   });
 });
 
@@ -165,7 +171,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
   it("runs matched V2 lifecycles and four-treatment execution in catalog order, writes the V2 execution artifact, then cleans up", async () => {
     const kit = writeIncrementalLifecycleFakeKit(makeKitDir(tracked));
     const runId = uniqueRunId("run");
-    const runtimeParent = path.resolve(repoRoot, DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE);
+    const runtimeParent = path.resolve(workspaceRoot, DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE);
     const sibling = path.join(runtimeParent, `${runId}-sibling`);
     mkdirSync(sibling, { recursive: true });
     writeFileSync(path.join(sibling, "keep.txt"), "not owned by the run");
@@ -177,6 +183,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
       outputRoot: runOutputRoot,
       config: { caseIds: ["L2", "U1"], kitCommand: kit.command },
       toolRoot: repoRoot,
+        writableWorkspaceRoot: workspaceRoot,
       runId
     });
 
@@ -236,6 +243,27 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
     }
     // Seven index invocations per scenario (four incremental bootstraps, two partial refreshes, one full build).
     expect(readIndexArgsLog(kit.argsLogPath)).toHaveLength(14);
+    const relocatedRoot = resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId);
+    for (const args of readIndexArgsLog(kit.argsLogPath)) {
+      for (const flag of ["--root", "--out"]) {
+        const value = args[args.indexOf(flag) + 1];
+        expect(path.relative(relocatedRoot, value)).not.toMatch(/^\.\./);
+        expect(path.relative(relocatedRoot, value)).not.toBe("");
+      }
+    }
+    const artifactText = readFileSync(run.artifacts[0].path!, "utf8");
+    const logPaths: string[] = [];
+    function collectLogPaths(value: unknown): void {
+      if (!value || typeof value !== "object") return;
+      for (const [key, entry] of Object.entries(value)) {
+        if ((key === "stdoutPath" || key === "stderrPath") && typeof entry === "string") logPaths.push(entry);
+        else collectLogPaths(entry);
+      }
+    }
+    collectLogPaths(JSON.parse(artifactText));
+    expect(logPaths.length).toBeGreaterThan(0);
+    for (const logPath of logPaths) expect(path.relative(path.join(relocatedRoot, "commands"), logPath)).not.toMatch(/^\.\./);
+    expect(existsSync(path.join(repoRoot, ".my-dev-kit-context", "runtime", "incremental-change-staleness", runId))).toBe(false);
 
     // The normal run persisted the V2 execution artifact under the canonical filename.
     const persisted = JSON.parse(readFileSync(run.artifacts[0].path!, "utf8")) as { schemaVersion: string; scenarios: Array<{ treatments: unknown[]; referenceComparisons: unknown[] }> };
@@ -244,7 +272,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
     expect(persisted.scenarios.map((scenario) => [scenario.treatments.length, scenario.referenceComparisons.length])).toEqual([[4, 3], [4, 3]]);
 
     // TST-B3-050: the run-owned root is removed; the sibling directory is untouched.
-    expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId))).toBe(false);
+    expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId))).toBe(false);
     expect(existsSync(path.join(sibling, "keep.txt"))).toBe(true);
     await rm(runOutputRoot, { recursive: true, force: true });
   }, 120_000);
@@ -257,6 +285,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
       outputRoot: outDir(),
       config: { caseIds: ["L2"], kitCommand: command },
       toolRoot: repoRoot,
+        writableWorkspaceRoot: workspaceRoot,
       runId
     });
     expect(run.status).toBe("failed");
@@ -272,7 +301,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
       expect(outcome.failures.map((failure) => failure.code)).toEqual(["incremental-change-staleness-scenario-failed"]);
       expect(outcome.metadata).toEqual(expect.objectContaining({ scenarioStatus: "failed" }));
     }
-    expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId))).toBe(false);
+    expect(existsSync(resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId))).toBe(false);
   }, 60_000);
 
   it("rejects an external target explicitly", async () => {
@@ -283,6 +312,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
       outputRoot: outDir(),
       config: { caseIds: ["L2"] },
       toolRoot: repoRoot,
+        writableWorkspaceRoot: workspaceRoot,
       runId: uniqueRunId("external")
     });
     expect(run.status).toBe("failed");
@@ -291,7 +321,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
 
   it("never deletes a pre-existing directory it does not own", async () => {
     const runId = uniqueRunId("preexisting");
-    const root = resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId);
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId);
     mkdirSync(root, { recursive: true });
     writeFileSync(path.join(root, "foreign.txt"), "foreign");
     const run = await runExperiment({
@@ -299,6 +329,7 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
       outputRoot: outDir(),
       config: { caseIds: ["L2"] },
       toolRoot: repoRoot,
+        writableWorkspaceRoot: workspaceRoot,
       runId
     });
     expect(run.status).toBe("failed");
@@ -308,18 +339,236 @@ describe("plugin run behavior (TST-B3-006, 048..051; v0.6.2 Batch 4)", () => {
     expect(existsSync(path.join(root, "foreign.txt"))).toBe(true);
   });
 
-  it("cleanup removes only a root carrying this run's ownership marker", async () => {
+  it("a matching marker alone never grants cleanup authority", async () => {
     const runId = uniqueRunId("marker");
-    const root = resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId);
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId);
     mkdirSync(path.join(root, "indexes"), { recursive: true });
     writeFileSync(path.join(root, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER), JSON.stringify({ pluginId: "incremental-change-staleness", runId: "someone-else" }));
     expect(await cleanupIncrementalChangeStalenessRun(repoRoot, runId)).toBe(false);
     expect(existsSync(root)).toBe(true);
     writeFileSync(path.join(root, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER), JSON.stringify({ pluginId: "incremental-change-staleness", runId }));
-    expect(await cleanupIncrementalChangeStalenessRun(repoRoot, runId)).toBe(true);
-    expect(existsSync(root)).toBe(false);
+    expect(await cleanupIncrementalChangeStalenessRun(repoRoot, runId)).toBe(false);
+    expect(existsSync(root)).toBe(true);
     // The shared runtime parent (and benchmarks) remain.
     expect(existsSync(path.dirname(root))).toBe(true);
     expect(readdirSync(path.resolve(repoRoot, "benchmarks/projects")).length).toBeGreaterThan(0);
+  });
+});
+
+describe("invocation-owned runtime cleanup", () => {
+  function invocation(): ExperimentExecutionContext<IncrementalChangeStalenessConfig> {
+    // Deliberately no catalogs: setup fails after a successful claim, without launching Kit.
+    const toolRoot = makeKitDir(tracked);
+    return {
+      runId: "reused-run", startedAt: new Date(0), toolRoot, writableWorkspaceRoot: makeKitDir(tracked),
+      target: resolveExperimentTarget(undefined, toolRoot),
+      config: { ...defaultIncrementalChangeStalenessConfig }
+    };
+  }
+
+  async function claimed() {
+    const context = invocation();
+    await expect(incrementalChangeStalenessPlugin.run(context)).rejects.toThrow();
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
+    expect(existsSync(path.join(root, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER))).toBe(true);
+    return { context, root };
+  }
+
+  it.each([".", ".."])("rejects the unsafe sanitized run segment %s without claiming a shared parent", (runId) => {
+    expect(() => resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId)).toThrow(/run ID path segment/);
+    expect(readdirSync(workspaceRoot)).toEqual([]);
+  });
+
+  it("missing workspace fails through the runner before package or output runtime writes", async () => {
+    const context = invocation();
+    const outputRoot = makeKitDir(tracked);
+    const result = await runExperiment({ pluginId: "incremental-change-staleness", toolRoot: context.toolRoot, outputRoot, runId: context.runId });
+    expect(result.status).toBe("failed");
+    expect(result.failures[0].message).toContain("absolute writableWorkspaceRoot");
+    expect(readdirSync(context.toolRoot)).toEqual([]);
+    expect(readdirSync(outputRoot)).toEqual([]);
+  });
+
+  it.each(["relative", "malformed", "canonical", "installed", "report"])("rejects %s workspace/runtime boundary before writes", async (kind) => {
+    const context = invocation();
+    if (kind === "relative") context.writableWorkspaceRoot = "relative/workspace";
+    if (kind === "malformed") context.writableWorkspaceRoot += "\0bad";
+    if (kind === "canonical") {
+      context.toolRoot = repoRoot;
+      context.writableWorkspaceRoot = path.join(repoRoot, "benchmarks", "projects");
+    }
+    if (kind === "installed") {
+      context.toolRoot = path.join(makeKitDir(tracked), "node_modules", "@scope", "lab");
+      mkdirSync(context.toolRoot, { recursive: true });
+      context.writableWorkspaceRoot = path.join(context.toolRoot, ".my-dev-kit-context");
+    }
+    if (kind === "report") context.outputRoot = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
+    await expect(incrementalChangeStalenessPlugin.run(context)).rejects.toThrow(/workspace|overlap/i);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    if (kind === "installed") expect(readdirSync(context.toolRoot)).toEqual([]);
+    if (kind === "report") expect(readdirSync(context.writableWorkspaceRoot!)).toEqual([]);
+  });
+
+  it("cleanup preserves reports and canonical resources while retaining the shared runtime parent", async () => {
+    const context = invocation();
+    context.outputRoot = makeKitDir(tracked);
+    writeFileSync(path.join(context.outputRoot, "report.json"), "retained report");
+    await expect(incrementalChangeStalenessPlugin.run(context)).rejects.toThrow();
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
+    expect(root).toBe(path.join(context.writableWorkspaceRoot!, "runtime", "incremental-change-staleness", context.runId));
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(true);
+    expect(existsSync(root)).toBe(false);
+    expect(existsSync(path.dirname(root))).toBe(true);
+    expect(readFileSync(path.join(context.outputRoot, "report.json"), "utf8")).toBe("retained report");
+    expect(readdirSync(context.toolRoot)).toEqual([]);
+    expectCanonicalFilesUnchanged();
+  });
+
+  it("a substituted real parent cannot retain cleanup authority even if the owned child is moved back", async () => {
+    const { context, root } = await claimed();
+    const parent = path.dirname(root);
+    renameSync(parent, `${parent}-original`);
+    mkdirSync(parent);
+    renameSync(path.join(`${parent}-original`, path.basename(root)), root);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    expect(existsSync(root)).toBe(true);
+  });
+
+  it("rejects a redirected workspace ancestor before creating missing children", async () => {
+    const context = invocation();
+    const foreign = makeKitDir(tracked);
+    const link = path.join(workspaceRoot, "redirected");
+    symlinkSync(foreign, link, process.platform === "win32" ? "junction" : "dir");
+    context.writableWorkspaceRoot = path.join(link, "missing workspace");
+    try {
+      await expect(incrementalChangeStalenessPlugin.run(context)).rejects.toThrow(/Unverified runtime directory/);
+      expect(readdirSync(foreign)).toEqual([]);
+      expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    } finally { unlinkSync(link); }
+  });
+
+  it("runner finally preserves a pre-existing matching plugin/run marker after rejected claim", async () => {
+    const context = invocation();
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
+    mkdirSync(root, { recursive: true });
+    writeFileSync(path.join(root, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER), JSON.stringify({ pluginId: "incremental-change-staleness", runId: context.runId }));
+    writeFileSync(path.join(root, "retained.txt"), "previous invocation");
+    const run = await runExperiment({ pluginId: "incremental-change-staleness", toolRoot: context.toolRoot, writableWorkspaceRoot: context.writableWorkspaceRoot, runId: context.runId });
+    expect(run.status).toBe("failed");
+    expect(run.failures[0].message).toContain("refusing to reuse");
+    expect(readFileSync(path.join(root, "retained.txt"), "utf8")).toBe("previous invocation");
+  });
+
+  it("second invocation with the same run ID cannot clean the first invocation's claim", async () => {
+    const { context, root } = await claimed();
+    const run = await runExperiment({ pluginId: "incremental-change-staleness", toolRoot: context.toolRoot, writableWorkspaceRoot: context.writableWorkspaceRoot, runId: context.runId });
+    expect(run.status).toBe("failed");
+    expect(run.failures[0].message).toContain("refusing to reuse");
+    expect(existsSync(root)).toBe(true);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, { ...context })).toBe(false);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(true);
+    expect(existsSync(root)).toBe(false);
+    expect(existsSync(path.dirname(root))).toBe(true);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    // Reuse of the name after cleanup must not revive the old authority.
+    mkdirSync(root);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    expect(existsSync(root)).toBe(true);
+  });
+
+  it("runner finally cleans its successful claim after subsequent setup failure", async () => {
+    const context = invocation();
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
+    const run = await runExperiment({ pluginId: "incremental-change-staleness", toolRoot: context.toolRoot, writableWorkspaceRoot: context.writableWorkspaceRoot, runId: context.runId });
+    expect(run.status).toBe("failed");
+    expect(run.failures[0].message).not.toContain("refusing to reuse");
+    expect(existsSync(root)).toBe(false);
+    expect(existsSync(path.dirname(root))).toBe(true);
+  });
+
+  it.each(["missing", "malformed", "null", "plugin", "run", "claim", "directory"])("refuses cleanup with %s marker and consumes authority", async (kind) => {
+    const { context, root } = await claimed();
+    const markerPath = path.join(root, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER);
+    const original = readFileSync(markerPath, "utf8");
+    const marker = JSON.parse(original);
+    if (kind === "missing") unlinkSync(markerPath);
+    else if (kind === "directory") { unlinkSync(markerPath); mkdirSync(markerPath); }
+    else if (kind === "malformed") writeFileSync(markerPath, "{");
+    else if (kind === "null") writeFileSync(markerPath, "null");
+    else {
+      marker[kind === "plugin" ? "pluginId" : kind === "run" ? "runId" : "claimId"] = "foreign";
+      writeFileSync(markerPath, JSON.stringify(marker));
+    }
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    expect(existsSync(root)).toBe(true);
+    if (kind !== "directory") writeFileSync(markerPath, original);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+  });
+
+  it("missing runtime state cannot regain authority if the path is recreated", async () => {
+    const { context, root } = await claimed();
+    renameSync(root, `${root}-original`);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    renameSync(`${root}-original`, root);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    expect(existsSync(root)).toBe(true);
+  });
+
+  it("uses the workspace instead of legacy toolRoot placement", async () => {
+    const context = invocation();
+    context.writableWorkspaceRoot = makeKitDir(tracked);
+    await expect(incrementalChangeStalenessPlugin.run(context)).rejects.toThrow();
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
+    expect(existsSync(root)).toBe(true);
+    expect(readdirSync(context.toolRoot)).toEqual([]);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(true);
+  });
+
+  it("owned cleanup unlinks a nested junction without deleting its foreign target", async () => {
+    const { context, root } = await claimed();
+    const foreign = makeKitDir(tracked);
+    writeFileSync(path.join(foreign, "retained.txt"), "foreign");
+    symlinkSync(foreign, path.join(root, "foreign-link"), process.platform === "win32" ? "junction" : "dir");
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(true);
+    expect(existsSync(root)).toBe(false);
+    expect(readFileSync(path.join(foreign, "retained.txt"), "utf8")).toBe("foreign");
+  });
+
+  it("rejects directory substitution even with a copied valid marker", async () => {
+    const { context, root } = await claimed();
+    const marker = readFileSync(path.join(root, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER));
+    renameSync(root, `${root}-original`);
+    mkdirSync(root);
+    writeFileSync(path.join(root, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER), marker);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+    expect(existsSync(root)).toBe(true);
+  });
+
+  it.each(["run", "parent"])("refuses a %s directory junction escape during cleanup", async (level) => {
+    const { context, root } = await claimed();
+    const foreign = makeKitDir(tracked);
+    writeFileSync(path.join(foreign, "retained.txt"), "foreign");
+    const replaced = level === "run" ? root : path.dirname(root);
+    renameSync(replaced, `${replaced}-original`);
+    symlinkSync(foreign, replaced, process.platform === "win32" ? "junction" : "dir");
+    try {
+      expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+      expect(readFileSync(path.join(foreign, "retained.txt"), "utf8")).toBe("foreign");
+    } finally { unlinkSync(replaced); }
+  });
+
+  it("rejects a junction in the runtime parent before claim without writing through it", async () => {
+    const context = invocation();
+    const foreign = makeKitDir(tracked);
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
+    const parent = path.dirname(root);
+    mkdirSync(path.dirname(parent), { recursive: true });
+    symlinkSync(foreign, parent, process.platform === "win32" ? "junction" : "dir");
+    try {
+      const run = await runExperiment({ pluginId: "incremental-change-staleness", toolRoot: context.toolRoot, writableWorkspaceRoot: context.writableWorkspaceRoot, runId: context.runId });
+      expect(run.status).toBe("failed");
+      expect(run.failures[0].message).toContain("Unverified runtime directory");
+      expect(readdirSync(foreign)).toEqual([]);
+    } finally { unlinkSync(parent); }
   });
 });

@@ -2,8 +2,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFil
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { runLabCli } from "../../src/cli/index.js";
+import { runExperimentRunCommandFromArgs } from "../../src/commands/runExperimentRunCommand.js";
+import { createLabExecutionContext } from "../../src/runtime/labExecutionContext.js";
+import { contextStrategyComparisonPlugin } from "../../src/experiments/plugins/contextStrategyComparison/index.js";
+import type { ExperimentExecutionContext, ExperimentPlugin } from "../../src/experiments/types.js";
 
 // ---------------------------------------------------------------------------
 // v0.4.6 Batch 4 -- installed-style `experiment run` output separation
@@ -14,7 +18,62 @@ import { runLabCli } from "../../src/cli/index.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+describe("experiment workspace context propagation", () => {
+  function probe() {
+    const contexts: ExperimentExecutionContext[] = [];
+    const plugin: ExperimentPlugin<Parameters<typeof contextStrategyComparisonPlugin.run>[0]["config"]> = contextStrategyComparisonPlugin;
+    vi.spyOn(plugin, "run").mockImplementation(async (context) => {
+      contexts.push(context);
+      return {
+        runId: context.runId, pluginId: "context-strategy-comparison",
+        startedAt: context.startedAt.toISOString(), completedAt: context.startedAt.toISOString(),
+        status: "completed", target: context.target, variants: [], cases: [], metrics: [],
+        artifacts: [], warnings: [], failures: [],
+        summary: { status: "completed", totalCases: 0, completedCases: 0, partialCases: 0,
+          failedCases: 0, skippedCases: 0, metrics: [], warnings: [], failures: [] }
+      };
+    });
+    return contexts;
+  }
+
+  function fixture() {
+    const root = mkdtempSync(path.join(os.tmpdir(), "workspace-propagation-"));
+    tempDirs.push(root);
+    return root;
+  }
+
+  it.each(["reports", "absolute"])("command keeps distinct package, workspace, invocation and %s output roots", async (out) => {
+    const root = fixture();
+    const context = createLabExecutionContext({ invocationCwd: root, workspaceRoot: path.join(root, "workspace") });
+    const outputRoot = path.join(root, "reports");
+    const contexts = probe();
+    expect(await runExperimentRunCommandFromArgs([...baseRunArgs(), "--out", out === "absolute" ? outputRoot : out], { context })).toBe(0);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].writableWorkspaceRoot).toBe(context.workspaceRoot);
+    expect(contexts[0].toolRoot).toBe(context.packageRoot);
+    expect(contexts[0].outputRoot).toBe(outputRoot);
+    expect(context.packageRoot).not.toBe(root);
+    expect(existsSync(context.workspaceRoot)).toBe(false);
+  });
+
+  it.each(["absolute", "relative", "default"])("CLI forwards the %s global workspace through the real command and runner", async (mode) => {
+    const root = fixture();
+    vi.spyOn(os, "homedir").mockReturnValue(root);
+    const expectedWorkspace = mode === "default" ? path.join(root, ".my-dev-kit-lab") : path.join(root, "workspace");
+    const workspaceArg = mode === "relative" ? path.relative(process.cwd(), expectedWorkspace) : expectedWorkspace;
+    const resolvedWorkspace = mode === "relative" ? path.resolve(process.cwd(), workspaceArg) : expectedWorkspace;
+    const contexts = probe();
+    const args = mode === "default" ? [] : ["--workspace", workspaceArg];
+    expect(await runLabCli([...args, "experiment", "run", ...baseRunArgs()])).toBe(0);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].writableWorkspaceRoot).toBe(resolvedWorkspace);
+    expect(contexts[0].toolRoot).toBe(createLabExecutionContext().packageRoot);
+    expect(path.relative(resolvedWorkspace, contexts[0].outputRoot!)).toMatch(/^lab-output/);
+  });
 });
 
 function makeTargetProject(name: string): string {

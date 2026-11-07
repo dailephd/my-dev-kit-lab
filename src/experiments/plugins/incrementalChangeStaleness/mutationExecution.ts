@@ -168,6 +168,8 @@ export async function executeIncrementalChangeStalenessMutation(
     const receipt = fileReceipts[index];
     const label = `${scenario.id}/${target.treatmentId}: ${planned.fileDeclaration.path}`;
     try {
+      // Recheck the disposable identity and ancestor chain immediately before each write.
+      await resolveWithinDisposableTarget(target, planned.fileDeclaration.path);
       await writeFile(planned.absolutePath, planned.mutatedBuffer);
     } catch (error) {
       receipt.error = `${label}: write failed: ${(error as Error).message}`;
