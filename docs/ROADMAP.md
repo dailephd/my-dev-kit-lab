@@ -1678,7 +1678,7 @@ Exclusions:
 
 ### v0.9.7 — installed incremental-experiment writable-root containment (urgent conditional patch)
 
-Status: **planned; not implemented; patch version provisional pending exact published-package reproduction, npm/tag availability, and release-policy verification**. The target is a separate narrow patch from the released v0.9.6 lineage, not a release action or a transfer of v0.10.0 scope.
+Status: **planned; not implemented; patch version provisional pending exact v0.9.6 installed-package reproduction, npm/tag availability, and release-policy verification**. The target is a separate narrow patch from the released v0.9.6 lineage, not a release action or a transfer of v0.10.0 scope.
 
 Purpose:
 
