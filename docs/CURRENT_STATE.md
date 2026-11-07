@@ -2,6 +2,16 @@
 
 This document records the repository's operational state. It is the source of truth for what is implemented, planned, blocked, validated, and next.
 
+## Urgent v0.9.7 conditional patch — Kit v1.15.0 readiness dependency (2026-11-07)
+
+- **Provisional version:** v0.9.7, planned; not implemented, release-prepared, or authorized for publication. The next separately planned feature milestone remains v0.10.0; its roadmap scope and local development state are not part of this patch.
+- **Reported blocker, not an accepted Lab repro:** the Kit v1.15.0 readiness handoff reports `BLOCKED_OUTPUT_PATH_CONTRACT` for the mandatory `incremental-change-staleness` experiment using the exact 0.9.6 installed Lab package, even with workspace/output inputs. It reports no confirmed Kit candidate defect; Kit candidate `9a2606c050eb2a8c3005d76471d0a40df05f4f5d` remains immutable and Kit readiness remains `BLOCKED`.
+- **Lab source witness:** tagged v0.9.6 `runExperimentRunCommand.ts` passes `context.packageRoot` as `toolRoot`, and `incrementalChangeStaleness/plugin.ts` creates its run-owned disposable root beneath `context.toolRoot`. `disposableTarget.ts` also requires containment beneath its `repoRoot`; persisted `--out` reports are a separate path. This identifies a plausible package-resource/write-root conflation, not proof of the exact installed failure.
+- **Required first action:** preserve existing branch/worktree/manifest state; obtain the native Kit report and attempted command if available, then reproduce the exact installed 0.9.6 behavior in a distinct planner-authorized Lab project-owned workspace, recording actual package/workspace/output/runtime paths, writes, exit and cleanup. If a compliant supported invocation exists or the defect does not reproduce, document that instead of editing or releasing a speculative patch.
+- **Conditional correction:** separate immutable `packageRoot`/`resourceRoot` for bundled benchmark reads from writable run-owned state under the authorized workspace; preserve `--workspace`/`--out` behavior, ownership-marker cleanup, symlink/reparse and traversal protection, scenario/treatment order, V1/V2 reports, target/fixture immutability, and other plugin contracts. See [ROADMAP.md](ROADMAP.md#v097--installed-incremental-experiment-writable-root-containment-urgent-conditional-patch), [ARCHITECTURE.md](ARCHITECTURE.md#planned-v097-incremental-experiment-writable-root-boundary), and [WORKFLOWS.md](WORKFLOWS.md#conditional-v097-installed-incremental-experiment-hotfix).
+- **Downstream gate:** validate a real packed installed consumer, full regression, security/cross-platform readiness and separate patch publication. Kit may retry the blocked experiment only with an independently validated, actually released fixed Lab package; all other Kit readiness items remain separate.
+- **Active work isolation:** the Kit report is local to `C:\Users\daile\Projects\my-dev-kit\reports\v1.15.0-pre-release-readiness.txt` and is not a GitHub artifact. The handoff reports a separate local Lab `feature/v0.10.0-kit-backed-source-audits` branch and an RSP-011 issue; verify its local identity and preserve it. Neither is evidence that the patch was implemented.
+
 - v0.6.3 readiness covered the exact candidate: GitHub Code Scanning recorded JavaScript/TypeScript and Actions analyses with zero results and zero open alerts; six-cell standard CI and three-OS latest-Node readiness completed successfully. Local optional scanner availability is recorded separately in the readiness evidence.
 
 ## Version and publication state
@@ -353,7 +363,7 @@ The v0.9.3 release includes the prompt/report/gallery scope; real-provider effec
 
 Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm publication) is established through the corresponding GitHub and npm records, not package metadata alone. Real-provider effectiveness remains NOT_VERIFIED and is not a release gate.
 
-Exact next action: enter the separate standardized GitHub release and final npm publication workflow after authorization. That workflow owns the push, release PR, merge, exact-main checks, tag, GitHub Release, and final npm publish step.
+Exact next action for the urgent maintenance dependency: reproduce the reported installed-package runtime-root violation from the exact 0.9.6 package, freeze the approved writable-path contract, and implement only a proven v0.9.7 correction. The separate documentation/release/readiness/publication workflows apply only after that correction is validated; do not restart the historical v0.9.6 publication or substitute Lab documentation for Kit readiness evidence.
 
 Historical v0.9.5 readiness and release-preparation evidence remains attached to its own source and package identities.
 
