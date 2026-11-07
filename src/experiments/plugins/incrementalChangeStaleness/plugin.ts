@@ -195,7 +195,10 @@ export async function cleanupIncrementalChangeStalenessRun(toolRoot: string, run
   runClaims.delete(context);
   if (claim.toolRoot !== path.resolve(toolRoot) || claim.runId !== runId) return false;
   if (typeof context.writableWorkspaceRoot !== "string" || path.resolve(context.writableWorkspaceRoot) !== claim.workspaceRoot) return false;
-  const runOwnedRoot = claim.root;
+  // Retain the authorized workspace spelling for lexical containment. On
+  // Windows realpath expands 8.3 names, while claim.root remains the separate
+  // canonical identity checked by isOwnedByRun.
+  const runOwnedRoot = resolveIncrementalChangeStalenessRunOwnedRoot(claim.workspaceRoot, claim.runId);
   if (!(await isOwnedByRun(runOwnedRoot, claim))) {
     return false;
   }

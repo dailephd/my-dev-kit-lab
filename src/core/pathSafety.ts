@@ -13,7 +13,11 @@ export async function verifyDirectoryWithinRoot(root: string, directory: string)
   for (const segment of ["", ...segments]) {
     current = path.join(current, segment);
     const info = await lstat(current);
-    if (info.isSymbolicLink() || !info.isDirectory()) {
+    // macOS exposes /var through the system /private/var alias. Accept only
+    // that exact system mapping; caller-controlled links still fail closed.
+    const systemVarAlias = process.platform === "darwin" && current === "/var" &&
+      info.isSymbolicLink() && await realpath(current) === "/private/var";
+    if (!systemVarAlias && (info.isSymbolicLink() || !info.isDirectory())) {
       throw new Error(`Unverified runtime directory: ${current}`);
     }
   }

@@ -92,7 +92,9 @@ describe("createDisposableTreatmentTarget", () => {
     const scenario = catalog.scenarios.find((entry) => entry.id === "L2")!;
     const baseCase = cases.find((entry) => entry.id === scenario.baseCaseId)!;
     const target = await createDisposableTreatmentTarget(options);
-    expect(path.relative(repoRoot, target.targetRoot)).toMatch(/^\.\./);
+    const relativeTarget = path.relative(repoRoot, target.targetRoot);
+    // Different Windows drives produce an absolute relative() result.
+    expect(path.isAbsolute(relativeTarget) || relativeTarget === ".." || relativeTarget.startsWith(`..${path.sep}`)).toBe(true);
     expect(existsSync(path.join(target.targetRoot, "README.md"))).toBe(true);
     expect(existsSync(path.join(target.targetRoot, "tests"))).toBe(true);
     const result = await executeIncrementalChangeStalenessMutation(scenario, target, baseCase.sourceRoots, repoRoot);
