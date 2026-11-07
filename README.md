@@ -12,6 +12,8 @@ v0.9.0 adds the `agent-success-rate` plugin, the eighth registered experiment pl
 
 v0.9.5 is the prior verified npm package baseline. The v0.9.6 release-document and package contract is final in this source; registry publication is established separately.
 
+**Urgent conditional patch:** v0.9.7 is proposed to correct a possible installed-package writable-root violation in the `incremental-change-staleness` experiment that blocks Kit v1.15.0 readiness under a strict output-containment policy. A static root-conflation path is identified in v0.9.6; the exact installed-package failure must be reproduced before implementation or release. No v0.9.7 code or release is claimed. See [ROADMAP.md](docs/ROADMAP.md#v097--installed-incremental-experiment-writable-root-containment-urgent-conditional-patch) and [CURRENT_STATE.md](docs/CURRENT_STATE.md#urgent-v097-conditional-patch--kit-v1150-readiness-dependency-2026-11-07).
+
 The v0.9.2 release corrected external npm package entrypoint validation, preserved strict Lab self-package validation, eliminated nine inherited false positives, corrected Semgrep failed/incomplete-scan evidence, and included campaign filesystem identity, path-safety, and cross-platform corrections. Security verdict strictness is unchanged. The v0.9.2 release-document state is final; actual npm publication is established separately through registry evidence.
 
 The v0.9.3 release adds configurable Codex/Claude prompt contracts, strict structured-diff output handling, generic report sections, HTML metric evidence and caveats, source-based gallery items including tutorial manifests, and prompt-template comparison. See [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for release and validation details.

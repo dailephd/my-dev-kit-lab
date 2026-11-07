@@ -16,7 +16,7 @@ flowchart LR
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2] --> V093[v0.9.3]
-  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
+  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V096[v0.9.6] --> V097[v0.9.7] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
   V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
   V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
@@ -1675,6 +1675,44 @@ Exclusions:
 
 * No Kit source changes, Kit candidate SHA change, automatic refresh policy, new public CLI flag, new metric, new report or experiment schema, real-provider requirement, deferred v0.10.0 scope, or Kit v1.15.0 scope. This patch does not redesign Kit artifacts or Kit's future retrieval API.
 * No automatic release preparation or publication. v0.10.0 and later roadmap sections remain separately planned, unchanged in meaning and order.
+
+### v0.9.7 — installed incremental-experiment writable-root containment (urgent conditional patch)
+
+Status: **planned; not implemented; patch version provisional pending exact v0.9.6 installed-package reproduction, npm/tag availability, and release-policy verification**. The target is a separate narrow patch from the released v0.9.6 lineage, not a release action or a transfer of v0.10.0 scope.
+
+Purpose:
+
+* Unblock my-dev-kit v1.15.0 pre-release readiness when its mandatory `incremental-change-staleness` validation requires a **published** Lab whose disposable experiment writes remain inside an explicitly authorized writable workspace. The Kit candidate `9a2606c050eb2a8c3005d76471d0a40df05f4f5d` must remain immutable.
+* Correct a suspected installed-package resource-versus-runtime-root confusion without changing the experiment's scientific method, report contract, default supported target, or other plugins' behavior.
+
+Current evidence and verification gate (2026-11-07):
+
+* The Kit-side handoff reports `BLOCKED_OUTPUT_PATH_CONTRACT`, not a proven Kit regression or a completed Lab experiment. The attempted Kit validation used published `@dailephd/my-dev-kit-lab@0.9.6` and found that mutable experiment state was directed beneath the installed Lab package despite explicit writable output/workspace inputs. The exact command, resolved destinations, and native logs remain in Kit-local `reports/v1.15.0-pre-release-readiness.txt` and its project-contained readiness task root; these files are **not** available merely because the GitHub repository is available.
+* The tagged Lab v0.9.6 source contains a plausible independent cause: `src/commands/runExperimentRunCommand.ts` supplies `context.packageRoot` as `toolRoot`; `src/experiments/plugins/incrementalChangeStaleness/plugin.ts` derives the run-owned disposable root from `context.toolRoot`; `disposableTarget.ts` constrains that writable root under its `repoRoot`; report output is resolved separately. Static source inspection alone is not accepted reproduction.
+* Before changing production behavior or bumping a version, reproduce using a clean, exact, installed `0.9.6` tarball within an authorized project-owned disposable workspace. Capture command/arguments, invocation directory, installed-package identity, `--workspace` and `--out` resolution, package/resource/workspace/report/runtime roots, attempted and created paths, process exit and cleanup. Verify whether an actually supported published invocation can satisfy containment; if so, document that route and do not ship a speculative patch. Check exact npm registry and GitHub tag availability before assigning v0.9.7 permanently.
+
+Frozen correction boundaries if reproduced:
+
+* **Immutable resources:** retain `packageRoot`/`resourceRoot` only for bundled benchmark catalog, benchmark project/profile and fixture reads. No default experiment writes, markers, indexes, disposable copies, logs, or runtime output may go beneath installed package resources.
+* **Writable ownership:** derive the internal run-owned runtime directory from the caller-authorized `workspaceRoot` or an explicitly contracted, equally contained runtime root. Keep `--workspace` precedence and the existing `--out` path-resolution/default semantics unchanged: `--out` chooses persisted report artifacts, not implicitly all private temporary writes.
+* **End-to-end path model:** fix both producer and consumer of root identities across `src/runtime/labExecutionContext.ts`, `src/commands/runExperimentRunCommand.ts`, `src/experiments/runner.ts`, `src/experiments/plugins/incrementalChangeStaleness/plugin.ts`, `disposableTarget.ts`, `lifecycle.ts`, and `lifecycleV2.ts` only where verified necessary. Reuse the existing runner, process, workspace and report owners; no parallel run engine, secondary workspace, or package-relative scratch fallback. The planner must freeze exact output/path placement and artifact-retention rules against the repository manifest before implementation.
+* **Safety:** preserve run ownership markers, collision refusal, real-path/symlink/reparse/path-traversal guards, canonical benchmark immutability, failure before unsafe writes, and cleanup limited to state owned by the exact current run. Never auto-delete old failed-run evidence.
+* **Scientific compatibility:** retain U1, L2, E1, P1, I1, T1 in existing scenario order, and `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, `full-refresh` in treatment order. Preserve real requested-versus-applied refresh outcomes (including `FALLBACK_FULL`), the original comparison rules, metrics, and V1/V2 artifact/report compatibility.
+* **Isolation:** no edits to the Kit candidate or its readiness records, no unrelated Lab v0.10.0 features or branch artifacts, no new public command/flag/schema by default, and no regression to other installed experiment commands.
+
+Acceptance:
+
+* Exact `0.9.6` installed-package reproduction, with path/process evidence or a documented negative reproduction that terminates the patch.
+* A read-only installed package plus a separate writable, explicitly authorized workspace and output directory runs the **actual** incremental experiment, produces the expected V2 execution artifact and JSON/text/HTML reports, and writes no mutable state to package resources or target/canonical fixtures.
+* Positive and negative path cases cover distinct package and workspace roots, relative/absolute `--workspace` and `--out`, invocation outside checkout, Windows paths with spaces, invalid/unwritable workspace, traversal and symlink/reparse escape, existing-run collision, interrupted runs, ownership-verified cleanup, and immutable package/fixture hashes.
+* Focused plugin, command, disposable-target/lifecycle and clean installed-consumer tests pass; then full Lab regression, typecheck, build, documentation-preservation checks, canonical `verify`, packed-package acceptance, and applicable security/cross-platform exact-candidate gates pass. Record exact commands, exits and skips; a source-only mocked pass is insufficient.
+* When the patch is accepted, reconcile current/planned docs and run separate pre-release readiness, release preparation, and expressly authorized publication. Only an **actually published and independently validated** fixed Lab version may be pinned by Kit to retry the blocked experiment. The Kit readiness verdict remains `BLOCKED` until its own independent gate matrix passes.
+
+Dependencies and ordering:
+
+* This is an urgent patch candidate between v0.9.6 and the existing v0.10.0 feature milestone. Preserve the independently active `feature/v0.10.0-kit-backed-source-audits` branch and its reported RSP-011 issue; neither is part of the v0.9.7 defect or justification for reopening completed Kit work.
+* Once a correction is accepted, carry the same root-containment behavior forward to v0.10.0 without merging unfinished v0.10.0 code into the patch branch. Existing `LAB-KIT-01` / `LAB-EVIDENCE-01` planning and v0.11.0+ assignments are unchanged.
+* Other Kit v1.15.0 readiness questions—historical hash proof, lower-severity exceptions, dependencies, warm-index limits, and hosted CI/CodeQL—remain separate; the Lab patch does not certify them.
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 
