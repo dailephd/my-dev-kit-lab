@@ -279,6 +279,8 @@ Behavior:
 my-dev-kit-lab experiment run --experiment incremental-change-staleness --case U1,L2 --kit-command "node /path/to/my-dev-kit/dist/cli.js" --out <dir>
 ```
 
+**Installed-package writable-root caveat (v0.9.6; v0.9.7 patch under investigation):** the shipped `--out` option controls persisted experiment/report output, not all plugin-internal disposable state. Tagged v0.9.6 source derives this plugin's internal run directory from `toolRoot`, which the installed command receives from `packageRoot`; the separate `--workspace` contract does not by itself establish containment for that directory. A Kit v1.15.0 readiness handoff reports `BLOCKED_OUTPUT_PATH_CONTRACT` in this path, but exact installed-tarball reproduction and path evidence are still required. Do not assert that an explicit `--out` alone makes v0.9.6 safe for strict immutable-package execution, or invent a `--runtime-root` flag. The conditional corrective contract is in [ROADMAP.md](ROADMAP.md#v097--installed-incremental-experiment-writable-root-containment-urgent-conditional-patch) and [ARCHITECTURE.md](ARCHITECTURE.md#planned-v097-incremental-experiment-writable-root-boundary). Current CLI syntax and valid treatment/report behavior are unchanged.
+
 See [METRICS.md](METRICS.md#incremental-change-and-staleness-evidence-v062) (and its partial-refresh subsection) and [WORKFLOWS.md](WORKFLOWS.md#incremental-change-and-staleness-experiment-v062).
 
 #### Schema-3 compatibility and package-validation scripts (v0.9.4)
