@@ -99,24 +99,64 @@ const transitionalReleaseWording = /\b(?:not\s+(?:yet\s+)?released|unreleased|un
 // a new sentence or version starts a separate claim. Link destinations are not prose.
 function versionClaims(body) {
   const claims = [];
+  const publicationModifier = /\b(?:(?:not|never)\s+(?:yet\s+)?(?:(?:been|be)\s+)?)?(?:published|unpublished|unreleased|pending\s+publication|publication\s+(?:is\s+)?pending)\s*(?:for\s*)?:?\s*$/i;
   for (const line of body.split(/\r?\n/)) {
-    const visible = line.replace(/!?\[([^\]]*)\]\([^)]+\)/g, "$1");
+    let visible = line.replace(/!?\[([^\]]*)\]\([^)]+\)/g, "$1");
+    // Formatting does not change a visible version subject or its predicate.
+    for (let pass = 0; pass < 3; pass++) {
+      visible = visible.replace(/(\x60+|\*{1,2}|_{1,2})(.*?)\1/g, "$2");
+    }
     for (const sentence of visible.split(/(?<=[.!?])\s+/)) {
-      let subject = "";
-      for (const clause of sentence.split(/[;,]/)) {
-        const mentions = [...clause.matchAll(/\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/g)];
+      let subjects = [];
+      let pendingSubjects = [];
+      const clauses = sentence.split(/([;,])/);
+      for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 2) {
+        const clause = clauses[clauseIndex];
+        if (clauses[clauseIndex - 1] === ";") pendingSubjects = [];
+        const mentions = [...clause.matchAll(/\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/g)].map((match) => {
+          const modifier = publicationModifier.exec(clause.slice(0, match.index));
+          return { version: match[1], start: modifier?.index ?? match.index,
+            tokenStart: match.index, end: match.index + match[0].length };
+        });
         if (!mentions.length) {
-          if (subject) claims.push({ version: subject, window: clause });
+          for (const version of new Set([...pendingSubjects, ...subjects])) {
+            claims.push({ version, window: clause });
+          }
+          pendingSubjects = [];
           continue;
         }
-        mentions.forEach((mention, index) => {
-          const prefix = clause.slice(0, mention.index);
-          const publicationPrefix = /\b(?:(?:not|never)\s+(?:yet\s+)?(?:(?:been|be)\s+)?)?(?:published|unpublished|unreleased|pending\s+publication|publication\s+(?:is\s+)?pending)\s*(?:for\s*)?:?\s*$/i.exec(prefix);
-          const start = index === 0 && publicationPrefix ? publicationPrefix.index : mention.index;
-          const end = mentions[index + 1]?.index ?? clause.length;
-          claims.push({ version: mention[1], window: clause.slice(start, end) });
-        });
-        subject = mentions[mentions.length - 1][1];
+        const prefix = clause.slice(0, mentions[0].start);
+        if (!/^\s*(?:and\s*|&\s*)?$/i.test(prefix)) pendingSubjects = [];
+        let group = [];
+        for (let index = 0; index < mentions.length; index++) {
+          const mention = mentions[index];
+          const next = mentions[index + 1];
+          // A modifier immediately before the next version belongs to that
+          // version, so adjacent claim spans never overlap it.
+          const window = clause.slice(mention.start, next?.start ?? clause.length);
+          claims.push({ version: mention.version, window });
+          group.push(mention);
+          const coordinated = next && /^\s*(?:and|&)\s*$/i.test(clause.slice(mention.end, next.start));
+          if (coordinated) continue;
+          const suffix = clause.slice(mention.end, next?.start ?? clause.length);
+          const sharedPrefix = clause.slice(group[0].start, group[0].tokenStart);
+          // Only a bare coordinated subject shares its following predicate.
+          // Each version keeps its own pre-version modifier.
+          for (const member of group.slice(0, -1)) {
+            claims.push({ version: member.version, window: suffix });
+          }
+          for (const member of group.slice(1)) {
+            if (sharedPrefix) claims.push({ version: member.version, window: sharedPrefix });
+          }
+          if (group[0] === mentions[0]) {
+            for (const version of pendingSubjects) claims.push({ version, window: suffix });
+          }
+          subjects = group.map((member) => member.version);
+          const bare = !next && /^\s*$/.test(suffix)
+            && /^\s*(?:(?:the|both|versions?|releases?|packages?)\s+)*$/i.test(prefix);
+          pendingSubjects = bare ? [...pendingSubjects, ...subjects] : [];
+          group = [];
+        }
       }
     }
   }

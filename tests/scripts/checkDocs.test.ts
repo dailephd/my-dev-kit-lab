@@ -756,3 +756,53 @@ describe("distinct published and prepared release lifecycle", () => {
     (run) => expect(run()).toContain("passed"),
   ));
 });
+
+describe("version-scoped publication predicates", () => {
+  const p = "v" + releaseFixtureVersions.prepared;
+  const h = "v" + releaseFixtureVersions.published;
+  const f = "v" + releaseFixtureVersions.planned;
+  const append = (line: string, published = false) => (root: string) => {
+    setPreparedReleaseFixture(root, published);
+    edit(root, "README.md", (body) => body + "\n" + line + "\n");
+  };
+  it.each([
+    ["A exact retained draft sentence", "The " + p + " contract is distinct from the previous published " + h + " runtime."],
+    ["B preceding historical modifier", p + " follows the previously published " + h + " release."],
+    ["C historical relative predicate", p + " is compatible with " + h + ", which was published."],
+    ["E historical predicate", h + " was published, while " + p + " is the prepared release."],
+    ["J two sentences", h + " was published. " + p + " has final release documents."],
+    ["K semicolon", h + " was published; " + p + " has final release documents."],
+    ["K comma", h + " was published, whereas " + p + " has final release documents."],
+    ["L planned", f + " remains planned and is not published."],
+    ["comma modifier belongs to following version", p + ", published " + h + " remains historical."],
+    ["modifier scoped to later coordinated version", p + " and published " + h + " are compatible."],
+    ["Markdown emphasis and code", "The **" + p + "** contract follows the previously **published** \x60" + h + "\x60 runtime."],
+    ["Markdown link labels", "[" + p + "](https://example.test/published) follows the published [" + h + "](https://example.test/current)."],
+  ])("accepts %s", (_name, line) => withDocs(append(line),
+    (run) => expect(run()).toContain("passed")));
+  it.each([
+    ["D false prepared predicate", p + " is published, whereas " + h + " is historical.", p + " publication claim"],
+    ["F historical negation", h + " was not published, while " + p + " is prepared.", h + " publication claim"],
+    ["G transitional negation", p + " is not yet published; " + h + " was published.", p + " final release-document wording"],
+    ["H preceding prepared modifier", "The published " + p + " package replaces " + h + ".", p + " publication claim"],
+    ["I coordinated shared predicate", p + " and " + h + " are published.", p + " publication claim"],
+    ["I reversed coordinated subjects", h + " and " + p + " are published.", p + " publication claim"],
+    ["I comma subject list", p + ", " + h + " are published.", p + " publication claim"],
+    ["I comma-list relative predicate", p + ", " + h + ", which were published.", p + " publication claim"],
+    ["I shared preceding modifier", "The published " + h + " and " + p + " packages are compatible.", p + " publication claim"],
+    ["I shared negation", h + " and " + p + " were not published.", h + " publication claim"],
+    ["J false second sentence", h + " was published. " + p + " is published.", p + " publication claim"],
+    ["K false semicolon clause", h + " was published; " + p + " is published.", p + " publication claim"],
+    ["K false comma clause", h + " was published, whereas " + p + " is published.", p + " publication claim"],
+    ["L false future publication", f + " is published.", f + " publication claim"],
+    ["formatted prepared modifier", "The **published** **" + p + "** package replaces " + h + ".", p + " publication claim"],
+    ["link-label false claim", "[" + p + "](https://example.test/neutral) is published.", p + " publication claim"],
+  ])("rejects %s", (_name, line, diagnostic) => expectFailure(append(line), diagnostic));
+  it("M accepts verified post-publication wording", () => withDocs(
+    append(p + " was published; " + f + " remains planned.", true),
+    (run) => expect(run()).toContain("passed"),
+  ));
+  it("M rejects false post-publication negation", () => expectFailure(
+    append(p + " was not published; " + f + " remains planned.", true), p + " publication claim",
+  ));
+});
