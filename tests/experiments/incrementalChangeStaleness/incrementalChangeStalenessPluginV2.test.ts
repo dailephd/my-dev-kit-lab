@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runExperimentDescribeCommandFromArgs } from "../../../src/commands/runExperimentDescribeCommand.js";
 import { renderExperimentRunHelp } from "../../../src/cli/help.js";
 import { runExperiment } from "../../../src/experiments/index.js";
@@ -8,11 +8,13 @@ import { makeKitDir, makeRunOwnedRoot, readIndexArgsLog, repoRoot, writeIncremen
 
 const tracked: string[] = [];
 const runIds: string[] = [];
+let workspaceRoot: string;
+beforeEach(() => { workspaceRoot = makeRunOwnedRoot(tracked, "ics-v2-workspace-"); });
 afterEach(async () => {
   vi.restoreAllMocks();
   await Promise.all(tracked.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   for (const runId of runIds.splice(0)) {
-    await rm(resolveIncrementalChangeStalenessRunOwnedRoot(repoRoot, runId), { recursive: true, force: true });
+    await rm(resolveIncrementalChangeStalenessRunOwnedRoot(workspaceRoot, runId), { recursive: true, force: true });
   }
   expectCanonicalFilesUnchanged();
   expectNoIndexOutputInCanonicalProjects();
@@ -29,6 +31,7 @@ async function runPlugin(kitOptions: IncrementalFakeKitOptions, caseIds = ["U1"]
     outputRoot: makeRunOwnedRoot(tracked, "ics-b4-out-"),
     config: { caseIds, kitCommand: kit.command },
     toolRoot: repoRoot,
+    writableWorkspaceRoot: workspaceRoot,
     runId
   });
   return { run, kit };
@@ -187,6 +190,7 @@ describe("public command surface", () => {
       outputRoot: makeRunOwnedRoot(tracked, "ics-b4-out-"),
       config: { caseIds: ["U1"] },
       toolRoot: repoRoot,
+    writableWorkspaceRoot: workspaceRoot,
       runId
     });
     expect(run.status).toBe("failed");

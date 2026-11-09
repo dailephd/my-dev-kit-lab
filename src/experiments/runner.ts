@@ -21,6 +21,8 @@ export type RunExperimentOptions = {
   config?: unknown;
   reportPrefix?: string;
   toolRoot?: string;
+  /** Caller-authorized absolute workspace; never inferred from tool or output roots. */
+  writableWorkspaceRoot?: string;
   runId?: string;
   startedAt?: Date;
   inputs?: Record<string, unknown>;
@@ -29,6 +31,11 @@ export type RunExperimentOptions = {
 };
 
 export async function runExperiment(options: RunExperimentOptions): Promise<ExperimentRun> {
+  if (options.writableWorkspaceRoot !== undefined &&
+      (typeof options.writableWorkspaceRoot !== "string" ||
+       !path.isAbsolute(options.writableWorkspaceRoot) || options.writableWorkspaceRoot.includes("\0"))) {
+    throw new Error("writableWorkspaceRoot must be an absolute workspace path.");
+  }
   const toolRoot = path.resolve(options.toolRoot ?? process.cwd());
   const registry = options.registry ?? createDefaultExperimentPluginRegistry();
   const plugin = registry.get(options.pluginId);
@@ -60,6 +67,7 @@ export async function runExperiment(options: RunExperimentOptions): Promise<Expe
     toolRoot,
     target,
     outputRoot,
+    writableWorkspaceRoot: options.writableWorkspaceRoot,
     config: withOutputRoot(validation.config, outputRoot),
     inputs: options.inputs,
     logger: options.logger,
@@ -98,6 +106,7 @@ function buildExperimentContext<TConfig>(args: {
   pluginId: string;
   pluginSchemaVersion: string;
   toolRoot: string;
+  writableWorkspaceRoot?: string;
   target: ExperimentTarget;
   outputRoot: string;
   config: TConfig;
@@ -110,6 +119,7 @@ function buildExperimentContext<TConfig>(args: {
     pluginId: args.pluginId,
     pluginSchemaVersion: args.pluginSchemaVersion,
     toolRoot: args.toolRoot,
+    writableWorkspaceRoot: args.writableWorkspaceRoot,
     targetRoot: args.target.targetRoot,
     isSelfTarget: args.target.isSelf,
     target: args.target,

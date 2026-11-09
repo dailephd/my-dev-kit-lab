@@ -7,6 +7,9 @@ import { prepareWarmIndexSession } from "../warmIndexReuse/warmIndexSession.js";
 import type { MyDevKitIndexBuildMode, MyDevKitIndexBuildResult } from "../../../evaluation/types.js";
 import {
   createDisposableTreatmentTarget,
+  ensureRuntimeDirectory,
+  verifyRuntimeDirectory,
+  verifyDisposableTreatmentTarget,
   type DisposableTreatmentTargetV1,
   type IncrementalChangeStalenessTreatmentId,
   type IncrementalChangeStalenessV2TreatmentId
@@ -63,7 +66,7 @@ export const defaultIncrementalChangeStalenessLifecycleDeps: IncrementalChangeSt
 };
 
 export type PrepareIncrementalChangeStalenessScenarioLifecycleOptions = {
-  /** Repository root owning the canonical benchmarks; the run-owned root must resolve inside it. */
+  /** Immutable resource root owning the canonical benchmarks. */
   repoRoot: string;
   /** Absolute run-owned runtime root; every target, index, and command log of this run lives under it. */
   runOwnedRoot: string;
@@ -127,6 +130,10 @@ export async function prepareTreatmentIndexEvidence(params: {
   onIndexPrepared?: () => void;
 }): Promise<{ evidence: IncrementalChangeStalenessIndexEvidenceV1<IncrementalChangeStalenessV2TreatmentId>; build: MyDevKitIndexBuildResult }> {
   const { deps, target, role, indexDir, sourceRoots } = params;
+  resolveWithinRoot(params.runOwnedRoot, indexDir);
+  await verifyDisposableTreatmentTarget(target);
+  await ensureRuntimeDirectory(params.runOwnedRoot, path.dirname(indexDir));
+  if (params.existingIndexDir) await verifyRuntimeDirectory(indexDir);
   const treatmentId = target.treatmentId;
   if (params.existingIndexDir ? !existsSync(indexDir) : existsSync(indexDir)) {
     fail({
@@ -138,6 +145,7 @@ export async function prepareTreatmentIndexEvidence(params: {
     });
   }
   const commandsDir = incrementalChangeStalenessCommandsDir(params.runOwnedRoot, params.scenarioId, treatmentId, role);
+  await ensureRuntimeDirectory(params.runOwnedRoot, commandsDir);
   const prepared = await deps.prepareIndexSession({
     target: { absoluteTargetRoot: target.targetRoot, sourceRoots: [...sourceRoots] },
     kitCommand: params.kitCommand,
@@ -273,6 +281,7 @@ export async function prepareIncrementalChangeStalenessScenarioLifecycle(
       try {
         targets[treatmentId] = await createDisposableTreatmentTarget({
           repoRoot,
+          runtimeBoundary: runOwnedRoot,
           runRoot: incrementalChangeStalenessTargetsRoot(runOwnedRoot),
           scenarioId: scenario.id,
           treatmentId,

@@ -17,6 +17,28 @@ import {
 
 type Json = Record<string, any>;
 
+describe("installed incremental runtime log containment", () => {
+  it("accepts nested workspace logs and rejects escapes, relative paths, and absent evidence", () => {
+    const script = `
+      import path from 'node:path';
+      const { validateIncrementalRuntimeLogPaths: validate } = await import(${JSON.stringify(pathToFileURL(path.resolve("scripts/verify-packed-package.mjs")).href)});
+      const root = path.resolve('runtime fixture with spaces', 'owned-run');
+      const logs = file => ({ scenarios: [{ treatments: [{ commands: [{ stdoutPath: file }] }] }] });
+      const results = [
+        validate(logs(path.join(root, 'commands', 'stdout.txt')), root),
+        validate(logs(path.resolve(root, '..', 'foreign', 'stdout.txt')), root),
+        validate(logs(path.join(root + '-sibling', 'stdout.txt')), root),
+        validate(logs('relative.txt'), root),
+        validate({}, root)
+      ];
+      console.log(JSON.stringify(results.map(problems => problems.length)));
+    `;
+    const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script], { encoding: "utf8", windowsHide: true });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual([0, 1, 1, 1, 1]);
+  });
+});
+
 const INTENTS: Record<string, string> = {
   "stale-index": "no-refresh-reference",
   "changed-files-refresh": "changed-files-partial-refresh",
@@ -287,6 +309,25 @@ describe("evaluateIncrementalChangeStalenessV2Acceptance", () => {
       (entry) => entry.scenarioId === "U1" && entry.treatmentId === "affected-neighborhood-refresh"
     );
     expect(row?.forcedNeighborReanalysisFileCount).toBeNull();
+  });
+
+  // These are explicit pure-helper inputs, never observations from a real Kit run.
+  it.each([-1, 1.5, "2", undefined, Number.NaN])("rejects invalid forced-neighbor count %s", (count) => {
+    const value = structuredClone(artifact(withForcedNeighbor));
+    value.scenarios[2].treatments[2].refreshExecution.incrementalRefresh.forcedNeighborReanalysisFileCount = count;
+    const result = evaluateIncrementalChangeStalenessV2Acceptance(value);
+    expect(result.verdict).toBe("BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH");
+    expect(result.contractProblems.join("\n")).toContain("forcedNeighborReanalysisFileCount is unavailable or not a non-negative integer");
+  });
+
+  it("rejects swapped changed-files and affected-neighborhood evidence", () => {
+    const value = artifact(withForcedNeighbor);
+    const treatments = value.scenarios[2].treatments;
+    [treatments[1].refreshExecution, treatments[2].refreshExecution] = [treatments[2].refreshExecution, treatments[1].refreshExecution];
+    const result = evaluateIncrementalChangeStalenessV2Acceptance(value);
+    expect(result.verdict).toBe("BLOCKED_CHANGED_FILES_PARTIAL_NOT_REALIZED");
+    expect(result.changedFilesRealizationProblems.join("\n")).toContain("upstream requestedScope");
+    expect(result.affectedRealizationProblems.join("\n")).toContain("upstream requestedScope");
   });
 
   it("bounds the forced-neighbor sample: cap, count, and nonempty when the count is positive", () => {

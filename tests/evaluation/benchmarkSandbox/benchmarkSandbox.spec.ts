@@ -39,18 +39,53 @@ async function makeLink(target: string, linkPath: string): Promise<void> {
   await symlink(target, linkPath, process.platform === "win32" ? "junction" : "dir");
 }
 
+function deepRuntimeRoot(parent: string, targetLength: number): string {
+  let root = path.join(parent, "path with spaces");
+  if (root.length > targetLength) throw new Error("Deep-path fixture parent exceeds its target length");
+  while (root.length < targetLength) {
+    const remaining = targetLength - root.length;
+    if (remaining === 1) { root += "x"; break; }
+    const length = Math.min(40, remaining - 1);
+    const label = "nested path with spaces-";
+    const component = length >= label.length
+      ? label + "x".repeat(length - label.length)
+      : "x".repeat(length);
+    root = path.join(root, component);
+  }
+  return root;
+}
+
+function expectSafeFixtureComponents(parent: string, root: string): void {
+  const relative = path.relative(parent, root);
+  expect(path.isAbsolute(relative)).toBe(false);
+  for (const component of relative.split(path.sep)) {
+    expect(component.length).toBeGreaterThan(0);
+    expect(component.length).toBeLessThanOrEqual(255);
+    expect([".", ".."]).not.toContain(component);
+    expect(component).not.toMatch(/[ .]$/);
+    expect(component).not.toMatch(/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i);
+  }
+}
+
 describe("benchmark sandbox creation", () => {
+  it.each([7, 12, 24, 40, 41])("constructs safe components with a %i-character final remainder", (remainder) => {
+    const parent = path.resolve("fixture parent with spaces");
+    const targetLength = path.join(parent, "path with spaces").length + 1 + remainder;
+    const root = deepRuntimeRoot(parent, targetLength);
+    expect(root.length).toBe(targetLength);
+    expect(root).toContain("path with spaces");
+    expectSafeFixtureComponents(parent, root);
+  });
+
   it("applies command-local long-path support before initialization in a supported deep path with spaces", async () => {
     const canonical = makeCanonicalFixture();
     const before = await snapshotProjectTree(canonical, SNAPSHOT_ALL);
     const parent = makeTempDir("lab-long-init-");
     const sandboxId = "long-init";
-    let runtimeRoot = path.join(parent, "path with spaces");
     const runtimeLength = 240 - path.join(sandboxId, "project").length - 1;
-    while (runtimeRoot.length < runtimeLength) {
-      if (runtimeRoot.length + 1 === runtimeLength) { runtimeRoot += "x"; break; }
-      runtimeRoot = path.join(runtimeRoot, "nested path with spaces-xxxxxxxxxxxxxxxx".slice(0, Math.min(40, runtimeLength - runtimeRoot.length - 1)));
-    }
+    const runtimeRoot = deepRuntimeRoot(parent, runtimeLength);
+    expectSafeFixtureComponents(parent, runtimeRoot);
+    expect(runtimeRoot).toContain("path with spaces");
     const sibling = path.join(parent, "keep.txt");
     writeFileSync(sibling, "unrelated content\n");
     const sandbox = await makeSandbox(canonical, sandboxId, runtimeRoot);

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { cp, realpath, rm } from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, realpath, rm } from "node:fs/promises";
 import path from "node:path";
-import { resolveWithinRoot } from "../../../core/pathSafety.js";
+import { resolveWithinRoot, verifyDirectoryWithinRoot } from "../../../core/pathSafety.js";
 
 /**
  * The two primary v0.6.2 treatment identities, already frozen by the planned
@@ -35,11 +35,9 @@ export type IncrementalChangeStalenessV2TreatmentIntent =
   (typeof INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_INTENTS)[IncrementalChangeStalenessV2TreatmentId];
 
 /**
- * Default project-relative, gitignored runtime location for disposable
- * treatment targets. Callers may pass a different `runRoot`, but it must
- * still resolve inside `repoRoot` (see `createDisposableTreatmentTarget`).
+ * Workspace-relative runtime location; never relative to package resources.
  */
-export const DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE = ".my-dev-kit-context/runtime/incremental-change-staleness";
+export const DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE = "runtime/incremental-change-staleness";
 
 /** Defaults to the released v0.6.2 treatment set; the v0.6.3 lifecycle widens it to the four-treatment set. */
 export type DisposableTreatmentTargetV1<T extends IncrementalChangeStalenessV2TreatmentId = IncrementalChangeStalenessTreatmentId> = {
@@ -53,8 +51,11 @@ export type DisposableTreatmentTargetV1<T extends IncrementalChangeStalenessV2Tr
 };
 
 export type CreateDisposableTreatmentTargetOptions<T extends IncrementalChangeStalenessV2TreatmentId = IncrementalChangeStalenessTreatmentId> = {
-  /** Repository root; both `runRoot` and the canonical project root must resolve inside it. */
+  /** Immutable resource root owning canonical benchmarks. */
   repoRoot: string;
+  /** Separate caller-owned boundary. Legacy direct helpers retain repository containment when omitted;
+   * both production lifecycles explicitly provide their run-owned root. */
+  runtimeBoundary?: string;
   /** Absolute runtime root the caller owns (e.g. a temp dir in tests, or the default runtime root in normal use). */
   runRoot: string;
   scenarioId: string;
@@ -64,18 +65,67 @@ export type CreateDisposableTreatmentTargetOptions<T extends IncrementalChangeSt
   canonicalProjectRootRelative: string;
 };
 
-function assertSafeRuntimeBoundary(repoRoot: string, runRoot: string): string {
-  // runRoot itself must live inside the repository; this also rejects a
-  // caller-supplied runRoot that points outside the my-dev-kit-lab worktree.
-  return resolveWithinRoot(repoRoot, path.resolve(runRoot));
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+}
+
+/** A checkout may use its established generated directories; an installed package may not. */
+export function assertIncrementalRuntimeLocation(sourceRoot: string, directory: string): void {
+  const source = path.resolve(sourceRoot);
+  const destination = path.resolve(directory);
+  if (isWithin(source, destination)) {
+    const first = path.relative(source, destination).split(path.sep)[0];
+    const installed = source.split(path.sep).some((part) => part.toLowerCase() === "node_modules");
+    if (installed || !existsSync(path.join(source, ".git")) ||
+        ![".my-dev-kit-context", ".my-dev-kit-workflow", "lab-output", "reports", "tmp", "temp"].includes(first)) {
+      throw new Error("Runtime workspace unsafely overlaps immutable package or canonical benchmark resources.");
+    }
+  } else if (isWithin(destination, source)) {
+    throw new Error("Runtime workspace unsafely overlaps immutable package resources.");
+  }
+}
+
+export function assertAbsoluteRuntimePath(value: unknown): asserts value is string {
+  if (typeof value !== "string" || !path.isAbsolute(value) || value.includes("\0") || path.resolve(value) !== path.normalize(value)) {
+    throw new Error("Incremental runtime requires an absolute writableWorkspaceRoot.");
+  }
+}
+
+/** Verify the complete existing ancestor chain, including ancestors of the authorized boundary. */
+export async function verifyRuntimeDirectory(directory: string): Promise<string> {
+  assertAbsoluteRuntimePath(directory);
+  return verifyDirectoryWithinRoot(path.parse(directory).root, directory);
+}
+
+/** Create one component at a time, checking before descending; never mkdir through a junction. */
+export async function ensureRuntimeDirectory(boundary: string, directory: string): Promise<string> {
+  assertAbsoluteRuntimePath(boundary);
+  const destination = resolveWithinRoot(boundary, directory);
+  let current = path.parse(destination).root;
+  for (const segment of path.relative(current, destination).split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    try { await lstat(current); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      try { await mkdir(current); }
+      catch (createError) { if ((createError as NodeJS.ErrnoException).code !== "EEXIST") throw createError; }
+    }
+    await verifyRuntimeDirectory(current);
+  }
+  return verifyRuntimeDirectory(destination);
+}
+
+function assertSafeRuntimeBoundary(repoRoot: string, runRoot: string, runtimeBoundary = repoRoot): string {
+  assertAbsoluteRuntimePath(runtimeBoundary);
+  assertAbsoluteRuntimePath(runRoot);
+  const resolved = resolveWithinRoot(runtimeBoundary, runRoot);
+  assertIncrementalRuntimeLocation(repoRoot, resolved);
+  return resolved;
 }
 
 function assertDisposableRootDoesNotOverlapCanonical(targetRoot: string, canonicalProjectRoot: string): void {
-  const relativeFromCanonical = path.relative(canonicalProjectRoot, targetRoot);
-  const targetIsInsideCanonical = relativeFromCanonical !== "" && !relativeFromCanonical.startsWith("..") && !path.isAbsolute(relativeFromCanonical);
-  const relativeFromTarget = path.relative(targetRoot, canonicalProjectRoot);
-  const canonicalIsInsideTarget = relativeFromTarget !== "" && !relativeFromTarget.startsWith("..") && !path.isAbsolute(relativeFromTarget);
-  if (targetRoot === canonicalProjectRoot || targetIsInsideCanonical || canonicalIsInsideTarget) {
+  if (isWithin(canonicalProjectRoot, targetRoot) || isWithin(targetRoot, canonicalProjectRoot)) {
     throw new Error(`Disposable treatment target root ${targetRoot} unsafely overlaps the canonical benchmark project root ${canonicalProjectRoot}.`);
   }
 }
@@ -101,8 +151,12 @@ export async function createDisposableTreatmentTarget<T extends IncrementalChang
   }
 
   const resolvedRepoRoot = path.resolve(repoRoot);
-  const resolvedRunRoot = assertSafeRuntimeBoundary(resolvedRepoRoot, options.runRoot);
+  const resolvedRunRoot = assertSafeRuntimeBoundary(resolvedRepoRoot, options.runRoot, options.runtimeBoundary);
   const canonicalProjectRoot = resolveWithinRoot(resolvedRepoRoot, canonicalProjectRootRelative);
+  const expectedCanonical = resolveWithinRoot(path.join(resolvedRepoRoot, "benchmarks", "projects"), benchmarkProjectId);
+  if (canonicalProjectRoot !== expectedCanonical || path.basename(expectedCanonical) !== benchmarkProjectId) {
+    throw new Error("Canonical project must be the approved bundled benchmark project, not an imported path.");
+  }
   const targetRoot = resolveWithinRoot(resolvedRunRoot, path.join(scenarioId, treatmentId));
 
   assertDisposableRootDoesNotOverlapCanonical(targetRoot, canonicalProjectRoot);
@@ -114,15 +168,50 @@ export async function createDisposableTreatmentTarget<T extends IncrementalChang
     throw new Error(`Disposable treatment target already exists; refusing to overwrite: ${targetRoot}.`);
   }
 
-  await cp(canonicalProjectRoot, targetRoot, { recursive: true, errorOnExist: true, force: false });
+  await verifyRuntimeDirectory(canonicalProjectRoot);
+  await assertCopyTree(canonicalProjectRoot);
+  await ensureRuntimeDirectory(options.runtimeBoundary ?? resolvedRepoRoot, path.dirname(targetRoot));
+  await cp(canonicalProjectRoot, targetRoot, { recursive: true, errorOnExist: true, force: false, dereference: false });
 
-  return {
+  const target = {
     scenarioId,
     treatmentId,
     benchmarkProjectId,
     canonicalProjectRoot,
     targetRoot
   };
+  const info = await lstat(targetRoot);
+  const boundary = options.runtimeBoundary ?? resolvedRepoRoot;
+  const boundaryInfo = await lstat(boundary);
+  targetIdentities.set(target, { root: await verifyRuntimeDirectory(targetRoot), dev: info.dev, ino: info.ino,
+    boundary: { root: await verifyRuntimeDirectory(boundary), dev: boundaryInfo.dev, ino: boundaryInfo.ino } });
+  return target;
+}
+
+type TargetDirectoryIdentity = { root: string; dev: number; ino: number };
+const targetIdentities = new WeakMap<object, TargetDirectoryIdentity & { boundary: TargetDirectoryIdentity }>();
+
+async function assertCopyTree(directory: string): Promise<void> {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const filename = path.join(directory, entry.name);
+    const info = await lstat(filename);
+    if (info.isSymbolicLink() || (!info.isDirectory() && !info.isFile())) throw new Error(`Unsafe canonical source entry: ${filename}`);
+    if (info.isDirectory()) await assertCopyTree(filename);
+  }
+}
+
+export async function verifyDisposableTreatmentTarget(target: Pick<DisposableTreatmentTargetV1, "targetRoot">): Promise<void> {
+  const identity = targetIdentities.get(target);
+  const root = await verifyRuntimeDirectory(target.targetRoot);
+  const info = await lstat(target.targetRoot);
+  if (!identity || identity.root !== root || identity.dev !== info.dev || identity.ino !== info.ino) {
+    throw new Error("Unverified disposable target identity.");
+  }
+  const realBoundary = await verifyRuntimeDirectory(identity.boundary.root);
+  const boundaryInfo = await lstat(identity.boundary.root);
+  if (realBoundary !== identity.boundary.root || boundaryInfo.dev !== identity.boundary.dev || boundaryInfo.ino !== identity.boundary.ino) {
+    throw new Error("Unverified disposable runtime boundary identity.");
+  }
 }
 
 /**
@@ -131,22 +220,30 @@ export async function createDisposableTreatmentTarget<T extends IncrementalChang
  * anything else, including a canonical benchmark project. Idempotent: a
  * missing target is a successful no-op.
  */
-export async function removeDisposableTreatmentTarget(target: Pick<DisposableTreatmentTargetV1, "targetRoot">, repoRoot: string, runRoot: string): Promise<void> {
+export async function removeDisposableTreatmentTarget(target: Pick<DisposableTreatmentTargetV1, "targetRoot">, repoRoot: string, runRoot: string, runtimeBoundary = repoRoot): Promise<void> {
   const resolvedRepoRoot = path.resolve(repoRoot);
-  const resolvedRunRoot = assertSafeRuntimeBoundary(resolvedRepoRoot, runRoot);
+  const resolvedRunRoot = assertSafeRuntimeBoundary(resolvedRepoRoot, runRoot, runtimeBoundary);
   // Re-derive containment from the caller-owned root rather than trusting the descriptor blindly.
   const containedTargetRoot = resolveWithinRoot(resolvedRunRoot, path.resolve(target.targetRoot));
+  if (containedTargetRoot === resolvedRunRoot) throw new Error("Refusing to remove shared runtime boundary.");
+  await verifyRuntimeDirectory(path.dirname(containedTargetRoot));
+  try { await lstat(containedTargetRoot); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  await verifyDisposableTreatmentTarget(target);
   await rm(containedTargetRoot, { recursive: true, force: true });
+  targetIdentities.delete(target);
 }
 
 /**
  * Removes the entire caller-owned runtime root (both treatment copies for
- * every scenario created under it). Refuses to operate unless `runRoot`
- * resolves inside `repoRoot`, and never touches anything outside it.
+ * every scenario created under it). Requires a distinct contained child of
+ * the caller's runtime boundary, disjoint from immutable source resources.
  */
-export async function removeIncrementalChangeStalenessRuntimeRoot(repoRoot: string, runRoot: string): Promise<void> {
-  const resolvedRepoRoot = path.resolve(repoRoot);
-  const resolvedRunRoot = assertSafeRuntimeBoundary(resolvedRepoRoot, runRoot);
+export async function removeIncrementalChangeStalenessRuntimeRoot(runtimeBoundary: string, runRoot: string, sourceRoot = runtimeBoundary): Promise<void> {
+  const resolvedRunRoot = assertSafeRuntimeBoundary(sourceRoot, runRoot, runtimeBoundary);
+  if (resolvedRunRoot === path.resolve(runtimeBoundary)) throw new Error("Refusing to remove shared runtime boundary.");
+  try { await verifyRuntimeDirectory(resolvedRunRoot); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
   await rm(resolvedRunRoot, { recursive: true, force: true });
 }
 
@@ -158,6 +255,8 @@ export async function removeIncrementalChangeStalenessRuntimeRoot(repoRoot: stri
  */
 export async function resolveWithinDisposableTarget(target: Pick<DisposableTreatmentTargetV1, "targetRoot">, relativePath: string): Promise<string> {
   const resolved = resolveWithinRoot(target.targetRoot, relativePath);
+  await verifyDisposableTreatmentTarget(target);
+  await verifyRuntimeDirectory(path.dirname(resolved));
   if (!existsSync(resolved)) {
     return resolved;
   }

@@ -1,4 +1,31 @@
 import path from "node:path";
+import { lstat, realpath } from "node:fs/promises";
+
+/** Verify an existing directory beneath a caller-authorized boundary without following
+ * symbolic links/junctions in that boundary or its relative path. Rejects unavailable
+ * paths. Also usable with a separate writable boundary; does not confer ownership.
+ */
+export async function verifyDirectoryWithinRoot(root: string, directory: string): Promise<string> {
+  const resolvedRoot = path.resolve(root);
+  const resolvedDirectory = resolveWithinRoot(resolvedRoot, directory);
+  const segments = path.relative(resolvedRoot, resolvedDirectory).split(path.sep).filter(Boolean);
+  let current = resolvedRoot;
+  for (const segment of ["", ...segments]) {
+    current = path.join(current, segment);
+    const info = await lstat(current);
+    // macOS exposes /var through the system /private/var alias. Accept only
+    // that exact system mapping; caller-controlled links still fail closed.
+    const systemVarAlias = process.platform === "darwin" && current === "/var" &&
+      info.isSymbolicLink() && await realpath(current) === "/private/var";
+    if (!systemVarAlias && (info.isSymbolicLink() || !info.isDirectory())) {
+      throw new Error(`Unverified runtime directory: ${current}`);
+    }
+  }
+  const realRoot = await realpath(resolvedRoot);
+  const realDirectory = await realpath(resolvedDirectory);
+  resolveWithinRoot(realRoot, realDirectory);
+  return realDirectory;
+}
 
 export function resolveWithinRoot(root: string, relativeOrAbsolutePath: string): string {
   const resolvedRoot = path.resolve(root);

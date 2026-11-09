@@ -191,6 +191,7 @@ export async function prepareIncrementalChangeStalenessScenarioLifecycleV2(
       try {
         targets[treatmentId] = await createDisposableTreatmentTarget<TreatmentId>({
           repoRoot,
+          runtimeBoundary: runOwnedRoot,
           runRoot: incrementalChangeStalenessTargetsRoot(runOwnedRoot),
           scenarioId: scenario.id,
           treatmentId,

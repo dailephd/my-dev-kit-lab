@@ -171,6 +171,11 @@ export type ExperimentExecutionContext<TConfig = unknown> = {
   pluginId?: string;
   pluginSchemaVersion?: string;
   toolRoot: string;
+  /** Authorized absolute writable Lab workspace identity, independent of tool/resource,
+   * target and report-output roots. Optional for existing programmatic callers.
+   * Runtime consumers must validate containment; never infer this from outputRoot.
+   */
+  writableWorkspaceRoot?: string;
   targetRoot?: string;
   isSelfTarget?: boolean;
   target: ExperimentTarget;

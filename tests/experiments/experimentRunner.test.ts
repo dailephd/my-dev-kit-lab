@@ -19,6 +19,33 @@ afterEach(async () => {
 });
 
 describe("runExperiment", () => {
+  it("forwards the authorized workspace independently of tool and report roots without creating it", async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "runner-workspace-"));
+    tempDirs.push(root);
+    const writableWorkspaceRoot = path.join(root, "authorized workspace");
+    const outputRoot = path.join(root, "reports");
+    let receivedContext: ExperimentExecutionContext | undefined;
+    const registry = registryWithProbe((context) => {
+      receivedContext = context;
+      return makeRun(context);
+    });
+    expect((await runExperiment({ pluginId: "probe", registry, toolRoot: process.cwd(),
+      writableWorkspaceRoot, outputRoot })).status).toBe("completed");
+    expect(receivedContext?.writableWorkspaceRoot).toBe(writableWorkspaceRoot);
+    expect(receivedContext?.outputRoot).toBe(outputRoot);
+    expect(receivedContext?.toolRoot).toBe(path.resolve(process.cwd()));
+    expect(existsSync(writableWorkspaceRoot)).toBe(false);
+  });
+
+  it.each(["relative/workspace", "", "\0", `${path.parse(process.cwd()).root}invalid\0path`, null, 42])(
+    "rejects invalid writableWorkspaceRoot %j before plugin execution", async (value) => {
+      let called = false;
+      const registry = registryWithProbe((context) => { called = true; return makeRun(context); });
+      await expect(runExperiment({ pluginId: "probe", registry,
+        writableWorkspaceRoot: value as string })).rejects.toThrow("writableWorkspaceRoot must be an absolute workspace path");
+      expect(called).toBe(false);
+    });
+
   it("runs a plugin in self mode with tool and target roots separated in context", async () => {
     let receivedContext: ExperimentExecutionContext | undefined;
     const registry = registryWithProbe(async (context) => {
@@ -36,6 +63,12 @@ describe("runExperiment", () => {
 
     expect(result.status).toBe("completed");
     expect(receivedContext?.toolRoot).toBe(path.resolve(process.cwd()));
+    expect(receivedContext?.writableWorkspaceRoot).toBeUndefined();
+    const extendedContext: ExperimentExecutionContext = {
+      ...receivedContext!, writableWorkspaceRoot: path.resolve(os.tmpdir())
+    };
+    expect(extendedContext.writableWorkspaceRoot).toBe(path.resolve(os.tmpdir()));
+    expect(extendedContext.toolRoot).toBe(receivedContext?.toolRoot);
     expect(receivedContext?.targetRoot).toBe(path.resolve(process.cwd()));
     expect(receivedContext?.isSelfTarget).toBe(true);
     expect(receivedContext?.pluginId).toBe("probe");

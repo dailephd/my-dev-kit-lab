@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -73,6 +73,89 @@ async function loadFixtures(): Promise<{ profiles: BenchmarkProjectProfile[]; ca
 }
 
 describe("createDisposableTreatmentTarget", () => {
+  function workspace(): string {
+    const root = mkdtempSync(path.join(os.tmpdir(), "ics workspace with spaces-"));
+    tempRunRoots.push(root);
+    return root;
+  }
+
+  function separateOptions(runtimeBoundary: string) {
+    return { repoRoot, runtimeBoundary, runRoot: path.join(runtimeBoundary, "run owned"),
+      scenarioId: "L2", treatmentId: "stale-index" as const, benchmarkProjectId: "task-workflow-medium-ts",
+      canonicalProjectRootRelative: "benchmarks/projects/task-workflow-medium-ts" };
+  }
+
+  it("copies and mutates a complete benchmark outside the resource root using a separate authorized boundary", async () => {
+    const options = separateOptions(workspace());
+    const { cases } = await loadFixtures();
+    const catalog = await readProductionIncrementalChangeStalenessScenarioCatalog(repoRoot);
+    const scenario = catalog.scenarios.find((entry) => entry.id === "L2")!;
+    const baseCase = cases.find((entry) => entry.id === scenario.baseCaseId)!;
+    const target = await createDisposableTreatmentTarget(options);
+    const relativeTarget = path.relative(repoRoot, target.targetRoot);
+    // Different Windows drives produce an absolute relative() result.
+    expect(path.isAbsolute(relativeTarget) || relativeTarget === ".." || relativeTarget.startsWith(`..${path.sep}`)).toBe(true);
+    expect(existsSync(path.join(target.targetRoot, "README.md"))).toBe(true);
+    expect(existsSync(path.join(target.targetRoot, "tests"))).toBe(true);
+    const result = await executeIncrementalChangeStalenessMutation(scenario, target, baseCase.sourceRoots, repoRoot);
+    expect(result.status).toBe("applied");
+    expect(result.files.every((file) => file.written && file.observedPostSha256 === file.expectedPostSha256)).toBe(true);
+    expectCanonicalFilesUnchanged();
+    await removeDisposableTreatmentTarget(target, repoRoot, options.runRoot, options.runtimeBoundary);
+    expect(existsSync(target.targetRoot)).toBe(false);
+  });
+
+  it("rejects traversal outside an explicit runtime boundary before copying", async () => {
+    const options = separateOptions(workspace());
+    options.runRoot = path.join(options.runtimeBoundary, "..", "escape");
+    await expect(createDisposableTreatmentTarget(options)).rejects.toThrow(/escapes/);
+  });
+
+  it("does not recognize an imported same-basename path as a canonical benchmark", async () => {
+    const options = separateOptions(workspace());
+    options.canonicalProjectRootRelative = "tests/fixtures/task-workflow-medium-ts";
+    await expect(createDisposableTreatmentTarget(options)).rejects.toThrow(/approved bundled benchmark/);
+    expect(existsSync(options.runRoot)).toBe(false);
+  });
+
+  it.each(["workspace", "scenario", "canonical"])("rejects a redirected %s directory before copy writes", async (kind) => {
+    const options = separateOptions(workspace());
+    const foreign = workspace();
+    writeFileSync(path.join(foreign, "retained.txt"), "foreign");
+    let link: string;
+    if (kind === "workspace") {
+      link = path.join(options.runtimeBoundary, "redirected");
+      options.runtimeBoundary = link;
+      options.runRoot = path.join(link, "run owned");
+    } else if (kind === "scenario") {
+      mkdirSync(options.runRoot);
+      link = path.join(options.runRoot, options.scenarioId);
+    } else {
+      options.repoRoot = workspace();
+      const projects = path.join(options.repoRoot, "benchmarks", "projects");
+      mkdirSync(projects, { recursive: true });
+      link = path.join(projects, options.benchmarkProjectId);
+    }
+    symlinkSync(foreign, link, process.platform === "win32" ? "junction" : "dir");
+    try {
+      await expect(createDisposableTreatmentTarget(options)).rejects.toThrow(/Unverified runtime directory/);
+      expect(readFileSync(path.join(foreign, "retained.txt"), "utf8")).toBe("foreign");
+      expect(existsSync(path.join(foreign, "run owned"))).toBe(false);
+      expect(existsSync(path.join(foreign, "stale-index"))).toBe(false);
+    } finally { unlinkSync(link); }
+  });
+
+  it("rejects mutation and removal after a disposable directory is substituted", async () => {
+    const options = separateOptions(workspace());
+    const target = await createDisposableTreatmentTarget(options);
+    renameSync(target.targetRoot, `${target.targetRoot}-original`);
+    mkdirSync(target.targetRoot);
+    writeFileSync(path.join(target.targetRoot, "retained.txt"), "replacement");
+    await expect(resolveWithinDisposableTarget(target, "retained.txt")).rejects.toThrow(/identity/);
+    await expect(removeDisposableTreatmentTarget(target, repoRoot, options.runRoot, options.runtimeBoundary)).rejects.toThrow(/identity/);
+    expect(readFileSync(path.join(target.targetRoot, "retained.txt"), "utf8")).toBe("replacement");
+  });
+
   it("creates two independent disposable copies with distinct roots (TST-B2-001, TST-B2-002)", async () => {
     const runRoot = makeRunRoot();
     const stale = await createDisposableTreatmentTarget({

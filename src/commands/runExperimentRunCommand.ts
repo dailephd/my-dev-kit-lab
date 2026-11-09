@@ -246,6 +246,7 @@ export async function runExperimentRunCommandFromArgs(
       config: pluginConfigFor(args),
       inputs,
       toolRoot,
+      writableWorkspaceRoot: context.workspaceRoot,
       runId
     });
     const localSubject = readLoadedLocalSubject(inputs);

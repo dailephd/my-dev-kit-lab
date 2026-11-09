@@ -16,6 +16,8 @@ import {
 import {
   INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS,
   INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_INTENTS,
+  ensureRuntimeDirectory,
+  verifyDisposableTreatmentTarget,
   type IncrementalChangeStalenessV2TreatmentId,
   type IncrementalChangeStalenessV2TreatmentIntent
 } from "./disposableTarget.js";
@@ -243,6 +245,9 @@ export async function executeIncrementalChangeStalenessScenarioV2(options: {
   const treatments: IncrementalChangeStalenessTreatmentExecutionV2[] = [];
   for (const treatmentId of INCREMENTAL_CHANGE_STALENESS_V2_TREATMENT_IDS) {
     const lifecycleTreatment = session.treatments[treatmentId];
+    await verifyDisposableTreatmentTarget(lifecycleTreatment.target);
+    await ensureRuntimeDirectory(options.runOwnedRoot, retrievalCommandsDir(treatmentId));
+    await ensureRuntimeDirectory(options.runOwnedRoot, agentOutDir(treatmentId));
     const evaluation = await executeTreatmentEvaluation({
       treatmentId,
       baselineFreshness: lifecycleTreatment.changeAuthority.postMutationBaselineFreshness,
