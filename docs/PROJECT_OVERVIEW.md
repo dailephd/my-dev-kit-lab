@@ -1,6 +1,6 @@
 # Project Overview
 
-v0.9.7 is IMPLEMENTED / UNRELEASED: the incremental-change-staleness correction separates immutable package resources from workspace-owned disposable runtime state. Package metadata remains 0.9.6. Separate standardized pre-release readiness is pending; see [current state](CURRENT_STATE.md) and [architecture](ARCHITECTURE.md).
+v0.9.7 is the current release-document version. Its incremental-change-staleness runtime uses the authorized writable workspace while installed package resources remain immutable; ownership and filesystem identity govern cleanup. Existing public commands, artifact schemas, and scientific interpretation remain unchanged. See [current state](CURRENT_STATE.md) and [architecture](ARCHITECTURE.md).
 
 ## What is my-dev-kit-lab?
 
@@ -18,7 +18,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-The current released package and documentation version is v0.9.6. Its bounded full-refresh source-content correction passed exact-candidate standardized readiness and preserves historical retrieval defaults and artifact contracts. GitHub tag and release-PR evidence establish the release identity; the later merged recovery PR records npm publication. The prior v0.9.5 registry preflight is historical; see [CURRENT_STATE.md](CURRENT_STATE.md) for evidence limits.
+The package and release-document version is v0.9.7. Its workspace-owned incremental runtime, fail-closed path handling, cross-platform cleanup, and documentation lifecycle checks preserve the existing resource and evidence boundaries. The previous v0.9.6 bounded full-refresh source-content correction passed exact-candidate standardized readiness and preserves historical retrieval defaults and artifact contracts. Its GitHub tag and release-PR evidence establish the historical release identity; the merged recovery PR records npm publication. The prior v0.9.5 registry preflight is historical; see [CURRENT_STATE.md](CURRENT_STATE.md) for dated evidence limits.
 
 Version v0.9.3 adds hardened prompt contracts, extensible reports with metric evidence, broader gallery inputs, and prompt-template comparison. Security verdict strictness is unchanged. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the release state.
 

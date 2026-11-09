@@ -2,6 +2,21 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [0.9.7] - 2026-11-09
+
+### Fixed
+
+- Keep incremental-change-staleness disposable treatment copies, indexes, command logs, and agent scratch beneath the authorized workspace, separate from immutable installed package resources and independently persisted reports.
+- Propagate the existing workspace through the internal execution context and fail closed for missing or invalid writable roots, traversal, unsafe links or junctions, and overlapping runtime/report paths; no package-root or current-directory fallback is used.
+- Protect each run with an exclusive ownership claim and filesystem identity checks. Reused run IDs, foreign markers, failed claims, and substituted directories cannot authorize cleanup; persisted reports survive current-run runtime cleanup.
+- Preserve authorized Windows path spelling during identity-checked cleanup and retain correct cross-drive path handling. Accept the genuine macOS `/var` system alias while continuing to reject unsafe symlink redirection.
+- Correct documentation lifecycle validation to distinguish the verified published baseline from the final release-document version, preserve historical publication evidence, and reject false publication claims and stale transitional wording.
+
+### Compatibility and evidence
+
+- Preserve existing public commands and options, six scenarios, four treatments, report/artifact schemas, and scientific meanings. Applied partial refresh remains distinct from full-refresh fallback; inconclusive comparisons remain inconclusive, with no treatment winner or universal safety claim.
+- Validate installed-package runtime containment and resource immutability, including compatibility with published `@dailephd/my-dev-kit@1.14.0`; retain the historical Kit 1.12.5 packed-acceptance pin.
+
 ## [0.9.6] - 2026-10-28
 
 ### Full-refresh source-content evidence and validation corrections

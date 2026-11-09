@@ -405,11 +405,11 @@
     "requiredDeferredMarkers": [
       "Post-v1 / version TBD",
       "manual pentest",
-      "v0.9.2 \u2014 external-target package-content validator correction"
+      "v0.9.2 — external-target package-content validator correction"
     ],
     "forbiddenVersionRangeHeadings": [
       "v0.5.x-v0.9.x",
-      "v0.5.x\u2013v0.9.x",
+      "v0.5.x–v0.9.x",
       "v0.3.0-v0.3.4"
     ]
   },
@@ -462,7 +462,7 @@
   "currentFacts": {
     "latestPublishedVersion": "0.9.6",
     "latestPublishedVersionEvidenceContext": "Live npm view @dailephd/my-dev-kit-lab@0.9.6 succeeded on 2026-11-07 with version, integrity and tarball; local v0.9.6 tag resolves to e594103397dc51c5a2c2b60d401ebd5da4033d4f. PR73 separately records merged release/recovery PRs.",
-    "currentImplementedUnreleasedVersion": "0.9.7",
+    "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
@@ -499,7 +499,7 @@
     "candidateEvidenceMeaning": "review-only evidence, not a confirmed SecurityFinding or AuditIssue",
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
-    "releaseDocumentState": "published",
-    "currentReleaseDocumentVersion": "0.9.6"
+    "releaseDocumentState": "final-release-state",
+    "currentReleaseDocumentVersion": "0.9.7"
   }
 }

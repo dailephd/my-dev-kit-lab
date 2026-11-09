@@ -898,9 +898,9 @@ Current report details:
 
 Unsupported command/profile names such as `android-compose`, `security:pentest`, `security:android`, `mobile:detect`, and `mobile:validate` are not current syntax. See [ROADMAP.md](ROADMAP.md) for approved future scope.
 
-### v0.9.7 implemented/unreleased incremental runtime correction
+### v0.9.7 incremental runtime containment
 
-The implemented candidate uses the existing global workspace option before the experiment family:
+The existing global workspace option precedes the experiment family:
 
 ```text
 my-dev-kit-lab --workspace ./lab-state experiment run --experiment incremental-change-staleness --out ./experiment-results
@@ -908,4 +908,4 @@ my-dev-kit-lab --workspace ./lab-state experiment run --experiment incremental-c
 
 `--out` continues to select persisted artifacts/reports; relative output resolves from the invocation directory and the installed default remains `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/`. Disposable incremental state uses `<workspace>/runtime/incremental-change-staleness/<sanitized-run-id>/`, including copies, indexes, command logs and agent scratch. This internal writable root is not a CLI option. Missing/invalid workspace, unsafe ancestry, report/runtime overlap or an existing run collision fails safely. Normal cleanup removes current-owned runtime state, so persisted log paths can identify files already removed. Interrupted state requires explicit investigation; markers alone cannot authorize cleanup.
 
-This correction is IMPLEMENTED / UNRELEASED and is not available in the published v0.9.6 package. Its local candidate still reports package metadata 0.9.6. Self-only targets, scenario/treatment IDs, supported Kit commands, options, error classification and artifact/report schemas above remain unchanged.
+The v0.9.7 contract preserves self-only targets, scenario/treatment IDs, supported Kit commands, options, error classification, and artifact/report schemas. The previous published v0.9.6 package has a different incremental runtime-root implementation. No public runtime-root option is introduced.

@@ -1678,7 +1678,7 @@ Exclusions:
 
 ### v0.9.7 — installed incremental-experiment writable-root containment
 
-Status: **IMPLEMENTED / UNRELEASED**. Implementation completion: PASS_WITH_NOTES. Package metadata remains 0.9.6; separate standardized pre-release readiness is pending.
+Status: **final release-document state**. Package version 0.9.7; external registry publication remains a separately evidenced lifecycle fact.
 
 Purpose:
 
@@ -1691,13 +1691,15 @@ Implemented scope:
 * Place disposable copies, baseline/refreshed indexes, evaluations and command logs under `<workspace>/runtime/incremental-change-staleness/<sanitized-run-id>/`. Persist reports independently under the existing `--out` contract.
 * Enforce independent canonical-source and mutable-runtime containment, traversal and Windows junction/reparse protection, exclusive current-invocation ownership, random marker claims, directory identity checks, collision refusal and cleanup of only the current owned run. Interrupted state is retained without restart adoption.
 * Preserve U1, L2, E1, P1, I1, T1; `stale-index`, `changed-files-refresh`, `affected-neighborhood-refresh`, `full-refresh`; actual requested/applied partial versus `FALLBACK_FULL` reporting; comparison rules, metrics, V1/V2 artifacts and other plugin interfaces. No new public CLI flag or schema.
+* Preserve authorized Windows path spelling while checking physical identity, retain cross-drive path semantics, and accept only the genuine macOS /var system alias without allowing arbitrary symlink redirection.
+* Separate published-version and release-document identities in the existing documentation checker; reject false publication and stale transitional claims while preserving historical and post-publication validation.
 
 Acceptance:
 
 * Completed implementation evidence covers workspace propagation, missing/invalid workspace failure, source/runtime/report separation, canonical fixture immutability, collisions, marker/directory substitution, junction/traversal refusal and current-owned cleanup.
 * Actual installed-candidate acceptance used a read-only package, separate authorized workspace and persisted output, all six scenarios and four treatments, real published Kit 1.14.0, and unchanged artifact/report validation. Historical packed acceptance retains real Kit 1.12.5 and PATH-012. A local patched tarball identifying metadata 0.9.6 is distinct from published npm 0.9.6.
-* Batch 5 recorded 8,192 passing tests, nine existing skips, 795 passing security tests, typecheck, normal verification, 13 benchmark checks and unchanged exact-candidate packed acceptance. This establishes implementation completion; it does not establish hosted or cross-platform readiness for this patch.
-* Remaining gates: separate standardized pre-release readiness, exact-candidate cross-platform/security/package qualification, separately authorized release preparation and publication, then independent Kit readiness retry. The historical Batch 4 output-authority violation and partially verified ignored-metadata restoration remain historical; clean B4-R1 acceptance is separate.
+* Historical implementation-completion results and subsequent exact-candidate standardized readiness are preserved in [CURRENT_STATE.md](CURRENT_STATE.md#v097-runtime-containment-and-validation). Acceptance remains bound to the tested source and package identities.
+* Exact-candidate cross-platform, security, package, cleanup, and lifecycle acceptance remain independent of publication authorization and the later Kit readiness retry. Historical output-authority incidents and partially verified ignored-metadata restoration remain recorded in [CURRENT_STATE.md](CURRENT_STATE.md); subsequent clean acceptance does not erase them.
 
 Dependencies and exclusions:
 
