@@ -311,6 +311,25 @@ describe("evaluateIncrementalChangeStalenessV2Acceptance", () => {
     expect(row?.forcedNeighborReanalysisFileCount).toBeNull();
   });
 
+  // These are explicit pure-helper inputs, never observations from a real Kit run.
+  it.each([-1, 1.5, "2", undefined, Number.NaN])("rejects invalid forced-neighbor count %s", (count) => {
+    const value = structuredClone(artifact(withForcedNeighbor));
+    value.scenarios[2].treatments[2].refreshExecution.incrementalRefresh.forcedNeighborReanalysisFileCount = count;
+    const result = evaluateIncrementalChangeStalenessV2Acceptance(value);
+    expect(result.verdict).toBe("BLOCKED_ARTIFACT_OR_REPORT_CONTRACT_MISMATCH");
+    expect(result.contractProblems.join("\n")).toContain("forcedNeighborReanalysisFileCount is unavailable or not a non-negative integer");
+  });
+
+  it("rejects swapped changed-files and affected-neighborhood evidence", () => {
+    const value = artifact(withForcedNeighbor);
+    const treatments = value.scenarios[2].treatments;
+    [treatments[1].refreshExecution, treatments[2].refreshExecution] = [treatments[2].refreshExecution, treatments[1].refreshExecution];
+    const result = evaluateIncrementalChangeStalenessV2Acceptance(value);
+    expect(result.verdict).toBe("BLOCKED_CHANGED_FILES_PARTIAL_NOT_REALIZED");
+    expect(result.changedFilesRealizationProblems.join("\n")).toContain("upstream requestedScope");
+    expect(result.affectedRealizationProblems.join("\n")).toContain("upstream requestedScope");
+  });
+
   it("bounds the forced-neighbor sample: cap, count, and nonempty when the count is positive", () => {
     const tooMany = Array.from({ length: 21 }, (_, i) => `src/f${i}.ts`);
     const cases: Array<[Json, string]> = [
