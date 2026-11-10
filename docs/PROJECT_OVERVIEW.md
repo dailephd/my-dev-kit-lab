@@ -160,7 +160,7 @@ The first planned v0.10.0 workstream is [Kit-backed source audit migration (LAB-
 
 The published v0.9.1 release adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports while preserving existing provider adapters and scientific artifact contracts.
 
-Current released package and documentation version: v0.9.6. v0.9.5 and earlier versions are historical releases. The next planned feature milestone remains v0.10.0.
+Current published package and documentation version: v0.9.7. v0.9.6 and earlier versions are historical releases. The next planned feature milestone remains v0.10.0.
 
 The preceding v0.9.2 release includes external npm package entrypoint validation, strict Lab self-package inventory, corrected Semgrep failure evidence, and campaign filesystem identity, path-safety, and cross-platform corrections. The v0.9.1 campaign capabilities remain included.
 
@@ -174,6 +174,6 @@ v0.9.4 is a maintenance release with Kit symbol-index schema-3 compatibility alo
 
 ## Version lifecycle
 
-The package version is `0.9.6`. Bounded full-refresh reference adequacy improves source-content evidence while preserving default retrieval, four treatments, V1/V2 readers, and inconclusive outcomes for incomplete evidence. The v0.9.5 release corrected bounded evidence collection and strengthened disposable validation.
+The package version is `0.9.7`. It adds workspace-owned containment of incremental-experiment disposable runtime without changing commands or scientific schemas. The previous v0.9.6 release improved bounded full-refresh reference adequacy while preserving default retrieval, four treatments, V1/V2 readers, and inconclusive outcomes for incomplete evidence. The v0.9.5 release corrected bounded evidence collection and strengthened disposable validation.
 
 The v0.9.6 release-document and package metadata describe the published release. Its GitHub tag exists and merged recovery PR #72 records npm publication; live npm metadata was independently confirmed on 2026-11-07. The v0.9.5 pre-preparation baseline is historical. The next planned feature version is v0.10.0.

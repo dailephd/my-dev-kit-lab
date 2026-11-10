@@ -456,12 +456,13 @@
       "0.9.3",
       "0.9.4",
       "0.9.5",
-      "0.9.6"
+      "0.9.6",
+      "0.9.7"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.9.6",
-    "latestPublishedVersionEvidenceContext": "Live npm view @dailephd/my-dev-kit-lab@0.9.6 succeeded on 2026-11-07 with version, integrity and tarball; local v0.9.6 tag resolves to e594103397dc51c5a2c2b60d401ebd5da4033d4f. PR73 separately records merged release/recovery PRs.",
+    "latestPublishedVersion": "0.9.7",
+    "latestPublishedVersionEvidenceContext": "The v0.9.7 Git tag resolves to matching package metadata; the v0.9.7 release was confirmed published by the repository maintainer on 2026-11-10. The preceding v0.9.6 npm package was independently verified on 2026-11-07 and its historical recovery records remain preserved.",
     "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.10.0",
     "implementedExperimentPlugins": [
@@ -499,7 +500,7 @@
     "candidateEvidenceMeaning": "review-only evidence, not a confirmed SecurityFinding or AuditIssue",
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
-    "releaseDocumentState": "final-release-state",
+    "releaseDocumentState": "published",
     "currentReleaseDocumentVersion": "0.9.7"
   }
 }

@@ -1,6 +1,6 @@
 # my-dev-kit-lab
 
-v0.9.7 is the current release-document version. The incremental-change-staleness contract separates immutable package resources from workspace-owned disposable runtime state, preserves ownership-safe cleanup across Windows and macOS paths, and keeps the existing commands and scientific schemas. See [current state](docs/CURRENT_STATE.md) and [architecture](docs/ARCHITECTURE.md).
+v0.9.7 is the current published release. The incremental-change-staleness contract separates immutable package resources from workspace-owned disposable runtime state, preserves ownership-safe cleanup across Windows and macOS paths, and keeps the existing commands and scientific schemas. See [current state](docs/CURRENT_STATE.md) and [architecture](docs/ARCHITECTURE.md).
 
 my-dev-kit-lab is the experiment, audit, and evidence companion for [my-dev-kit](https://www.npmjs.com/package/@dailephd/my-dev-kit). It helps users compare repository-context strategies, audit project health, validate CLI/package and Android security boundaries, and turn each run into reviewable reports and visual artifacts.
 
