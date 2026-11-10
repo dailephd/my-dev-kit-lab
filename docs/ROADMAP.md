@@ -1678,12 +1678,12 @@ Exclusions:
 
 ### v0.9.7 — installed incremental-experiment writable-root containment
 
-Status: **final release-document state**. Package version 0.9.7; external registry publication remains a separately evidenced lifecycle fact.
+Status: **published (2026-11-09)**. The v0.9.7 Git tag and matching package metadata establish the release identity; npm publication was confirmed by the maintainer.
 
 Purpose:
 
 * Correct the reproduced installed-package runtime-root defect: published v0.9.6 derives incremental disposable state from its immutable package/tool root despite separate workspace and report destinations.
-* Unblock the Lab dependency of Kit v1.15.0 readiness after a fixed Lab is separately qualified and published. Kit candidate `9a2606c050eb2a8c3005d76471d0a40df05f4f5d` remains unchanged; Kit must independently retry its blocked validation.
+* Unblock the Lab dependency of Kit v1.15.0 readiness after a fixed Lab is separately qualified and published. The historical frozen Kit candidate was `9a2606c050eb2a8c3005d76471d0a40df05f4f5d`; Kit v1.15.0 has since completed its separate release.
 
 Implemented scope:
 
@@ -1699,7 +1699,7 @@ Acceptance:
 * Completed implementation evidence covers workspace propagation, missing/invalid workspace failure, source/runtime/report separation, canonical fixture immutability, collisions, marker/directory substitution, junction/traversal refusal and current-owned cleanup.
 * Actual installed-candidate acceptance used a read-only package, separate authorized workspace and persisted output, all six scenarios and four treatments, real published Kit 1.14.0, and unchanged artifact/report validation. Historical packed acceptance retains real Kit 1.12.5 and PATH-012. A local patched tarball identifying metadata 0.9.6 is distinct from published npm 0.9.6.
 * Historical implementation-completion results and subsequent exact-candidate standardized readiness are preserved in [CURRENT_STATE.md](CURRENT_STATE.md#v097-runtime-containment-and-validation). Acceptance remains bound to the tested source and package identities.
-* Exact-candidate cross-platform, security, package, cleanup, and lifecycle acceptance remain independent of publication authorization and the later Kit readiness retry. Historical output-authority incidents and partially verified ignored-metadata restoration remain recorded in [CURRENT_STATE.md](CURRENT_STATE.md); subsequent clean acceptance does not erase them.
+* Exact-candidate cross-platform, security, package, cleanup, and lifecycle acceptance remained independent of publication authorization and the subsequent separate Kit readiness/release process. Historical output-authority incidents and partially verified ignored-metadata restoration remain recorded in [CURRENT_STATE.md](CURRENT_STATE.md); subsequent clean acceptance does not erase them.
 
 Dependencies and exclusions:
 
@@ -1715,7 +1715,7 @@ Purpose:
 * Provide the Lab-owned producer/certification side of the ECO-00 executable-evidence interface without replacing native Kit, Observer, Orchestrator, or Lab artifacts.
 * Make Kit the sole production provider of source-code analysis and retrieval for Lab, so another supported programming language can reuse Lab's existing audit rules without another Lab parser.
 
-Implementation order: complete the Kit-backed source audit migration (`LAB-KIT-01`) below as the first workstream, then complete the existing executable-evidence foundation. Both are required for this milestone. Every existing LAB-EVIDENCE-01 feature and acceptance item below remains assigned to v0.10.0; v0.11.0 and all later assignments remain intact. The producer prerequisite is the first workstream of [Kit v1.15.0](https://github.com/dailephd/my-dev-kit/blob/main/docs/ROADMAP.md). Exact, hash-pinned Kit candidates may be used for coordinated development and acceptance before either product is published.
+Implementation order: complete the Kit-backed source audit migration (`LAB-KIT-01`) below as the first workstream, then complete the existing executable-evidence foundation. Both are required for this milestone. Every existing LAB-EVIDENCE-01 feature and acceptance item below remains assigned to v0.10.0; v0.11.0 and all later assignments remain intact. The producer prerequisite was implemented and published in [Kit v1.15.0](https://github.com/dailephd/my-dev-kit/blob/main/docs/ROADMAP.md). Lab must still verify the complete required evidence against its detector matrix before Gate 2 can pass; a published producer is not proof of consumer parity. Pin the published Kit version for new Lab validation. Exact, hash-pinned candidates remain permitted for coordinated development and acceptance when a subsequent producer correction is required.
 
 The shared owner map and ten-detector evidence matrix are canonical in [ECO-SOURCE-01](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_COORDINATED_ROADMAP.md#79-kit-backed-lab-source-audits--2026-10-27). Kit's exact producer responsibilities belong to [KIT-FACTS-01](https://github.com/dailephd/my-dev-kit/blob/main/docs/ROADMAP.md#kit-facts-01-source-evidence-for-lab-audits); this Lab plan owns the consumer migration and findings acceptance. Wire fields and selector/continuation behavior must be frozen together at gate 1 before implementation.
 
