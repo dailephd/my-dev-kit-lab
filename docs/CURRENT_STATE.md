@@ -6,15 +6,15 @@ This document records the repository's operational state. It is the source of tr
 
 ## Version and publication state
 
-Current release-document and package version: v0.9.7. The contract separates immutable package resources, workspace-owned incremental runtime, and persisted output; it preserves public commands, V1/V2 schemas, and scientific limitations. See [runtime containment and validation](#v097-runtime-containment-and-validation).
+Current published and package version: v0.9.7. The contract separates immutable package resources, workspace-owned incremental runtime, and persisted output; it preserves public commands, V1/V2 schemas, and scientific limitations. See [runtime containment and validation](#v097-runtime-containment-and-validation).
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Latest documented release: v0.9.7. For the previous v0.9.6 release, the GitHub tag and merged release PR #70 are verified; merged recovery PR #72 records npm publication, independently confirmed by live npm metadata on 2026-11-07 and again on 2026-11-08. The v0.9.5 registry preflight of 2026-10-28 is historical.
+- Latest published release: v0.9.7. For the previous v0.9.6 release, the GitHub tag and merged release PR #70 are verified; merged recovery PR #72 records npm publication, independently confirmed by live npm metadata on 2026-11-07 and again on 2026-11-08. The v0.9.5 registry preflight of 2026-10-28 is historical.
 - Exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed local and hosted standardized readiness on 2026-10-26. Release preparation is recorded separately; npm reported baseline `0.9.4` and an explicit not-found result for `0.9.5` before the versioned release artifact was prepared.
-- Current package metadata and release-document version: `v0.9.7`. Historical publication evidence for v0.9.6 and its verification limits are recorded above.
+- Current published package and documentation version: `v0.9.7`. Historical publication evidence for v0.9.6 and its verification limits are recorded above.
 - Earlier historical release: `v0.9.3` (prompt, report, metric, gallery, and comparison improvements).
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
-- Current release-document and package version: v0.9.7.
+- Current published and package version: v0.9.7.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Historical release: `v0.9.1` (2026-10-12), followed by `v0.9.2` on 2026-10-13.
 - Historical release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
@@ -24,8 +24,8 @@ Current release-document and package version: v0.9.7. The contract separates imm
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Package version: `0.9.7`. Release documents describe the workspace-runtime containment and documentation lifecycle contract.
-- Package version: `0.9.6`. Release documents describe the shipped v0.9.6 contract.
-- LATEST_DOCUMENTED_RELEASE: v0.9.7. Historical published baseline: v0.9.6 (GitHub tag and merged PR #70; npm publication recorded in merged PR #72 and independently confirmed on 2026-11-07 and 2026-11-08). NEXT_PLANNED_FEATURE: v0.10.0. The earlier v0.9.5 registry snapshot is historical.
+- Historical package version: `0.9.6`. Historical release documents describe the previously shipped v0.9.6 contract.
+- LATEST_PUBLISHED_RELEASE: v0.9.7. Previous published release: v0.9.6 (GitHub tag and merged PR #70; npm publication recorded in merged PR #72 and independently confirmed on 2026-11-07 and 2026-11-08). NEXT_PLANNED_FEATURE: v0.10.0. The earlier v0.9.5 registry snapshot is historical.
 - Next planned feature version: `v0.10.0`. Its scope and every later roadmap assignment remain unchanged.
 - The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
@@ -347,11 +347,11 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Current exact next action follows the recorded release identity and authorization. Use the existing command and workflow contracts; completed release steps must not be repeated. The dated October 30 planning action below is historical.
+The next implementation milestone is v0.10.0. Start with LAB-KIT-01 Gate 1: freeze evidence requirements across the ten registered code-rot detectors and affected source consumers, using the published Kit v1.15.0 contract. Complete the six migration gates before LAB-EVIDENCE-01; do not repeat completed v0.9.7 or Kit v1.15.0 publication steps. The dated October 30 planning action below is historical.
 
-Latest release-document version: v0.9.7. The 2026-10-28 v0.9.5 npm preflight is historical; publication of the previous v0.9.6 baseline is recorded in merged PR #72 and independently confirmed by live npm metadata on 2026-11-07 and 2026-11-08.
+Latest published version: v0.9.7. The 2026-10-28 v0.9.5 npm preflight is historical; publication of the previous v0.9.6 baseline is recorded in merged PR #72 and independently confirmed by live npm metadata on 2026-11-07 and 2026-11-08.
 
-Current documentation and package version: v0.9.7.
+Current published package and documentation version: v0.9.7.
 
 The historical `published/current` designation for v0.9.6 was supported by its GitHub tag and merged release PR, with npm publication recorded in the recovery PR and independently confirmed on 2026-11-07. Final release-document identity is separate from external registry evidence.
 
@@ -384,6 +384,6 @@ R7 standardized readiness passed for immutable implementation source `b890b5ee14
 
 Historical Batch 4 remains NEEDS_CORRECTION with HISTORICAL_OUTPUT_AUTHORITY: VIOLATED and HISTORICAL_IGNORED_METADATA_RESTORATION: PARTIALLY_VERIFIED. The clean B4-R1 result independently established current output-authority acceptance and full packed-verifier PASS; it does not retroactively erase the incident. Earlier reports remain preserved. The later R2 shell-profile output-authority violation also remains historical. R5 independently established current output-authority acceptance without changing either incident or claiming complete historical metadata restoration.
 
-Limitations: historical implementation-completion coverage included a focused 61-file index, existing opt-in/platform skips, one unavailable beyond-limit fixture branch, and Windows-host evidence. No universal filesystem-race guarantee is claimed. I1 stale-index remains inconclusive; Kit 1.12.5 reference comparisons retain their recorded inconclusive outcomes, and applied partial refresh is distinct from fallback. Release blockers: none identified by standardized readiness for the exact implementation source above. Kit v1.15.0 must independently retry readiness using a separately qualified fixed Lab; its immutable candidate remains unchanged.
+Limitations: historical implementation-completion coverage included a focused 61-file index, existing opt-in/platform skips, one unavailable beyond-limit fixture branch, and Windows-host evidence. No universal filesystem-race guarantee is claimed. I1 stale-index remains inconclusive; Kit 1.12.5 reference comparisons retain their recorded inconclusive outcomes, and applied partial refresh is distinct from fallback. Release blockers: none identified by standardized readiness for the exact implementation source above. Kit v1.15.0 subsequently completed its independent release; the earlier frozen candidate and separate readiness gate remain historical evidence, not pending Lab work.
 
 Exact next action is determined by the exact-source release record and separate workflow authorization. GitHub and npm records establish publication identity; package metadata and final release-document state alone do not. Completed release steps must not be replayed, and Kit readiness is independent.
