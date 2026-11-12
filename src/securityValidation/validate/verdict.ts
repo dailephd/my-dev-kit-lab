@@ -29,7 +29,11 @@ export function calculateVerdict(
   const blockerFindings = findings.filter((f) => f.severity === "blocker");
   const majorFindings = findings.filter((f) => f.severity === "major");
   const failedMandatory = checks.filter(
-    (c) => MANDATORY_CHECK_IDS.has(c.id) && c.status === "failed"
+    // A selected check that ran and failed at blocking severity is not an
+    // unavailable optional tool. In particular, orchestration errors retain
+    // their real ID and diagnostic even when no finding could be collected.
+    (c) => c.status === "failed" &&
+      (MANDATORY_CHECK_IDS.has(c.id) || c.severity === "major" || c.severity === "blocker")
   );
   const skippedMandatory = checks.filter(
     (c) => MANDATORY_CHECK_IDS.has(c.id) && c.status === "skipped"

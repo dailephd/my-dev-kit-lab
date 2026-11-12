@@ -20,7 +20,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createConnection, createServer } from "node:net";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -1196,6 +1196,47 @@ async function main() {
     // -----------------------------------------------------------------
     // 9. Explicit workspace behavior.
     // -----------------------------------------------------------------
+    // Gate 6: the ordinary installed audit route must use its managed published
+    // Kit dependency for Rust, with independent immutable target and output roots.
+    const rustTarget = path.join(tempRoot, "rust-target");
+    const rustOut = path.join(dirs.workspace, "reports", "rust-reuse");
+    const rustProviderModule = await import(pathToFileURL(path.join(installedPackageRoot, "dist", "src", "audits", "core", "kitSourceProvider.js")).href);
+    const rustProvider = rustProviderModule.resolveInstalledKitPackage();
+    if (rustProvider.packageVersion !== "1.15.0" || rustProvider.cliSha256 !== "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f") fail("RUST_REUSE", "Installed managed Rust provider identity mismatch.");
+    const rustProviderBefore = await snapshotDirectory(rustProvider.packageRoot);
+    cpSync(path.join(REPO_ROOT, "tests", "fixtures", "audits", "rust-reuse"), rustTarget, { recursive: true });
+    const rustBefore = await snapshotDirectory(rustTarget);
+    const rustArgs = ["--workspace", dirs.workspace, "audit", "--target", rustTarget, "--types", "code-rot", "--fail-on", "none", "--format", "json", "--out", rustOut];
+    const rustRun = runInstalledCli(cliCommand, dirs.consumer, rustArgs, envWithBin);
+    if (rustRun.status !== 0) fail("RUST_REUSE", "Installed Rust audit failed.", describeChildResult(rustRun));
+    const rustReportName = readdirSync(rustOut).find(name => name.endsWith(".json"));
+    const rustReport = JSON.parse(readFileSync(path.join(rustOut, rustReportName), "utf8"));
+    if (rustReport.sourceFacts?.filesByLanguage?.rust !== 5 || !(rustReport.sourceFacts.filesWithDiagnosticsCount >= 5) ||
+        rustReport.issues.some(issue => issue.id.includes("unreferenced-source-file")) ||
+        !rustReport.issues.some(issue => issue.detectorId === "duplicate-implementation-candidate" && issue.title.includes("calibrate_sensor") && issue.severity === "info") ||
+        !rustReport.issues.some(issue => issue.detectorId === "dead-code-candidate" && issue.title.includes("unused.json")) ||
+        !rustReport.issues.some(issue => issue.detectorId === "test-rot" && issue.title.includes("test.skip(")) ||
+        !rustReport.issues.some(issue => issue.detectorId === "cross-platform-rot" && issue.affectedFiles.includes("src/audits/lines.rs"))) {
+      fail("RUST_REUSE", "Installed Rust source facts or existing policy findings were absent.");
+    }
+    if (!isDeepStrictEqual(await snapshotDirectory(rustTarget), rustBefore)) fail("RUST_REUSE", "Rust target changed.");
+    const rustThresholdArgs = [...rustArgs];
+    rustThresholdArgs[rustThresholdArgs.indexOf("--fail-on") + 1] = "medium";
+    const rustThreshold = runInstalledCli(cliCommand, dirs.consumer, rustThresholdArgs, envWithBin);
+    if (rustThreshold.status !== 1) fail("RUST_REUSE", "Rust findings did not preserve the existing severity-threshold exit 1.", describeChildResult(rustThreshold));
+    if (!isDeepStrictEqual(await snapshotDirectory(rustTarget), rustBefore)) fail("RUST_REUSE", "Threshold Rust audit changed target.");
+    // Deliberately incomplete required declarations, produced by Kit itself.
+    // --fail-on none must still return the established runtime failure code.
+    writeFileSync(path.join(rustTarget, "src", "primary.rs"), '#[cfg(feature = "optional")]\npub fn conditional() {}\n');
+    const incompleteBefore = await snapshotDirectory(rustTarget);
+    const rustIncomplete = runInstalledCli(cliCommand, dirs.consumer, rustArgs, envWithBin);
+    if (rustIncomplete.status !== 2) fail("RUST_REQUIRED_EVIDENCE", "Incomplete Rust evidence did not exit 2 with --fail-on none.", describeChildResult(rustIncomplete));
+    if (!rustIncomplete.stderr.includes("capability-insufficient")) fail("RUST_REQUIRED_EVIDENCE", "Rust exit 2 did not identify its required capability failure.", describeChildResult(rustIncomplete));
+    if (!isDeepStrictEqual(await snapshotDirectory(rustTarget), incompleteBefore)) fail("RUST_REQUIRED_EVIDENCE", "Incomplete Rust audit changed target.");
+    if (!isDeepStrictEqual(await snapshotDirectory(installedPackageRoot), installedPackageBefore)) fail("RUST_REUSE", "Installed package changed during Rust auditing.");
+    if (!isDeepStrictEqual(await snapshotDirectory(rustProvider.packageRoot), rustProviderBefore)) fail("RUST_REUSE", "Installed Kit provider changed during Rust auditing.");
+    console.log("RUST_REUSE: PASS (published managed Kit; existing findings; separate output; target/package immutable; fail-on none exits 0; medium exits 1; required cfg evidence exits 2)");
+
     const securityResult = runInstalledCli(
       cliCommand,
       dirs.consumer,
@@ -3172,7 +3213,8 @@ async function main() {
     const icsGitBranch = gitOutput(["branch", "--show-current"]);
     const icsPackageVersion = packEntry.version;
     const writeIcsEvidence = (finalVerdict, immutability) => {
-      const reportPath = path.join(tempRoot, "v0.6.3-real-upstream-partial-refresh-acceptance.txt");
+      // This invocation owns tempRoot exclusively. Historical acceptance records are read-only.
+      const reportPath = path.join(tempRoot, "incremental-change-staleness-acceptance.txt");
       const cell = (value) => (value === null || value === undefined ? "null" : Array.isArray(value) ? JSON.stringify(value) : String(value));
       const lines = [
         "my-dev-kit-lab v0.6.3 real-upstream partial-refresh acceptance (local-only evidence; not public documentation)",
@@ -3214,7 +3256,7 @@ async function main() {
         `final acceptance verdict: ${finalVerdict}`
       );
       mkdirSync(path.dirname(reportPath), { recursive: true });
-      writeFileSync(reportPath, `${lines.join("\n")}\n`, "utf8");
+      writeFileSync(reportPath, `${lines.join("\n")}\n`, { encoding: "utf8", flag: "wx" });
       return reportPath;
     };
 

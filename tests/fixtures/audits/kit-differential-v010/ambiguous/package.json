@@ -1,0 +1,11 @@
+{
+  "name": "kit-differential-fixture",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "vitest run tests/missing.ts",
+    "portable": "echo ok"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

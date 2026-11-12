@@ -82,6 +82,7 @@ function lowSeverityOnlyFixture(): string {
 }
 
 function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
+  const outputArgs = args.includes("--out") ? args : [...args, "--out", makeTempDir("audit-lowseverity-out-")];
   const resolved = resolveCommand("npx", { cwd: toolRoot });
   const needsResolvedPathArg =
     resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
@@ -90,10 +91,10 @@ function runAuditCli(args: string[]): { stdout: string; stderr: string; status: 
     ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
     "tsx",
     "scripts/audits/runAudit.ts",
-    ...args,
+    ...outputArgs,
   ];
   try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" });
+    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };

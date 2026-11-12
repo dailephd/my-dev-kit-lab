@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "1.0.0",
+  "planId": "cli-required-failure",
+  "policyVersion": "1.0.0",
+  "subject": {
+    "schemaVersion": "1.0.0",
+    "authority": "@dailephd/my-dev-kit-lab",
+    "namespace": "my-dev-kit-lab/evidence",
+    "value": "agent-success-task-board-node"
+  },
+  "profileId": "cli-verification-v1",
+  "selectedInputs": {
+    "paths": [
+      ".gitattributes",
+      "README.md",
+      "package.json",
+      "src/index.js",
+      "src/projectSummary.js",
+      "src/taskService.js",
+      "src/taskStore.js",
+      "src/validation.js",
+      "tests/import-edge.check.mjs",
+      "tests/import-primary.check.mjs",
+      "tests/regression.check.mjs",
+      "tests/summary-edge.check.mjs",
+      "tests/summary-primary.check.mjs",
+      "tests/title-edge.check.mjs",
+      "tests/title-primary.check.mjs"
+    ],
+    "exclusions": [],
+    "policyId": "all-copyable-nonsecret-inputs-v1",
+    "relevantIgnoredPaths": []
+  },
+  "requirements": [
+    {
+      "requirementId": "required-failure",
+      "capabilityId": "node-required-failure",
+      "criticality": "critical",
+      "acceptedArtifactKinds": [
+        "node-test-tap-v1"
+      ],
+      "acceptedSchemaVersions": [
+        "1.0.0"
+      ],
+      "requiredCapabilities": [
+        "native-test-result",
+        "trustworthy-test-totals"
+      ],
+      "freshnessPolicy": "current",
+      "nativeSuccessRequired": true,
+      "applicability": "applicable"
+    },
+    {
+      "requirementId": "optional-regression",
+      "capabilityId": "node-regression",
+      "criticality": "noncritical",
+      "acceptedArtifactKinds": [
+        "node-test-tap-v1"
+      ],
+      "acceptedSchemaVersions": [
+        "1.0.0"
+      ],
+      "requiredCapabilities": [
+        "native-test-result",
+        "trustworthy-test-totals"
+      ],
+      "freshnessPolicy": "current",
+      "nativeSuccessRequired": true,
+      "applicability": "applicable"
+    }
+  ],
+  "checks": [
+    {
+      "checkId": "title-primary",
+      "profileId": "node-test-tap-v1",
+      "testFile": "tests/title-primary.check.mjs",
+      "capabilityId": "node-required-failure"
+    },
+    {
+      "checkId": "regression",
+      "profileId": "node-test-tap-v1",
+      "testFile": "tests/regression.check.mjs",
+      "capabilityId": "node-regression"
+    }
+  ]
+}

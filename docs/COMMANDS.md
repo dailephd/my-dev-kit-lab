@@ -10,7 +10,9 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, is included in the current package.
+This section describes the current source checkout and published package, with unreleased development commands explicitly labeled. The `evidence` family below is implemented in the v0.10.0 development checkout and remains unreleased.
+
+The latest verified published package is 0.9.7; the local checkout metadata remains 0.9.6. Public 0.9.7 does not include the new v0.10.0 evidence family. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, remains included in the published package.
 
 The `--local-subject-config` option and the external local-repository mode described under `context-window-scaling` were added in v0.7.2 and are included in the current package.
 
@@ -39,6 +41,44 @@ my-dev-kit-lab [--workspace <path>] gallery build [options]
 
 my-dev-kit-lab demo final [options]
 ```
+
+### `my-dev-kit-lab evidence` (v0.10.0 development)
+
+This unreleased family exposes capture, passive import, and exact-artifact certification through the built checkout CLI (`node dist/scripts/cli.js`) or a separately built development package. Package metadata remains `0.9.6`; installing public 0.9.7 does not supply this new functionality.
+
+```text
+my-dev-kit-lab [--workspace <path>] evidence --help
+my-dev-kit-lab [--workspace <path>] evidence import --plan <plan.json> --root <evidence-root> --artifact <relative-path> --kind <native-kind> --sha256 <digest> --out <run-output>
+my-dev-kit-lab [--workspace <path>] evidence capture --plan <plan.json> --target <canonical-target-root> --check-id <id> --out <run-output> --allow-local-code-execution
+my-dev-kit-lab [--workspace <path>] evidence certify --plan <plan.json> --records <record-manifest> --profile <profile-id> --out <run-output>
+```
+
+All arguments shown for each operation are required. Global `--workspace` precedes `evidence`; the normal default is `<home>/.my-dev-kit-lab`. `--out` is explicit, resolves relative to the invocation directory, and must name a new direct child `<workspace>/lab-output/evidence/<run-id>`. It is not an arbitrary output directory. Run IDs permit letters/digits followed by letters/digits, `.`, `_`, or `-`, at most 128 characters. Existing directories are refused. Capture also requires a sandbox-compatible run ID: letters/digits followed by letters/digits, `_`, or `-`, at most 64 characters. No automatic run ID is allocated.
+
+`--plan` supplies a closed `LabVerificationPlanV1` JSON record with schema `1.0.0`, subject, selected inputs/exclusions, requirements, checks, policy, and `cli-verification-v1` or `local-app-verification-v1` profile. Each check names a selected relative test file and the finite `node-test-tap-v1` execution profile. The checked-in `tests/fixtures/ecosystem/executable-evidence-v1/plan-cli-valid.json` is a development fixture example, not an authorization to execute an arbitrary project. Full [contract semantics](ARCHITECTURE.md#executable-evidence-foundation-v0100-development) include identity and provenance limitations.
+
+`import` reads `--artifact` relative to the explicitly authorized `--root`, verifies physical containment and original SHA-256 against `--sha256`, and passively qualifies the native payload. Absolute/drive/UNC/traversal artifact paths and non-path locators are rejected. Native payloads and plan/manifest reads are bounded to 8 MiB per file. Supported `--kind` values (native reference schema `1.0.0`) are:
+
+- `node-test-tap-v1`: strict supported Node TAP-13 test output; unsupported structure or uncorroborated totals cannot establish complete success.
+- `kit-context-capsule-v1` and `kit-retrieval-audit-v1`: native Kit context evidence, not test execution success.
+- `orchestrator-workflow-instruction-packet-v1`: native instruction identity/adequacy, not completed verification.
+- `orchestrator-run-integrity-v1`: native run readiness, expected verdict, judge acceptance, and final-report eligibility.
+
+Observer-native evidence is not supported. Import never executes producer commands or instructions. The CLI records caller-declared origin, unknown freshness/environment, and unverifiable source identity; successful byte import can therefore return `1` with an indeterminate critical assessment. A matching digest does not attest historical origin.
+
+`capture` requires `--allow-local-code-execution` and a selected `--check-id`. `--target` must resolve to the canonical physical target root; the target and writable workspace must not overlap. It executes only the selected Node test in a disposable copy under `<workspace>/lab-output/evidence/.runtime`, using the current Node executable and `--test --test-reporter=tap -- <test-file>`. CLI limits are 30 seconds and 1 MiB each for stdout/stderr. Source selection is bounded to 2,000 files, 1 MiB per file, 16 MiB aggregate; required existing package/lock inputs and every copyable input must be selected. Relevant configuration/ignored inputs need explicit selection. A minimal child environment, credential-input restrictions, mutation detection, and cleanup checks apply. Timeout/output failure, changed targets, and failed cleanup are not success.
+
+Only trusted local code should be executed: disposable copies do not enforce OS filesystem or network isolation. Account-accessible resources remain reachable; network policy is `not-enforced` and caller-driven cancellation is unsupported. There is no shell, arbitrary-command, environment-forwarding, or network-isolation flag in this family.
+
+`certify` consumes a closed schema-`1.0.0` record manifest. Required fields are `schemaVersion`, `qualifications`, `subjectBinding`, `support`, `canonicalBundle`, `packageIdentities`, `approvedPackageIdentities`, `specificationSha256`, `fixtureRevisionSha256`, `environmentMatrix`, `browserWitness`, `nativePayloads`, `packagePayloads`, `executionPackageBindings`, and `approvedPackageCombinations`. Native/package payload records contain relative paths rooted at the manifest directory and matching SHA-256; combined payload reads are bounded to 16 MiB. CLI package payloads must be exact package artifacts. The library additionally models complete-content-manifest package identities. The manifest is a trusted harness input, not an automatically generated approval or origin attestation.
+
+`--profile` must match the plan's `cli-verification-v1` or `local-app-verification-v1`. Certification requires the exact approved package bytes/combination, selected execution, specification, fixture revision, environment cell, and required evidence. Local-app qualification additionally needs verified prepared-runtime and native tutorial/browser evidence; it does not launch a browser through `certify`. CLI-only qualification requires a null browser witness. Import and certify perform no target execution. `supported`, `tested`, and `certified` remain distinct; no automatic `active` state or replacement Orchestrator verdict is produced.
+
+An evidence run contains `manifest.json`, `assessment.json`, `report.json`, and `report.txt`; import/capture also write `qualification.json` and exact `native/artifact.bin`; certification writes `certification.json` and derived `native/references.json`. The manifest records original/derived provenance and hashes and becomes complete only after artifact verification. Failure can leave an incomplete owned run; do not reuse its ID or mistake its presence for success. Original payloads may contain sensitive data even when report previews are sanitized.
+
+Exit codes: help and satisfied capture/import or certified bundles return `0`; valid but unmet assessments or uncertified bundles return `1`; malformed/unknown/duplicate/missing arguments, rejected authorization/path/digest/schema, infrastructure exceptions, and capture/certify assessments with an incompatible critical requirement return `2`. Import's assessment path returns `1` when unsatisfied after successful import. These results do not change native Orchestrator acceptance.
+
+The library exports `readExecutableEvidence`, `captureAuthorizedEvidence`, `evaluateExecutableEvidence`, and `certifyExecutableEvidenceBundle`, plus the Lab request/result types, from `src/index.ts` (built at `dist/src/index.js`). Import that module by its explicit path in an installed development package; `package.json` does not declare a package-root `main` or `exports` entry. Read/capture return structured results, while pure evaluation/certification validate their supplied records and may throw on invalid requests. The API capture authorization permits up to 120 seconds and 1 MiB per output stream, independently of the CLI's 30-second setting.
 
 ### `my-dev-kit-lab tutorial`
 
@@ -664,7 +704,7 @@ npm run experiment:run -- --experiment context-strategy-comparison --target /pat
 ```
 
 ```powershell
-npm run experiment:run -- --experiment context-strategy-comparison --target "C:\path\to\target-project" --agents fake-agent --complexities short --no-screenshot
+npm run experiment:run -- --experiment context-strategy-comparison --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --agents fake-agent --complexities short --no-screenshot
 ```
 
 ```bash
@@ -806,7 +846,7 @@ npm run security:validate -- --profile node-cli-package --format json
 ```
 
 ```powershell
-npm run security:validate -- --target "C:\path\to\target-project"
+npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 ```
 
 Current behavior:
@@ -828,8 +868,6 @@ The existing `security:validate --target <path>` and `security:package -- --targ
 
 The generic audit framework runs conservative repository-health checks. It is separate from `security:validate`: selecting the `security` audit type adapts the standalone validator's results into the audit report while preserving the original security report.
 
-The [planned LAB-KIT-01 migration](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01) changes the source-evidence provider in v0.10.0. It is not implemented and adds no currently available command or flag. The syntax and behavior below describe the current package; implementation must preserve parity between installed commands and source-checkout aliases through the same audit owner.
-
 Current implemented command:
 
 - `npm run audit`
@@ -847,6 +885,10 @@ Current options:
 | `--fail-on <level>` | `blocker`, `high`, `medium`, `low`, `none`; defaults to `blocker` |
 | `--out <path>` | Optional report output directory |
 | `--android` | Optional; requires `--types` to include `security` |
+
+Development source-audit prerequisite (LAB-KIT-01, v0.10.0 implemented and unreleased): source-dependent selections use the exact qualified runtime dependency `@dailephd/my-dev-kit@1.15.0` described in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development). Lab and installed-consumer qualification against that published producer passed. Candidate 05 remains historical and is distinct from public Kit 1.14.0. The provider resolves Kit through Lab module resolution and never installs it automatically. A separately installed retrieval CLI or an experiment `--kit-command` does not configure this audit provider. Non-source-only selections and selections with no applicable source paths do not require Kit. An include area can select both source-dependent and non-source detectors; `--include package` can require source declarations for duplicate-implementation checks. Rust `.rs` selection uses the same command and generic bridge, with no language flag or Rust runner; [capability and applicability limits](ARCHITECTURE.md#rust-source-evidence-reuse) remain explicit.
+
+The programmatic `runAudit` option `sourceProviderMode` defaults to `kit` and accepts only `kit`; `legacy-comparison` is retired and unsupported values fail explicitly. The provider dependency injection seam is internal, not a public configuration option. There is no audit `--source-provider` flag.
 
 Current implemented audit types:
 
@@ -874,9 +916,9 @@ npm run audit -- --target /path/to/android/project --types security --android --
 ```
 
 ```powershell
-npm run audit -- --target "C:\path\to\target-project" --types code-rot --fail-on none
-npm run audit -- --target "C:\path\to\target-project" --types security --fail-on none
-npm run audit -- --target "C:\path\to\target-project" --types code-rot,security --fail-on none
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot --fail-on none
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types code-rot,security --fail-on none
 ```
 
 Current behavior:
@@ -893,19 +935,8 @@ Current report details:
 
 - JSON reports include source-facts, Python project metadata, and security-summary fields where applicable; JVM metadata remains detector input rather than a separate top-level field.
 - The security summary records verdicts, check/finding counts, mapped issue counts, and links to the original security reports. Skipped optional checks remain skips and never become issues or passes.
-- Source-facts findings are conservative candidate evidence. The language analyzers do not provide type checking, full module/classpath resolution, runtime reachability, clone detection, coverage proof, compiler execution, Gradle/Maven execution, or target-test execution.
+- Source-facts findings are conservative candidate evidence. Kit source evidence does not provide type checking, full module/classpath resolution, runtime reachability, clone detection, coverage proof, compiler execution, Gradle/Maven execution, or target-test execution. The public report `sourceFacts` aggregate is not the internal `runAudit().sourceFacts.kitEvidence` provenance envelope.
+- Required Kit acquisition or authenticated-read failures are runtime failures: exit `2`, even with `--fail-on none`, with an explicit `Kit source evidence unavailable (<category>)` error and no success report. `--fail-on` controls finding severity, not evidence acquisition. `0` means no issue met the threshold; `1` means the threshold was breached. Partial positive declaration evidence has only the narrow qualification documented in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development).
 - The audit command has no `--checks`, `--profile`, `--languages`, or `--frameworks` option. Android audit integration uses only `--android`.
 
 Unsupported command/profile names such as `android-compose`, `security:pentest`, `security:android`, `mobile:detect`, and `mobile:validate` are not current syntax. See [ROADMAP.md](ROADMAP.md) for approved future scope.
-
-### v0.9.7 incremental runtime containment
-
-The existing global workspace option precedes the experiment family:
-
-```text
-my-dev-kit-lab --workspace ./lab-state experiment run --experiment incremental-change-staleness --out ./experiment-results
-```
-
-`--out` continues to select persisted artifacts/reports; relative output resolves from the invocation directory and the installed default remains `<workspace>/lab-output/experiments/<plugin>/<target>/<run>/`. Disposable incremental state uses `<workspace>/runtime/incremental-change-staleness/<sanitized-run-id>/`, including copies, indexes, command logs and agent scratch. This internal writable root is not a CLI option. Missing/invalid workspace, unsafe ancestry, report/runtime overlap or an existing run collision fails safely. Normal cleanup removes current-owned runtime state, so persisted log paths can identify files already removed. Interrupted state requires explicit investigation; markers alone cannot authorize cleanup.
-
-The v0.9.7 contract preserves self-only targets, scenario/treatment IDs, supported Kit commands, options, error classification, and artifact/report schemas. The previous published v0.9.6 package has a different incremental runtime-root implementation. No public runtime-root option is introduced.

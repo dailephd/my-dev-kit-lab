@@ -136,6 +136,7 @@ src/ — THE source implementation. Do not put test fixtures, local reports or i
     src/experiments/plugins/*/ — plugin-owned config, selection, execution, artifact, plugin registration, metrics and domain types; general interfaces stay in src/experiments.
   src/evaluation/ — SHARED trial creation, retrieval lifecycle, benchmark metadata, scoring, token/timing comparison, index snapshot/freshness and affected-neighborhood algorithms.
     ecosystemFixtures/ — frozen ecosystem fixture manifests, hash verification and loader.
+    executableEvidence/ — LAB-EVIDENCE-01 authorized capture/passive import, pinned ECO-00 consumer validation, identity/qualification, requirements and exact-artifact certification; existing mechanism owners retained.
     localRepositorySubject/ — safe Git local-subject inventory, identity/config, evaluation case and expected files; external-local privacy and non-mutation contract.
     retrievalQuality/ — shared answer-key, file/symbol/fact matching and retrieval metrics; do not clone metrics into plugin reports.
     stageContextDeterminism/ — stable canonicalization, repeated-run digests and determinism checks.
@@ -212,6 +213,7 @@ TEST TREE: tests/ — production behavior and safety verification; NEVER product
   tests/e2e/ — whole-system/end-user outcome checks; not the default level for local behavior.
   tests/evaluation/ — shared scoring, retrieval, benchmark, target/graph and trial machinery tests.
     ecosystemFixtures/ — frozen fixture integrity, determinism, checkout portability and replay tests.
+    executableEvidence/ — LAB-EVIDENCE-01 contract, identity, import, adapter, plan, evaluation, capture, certification and persistence tests; CLI/report/integration use their existing owners.
     localRepositorySubject/ — local Git inventory, safety, identity and config tests.
     retrievalQuality/ — shared retrieval and fact coverage tests.
     stageContextDeterminism/ — canonicalization/repeatability tests.
@@ -262,6 +264,7 @@ TEST TREE: tests/ — production behavior and safety verification; NEVER product
         mixed-ts-python-jvm/ — TypeScript, Python, JVM mixed source/test paths.
       audits/**/src/, src/main/java/, src/main/kotlin/, src/test/, pytests/, tests/, generated/, vendor/, com/example/ — deliberately embedded audited-project roots.
     ecosystem/ — frozen cross-tool evidence corpus.
+      executable-evidence-v1/ — LAB-EVIDENCE-01 test-only TAP, plan and compatibility fixtures; historical ecosystem fixtures remain immutable.
       context-integrity/v0.4.5/ — pinned upstream, failed-run/corrected-replay, producer, derived, artifacts, reports, tool-versions, manifests: keep immutable until intentional fixture update.
     full-workflow-library/ — frozen workflow strategy library JSONs and forward-compatible variants.
     stage-context-expectations/ — expectation fixtures plus invalid/ negative cases.

@@ -48,7 +48,12 @@ export function expectNoIndexOutputInCanonicalProjects(): void {
 // Disposable runtime roots must stay inside the repository worktree (Batch 2
 // containment), so lifecycle run roots live under the gitignored
 // .my-dev-kit-context/ directory rather than the OS temp directory.
-export const testRuntimeParent = path.join(repoRoot, ".my-dev-kit-context", "test-runtime");
+const configuredRuntime = path.relative(repoRoot, path.resolve(os.tmpdir()));
+export const testRuntimeParent = configuredRuntime !== "" && !configuredRuntime.startsWith("..") && !path.isAbsolute(configuredRuntime)
+  ? path.resolve(os.tmpdir()) : path.join(repoRoot, ".my-dev-kit-context", "test-runtime");
+if (path.relative(repoRoot, testRuntimeParent).startsWith("..") || path.isAbsolute(path.relative(repoRoot, testRuntimeParent))) {
+  throw new Error("Lifecycle test runtime must be inside the repository worktree.");
+}
 
 export function makeRunOwnedRoot(tracked: string[], prefix = "ics-batch3-"): string {
   mkdirSync(testRuntimeParent, { recursive: true });

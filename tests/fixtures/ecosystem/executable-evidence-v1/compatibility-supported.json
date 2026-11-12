@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0.0",
+  "bundleId": "exact-package-fixture",
+  "status": "supported",
+  "components": [
+    {
+      "packageName": "@dailephd/my-dev-kit-lab",
+      "packageVersion": "0.9.6",
+      "artifactSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
+  "contracts": [
+    {
+      "contractId": "eco.subject-identity",
+      "schemaVersion": "1.0.0"
+    },
+    {
+      "contractId": "eco.environment-identity",
+      "schemaVersion": "1.0.0"
+    },
+    {
+      "contractId": "eco.native-artifact-reference",
+      "schemaVersion": "1.0.0"
+    },
+    {
+      "contractId": "eco.evidence-envelope",
+      "schemaVersion": "1.0.0"
+    },
+    {
+      "contractId": "eco.evidence-requirement",
+      "schemaVersion": "1.0.0"
+    },
+    {
+      "contractId": "eco.compatibility-bundle",
+      "schemaVersion": "1.0.0"
+    }
+  ]
+}

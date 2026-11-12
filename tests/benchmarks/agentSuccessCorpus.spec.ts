@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -147,13 +147,14 @@ const forTask = (task: AgentSuccessTaskV1): TaskEvidence => evidence.find((entry
 
 describe("agent-success corpus dynamic acceptance (real canonical projects, independent clean copies)", () => {
   beforeAll(async () => {
+    const historicalReport = path.join(repoRoot, "reports", "agent-success-corpus", "dynamic-acceptance.json");
+    const historical = existsSync(historicalReport) ? { bytes: readFileSync(historicalReport), mtime: statSync(historicalReport, { bigint: true }).mtimeNs } : null;
     corpus = assertReadAgentSuccessCorpus(repoRoot);
     // Strictly sequential and each from its own fresh sandbox: no task ever sees another task's patch.
     for (const task of corpus.tasks) evidence.push(await evaluateTask(task));
 
-    // Compact deterministic evidence for humans; written under the ignored reports root and never committed.
-    const reportDir = path.join(repoRoot, "reports", "agent-success-corpus");
-    mkdirSync(reportDir, { recursive: true });
+    // Current test evidence belongs to an exclusive test-owned runtime, never historical reports.
+    const reportDir = makeTempDir("agent-success-corpus-report-");
     const report = evidence.map((entry) => ({
       taskId: entry.taskId,
       project: entry.project,
@@ -165,7 +166,9 @@ describe("agent-success corpus dynamic acceptance (real canonical projects, inde
       canonicalUnchanged: entry.canonicalDigestBefore === entry.canonicalDigestAfter,
       cleanup: entry.cleanup
     }));
-    writeFileSync(path.join(reportDir, "dynamic-acceptance.json"), `${JSON.stringify({ schema: "agent-success-corpus-acceptance-evidence", tasks: report }, null, 2)}\n`);
+    writeFileSync(path.join(reportDir, "dynamic-acceptance.json"), `${JSON.stringify({ schema: "agent-success-corpus-acceptance-evidence", tasks: report }, null, 2)}\n`, { flag: "wx" });
+    if (historical) { expect(readFileSync(historicalReport)).toEqual(historical.bytes); expect(statSync(historicalReport, { bigint: true }).mtimeNs).toBe(historical.mtime); }
+    else expect(existsSync(historicalReport)).toBe(false);
   }, 600_000);
 
   it("evaluates exactly the six catalog tasks in catalog order", () => {

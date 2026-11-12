@@ -118,7 +118,7 @@ describe("crossPlatformRotDetector — raw-split detection is not weakened", () 
       'export function badParse(content: string): string[] {\n  return content.split("\\n");\n}\n'
     );
     const config = normalizeAuditConfig({ include: "cli,package" }, root);
-    const result = await runAudit({ config, toolRoot: root, registry: DEFAULT_AUDIT_REGISTRY });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, registry: DEFAULT_AUDIT_REGISTRY });
     const flagged = result.issues.filter((i) => i.detectorId === "cross-platform-rot" && i.affectedFiles.includes("src/audits/core/fakeRawSplitter.ts"));
     expect(flagged.length).toBeGreaterThan(0);
   });

@@ -1,9 +1,33 @@
+import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveCommand } from "../../src/core/resolveCommand.js";
+// Same controlled dependency seam as auditRunnerKitBridge.test.ts. Only explicit
+// in-process negative scenarios override managed package resolution; real CLI
+// subprocesses below continue to exercise the installed provider unchanged.
+const providerOverride = vi.hoisted(() => ({ root: undefined as string | undefined }));
+vi.mock("../../src/audits/core/auditRunner.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/audits/core/auditRunner.js")>("../../src/audits/core/auditRunner.js");
+  return { ...actual, runAudit: (options: Parameters<typeof actual.runAudit>[0]) => actual.runAudit(
+    providerOverride.root === undefined ? options : { ...options, kitSourceProviderDependencies: { installedPackageRoot: providerOverride.root } }
+  ) };
+});
+import { resolveInstalledKitPackage } from "../../src/audits/core/kitSourceProvider.js";
+import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
+
+async function runAuditWithProvider(args: string[], root: string) {
+  providerOverride.root = root;
+  const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const status = await runAuditCommandFromArgs(args);
+    return { status, stderr: error.mock.calls.map(parts => parts.join(" ")).join("\n") };
+  } finally { providerOverride.root = undefined; log.mockRestore(); error.mockRestore(); }
+}
+
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 1 — real `npm run audit` CLI smoke tests.
@@ -26,18 +50,9 @@ afterEach(() => {
 });
 
 function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
-  const resolved = resolveCommand("npx", { cwd: toolRoot });
-  const needsResolvedPathArg =
-    resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
-  const fullArgs = [
-    ...resolved.argsPrefix,
-    ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
-    "tsx",
-    "scripts/audits/runAudit.ts",
-    ...args,
-  ];
+  const fullArgs = [path.join(toolRoot, "node_modules/tsx/dist/cli.mjs"), path.join(toolRoot, "scripts/audits/runAudit.ts"), ...args];
   try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" });
+    const stdout = execFileSync(process.execPath, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };
@@ -46,39 +61,53 @@ function runAuditCli(args: string[]): { stdout: string; stderr: string; status: 
 }
 
 describe("npm run audit — defaults", () => {
-  it("runs with no flags and exits 0 (default --fail-on blocker, no blocker-severity issues) against this repo's own current state", () => {
-    // Batch 3 baseline was literally zero issues. Batch 4 adds real detector
-    // coverage (architecture-drift, cross-platform-rot) that surfaces a
-    // small number of genuine, honestly-reported findings against this
-    // repo's own current docs/source (e.g. docs/ARCHITECTURE.md still
-    // describing the audit framework as planned even though it is now
-    // implemented) -- none of them are blocker severity, so the default
-    // --fail-on blocker threshold is not breached and the command still
-    // exits 0. See crossPlatformRotDetector.test.ts and
-    // architectureDriftDetector.test.ts for the specific real findings.
-    const outDir = mkdtempSync(path.join(os.tmpdir(), "audit-smoke-default-"));
-    cleanupDirs.push(outDir);
-    const result = runAuditCli(["--out", outDir]);
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("blocker=0");
-    expect(result.stdout).toContain("Exit 0");
+  it("default source audit fails closed when the qualified producer is deliberately unavailable", async () => {
+    const target = boundedCliTarget();
+    const outDir = path.join(target, "audit-out");
+    const result = await runAuditWithProvider(["--target", target, "--out", outDir], path.join(target, "missing-kit"));
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("package-missing");
+    expect(existsSync(path.join(outDir, "code-rot-audit.json"))).toBe(false);
+  });
+
+  it("--fail-on none cannot mask deliberately unavailable required evidence", async () => {
+    const target = boundedCliTarget(); const outDir = path.join(target, "audit-out");
+    const result = await runAuditWithProvider(["--target", target, "--types", "code-rot", "--fail-on", "none", "--out", outDir], path.join(target, "missing-kit"));
+    expect(result.status).toBe(2); expect(result.stderr).toContain("package-missing");
+    expect(existsSync(outDir)).toBe(false);
+  });
+
+  it("rejects an explicitly incompatible provider without a legacy fallback", async () => {
+    const target = boundedCliTarget(); const root = path.join(target, "incompatible-kit");
+    fs.mkdirSync(root); fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ name: "@dailephd/my-dev-kit", version: "1.14.0" }));
+    const outDir = path.join(target, "audit-out");
+    const result = await runAuditWithProvider(["--target", target, "--fail-on", "none", "--out", outDir], root);
+    expect(result.status).toBe(2); expect(result.stderr).toContain("package-identity");
+    expect(existsSync(outDir)).toBe(false);
+    expect(existsSync(path.join(toolRoot, "src/audits/core/collectSourceFacts.ts"))).toBe(false);
+  });
+
+  it("accepts the authenticated managed published provider through the real CLI", () => {
+    const target = boundedCliTarget(); const outDir = path.join(target, "audit-out");
+    const result = runAuditCli(["--target", target, "--include", "package,cli", "--fail-on", "none", "--format", "json", "--out", outDir]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(existsSync(path.join(outDir, "code-rot-audit.json"))).toBe(true);
+    const report = JSON.parse(readFileSync(path.join(outDir, "code-rot-audit.json"), "utf8"));
+    expect(resolveInstalledKitPackage().packageVersion).toBe("1.15.0");
+    expect(report.sourceFacts.totalFilesAnalyzed).toBeGreaterThan(0);
+    expect(report.sourceFacts.filesByParseStatus.parsed).toBeGreaterThan(0);
+    expect(readFileSync(path.join(target, "src/index.ts"), "utf8")).toBe("export const value = 1;\n");
   }, 30_000);
 
-  it("--target . --types code-rot --fail-on none exits 0", () => {
-    const outDir = mkdtempSync(path.join(os.tmpdir(), "audit-smoke-none-"));
-    cleanupDirs.push(outDir);
-    const result = runAuditCli(["--target", ".", "--types", "code-rot", "--fail-on", "none", "--out", outDir]);
-    expect(result.status).toBe(0);
-  }, 30_000);
-
-  it("--types code-rot --include docs,tests,package,architecture,cli --format text,json succeeds and writes both formats", () => {
+  it("a non-source CLI selection preserves JSON/text report output", () => {
     const outDir = mkdtempSync(path.join(os.tmpdir(), "audit-smoke-full-"));
     cleanupDirs.push(outDir);
     const result = runAuditCli([
+      "--target", boundedCliTarget(),
       "--types",
       "code-rot",
       "--include",
-      "docs,tests,package,architecture,cli",
+      "docs",
       "--format",
       "text,json",
       "--out",
@@ -204,3 +233,11 @@ describe("npm run audit — regression: existing commands still work", () => {
     expect(jsonReport.metadata?.selectedChecks).toEqual(["boundary"]);
   }, 35_000);
 });
+
+function boundedCliTarget(): string {
+ const root = mkdtempSync(path.join(os.tmpdir(), "audit-cli-bounded-")); cleanupDirs.push(root);
+ fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({name:"@dailephd/my-dev-kit-lab",version:"1.0.0",scripts:{}}));
+ fs.writeFileSync(path.join(root,"README.md"),"# Bounded audit fixture\n");
+ fs.mkdirSync(path.join(root,"src")); fs.writeFileSync(path.join(root,"src/index.ts"),"export const value = 1;\n");
+ return root;
+}

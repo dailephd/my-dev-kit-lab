@@ -1,7 +1,8 @@
+import { kitPredicateContent } from "../utils/sourceFactsLookup.js";
+import { KitSourceEvidenceAcquisitionError } from "../../core/kitSourceEvidence.js";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { DeclarationFactKind } from "../../core/sourceFacts.js";
-import { readBoundedFileText } from "../utils/boundedRead.js";
 import {
   firstPathSegment,
   GENERIC_INFRA_BASENAMES,
@@ -66,7 +67,8 @@ export const DUPLICATE_IMPLEMENTATION_DETECTOR: AuditDetector = {
     }
     return { skip: false };
   },
-  run: (ctx: AuditDetectorContext): AuditIssue[] => {
+  run: async (ctx: AuditDetectorContext): Promise<AuditIssue[]> => {
+    if (ctx.sourceFacts?.provider === "kit" && !ctx.kitSourceReader) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Kit-backed detector requires its validated per-audit reader; native fallback is forbidden.");
     const issues: AuditIssue[] = [];
     const pkg = ctx.sourceOfTruth.package;
 
@@ -80,7 +82,7 @@ export const DUPLICATE_IMPLEMENTATION_DETECTOR: AuditDetector = {
       issues.push(...findDuplicateDeclarationCandidates(ctx));
     }
 
-    issues.push(...findDuplicateDetectorRegistryIds(ctx));
+    issues.push(...(await findDuplicateDetectorRegistryIds(ctx)));
 
     return deduplicateIssuesById(issues);
   },
@@ -354,13 +356,14 @@ function findDuplicateDeclarationCandidates(ctx: AuditDetectorContext): AuditIss
 // genuinely found via this file-based check -- per the spec's own allowed
 // simplification, this does not attempt to reconcile against
 // DEFAULT_AUDIT_REGISTRY at runtime (that would be circular).
-function findDuplicateDetectorRegistryIds(ctx: AuditDetectorContext): AuditIssue[] {
+async function findDuplicateDetectorRegistryIds(ctx: AuditDetectorContext): Promise<AuditIssue[]> {
   const detectorFiles = ctx.inventory.sourceFiles.filter((f) => /\/detectors\/[\w-]+\.ts$/.test(f.relativePath));
   if (detectorFiles.length === 0) return [];
 
   const idsToFiles = new Map<string, string[]>();
   for (const file of detectorFiles) {
-    const content = readBoundedFileText(ctx.target.rootPath, file.relativePath, file.sizeBytes, MAX_READ_BYTES);
+    if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required registry source ${file.relativePath} is unselected.`);
+    const content = await kitPredicateContent(ctx.kitSourceReader, file.relativePath, ["id:"], true);
     if (content === null) continue;
     const match = content.match(/\bid:\s*DETECTOR_ID\b/) ? content.match(/const DETECTOR_ID\s*=\s*"([^"]+)"/) : content.match(/\bid:\s*"([^"]+)"/);
     if (!match) continue;

@@ -1,6 +1,6 @@
 {
   "name": "@dailephd/my-dev-kit-lab",
-  "version": "0.9.7",
+  "version": "0.9.6",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
@@ -87,6 +87,7 @@
     "report:context-integrity-smoke": "tsx scripts/report-context-integrity-smoke.ts"
   },
   "dependencies": {
+    "@dailephd/my-dev-kit": "1.15.0",
     "playwright": "1.60.0"
   },
   "devDependencies": {

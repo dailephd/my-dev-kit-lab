@@ -1,3 +1,5 @@
+import { kitPredicateContent } from "../utils/sourceFactsLookup.js";
+import { KitSourceEvidenceAcquisitionError } from "../../core/kitSourceEvidence.js";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
@@ -46,7 +48,8 @@ export const CROSS_PLATFORM_ROT_DETECTOR: AuditDetector = {
     }
     return { skip: false };
   },
-  run: (ctx: AuditDetectorContext): AuditIssue[] => {
+  run: async (ctx: AuditDetectorContext): Promise<AuditIssue[]> => {
+    if (ctx.sourceFacts?.provider === "kit" && !ctx.kitSourceReader) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Kit-backed detector requires its validated per-audit reader; native fallback is forbidden.");
     const issues: AuditIssue[] = [];
     const pkg = ctx.sourceOfTruth.package;
 
@@ -60,7 +63,7 @@ export const CROSS_PLATFORM_ROT_DETECTOR: AuditDetector = {
     }
 
     if (ctx.config.include.includes("cli")) {
-      issues.push(...scanSourceFiles(ctx));
+      issues.push(...(await scanSourceFiles(ctx)));
     }
 
     return deduplicateIssuesById(issues);
@@ -117,13 +120,14 @@ function findPosixOnlyScriptSyntax(scripts: Record<string, string>, docsClaimWin
   return issues;
 }
 
-function scanSourceFiles(ctx: AuditDetectorContext): AuditIssue[] {
+async function scanSourceFiles(ctx: AuditDetectorContext): Promise<AuditIssue[]> {
   const issues: AuditIssue[] = [];
   const auditSourceFiles = ctx.inventory.sourceFiles.filter((f) => f.relativePath.startsWith("src/audits/"));
 
   for (const file of auditSourceFiles) {
     if (path_basename(file.relativePath) === "textLines.ts") continue; // canonical implementation, allowed
-    const content = readBoundedFileText(ctx.target.rootPath, file.relativePath, file.sizeBytes, MAX_READ_BYTES);
+    if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required cross-platform source ${file.relativePath} is unselected.`);
+    const content = await kitPredicateContent(ctx.kitSourceReader, file.relativePath, [".split(", "shell:"], true);
     if (content === null) continue;
 
     SPLIT_NEWLINE_LITERAL_PATTERN.lastIndex = 0;

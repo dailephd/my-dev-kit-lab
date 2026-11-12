@@ -64,37 +64,6 @@ export function jvmImportSimpleName(source: string): string {
 // package-shaped relative path segment (e.g. "com/example/Foo"), dropping
 // any trailing wildcard/member segment handling -- callers are responsible
 // for skipping wildcards via isJvmWildcardImportSource() first.
-export function jvmImportToPackagePath(source: string): string {
-  return source.split(".").join("/");
-}
-
-// Candidate on-disk relative paths for a (non-wildcard, non-skippable)
-// import, given the project's recognized Java/Kotlin source-set
-// directories (see jvmProjectMetadata.ts's recognizedSourceDirectories).
-// Conservative and path-based only: this never resolves the real classpath,
-// only checks the conventional Gradle/Maven `src/main/{java,kotlin}/...`
-// layout. `extensions` lets a Kotlin importer also check `.java` (Kotlin
-// can legitimately import Java source in a mixed JVM project) while a Java
-// importer only ever checks `.java`.
-export function jvmImportCandidatePaths(
-  source: string,
-  recognizedSourceDirectories: readonly string[],
-  extensions: readonly string[]
-): string[] {
-  const packagePath = jvmImportToPackagePath(source);
-  const candidates: string[] = [];
-  for (const dir of recognizedSourceDirectories) {
-    for (const ext of extensions) {
-      candidates.push(`${dir}/${packagePath}.${ext}`);
-    }
-  }
-  return candidates;
-}
-
-// True when an ImportFact looks worth checking for local-file existence at
-// all -- i.e. not a standard-library/common-test-framework import and not a
-// wildcard. Callers still need their own existence check; this only
-// filters out imports this conservative scan should never second-guess.
 export function jvmImportLooksPossiblyLocal(imp: ImportFact): boolean {
   if (isJvmWildcardImportSource(imp.source)) return false;
   if (isJvmSkippableImportSource(imp.source)) return false;

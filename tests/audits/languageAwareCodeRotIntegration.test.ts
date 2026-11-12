@@ -82,7 +82,7 @@ describe("language-aware code-rot integration — real registry, real source fac
       const target = fakeTargetFor(root);
       // No `registry` override -- exercises the real DEFAULT_AUDIT_REGISTRY,
       // same as `npm run audit` would use.
-      const result = await runAudit({ config, toolRoot: root, target });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, target });
 
       // 1. Source facts were actually collected against real files.
       expect(result.sourceFacts.files.length).toBeGreaterThan(0);
@@ -174,7 +174,7 @@ describe("language-aware code-rot integration — mixed TypeScript/JavaScript/Py
 
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, target });
 
       // 1. sourceFacts per-language counts are all correct simultaneously.
       expect(result.sourceFacts.filesByLanguage.typescript).toBeGreaterThanOrEqual(1);
@@ -185,7 +185,7 @@ describe("language-aware code-rot integration — mixed TypeScript/JavaScript/Py
       // 2. Java is now parsed by its own analyzer (v0.3.3 Batch 1).
       const javaEntry = result.sourceFacts.files.find((f) => f.relativePath === "src/Main.java");
       expect(javaEntry?.parseStatus).toBe("parsed");
-      expect(javaEntry?.analyzerId).toBe("java-analyzer");
+      expect(javaEntry?.analyzerId).toBe("kit:java-lexical");
 
       const model = buildAuditReportModel(result, { target });
 

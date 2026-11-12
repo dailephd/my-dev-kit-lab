@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { runFinalDemoCommand } from "../commands/runFinalDemoCommand.js";
 import { runAuditCommandFromArgs } from "../commands/runAuditCommand.js";
+import { EVIDENCE_HELP, runEvidenceCommand } from "../commands/runEvidenceCommand.js";
 import { runSecurityValidationCommandFromArgs } from "../commands/runSecurityValidationCommand.js";
 import { runControlledExperimentCommand } from "../commands/runControlledExperimentCommand.js";
 import { runExperimentListCommandFromArgs } from "../commands/runExperimentListCommand.js";
@@ -102,7 +103,7 @@ export async function runLabCli(argv: string[], options: RunLabCliOptions = {}):
   const [command, ...rest] = remaining;
 
   if (remaining.length === 0 || command === "--help" || command === "-h") {
-    writers.stdout(renderTopLevelHelp());
+    writers.stdout(renderTopLevelHelp() + "\n" + EVIDENCE_HELP);
     return 0;
   }
 
@@ -118,6 +119,8 @@ export async function runLabCli(argv: string[], options: RunLabCliOptions = {}):
   if (command === "audit") {
     return runAuditCommandFromArgs(rest, { context, defaultOutRoot: context.workspaceRoot });
   }
+
+  if (command === "evidence") return runEvidenceCommand(rest, { context, writers });
 
   if (command === "experiment") {
     return runExperimentFamily(rest, writers, context);

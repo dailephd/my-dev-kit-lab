@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { resolveCommand } from "../../../src/core/resolveCommand.js";
 
@@ -73,15 +74,29 @@ function runScriptCli(scriptRelativePath: string, args: string[]): Promise<{ std
   const resolved = resolveCommand("npx", { cwd: toolRoot });
   const needsResolvedPathArg =
     resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
-  const fullArgs = [
+  let command = resolved.command;
+  let fullArgs = [
     ...resolved.argsPrefix,
     ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
     "tsx",
     scriptRelativePath,
     ...args,
   ];
+  if (scriptRelativePath === "scripts/audits/runAudit.ts" || scriptRelativePath === "scripts/security/validate.ts") {
+    const packageRoot = makeTempDir("audit-security-tool-");
+    for (const file of ["package.json", ".semgrep.yml"]) {
+      fs.copyFileSync(path.join(toolRoot, file), path.join(packageRoot, file));
+    }
+    const audit = scriptRelativePath === "scripts/audits/runAudit.ts";
+    const functionName = audit ? "runAuditCommandFromArgs" : "runSecurityValidationCommandFromArgs";
+    const owner = pathToFileURL(path.join(toolRoot, audit ? "src/commands/runAuditCommand.ts" : "src/commands/runSecurityValidationCommand.ts")).href;
+    const context = pathToFileURL(path.join(toolRoot, "src/runtime/labExecutionContext.ts")).href;
+    const driver = `import { ${functionName} } from ${JSON.stringify(owner)}; import { createLabExecutionContext } from ${JSON.stringify(context)}; process.exitCode = await ${functionName}(JSON.parse(process.argv[1]), { context: createLabExecutionContext({ packageRoot: process.argv[2], workspaceRoot: process.argv[2], invocationCwd: process.cwd() }) });`;
+    command = process.execPath;
+    fullArgs = ["--import", "tsx", "--input-type", "module", "-e", driver, JSON.stringify(args), packageRoot];
+  }
   return new Promise((resolve) => {
-    execFile(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" }, (error, stdout, stderr) => {
+    execFile(command, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true }, (error, stdout, stderr) => {
       const exitError = error as { code?: number | string | null } | null;
       const status =
         typeof exitError?.code === "number"
@@ -167,6 +182,7 @@ describe("audit --types code-rot,security — combined mode (T8/T9)", () => {
       externalRoot,
       "--types",
       "code-rot,security",
+      "--include", "docs",
       "--fail-on",
       "none",
       "--format",
@@ -207,6 +223,7 @@ describe("audit --types code-rot,security — combined mode (T8/T9)", () => {
       externalRoot,
       "--types",
       "code-rot,security",
+      "--include", "docs",
       "--fail-on",
       "high",
       "--format",

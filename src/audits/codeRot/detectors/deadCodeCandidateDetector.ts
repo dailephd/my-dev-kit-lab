@@ -1,4 +1,6 @@
 import path from "node:path";
+import { KitSourceEvidenceAcquisitionError } from "../../core/kitSourceEvidence.js";
+import { kitPredicateContent, requireCompleteKitOccurrence } from "../utils/sourceFactsLookup.js";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { InventoryFileEntry } from "../../core/projectInventory.js";
@@ -25,7 +27,7 @@ import { isJvmLifecycleOrConventionalDeclarationName, jvmImportSimpleName } from
 // ---------------------------------------------------------------------------
 
 const DETECTOR_ID = "dead-code-candidate";
-const MAX_READ_BYTES = 200_000;
+export const MAX_READ_BYTES = 200_000;
 const OLD_DIR_SEGMENT_PATTERN = /^(old|deprecated|legacy|_archive)$/i;
 const ORPHAN_GENERATED_PATTERN = /\.generated\.|\.bak$|\.orig$/;
 const IMPORT_SPECIFIER_PATTERN = /(?:from|require\()\s*["']([^"']+)["']/g;
@@ -45,24 +47,25 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     }
     return { skip: false };
   },
-  run: (ctx: AuditDetectorContext): AuditIssue[] => {
+  run: async (ctx: AuditDetectorContext): Promise<AuditIssue[]> => {
+    if (ctx.sourceFacts?.provider === "kit" && !ctx.kitSourceReader) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Kit-backed detector requires its validated per-audit reader; native fallback is forbidden.");
     const issues: AuditIssue[] = [];
     const pkg = ctx.sourceOfTruth.package;
     const docsConcat = concatDocsContent(ctx);
 
     if (ctx.config.include.includes("package") && pkg) {
-      issues.push(...findUnreferencedScriptFiles(ctx, pkg));
+      issues.push(...(await findUnreferencedScriptFiles(ctx, pkg)));
     }
 
     if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
-      issues.push(...findUnreferencedSourceFiles(ctx, pkg, docsConcat));
+      issues.push(...(await findUnreferencedSourceFiles(ctx, pkg, docsConcat)));
     }
 
     issues.push(...findOldOrDeprecatedFilesNotInDocs(ctx, docsConcat));
     issues.push(...findOrphanedGeneratedFiles(ctx.inventory.files));
 
     if (ctx.config.include.includes("tests")) {
-      issues.push(...findUnreferencedFixtures(ctx));
+      issues.push(...(await findUnreferencedFixtures(ctx)));
     }
 
     if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
@@ -107,7 +110,8 @@ function binTargetsAsSourceCandidates(pkg: PackageTruth): Set<string> {
   return candidates;
 }
 
-function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: PackageTruth): AuditIssue[] {
+async function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: PackageTruth): Promise<AuditIssue[]> {
+  if (ctx.inventory.scriptFiles.length === 0) return [];
   const scriptCommandsBlob = Object.values(pkg.scripts).join(" \n ");
   const binCandidates = binTargetsAsSourceCandidates(pkg);
   // A scripts/ file that is imported by another script (a shared helper
@@ -115,7 +119,7 @@ function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: PackageTrut
   // scripts/security/resolveToolRoot.ts) is not dead code even though no
   // package.json script command names it directly -- discovered via a real
   // false positive during self-testing.
-  const referencedBasenames = buildReverseReferenceIndex(ctx);
+  const referencedBasenames = await buildReverseReferenceIndex(ctx);
   const issues: AuditIssue[] = [];
 
   for (const file of ctx.inventory.scriptFiles) {
@@ -159,7 +163,7 @@ function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: PackageTrut
   return issues;
 }
 
-function buildReverseReferenceIndex(ctx: AuditDetectorContext): Set<string> {
+async function buildReverseReferenceIndex(ctx: AuditDetectorContext): Promise<Set<string>> {
   // v0.3.1 Batch 4 -- seeded with basenames the TypeScript/JavaScript
   // analyzer already resolved from real import declarations (parsed files
   // only). This only ever adds references, never removes them, so it can
@@ -174,12 +178,16 @@ function buildReverseReferenceIndex(ctx: AuditDetectorContext): Set<string> {
   ];
 
   for (const file of allCandidateFiles) {
-    const content = readBoundedFileText(ctx.target.rootPath, file.relativePath, file.sizeBytes, MAX_READ_BYTES);
+    // Match the existing bounded native predicate before requesting raw evidence.
+    if (file.sizeBytes > MAX_READ_BYTES) continue;
+    if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required reverse-reference source ${file.relativePath} is unselected.`);
+    const content = await kitPredicateContent(ctx.kitSourceReader, file.relativePath, ["from", "require("]);
     if (content === null) continue;
 
     IMPORT_SPECIFIER_PATTERN.lastIndex = 0;
     for (const match of content.matchAll(IMPORT_SPECIFIER_PATTERN)) {
       const specifier = match[1];
+      if (ctx.kitSourceReader && /[\r\n]/.test(specifier)) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", "Multiline lexical import text needs byte-preserving context.");
       if (!specifier.startsWith(".")) continue; // only relative/local specifiers are meaningful here
       const specifierBase = baseNameNoExt(specifier.split("?")[0]);
       referencedBasenames.add(specifierBase.toLowerCase());
@@ -188,14 +196,18 @@ function buildReverseReferenceIndex(ctx: AuditDetectorContext): Set<string> {
   return referencedBasenames;
 }
 
-function findUnreferencedSourceFiles(ctx: AuditDetectorContext, pkg: PackageTruth | null, docsConcat: string): AuditIssue[] {
-  const referencedBasenames = buildReverseReferenceIndex(ctx);
+async function findUnreferencedSourceFiles(ctx: AuditDetectorContext, pkg: PackageTruth | null, docsConcat: string): Promise<AuditIssue[]> {
+  const referencedBasenames = await buildReverseReferenceIndex(ctx);
   const binCandidates = pkg ? binTargetsAsSourceCandidates(pkg) : new Set<string>();
   const sourceFactsIndex = indexSourceFactsByPath(ctx.sourceFacts);
   const issues: AuditIssue[] = [];
 
   for (const file of ctx.inventory.sourceFiles) {
     if (file.sizeBytes > MAX_READ_BYTES) continue;
+    // This relative import/require basename policy does not model Rust mod/use
+    // targets. Syntax-only imports cannot establish Rust file non-reference.
+    // Fixture and script predicates remain independently applicable.
+    if (file.language === "rust") continue;
     // benchmarks/ and examples/ hold standalone fixture/example project
     // content (often in other languages, e.g. Python) that is meant to be
     // read by the tool under test, not imported by this project's own
@@ -261,9 +273,11 @@ function findUnreferencedSourceFiles(ctx: AuditDetectorContext, pkg: PackageTrut
 // since file-level-only/parse-error facts carry empty fact arrays that
 // would misleadingly read as "zero exports" rather than "unknown".
 function buildSourceFactsEvidence(facts: SourceFileFacts): AuditIssue["evidence"][number] {
+  const exportOrigins = [...new Set(facts.exports.map(({ exportOrigin }) => exportOrigin ?? "unspecified"))].sort();
   return {
     kind: "reference",
-    message: `Source facts: the TypeScript/JavaScript analyzer parsed this file and recorded ${facts.exports.length} export(s), ${facts.declarations.length} declaration(s), and ${facts.imports.length} import(s).`,
+    message: `Source facts for "${facts.relativePath}" (${facts.language}): recorded ${facts.exports.length} export(s), ${facts.declarations.length} declaration(s), and ${facts.imports.length} import(s). ` +
+      `Export counts describe recorded entries (origin metadata: ${exportOrigins.join(", ") || "none recorded"}); cross-provider count equivalence is not established.`,
     filePath: facts.relativePath,
     source: DETECTOR_ID,
     confidence: "medium",
@@ -321,7 +335,11 @@ function findPossiblyUnreferencedPythonDeclarations(ctx: AuditDetectorContext): 
       // A name explicitly listed in a real `__all__` is the file's own
       // strongest "this is public API" declaration -- skip rather than
       // second-guess it.
-      if (facts.exports.some((e) => e.name === decl.name)) continue;
+      // Legacy Python exports contain only explicit __all__ members. Kit
+      // also supplies conventional exports; only its complete, positively
+      // identified python-all evidence establishes this exemption.
+      if (facts.exports.some((e) => e.name === decl.name &&
+        (!facts.kit || (facts.kit.capabilities.exports === "complete" && e.exportOrigin === "python-all")))) continue;
       if (importedNamesAcrossProject.has(decl.name)) continue;
 
       issues.push(
@@ -411,7 +429,7 @@ function findPossiblyUnreferencedJvmDeclarations(ctx: AuditDetectorContext): Aud
     for (const decl of facts.declarations) {
       if (decl.kind === "method") continue; // methods/constructors -- see header comment
       if (facts.language === "java" && decl.kind === "function") continue; // never produced by javaAnalyzer.ts, defensive
-      if (decl.exported) continue; // public (Java) / public-by-default-or-explicit (Kotlin)
+      if (decl.exported || decl.exportState === "unknown") continue; // unknown accessibility cannot establish nonpublic candidacy
       if (isJvmLifecycleOrConventionalDeclarationName(decl.name)) continue;
       if (importedSimpleNamesAcrossProject.has(decl.name)) continue;
 
@@ -533,21 +551,25 @@ function findOrphanedGeneratedFiles(files: readonly InventoryFileEntry[]): Audit
 // Housed here (not in testRotDetector.ts) per the Batch 4 spec's explicit
 // instruction to implement this check exactly once to avoid duplicate
 // reporting between the two detectors.
-function findUnreferencedFixtures(ctx: AuditDetectorContext): AuditIssue[] {
+async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<AuditIssue[]> {
   const fixtureFiles = ctx.inventory.files.filter((f) => f.relativePath.includes("/fixtures/") || f.relativePath.startsWith("fixtures/"));
   if (fixtureFiles.length === 0) return [];
 
-  const testFilesContent: string[] = [];
-  for (const testFile of ctx.inventory.testFiles) {
-    const content = readBoundedFileText(ctx.target.rootPath, testFile.relativePath, testFile.sizeBytes, MAX_READ_BYTES);
-    if (content !== null) testFilesContent.push(content);
+  const referenced = new Set<string>();
+  for (const fixture of fixtureFiles) {
+    const base = path.basename(fixture.relativePath);
+    for (const test of ctx.inventory.testFiles) {
+      if (test.sizeBytes > MAX_READ_BYTES) continue;
+      if (!ctx.kitSourceReader) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Required fixture-reference test needs its validated Kit reader.");
+      const result = requireCompleteKitOccurrence(await ctx.kitSourceReader.occurrences(test.relativePath, base));
+      if (result.matchCount > 0) referenced.add(base);
+    }
   }
-  const combinedTestContent = testFilesContent.join("\n");
 
   const issues: AuditIssue[] = [];
   for (const fixture of fixtureFiles) {
     const base = path.basename(fixture.relativePath);
-    if (combinedTestContent.includes(base)) continue;
+    if (referenced.has(base)) continue;
 
     issues.push(
       makeCodeRotIssue({

@@ -76,6 +76,20 @@ describe("verdict calculation", () => {
     expect(verdict).toBe("inconclusive-audit-environment-incomplete");
   });
 
+  it.each(["package-content", "dependency-checks", "semgrep-scan", "fuzz-smoke"])(
+    "failed major %s cannot pass with empty findings and other successful checks", (id) => {
+      const failed = makeCheck({ id, status: "failed", severity: "major", skippedReason: "fixture execution error" });
+      const { verdict, recommendedNextStep } = calculateVerdict([
+        makeCheck({ id: "npm-audit-full" }), failed,
+        makeCheck({ id: "codeql-scan", status: "skipped", severity: "skipped" }),
+      ], []);
+      expect(verdict).toBe("not-ready-security-blocker-remains");
+      expect(recommendedNextStep).toContain(failed.name);
+      const json = JSON.parse(renderJsonReport(makeReport({ allChecks: [failed], verdict, recommendedNextStep })));
+      expect(json.checks[0]).toMatchObject({ id, status: "failed", severity: "major", skippedReason: "fixture execution error" });
+    }
+  );
+
   it("optional check skipped with no other issues → ready-except-optional-manual-checks", () => {
     const checks = [
       makeCheck({ id: "npm-audit-full", status: "passed" }),

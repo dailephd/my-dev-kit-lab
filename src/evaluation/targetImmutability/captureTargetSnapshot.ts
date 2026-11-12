@@ -81,7 +81,7 @@ type GitRunResult = { ok: true; stdout: string } | { ok: false; unavailable: boo
 
 async function runGit(resolvedRoot: string, args: string[]): Promise<GitRunResult> {
   try {
-    const { stdout } = await execFileAsync("git", ["-C", resolvedRoot, ...args], {
+    const { stdout } = await execFileAsync("git", ["-c", "core.longpaths=true", "-C", resolvedRoot, ...args], {
       encoding: "utf8",
       maxBuffer: 1024 * 1024 * 64
     });

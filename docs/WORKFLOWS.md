@@ -70,6 +70,30 @@ npx playwright install chromium
 
 **Completion:** the run passes only when every executed step and required artifact succeeds, cleanup errors are empty, and the manifest records the expected scenario and target identity. Product-specific demo sites and scenarios remain owned by their product repositories; gallery consumption of tutorial manifests remains future scope.
 
+## Executable-evidence workflow (v0.10.0 development)
+
+**Goal:** capture or import bounded verification evidence and assess exact requirements, with optional scoped package certification. This is implemented development functionality, not a published v0.10.0 release or native Orchestrator acceptance.
+
+**Prerequisites:** use a built development checkout/package, an explicit writable workspace separate from the inspected target, and a schema-`1.0.0` frozen plan. Select the source, package/lock, configuration, relevant ignored/untracked inputs, checks, required/optional requirements, and profile deliberately. See [commands](COMMANDS.md#my-dev-kit-lab-evidence-v0100-development) for exact syntax and [contracts](ARCHITECTURE.md#executable-evidence-foundation-v0100-development) for identity bounds.
+
+1. For existing evidence, authorize its physical local root and supply its relative native artifact path, supported kind, and original digest to `evidence import`. Retain the original bytes; do not infer origin from a matching hash or execute imported instructions.
+2. For trusted local tests, supply the canonical target, selected check, a new workspace evidence run path, and explicit `--allow-local-code-execution` to `evidence capture`. It uses the finite Node TAP profile in a disposable copy with bounded output/time, minimal environment, target comparison, and cleanup checks. Network isolation is not enforced and caller cancellation is unsupported; code can access account-accessible resources.
+3. Inspect the complete run manifest, qualification, assessment, original native reference, report omission counts, and every blocking requirement ID. Required failure is not excused by optional passes. A completed write/import does not necessarily satisfy critical evidence requirements; CLI imports retain unverifiable historical identity.
+4. For certification, prepare a trusted harness record manifest binding original native/package payloads, approved exact package combination, frozen specification/fixture, selected execution, and actual environment cell. Use `evidence certify` with the matching CLI/local-app profile and a different new run path. Local-app certification requires separately authorized native tutorial/browser and prepared-runtime evidence; CLI-only certification consumes no browser witness. Neither import nor certify runs target code.
+5. Preserve `supported`, `tested`, and `certified` distinctions and the exact selected scope. Never treat certification as automatic activation, release readiness, or a replacement native Orchestrator judge.
+
+**Failure handling:** usage, authorization, unsafe paths, integrity/schema violations, and infrastructure failures are explicit nonzero results. Partial writes retain an incomplete manifest, and existing run directories are not overwritten. Raw native artifacts are not automatically safe to publish. Unsupported Observer-native evidence remains unsupported.
+
+**Completion:** all selected critical requirements are satisfied and required original/derived artifacts verify; certification additionally meets its exact profile/package/fixture/environment obligations. The current candidate passed the separate prospective acceptance route below. The original historical RSP-011 remains unsatisfied, as independently recorded in [CURRENT_STATE.md](CURRENT_STATE.md#v0100-development-lab-evidence-01).
+
+**Adopted prospective acceptance route:** `V010-EVIDENCE-ACCEPTANCE-ROUTE-01`, version `1.0.0`, establishes a new current-candidate acceptance basis for LAB-EVIDENCE-01 through a distinct native `test` workflow with Semantic Continuity active (`proofOnly: false`). Its contract is `LAB-EVIDENCE-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0`. This replaces the version-level dependency on successful completion of the original implementation run; it does not supersede or repair that run.
+
+The original RSP-011 remains unsatisfied and its previous run remains unchanged and unaccepted. The original 14,347-byte report is unrecovered. New evidence must disclose this provenance discontinuity and cannot claim uninterrupted historical preservation, recovery of the missing bytes, or satisfaction of the original RSP-011.
+
+Prospective acceptance requires the exact current source commit and package artifact SHA-256; deterministic CLI and real full-stack fixture acceptance; native evidence integrity and producer provenance; capture/import authorization; pure adapter acceptance; exact-package compatibility/certification; security and target/package/source containment and immutability; required-evidence failure propagation; historical-loss disclosure; current-source test-responsibility corroboration; full repository validation; genuine native verification; and an independently assessed native judge PASS. Every applicable critical responsibility must pass. The full suite follows valid focused, installed-package and native test-context prerequisites, before final judge assessment. Existing pre-release security and cross-platform gates remain separate and mandatory.
+
+Use the existing implementation and test owners. Preserve historical runs and evidence, establish a new prospective preservation baseline, and give new evidence distinct identities and current timestamps. A new accepted run supports only its own approved current-candidate contract. The recorded prospective run `20261111T132003-v010-lab-evidence-prospective-acceptance` completed all nine test-mode artifacts, all fourteen current critical responsibilities, native verification and an accepted judge PASS. Its complete suite passed 8,714 tests with zero failures and nine skips on source `d6236759cebcdfa6ac029da583ec26ac62cdad95`; these are exact-candidate observations, not a fresh suite on later documentation commits. See [the canonical acceptance record](CURRENT_STATE.md#v0100-development-lab-evidence-01). Neither adoption nor the completed prospective acceptance authorizes release preparation or publication; standardized pre-release readiness remains separate.
+
 ## Contributor / source-checkout workflow
 
 The remaining workflow sections in this document run from a cloned repository checkout with dependencies installed (`npm ci` or `npm install`). They remain the contributor/development path. The published installed CLI reaches the supported public command owners without a repository clone, while the `npm run` commands below use those same underlying command owners for contributor workflows.
@@ -328,7 +352,9 @@ Command provenance and cost are measured through existing runtime owners. Normal
 
 **Test environment:** use the task-authorized short temporary root and its canonical physical spelling for `TEMP`, `TMP`, and `TMPDIR`; keep package caches and command output in their approved locations. Disposable CommonJS scripts need their own package scope, and non-Git fixtures need bounded Git discovery. The v0.9.5 fixtures establish these boundaries; an in-checkout temporary root alone does not establish isolation. Very long Windows paths still fail closed.
 
-For focused validation, constrain Vitest discovery with `--dir tests` and exact current test paths: an unrestricted path filter can also match ignored historical test copies under `tmp/`. This focused selection excludes canonical benchmark tests and is not a full-suite substitute. A canonical run requires its separately authorized isolated checkout and a verified complete collection, including benchmark tests and no historical temporary-tree copies. Preserve each run's actual source SHA, command, collection and result; never attribute ancestor results to a later documentation commit.
+For focused validation, select exact current test paths. Canonical Vitest configuration excludes generated `t/`, `tmp/`, workflow checkouts, reports and other existing output roots while retaining canonical `tests/benchmarks` tests. Benchmark-project test files are corpus inputs, not Lab test modules. Use `--no-cache --configLoader runner` when required to prevent generated runner state outside the authorized task output. Verify the complete collection before calling a run canonical; focused selection is not a full-suite substitute. Preserve each run's actual source SHA, command, collection and result; never attribute ancestor results to a later documentation commit.
+
+The accepted Gate 5 infrastructure uses command-local `git -c core.longpaths=true` for local repository and target-snapshot reads, without changing global Git configuration. Synthetic staging handles Windows namespace paths through its existing allocator. Campaign sandboxes use compact project-contained runtime paths while durable epoch identity and recovery references remain intact. These corrections do not remove Windows path limits. Keep test-generated output, npm cache/logs, and `TEMP`/`TMP`/`TMPDIR` within the authorized project-owned task boundary; retain earlier evidence and do not set npm `logs-max` to zero.
 
 Adversarial `--out`/`--index` witnesses must remain inside disposable project-contained enclosures, including intentionally unsafe destinations and protected sentinels. Inspect the current test source before launching validation; do not probe drive-root/system paths or execute historical test copies to establish containment.
 
@@ -797,7 +823,7 @@ npm run security:validate
 Targeted example:
 
 ```powershell
-npm run security:validate -- --target "C:\path\to\target-project"
+npm run security:validate -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1"
 ```
 
 **Expected behavior and outputs:**
@@ -818,7 +844,7 @@ When the selected checks include `cli-adversarial`, inspect the required nested 
 
 **Goal:** inspect repository-health signals with the implemented code-rot detector family.
 
-**Prerequisites and starting state:** build the repository and choose a local target. TypeScript/JavaScript, Python, Java, and Kotlin evidence is static and conservative.
+**Prerequisites and starting state:** build the repository and choose a local target. TypeScript/JavaScript, Python, Java, Kotlin and Rust evidence is static and conservative. In v0.10.0 development (implemented, unreleased), source-dependent selections use the qualified published Kit 1.15.0 runtime dependency; public Kit 1.14.0 does not satisfy that contract and no automatic install occurs. Rust uses the same command and bridge, subject to [existing policy and capability limits](ARCHITECTURE.md#rust-source-evidence-reuse). See [the audit command prerequisites](COMMANDS.md#npm-run-audit). Non-source-only detector selections and selections with no applicable source paths operate without Kit. An include area alone does not establish independence: `--include package` can select source-dependent duplicate-implementation checks.
 
 **Steps:**
 
@@ -829,7 +855,7 @@ npm run audit
 Targeted example:
 
 ```powershell
-npm run audit -- --target "C:\path\to\target-project" --types code-rot --fail-on none
+npm run audit -- --target "./path/to/project" --types code-rot --fail-on none
 ```
 
 **Expected behavior and outputs:**
@@ -837,33 +863,14 @@ npm run audit -- --target "C:\path\to\target-project" --types code-rot --fail-on
 - `code-rot` runs in this workflow; `security` runs through the security-validation audit adapter below
 - audit is independent from `security:validate`
 - audit findings are heuristic candidates and do not auto-fix anything
-- source-facts evidence (TypeScript/JavaScript, Python, Java, and Kotlin) is conservative static-analysis evidence, not proof of dead code, semantic duplicate implementation, complete test coverage, full module resolution, runtime reachability, or language-specific semantic correctness
+- source-facts evidence (TypeScript/JavaScript, Python, Java, Kotlin and Rust) is conservative static-analysis evidence, not proof of dead code, semantic duplicate implementation, complete test coverage, full module resolution, runtime reachability, or language-specific semantic correctness
 - for Java/Kotlin targets, the workflow reads files and static Gradle/Maven/source-set metadata only; it does not execute Gradle, Maven, compilers, Android tooling, or target tests
 
 Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json` (or `--out <path>` when supplied).
 
-**Failure handling:** exit code `1` means an issue met the selected threshold; exit code `2` means invalid configuration, target resolution failure, or runtime failure. Review candidates before treating them as defects.
+**Failure handling:** exit code `1` means an issue met the selected threshold; exit code `2` means invalid configuration, target resolution failure, or runtime failure. Required Kit acquisition failures remain exit `2` even with `--fail-on none`; inspect the explicit category rather than treating missing evidence as a clean audit. Review candidates before treating them as defects.
 
 **Completion:** reports are written, target files remain unchanged, and every issue is interpreted as evidence rather than proof.
-
-### Planned Kit-backed source audit migration (LAB-KIT-01)
-
-This development procedure is planned for the first workstream of [v0.10.0](ROADMAP.md#v0100--ecosystem-executable-evidence-foundation-lab-evidence-01). The code-rot workflow above remains the implemented behavior until that workstream is complete. Kit's producer work is assigned first within [v1.15.0](https://github.com/dailephd/my-dev-kit/blob/main/docs/ROADMAP.md); existing executable-evidence work in Lab and later roadmap versions remain required.
-
-**Inputs:** verified Lab and Kit candidates, the ten-detector/source-reader inventory, exact evidence requirements and coverage rules, deterministic fixtures for the five currently supported languages, and the planned Rust extension. Use commit and package hashes for candidates; publication is not a prerequisite for coordinated development. Preserve prior findings and failure evidence.
-
-**Ordered procedure:**
-
-1. Freeze each detector's input fields, predicates, applicability, uncertainty, inventory scope, retrieval selectors, continuation semantics, and fixtures before modifying its producer or replacing analysis. Include shared source readers and source-dependent security/Android consumers. Review direct source-text and local import-resolution paths; merely enumerating the four analyzer files is insufficient.
-2. Implement and verify the missing evidence in Kit. Reject a partial top-ranked retrieval result as evidence of whole-repository absence. Confirm visibility, explicit versus inferred exports, structured resolution failures, stable qualified identities, and complete declared coverage.
-3. Integrate Kit through the existing consumer and process owners. Resolve selected rule requirements before collecting source facts. Keep native analyzers temporarily for explicitly selected differential validation and expose which path supplied each result. Verify installed Lab can resolve its managed Kit dependency without a source checkout or an unpinned package fetch.
-4. Compare normalized findings and evidence on TypeScript, JavaScript, Python, Java, Kotlin, and mixed fixtures. Resolve every difference as equivalence or a reviewed correction with its own evidence; preserve missing/unsupported/incomplete states. Check source and installed routes, platform behavior, target/package immutability, and non-source operations that must not invoke Kit.
-5. Remove duplicated production analyzers and source-extraction paths only after the full dependency inventory and parity evidence pass. Review remaining imports and callers to prove no hidden legacy fallback survives. Update ownership and public contracts in the same implementation change while retaining historical evidence.
-6. Exercise Rust through the same general bridge and applicable rules without adding a Lab parser or changing its general core for that language. Include a real supported positive case, a detected issue, and insufficient-capability/coverage cases. The migration is incomplete until this reuse gate passes.
-
-**Outputs and failure handling:** use the existing authorized report/workspace owners for the contract inventory, differential findings, reviewed deltas, removal inventory, and exact-package acceptance evidence. The implementation plan must bind their exact filenames and paths through `LabExecutionContext` and the placement manifest before writing them. A failed gate retains its evidence and prevents retirement or a migration-complete claim; it does not permit weaker rules, fabricated empty facts, silent parser fallback, or automatic approval of changed findings. Required source-analysis failure must stay visible in the result and cannot produce a clean audit.
-
-**Completion:** all six [roadmap gates](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01) pass, Kit is the sole production source-analysis/retrieval provider, and Lab's policy, verification, reports, and non-source workflows retain their independent ownership. This procedure does not authorize release or publication actions.
 
 ## Security-validation audit adapter
 
@@ -880,7 +887,7 @@ npm run audit -- --types security --fail-on none
 Targeted example:
 
 ```powershell
-npm run audit -- --target "C:\path\to\target-project" --types security --fail-on none
+npm run audit -- --target "Z:\Users\newuser\Projects\my-dev-kit-v1" --types security --fail-on none
 ```
 
 ```mermaid
@@ -1150,13 +1157,3 @@ Manual pentest is deferred until after `v1.0.0`.
 It is a human-led workflow and is not required for automated Android security validation.
 
 The reader performs bounded, read-only evidence validation and delegates complete checkpoint-store validation to the campaign owners against trusted task definitions authenticated by persisted task digests. If required historical corpus or artifact evidence is unavailable, that side is unverifiable and the comparison is `INCOMPARABLE`; checkpoint hashes alone do not establish semantic validity. V2 prompt-contract integrity is validated. V1 identity does not bind a prompt template: sidecar self-consistency or an intact prompt-artifact hash alone cannot prove historical template identity, so unsupported V1 evidence remains `UNVERIFIED`/`INCOMPARABLE`, without a winner or improvement rate. Only a completed provider response with persisted evidence of a response-contract violation enters the invalid-output numerator; bare `invalid-output` status and infrastructure outcomes are excluded from both numerator and denominator. Task-success and repair outcomes remain separate. Real-provider improvement remains `NOT_VERIFIED` pending authorized smoke evidence.
-
-## v0.9.7 installed incremental runtime containment
-
-Use the installed CLI with `--workspace <authorized-workspace>` before `experiment run`; keep persisted `--out` separate from its disposable runtime subtree. The package and canonical benchmarks are read-only resources. The command forwards the existing workspace through the runner; only incremental execution requires that internal writable identity. Invalid roots, links/junctions, collisions and overlapping runtime/report destinations fail safely without package-relative fallback.
-
-Actual installed acceptance requires the exact packed candidate in a clean consumer, execution outside the package, independently authorized workspace/output, enforced package write denial plus a denial witness, unchanged package/benchmark hashes and no package runtime write attempts. Verify all six scenarios and four treatments, actual `APPLIED_PARTIAL` versus `FALLBACK_FULL`, three comparisons per ready scenario, artifact/report schemas and current-run cleanup. Include missing/invalid workspace, traversal, junction/reparse, marker/directory substitution, collision and retained interrupted-state negatives. Historical Kit 1.12.5 packed acceptance and PATH-012 remain required; Kit 1.14.0 installed scientific evidence is a separate identity.
-
-Successful cleanup removes only the current invocation's verified disposable copies, indexes and logs; persisted reports survive. Interrupted runs may leave diagnostic state that another invocation cannot adopt or delete automatically. Keep short authorized task roots on Windows because genuine process-start path limits remain supported infrastructure failures.
-
-Historical implementation completion recorded PASS_WITH_NOTES, including 8,192 passing canonical tests and nine existing skips; those observations alone were not standardized readiness. Subsequent exact-source readiness for `7fb22cd524f4392aa067ca799414715225ed08ca` passed 8,226 canonical tests, all 145 lifecycle cases, 795 security tests, fuzz, package acceptance, three-platform CI, and hosted CodeQL. Keep validation tied to the tested identity and preserve the npm-last publication invariant through the separate authorized release workflow. A historical locally patched tarball with metadata 0.9.6 is distinct from the published npm 0.9.6 package. I1 stale-index remains inconclusive; partial-refresh evidence is bounded to observed scenarios and cannot establish universal safety.

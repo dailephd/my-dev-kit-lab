@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createAuditRegistry, selectDetectors, DEFAULT_AUDIT_REGISTRY, type AuditDetector } from "../../src/audits/core/auditRegistry.js";
@@ -81,7 +83,8 @@ describe("selectDetectors", () => {
 // (spec 3.7). Extends this existing file rather than duplicating a new one.
 // ---------------------------------------------------------------------------
 
-const toolRoot = process.cwd();
+const toolRoot = fs.mkdtempSync(path.join(os.tmpdir(), "audit-policy-model-"));
+fs.writeFileSync(path.join(toolRoot, "package.json"), JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
 
 const EXPECTED_DETECTOR_ID_ORDER = [
   "stale-command-reference",
@@ -131,7 +134,7 @@ describe("--include filtering — skipped vs excluded are distinct mechanisms", 
     // reserved for a detector that WAS selected but self-skipped via
     // shouldSkip()).
     const config = normalizeAuditConfig({ include: "tests" }, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: DEFAULT_AUDIT_REGISTRY });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot, target: fakeTarget(), registry: DEFAULT_AUDIT_REGISTRY });
     const skippedIds = result.skippedDetectors.map((d) => d.id);
     expect(skippedIds).not.toContain("duplicate-implementation-candidate");
 
@@ -146,7 +149,7 @@ describe("--include filtering — skipped vs excluded are distinct mechanisms", 
     // selected by selectDetectors() (package is a supported area) but then
     // self-skips.
     const config = normalizeAuditConfig({ include: "package" }, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: DEFAULT_AUDIT_REGISTRY });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot, target: fakeTarget(), registry: DEFAULT_AUDIT_REGISTRY });
     const skippedIds = result.skippedDetectors.map((d) => d.id);
     expect(skippedIds).toContain("stale-command-reference");
 
@@ -157,7 +160,7 @@ describe("--include filtering — skipped vs excluded are distinct mechanisms", 
 
   it("skipped detectors appear in both the JSON model's skippedDetectors and the rendered text report", async () => {
     const config = normalizeAuditConfig({ include: "package" }, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: DEFAULT_AUDIT_REGISTRY });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot, target: fakeTarget(), registry: DEFAULT_AUDIT_REGISTRY });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: DEFAULT_AUDIT_REGISTRY });
     expect(model.skippedDetectors.some((d) => d.id === "stale-command-reference")).toBe(true);
     const text = renderAuditTextReport(model);
@@ -168,7 +171,7 @@ describe("--include filtering — skipped vs excluded are distinct mechanisms", 
 describe("runAudit({ registry: [] }) — empty registry behavior", () => {
   it("selectedDetectorCount is 0 and noDetectorsRegistered is true for an explicit empty registry", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot, target: fakeTarget(), registry: [] });
     expect(result.noDetectorsRegistered).toBe(true);
 
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });

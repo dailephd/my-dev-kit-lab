@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+// @ts-expect-error -- existing verifier module is plain ESM JavaScript, like packedPackageAgentSuccess.spec.ts.
+import * as packedAgentSuccess from "../../scripts/verifyPackedPackageAgentSuccess.mjs";
 import { parseNpmPackJsonEntry } from "../../src/securityValidation/packageChecks/parseNpmPackDryRun.js";
 import {
   diffSnapshots,
@@ -29,6 +31,117 @@ function makeTempDir(prefix: string): string {
   tempDirs.push(dir);
   return dir;
 }
+
+describe("packed agent-success owned runtime containment", () => {
+  it("permits the explicit owned compact workspace while denying source, package and historical output", async () => {
+    const modulePath = pathToFileURL(path.resolve("scripts/verifyPackedPackageAgentSuccess.mjs")).href;
+    const { isSafePackedAgentSuccessOutput, isAuthorizedPackedRuntime } = await import(modulePath);
+    const repoRoot = makeTempDir("packed-runtime-policy-");
+    const compact = path.join(repoRoot, ".my-dev-kit-workflow", "tmp", "e1r");
+    const workspaceDir = path.join(compact, "p", "workspace");
+    mkdirSync(workspaceDir, { recursive: true });
+    writeFileSync(path.join(compact, "owner.json"), JSON.stringify({ task: "v010-lab-evidence-01", nativeRun: "20261105T131430-v010-lab-evidence-01", repository: repoRoot }), { flag: "wx" });
+    const installedPackageRoot = path.join(compact, "p", "package");
+    const invocationCwd = path.join(compact, "p", "invocation");
+    const safe = (output: string) => isSafePackedAgentSuccessOutput({ repoRoot, installedPackageRoot, invocationCwd, workspaceDir, output });
+    expect(safe(path.join(workspaceDir, "lab-output", "run"))).toBe(true);
+    for (const output of [installedPackageRoot, invocationCwd, path.join(repoRoot, "benchmarks"), path.join(repoRoot, ".my-dev-kit-workflow", "tmp", "v010-lab-kit-gate5"), path.join(repoRoot, "reports")]) expect(safe(output)).toBe(false);
+    expect(isAuthorizedPackedRuntime(repoRoot, path.join(compact, "p", "..", "d"))).toBe(false);
+    writeFileSync(path.join(compact, "owner.json"), JSON.stringify({ task: "another-task" }));
+    expect(safe(path.join(workspaceDir, "lab-output"))).toBe(false);
+  });
+});
+
+describe("preauthorized invocation workspace contract", () => {
+  async function fixture() {
+    const api = packedAgentSuccess;
+    const repoRoot = makeTempDir("packed-claimed-workspace-");
+    const tempRoot = path.join(repoRoot, ".my-dev-kit-workflow", "tmp");
+    const workspaceDir = path.join(tempRoot, "invocation-a");
+    const installedPackageRoot = path.join(repoRoot, "installed-package");
+    const invocationCwd = path.join(repoRoot, "invocation-cwd");
+    const canonicalRoot = path.join(repoRoot, "benchmarks");
+    for (const directory of [workspaceDir, installedPackageRoot, invocationCwd, canonicalRoot]) mkdirSync(directory, { recursive: true });
+    writeFileSync(path.join(installedPackageRoot, "keep.txt"), "immutable package");
+    writeFileSync(path.join(canonicalRoot, "keep.txt"), "canonical benchmark");
+    const roots = { repoRoot, installedPackageRoot, invocationCwd };
+    const claim = api.claimPackedVerifierDirectory({ ...roots, directory: workspaceDir });
+    const output = path.join(workspaceDir, "lab-output", "experiments", "run");
+    const safe = (candidate = output, overrides: Record<string, unknown> = {}) => api.isSafePackedAgentSuccessOutput({ ...roots, workspaceDir, output: candidate, workspaceClaim: claim, ...overrides });
+    return { api, roots, repoRoot, tempRoot, workspaceDir, installedPackageRoot, invocationCwd, canonicalRoot, claim, output, safe };
+  }
+  it("[RSP-001] accepts an issued project-local workspace claim before and after default output creation", async () => {
+    const f = await fixture();
+    expect(f.safe()).toBe(true); // authority precedes the write
+    mkdirSync(f.output, { recursive: true });
+    expect(f.safe()).toBe(true);
+    expect(readFileSync(path.join(f.installedPackageRoot, "keep.txt"), "utf8")).toBe("immutable package");
+    expect(readFileSync(path.join(f.canonicalRoot, "keep.txt"), "utf8")).toBe("canonical benchmark");
+  });
+  it("[RSP-002] rejects absent, forged and copied authority instead of inferring it from output existence", async () => {
+    const f = await fixture(); mkdirSync(f.output, { recursive: true });
+    for (const workspaceClaim of [undefined, {}, { ...f.claim }]) expect(f.safe(f.output, { workspaceClaim })).toBe(false);
+  });
+  it("[RSP-002] refuses arbitrary repository, resource, external and shared-parent directory claims", async () => {
+    const f = await fixture(); const external = makeTempDir("packed-unrelated-root-");
+    const reports = path.join(f.repoRoot, "reports"); mkdirSync(reports);
+    for (const directory of [f.repoRoot, f.tempRoot, reports, f.installedPackageRoot, f.invocationCwd, f.canonicalRoot, external])
+      expect(() => f.api.claimPackedVerifierDirectory({ ...f.roots, directory })).toThrow();
+  });
+  it("[RSP-002] rejects output outside the exact invocation workspace", async () => {
+    const f = await fixture(); const external = makeTempDir("packed-external-output-");
+    for (const output of [f.tempRoot, f.repoRoot, f.installedPackageRoot, f.invocationCwd, f.canonicalRoot, external]) expect(f.safe(output)).toBe(false);
+  });
+  it("[RSP-002] rejects another invocation's token and workspace identity", async () => {
+    const f = await fixture(); const other = path.join(f.tempRoot, "invocation-b"); mkdirSync(other);
+    const otherClaim = f.api.claimPackedVerifierDirectory({ ...f.roots, directory: other });
+    expect(f.safe(f.output, { workspaceClaim: otherClaim })).toBe(false);
+    expect(f.safe(path.join(other, "lab-output"), { workspaceDir: other })).toBe(false);
+  });
+  it("[RSP-002] refuses replaced workspace identity", async () => {
+    const f = await fixture(); renameSync(f.workspaceDir, f.workspaceDir + "-original"); mkdirSync(f.workspaceDir);
+    expect(f.safe()).toBe(false);
+    expect(f.api.isClaimedPackedVerifierPath(f.claim, f.workspaceDir)).toBe(false);
+  });
+  it("[RSP-002] refuses replaced immutable package-root identity", async () => {
+    const f = await fixture(); renameSync(f.installedPackageRoot, f.installedPackageRoot + "-original"); mkdirSync(f.installedPackageRoot);
+    expect(f.safe()).toBe(false);
+  });
+  it("[RSP-002] refuses a junction or symlink escape and cannot claim a linked workspace", async () => {
+    const f = await fixture(); const escape = path.join(f.workspaceDir, "escape");
+    symlinkSync(f.canonicalRoot, escape, process.platform === "win32" ? "junction" : "dir");
+    expect(f.safe(path.join(escape, "new-output"))).toBe(false);
+    const linked = path.join(f.tempRoot, "linked-workspace"); symlinkSync(f.canonicalRoot, linked, process.platform === "win32" ? "junction" : "dir");
+    expect(() => f.api.claimPackedVerifierDirectory({ ...f.roots, directory: linked })).toThrow();
+    expect(readFileSync(path.join(f.canonicalRoot, "keep.txt"), "utf8")).toBe("canonical benchmark");
+  });
+  it("[RSP-003] permits a removed provider cwd only through its own unchanged claimed ancestor", async () => {
+    const f = await fixture(); const neutral = path.join(f.tempRoot, "neutral-a"); mkdirSync(neutral);
+    const claim = f.api.claimPackedVerifierDirectory({ ...f.roots, directory: neutral });
+    const child = path.join(neutral, "disposed-child"); mkdirSync(child); rmSync(child, { recursive: true });
+    expect(f.api.isClaimedPackedVerifierPath(claim, child)).toBe(true);
+    expect(f.api.isClaimedPackedVerifierPath(claim, f.workspaceDir)).toBe(false);
+    renameSync(neutral, neutral + "-original"); mkdirSync(neutral);
+    expect(f.api.isClaimedPackedVerifierPath(claim, child)).toBe(false);
+  });
+  it("[RSP-002] refuses shared temporary-root authority through a case alias", async () => {
+    const f = await fixture();
+    expect(() => f.api.claimPackedVerifierDirectory({ ...f.roots, directory: f.tempRoot.toUpperCase() })).toThrow();
+  });
+  it("[RSP-002] never grants a child claim authority over its shared temporary parent", async () => {
+    const f = await fixture();
+    expect(f.api.isClaimedPackedVerifierPath(f.claim, f.tempRoot)).toBe(false);
+    if (process.platform === "win32") expect(f.api.isClaimedPackedVerifierPath(f.claim, f.tempRoot.toUpperCase())).toBe(false);
+    expect(readFileSync(path.join(f.canonicalRoot, "keep.txt"), "utf8")).toBe("canonical benchmark");
+  });
+  it("[RSP-001] preserves valid child identity under platform path-casing semantics", async () => {
+    const f = await fixture();
+    const directory = process.platform === "win32" ? f.workspaceDir.toUpperCase() : f.workspaceDir;
+    const claim = f.api.claimPackedVerifierDirectory({ ...f.roots, directory });
+    expect(f.api.isClaimedPackedVerifierPath(claim, f.output)).toBe(true);
+    expect(f.api.isClaimedPackedVerifierPath(claim, f.tempRoot)).toBe(false);
+  });
+});
 
 describe("findExactlyOneTarball", () => {
   it("returns the single .tgz filename", () => {

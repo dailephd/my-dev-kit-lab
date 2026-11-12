@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { buildAuditReportModel } from "../../src/audits/report/auditReportModel.js";
@@ -9,7 +10,6 @@ import { renderAuditJsonReport } from "../../src/audits/report/renderAuditJsonRe
 import { renderAuditTextReport } from "../../src/audits/report/renderAuditTextReport.js";
 import { ANDROID_SECURITY_AUDIT_DETECTOR_ID } from "../../src/audits/security/mapAndroidSecurityFindingToAuditIssue.js";
 import { validateAndroidTarget } from "../../src/mobile/android/validate/validateAndroidTarget.js";
-import { resolveCommand } from "../../src/core/resolveCommand.js";
 import { resolveAuditTarget } from "../../src/audits/core/auditTarget.js";
 import type { AuditIssue } from "../../src/audits/core/auditIssue.js";
 import type {
@@ -506,18 +506,16 @@ describe("Real CLI smokes (help and invalid combination -- spec section 22)", ()
   const toolRoot = process.cwd();
 
   function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
-    const resolved = resolveCommand("npx", { cwd: toolRoot });
-    const needsResolvedPathArg =
-      resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
-    const fullArgs = [
-      ...resolved.argsPrefix,
-      ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
-      "tsx",
-      "scripts/audits/runAudit.ts",
-      ...args,
-    ];
+    const packageRoot = makeTempToolRoot();
+    for (const file of ["package.json", ".semgrep.yml"]) {
+      fs.copyFileSync(path.join(toolRoot, file), path.join(packageRoot, file));
+    }
+    const owner = pathToFileURL(path.join(toolRoot, "src/commands/runAuditCommand.ts")).href;
+    const context = pathToFileURL(path.join(toolRoot, "src/runtime/labExecutionContext.ts")).href;
+    const driver = `import { runAuditCommandFromArgs } from ${JSON.stringify(owner)}; import { createLabExecutionContext } from ${JSON.stringify(context)}; process.exitCode = await runAuditCommandFromArgs(JSON.parse(process.argv[1]), { context: createLabExecutionContext({ packageRoot: process.argv[2], workspaceRoot: process.argv[2], invocationCwd: process.cwd() }) });`;
+    const fullArgs = ["--import", "tsx", "--input-type", "module", "-e", driver, JSON.stringify(args), packageRoot];
     try {
-      const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" });
+      const stdout = execFileSync(process.execPath, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
       return { stdout, stderr: "", status: 0 };
     } catch (err) {
       const e = err as { stdout?: string; stderr?: string; status?: number };

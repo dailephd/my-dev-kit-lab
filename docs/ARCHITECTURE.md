@@ -47,7 +47,7 @@ src/
   agents/                                    fake-agent, Codex, and Claude adapters
   prompts/                                   prompt variant generation and prompt complexity metrics
   audits/                                    generic audit framework (code-rot and security audit types implemented)
-    core/                                    target resolution, config, registry, inventory, source-of-truth, source facts, language analyzer registry, Python + JVM project metadata, exit-code policy, runner
+    core/                                    target resolution, config, registry, inventory, source-of-truth, Kit source-evidence provider/validation/adapter, source facts model, Python + JVM project metadata, exit-code policy, runner
     codeRot/                                 code-rot audit type
       detectors/                             10 code-rot detector families (TS/JS-, Python-, and Java/Kotlin-aware where source facts are available)
       utils/                                 shared detector helpers (bounded reads, doc-claim/command-reference parsing, JVM source-facts helpers, text-line utilities)
@@ -1004,7 +1004,7 @@ flowchart LR
   Command[npm run audit] --> Config[Parse args / normalize config]
   Config --> Target[Resolve self or external target]
   Target --> Inventory[Project inventory scanner]
-  Inventory --> Facts[Source facts collector: TS/JS + Python + Java + Kotlin analyzers]
+  Inventory --> Facts[Kit source evidence: selected-detector acquisition and Lab fact adaptation]
   Target --> SoT[Source-of-truth collector]
   Target --> PyMeta[Python project metadata collector]
   Target --> JvmMeta[JVM project metadata collector]
@@ -1028,8 +1028,8 @@ flowchart LR
 - `auditTarget.ts` — target resolution (self or external local project), non-destructive with respect to the target
 - `projectInventory.ts` — project inventory scanner (files by category/extension, normalized language, file role, excluded directories)
 - `sourceOfTruth.ts` — source-of-truth collector (package metadata, scripts, docs, CI, build tooling, tests, security, experiment truth)
-- `sourceFacts.ts` / `collectSourceFacts.ts` — source facts model and collector for source/test files
-- `languageAnalyzerRegistry.ts` / `typescriptJavaScriptAnalyzer.ts` / `pythonAnalyzer.ts` / `javaAnalyzer.ts` / `kotlinAnalyzer.ts` — language analyzer registry with TypeScript/JavaScript, Python, Java, and Kotlin analyzers registered for their supported extensions
+- `sourceFacts.ts` — Lab source-facts consumer model for source/test files
+- `kitSourceProvider.ts` / `kitSourceEvidence.ts` / `kitSourceAdapter.ts` — managed Kit acquisition and authenticated readers, evidence validation, and adaptation into the Lab consumer model; the native collector and language-analyzer modules were retired by LAB-KIT-01 Gate 5
 - `pythonProjectMetadata.ts` — presence/simple-text-extraction collector for Python project/config files (`pyproject.toml`, `requirements.txt`, `setup.py`, `setup.cfg`, `tox.ini`, `pytest.ini`); never executes Python tooling
 - `jvmProjectMetadata.ts` — static Gradle/Maven/wrapper/source-set presence detection and best-effort project-name extraction; never executes Gradle, Maven, compilers, or target tests
 - `auditRegistry.ts` — `DEFAULT_AUDIT_REGISTRY`, detector contract, and `selectDetectors()` filtering by type/include area
@@ -1054,17 +1054,43 @@ flowchart LR
 - `writeAuditReports.ts` — writes the selected `--format` outputs
 - Reports are written under `reports/audits/code-rot/` by default (`code-rot-audit.json`, `code-rot-audit.txt`), or under `--out <path>` when supplied
 
-`scripts/audits/runAudit.ts` is a thin CLI entrypoint: parse args → normalize config → resolve target → `runAudit()` → `buildAuditReportModel()` → `writeAuditReports()` → console summary → set `process.exitCode`. It mirrors the structure of `scripts/security/validate.ts` but shares no code with it.
+`scripts/audits/runAudit.ts` is the thin source-checkout adapter over `src/commands/runAuditCommand.ts`, also used by the installed CLI. That command owner parses and normalizes arguments, resolves the target, invokes `runAudit()`, builds/writes the report and maps exit status. It does not duplicate standalone security validation.
 
 Fail-on policy: `--fail-on blocker|high|medium|low|none` (default `blocker`; see `docs/COMMANDS.md` for full threshold semantics). External-target audits are non-destructive — target resolution and the runner do not write or delete files inside the target root; generated reports stay under the tool root's `reports/audits/` unless `--out` redirects them.
 
 ### Language-analyzer boundary
 
-The source-facts layer registers TypeScript/JavaScript, Python, Java, and Kotlin analyzers. TypeScript/JavaScript parsing is syntax-only and single-file; Python and JVM analyzers use conservative, dependency-free scanning. Detector groups remain analyzer-scoped, and JVM metadata is static presence/text extraction rather than a report-schema field.
+The historical Lab analyzer substrate supplied TypeScript/JavaScript, Python, Java, and Kotlin facts. In v0.10.0 development, Kit supplies these source facts and Lab retains detector policy. JVM project metadata remains static presence/text extraction rather than a report-schema field.
 
-These analyzers provide candidate evidence. They do not provide type checking, full module or classpath resolution, runtime reachability, clone detection, coverage analysis, compiler execution, Gradle/Maven execution, target-test execution, or dependency-freshness proof. See [CHANGELOG.md](../CHANGELOG.md) for the release-by-release history of this substrate.
+This is conservative candidate evidence. It does not provide type checking, full module or classpath resolution, runtime reachability, clone detection, coverage analysis, compiler execution, Gradle/Maven execution, target-test execution, or dependency-freshness proof. See [CHANGELOG.md](../CHANGELOG.md) for the release-by-release history of this substrate.
 
-**Planned ownership transition:** [LAB-KIT-01 in v0.10.0](ROADMAP.md#first-workstream-kit-backed-source-audit-migration-lab-kit-01) will replace the native source-analysis path with Kit-produced evidence. The current module map and diagram above describe the existing implementation; the bridge, managed Kit dependency, and analyzer retirement are not implemented. The roadmap assigns six gates covering exact detector evidence requirements, Kit capabilities, a temporary comparison bridge, five-language findings compatibility, removal of duplicated production analysis, and Rust reuse. Lab retains detector policy, validation, and report ownership. The existing `src/evaluation/upstreamArtifacts/`, retrieval/process, `src/audits/core/`, and report boundaries are the integration owners. Non-source operations must remain independent of Kit analysis and index availability.
+### Kit source authority (v0.10.0 development)
+
+LAB-KIT-01 Gates 1–6 are complete and unreleased. Kit owns source discovery, parsing, source facts, authenticated content/occurrences, and import/source proofs. Lab owns the audit registry, selected-detector applicability, policy predicates, finding interpretation, severity, and reporting. The provider, validators, adapter, and per-audit reader reuse the existing runner; there is no second source-fact producer or production native fallback.
+
+`runAudit()` defaults to `sourceProviderMode: "kit"`; `kit` is the only selectable programmatic mode. `legacy-comparison` throws a retirement `RangeError`, and other unsupported values throw explicitly before audit side effects. Historical snapshot serialization may still contain `legacy-comparison` or omit provider identity; those compatibility labels do not enable a current execution mode.
+
+Detector selection and per-file applicability precede Kit acquisition. Only applicable source-dependent selections acquire Kit; non-source-only audits and selections with no applicable source paths do not resolve its package or build an index. Lab still owns filesystem inventory/classification, line/size metadata, package/configuration/documentation reads, and Python/JVM project metadata. Those reads are not replacement source parsers.
+
+The managed provider resolves the installed package through Lab module resolution, verifies package and CLI identity/containment plus extractor revision, indexes outside the target, traverses complete inventory/fact pages, and authenticates artifact, snapshot, source selection, file hashes, capabilities, freshness, and required proofs. It never invokes an automatic install, a PATH Kit executable, a sibling checkout, or registry download. Required unavailable, malformed, stale, truncated, or insufficient evidence raises `KitSourceEvidenceAcquisitionError`; the command returns 2 even with `--fail-on none`, before writing a success report.
+
+Partial evidence has one narrow positive route: qualified Java/Kotlin declaration evidence for `docs-code-mismatch` with an explicitly qualified producer profile. It cannot establish declaration absence; unmatched claims requiring unavailable evidence stay unavailable. Without an applicable qualified positive claim, insufficient required evidence remains fatal. Python dynamic exports remain unknown for declaration candidacy, while independent qualified file-level signals remain possible. Kotlin object/companion matching uses qualified owner identity rather than simple-name substitution. These are Lab policy qualifications, not compiler binding or runtime reachability.
+
+Production source auditing now resolves the exact runtime dependency `@dailephd/my-dev-kit@1.15.0`, with source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, and CLI SHA-256 `ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f`. Its file evidence and coverage matched Candidate 05 across the 15 retained fixtures; its findings matched all 150 accepted Kit oracle decisions. Required artifact, pagination, capability, freshness, and source proof validation still apply. Installed-consumer qualification is recorded separately from this comparison.
+
+The historical accepted development producer is Candidate 05: package metadata `1.14.0`, source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, upstream cache schema `1.4.0`, and the exact CLI SHA-256 pinned by `QUALIFIED_KIT_CANDIDATE`. Package version alone does not establish compatibility. Public Kit 1.14.0 is a different build. At that historical acceptance, qualified Kit v1.15.0 publication was still required before Lab published-dependency qualification; Candidate 05 did not automatically qualify a future package.
+
+`runAudit().sourceFacts` retains `provider`, optional `kitEvidence` producer/selection/snapshot/traversal provenance, and per-file evidence. The public audit report remains schema `1.0`: its `sourceFacts` section contains aggregate counts, diagnostics and warnings, not the complete internal provenance envelope. A complete selected inventory never implies complete parsing or global absence. See [COMMANDS.md](COMMANDS.md#npm-run-audit) for command and error behavior.
+
+### Rust source-evidence reuse
+
+Rust `.rs` files use the same managed Kit 1.15.0 bridge and normalized Lab evidence model, with Kit extraction method `rust-tree-sitter`. Ordinary declarations, imports and source ranges can be complete; exports remain partial. Identifier-literal, test-observation, fixture-reference and process-observation capabilities are unsupported. Capability status is checked per file, not inferred from the schema. Qualified trait, impl and method identities remain distinct.
+
+Four existing source-policy families have accepted Rust examples: duplicate exported declarations, dead-code fixture-basename references, test-rot lexical strings such as `test.skip(`, and cross-platform raw newline-splitting predicates. These are the existing detector policies, not Rust test-ignore semantics or runtime claims. The other six detector families retain their conditional generic metadata/inventory policies; this does not make all ten Rust semantic analyzers.
+
+Rust source-file absence is unavailable: the existing relative import/require basename heuristic does not cover `mod`/`use` references, so the dead-code detector explicitly excludes Rust from that policy. Rust unused-declaration, Cargo dependency/feature and semantic import-absence policies are not implemented. Macro, cfg, parser recovery, extern-crate or ambiguous selected-root evidence cannot prove absence; insufficient required evidence fails acquisition and returns exit 2 even with `--fail-on none`. Optional unsupported evidence stays explicit.
+
+No Lab Rust parser, tokenizer, import resolver, separate collector, runner or report model is added. No Cargo, rustc, rust-analyzer, build script, macro expansion or Rust test is executed. Published Kit source/parser/resource bounds and diagnostics retain their meaning. Complete inventory/fact pagination and current content hashes remain mandatory. Installed acceptance verifies supported findings, immutable target/package resources and required-evidence exit 2. See [current acceptance evidence](CURRENT_STATE.md#v0100-development-lab-kit-01).
 
 ## Shared report and evidence infrastructure
 
@@ -1243,6 +1269,41 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 
 ## Key contracts
 
+### Executable-evidence foundation (v0.10.0 development)
+
+LAB-EVIDENCE-01 is implemented with completed prospective native acceptance under the adopted route, while the original historical RSP-011 remains unsatisfied as recorded in [CURRENT_STATE.md](CURRENT_STATE.md#v0100-development-lab-evidence-01). `src/evaluation/executableEvidence/` owns plan/subject identity, passive import, authorized capture, pure native adapters, requirement evaluation, exact-artifact certification, and exclusive persistence. `src/commands/runEvidenceCommand.ts` composes these owners through the existing CLI router; `src/report/experiments/executableEvidenceReport.ts` builds bounded derived reports. Existing process execution, benchmark sandbox, target snapshot, native-artifact validation, and report primitives remain authoritative mechanisms.
+
+Lab captures or imports verification evidence, qualifies its identity and applicability, evaluates selected requirements, and certifies exact artifact combinations. Kit retains canonical ECO-00 schema and source-evidence ownership; each native producer retains its own artifact semantics and result authority. Lab qualification and certification do not replace the Orchestrator judge or establish its final-report eligibility. LAB-KIT-01's [Kit-default source authority](#kit-source-authority-v0100-development) remains unchanged; this feature adds no alternate Lab source parser.
+
+#### ECO-00 and Lab-owned contracts
+
+The canonical ECO-00 subject identity, environment identity, native artifact reference, evidence envelope, evidence requirement, and compatibility bundle stay closed at schema version `1.0.0`. Kit owns their definitions. `eco00ContractValidation.ts` pins the registry and original schema hashes and validates the compatible closed shapes; the committed contract tests check the original bytes. No sibling Kit checkout is needed at runtime. Richer Lab policy and qualification data live in separate records rather than extra canonical fields or a forked canonical schema.
+
+Lab's record identities, all schema version `1.0.0`, are:
+
+- `lab-executable-evidence-plan-v1` / `LabVerificationPlanV1`: frozen selected inputs, checks, policy, profile, and requirements.
+- `lab-executable-evidence-qualification-v1` / `LabEvidenceQualificationV1`: canonical envelope plus plan, source/environment/runtime binding, original digest, invocation, completeness, provenance, and limitations.
+- `lab-executable-evidence-assessment-v1` / `LabEvidenceAssessmentV1`: plan and consumer-support digests, per-requirement statuses, and exact blocking IDs.
+- `lab-executable-evidence-certification-v1` / `LabCertificationRecordV1`: canonical bundle plus exact package identities, specification, fixture, environment cell, assessment identity, references, and scoped status.
+
+`LabSubjectBindingV1` records a bounded selected-content manifest, selection/exclusion policy, relevant ignored inputs, selected tracked/untracked bytes, available Git commit/dirty state, Node/platform/architecture environment, and explicit runtime corroboration. Existing root package/lock inputs must be selected; configuration inputs are caller-selected, not exhaustively discovered. Missing, oversized, unreadable, or incompletely selected inputs remain unverifiable. A complete scoped manifest is not proof about unselected files, every environment variable, or a prepared build; source-to-runtime verification requires separate corroboration for the local-app profile.
+
+#### Capture, import, and native result boundaries
+
+Passive import authorizes a physical local root and identity, accepts only safe relative path locators, reads bounded original bytes with handle/path/root consistency checks, verifies SHA-256, and validates the selected native kind/schema/capabilities. URI and opaque locators are unsupported by this initial consumer. Imported data never supplies executable authority. Caller-declared historical origin remains unverified; CLI import deliberately cannot attest the original source or environment.
+
+Capture requires an independent trusted authorization and a selected `node-test-tap-v1` check. It invokes the current Node executable with `--test --test-reporter=tap -- <selected-test-file>` in an exclusively created disposable copy, reusing `runMeasuredCommand`, benchmark sandbox ownership, minimal child environment, target snapshots, timeout/output limits, and cleanup observations. Copyable inputs must be selected and bounded; credential-like inputs are denied. Canonical and disposable mutation evidence, nonzero exit, timeout, output limit, or failed cleanup remain blocking. This is a finite Node-test profile, not arbitrary command execution. Network isolation is not enforced, account-accessible resources remain reachable, and caller cancellation is unsupported.
+
+Pure adapters support exactly `node-test-tap-v1`, `kit-context-capsule-v1`, `kit-retrieval-audit-v1`, `orchestrator-workflow-instruction-packet-v1`, and `orchestrator-run-integrity-v1`, with native reference schema `1.0.0`. Node TAP support is a strict finite TAP-13 subset with corroborated totals; unsupported structures and unknown totals do not imply success. Context/instruction existence is not executable success. The run-integrity projection retains native readiness, expected verdict, judge acceptance, and final-report eligibility. Observer-native adaptation is **not supported**. A Lab tutorial manifest is a separate local-app certification witness, not an Observer adapter.
+
+#### Evaluation, certification, and persistence
+
+Each frozen requirement retains criticality (required `critical`, optional `noncritical`), applicability, accepted kinds/schemas, capabilities, freshness policy, and native-success obligation. Evaluation checks availability, compatibility, plan/source/environment identity, native integrity, provenance, invocation, completeness, and producer outcome. Results remain `satisfied`, `failed`, `unavailable`, `incomplete`, `incompatible`, `stale`, `indeterminate`, or `not-applicable`; applicable critical results other than satisfied retain their blocking IDs. Optional passes cannot hide required failures, and contradictory failed witnesses for the same predicate are not masked by a pass.
+
+Certification supports `cli-verification-v1` and `local-app-verification-v1` with profile version `1.0.0`. It requires an approved exact package combination, verified artifact/content identity, selected disposable execution binding, specification/fixture hashes, all critical requirements, and one actual environment cell. Equal package versions with different bytes are distinct. Local-app certification additionally requires authorized preparation, verified source/runtime/environment binding, and complete native tutorial/browser assertions for an explicit HTTP loopback session. Browser availability alone is insufficient; CLI-only certification consumes no browser witness. Results distinguish `supported`, `tested`, and `certified`; `active` is rejected. Certification never grants execution permission or supersedes native Orchestrator eligibility.
+
+Persistence reserves a new direct child of `<workspace>/lab-output/evidence/`, refuses existing run directories, writes artifacts exclusively, and verifies their hashes before marking its manifest complete. Original bytes and derived qualification/assessment/certification/reports remain distinguished. Partial-write failure leaves an incomplete manifest. Reports use `lab-executable-evidence-v1`, schema `1.0.0`, with a shared 100-detail display budget and omission counts while preserving all blocking requirement IDs. Sanitized report previews do not make retained original native payloads safe for publication.
+
 | Contract | Location |
 |---|---|
 | Plugin and result types | `src/experiments/types.ts` |
@@ -1258,11 +1319,9 @@ Future audit work should reuse `src/audits/core`, `src/audits/security`, target 
 | Audit detector registry | `src/audits/core/auditRegistry.ts` |
 | Audit report model | `src/audits/report/auditReportModel.ts` |
 | Source facts model | `src/audits/core/sourceFacts.ts` |
-| Language analyzer registry | `src/audits/core/languageAnalyzerRegistry.ts` |
-| TypeScript/JavaScript analyzer | `src/audits/core/typescriptJavaScriptAnalyzer.ts` |
-| Python analyzer | `src/audits/core/pythonAnalyzer.ts` |
-| Java analyzer | `src/audits/core/javaAnalyzer.ts` |
-| Kotlin analyzer | `src/audits/core/kotlinAnalyzer.ts` |
+| Kit source acquisition and authenticated readers | `src/audits/core/kitSourceProvider.ts` |
+| Kit evidence validation and qualified predicates | `src/audits/core/kitSourceEvidence.ts` |
+| Kit-to-Lab fact adaptation | `src/audits/core/kitSourceAdapter.ts` |
 | Python project metadata | `src/audits/core/pythonProjectMetadata.ts` |
 | JVM project metadata | `src/audits/core/jvmProjectMetadata.ts` |
 | Security audit adapter | `src/audits/security/securityAuditAdapter.ts` |
@@ -1340,23 +1399,3 @@ The generic report family uses `src/report/experiments/reportSectionRegistry.ts`
 `src/gallery/readGallerySources.ts` recognizes eight artifact families: plugin experiment report, warm-index campaign, controlled experiment, audit, security validation, Android validation, tutorial manifest, and prompt-template comparison. `galleryPathSafety.ts` validates contained relative artifact references and supported media. `buildGalleryCommand.ts` routes repeatable `--source` inputs through the existing gallery writer. Tutorial execution has no dependency on gallery generation. Security and Android producers remain JSON/text sources without an HTML report to link.
 
 `report compare-prompts` is routed through the report command owner. `promptTemplateComparisonEvidence.ts` performs bounded, contained, change-detected read-only artifact reads and delegates checkpoint verification to the campaign store's complete read validation against authenticated trusted tasks; `promptTemplateComparisonModel.ts` projects matched persisted evidence; the renderer emits deterministic JSON/text/HTML. It invokes no provider and does not recompute task checks. V1 campaign identity does not bind a prompt template: a sidecar or prompt-artifact hash alone cannot prove historical template identity, so V1 evidence without independent run-bound proof is `UNVERIFIED` and `INCOMPARABLE`. V2 prompt-contract integrity is retained. Only persisted proof of a completed response with a contract violation counts as invalid output; when trusted corpus or required evidence is unavailable the comparison is `INCOMPARABLE`.
-
-## v0.9.7 incremental runtime containment
-
-The existing command, generic runner and incremental plugin share one execution context. `runExperimentRunCommand` forwards `context.workspaceRoot`; `RunExperimentOptions` validates and forwards optional `writableWorkspaceRoot`. Other programmatic plugins may omit it. The incremental plugin requires an authorized absolute workspace and refuses missing/invalid roots without falling back to package, tool, output or current-directory paths.
-
-| Root | Responsibility |
-|---|---|
-| `packageRoot` / `resourceRoot` | Immutable installed package and bundled benchmark resources |
-| `toolRoot` | Existing resource/target identity, unchanged |
-| `writableWorkspaceRoot` | Internal authorized writable workspace from the existing execution context |
-| `outputRoot` | Persisted execution artifacts and JSON/text/HTML reports |
-| `runOwnedRoot` | Disposable state at `<workspace>/runtime/incremental-change-staleness/<sanitized-run-id>/` |
-
-The run owns `targets/<scenario>/<treatment>/`, `indexes/<scenario>/<treatment>/baseline|refreshed/`, `commands/<scenario>/<treatment>/baseline|refreshed|retrieval/`, and `agents/<scenario>/<treatment>/`. Canonical sources are independently verified under package benchmark resources; runtime containment uses the explicit run boundary. Only disposable copies are mutable. Source-copy, index-clone, evaluation and mutation owners recheck their boundaries and target identity. Report output and run-owned runtime roots cannot overlap.
-
-Run creation checks ancestry and real paths, rejects traversal and Windows junction/reparse redirection, creates the directory exclusively and writes the ownership marker exclusively. A private WeakMap keyed by the exact invocation context stores a random claim token plus realpath/device/inode identities for the directory and parents. A run ID or copied marker alone grants no deletion authority. Existing-run collisions fail before claiming foreign state.
-
-The runner's existing finally phase cleans only a successfully claimed current run after verifying regular marker contents and directory/parent identities. Cleanup consumes the claim before asynchronous verification; failed verification cannot later regain authority. Canonical resources, other runs, runtime parents and persisted reports survive. Interrupted or substituted state is retained; there is no restart adoption or marker-only automatic cleanup, and no claim of immunity to every OS filesystem race. Other plugin interfaces, scientific comparison rules and V1/V2 report schemas are preserved.
-
-The v0.9.7 contract is distinct from the previous published v0.9.6 runtime, which could be package-relative. Authorized Windows path spelling is retained separately from realpath identity during cleanup; cross-drive lexical paths remain guarded. The genuine macOS /var system alias is accepted without generally allowing symlink redirection. The existing documentation checker separately validates published and final release-document identities. See [current state](CURRENT_STATE.md) for evidence scope and [workflows](WORKFLOWS.md) for installed acceptance.

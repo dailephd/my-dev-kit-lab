@@ -13,6 +13,7 @@ export default defineConfig({
       ".my-dev-kit-workflow/**",
       "lab-output/**",
       "tmp/**",
+      "t/**",
     ],
     maxWorkers: 2,
     testTimeout: 30_000,

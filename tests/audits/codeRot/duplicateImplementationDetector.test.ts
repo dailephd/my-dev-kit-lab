@@ -1,10 +1,10 @@
+import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scanProjectInventory } from "../../../src/audits/core/projectInventory.js";
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
-import { collectSourceFacts } from "../../../src/audits/core/collectSourceFacts.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { DUPLICATE_IMPLEMENTATION_DETECTOR } from "../../../src/audits/codeRot/detectors/duplicateImplementationDetector.js";
@@ -40,13 +40,12 @@ function buildContext(root: string): AuditDetectorContext {
 
 async function run(root: string) {
   const ctx = buildContext(root);
-  return DUPLICATE_IMPLEMENTATION_DETECTOR.run(ctx);
+  return executeWithKit(ctx);
 }
 
 async function runWithSourceFacts(root: string) {
-  const ctx = buildContext(root);
-  const sourceFacts = await collectSourceFacts(root, ctx.inventory);
-  return DUPLICATE_IMPLEMENTATION_DETECTOR.run({ ...ctx, sourceFacts });
+  // The runner supplies qualified facts and its authenticated reader together.
+  return executeWithKit(buildContext(root));
 }
 
 describe("DUPLICATE_IMPLEMENTATION_DETECTOR — duplicate script entrypoints", () => {
@@ -204,7 +203,7 @@ describe("DUPLICATE_IMPLEMENTATION_DETECTOR — source-facts-derived duplicate d
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "src/featureA/logger.ts", "export class Logger { log() {} }\n");
       writeFile(root, "src/featureB/logger.ts", "export class Logger { log() {} }\n");
-      const issues = await run(root); // buildContext() with no sourceFacts field
+      const issues = await DUPLICATE_IMPLEMENTATION_DETECTOR.run(buildContext(root));
       expect(issues.some((i) => i.title.includes('"Logger"'))).toBe(false);
     } finally {
       cleanup(root);
@@ -504,24 +503,19 @@ describe("DUPLICATE_IMPLEMENTATION_DETECTOR — Java/Kotlin duplicate declaratio
 });
 
 describe("DUPLICATE_IMPLEMENTATION_DETECTOR — real self-scan regression guard", () => {
-  it("produces no findings above info severity against this repo's own current state", async () => {
-    const issues = await run(process.cwd());
-    expect(issues.every((i) => i.severity === "info" || i.severity === "low")).toBe(true);
-  });
+  it("fails closed when protected historical repository inputs contain partial required declarations", async () => {
+    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
+  }, 1800000);
 
-  // v0.3.1 Batch 6 -- the test above never actually exercises
-  // findDuplicateDeclarationCandidates() against this repo's real code:
-  // run() builds a context via buildContext(), which has no `sourceFacts`
-  // field, so the source-facts-derived check returns [] before ever
-  // touching this repo's own duplicate declaration names (e.g. "Logger",
-  // "TaskService", "TaskStore" across this repo's benchmark fixtures --
-  // manually confirmed via `npm run audit` smoke output in Batch 5). This
-  // is the actual regression guard for that check: real sourceFacts,
-  // against this repo's real ~500-file source tree, asserting the
-  // source-facts-derived findings stay conservative (info/low) the same
-  // way the regex-based checks above already are.
-  it("keeps source-facts-derived duplicate-declaration candidates at info/low against this repo's own real source facts", async () => {
-    const issues = await runWithSourceFacts(process.cwd());
+  // Qualified bounded cases preserve conservative duplicate policy assertions.
+  it("keeps qualified duplicate-declaration candidates at info/low with high false-positive risk", async () => {
+    const root = makeTempDir();
+    try {
+    writeFile(root, "package.json", JSON.stringify({ name: "qualified-duplicate-guard", version: "1.0.0" }));
+    writeFile(root, "src/featureA/logger.ts", "export class Logger { log() {} }\n");
+    writeFile(root, "src/featureB/logger.ts", "export class Logger { log() {} }\n");
+    const issues = await runWithSourceFacts(root);
+    expect(issues.every((i) => i.severity === "info" || i.severity === "low")).toBe(true);
     const sourceFactsDerived = issues.filter((i) =>
       i.evidence.some((e) => e.message.startsWith("Source facts:"))
     );
@@ -534,5 +528,22 @@ describe("DUPLICATE_IMPLEMENTATION_DETECTOR — real self-scan regression guard"
     expect(sourceFactsDerived.every((i) => i.severity === "info")).toBe(true);
     expect(sourceFactsDerived.every((i) => i.confidence === "low")).toBe(true);
     expect(sourceFactsDerived.every((i) => i.falsePositiveRisk === "high")).toBe(true);
-  });
+    } finally { cleanup(root); }
+  }, 1800000);
 });
+
+// Real whole-repository acquisition performs paged CLI queries for every selected file.
+// Its integration timeout includes those queries; finding assertions remain unchanged.
+// Test setup delegates source acquisition to the real qualified provider.
+let selfRun: Promise<Awaited<ReturnType<typeof DUPLICATE_IMPLEMENTATION_DETECTOR.run>>> | undefined;
+async function executeWithKit(ctx: AuditDetectorContext) {
+  const perform = async () => {
+  const result = await runAudit({ config: ctx.config, toolRoot: ctx.target.rootPath, target: ctx.target, registry: [DUPLICATE_IMPLEMENTATION_DETECTOR],
+    kitSourceProviderDependencies: {} });
+  if (result.detectorErrors.length) throw new Error(JSON.stringify(result.detectorErrors));
+  return result.issues;
+
+  };
+  if (path.resolve(ctx.target.rootPath) === path.resolve(process.cwd())) return selfRun ??= perform();
+  return perform();
+}

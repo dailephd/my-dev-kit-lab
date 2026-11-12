@@ -1,13 +1,27 @@
 import type { AuditConfig } from "./auditConfig.js";
 import { calculateAuditExitCode } from "./auditExitCode.js";
 import type { AuditIssue } from "./auditIssue.js";
-import { DEFAULT_AUDIT_REGISTRY, selectDetectors, type AuditDetector } from "./auditRegistry.js";
+import {
+  DEFAULT_AUDIT_REGISTRY,
+  resolveKitSourceEvidenceRequirement,
+  resolveApplicableKitRequirements,
+  requiredKitCapabilitiesForPath,
+  allowsKitPartialPositiveDeclarations,
+  selectDetectors,
+  type AuditDetector,
+} from "./auditRegistry.js";
 import { resolveAuditTarget, type AuditTarget } from "./auditTarget.js";
 import type { AuditSeverity } from "./auditTypes.js";
 import { scanProjectInventory, type ProjectInventorySnapshot } from "./projectInventory.js";
 import { collectSourceOfTruth, type SourceOfTruthSnapshot } from "./sourceOfTruth.js";
-import { collectSourceFacts } from "./collectSourceFacts.js";
 import type { SourceFactsSnapshot } from "./sourceFacts.js";
+import {
+  collectKitSourceFacts,
+  createNotCollectedSourceFacts,
+  type KitSourceProviderDependencies,
+  type KitSourceReader,
+} from "./kitSourceProvider.js";
+import { KitSourceEvidenceAcquisitionError } from "./kitSourceEvidence.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "./pythonProjectMetadata.js";
 import { runSecurityAuditAdapter } from "../security/securityAuditAdapter.js";
 import {
@@ -18,30 +32,10 @@ import {
 } from "../security/securityAuditTypes.js";
 
 // ---------------------------------------------------------------------------
-// v0.3.0 Batch 1/2 — audit runner.
-//
-// Selects detectors from a registry, runs them, and normalizes results into
-// an AuditResult. A detector throwing is recorded as a structured
-// detectorError and does not crash the run or the process -- only a
-// config/target resolution failure (thrown before runAudit is called, or
-// while it resolves the target internally) is a fatal error, which is the
-// caller's responsibility to map to exit code 2.
-//
-// Batch 2 (v0.3.0): collects a ProjectInventorySnapshot and
-// SourceOfTruthSnapshot before running detectors. v0.3.1 Batch 2 adds a third
-// collection step, collectSourceFacts(), which never throws itself (analyzer
-// failures are caught per-file and recorded as parse-error diagnostics) --
-// but it is still not individually try/catch-wrapped here, for the same
-// reason as the calls below. These calls are intentionally left unguarded
-// here (not wrapped in their own try/catch) -- by the time runAudit() is
-// called, the target has already been resolved and validated, so any
-// exception here is a genuine runtime failure. It propagates as a rejected
-// promise up to the entrypoint script's existing try/catch around
-// `await runAudit(...)`, which already maps any such failure to exit code 2
-// ("audit runtime failure") -- no new error-handling path needed. Optional,
-// per-file collection problems (a single unreadable doc file, a workflow
-// file that fails to parse, etc.) are handled inside the collectors
-// themselves via their own `warnings` arrays, not by throwing.
+// Audit execution keeps Lab policy and reporting separate from source acquisition.
+// Selected applicable detector requirements lazily acquire qualified Kit evidence.
+// Acquisition and authenticated-reader failures propagate to the established
+// command boundary (exit 2); ordinary detector failures remain structured errors.
 // ---------------------------------------------------------------------------
 
 export type AuditTargetSummary = {
@@ -86,12 +80,10 @@ export type AuditResult = {
   // zero-value shape until a later batch registers real detectors.
   inventory: ProjectInventorySnapshot;
   sourceOfTruth: SourceOfTruthSnapshot;
-  // v0.3.1 Batch 2 -- source facts substrate (analyzer registry not yet
-  // populated; see collectSourceFacts.ts for the fallback policy).
+  // Qualified Kit facts, or the distinct not-collected state for lazy runs.
   sourceFacts: SourceFactsSnapshot;
   // v0.3.2 Batch 3 -- presence-only/simple-text-extraction Python project
-  // metadata (see pythonProjectMetadata.ts). Collected unconditionally, same
-  // as sourceFacts above -- cheap, safe, and never executes Python tooling.
+  // metadata (see pythonProjectMetadata.ts). Collected unconditionally -- cheap, safe, and never executes Python tooling.
   pythonProjectMetadata: PythonProjectMetadataSnapshot;
   // v0.3.2 Batch 4 -- security-validation audit adapter summary. Unlike
   // sourceFacts/pythonProjectMetadata above, this is NOT collected
@@ -115,9 +107,17 @@ export type AuditResult = {
   noDetectorsRegistered: boolean;
 };
 
+// Qualified Kit is the only selectable production source provider.
+// Historical serialized provider labels do not enable execution.
+export type AuditSourceProviderMode = "kit";
+
 export type RunAuditOptions = {
   config: AuditConfig;
   toolRoot: string;
+  sourceProviderMode?: AuditSourceProviderMode;
+  // Internal test/consumer seam for the verified installed Kit package,
+  // command runner and working directory. Not a public option.
+  kitSourceProviderDependencies?: KitSourceProviderDependencies;
   // Pre-resolved target, if the caller already resolved one (e.g. to fail
   // fast with a clean error before calling runAudit). Resolved internally
   // when omitted.
@@ -131,18 +131,71 @@ export type RunAuditOptions = {
   securityDependencies?: Parameters<typeof runSecurityAuditAdapter>[1];
 };
 
+// The runner owns detector selection; the provider cannot name its consumers.
+// Enrich the existing error in place so category, detail, stack and identity
+// remain available to callers and the CLI's fatal-error boundary.
+function rethrowWithKitRequirementContext(error: unknown, selected: readonly AuditDetector[]): never {
+  if (error instanceof KitSourceEvidenceAcquisitionError) {
+    const context = selected.flatMap(detector => {
+      const requirement = resolveKitSourceEvidenceRequirement([detector]);
+      return requirement.required
+        ? [`${detector.id} [${requirement.capabilities.join(", ") || "qualified raw source evidence"}]`]
+        : [];
+    });
+    if (context.length > 0) error.message += ` Required source evidence for selected detectors: ${context.join("; ")}.`;
+  }
+  throw error;
+}
+
 export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
+  const requestedMode: unknown = options.sourceProviderMode;
+  if (requestedMode === "legacy-comparison") {
+    throw new RangeError('sourceProviderMode "legacy-comparison" is retired; use "kit".');
+  }
+  if (requestedMode !== undefined && requestedMode !== "kit") {
+    throw new RangeError('Unsupported sourceProviderMode; supported value: "kit".');
+  }
   const { config, toolRoot } = options;
   const registry = options.registry ?? DEFAULT_AUDIT_REGISTRY;
   const target = options.target ?? resolveAuditTarget(config.targetPathArg, toolRoot);
 
   const inventory = scanProjectInventory(target.rootPath);
   const sourceOfTruth = collectSourceOfTruth(target.rootPath, inventory);
-  const sourceFacts = await collectSourceFacts(target.rootPath, inventory);
   const pythonProjectMetadata = collectPythonProjectMetadata(target.rootPath, inventory);
 
+  // v0.10.0 Gate 3 -- detectors are selected BEFORE source facts are
+  // collected so the Kit provider is initialized only when a selected
+  // detector needs source evidence.
   const selected = selectDetectors(registry, config.types, config.include);
-  const ctx = { target, config, inventory, sourceOfTruth, sourceFacts };
+  let sourceFacts: SourceFactsSnapshot;
+  let kitSourceReader: KitSourceReader | undefined;
+  try {
+    const kitRequirement = resolveKitSourceEvidenceRequirement(selected);
+    const applicable = resolveApplicableKitRequirements(selected, inventory, config.include);
+    if (kitRequirement.required && applicable.paths.length > 0) {
+      // Any acquisition failure propagates as KitSourceEvidenceAcquisitionError
+      // (exit 2 via the command boundary, independent of --fail-on). There is
+      // no native-analyzer fallback.
+      sourceFacts = await collectKitSourceFacts(
+        {
+          targetRoot: target.rootPath,
+          inventory,
+          requiredCapabilities: kitRequirement.capabilities,
+          includeScriptsRoot: kitRequirement.includeScriptsRoot,
+          requiredPaths: applicable.paths,
+          capabilitiesForPath: (filePath) => requiredKitCapabilitiesForPath(applicable.requirements, filePath),
+          allowPartialDeclarationsForPath: (filePath) => allowsKitPartialPositiveDeclarations(applicable.requirements, filePath),
+          onReader: (reader) => { kitSourceReader = reader; },
+        },
+        options.kitSourceProviderDependencies
+      );
+    } else {
+      sourceFacts = createNotCollectedSourceFacts(target.rootPath);
+    }
+  } catch (error) {
+    rethrowWithKitRequirementContext(error, selected);
+  }
+  const ctx = { target, config, inventory, sourceOfTruth, sourceFacts, kitSourceReader };
 
   const issues: AuditIssue[] = [];
   const skippedDetectors: AuditSkippedDetector[] = [];
@@ -150,7 +203,8 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
 
   // Sequential, in registry order -- keeps issue ordering deterministic
   // without needing a secondary sort step.
-  for (const detector of selected) {
+  try {
+    for (const detector of selected) {
     try {
       if (detector.shouldSkip) {
         const decision = detector.shouldSkip(ctx);
@@ -162,11 +216,15 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
       const detectorIssues = await detector.run(ctx);
       issues.push(...detectorIssues);
     } catch (err) {
+      if (err instanceof KitSourceEvidenceAcquisitionError) rethrowWithKitRequirementContext(err, [detector]);
       detectorErrors.push({
         id: detector.id,
         message: err instanceof Error ? err.message : String(err),
       });
     }
+    }
+  } finally {
+    kitSourceReader?.dispose();
   }
 
   // v0.3.2 Batch 4 -- security audit adapter. Conditional (see the

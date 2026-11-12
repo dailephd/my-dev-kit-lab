@@ -30,6 +30,25 @@ export type SourceFactDiagnostic = {
   analyzerId: string | null;
 };
 
+// v0.10.0 Gate 3 -- additive producer attribution. Facts adapted from the
+// managed Kit source-evidence bridge carry the Kit fact identity and span;
+// facts produced by the legacy native analyzers never set these fields, so
+// the two producers stay distinguishable by `SourceFactsSnapshot.provider`.
+export type SourceFactProvenance = {
+  producer: "kit";
+  factId: string;
+  extractionMethod: string;
+  startLine: number;
+  startColumn: number | null;
+  endLine: number | null;
+  endColumn: number | null;
+};
+
+export type SourceFactVisibility = "public" | "protected" | "private" | "internal" | "package" | "unknown";
+// "unknown" means the producer could not decide; it is never a "not exported"
+// claim even though the legacy boolean `exported` has to hold a value.
+export type SourceFactExportState = "exported" | "not-exported" | "unknown";
+
 // v0.3.1 Batch 3 -- "re-export" added for `export ... from "module"` forms,
 // which reference a module specifier the same way an import does but are
 // syntactically export statements (see typescriptJavaScriptAnalyzer.ts).
@@ -42,6 +61,10 @@ export type ImportFact = {
   // to determine from syntax alone.
   importedNames?: string[];
   line?: number;
+  // v0.10.0 Gate 3 -- additive, Kit-backed facts only.
+  importResolution?: string;
+  targetPaths?: string[];
+  provenance?: SourceFactProvenance;
 };
 
 export type ExportFactKind = "named" | "default" | "namespace" | "commonjs" | "unknown";
@@ -49,6 +72,10 @@ export type ExportFact = {
   name: string;
   kind: ExportFactKind;
   line?: number;
+  // v0.10.0 Gate 3 -- additive, Kit-backed facts only.
+  exportOrigin?: string;
+  visibility?: SourceFactVisibility;
+  provenance?: SourceFactProvenance;
 };
 
 export type DeclarationFactKind =
@@ -66,12 +93,42 @@ export type DeclarationFact = {
   kind: DeclarationFactKind;
   exported: boolean;
   line?: number;
+  // v0.10.0 Gate 3 -- additive, Kit-backed facts only. `exportState` keeps
+  // producer uncertainty the legacy boolean cannot express.
+  exportState?: SourceFactExportState;
+  exportOrigin?: string;
+  visibility?: SourceFactVisibility;
+  ownerKey?: string | null;
+  // Raw producer declaration kind when it was mapped to "unknown"
+  // (object, record, annotation, ...).
+  providerKind?: string;
+  // Canonical producer identities, distinct from a simple declaration name.
+  // Missing means unqualified; consumers must not derive them from a basename.
+  symbolId?: string;
+  jvmDeclaration?: {
+    packageName: string;
+    qualifiedName: string;
+    role: "type" | "kotlin-top-level-function" | "kotlin-top-level-property";
+  };
+  provenance?: SourceFactProvenance;
 };
 
 export type ReferenceFact = {
   name: string;
   kind?: string;
   line?: number;
+};
+
+// v0.10.0 Gate 3 -- producer-side file evidence kept next to the adapted
+// Lab facts so Kit uncertainty is never lost in the mapping.
+export type SourceFileKitEvidence = {
+  producerLanguage: string;
+  // Empty string is the qualified default package; absence remains unknown.
+  jvmPackageName?: string;
+  producerRole: string;
+  producerStatus: string;
+  contentSha256: string | null;
+  capabilities: Record<string, string>;
 };
 
 export type SourceFileFacts = {
@@ -86,6 +143,8 @@ export type SourceFileFacts = {
   // Carried over from the Batch 1 inventory entry when available -- cheap,
   // already-computed evidence that doesn't require an analyzer.
   lineCount?: number;
+  // v0.10.0 Gate 3 -- additive. Absent on legacy-analyzer records.
+  kit?: SourceFileKitEvidence;
   imports: ImportFact[];
   exports: ExportFact[];
   declarations: DeclarationFact[];
@@ -93,8 +152,36 @@ export type SourceFileFacts = {
   diagnostics: SourceFactDiagnostic[];
 };
 
+// v0.10.0 Gate 3 -- which provider produced a snapshot. "not-collected" is an
+// explicit empty snapshot for runs whose selected detectors need no source
+// evidence; it is not a statement that the target has no source.
+export type SourceFactsProvider = "kit" | "legacy-comparison" | "not-collected";
+
+export type SourceFactsKitSummary = {
+  packageName: string;
+  packageVersion: string;
+  artifactSchemaVersion: string;
+  extractorRevision: string;
+  snapshotId: string;
+  selectionFingerprint: string;
+  sourceRoots: string[];
+  excludes: string[];
+  selectedFileCount: number;
+  inventoryPages: number;
+  factPages: number;
+  traversalComplete: boolean;
+  // Kit-selected files that Lab's inventory policy does not treat as
+  // source/test. Recorded, not reconciled silently.
+  kitFilesOutsideLabPolicy: string[];
+};
+
 export type SourceFactsSnapshot = {
   targetRoot: string;
+  // Additive. Absent on snapshots built before Gate 3; consumers treat an
+  // absent value as the legacy native-analyzer provider.
+  provider?: SourceFactsProvider;
+  // Kit producer identity and coverage when provider is "kit".
+  kitEvidence?: SourceFactsKitSummary;
   // Only files eligible for source-fact extraction (role "source" or "test")
   // are included -- see collectSourceFacts.ts's header comment for the full
   // policy. docs/config/package/generated/vendor/build-output/report-output

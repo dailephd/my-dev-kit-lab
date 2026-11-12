@@ -34,6 +34,8 @@ export type MeasuredCommandResult = {
   timedOut?: boolean;
   /** Present only when a stdout/stderr byte limit was exceeded. */
   outputLimit?: { stream: "stdout" | "stderr"; limitBytes: number };
+  /** Independent bounded process-tree cleanup observation, when requested. */
+  processTreeCleanup?: "confirmed" | "failed" | "not-required";
 };
 
 type MeasuredCommandBaseOptions = {
@@ -136,6 +138,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     let timeout: NodeJS.Timeout | undefined;
     let killGraceTimeout: NodeJS.Timeout | undefined;
     let terminationPromise: Promise<boolean> | undefined;
+    let processTreeCleanup: "confirmed" | "failed" | "not-required" = "not-required";
     let settled = false;
 
     let child;
@@ -239,6 +242,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       if (settled) return;
       if (terminationPromise) {
         const terminated = await terminationPromise;
+        processTreeCleanup = terminated ? "confirmed" : "failed";
         if (!terminated) {
           const cleanupError = "Could not confirm termination of the command process tree.";
           spawnError = spawnError ? `${spawnError} ${cleanupError}` : cleanupError;
@@ -263,8 +267,8 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       const durationMs = Date.now() - started;
       const stdout = stdoutCollector.toString();
       const stderr = stderrCollector.toString();
-      await writeArtifact(stdoutPath, stdout);
-      await writeArtifact(stderrPath, stderr);
+      await writeArtifact(stdoutPath, bounded ? stdoutCollector.toBuffer() : stdout);
+      await writeArtifact(stderrPath, bounded ? stderrCollector.toBuffer() : stderr);
       const measured: MeasuredCommandResult = {
         commandId: options.commandId,
         commandString,
@@ -283,7 +287,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         ok: exitCode === 0 && !spawnError && !timedOut,
         error: spawnError,
         resolvedCommand: resolution,
-        ...(bounded ? { timedOut, ...(outputLimit ? { outputLimit } : {}) } : {})
+        ...(bounded ? { timedOut, ...(outputLimit ? { outputLimit } : {}), ...(options.terminateProcessTree === true ? { processTreeCleanup } : {}) } : {})
       };
       await writeArtifact(telemetryPath, JSON.stringify(measured, null, 2));
       resolve(measured);
@@ -344,9 +348,11 @@ class OutputCollector {
   toString(): string {
     return this.limit === undefined ? this.text : Buffer.concat(this.chunks).toString("utf8");
   }
+
+  toBuffer(): Buffer { return this.limit === undefined ? Buffer.from(this.text, "utf8") : Buffer.concat(this.chunks); }
 }
 
-async function writeArtifact(filePath: string, value: string): Promise<void> {
+async function writeArtifact(filePath: string, value: string | Buffer): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, value, "utf8");
 }

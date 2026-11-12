@@ -46,7 +46,7 @@ async function loadCaptureWithMocks(mocks: CaptureMocks) {
     Object.defineProperty(execFileMock, promisify.custom, {
       value: async (command: string, args: string[], options: unknown) => {
         mocks.gitCalls?.push({ command, args, options });
-        const gitArgs = args.slice(2);
+        const gitArgs = args.slice(4);
         if (mocks.git) return mocks.git(gitArgs);
         throw enoent();
       }
@@ -390,6 +390,7 @@ describe("captureTargetSnapshot", () => {
     expect(gitCalls.length).toBeGreaterThan(0);
     for (const call of gitCalls) {
       expect(call.command).toBe("git");
+      expect(call.args.slice(0, 3)).toEqual(["-c", "core.longpaths=true", "-C"]);
       expect((call.options as Record<string, unknown> | undefined)?.shell).toBeFalsy();
     }
   });
@@ -405,7 +406,7 @@ describe("captureTargetSnapshot", () => {
     await capture(baseConfig());
     const mutatingVerbs = ["reset", "restore", "clean", "stash", "checkout", "switch", "add", "commit", "merge", "rebase", "pull", "push"];
     for (const call of gitCalls) {
-      const gitArgs = call.args.slice(2);
+      const gitArgs = call.args.slice(4);
       expect(mutatingVerbs).not.toContain(gitArgs[0]);
     }
   });

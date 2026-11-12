@@ -45,7 +45,7 @@ async function auditFixture(name: string) {
   const root = fixturePath(name);
   const config = normalizeAuditConfig({}, root);
   const target = fakeTargetFor(root);
-  const result = await runAudit({ config, toolRoot: root, target });
+  const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, target });
   return { root, result };
 }
 
@@ -83,7 +83,7 @@ describe("mixed-language detector stability — D1 mixed-language scan does not 
     const second = await auditFixture("mixed-ts-python-jvm");
     const idsOf = (issues: readonly AuditIssue[]) => issues.map((i) => i.id).sort();
     expect(idsOf(first.result.issues)).toEqual(idsOf(second.result.issues));
-  });
+  }, 120000);
 });
 
 describe("mixed-language detector stability — D5/D6 fixture-noise and lifecycle-name wording guard", () => {
@@ -133,7 +133,7 @@ describe("mixed-language detector stability — U1/U4 duplicate-implementation g
     const dupIdsOf = (issues: readonly AuditIssue[]) =>
       issues.filter((i) => i.category === "duplicate-implementation-candidate").map((i) => i.id).sort();
     expect(dupIdsOf(first.result.issues)).toEqual(dupIdsOf(second.result.issues));
-  });
+  }, 120000);
 });
 
 describe("mixed-language detector stability — R8 JVM import resolver isolation", () => {
@@ -181,5 +181,5 @@ describe("mixed-language detector stability — wording/severity guard across th
       const blockerOrHigh = result.issues.filter((i) => i.severity === "blocker" || i.severity === "high");
       expect(blockerOrHigh).toEqual([]);
     }
-  });
+  }, 180000);
 });

@@ -10,7 +10,8 @@ import type { WarmIndexExecutionArtifactV1 } from "../../src/experiments/plugins
 import { runLabCli } from "../../src/cli/index.js";
 import type { WarmIndexReuseReportV1 } from "../../src/report/index.js";
 import { SCREENSHOT_SKIP_WARNING } from "../../src/screenshot/index.js";
-import { fakeKitCommand, multiTaskCasesPath } from "../experiments/warmIndexReuse/warmIndexTestHelpers.js";
+import { resolveCommand } from "../../src/core/resolveCommand.js";
+import { fakeKitCommand, fakeKitPath, multiTaskCasesPath } from "../experiments/warmIndexReuse/warmIndexTestHelpers.js";
 
 const tempDirs: string[] = [];
 afterEach(async () => {
@@ -87,11 +88,13 @@ function shimName(agent: "codex" | "claude"): string {
 // The public command owner reads process.env directly (loadCampaignCasesAndProjectProfiles), so a
 // fake provider on PATH must be injected into the real process environment for the call's duration.
 // includeOriginalPath stays true for happy-path fixtures (node must resolve fakeKitCommand); the
-// provider-unavailable fixture passes false so a real provider possibly on the host PATH cannot leak in.
+// provider-unavailable fixture passes false and invokes Node by absolute path: its installation
+// directory can also contain globally installed provider shims and must not leak into that PATH.
 async function withPatchedPath<T>(binDir: string, fn: () => Promise<T>, includeOriginalPath = true): Promise<T> {
   const originalPath = process.env.PATH;
   const originalPathCap = process.env.Path;
-  const nodeBinDir = path.dirname(process.execPath);
+  const nodeBinDir = includeOriginalPath ? path.dirname(process.execPath) :
+    process.platform === "win32" ? path.join(process.env.SystemRoot!, "System32") : binDir;
   const tail = includeOriginalPath ? `${path.delimiter}${originalPath ?? ""}` : "";
   const tailCap = includeOriginalPath ? `${path.delimiter}${originalPathCap ?? ""}` : "";
   process.env.PATH = `${binDir}${path.delimiter}${nodeBinDir}${tail}`;
@@ -810,11 +813,17 @@ describe("v0.5.2 Batch 4/5 -- public real-agent campaign commands and presentati
 
     const exitCode = await withPatchedPath(
       emptyBinDir,
-      () =>
-        runExperimentRunCommandFromArgs(
-          campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot),
+      () => {
+        for (const agent of ["codex", "claude"]) {
+          expect(resolveCommand(agent).resolutionKind).toBe("unavailable");
+        }
+        const args = campaignArgs("codex-full", "warm-medium-import-dedupe", outRoot);
+        args[args.indexOf("--kit-command") + 1] = `"${process.execPath}" "${fakeKitPath}"`;
+        return runExperimentRunCommandFromArgs(
+          args,
           capturedScreenshotOptions()
-        ),
+        );
+      },
       false
     );
 

@@ -1,3 +1,6 @@
+import { createRequire } from "node:module";
+import { collectKitSourceFacts } from "../../src/audits/core/kitSourceProvider.js";
+import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +13,10 @@ import type { AuditTarget } from "../../src/audits/core/auditTarget.js";
 import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
 import { buildAuditReportModel, buildRecommendations, computeVerdictLabel } from "../../src/audits/report/auditReportModel.js";
 
+// Production-positive fixtures use the actual managed published provider.
+// Historical Candidate 05 bytes and differential-comparison fixtures stay unchanged.
+const publishedKitRoot = path.dirname(createRequire(import.meta.url).resolve("@dailephd/my-dev-kit/package.json"));
+
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 5 — buildAuditReportModel() unit tests.
 //
@@ -17,7 +24,8 @@ import { buildAuditReportModel, buildRecommendations, computeVerdictLabel } from
 // established in tests/audits/auditRunner.test.ts.
 // ---------------------------------------------------------------------------
 
-const toolRoot = process.cwd();
+const toolRoot = fs.mkdtempSync(path.join(os.tmpdir(), "audit-policy-model-"));
+fs.writeFileSync(path.join(toolRoot, "package.json"), JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
 
 function makeIssue(overrides: Partial<AuditIssue> = {}): AuditIssue {
   return {
@@ -70,7 +78,7 @@ function fakeTarget(): AuditTarget {
 describe("buildAuditReportModel — top-level shape", () => {
   it("includes all required top-level fields", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });
 
     expect(model.schemaVersion).toBe("1.0");
@@ -92,7 +100,7 @@ describe("buildAuditReportModel — top-level shape", () => {
   it("summary has all sub-count fields present", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
     const detector = makeDetector({ run: () => [makeIssue()] });
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
 
     expect(model.summary.issuesBySeverity).toBeDefined();
@@ -111,7 +119,7 @@ describe("buildAuditReportModel — detector status coverage", () => {
     const inDocs = makeDetector({ id: "in-docs", supportedIncludeAreas: ["docs"] });
     const inCli = makeDetector({ id: "in-cli", supportedIncludeAreas: ["cli"] });
     const registry = [inDocs, inCli];
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry });
 
     expect(model.detectors).toHaveLength(2);
@@ -124,7 +132,7 @@ describe("buildAuditReportModel — detector status coverage", () => {
     const config = normalizeAuditConfig({}, toolRoot);
     const skipped = makeDetector({ id: "skipper", shouldSkip: () => ({ skip: true, reason: "tool unavailable" }) });
     const registry = [skipped];
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry });
     expect(model.detectors[0].status).toBe("skipped");
   });
@@ -138,7 +146,7 @@ describe("buildAuditReportModel — detector status coverage", () => {
       },
     });
     const registry = [throwing];
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry });
     expect(model.detectors[0].status).toBe("error");
     expect(model.detectorErrors).toHaveLength(1);
@@ -147,7 +155,7 @@ describe("buildAuditReportModel — detector status coverage", () => {
 
   it("real DEFAULT_AUDIT_REGISTRY produces 10 detector entries", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget() });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget() });
     const model = buildAuditReportModel(result, { target: fakeTarget() });
     expect(model.detectors).toHaveLength(DEFAULT_AUDIT_REGISTRY.length);
     expect(model.detectors).toHaveLength(10);
@@ -157,7 +165,7 @@ describe("buildAuditReportModel — detector status coverage", () => {
 describe("buildAuditReportModel — verdict labels", () => {
   it("'no issues' when there are zero issues", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });
     expect(model.summary.finalVerdictLabel).toBe("no issues");
   });
@@ -165,7 +173,7 @@ describe("buildAuditReportModel — verdict labels", () => {
   it("'issues found below fail-on threshold' when issues exist but don't breach", async () => {
     const config = normalizeAuditConfig({ failOn: "blocker" }, toolRoot);
     const detector = makeDetector({ run: () => [makeIssue({ severity: "medium" })] });
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
     expect(model.summary.finalVerdictLabel).toBe("issues found below fail-on threshold");
   });
@@ -173,7 +181,7 @@ describe("buildAuditReportModel — verdict labels", () => {
   it("'fail-on threshold breached' when a breaching issue exists", async () => {
     const config = normalizeAuditConfig({ failOn: "medium" }, toolRoot);
     const detector = makeDetector({ run: () => [makeIssue({ severity: "high" })] });
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
     expect(model.summary.finalVerdictLabel).toBe("fail-on threshold breached");
   });
@@ -187,7 +195,7 @@ describe("buildAuditReportModel — verdict labels", () => {
       },
     });
     const breaching = makeDetector({ id: "breaching", run: () => [makeIssue({ severity: "high", detectorId: "breaching" })] });
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [throwing, breaching] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [throwing, breaching] });
     expect(computeVerdictLabel(result, true)).toBe("fail-on threshold breached");
   });
 });
@@ -243,7 +251,8 @@ describe("buildAuditReportModel — source facts summary", () => {
       writeFile(root, "src/index.ts", "export const x = 1;\n");
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
+      result.sourceFacts = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root), requiredCapabilities: [], includeScriptsRoot: true }, { installedPackageRoot: publishedKitRoot });
       const model = buildAuditReportModel(result, { target, registry: [] });
 
       expect(model.sourceFacts.totalFilesAnalyzed).toBeGreaterThan(0);
@@ -261,7 +270,8 @@ describe("buildAuditReportModel — source facts summary", () => {
       writeFile(root, "README.md", "# fixture\n");
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
+      result.sourceFacts = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root), requiredCapabilities: [], includeScriptsRoot: true }, { installedPackageRoot: publishedKitRoot });
       const model = buildAuditReportModel(result, { target, registry: [] });
 
       expect(model.sourceFacts.totalFilesAnalyzed).toBe(0);
@@ -283,7 +293,8 @@ describe("buildAuditReportModel — source facts summary", () => {
       writeFile(root, "src/widget.py", "def do_thing():\n    return 1\n");
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
+      result.sourceFacts = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root), requiredCapabilities: [], includeScriptsRoot: true }, { installedPackageRoot: publishedKitRoot });
       const model = buildAuditReportModel(result, { target, registry: [] });
 
       expect(model.sourceFacts.filesByLanguage.typescript).toBeGreaterThanOrEqual(1);
@@ -306,7 +317,8 @@ describe("buildAuditReportModel — source facts summary", () => {
       writeFile(root, "src/malformed.py", ['def broken():', '    """docstring that never closes', '    return 1'].join("\n") + "\n");
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
+      result.sourceFacts = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root), requiredCapabilities: [], includeScriptsRoot: true }, { installedPackageRoot: publishedKitRoot });
       const model = buildAuditReportModel(result, { target, registry: [] });
 
       expect(model.sourceFacts.filesWithDiagnosticsCount).toBeGreaterThanOrEqual(1);
@@ -316,7 +328,7 @@ describe("buildAuditReportModel — source facts summary", () => {
     }
   });
 
-  it("T2: reports zero filesWithDiagnosticsCount for an ordinary, fully-parsed project", async () => {
+  it("T2: retains informational Kit diagnostics for an ordinary, fully-parsed project", async () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
@@ -324,10 +336,13 @@ describe("buildAuditReportModel — source facts summary", () => {
       writeFile(root, "src/widget.py", "def do_thing():\n    return 1\n");
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
+      result.sourceFacts = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root), requiredCapabilities: [], includeScriptsRoot: true }, { installedPackageRoot: publishedKitRoot });
       const model = buildAuditReportModel(result, { target, registry: [] });
 
-      expect(model.sourceFacts.filesWithDiagnosticsCount).toBe(0);
+      expect(model.sourceFacts.filesWithDiagnosticsCount).toBe(2);
+      expect(model.sourceFacts.filesByParseStatus.parsed).toBe(2);
+      expect(result.sourceFacts.files.every(file => file.diagnostics.every(diagnostic => diagnostic.severity !== "error"))).toBe(true);
     } finally {
       cleanup(root);
     }
@@ -345,7 +360,7 @@ describe("buildAuditReportModel — Python project metadata (Batch 3)", () => {
       writeFile(root, "pytest.ini", "[pytest]\n");
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
       const model = buildAuditReportModel(result, { target, registry: [] });
 
       expect(model.pythonProjectMetadata.hasPyprojectToml).toBe(true);
@@ -369,7 +384,7 @@ describe("buildAuditReportModel — Python project metadata (Batch 3)", () => {
       writeFile(root, "README.md", "# fixture\n");
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
       const model = buildAuditReportModel(result, { target, registry: [] });
 
       expect(model.pythonProjectMetadata.hasPyprojectToml).toBe(false);
@@ -393,7 +408,7 @@ describe("buildAuditReportModel — Python project metadata (Batch 3)", () => {
       writeFile(root, "pyproject.toml", pyprojectContent);
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      await runAudit({ config, toolRoot: root, target, registry: [] });
+      await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
       expect(fs.readFileSync(path.join(root, "pyproject.toml"), "utf8")).toBe(pyprojectContent);
     } finally {
       cleanup(root);
@@ -436,7 +451,7 @@ describe("buildRecommendations", () => {
 describe("buildAuditReportModel — zero-issue and multi-severity cases", () => {
   it("zero issues: highestSeverity is null, failOnBreached is false", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });
     expect(model.summary.highestSeverity).toBeNull();
     expect(model.summary.failOnBreached).toBe(false);
@@ -451,7 +466,7 @@ describe("buildAuditReportModel — zero-issue and multi-severity cases", () => 
         makeIssue({ id: "c", severity: "medium" }),
       ],
     });
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
     expect(model.summary.highestSeverity).toBe("blocker");
   });

@@ -50,8 +50,7 @@
         "incremental-change-staleness",
         "--synthetic-config",
         "agent-success-rate",
-        "external-target package-content correction",
-        "v0.9.7"
+        "external-target package-content correction"
       ]
     },
     "docs/PROJECT_OVERVIEW.md": {
@@ -78,8 +77,7 @@
         "incremental-change-staleness",
         "agent-success-rate",
         "external-target package-content correction",
-        "v0.9.3",
-        "v0.9.7"
+        "v0.9.3"
       ]
     },
     "docs/CURRENT_STATE.md": {
@@ -122,8 +120,7 @@
         "agent-success-rate",
         "pre-release readiness",
         "external-target package-content correction",
-        "v0.9.3",
-        "v0.9.7"
+        "v0.9.3"
       ]
     },
     "docs/ARCHITECTURE.md": {
@@ -163,8 +160,7 @@
         "syntheticInputs",
         "agent-success-rate",
         "external-target package-content correction",
-        "v0.9.3",
-        "v0.9.7"
+        "v0.9.3"
       ]
     },
     "docs/COMMANDS.md": {
@@ -203,8 +199,7 @@
         "synthetic-repositories",
         "agent-success-rate",
         "--repair-attempts",
-        "external-target package-content correction",
-        "v0.9.7"
+        "external-target package-content correction"
       ]
     },
     "docs/WORKFLOWS.md": {
@@ -244,8 +239,7 @@
         "synthetic-repositories",
         "agent-success-rate",
         "Agent-success-rate evaluation",
-        "external-target package-content correction",
-        "v0.9.7"
+        "external-target package-content correction"
       ]
     },
     "docs/TUTORIAL.md": {
@@ -456,14 +450,15 @@
       "0.9.3",
       "0.9.4",
       "0.9.5",
-      "0.9.6"
+      "0.9.6",
+      "0.9.7"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.9.6",
-    "latestPublishedVersionEvidenceContext": "Live npm view @dailephd/my-dev-kit-lab@0.9.6 succeeded on 2026-11-07 with version, integrity and tarball; local v0.9.6 tag resolves to e594103397dc51c5a2c2b60d401ebd5da4033d4f. PR73 separately records merged release/recovery PRs.",
-    "currentImplementedUnreleasedVersion": null,
-    "nextPlannedVersion": "0.10.0",
+    "latestPublishedVersion": "0.9.7",
+    "latestPublishedVersionEvidenceContext": "Live npm registry verification on 2026-11-11: version and latest tag 0.9.7, published 2026-11-09. Local package/release-document metadata remains 0.9.6; implemented unreleased milestone 0.10.0 is separate. Earlier 0.9.5/0.9.6 registry snapshots remain historical.",
+    "currentImplementedUnreleasedVersion": "0.10.0",
+    "nextPlannedVersion": "0.11.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
       "warm-index-reuse",
@@ -500,6 +495,6 @@
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
     "releaseDocumentState": "final-release-state",
-    "currentReleaseDocumentVersion": "0.9.7"
+    "currentReleaseDocumentVersion": "0.9.6"
   }
 }

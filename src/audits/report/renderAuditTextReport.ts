@@ -111,6 +111,9 @@ export function renderAuditTextReport(model: AuditReportModel): string {
   if (model.sourceFacts.filesWithDiagnosticsCount > 0) {
     lines.push(`  files with a per-file diagnostic: ${model.sourceFacts.filesWithDiagnosticsCount}`);
   }
+  for (const warning of model.sourceFacts.warnings) {
+    lines.push(`  warning: ${sanitizeLine(warning)}`);
+  }
   lines.push("");
 
   // v0.3.2 Batch 3 -- informational only. Presence booleans and a

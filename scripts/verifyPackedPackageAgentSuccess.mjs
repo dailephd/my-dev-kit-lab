@@ -15,7 +15,7 @@
 // Gate labels below are acceptance gate names, not scientific metric ids.
 // ---------------------------------------------------------------------------
 
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -193,6 +193,92 @@ export function isInside(root, candidate) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
+/** Explicit campaign exception to the checkout prohibition, never permission to write into source or packages. */
+export function isAuthorizedPackedRuntime(repoRoot, candidate) {
+  if (!path.isAbsolute(candidate) || path.resolve(candidate) !== candidate) return false;
+  const compact = path.join(repoRoot, ".my-dev-kit-workflow", "tmp", "e1r");
+  const allowed = path.join(compact, "p");
+  if (!isInside(allowed, candidate)) return false;
+  try {
+    let existing = candidate;
+    while (!existsSync(existing)) existing = path.dirname(existing);
+    let current = repoRoot;
+    for (const segment of path.relative(repoRoot, existing).split(path.sep)) { current = path.join(current, segment); if (lstatSync(current).isSymbolicLink()) return false; }
+    if (!isInside(realpathSync(allowed), realpathSync(existing))) return false;
+    const marker = path.join(compact, "owner.json");
+    if (lstatSync(marker).isSymbolicLink() || !lstatSync(marker).isFile()) return false;
+    const owner = JSON.parse(readFileSync(marker, "utf8").replace(/^\uFEFF/, ""));
+    return owner.task === "v010-lab-evidence-01" && owner.nativeRun === "20261105T131430-v010-lab-evidence-01" && path.relative(repoRoot, owner.repository) === "";
+  } catch { return false; }
+}
+
+// Invocation authority is issued before execution and is never reconstructed
+// from output bytes, environment variables or a successful write.
+const verifierDirectoryClaims = new WeakMap();
+function directoryIdentities(directory) {
+  const identities = [];
+  let current = path.resolve(directory);
+  for (;;) {
+    const info = lstatSync(current, { bigint: true });
+    if (!info.isDirectory() || info.isSymbolicLink() || info.ino === 0n) throw new Error(`Unsafe verifier directory: ${current}`);
+    identities.push({ directory: current, physical: realpathSync(current), dev: info.dev, ino: info.ino });
+    const parent = path.dirname(current);
+    if (parent === current) return identities;
+    current = parent;
+  }
+}
+function unchangedDirectories(identities) {
+  return identities.every(identity => {
+    const info = lstatSync(identity.directory, { bigint: true });
+    return info.isDirectory() && !info.isSymbolicLink() && info.dev === identity.dev && info.ino === identity.ino &&
+      path.relative(identity.physical, realpathSync(identity.directory)) === "";
+  });
+}
+export function claimPackedVerifierDirectory({ repoRoot, directory, installedPackageRoot, invocationCwd }) {
+  const authorizedRoot = path.join(path.resolve(repoRoot), ".my-dev-kit-workflow", "tmp");
+  if (!path.isAbsolute(directory) || path.resolve(directory) !== directory ||
+      path.relative(authorizedRoot, directory) === "" || !isInside(authorizedRoot, directory)) throw new Error("Verifier directory is outside authorized project temporary storage");
+  const exclusions = [installedPackageRoot, invocationCwd, ...["benchmarks", "src", "scripts", "tests"].map(part => path.join(repoRoot, part))].map(root => path.resolve(root));
+  if (exclusions.some(root => isInside(root, directory) || isInside(directory, root))) throw new Error("Verifier directory overlaps immutable resources or invocation directory");
+  const identities = [...directoryIdentities(directory), ...directoryIdentities(installedPackageRoot), ...directoryIdentities(invocationCwd)];
+  if (exclusions.some(root => existsSync(root) && (isInside(realpathSync(root), realpathSync(directory)) || isInside(realpathSync(directory), realpathSync(root))))) throw new Error("Verifier directory physically overlaps an excluded root");
+  const rootPhysical = realpathSync(authorizedRoot);
+  const directoryPhysical = realpathSync(directory);
+  if (path.relative(rootPhysical, directoryPhysical) === "" || !isInside(rootPhysical, directoryPhysical)) throw new Error("Verifier directory escapes physical temporary storage");
+  const token = Object.freeze({});
+  verifierDirectoryClaims.set(token, { repoRoot: path.resolve(repoRoot), directory, exclusions, identities });
+  return token;
+}
+export function isClaimedPackedVerifierPath(claim, candidate) {
+  try {
+    const record = verifierDirectoryClaims.get(claim);
+    if (!record || !path.isAbsolute(candidate) || path.resolve(candidate) !== candidate ||
+        !isInside(record.directory, candidate) || !unchangedDirectories(record.identities) ||
+        record.exclusions.some(root => isInside(root, candidate))) return false;
+    // A provider may have already removed its disposable cwd. Validate its
+    // nearest live ancestor, including links, without inventing child identity.
+    let existing = candidate;
+    while (!existsSync(existing)) {
+      // Dangling links must not be mistaken for absent disposable children.
+      try { lstatSync(existing); return false; } catch (error) { if (error.code !== "ENOENT") return false; }
+      existing = path.dirname(existing);
+    }
+    directoryIdentities(existing);
+    return isInside(realpathSync(record.directory), realpathSync(existing));
+  } catch { return false; }
+}
+export function isSafePackedAgentSuccessOutput({ repoRoot, installedPackageRoot, invocationCwd, workspaceDir, output, workspaceClaim }) {
+  if (!isInside(workspaceDir, output) || isInside(installedPackageRoot, output) || isInside(invocationCwd, output)) return false;
+  if (workspaceClaim) {
+    const record = verifierDirectoryClaims.get(workspaceClaim);
+    return Boolean(record && path.relative(record.repoRoot, path.resolve(repoRoot)) === "" &&
+      path.relative(record.directory, path.resolve(workspaceDir)) === "" &&
+      record.exclusions.includes(path.resolve(installedPackageRoot)) && record.exclusions.includes(path.resolve(invocationCwd)) &&
+      isClaimedPackedVerifierPath(workspaceClaim, output));
+  }
+  return isAuthorizedPackedRuntime(repoRoot, output);
+}
+
 /** Values a real agent must never see, derived independently of the production leak guard from the installed catalog. */
 export function collectHiddenTaskValues(task) {
   const values = [];
@@ -272,12 +358,15 @@ export async function runAgentSuccessPackedAcceptance(ctx) {
   try {
     await runAgentSuccessPackedAcceptanceInner(ctx, workspaces);
   } finally {
-    for (const workspace of workspaces) rmSync(workspace, { recursive: true, force: true });
+    for (const { directory, claim } of workspaces) {
+      if (!isClaimedPackedVerifierPath(claim, directory)) ctx.fail("AGENT_SUCCESS_WORKSPACE_CLEANUP", "Owned verifier directory identity changed; preserving it.");
+      rmSync(directory, { recursive: true, force: true });
+    }
   }
 }
 
 async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
-  const { fail, describeChildResult, runInstalledCli, cliCommand, envWithBin, repoRoot, tempRoot, installedPackageRoot, snapshotDirectory, diffSnapshots } = ctx;
+  const { fail, describeChildResult, runInstalledCli, cliCommand, envWithBin: inheritedEnv, repoRoot, tempRoot, installedPackageRoot, snapshotDirectory, diffSnapshots } = ctx;
   const pass = (label, detail) => console.log(`${label}: PASS${detail ? ` (${detail})` : ""}`);
   const readJson = (file, gate) => {
     try {
@@ -290,19 +379,31 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
     if (!existsSync(file) || !statSync(file).isFile() || statSync(file).size === 0) fail(gate, `Expected a non-empty file: ${path.basename(file)}`);
   };
 
+  // Reject incomplete packages before creating or claiming any runtime.
+  const missing = AGENT_SUCCESS_REQUIRED_TARBALL_PATHS.filter((entry) => !ctx.tarballFiles.has(entry));
+  if (missing.length > 0) fail("AGENT_SUCCESS_PACKAGE_CONTENTS", `Required agent-success-rate file(s) missing from the exact tarball: ${missing.join(", ")}`);
+
   // Short, space-containing directories keep the default output path inside the Windows path limit.
   const base = path.join(tempRoot, "asr acc");
   const invocationCwd = path.join(base, "inv cwd");
   // The default output tree (workspace/lab-output/experiments/<id>/<target>/<run>/sandboxes/<id>/...) is deep, and on Windows a
-  // sandbox working directory beyond MAX_PATH makes process spawning fail. The workspace therefore lives directly under the OS
-  // temp directory (short, still containing spaces) and is removed when this section ends.
-  const workspaceDir = mkdtempSync(path.join(os.tmpdir(), "asr w "));
-  workspaces.push(workspaceDir);
+  // sandbox working directory near MAX_PATH makes Git/process spawning fail. Keep the physical workspace prefix to one
+  // space, retaining both space-path coverage and the complete exclusive OS-generated suffix. The parent supplies the
+  // authorized compact runtime; durable run, sandbox and epoch identities are unchanged.
+  const workspaceDir = mkdtempSync(path.join(os.tmpdir(), " "));
+
   const unrelatedDir = path.join(workspaceDir, "unrelated");
   const fixturesDir = path.join(base, "fixtures");
   const agentBin = path.join(base, "agent bin");
   for (const directory of [invocationCwd, unrelatedDir, fixturesDir, agentBin]) mkdirSync(directory, { recursive: true });
   writeFileSync(path.join(unrelatedDir, "keep.txt"), "unrelated workspace content\n", "utf8");
+  const workspaceClaim = claimPackedVerifierDirectory({ repoRoot, directory: workspaceDir, installedPackageRoot, invocationCwd });
+  workspaces.push({ directory: workspaceDir, claim: workspaceClaim });
+  const neutralTempRoot = mkdtempSync(path.join(os.tmpdir(), " n"));
+  const neutralClaim = claimPackedVerifierDirectory({ repoRoot, directory: neutralTempRoot, installedPackageRoot, invocationCwd });
+  workspaces.push({ directory: neutralTempRoot, claim: neutralClaim });
+  const envWithBin = { ...inheritedEnv, TEMP: neutralTempRoot, TMP: neutralTempRoot, TMPDIR: neutralTempRoot };
+
 
   const installedCatalogPath = path.join(installedPackageRoot, ...AGENT_SUCCESS_TASK_CATALOG.split("/"));
   const installedProfilesPath = path.join(installedPackageRoot, ...AGENT_SUCCESS_PROJECT_PROFILES.split("/"));
@@ -332,8 +433,7 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
   // ---- 1. PACKAGE CONTENTS ---------------------------------------------------------------------------------------
   {
     const gate = "AGENT_SUCCESS_PACKAGE_CONTENTS";
-    const missing = AGENT_SUCCESS_REQUIRED_TARBALL_PATHS.filter((entry) => !ctx.tarballFiles.has(entry));
-    if (missing.length > 0) fail(gate, `Required agent-success-rate file(s) missing from the exact tarball: ${missing.join(", ")}`);
+
     for (const entry of AGENT_SUCCESS_REQUIRED_TARBALL_PATHS) {
       if (!existsSync(path.join(installedPackageRoot, ...entry.split("/")))) fail(gate, `Required file is in the tarball but not installed: ${entry}`);
     }
@@ -692,8 +792,7 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
     if (defaultRun.status !== 0) fail(gate, "Installed run with the default output location failed.", describeChildResult(defaultRun));
     const outputLine = /^Output: (.+)$/m.exec(defaultRun.stdout)?.[1]?.trim();
     if (!outputLine) fail(gate, "The default run did not report its output directory.", defaultRun.stdout);
-    if (!isInside(workspaceDir, outputLine)) fail(gate, "The default output is not inside the explicit workspace.");
-    if (isInside(installedPackageRoot, outputLine) || isInside(repoRoot, outputLine) || isInside(invocationCwd, outputLine)) fail(gate, "The default output is inside the package, checkout or invocation directory.");
+    if (!isSafePackedAgentSuccessOutput({ repoRoot, installedPackageRoot, invocationCwd, workspaceDir, output: outputLine, workspaceClaim })) fail(gate, "Default output must stay inside its preauthorized invocation workspace, outside immutable source/package/invocation directories.");
     requireFile(path.join(outputLine, "report.json"), gate);
     requireFile(path.join(outputLine, AGENT_SUCCESS_EXECUTION_FILE), gate);
     // Nothing was written into the invocation directory, the package, the canonical projects or the checkout by any run so far.
@@ -840,8 +939,9 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
       if (invocation.stdinChars < 200) fail(gate, `${spec.name}: the prompt did not arrive over stdin.`);
       const joined = invocation.argv.join(" ");
       if (/Case ID|BEGIN_SUPPLIED_CONTEXT|Implementation Benchmark/.test(joined)) fail(gate, `${spec.name}: prompt text leaked into provider argv.`);
-      // neutral provider cwd: outside the package, the checkout, the canonical projects and the output tree
-      for (const protectedRoot of [installedPackageRoot, repoRoot, run.out, workspaceDir, invocationCwd, installedProjectRoot(task.benchmarkProject)]) {
+      // Neutral provider cwd may use the explicitly owned compact runtime, never source/package/target/output roots.
+      if (!isClaimedPackedVerifierPath(neutralClaim, invocation.cwd)) fail(gate, `${spec.name}: provider ran in an unauthorized checkout location.`);
+      for (const protectedRoot of [installedPackageRoot, run.out, workspaceDir, invocationCwd, installedProjectRoot(task.benchmarkProject)]) {
         if (isInside(protectedRoot, invocation.cwd)) fail(gate, `${spec.name}: the provider ran inside ${path.basename(protectedRoot)}.`);
       }
       if (existsSync(path.join(invocation.cwd, ".git")) || existsSync(invocation.cwd)) fail(gate, `${spec.name}: the provider working directory was not removed.`);

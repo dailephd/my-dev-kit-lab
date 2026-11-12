@@ -89,9 +89,10 @@ function runAuditCli(args: string[]): { stdout: string; stderr: string; status: 
     "tsx",
     "scripts/audits/runAudit.ts",
     ...args,
+    ...(!args.includes("--out") ? ["--out", makeTempDir("audit-failon-out-")] : []),
   ];
   try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" });
+    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };

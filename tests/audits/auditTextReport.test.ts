@@ -1,3 +1,6 @@
+import { createRequire } from "node:module";
+import { collectKitSourceFacts } from "../../src/audits/core/kitSourceProvider.js";
+import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,6 +13,10 @@ import type { AuditSeverity } from "../../src/audits/core/auditTypes.js";
 import type { AuditTarget } from "../../src/audits/core/auditTarget.js";
 import { buildAuditReportModel } from "../../src/audits/report/auditReportModel.js";
 import { renderAuditTextReport } from "../../src/audits/report/renderAuditTextReport.js";
+
+// Production-positive fixtures use the actual managed published provider.
+// Historical Candidate 05 bytes and differential-comparison fixtures stay unchanged.
+const publishedKitRoot = path.dirname(createRequire(import.meta.url).resolve("@dailephd/my-dev-kit/package.json"));
 
 const toolRoot = process.cwd();
 
@@ -79,7 +86,7 @@ const REQUIRED_SECTIONS = [
 describe("renderAuditTextReport — 0 issues", () => {
   it("includes all required sections and stays readable with zero issues", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [] });
     const text = renderAuditTextReport(model);
 
@@ -101,7 +108,8 @@ describe("renderAuditTextReport — source facts summary", () => {
       writeFile(root, "src/private-fixture.ts", sourceText);
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
+      result.sourceFacts = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root), requiredCapabilities: [], includeScriptsRoot: true }, { installedPackageRoot: publishedKitRoot });
       const model = buildAuditReportModel(result, { target, registry: [] });
       const text = renderAuditTextReport(model);
 
@@ -113,7 +121,8 @@ describe("renderAuditTextReport — source facts summary", () => {
       expect(summarySection).not.toContain("src/private-fixture.ts");
       expect(summarySection).not.toContain("privateFixtureText");
       expect(summarySection).not.toContain(sourceText.trim());
-      expect(summarySection.split("\n").filter(Boolean)).toHaveLength(8);
+      expect(summarySection.split("\n").filter(Boolean)).toHaveLength(9);
+      expect(summarySection).toContain("files with a per-file diagnostic: 1");
       expect(text).toContain("Python project metadata");
       expect(text).toContain("Source-of-truth summary");
     } finally {
@@ -155,7 +164,7 @@ describe("renderAuditTextReport — source facts summary", () => {
         }),
       ],
     });
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
     const text = renderAuditTextReport(model);
 
@@ -185,7 +194,7 @@ describe("renderAuditTextReport — source facts summary", () => {
         }),
       ],
     });
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
     const text = renderAuditTextReport(model);
 
@@ -223,7 +232,7 @@ describe("renderAuditTextReport — many issues (15 synthetic issues)", () => {
   it("does not say 'clean'/'no issues' when issues exist, stays structured", async () => {
     const config = normalizeAuditConfig({ failOn: "none" }, toolRoot);
     const detector = manyIssueDetector();
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
     const text = renderAuditTextReport(model);
 
@@ -241,7 +250,7 @@ describe("renderAuditTextReport — many issues (15 synthetic issues)", () => {
   it("bounds recommendations shown in text to the top N (does not dump all 15)", async () => {
     const config = normalizeAuditConfig({ failOn: "none" }, toolRoot);
     const detector = manyIssueDetector();
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
     const text = renderAuditTextReport(model);
 
@@ -294,7 +303,7 @@ describe("renderAuditTextReport — Python project metadata (Batch 3)", () => {
       writeFile(root, "pytest.ini", "[pytest]\n");
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
       const model = buildAuditReportModel(result, { target, registry: [] });
       const text = renderAuditTextReport(model);
 
@@ -318,7 +327,7 @@ describe("renderAuditTextReport — Python project metadata (Batch 3)", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
       const config = normalizeAuditConfig({}, root);
       const target = fakeTargetFor(root);
-      const result = await runAudit({ config, toolRoot: root, target, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot: root, target, registry: [] });
       const model = buildAuditReportModel(result, { target, registry: [] });
       const text = renderAuditTextReport(model);
 
@@ -363,7 +372,7 @@ describe("renderAuditTextReport — Python project metadata (Batch 3)", () => {
       ],
     };
     const config = normalizeAuditConfig({}, toolRoot);
-    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry: [detector] });
     const model = buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] });
     const text = renderAuditTextReport(model);
 

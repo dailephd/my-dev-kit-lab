@@ -248,7 +248,9 @@ export function materializeSyntheticRepository(
   const writeFile = io.writeFile ?? ((absolutePath: string, bytes: Buffer): void => writeFileSync(absolutePath, bytes, { flag: "wx" }));
   let staging: string | undefined;
   try {
-    staging = mkdtempSync(path.join(realRoot, STAGING_PREFIX));
+    const stagingTemplate = path.join(realRoot, STAGING_PREFIX);
+    const nativeTemplate = process.platform === "win32" ? path.toNamespacedPath(stagingTemplate) : stagingTemplate;
+    staging = path.join(realRoot, path.basename(mkdtempSync(nativeTemplate)));
     if (!withinRealRoot(realRoot, staging)) throw new SyntheticRepositoryMaterializationError("path-escape", ["staging directory resolves outside the output root."]);
     const stagedRepository = path.join(staging, SYNTHETIC_REPOSITORY_REPOSITORY_DIRECTORY);
     mkdirSync(stagedRepository);
