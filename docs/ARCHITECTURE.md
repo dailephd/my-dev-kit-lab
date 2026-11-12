@@ -1,5 +1,17 @@
 # Architecture
 
+Verification uses two mandatory lanes without adding a product evidence
+framework. `scripts/run-verification-lane.mjs` selects current public tests;
+`scripts/verify-private-provenance.mjs` authenticates protected historical bytes,
+executes the preserved historical test owners and binds observed results to the
+current source and public oracle. The committed historical identity fixture
+contains opaque IDs, byte sizes and digests, never private locations or payloads.
+The local binding is unsigned and fails closed when a lane, source identity or
+required artifact is unavailable. Public CI does not perform private historical
+authentication. Release readiness requires both lanes and an exact-candidate
+binding, in addition to hosted and other readiness gates; see
+[WORKFLOWS.md](WORKFLOWS.md#v0100-public-and-protected-verification-lanes).
+
 ## Android architecture
 
 `src/mobile/android` adds Android validation to the existing security, audit, and evidence systems. Validation is non-destructive and static by default. Gradle operations, external tools, and network requests require explicit opt-in.

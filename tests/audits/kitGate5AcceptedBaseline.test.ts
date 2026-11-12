@@ -9,6 +9,7 @@ import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
 import { QUALIFIED_PUBLISHED_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
 
 const root = process.cwd();
+const privateLane = process.env.LAB_VERIFICATION_LANE === "private";
 const task = path.join(root, ".my-dev-kit-workflow/tmp/v010-lab-kit-gate5/gate5-default-cutover");
 const oraclePath = path.join(root, "tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json");
 const oracleBytes = fs.readFileSync(oraclePath);
@@ -90,10 +91,11 @@ describe("Gate5 committed accepted oracle", () => {
     expect(sha(oracleBytes)).toBe(acceptedOracleSha256);
     validateOracle(oracle);
     for (const [relative, hash] of Object.entries(oracle.fixtureFileHashes)) expect(sha(fs.readFileSync(path.join(root, relative)))).toBe(hash);
-    expect(sha(fs.readFileSync(path.join(candidate, "dist/cli.js")))).toBe(expectation.cliSha256);
+    if (privateLane) expect(sha(fs.readFileSync(path.join(candidate, "dist/cli.js")))).toBe(expectation.cliSha256);
+    else expect(sha(fs.readFileSync(path.join(root, "node_modules/@dailephd/my-dev-kit/dist/cli.js")))).toBe(QUALIFIED_PUBLISHED_KIT.cliSha256);
   });
 
-  it("reproduces the accepted Kit findings and exact ledger domain from original evidence", () => {
+  if (privateLane) it("reproduces the accepted Kit findings and exact ledger domain from original evidence", () => {
     const base = path.join(root, ".my-dev-kit-workflow/tmp/v010-lab-kit-gate4");
     const reconciliation = fs.readFileSync(path.join(base, "gate4-owner-authorized-closeout/comparisons/150-decision-post-closeout-reconciliation.json"));
     const ledger = fs.readFileSync(path.join(base, "correction-09/comparisons/gate4-150-decision-ledger.json"));
@@ -121,7 +123,7 @@ describe("Gate5 committed accepted oracle", () => {
     expect(() => validateOracle(copy)).toThrow("Accepted oracle integrity mismatch");
   });
 
-  it.each(fixtureRoots.flatMap(fixtureRoot => ["historical", "published"].map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
+  it.each(fixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
     assertContainedDirectory(os.tmpdir());
     const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "gate5-oracle-"));
     const target = path.join(workspace, "target");

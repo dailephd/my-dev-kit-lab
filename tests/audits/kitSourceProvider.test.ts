@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
 import {
   QUALIFIED_KIT_CANDIDATE,
+  QUALIFIED_PUBLISHED_KIT,
   collectKitSourceFacts,
   resolveInstalledKitPackage,
   selectKitSourceRoots,
@@ -17,9 +18,10 @@ import { runMeasuredCommand, type MeasuredCommandResult } from "../../src/core/r
 
 const CANDIDATE_ROOT = path.resolve(
   process.env.LAB_KIT_CANDIDATE_ROOT ??
-    path.join(".my-dev-kit-workflow", "tools", "v010-lab-kit-gate4", "kit-candidate-05", "node_modules", "@dailephd", "my-dev-kit")
+    (process.env.LAB_VERIFICATION_LANE === "private" ? path.join(".my-dev-kit-workflow", "tools", "v010-lab-kit-gate4", "kit-candidate-05", "node_modules", "@dailephd", "my-dev-kit") : path.join("node_modules", "@dailephd", "my-dev-kit"))
 );
-const candidateInstalled = fs.existsSync(path.join(CANDIDATE_ROOT, "package.json"));
+if (!fs.existsSync(path.join(CANDIDATE_ROOT, "package.json"))) throw new Error("Required Kit provider missing");
+const installedExpectation = process.env.LAB_VERIFICATION_LANE === "private" ? QUALIFIED_KIT_CANDIDATE : QUALIFIED_PUBLISHED_KIT;
 
 const roots: string[] = [];
 function tempDir(prefix: string): string {
@@ -648,24 +650,24 @@ describe("Kit source provider with deterministic fake commands", () => {
 // Exact installed private candidate (no fake commands)
 // ---------------------------------------------------------------------------
 
-describe.skipIf(!candidateInstalled)("exact installed Kit candidate", () => {
+describe("exact installed Kit candidate", () => {
   let packageHashBefore = "";
   beforeAll(() => {
     packageHashBefore = hashTree(CANDIDATE_ROOT);
   });
 
   it("resolves the qualified candidate identity with a contained CLI", () => {
-    const pkg = resolveInstalledKitPackage({ expectation: QUALIFIED_KIT_CANDIDATE, installedPackageRoot: CANDIDATE_ROOT });
+    const pkg = resolveInstalledKitPackage({ expectation: installedExpectation, installedPackageRoot: CANDIDATE_ROOT });
     expect(pkg.packageName).toBe("@dailephd/my-dev-kit");
-    expect(pkg.packageVersion).toBe("1.14.0");
-    expect(pkg.cliSha256).toBe(QUALIFIED_KIT_CANDIDATE.cliSha256);
+    expect(pkg.packageVersion).toBe(installedExpectation.packageVersion);
+    expect(pkg.cliSha256).toBe(installedExpectation.cliSha256);
     expect(path.relative(fs.realpathSync(CANDIDATE_ROOT), pkg.cliPath)).toBe(path.join("dist", "cli.js"));
   });
 
   it("rejects the same installation when a different build is expected", () => {
-    expect(() => resolveInstalledKitPackage({ installedPackageRoot: CANDIDATE_ROOT, expectation: { ...QUALIFIED_KIT_CANDIDATE, cliSha256: "0".repeat(64) } })).toThrowError(/package-identity/);
-    expect(() => resolveInstalledKitPackage({ installedPackageRoot: CANDIDATE_ROOT, expectation: { ...QUALIFIED_KIT_CANDIDATE, extractorRevision: "source-audit-v9.9.9" } })).toThrowError(/extractor-mismatch/);
-    expect(() => resolveInstalledKitPackage({ installedPackageRoot: CANDIDATE_ROOT, expectation: { ...QUALIFIED_KIT_CANDIDATE, packageVersion: "1.15.0" } })).toThrowError(/package-identity/);
+    expect(() => resolveInstalledKitPackage({ installedPackageRoot: CANDIDATE_ROOT, expectation: { ...installedExpectation, cliSha256: "0".repeat(64) } })).toThrowError(/package-identity/);
+    expect(() => resolveInstalledKitPackage({ installedPackageRoot: CANDIDATE_ROOT, expectation: { ...installedExpectation, extractorRevision: "source-audit-v9.9.9" } })).toThrowError(/extractor-mismatch/);
+    expect(() => resolveInstalledKitPackage({ installedPackageRoot: CANDIDATE_ROOT, expectation: { ...installedExpectation, packageVersion: "9.9.9" } })).toThrowError(/package-identity/);
   });
 
   it("indexes a mixed-language fixture through the real CLI and adapts the facts", async () => {
@@ -685,10 +687,10 @@ describe.skipIf(!candidateInstalled)("exact installed Kit candidate", () => {
       calls.push({ executable: options.executable, args: [...(options.args ?? [])] });
       return runMeasuredCommand(options);
     };
-    const pkg = resolveInstalledKitPackage({ expectation: QUALIFIED_KIT_CANDIDATE, installedPackageRoot: CANDIDATE_ROOT });
+    const pkg = resolveInstalledKitPackage({ expectation: installedExpectation, installedPackageRoot: CANDIDATE_ROOT });
     const snapshot = await collectKitSourceFacts(
       { targetRoot: project, inventory: scanProjectInventory(project), requiredCapabilities: ["declarations", "imports"], includeScriptsRoot: false },
-      { expectation: QUALIFIED_KIT_CANDIDATE, installedPackageRoot: CANDIDATE_ROOT, runCommand }
+      { expectation: installedExpectation, installedPackageRoot: CANDIDATE_ROOT, runCommand }
     );
 
     // The installed candidate CLI was actually invoked.
@@ -699,7 +701,7 @@ describe.skipIf(!candidateInstalled)("exact installed Kit candidate", () => {
     const evidence = snapshot.kitEvidence!;
     expect(evidence).toMatchObject({
       packageName: "@dailephd/my-dev-kit",
-      packageVersion: "1.14.0",
+      packageVersion: installedExpectation.packageVersion,
       artifactSchemaVersion: "1.1.0",
       extractorRevision: "source-audit-v1.5.0",
       sourceRoots: ["src", "tests"],
@@ -748,7 +750,7 @@ describe.skipIf(!candidateInstalled)("exact installed Kit candidate", () => {
     writeFiles(project, { "src/big.ts": Array.from({ length: 130 }, (_, index) => `export const big${index} = ${index};`).join("\n") + "\n" });
     const snapshot = await collectKitSourceFacts(
       { targetRoot: project, inventory: scanProjectInventory(project), requiredCapabilities: ["declarations", "imports"], includeScriptsRoot: false },
-      { expectation: QUALIFIED_KIT_CANDIDATE, installedPackageRoot: CANDIDATE_ROOT }
+      { expectation: installedExpectation, installedPackageRoot: CANDIDATE_ROOT }
     );
     expect(snapshot.kitEvidence?.selectedFileCount).toBe(67);
     expect(snapshot.kitEvidence?.inventoryPages).toBe(2);
@@ -763,7 +765,7 @@ describe.skipIf(!candidateInstalled)("exact installed Kit candidate", () => {
     const inventory = scanProjectInventory(project);
     fs.writeFileSync(path.join(project, "src", "a.ts"), "export const a = 123456;\n");
     await expectAcquisitionFailure(
-      collectKitSourceFacts({ targetRoot: project, inventory, requiredCapabilities: ["declarations"], includeScriptsRoot: false }, { expectation: QUALIFIED_KIT_CANDIDATE, installedPackageRoot: CANDIDATE_ROOT }),
+      collectKitSourceFacts({ targetRoot: project, inventory, requiredCapabilities: ["declarations"], includeScriptsRoot: false }, { expectation: installedExpectation, installedPackageRoot: CANDIDATE_ROOT }),
       "stale-evidence"
     );
   }, 120000);
@@ -773,7 +775,7 @@ describe.skipIf(!candidateInstalled)("exact installed Kit candidate", () => {
     writeFiles(project, { "package.json": JSON.stringify({ name: "fx", version: "1.0.0" }), "src/a.ts": "export const a = 1;\n", "lib/b.ts": "export const b = 1;\n" });
     const facts = await collectKitSourceFacts(
         { targetRoot: project, inventory: scanProjectInventory(project), requiredCapabilities: ["declarations"], includeScriptsRoot: false },
-        { expectation: QUALIFIED_KIT_CANDIDATE, installedPackageRoot: CANDIDATE_ROOT }
+        { expectation: installedExpectation, installedPackageRoot: CANDIDATE_ROOT }
       );
     expect(facts.kitEvidence?.sourceRoots).toEqual(["lib", "src"]);
     expect(facts.files.map((file) => file.relativePath)).toEqual(["lib/b.ts", "src/a.ts"]);

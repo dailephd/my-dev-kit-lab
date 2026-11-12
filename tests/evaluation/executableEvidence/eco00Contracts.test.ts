@@ -3,9 +3,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ECO00_PINS, validateEco00ContractIdentity, validateEco00Subject, validateEco00Environment, validateEco00NativeReference, validateEco00Envelope, validateEco00Requirement, validateEco00Bundle } from "../../../src/evaluation/executableEvidence/eco00ContractValidation.js";
 
-const root = process.env.LAB_ECO00_CONTRACT_ROOT ?? path.resolve("../my-dev-kit/contracts/ecosystem");
+const root = process.env.LAB_ECO00_CONTRACT_ROOT ?? path.resolve("tests/fixtures/ecosystem/executable-evidence-v1");
 const schemas = new Map<string, Record<string, any>>();
-for (const name of Object.keys(ECO00_PINS).filter(n => n !== "contract-registry")) { const schema = JSON.parse(readFileSync(path.join(root, "v1", `${name}-v1.schema.json`), "utf8")); schemas.set(schema.$id, schema); }
+for (const name of Object.keys(ECO00_PINS).filter(n => n !== "contract-registry")) { const schema = JSON.parse(readFileSync(path.join(root, `eco00-${name}-v1.schema.json`), "utf8")); schemas.set(schema.$id, schema); }
 // Independent test-only interpretation of the actual pinned schema keywords.
 function conforms(schema: Record<string, any>, value: any): boolean {
   if (schema.$ref) return conforms(schemas.get(schema.$ref)!, value);
@@ -40,7 +40,7 @@ function mutations(schema: Record<string, any>, value: any): any[] {
 }
 describe("RSP-001 pinned ECO00 compiled consumer", () => {
   it.each(Object.keys(ECO00_PINS) as Array<keyof typeof ECO00_PINS>)("authenticates original upstream %s bytes and rejects identity drift", name => {
-    const original = readFileSync(path.join(root, name === "contract-registry" ? "contract-registry.json" : `v1/${name}-v1.schema.json`)); expect(() => validateEco00ContractIdentity(name, original)).not.toThrow(); expect(() => validateEco00ContractIdentity(name, Buffer.concat([original, Buffer.from("\n")]))).toThrow("Pinned ECO-00 source bytes differ");
+    const original = readFileSync(path.join(root, name === "contract-registry" ? "eco00-contract-registry.json" : `eco00-${name}-v1.schema.json`)); expect(() => validateEco00ContractIdentity(name, original)).not.toThrow(); expect(() => validateEco00ContractIdentity(name, Buffer.concat([original, Buffer.from("\n")]))).toThrow("Pinned ECO-00 source bytes differ");
   });
   it.each(examples)("matches exact original %s required/closed/nested/array constraints", (name, validate, valid) => {
     const schema = [...schemas.values()].find(s => s.$id.endsWith(`/${name}-v1.schema.json`))!;

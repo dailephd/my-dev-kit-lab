@@ -13,9 +13,19 @@ describe("RSP-004 pure native evidence adapters", () => {
   it.each(["invalid", "pass"])("does not accept arbitrary passed strings or unsupported versions: %s", name => { const bytes = name === "invalid" ? tap(name) : Buffer.from(tap(name).toString().replace("TAP version 13", "TAP version 14")); expect(adapt(bytes).availability).toBe("invalid"); });
   it.each([
     (s: string) => s.replace("1..1", "1..2"), (s: string) => s.replace("ok 1 -", "ok 2 -"), (s: string) => s.replace("# pass 1", "# pass 0"),
-    (s: string) => s + "# pass 1\n", (s: string) => s.replace("ok 1 -", "  ok 1 -"), (s: string) => s.replace("  ...\n", "")
+    (s: string) => s + "# pass 1\n", (s: string) => s.replace("ok 1 -", "  ok 1 -"), (s: string) => s.replace(/  \.\.\.\r?\n/, "")
   ])("rejects ambiguous plans, contradictory counts, nesting and malformed diagnostics", mutate => expect(adapt(Buffer.from(mutate(tap("pass").toString()))).availability).toBe("invalid"));
   it("rejects unsupported schema and speculative Observer kinds", () => { expect(adapt(tap("pass"), "node-test-tap-v1", "24.0.0", "1.1.0").availability).toBe("unsupported"); expect(adapt(tap("pass"), "observer-native-v1").availability).toBe("unsupported"); expect(NATIVE_EVIDENCE_KINDS).toHaveLength(5); });
+  it.each(["\n", "\r\n"])("preserves raw %j evidence bytes and rejects an actually removed diagnostic terminator", newline => {
+    const original = tap("pass"), snapshot = Buffer.from(original);
+    const bytes = Buffer.from(original.toString().replace(/\r?\n/g, newline)), before = Buffer.from(bytes);
+    const digest = sha256(bytes);
+    expect(adapt(bytes)).toMatchObject({ availability: "available", nativeOutcome: "passed" });
+    const malformed = Buffer.from(bytes.toString().replace(/  \.\.\.\r?\n/, ""));
+    expect(malformed.equals(bytes)).toBe(false);
+    expect(adapt(malformed).availability).toBe("invalid");
+    expect(bytes).toEqual(before); expect(sha256(bytes)).toBe(digest); expect(original).toEqual(snapshot);
+  });
   it.each([
     ["kit-context-capsule-v1", "tests/fixtures/upstream-artifacts/my-dev-kit/1.10.4/context-capsule/complete-v1.0.0.json"],
     ["kit-retrieval-audit-v1", "tests/fixtures/upstream-artifacts/my-dev-kit/1.10.4/retrieval-audit-record/complete-v1.0.0.json"]

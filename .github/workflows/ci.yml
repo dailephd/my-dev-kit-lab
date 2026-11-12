@@ -52,6 +52,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Prepare physical project-owned public test environment
+        run: node scripts/run-verification-lane.mjs --prepare-ci
+
       - name: Print runtime versions
         run: |
           node --version
@@ -83,7 +86,10 @@ jobs:
         run: npm run verify
 
       - name: Test
-        run: npm test
+        run: npm test -- --exclude tests/audits/kitSourceDifferential.test.ts --exclude tests/audits/kitSourceReaderReplacement.test.ts
+
+      - name: Describe mandatory protected release gates
+        run: node -e "console.log('PUBLIC CI ONLY. Private provenance and exact-commit binding are separate mandatory release-readiness gates; neither was executed or passed by this job.')"
 
       - name: Verify packed package
         run: npm run verify:packed-package

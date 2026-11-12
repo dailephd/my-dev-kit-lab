@@ -18,6 +18,7 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 export const AGENT_SUCCESS_PLUGIN_ID = "agent-success-rate";
 export const AGENT_SUCCESS_TREATMENTS = ["raw-full-file", "context-pack"];
@@ -215,6 +216,23 @@ export function isAuthorizedPackedRuntime(repoRoot, candidate) {
 // Invocation authority is issued before execution and is never reconstructed
 // from output bytes, environment variables or a successful write.
 const verifierDirectoryClaims = new WeakMap();
+export function resolvePackedTemporaryRoot(repoRoot) {
+  const root = realpathSync(repoRoot);
+  // A registered linked checkout shares the containing repository's existing
+  // workflow authority. This keeps default-output acceptance below Windows'
+  // process cwd limit without moving or aliasing the source worktree.
+  const gitFile = path.join(root, ".git");
+  if (existsSync(gitFile) && lstatSync(gitFile).isFile() && !lstatSync(gitFile).isSymbolicLink()) {
+    const common = path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: root, encoding: "utf8", windowsHide: true }).trim());
+    const owner = path.dirname(common);
+    const worktrees = execFileSync("git", ["worktree", "list", "--porcelain", "-z"], { cwd: root, encoding: "utf8", windowsHide: true }).split("\0");
+    if (path.basename(common) !== ".git" || lstatSync(common).isSymbolicLink() || !isInside(path.join(owner, ".my-dev-kit-workflow", "worktrees"), root) ||
+        !worktrees.some(line => line.startsWith("worktree ") && path.relative(root, line.slice(9)) === "")) throw new Error("Unverified linked-worktree temporary authority");
+    directoryIdentities(root); directoryIdentities(owner);
+    return path.join(realpathSync(owner), ".my-dev-kit-workflow", "tmp");
+  }
+  return path.join(root, ".my-dev-kit-workflow", "tmp");
+}
 function directoryIdentities(directory) {
   const identities = [];
   let current = path.resolve(directory);
@@ -235,7 +253,7 @@ function unchangedDirectories(identities) {
   });
 }
 export function claimPackedVerifierDirectory({ repoRoot, directory, installedPackageRoot, invocationCwd }) {
-  const authorizedRoot = path.join(path.resolve(repoRoot), ".my-dev-kit-workflow", "tmp");
+  const authorizedRoot = resolvePackedTemporaryRoot(repoRoot);
   if (!path.isAbsolute(directory) || path.resolve(directory) !== directory ||
       path.relative(authorizedRoot, directory) === "" || !isInside(authorizedRoot, directory)) throw new Error("Verifier directory is outside authorized project temporary storage");
   const exclusions = [installedPackageRoot, invocationCwd, ...["benchmarks", "src", "scripts", "tests"].map(part => path.join(repoRoot, part))].map(root => path.resolve(root));
@@ -390,7 +408,7 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
   // sandbox working directory near MAX_PATH makes Git/process spawning fail. Keep the physical workspace prefix to one
   // space, retaining both space-path coverage and the complete exclusive OS-generated suffix. The parent supplies the
   // authorized compact runtime; durable run, sandbox and epoch identities are unchanged.
-  const workspaceDir = mkdtempSync(path.join(os.tmpdir(), " "));
+  const workspaceDir = mkdtempSync(path.join(resolvePackedTemporaryRoot(repoRoot), " "));
 
   const unrelatedDir = path.join(workspaceDir, "unrelated");
   const fixturesDir = path.join(base, "fixtures");
@@ -399,7 +417,7 @@ async function runAgentSuccessPackedAcceptanceInner(ctx, workspaces) {
   writeFileSync(path.join(unrelatedDir, "keep.txt"), "unrelated workspace content\n", "utf8");
   const workspaceClaim = claimPackedVerifierDirectory({ repoRoot, directory: workspaceDir, installedPackageRoot, invocationCwd });
   workspaces.push({ directory: workspaceDir, claim: workspaceClaim });
-  const neutralTempRoot = mkdtempSync(path.join(os.tmpdir(), " n"));
+  const neutralTempRoot = mkdtempSync(path.join(resolvePackedTemporaryRoot(repoRoot), " n"));
   const neutralClaim = claimPackedVerifierDirectory({ repoRoot, directory: neutralTempRoot, installedPackageRoot, invocationCwd });
   workspaces.push({ directory: neutralTempRoot, claim: neutralClaim });
   const envWithBin = { ...inheritedEnv, TEMP: neutralTempRoot, TMP: neutralTempRoot, TMPDIR: neutralTempRoot };

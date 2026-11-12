@@ -23,6 +23,16 @@ export function assertSecurityReportPrefix(prefix: string): void {
   }
 }
 
+// Separate the narrow native-alias policy from filesystem observations so it
+// can be exercised deterministically on every supported host.
+export function isSecuritySystemDirectoryAlias(observed: {
+  platform: NodeJS.Platform; path: string; symbolicLink: boolean;
+  physicalPath: string; targetIsDirectory: boolean;
+}): boolean {
+  return observed.platform === "darwin" && observed.path === "/var" &&
+    observed.symbolicLink && observed.physicalPath === "/private/var" && observed.targetIsDirectory;
+}
+
 // Check every existing path component before mkdir/write, including Windows
 // junctions. Missing suffixes are safe to create only below verified parents.
 export function assertSecurityOutputPath(outputPath: string, file = false, inspectChildren = false): void {
@@ -41,11 +51,16 @@ export function assertSecurityOutputPath(outputPath: string, file = false, inspe
       if ((err as NodeJS.ErrnoException).code === "ENOENT") continue;
       throw err;
     }
-    const systemVarAlias = process.platform === "darwin" && current === "/var" &&
-      info.isSymbolicLink() && fs.realpathSync(current) === "/private/var";
+    const possibleSystemAlias = process.platform === "darwin" && current === "/var" && info.isSymbolicLink();
+    const systemVarAlias = possibleSystemAlias && isSecuritySystemDirectoryAlias({
+      platform: process.platform, path: current, symbolicLink: true,
+      physicalPath: fs.realpathSync(current), targetIsDirectory: fs.statSync(current).isDirectory(),
+    });
     const leafFile = file && index === parts.length;
-    if ((!systemVarAlias && info.isSymbolicLink()) ||
-        (leafFile ? !info.isFile() || info.nlink > 1 : !info.isDirectory())) {
+    // The permitted system alias is a directory only after following the
+    // independently verified native /var identity. lstat describes the link.
+    if ((systemVarAlias && leafFile) || (!systemVarAlias &&
+        (info.isSymbolicLink() || (leafFile ? !info.isFile() || info.nlink > 1 : !info.isDirectory())))) {
       throw new Error(`Unsafe security output path: ${current}`);
     }
   }

@@ -33,6 +33,21 @@ function makeTempDir(prefix: string): string {
 }
 
 describe("packed agent-success owned runtime containment", () => {
+  it("uses the registered repository authority for linked-checkout output without granting its shared parent", () => {
+    const repoRoot = process.cwd(), temporaryRoot = packedAgentSuccess.resolvePackedTemporaryRoot(repoRoot);
+    expect(path.basename(temporaryRoot)).toBe("tmp");
+    expect(path.basename(path.dirname(temporaryRoot))).toBe(".my-dev-kit-workflow");
+    const workspaceDir = mkdtempSync(path.join(temporaryRoot, "linked-packed-")); tempDirs.push(workspaceDir);
+    const installedPackageRoot = path.join(repoRoot, "node_modules/@dailephd/my-dev-kit");
+    const before = readFileSync(path.join(installedPackageRoot, "dist/cli.js"));
+    const roots = { repoRoot, installedPackageRoot, invocationCwd: os.tmpdir() };
+    const claim = packedAgentSuccess.claimPackedVerifierDirectory({ ...roots, directory: workspaceDir });
+    const check = (output: string) => packedAgentSuccess.isSafePackedAgentSuccessOutput({ ...roots, workspaceDir, workspaceClaim: claim, output });
+    expect(check(path.join(workspaceDir, "lab-output/run"))).toBe(true);
+    for (const output of [temporaryRoot, repoRoot, installedPackageRoot, os.tmpdir()]) expect(check(output)).toBe(false);
+    expect(() => packedAgentSuccess.claimPackedVerifierDirectory({ ...roots, directory: temporaryRoot })).toThrow();
+    expect(readFileSync(path.join(installedPackageRoot, "dist/cli.js"))).toEqual(before);
+  });
   it("permits the explicit owned compact workspace while denying source, package and historical output", async () => {
     const modulePath = pathToFileURL(path.resolve("scripts/verifyPackedPackageAgentSuccess.mjs")).href;
     const { isSafePackedAgentSuccessOutput, isAuthorizedPackedRuntime } = await import(modulePath);

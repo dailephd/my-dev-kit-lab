@@ -45,6 +45,7 @@
     "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:public": "node scripts/run-verification-lane.mjs public",
     "test:benchmarks": "vitest run tests/benchmarks tests/scripts",
     "test:report": "vitest run tests/report tests/commands",
     "test:screenshot": "vitest run tests/screenshot",
@@ -84,7 +85,9 @@
     "test:fuzz:smoke": "tsx scripts/security/runFuzzSmoke.ts",
     "security:validate": "tsx scripts/security/validate.ts",
     "audit": "tsx scripts/audits/runAudit.ts",
-    "report:context-integrity-smoke": "tsx scripts/report-context-integrity-smoke.ts"
+    "report:context-integrity-smoke": "tsx scripts/report-context-integrity-smoke.ts",
+    "verify:provenance": "node scripts/verify-private-provenance.mjs",
+    "verify:readiness-binding": "node scripts/verify-private-provenance.mjs --check-binding"
   },
   "dependencies": {
     "@dailephd/my-dev-kit": "1.15.0",

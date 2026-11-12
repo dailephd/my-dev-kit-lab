@@ -1150,6 +1150,48 @@ npm run audit -- --target /path/to/android/project --types security --android --
 
 **Completion:** Android status, completeness, verdict, report references, mapped counts, and review-only evidence summaries appear in the audit output.
 
+## v0.10.0 public and protected verification lanes
+
+`npm run test:public` runs the public lane against published Kit 1.15.0, public schemas,
+and the committed 150-decision oracle. Historical producer differential and
+reader-replacement suites are assigned to the separate mandatory protected
+lane; they are not reported as passed or optional skips by public CI.
+The canonical `npm test` remains complete Vitest discovery for the qualified
+local environment. CI preserves that command with explicit historical-file
+exclusions matching the public lane; it reports the protected gate as separately
+required, never passed by exclusion.
+
+`npm run verify:provenance -- --inputs <private-input-map> --public-result <public-result> --out <private-binding>`
+examines the actual historical artifact bytes against the committed size and
+SHA-256 inventory, validates Candidate 05 qualification and all 150 decisions,
+and executes the preserved historical suites. Inputs map opaque artifact IDs
+to protected local files and supply the qualified historical launcher settings.
+They, the generated JSON binding, and its text report must remain unpublished.
+Missing or altered required evidence fails the gate. The verifier never
+regenerates original evidence. Original artifact hashes are unchanged.
+
+Set `LAB_PUBLIC_VERIFICATION_RESULT` to a fresh authorized private output file
+when running public tests. The observed result records exact source identity,
+command, scope and exit. A focused correction result is not a full-suite pass.
+After committing unchanged tested source bytes, `--rebind <prior-binding>` can
+bind the final SHA only after reexamining all private bytes and proving the
+complete public source inventory and verifier are unchanged.
+
+Release readiness requires three separate results: PUBLIC_LANE PASS,
+PRIVATE_LANE PASS, and BINDING_VERIFICATION PASS. Run
+`npm run verify:readiness-binding -- --inputs <private-input-map> --out <private-binding>`
+against the exact candidate. This reexamines private bytes and rejects a stale
+commit, source, verifier, oracle, failed lane, or focused-only public result.
+`--correction` checks a focused binding for correction acceptance only; it does
+not satisfy release readiness. Bindings are unsigned local observations, not
+cryptographic attestations. Exact-SHA Windows/Linux/macOS CI, CodeQL,
+independent security, packed acceptance and other readiness gates remain
+mandatory. Public CI alone never authorizes release preparation.
+
+The original RSP-011 remains unsatisfied and its payload unrecovered. It is
+separate from Candidate 05 verification; current LAB-EVIDENCE-01 acceptance
+uses V010-EVIDENCE-ACCEPTANCE-ROUTE-01/1.0.0 without claiming historical recovery.
+
 ## Manual pentest
 
 Manual pentest is deferred until after `v1.0.0`.

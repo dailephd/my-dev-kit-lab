@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "1.0.0",
+  "authority": {
+    "repository": "dailephd/my-dev-kit",
+    "scope": "ecosystem coordination only",
+    "runtimePackageOwned": false
+  },
+  "contracts": [
+    {
+      "contractId": "eco.subject-identity",
+      "schemaVersion": "1.0.0",
+      "path": "contracts/ecosystem/v1/subject-identity-v1.schema.json",
+      "owner": "ecosystem-coordination"
+    },
+    {
+      "contractId": "eco.environment-identity",
+      "schemaVersion": "1.0.0",
+      "path": "contracts/ecosystem/v1/environment-identity-v1.schema.json",
+      "owner": "ecosystem-coordination"
+    },
+    {
+      "contractId": "eco.native-artifact-reference",
+      "schemaVersion": "1.0.0",
+      "path": "contracts/ecosystem/v1/native-artifact-reference-v1.schema.json",
+      "owner": "ecosystem-coordination"
+    },
+    {
+      "contractId": "eco.evidence-envelope",
+      "schemaVersion": "1.0.0",
+      "path": "contracts/ecosystem/v1/evidence-envelope-v1.schema.json",
+      "owner": "ecosystem-coordination"
+    },
+    {
+      "contractId": "eco.evidence-requirement",
+      "schemaVersion": "1.0.0",
+      "path": "contracts/ecosystem/v1/evidence-requirement-v1.schema.json",
+      "owner": "ecosystem-coordination"
+    },
+    {
+      "contractId": "eco.compatibility-bundle",
+      "schemaVersion": "1.0.0",
+      "path": "contracts/ecosystem/v1/compatibility-bundle-v1.schema.json",
+      "owner": "ecosystem-coordination"
+    }
+  ],
+  "nativeBindings": [
+    {
+      "authority": "@dailephd/my-dev-kit-orchestrator",
+      "namespace": "my-dev-kit-orchestrator/semantic-responsibility",
+      "nativeIdentity": "RSP-NNN",
+      "rule": "reference-only; ECO-00 does not redefine RSP syntax or ownership"
+    },
+    {
+      "authority": "@dailephd/my-frontend-observer",
+      "namespace": "my-frontend-observer/runtime",
+      "rule": "reference native runtime/reference identities without converting them into source ownership"
+    },
+    {
+      "authority": "@dailephd/my-dev-kit",
+      "namespace": "my-dev-kit/static",
+      "rule": "reference native static/artifact identities without claiming runtime behavior"
+    },
+    {
+      "authority": "@dailephd/my-dev-kit-lab",
+      "namespace": "my-dev-kit-lab/evidence",
+      "rule": "reference native validation/evaluation artifacts without duplicating Lab policy"
+    }
+  ]
+}
