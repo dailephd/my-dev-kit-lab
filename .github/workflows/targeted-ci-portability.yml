@@ -30,5 +30,13 @@ jobs:
       - name: Windows lifecycle diagnostic
         if: runner.os == 'Windows'
         run: node scripts/run-verification-lane.mjs public tests/experiments/agentSuccessRate/campaignExecution.test.ts tests/experiments/agentSuccessRate/campaignResume.test.ts -t "PHYSICAL-PATH-ALIAS|INTERRUPTED-TREATMENT|MISSING-ARTIFACT at publication|RSP-034 refuses|RSP-028/RSP-029 finalization" --maxWorkers 2 --reporter verbose
+      - name: Verification identity regressions (Unix)
+        if: runner.os != 'Windows'
+        run: node node_modules/vitest/vitest.mjs run tests/audits/verificationLanes.test.ts -t "public lane source immutability"
+      - name: Packed fixture ownership (all platforms)
+        run: node node_modules/vitest/vitest.mjs run tests/scripts/verifyPackedPackage.spec.ts -t "uses the registered repository authority|RSP-002"
+      - name: Producer-readiness three-repeat regression (Windows)
+        if: runner.os == 'Windows'
+        run: node node_modules/vitest/vitest.mjs run tests/experiments/contextStrategyComparison/producerReadinessBridgeIntegration.test.ts
       - name: Scope disclosure
         run: node -e "console.log('Focused platform diagnostic only; complete readiness and protected exact-commit binding remain required.')"

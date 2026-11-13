@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+// @ts-expect-error Existing verification entrypoint is plain ESM.
+import { ownedDirectory } from "../../scripts/run-verification-lane.mjs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -37,6 +39,12 @@ describe("packed agent-success owned runtime containment", () => {
     const repoRoot = process.cwd(), temporaryRoot = packedAgentSuccess.resolvePackedTemporaryRoot(repoRoot);
     expect(path.basename(temporaryRoot)).toBe("tmp");
     expect(path.basename(path.dirname(temporaryRoot))).toBe(".my-dev-kit-workflow");
+    // The resolver identifies authority; creation is a separate checked action.
+    const authority = path.dirname(path.dirname(temporaryRoot));
+    expect(temporaryRoot).toBe(path.join(authority, ".my-dev-kit-workflow", "tmp"));
+    expect(ownedDirectory(authority, temporaryRoot)).toBe(temporaryRoot);
+    const sibling = mkdtempSync(path.join(temporaryRoot, "unrelated-")); tempDirs.push(sibling);
+    writeFileSync(path.join(sibling, "keep"), "preserve");
     const workspaceDir = mkdtempSync(path.join(temporaryRoot, "linked-packed-")); tempDirs.push(workspaceDir);
     const installedPackageRoot = path.join(repoRoot, "node_modules/@dailephd/my-dev-kit");
     const before = readFileSync(path.join(installedPackageRoot, "dist/cli.js"));
@@ -47,6 +55,28 @@ describe("packed agent-success owned runtime containment", () => {
     for (const output of [temporaryRoot, repoRoot, installedPackageRoot, os.tmpdir()]) expect(check(output)).toBe(false);
     expect(() => packedAgentSuccess.claimPackedVerifierDirectory({ ...roots, directory: temporaryRoot })).toThrow();
     expect(readFileSync(path.join(installedPackageRoot, "dist/cli.js"))).toEqual(before);
+    rmSync(workspaceDir, { recursive: true });
+    expect(check(path.join(workspaceDir, "lab-output/run"))).toBe(false);
+    expect(readFileSync(path.join(sibling, "keep"), "utf8")).toBe("preserve");
+  });
+  it("uses the registered repository authority with a missing plain parent and rejects linked or colliding parents", () => {
+    const root = makeTempDir("packed-parent-policy-");
+    const outside = makeTempDir("packed-parent-outside-");
+    const parent = packedAgentSuccess.resolvePackedTemporaryRoot(root);
+    const control = path.dirname(parent);
+    writeFileSync(path.join(outside, "keep"), "unrelated");
+    symlinkSync(outside, control, process.platform === "win32" ? "junction" : "dir");
+    expect(() => ownedDirectory(root, parent)).toThrow("Unsafe");
+    unlinkSync(control);
+    writeFileSync(control, "collision");
+    expect(() => ownedDirectory(root, parent)).toThrow("Unsafe");
+    unlinkSync(control);
+    ownedDirectory(root, parent);
+    writeFileSync(path.join(parent, "keep"), "existing parent content");
+    const child = mkdtempSync(path.join(parent, "invocation-"));
+    rmSync(child, { recursive: true });
+    expect(readFileSync(path.join(parent, "keep"), "utf8")).toBe("existing parent content");
+    expect(readFileSync(path.join(outside, "keep"), "utf8")).toBe("unrelated");
   });
   it("permits the explicit owned compact workspace while denying source, package and historical output", async () => {
     const modulePath = pathToFileURL(path.resolve("scripts/verifyPackedPackageAgentSuccess.mjs")).href;

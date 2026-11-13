@@ -3,10 +3,12 @@
 // through the real combined-bounded-stage-context strategy + run assurance + report
 // pipeline (not a shortcut around it). repeatCount > 1 and target immutability are both
 // configured.
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import * as targetModule from "../../../src/evaluation/targetImmutability/index.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { runV043StageContextStrategyWithAssurance } from "../../../src/experiments/plugins/contextStrategyComparison/runV043StageContextStrategyWithAssurance.js";
 import { buildContextStrategyComparisonV043Report } from "../../../src/report/experiments/buildContextStrategyComparisonV043Report.js";
 import { buildPluginExperimentReport } from "../../../src/report/experiments/buildPluginExperimentReport.js";
@@ -16,6 +18,8 @@ import type { ExperimentRun } from "../../../src/experiments/index.js";
 import { contextStrategyComparisonMetadata } from "../../../src/experiments/plugins/contextStrategyComparison/index.js";
 import { buildValidSupplementalContextText } from "../../evaluation/upstreamArtifacts/supplementalContextFixtures.js";
 import type { CombinedBoundedStageContextStrategyInputV1 } from "../../../src/experiments/plugins/contextStrategyComparison/v043StrategyInputContracts.js";
+
+import * as determinismModule from "../../../src/evaluation/stageContextDeterminism/index.js";
 
 const CAPSULE_FIXTURE_PATH = "tests/fixtures/upstream-artifacts/my-dev-kit/1.10.2/context-capsule/complete-v1.0.0.json";
 const PACKET_FIXTURE_PATH = "tests/fixtures/upstream-artifacts/my-dev-kit-orchestrator/1.2.1/workflow-instruction-packet/complete-v1.0.0.json";
@@ -45,7 +49,16 @@ function writeSupplementalFixture(dir: string, name: string, kind: Parameters<ty
 
 describe("producer-readiness bridge: complete historical fixture-to-report run", () => {
   it("runs combined-bounded-stage-context with all producer-readiness bridge inputs and produces report.json/report.txt/report.html", async () => {
-    const dir = makeTempDir();
+    const parent = makeTempDir();
+    const dir = join(parent, "target"); mkdirSync(dir);
+    execFileSync("git", ["init", "--quiet", parent], { windowsHide: true });
+    execFileSync("git", ["-C", parent, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "--quiet", "-m", "fixture"], { windowsHide: true });
+    const originalSnapshot = targetModule.captureTargetSnapshot;
+    let snapshots = 0;
+    const snapshotCapture = vi.spyOn(targetModule, "captureTargetSnapshot").mockImplementation(async (...args) => {
+      if (++snapshots % 2 === 1) writeFileSync(join(parent, `noise-${snapshots}`), "unrelated worker output");
+      return originalSnapshot(...args);
+    });
     const implementationContextPacketPath = writeSupplementalFixture(dir, "implementation-context-packet.txt", "implementation-context-packet");
     const implementationContextRetrievalReportPath = writeSupplementalFixture(
       dir,
@@ -88,11 +101,29 @@ describe("producer-readiness bridge: complete historical fixture-to-report run",
       }
     };
 
+    // Isolate the canonical target from the parent repository and other workers.
+    execFileSync("git", ["init", "--quiet", dir], { windowsHide: true });
+    execFileSync("git", ["-C", dir, "add", "--", "."], { windowsHide: true });
+    execFileSync("git", ["-C", dir, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "target baseline"], { windowsHide: true });
+    const packetBefore = readFileSync(implementationContextPacketPath);
+    const canonicalRuns: string[] = [];
+    const calculate = determinismModule.calculateStageContextDeterminism;
+    const capture = vi.spyOn(determinismModule, "calculateStageContextDeterminism").mockImplementation(candidates => {
+      canonicalRuns.push(...candidates.map(candidate => determinismModule.canonicalizeStageContextRun(candidate.value)));
+      return calculate(candidates);
+    });
     const assurance = await runV043StageContextStrategyWithAssurance(input, {
       repeatCount: 3,
       targetImmutability: { targetRootPath: dir, relativeFilePaths: ["implementation-context-packet.txt"] }
     });
 
+    snapshotCapture.mockRestore();
+    capture.mockRestore();
+    expect(canonicalRuns).toHaveLength(3);
+    expect(canonicalRuns[1], "second canonical record differs").toBe(canonicalRuns[0]);
+    expect(canonicalRuns[2], "third canonical record differs").toBe(canonicalRuns[0]);
+    expect(readFileSync(implementationContextPacketPath)).toEqual(packetBefore);
+    console.info("PRODUCER_READINESS_THREE_RUN_DIGESTS " + JSON.stringify(assurance.determinism.runDigests));
     // TST-B3-007..012 style structural assertions on the executed strategy input/output.
     expect(assurance.strategyId).toBe("combined-bounded-stage-context");
     expect(assurance.primaryExecution.status).toBe("completed");
@@ -176,6 +207,13 @@ describe("producer-readiness bridge: complete historical fixture-to-report run",
     expect(htmlReport.length).toBeGreaterThan(0);
     expect(htmlReport).toContain("Producer-Readiness Bridge");
 
+    const beforeMutation = await targetModule.captureTargetSnapshot({ targetRootPath: dir, relativeFilePaths: ["implementation-context-packet.txt"] });
+    writeFileSync(implementationContextPacketPath, Buffer.concat([packetBefore, Buffer.from("\nsubstantive mutation")]));
+    const afterMutation = await targetModule.captureTargetSnapshot({ targetRootPath: dir, relativeFilePaths: ["implementation-context-packet.txt"] });
+    expect(beforeMutation.ok && afterMutation.ok).toBe(true);
+    if (beforeMutation.ok && afterMutation.ok) expect(targetModule.compareTargetSnapshots(beforeMutation.snapshot, afterMutation.snapshot).status).toBe("mutated");
+    writeFileSync(implementationContextPacketPath, packetBefore);
+
     // TST-B3-052 / TST-B3-058: no composite score, rank, or winner field/value anywhere.
     // ("ranking"/"winning" legitimately appear only inside the existing neutral
     // disclaimer text, e.g. "no composite ranking or winning strategy is calculated" --
@@ -186,4 +224,12 @@ describe("producer-readiness bridge: complete historical fixture-to-report run",
       expect(htmlReport.toLowerCase()).not.toContain(forbidden.toLowerCase());
     }
   });
+});
+
+it("preserves Windows path identity and substantive differences in canonical records", () => {
+  const value = { identity: "Z:\\fixture\\project", readiness: "ready" };
+  const canonical = determinismModule.canonicalizeStageContextRun(value);
+  expect(canonical).toBe(determinismModule.canonicalizeStageContextRun({ readiness: "ready", identity: value.identity }));
+  expect(canonical).not.toBe(determinismModule.canonicalizeStageContextRun({ ...value, readiness: "blocked" }));
+  expect(canonical).not.toBe(determinismModule.canonicalizeStageContextRun({ ...value, identity: "Z:/fixture/project" }));
 });
