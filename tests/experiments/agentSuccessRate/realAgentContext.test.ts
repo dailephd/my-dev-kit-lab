@@ -15,14 +15,24 @@ import {
   MAX_SOURCE_SLICES,
   SEARCH_RESULT_LIMIT
 } from "../../../src/experiments/plugins/contextPackGeneration/packSelectionPolicy.js";
-import { FIXTURE_FILES, makeTempDir, writeProjectFiles } from "../../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
+import { FIXTURE_FILES, makeTempDir, useSandboxTestCleanup, writeProjectFiles } from "../../evaluation/benchmarkSandbox/sandboxTestHelpers.js";
 import { makeTask } from "./agentSuccessRateTestHelpers.js";
 import { TEST_DECOY_MARKER, TEST_DECOY_PATH, makeSourceBackedKit } from "./realAgentTestHelpers.js";
+
+// Vitest runs afterEach hooks as a stack: dispose builders, remove fixtures,
+// then verify removal before the verification lane hashes its inventory.
+const fixtureRoots: string[] = [];
+afterEach(() => {
+  for (const root of fixtureRoots.splice(0)) expect(existsSync(root)).toBe(false);
+});
+useSandboxTestCleanup();
 
 const TRUSTED_MARKER = "TRUSTED_TEST_FILE_CONTENT_MARKER_b81f";
 
 function makeProject(extra: Record<string, string | Buffer> = {}): string {
-  const root = path.join(makeTempDir("lab-asr-ctx-project-"), "project");
+  const fixtureRoot = makeTempDir("lab-asr-ctx-project-");
+  fixtureRoots.push(fixtureRoot);
+  const root = path.join(fixtureRoot, "project");
   mkdirSync(root, { recursive: true });
   writeProjectFiles(root, {
     ...FIXTURE_FILES,
@@ -35,7 +45,7 @@ function makeProject(extra: Record<string, string | Buffer> = {}): string {
 
 const builders: AgentSuccessPackContextBuilder[] = [];
 afterEach(async () => {
-  await Promise.all(builders.splice(0).map((builder) => builder.dispose()));
+  for (const builder of builders.splice(0)) await expect(builder.dispose()).resolves.toBeNull();
 });
 
 function packBuilder(kit = makeSourceBackedKit()) {

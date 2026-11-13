@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error Existing verification entrypoints are plain ESM scripts.
 import { verifyPrivateBytes, validateBinding } from "../../scripts/verify-private-provenance.mjs";
 // @ts-expect-error Existing verification entrypoints are plain ESM scripts.
-import { publicTemporaryRoot, ownedDirectory, PRIVATE_TEST_FILES, publicExecutionScope } from "../../scripts/run-verification-lane.mjs";
+import { runPublicTests, sourceIdentity, publicTemporaryRoot, ownedDirectory, PRIVATE_TEST_FILES, publicExecutionScope } from "../../scripts/run-verification-lane.mjs";
 const owned: string[] = [];
 const sha = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 afterEach(() => { for (const root of owned.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -78,5 +78,44 @@ describe("mandatory protected verification and exact-candidate binding", () => {
     expect(publicExecutionScope([])).toBe("full");
     expect(publicExecutionScope(["--reporter", "verbose", "--maxWorkers", "2"])).toBe("full");
     for (const args of [["tests/audits"], ["--testNamePattern", "one"], ["--shard", "1/2"], ["--exclude", "tests/security"], ["--unknown"]]) expect(publicExecutionScope(args)).toBe("focused");
+  });
+});
+
+
+describe("public lane source immutability", () => {
+  function repository(childBody: string) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lane-identity-")); owned.push(root);
+    const git = (args: string[]) => execFileSync("git", args, { cwd: root, windowsHide: true, stdio: "pipe" });
+    git(["init", "--quiet"]);
+    fs.writeFileSync(path.join(root, ".gitignore"), "node_modules/\n");
+    fs.writeFileSync(path.join(root, "tracked.ts"), "original tracked source\n");
+    git(["add", "--", ".gitignore", "tracked.ts"]);
+    git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "fixture"]);
+    fs.writeFileSync(path.join(root, "untracked.ts"), "original untracked source\n");
+    fs.mkdirSync(path.join(root, "node_modules/vitest"), { recursive: true });
+    // Tiny child fixture exercises the real lane's process status and inventory
+    // checks, without recursively launching Vitest inside a Vitest worker.
+    fs.writeFileSync(path.join(root, "node_modules/vitest/vitest.mjs"),
+      'import fs from "node:fs"; import path from "node:path"; import os from "node:os";\n' + childBody);
+    return root;
+  }
+  it("accepts owned temporary work only after cleanup restores the exact source inventory", () => {
+    const root = repository('const d=fs.mkdtempSync(path.join(os.tmpdir(), "owned-")); fs.writeFileSync(path.join(d,"artifact"),"temporary"); fs.rmSync(d,{recursive:true});');
+    const before = sourceIdentity(root);
+    expect(runPublicTests(["fixture"], root)).toBe(0);
+    expect(sourceIdentity(root)).toBe(before);
+    expect(fs.readFileSync(path.join(root, "untracked.ts"), "utf8")).toBe("original untracked source\n");
+    expect(fs.readdirSync(path.join(root, ".my-dev-kit-workflow/t"))).toEqual([]);
+  });
+  it.each([
+    ["changed tracked source", 'fs.writeFileSync("tracked.ts","changed");'],
+    ["new untracked source", 'fs.writeFileSync("unexpected.ts","unexpected");'],
+    ["changed pre-existing untracked source", 'fs.writeFileSync("untracked.ts","changed");'],
+    ["failed temporary cleanup", 'const d=fs.mkdtempSync(path.join(os.tmpdir(),"failed-cleanup-")); fs.writeFileSync(path.join(d,"artifact"),"keep"); let failed=false; try { fs.rmdirSync(d); } catch { failed=true; } if(!failed) process.exit(2);'],
+  ])("rejects %s even when the child exits successfully", (_name, body) => {
+    const root = repository(body);
+    const before = sourceIdentity(root);
+    expect(runPublicTests(["fixture"], root)).toBe(1);
+    expect(sourceIdentity(root)).not.toBe(before);
   });
 });
