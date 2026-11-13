@@ -38,5 +38,9 @@ jobs:
       - name: Producer-readiness three-repeat regression (Windows)
         if: runner.os == 'Windows'
         run: node node_modules/vitest/vitest.mjs run tests/experiments/contextStrategyComparison/producerReadinessBridgeIntegration.test.ts
+      - name: Runtime cleanup authority (all platforms)
+        run: node node_modules/vitest/vitest.mjs run tests/experiments/incrementalChangeStaleness/incrementalChangeStalenessPlugin.test.ts -t "invocation-owned runtime cleanup" --maxWorkers 2 --reporter verbose
+      - name: Disposable target identity (all platforms)
+        run: node node_modules/vitest/vitest.mjs run tests/experiments/incrementalChangeStaleness/incrementalChangeStalenessDisposableExecution.test.ts --maxWorkers 2 --reporter verbose
       - name: Scope disclosure
         run: node -e "console.log('Focused platform diagnostic only; complete readiness and protected exact-commit binding remain required.')"

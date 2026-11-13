@@ -33,6 +33,9 @@ import {
   assertIncrementalRuntimeLocation,
   ensureRuntimeDirectory,
   verifyRuntimeDirectory,
+  captureRuntimeDirectoryIdentity,
+  matchesRuntimeDirectoryIdentity,
+  type RuntimeDirectoryIdentity,
   type IncrementalChangeStalenessTreatmentId,
   type IncrementalChangeStalenessV2TreatmentId
 } from "./disposableTarget.js";
@@ -114,7 +117,7 @@ export function resolveIncrementalChangeStalenessRunOwnedRoot(writableWorkspaceR
   return resolveWithinRoot(parent, segment);
 }
 
-type DirectoryIdentity = { root: string; dev: number; ino: number };
+type DirectoryIdentity = RuntimeDirectoryIdentity;
 type RunClaim = DirectoryIdentity & { toolRoot: string; workspaceRoot: string; parents: DirectoryIdentity[]; runId: string; claimId: string };
 // Context identity belongs to one runner invocation, including its finally cleanup.
 const runClaims = new WeakMap<ExperimentExecutionContext, RunClaim>();
@@ -140,8 +143,7 @@ async function claimRunOwnedRoot(context: ExperimentExecutionContext, runOwnedRo
   await ensureRuntimeDirectory(workspaceRoot, path.dirname(runOwnedRoot));
   // Non-recursive: fails if another run claimed the same directory in the meantime.
   await mkdir(runOwnedRoot);
-  const realRoot = await verifyRuntimeDirectory(runOwnedRoot);
-  const info = await lstat(runOwnedRoot);
+  const identity = await captureRuntimeDirectoryIdentity(runOwnedRoot);
   const claimId = randomUUID();
   await writeFile(
     path.join(runOwnedRoot, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER),
@@ -150,23 +152,18 @@ async function claimRunOwnedRoot(context: ExperimentExecutionContext, runOwnedRo
   );
   const parents: DirectoryIdentity[] = [];
   for (const root of [workspaceRoot, path.join(workspaceRoot, "runtime"), path.dirname(runOwnedRoot)]) {
-    const real = await verifyRuntimeDirectory(root);
-    const parentInfo = await lstat(root);
-    parents.push({ root: real, dev: parentInfo.dev, ino: parentInfo.ino });
+    parents.push(await captureRuntimeDirectoryIdentity(root));
   }
-  runClaims.set(context, { root: realRoot, toolRoot: path.resolve(context.toolRoot), workspaceRoot: path.resolve(workspaceRoot), parents, runId: context.runId, claimId, dev: info.dev, ino: info.ino });
+  runClaims.set(context, { ...identity, toolRoot: path.resolve(context.toolRoot), workspaceRoot: path.resolve(workspaceRoot), parents, runId: context.runId, claimId });
 }
 
 async function isOwnedByRun(runOwnedRoot: string, claim: RunClaim): Promise<boolean> {
   try {
-    const realRoot = await verifyRuntimeDirectory(runOwnedRoot);
+    const current = await captureRuntimeDirectoryIdentity(runOwnedRoot);
     for (const parent of claim.parents) {
-      const real = await verifyRuntimeDirectory(parent.root);
-      const info = await lstat(parent.root);
-      if (real !== parent.root || info.dev !== parent.dev || info.ino !== parent.ino) return false;
+      if (!matchesRuntimeDirectoryIdentity(parent, await captureRuntimeDirectoryIdentity(parent.root))) return false;
     }
-    const info = await lstat(runOwnedRoot);
-    if (realRoot !== claim.root || info.dev !== claim.dev || info.ino !== claim.ino) return false;
+    if (!matchesRuntimeDirectoryIdentity(claim, current)) return false;
     const markerInfo = await lstat(path.join(runOwnedRoot, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER));
     if (markerInfo.isSymbolicLink() || !markerInfo.isFile()) return false;
     const marker = JSON.parse(await readFile(path.join(runOwnedRoot, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER), "utf8")) as {

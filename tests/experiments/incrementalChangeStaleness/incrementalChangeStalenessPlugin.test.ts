@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync, mkdirSync, readdirSync, readFileSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   contextStrategyComparisonPlugin,
@@ -13,7 +14,7 @@ import {
   defaultIncrementalChangeStalenessConfig,
   validateIncrementalChangeStalenessConfig
 } from "../../../src/experiments/plugins/incrementalChangeStaleness/config.js";
-import { DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE } from "../../../src/experiments/plugins/incrementalChangeStaleness/disposableTarget.js";
+import { captureRuntimeDirectoryIdentity, matchesRuntimeDirectoryIdentity, DEFAULT_INCREMENTAL_CHANGE_STALENESS_RUNTIME_ROOT_RELATIVE } from "../../../src/experiments/plugins/incrementalChangeStaleness/disposableTarget.js";
 import {
   INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER,
   cleanupIncrementalChangeStalenessRun,
@@ -424,14 +425,76 @@ describe("invocation-owned runtime cleanup", () => {
     expectCanonicalFilesUnchanged();
   });
 
-  it("a substituted real parent cannot retain cleanup authority even if the owned child is moved back", async () => {
+  it("compares full native identity without Number rounding and refuses ambiguous identity", () => {
+    const first = { root: "/fixture", dev: 1n, ino: 9007199254740992n };
+    const second = { ...first, ino: first.ino + 1n };
+    expect(Number(first.ino)).toBe(Number(second.ino));
+    expect(matchesRuntimeDirectoryIdentity(first, second)).toBe(false);
+    expect(matchesRuntimeDirectoryIdentity(first, { ...first })).toBe(true);
+    for (const change of [{ dev: 0n }, { ino: 0n }, { ino: -1n }, { ino: undefined }, { ino: Number(first.ino) }]) {
+      expect(matchesRuntimeDirectoryIdentity(first, { ...first, ...change } as typeof first)).toBe(false);
+    }
+  });
+
+  it("legitimate Windows casing retains cleanup authority and preserves unrelated runs", async () => {
+    const context = invocation();
+    if (process.platform === "win32") context.writableWorkspaceRoot = context.writableWorkspaceRoot!.toUpperCase();
+    await expect(incrementalChangeStalenessPlugin.run(context)).rejects.toThrow();
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
+    const sibling = path.join(path.dirname(root), "unrelated-run"); mkdirSync(sibling);
+    writeFileSync(path.join(sibling, "retain"), "unrelated");
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(true);
+    expect(existsSync(root)).toBe(false);
+    expect(readFileSync(path.join(sibling, "retain"), "utf8")).toBe("unrelated");
+  });
+
+  it.each(["run", "tool"])("wrong %s identity consumes authority without deleting owned bytes", async (kind) => {
     const { context, root } = await claimed();
+    expect(await cleanupIncrementalChangeStalenessRun(kind === "tool" ? path.dirname(context.toolRoot) : context.toolRoot,
+      kind === "run" ? "wrong-run" : context.runId, context)).toBe(false);
+    expect(existsSync(root)).toBe(true);
+    expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
+  });
+
+  it("a substituted real parent cannot retain cleanup authority even if the owned child is moved back", async () => {
+    const context = invocation();
+    const root = resolveIncrementalChangeStalenessRunOwnedRoot(context.writableWorkspaceRoot!, context.runId);
     const parent = path.dirname(root);
+    const observations: unknown[] = [];
+    let expectedClaimDigest: string | null = null;
+    function observe(stage: string) {
+      const directories = [context.writableWorkspaceRoot!, parent, `${parent}-original`, root].map((directory, index) => {
+        if (!existsSync(directory)) return { index, exists: false };
+        const exact = lstatSync(directory, { bigint: true }), numeric = lstatSync(directory);
+        const marker = path.join(directory, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER);
+        const claim = existsSync(marker) ? JSON.parse(readFileSync(marker, "utf8")).claimId : null;
+        const claimDigest = typeof claim === "string" ? createHash("sha256").update(claim).digest("hex") : null;
+        return { index, dev: String(exact.dev), ino: String(exact.ino), numericIno: String(numeric.ino),
+          safeInteger: Number.isSafeInteger(numeric.ino), birthtimeNs: String(exact.birthtimeNs),
+          directory: exact.isDirectory(), link: exact.isSymbolicLink(),
+          realpathMatches: realpathSync(directory) === directory, markerPresent: existsSync(marker),
+          expectedClaimDigest, observedClaimDigest: claimDigest };
+      });
+      observations.push({ stage, directories });
+    }
+    observe("before claim");
+    await expect(incrementalChangeStalenessPlugin.run(context)).rejects.toThrow();
+    expectedClaimDigest = createHash("sha256").update(JSON.parse(readFileSync(path.join(root, INCREMENTAL_CHANGE_STALENESS_RUN_OWNER_MARKER), "utf8")).claimId).digest("hex");
+    observe("after claim");
+    const originalIdentity = await captureRuntimeDirectoryIdentity(parent);
     renameSync(parent, `${parent}-original`);
+    observe("after parent rename");
     mkdirSync(parent);
+    observe("after replacement creation");
     renameSync(path.join(`${parent}-original`, path.basename(root)), root);
+    observe("after child moved back");
+    expect(matchesRuntimeDirectoryIdentity(originalIdentity, await captureRuntimeDirectoryIdentity(parent))).toBe(false);
+    observe("before cleanup");
+    console.info("RUNTIME_PARENT_IDENTITY_OBSERVATIONS " + JSON.stringify(observations));
     expect(await cleanupIncrementalChangeStalenessRun(context.toolRoot, context.runId, context)).toBe(false);
     expect(existsSync(root)).toBe(true);
+    expect(existsSync(parent)).toBe(true);
+    expect(existsSync(`${parent}-original`)).toBe(true);
   });
 
   it("rejects a redirected workspace ancestor before creating missing children", async () => {
