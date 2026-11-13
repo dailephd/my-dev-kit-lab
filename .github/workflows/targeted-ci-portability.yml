@@ -1,5 +1,8 @@
 name: Targeted CI portability diagnostic
 on:
+  push:
+    branches:
+      - "validation/**"
   workflow_dispatch:
 permissions:
   contents: read
