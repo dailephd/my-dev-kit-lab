@@ -13,9 +13,45 @@ export function publicExecutionScope(args) {
   }
   return 'full';
 }
+function inventoryError(reason, file = '') {
+  const error = new Error('SOURCE_INVENTORY_ERROR: ' + reason + (file ? ' ' + JSON.stringify(file) : ''));
+  error.code = 'SOURCE_INVENTORY_ERROR';
+  return error;
+}
 export function sourceIdentity(root) {
-  const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim().split(/\r?\n/).filter(Boolean).sort();
-  return createHash('sha256').update(JSON.stringify(files.map(file => [file, createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')]))).digest('hex');
+  root = fs.realpathSync(root);
+  const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8', windowsHide: true }).split('\0').filter(Boolean).sort();
+  const rows = files.map(file => {
+    const absolute = path.resolve(root, file), relative = path.relative(root, absolute);
+    if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative) || path.isAbsolute(file)) throw inventoryError('path escape', file);
+    try {
+      let current = root;
+      const parts = relative.split(path.sep);
+      for (const [index, part] of parts.entries()) {
+        current = path.join(current, part);
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink()) throw inventoryError('symbolic link or junction', file);
+        if (index < parts.length - 1 ? !stat.isDirectory() : !stat.isFile()) throw inventoryError('unexpected directory or unsafe entry type', file);
+      }
+      return [file, createHash('sha256').update(fs.readFileSync(absolute)).digest('hex')];
+    } catch (error) {
+      if (error.code === 'SOURCE_INVENTORY_ERROR') throw error;
+      throw inventoryError('cannot inspect entry (' + (error.code ?? 'unknown') + ')', file);
+    }
+  });
+  return createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+}
+// Shared observation boundary: inventory failures are evidence, not uncaught fs errors.
+export function observeSourceExecution(root, execute) {
+  let before = null, after = null, result = { status: null }, inventoryDiagnostic = null;
+  try { before = sourceIdentity(root); }
+  catch (error) { inventoryDiagnostic = error.message; }
+  if (!inventoryDiagnostic) {
+    result = execute();
+    try { after = sourceIdentity(root); }
+    catch (error) { inventoryDiagnostic = error.message; }
+  }
+  return { before, after, result, inventoryDiagnostic };
 }
 export function ownedDirectory(root, directory) {
   const relative = path.relative(root, directory);
@@ -49,15 +85,18 @@ export function publicTemporaryRoot(root, platform = process.platform) {
   return temp;
 }
 export function runPublicTests(args = [], root = process.cwd()) {
-  const temp = publicTemporaryRoot(root);
-  ownedDirectory(root, path.join(root, '.my-dev-kit-context'));
-  const env = { ...process.env, TEMP: temp, TMP: temp, TMPDIR: temp, TSX_DISABLE_CACHE: '1', LAB_VERIFICATION_LANE: 'public' };
-  const before = sourceIdentity(root);
   const command = [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', ...PRIVATE_TEST_FILES.flatMap(file => ['--exclude', file]), ...args];
   console.log('PUBLIC_LANE: current published-provider behavior; private historical authentication is a separate MANDATORY gate, not executed here.');
-  const result = spawnSync(process.execPath, command, { cwd: root, env, stdio: 'inherit', windowsHide: true });
-  const after = sourceIdentity(root), passed = result.status === 0 && before === after;
-  const record = { schemaVersion: '1.0.0', lane: 'public', scope: publicExecutionScope(args), status: passed ? 'PASS' : 'FAIL', exitCode: result.status, candidateSha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim(), sourceIdentity: before, sourceUnchanged: before === after, command: [process.execPath, ...command], excludedPrivateFiles: PRIVATE_TEST_FILES, privateLane: 'REQUIRED_SEPARATE_GATE', environment: { node: process.version, platform: process.platform, arch: process.arch }, timestamp: new Date().toISOString() };
+  const { before, after, result, inventoryDiagnostic } = observeSourceExecution(root, () => {
+    const temp = publicTemporaryRoot(root);
+    ownedDirectory(root, path.join(root, '.my-dev-kit-context'));
+    const env = { ...process.env, TEMP: temp, TMP: temp, TMPDIR: temp, TSX_DISABLE_CACHE: '1', LAB_VERIFICATION_LANE: 'public' };
+    return spawnSync(process.execPath, command, { cwd: root, env, stdio: 'inherit', windowsHide: true });
+  });
+  const sourceUnchanged = before !== null && before === after;
+  const passed = !inventoryDiagnostic && result.status === 0 && sourceUnchanged;
+  if (inventoryDiagnostic) console.error(inventoryDiagnostic);
+  const record = { schemaVersion: '1.0.0', lane: 'public', scope: publicExecutionScope(args), status: passed ? 'PASS' : 'FAIL', exitCode: passed ? 0 : (result.status || 1), childExitCode: result.status, inventoryDiagnostic, candidateSha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim(), sourceIdentity: before, sourceUnchanged, command: [process.execPath, ...command], excludedPrivateFiles: PRIVATE_TEST_FILES, privateLane: 'REQUIRED_SEPARATE_GATE', environment: { node: process.version, platform: process.platform, arch: process.arch }, timestamp: new Date().toISOString() };
   const output = process.env.LAB_PUBLIC_VERIFICATION_RESULT;
   if (output) {
     const common = path.resolve(root, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim());

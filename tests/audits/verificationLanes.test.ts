@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error Existing verification entrypoints are plain ESM scripts.
 import { verifyPrivateBytes, validateBinding } from "../../scripts/verify-private-provenance.mjs";
 // @ts-expect-error Existing verification entrypoints are plain ESM scripts.
-import { sourceIdentity, publicTemporaryRoot, ownedDirectory, PRIVATE_TEST_FILES, publicExecutionScope } from "../../scripts/run-verification-lane.mjs";
+import { sourceIdentity, observeSourceExecution, runPublicTests, publicTemporaryRoot, ownedDirectory, PRIVATE_TEST_FILES, publicExecutionScope } from "../../scripts/run-verification-lane.mjs";
 const owned: string[] = [];
 const sha = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 afterEach(() => { for (const root of owned.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -126,4 +126,69 @@ describe("public lane source immutability", () => {
     expect(runFixture(root).status).toBe(0);
     expect(sourceIdentity(root)).not.toBe(before);
   });
+  it("keeps authorized runtime bytes and nested repositories outside source identity", () => {
+    const root = repository('');
+    fs.writeFileSync(path.join(root, ".gitignore"), fs.readFileSync(path.resolve(".gitignore")));
+    const before = sourceIdentity(root);
+    const runtime = ownedDirectory(root, path.join(root, ".my-dev-kit-workflow/t/retained"));
+    execFileSync("git", ["init", "--quiet", runtime], { windowsHide: true });
+    fs.writeFileSync(path.join(runtime, "artifact"), "retained runtime");
+    const observed = observeSourceExecution(root, () => ({ status: 0 }));
+    expect(observed.inventoryDiagnostic).toBeNull();
+    expect(observed.before).toBe(before);
+    expect(observed.after).toBe(before);
+    expect(fs.readFileSync(path.join(runtime, "artifact"), "utf8")).toBe("retained runtime");
+    fs.writeFileSync(path.join(root, "unexpected.ts"), "unauthorized source");
+    expect(sourceIdentity(root)).not.toBe(before);
+  });
+  it("rejects an unexpected untracked repository directory with a source diagnostic", () => {
+    const root = repository('');
+    const unexpected = path.join(root, "unexpected");
+    fs.mkdirSync(unexpected);
+    execFileSync("git", ["init", "--quiet", unexpected], { windowsHide: true });
+    expect(() => sourceIdentity(root)).toThrow('SOURCE_INVENTORY_ERROR: unexpected directory');
+  });
+  it("fails closed on a source junction or symlink, including linked ancestors", () => {
+    const root = repository('');
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "source-outside-")); owned.push(outside);
+    fs.writeFileSync(path.join(outside, "source.ts"), "outside source");
+    fs.mkdirSync(path.join(root, "linked"));
+    fs.writeFileSync(path.join(root, "linked/source.ts"), "original source");
+    execFileSync("git", ["add", "--", "linked/source.ts"], { cwd: root, windowsHide: true });
+    fs.rmSync(path.join(root, "linked"), { recursive: true });
+    fs.symlinkSync(outside, path.join(root, "linked"), process.platform === "win32" ? "junction" : "dir");
+    expect(() => sourceIdentity(root)).toThrow('SOURCE_INVENTORY_ERROR: symbolic link or junction');
+  });
+  it("records an inventory failure after a successful child without losing the diagnostic", () => {
+    const root = repository('');
+    const observed = observeSourceExecution(root, () => {
+      const unexpected = path.join(root, "leftover"); fs.mkdirSync(unexpected);
+      execFileSync("git", ["init", "--quiet", unexpected], { windowsHide: true });
+      return { status: 0 };
+    });
+    expect(observed.result.status).toBe(0);
+    expect(observed.before).toEqual(expect.any(String));
+    expect(observed.after).toBeNull();
+    expect(observed.inventoryDiagnostic).toContain("SOURCE_INVENTORY_ERROR");
+  });
+  it("emits a canonical FAIL result and never launches a child for invalid initial inventory", () => {
+    const root = repository('throw new Error("child must not launch");');
+    const unexpected = path.join(root, "unexpected"); fs.mkdirSync(unexpected);
+    execFileSync("git", ["init", "--quiet", unexpected], { windowsHide: true });
+    const output = path.join(root, ".my-dev-kit-context/failure.json");
+    const previous = process.env.LAB_PUBLIC_VERIFICATION_RESULT;
+    process.env.LAB_PUBLIC_VERIFICATION_RESULT = output;
+    try {
+      expect(runPublicTests([], root)).toBe(1);
+      expect(JSON.parse(fs.readFileSync(output, "utf8"))).toMatchObject({
+        status: "FAIL", scope: "full", exitCode: 1, childExitCode: null,
+        sourceUnchanged: false, sourceIdentity: null,
+        inventoryDiagnostic: expect.stringContaining("SOURCE_INVENTORY_ERROR"),
+      });
+    } finally {
+      if (previous === undefined) delete process.env.LAB_PUBLIC_VERIFICATION_RESULT;
+      else process.env.LAB_PUBLIC_VERIFICATION_RESULT = previous;
+    }
+  });
+
 });

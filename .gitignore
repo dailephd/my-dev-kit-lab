@@ -49,6 +49,7 @@ Thumbs.db
 lab-output/*
 !lab-output/.gitkeep
 .my-dev-kit-context/
+/.my-dev-kit-workflow/
 screenshots/
 tmp/
 temp/
