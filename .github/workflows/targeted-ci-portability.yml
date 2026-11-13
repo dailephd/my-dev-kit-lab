@@ -1,0 +1,31 @@
+name: Targeted CI portability diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  targeted:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: node scripts/run-verification-lane.mjs --prepare-ci
+      - run: npm ci
+      - name: Linux source exclusion
+        if: runner.os == 'Linux'
+        run: node scripts/run-verification-lane.mjs public tests/experiments/agentSuccessRate/realAgentContext.test.ts -t "REA-017|REA-018|REA-019|eligibility policy"
+      - name: macOS IPC and path ownership
+        if: runner.os == 'macOS'
+        run: node scripts/run-verification-lane.mjs public tests/audits/verificationLanes.test.ts tests/experiments/agentSuccessRate/campaignProgress.test.ts -t "public temporary IPC root|PATH-02|SECURITY-CONTAINMENT"
+      - name: Windows lifecycle diagnostic
+        if: runner.os == 'Windows'
+        run: node scripts/run-verification-lane.mjs public tests/experiments/agentSuccessRate/campaignExecution.test.ts tests/experiments/agentSuccessRate/campaignResume.test.ts -t "PHYSICAL-PATH-ALIAS|INTERRUPTED-TREATMENT|MISSING-ARTIFACT at publication|RSP-034 refuses|RSP-028/RSP-029 finalization" --maxWorkers 2 --reporter verbose
+      - name: Scope disclosure
+        run: node -e "console.log('Focused platform diagnostic only; complete readiness and protected exact-commit binding remain required.')"

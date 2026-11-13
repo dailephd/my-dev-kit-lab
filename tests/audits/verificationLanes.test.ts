@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -6,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error Existing verification entrypoints are plain ESM scripts.
 import { verifyPrivateBytes, validateBinding } from "../../scripts/verify-private-provenance.mjs";
 // @ts-expect-error Existing verification entrypoints are plain ESM scripts.
-import { ownedDirectory, PRIVATE_TEST_FILES, publicExecutionScope } from "../../scripts/run-verification-lane.mjs";
+import { publicTemporaryRoot, ownedDirectory, PRIVATE_TEST_FILES, publicExecutionScope } from "../../scripts/run-verification-lane.mjs";
 const owned: string[] = [];
 const sha = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 afterEach(() => { for (const root of owned.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -25,6 +26,36 @@ function fixture() {
   fs.writeFileSync(path.join(directory, "historicalEvidenceIdentity.v010.json"), JSON.stringify({ oracleSha256: sha(oracle), candidate05: { qualificationSha256: artifacts[0].sha256, sourceCommit: "c".repeat(40), packageVersion: "1.14.0" }, artifacts }));
   return { root, inputs: { paths } };
 }
+describe("public temporary IPC root", () => {
+  it("inherits the project temporary root in a real tsx command and preserves failure exit status", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "ipc-child-")); owned.push(root);
+    const temp = publicTemporaryRoot(process.cwd());
+    const env = { ...process.env, TEMP: temp, TMP: temp, TMPDIR: temp, TSX_DISABLE_CACHE: "1" };
+    const cli = path.resolve("node_modules/tsx/dist/cli.mjs");
+    const child = spawnSync(process.execPath, [cli, "--eval", "console.log(require('node:os').tmpdir())"], { env, encoding: "utf8", windowsHide: true });
+    expect(child.status, child.stderr).toBe(0); expect(child.stdout.trim()).toBe(temp);
+    const failed = spawnSync(process.execPath, [cli, "--eval", "process.exit(7)"], { env, encoding: "utf8", windowsHide: true });
+    expect(failed.status, failed.stderr).toBe(7);
+  });
+  it("uses a physical contained directory, rejects collisions and unsafe links, and respects Unix IPC bounds", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "ipc-")); owned.push(root);
+    const temp = publicTemporaryRoot(root, "win32");
+    expect(temp).toBe(fs.realpathSync(temp));
+    expect(path.relative(root, temp)).toBe(path.join(".my-dev-kit-workflow", "t"));
+    for (const [platform, bound] of [["darwin", 104], ["linux", 108]] as const) {
+      const length = Buffer.byteLength(path.join(temp, "tsx-4294967295", "2147483647.pipe")) + 1;
+      if (length <= bound) expect(publicTemporaryRoot(root, platform)).toBe(temp);
+      else expect(() => publicTemporaryRoot(root, platform)).toThrow("too long");
+    }
+    fs.rmdirSync(temp); fs.writeFileSync(temp, "collision");
+    expect(() => publicTemporaryRoot(root, "win32")).toThrow("Unsafe");
+    fs.unlinkSync(temp);
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "ipc-out-")); owned.push(outside);
+    fs.symlinkSync(outside, temp, process.platform === "win32" ? "junction" : "dir");
+    expect(() => publicTemporaryRoot(root, "win32")).toThrow("Unsafe");
+  });
+});
+
 describe("mandatory protected verification and exact-candidate binding", () => {
   it("examines actual private bytes and all 150 decisions", () => { const f = fixture(); expect(verifyPrivateBytes(f.root, f.inputs)).toMatchObject({ status: "PASS", decisions: 150, equivalent: 150 }); });
   it("fails missing evidence and altered bytes instead of trusting expected metadata", () => {

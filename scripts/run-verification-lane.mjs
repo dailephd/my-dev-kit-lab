@@ -38,8 +38,18 @@ export function verificationOutputDirectory(authority, filename) {
   })) throw new Error('Verification results must remain in private project-owned output roots');
   return ownedDirectory(authority, directory);
 }
+export function publicTemporaryRoot(root, platform = process.platform) {
+  root = fs.realpathSync(root);
+  const temp = ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/t'));
+  // tsx appends /tsx-<uid>/<pid>.pipe. Include worst-case numeric IDs
+  // and the terminating NUL in sockaddr_un.sun_path.
+  const ipc = path.join(temp, 'tsx-4294967295', '2147483647.pipe');
+  const bound = platform === 'darwin' ? 104 : platform === 'linux' ? 108 : Infinity;
+  if (Buffer.byteLength(ipc) + 1 > bound) throw new Error('Project path too long for tsx IPC; use a shorter physical checkout');
+  return temp;
+}
 export function runPublicTests(args = [], root = process.cwd()) {
-  const temp = ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/tmp/public-tests'));
+  const temp = publicTemporaryRoot(root);
   ownedDirectory(root, path.join(root, '.my-dev-kit-context'));
   const env = { ...process.env, TEMP: temp, TMP: temp, TMPDIR: temp, TSX_DISABLE_CACHE: '1', LAB_VERIFICATION_LANE: 'public' };
   const before = sourceIdentity(root);
@@ -59,7 +69,7 @@ export function runPublicTests(args = [], root = process.cwd()) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   if (process.argv[2] === '--prepare-ci') {
-    const root = fs.realpathSync(process.cwd()), temp = ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/tmp/public-tests'));
+    const root = fs.realpathSync(process.cwd()), temp = publicTemporaryRoot(root);
     const values = { TEMP: temp, TMP: temp, TMPDIR: temp, TSX_DISABLE_CACHE: '1', npm_config_cache: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/npm-cache')), npm_config_logs_dir: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/npm-logs')), PLAYWRIGHT_BROWSERS_PATH: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/browser-cache')) };
     ownedDirectory(root, path.join(root, '.my-dev-kit-context'));
     if (!process.env.GITHUB_ENV) throw new Error('CI environment output missing');

@@ -145,7 +145,15 @@ describe("REA context-pack context", () => {
     const result = await builder.build(buildContextTaskInput(makeTask()), root);
     const touchesDecoy = kit.commands.filter((command) => command.args[0] !== "search" && command.args.join(" ").includes("decoy"));
     expect(touchesDecoy).toEqual([]);
-    expect(kit.commands.filter((command) => command.args[0] === "source").every((command) => !command.args.join(" ").includes("tests/"))).toBe(true);
+    const sources = kit.commands.filter((command) => command.args[0] === "source");
+    expect(sources.length).toBeGreaterThan(0);
+    for (const command of sources) {
+      // Kit source uses --file; --index is metadata and may contain tests/.
+      expect(command.args.filter(arg => arg === "--file")).toHaveLength(1);
+      const file = command.args[command.args.indexOf("--file") + 1];
+      expect(isEligibleSourcePath(file, buildContextTaskInput(makeTask()))).toBe(true);
+      expect(file).not.toBe(TEST_DECOY_PATH);
+    }
     expect(result.text).not.toContain(TEST_DECOY_MARKER);
     expect(result.text).not.toContain(TEST_DECOY_PATH);
     expect(result.text).not.toContain(TRUSTED_MARKER);

@@ -32,12 +32,20 @@ async function fixture(provider: CampaignProvider = { kind: "deterministic-fixtu
 const simulated = (agent: ReturnType<typeof makeScriptedProvider>, repairAttempts: 0 | 1 | 2 = 0): CampaignProvider => ({ kind: "trusted-simulated-provider", simulationId: "progress-fixture", providerId: "codex", timeoutMs: 30000, repairAttempts, runAgent: agent.runAgent, contextDependencies: makeSourceBackedKit().dependencies });
 const q = (cp: CampaignCheckpointV2, tasks: Awaited<ReturnType<typeof fixture>>["tasks"], quantity: string) => classifyCampaignEvidence(cp, tasks).find(q => q.quantity === quantity)!;
 describe("validated campaign progress and immutable companion reports", () => {
-  it.skipIf(process.platform !== "darwin")("PATH-02 accepts the authorized physical identity of the macOS system temporary path alias", async () => {
+  it("PATH-02 accepts canonical output and the macOS system temporary alias when present", async () => {
     const f = await fixture();
     await f.run();
     const snapshot = await f.progress();
     const physicalRoot = await realpath(f.boundary.outputRoot);
-    expect(path.resolve(f.boundary.outputRoot)).not.toBe(path.resolve(physicalRoot));
+    // Project-owned TMPDIR may already be canonical on Darwin.
+    const canonicalBoundary = { ...f.boundary, outputRoot: physicalRoot };
+    await expect(readCampaignProgress(canonicalBoundary, f.prepared.identity, f.tasks)).resolves.toBeDefined();
+    if (process.platform === "darwin" && physicalRoot.startsWith("/private/var/")) {
+      const alias = physicalRoot.slice("/private".length);
+      if (await realpath(alias).catch(() => null) === physicalRoot) {
+        await expect(readCampaignProgress({ ...f.boundary, outputRoot: alias }, f.prepared.identity, f.tasks)).resolves.toBeDefined();
+      }
+    }
     const published = await writeAgentSuccessCampaignProgressReport({ snapshot, boundary: f.boundary });
     expect(JSON.parse(await readFile(published.outputPaths.jsonPath, "utf8")).schemaVersion).toBe("my-dev-kit-lab-agent-success-rate-campaign-progress-v1");
     expect(await readFile(published.outputPaths.textPath, "utf8")).toContain("Agent Success Rate Campaign Progress");
