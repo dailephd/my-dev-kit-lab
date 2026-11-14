@@ -65,15 +65,11 @@ describe("runAudit — source facts integration", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
       writeFile(root, "src/index.ts", "export const x = 1;\n");
       const config = normalizeAuditConfig({}, root);
-      const result = await runAudit({ config, toolRoot: root, registry: [] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, registry: [] });
       expect(result.sourceFacts).toBeDefined();
-      const entry = result.sourceFacts.files.find((f) => f.relativePath === "src/index.ts");
-      // v0.3.1 Batch 3 -- runAudit() uses collectSourceFacts()'s default
-      // registry, which now includes the TypeScript/JavaScript analyzer, so
-      // this file is actually parsed rather than falling back.
-      expect(entry?.parseStatus).toBe("parsed");
-      expect(entry?.analyzerId).toBe("typescript-javascript-analyzer");
-      expect(entry?.exports.some((e) => e.name === "x")).toBe(true);
+      expect(result.sourceFacts.provider).toBe("not-collected");
+      expect(result.sourceFacts.files).toEqual([]);
+      expect(result.inventory.sourceFiles.some(file => file.relativePath === "src/index.ts")).toBe(true);
     } finally {
       cleanup(root);
     }
@@ -98,7 +94,7 @@ describe("runAudit — source facts integration", () => {
           return [makeIssue()];
         },
       };
-      const result = await runAudit({ config, toolRoot: root, registry: [detector] });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, registry: [detector] });
       expect(result.issues).toHaveLength(1);
       expect(result.detectorErrors).toEqual([]);
     } finally {
@@ -114,17 +110,21 @@ describe("runAudit — source facts integration", () => {
       const config = normalizeAuditConfig({}, root);
       let seenFileCount = -1;
       const detector: AuditDetector = {
-        id: "reads-source-facts",
+        id: "dead-code-candidate",
         auditType: "code-rot",
         title: "Reads source facts",
         description: "test",
         supportedIncludeAreas: config.include,
         run: (ctx) => {
           seenFileCount = ctx.sourceFacts?.files.length ?? -1;
+          const entry = ctx.sourceFacts?.files.find(file => file.relativePath === "src/index.ts");
+          expect(entry?.parseStatus).toBe("parsed");
+          expect(entry?.analyzerId).toBe("kit:typescript-ast");
+          expect(entry?.exports.some(fact => fact.name === "x")).toBe(true);
           return [];
         },
       };
-      await runAudit({ config, toolRoot: root, registry: [detector] });
+      await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, registry: [detector] });
       expect(seenFileCount).toBeGreaterThan(0);
     } finally {
       cleanup(root);

@@ -102,7 +102,9 @@ export async function executeResumableCampaign(prepared: PreparedCampaign, args:
       const canonicalProjectRoot = await resolveControlledBenchmarkProject(boundary.toolRoot, unit.task.benchmarkProject);
       const contextInput = buildContextTaskInput(executionTask);
       const contexts = packBuilder ? { "raw-full-file": await buildRawFullFileContext(contextInput, canonicalProjectRoot), "context-pack": await packBuilder.build(contextInput, canonicalProjectRoot) } : null;
-      activeRuntime = await resolveSandboxRuntimeRoot(epochRoot, boundary.toolRoot);
+      // Disposable sandboxes use the run boundary; epochRoot remains the durable evidence owner.
+      // The complete run/epoch identity below determines the existing sandbox id.
+      activeRuntime = await resolveSandboxRuntimeRoot(boundary.outputRoot, boundary.toolRoot, "r");
       await publish(transitionCampaignCheckpointV2(outcome.checkpoint!, tasks, { kind: "authorize", index: unit.checkpointIndex }, at()));
       await fresh();
       const claimed = (await read()).checkpoint!;

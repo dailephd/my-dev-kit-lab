@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dailephd/my-dev-kit/main/contracts/ecosystem/v1/evidence-envelope-v1.schema.json",
+  "title": "EvidenceEnvelopeV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "evidenceId",
+    "capabilityId",
+    "subject",
+    "nativeArtifact",
+    "freshness"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilityId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "subject": {
+      "$ref": "https://raw.githubusercontent.com/dailephd/my-dev-kit/main/contracts/ecosystem/v1/subject-identity-v1.schema.json"
+    },
+    "environment": {
+      "$ref": "https://raw.githubusercontent.com/dailephd/my-dev-kit/main/contracts/ecosystem/v1/environment-identity-v1.schema.json"
+    },
+    "nativeArtifact": {
+      "$ref": "https://raw.githubusercontent.com/dailephd/my-dev-kit/main/contracts/ecosystem/v1/native-artifact-reference-v1.schema.json"
+    },
+    "freshness": {
+      "enum": [
+        "current",
+        "stale",
+        "partially-stale",
+        "unknown",
+        "not-applicable"
+      ]
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

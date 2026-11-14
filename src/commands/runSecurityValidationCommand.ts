@@ -3,7 +3,7 @@ import { runSecurityValidation } from "../securityValidation/validate/runSecurit
 import { resolveValidationTarget, reportFilenamePrefix } from "../securityValidation/validate/resolveTarget.js";
 import { buildSecurityReportFromSummary } from "../securityValidation/report/buildSecurityReport.js";
 import { renderTextReport } from "../securityValidation/report/renderSecurityReport.js";
-import { writeSecurityReportFiles } from "../securityValidation/report/writeSecurityReportFiles.js";
+import { assertSecurityOutputPath, assertSecurityReportPrefix, writeSecurityReportFiles } from "../securityValidation/report/writeSecurityReportFiles.js";
 import {
   parseSecurityValidateArgs,
   normalizeSecurityValidateConfig,
@@ -125,6 +125,17 @@ export async function runSecurityValidationCommandFromArgs(
     return 1;
   }
 
+  // Validate output authority before any check can write intermediate evidence.
+  // The same root owns final reports, check JSON, raw streams and npm cache.
+  try {
+    assertSecurityReportPrefix(args.reportPrefix ?? reportFilenamePrefix(target));
+    assertSecurityOutputPath(config.out);
+    assertSecurityOutputPath(path.join(config.out, "raw", "npm-cache"), false, true);
+  } catch (err) {
+    console.error(`\nERROR: Invalid security output destination: ${err instanceof Error ? err.message : String(err)}`);
+    return 2;
+  }
+
   console.log("=".repeat(60));
   console.log("my-dev-kit-lab security:validate");
   console.log("=".repeat(60));
@@ -243,6 +254,10 @@ export async function runSecurityValidationCommandFromArgs(
   const summary = await runSecurityValidation({
     cwd: toolRoot,
     targetPath: args.target,
+    config: {
+      reportDir: config.out,
+      rawOutputDir: path.join(config.out, "raw")
+    },
     fuzzIterations: parseInt(process.env["FUZZ_ITERATIONS"] ?? "50", 10),
     fuzzSeed: parseInt(process.env["FUZZ_SEED"] ?? "0xDEADBEEF", 16),
     // Full selection (implemented + planned/attack-scenario ids) -- the runner
@@ -274,12 +289,19 @@ export async function runSecurityValidationCommandFromArgs(
 
   // Determine report filename prefix
   const prefix = args.reportPrefix ?? reportFilenamePrefix(target);
-  const { writtenPaths } = writeSecurityReportFiles({
-    outDir: reportsDir,
-    prefix,
-    report,
-    formats: config.formats
-  });
+  let writtenPaths: string[];
+  try {
+    ({ writtenPaths } = writeSecurityReportFiles({
+      outDir: reportsDir,
+      prefix,
+      report,
+      formats: config.formats
+    }));
+  } catch (err) {
+    console.error(`\nERROR: Failed to write security report files: ${err instanceof Error ? err.message : String(err)}`);
+    console.error("Validation completed but the report could not be written. The in-memory result was not persisted.");
+    return 4;
+  }
 
   // Print report to stdout
   console.log(textReport);

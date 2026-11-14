@@ -1,10 +1,10 @@
+import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scanProjectInventory } from "../../../src/audits/core/projectInventory.js";
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
-import { collectSourceFacts } from "../../../src/audits/core/collectSourceFacts.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { DOCS_CODE_MISMATCH_DETECTOR } from "../../../src/audits/codeRot/detectors/docsCodeMismatchDetector.js";
@@ -40,14 +40,28 @@ function buildContext(root: string): AuditDetectorContext {
 
 async function run(root: string) {
   const ctx = buildContext(root);
-  return DOCS_CODE_MISMATCH_DETECTOR.run(ctx);
+  return executeWithKit(ctx);
 }
 
 async function runWithSourceFacts(root: string) {
-  const ctx = buildContext(root);
-  const sourceFacts = await collectSourceFacts(root, ctx.inventory);
-  return DOCS_CODE_MISMATCH_DETECTOR.run({ ...ctx, sourceFacts });
+  // The runner supplies qualified facts and its authenticated reader together.
+  return executeWithKit(buildContext(root));
 }
+
+describe("documentation symbol token boundaries", () => {
+  it("retains simple claims and recognizes nested owner tokens without treating arbitrary dotted text as a type", async () => {
+    const root = makeTempDir();
+    try {
+      writeFixturePackage(root);
+      writeFile(root, "src/main/java/com/example/Present.java", "package com.example;\npublic class Present {}\n");
+      writeFile(root, "README.md", "Use `Present`, `com.example.Owner.Missing`, and `src/file.java`.\n");
+      const issues = await runWithSourceFacts(root);
+      expect(issues.some(i => i.title.includes('"Present"'))).toBe(false);
+      expect(issues.find(i => i.title.includes("com.example.Owner.Missing"))).toMatchObject({ severity: "info", confidence: "low" });
+      expect(issues.some(i => i.title.includes("src/file.java"))).toBe(false);
+    } finally { cleanup(root); }
+  });
+});
 
 function writeFixturePackage(root: string, overrides: Record<string, unknown> = {}): void {
   writeFile(
@@ -527,3 +541,11 @@ describe("DOCS_CODE_MISMATCH_DETECTOR — Android boundary (v0.3.3 Batch 3, T10)
     }
   });
 });
+
+// Test setup delegates source acquisition to the real qualified provider.
+async function executeWithKit(ctx: AuditDetectorContext) {
+  const result = await runAudit({ config: ctx.config, toolRoot: ctx.target.rootPath, target: ctx.target, registry: [DOCS_CODE_MISMATCH_DETECTOR],
+    kitSourceProviderDependencies: {} });
+  if (result.detectorErrors.length) throw new Error(JSON.stringify(result.detectorErrors));
+  return result.issues;
+}

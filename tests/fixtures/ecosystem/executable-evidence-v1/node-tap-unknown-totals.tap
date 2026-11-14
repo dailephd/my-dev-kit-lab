@@ -1,0 +1,8 @@
+TAP version 13
+# Subtest: exact native assertion
+ok 1 - exact native assertion
+  ---
+  duration_ms: 1
+  type: 'test'
+  ...
+1..1

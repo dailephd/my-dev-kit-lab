@@ -18,3 +18,12 @@ benchmarks/projects/task-workflow-medium-ts/src/services/completeTask.ts text eo
 # Reviewed local HTTP callsites have LF-canonical source identities.
 src/runtime/managedProcess.ts text eol=lf
 src/tutorial/tutorialAssertions.ts text eol=lf
+
+# Rust source-audit fixtures use deterministic byte and source-range identities.
+tests/fixtures/audits/rust-reuse/** text eol=lf
+
+# The public oracle projection has an exact serialized SHA-256 on every platform.
+tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json text eol=lf
+# Preserve the existing 121-file oracle input hashes; neither corpus is rebaselined.
+tests/fixtures/audits/kit-differential-v010/** text eol=lf
+tests/fixtures/audits/mixed-language/** text eol=crlf

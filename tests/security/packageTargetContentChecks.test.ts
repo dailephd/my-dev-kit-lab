@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
+import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as commands from "../../src/securityValidation/commandRunner.js";
@@ -15,12 +17,12 @@ import { renderJsonReport } from "../../src/securityValidation/report/renderSecu
 
 const toolRoot = process.cwd();
 async function fixture(metadata: unknown = { name: "external-cli", version: "1.0.0", bin: "./dist/cli.js" }) {
-  const tmp = path.join(toolRoot, "tmp", "package-security");
+  const tmp = path.join(os.tmpdir(), "package-security");
   await fs.mkdir(tmp, { recursive: true });
   const root = await fs.mkdtemp(path.join(tmp, "target-"));
   await fs.writeFile(path.join(root, "package.json"), JSON.stringify(metadata));
   const target = resolveValidationTarget(root, toolRoot);
-  const reportDir = path.join(toolRoot, "reports", "package-regressions", path.basename(root));
+  const reportDir = path.join(tmp, "reports", path.basename(root));
   const config = { ...DEFAULT_SECURITY_CONFIG, reportDir, rawOutputDir: path.join(reportDir, "raw") };
   return { root, target, config };
 }
@@ -170,11 +172,16 @@ describe("resolved target package contract", () => {
     const f = await fixture({ name: "external-cli", version: "1.0.0", bin: "cli.js" });
     await fs.writeFile(path.join(f.root, "cli.js"), "console.log('cli');");
     const before = await snapshot(f.root);
+    const packageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "package-cli-tool-"));
+    await fs.copyFile(path.join(toolRoot, "package.json"), path.join(packageRoot, "package.json"));
+    const owner = pathToFileURL(path.join(toolRoot, "src/commands/runSecurityValidationCommand.ts")).href;
+    const context = pathToFileURL(path.join(toolRoot, "src/runtime/labExecutionContext.ts")).href;
+    const driver = `import { runSecurityValidationCommandFromArgs } from ${JSON.stringify(owner)}; import { createLabExecutionContext } from ${JSON.stringify(context)}; process.exitCode = await runSecurityValidationCommandFromArgs(JSON.parse(process.argv[1]), { context: createLabExecutionContext({ packageRoot: process.argv[2], workspaceRoot: process.argv[2], invocationCwd: process.cwd() }) });`;
     const result = await commands.runSecurityCommand({ command: process.execPath,
-      args: ["--import", "tsx", "scripts/security/runPackageChecks.ts", "--target", f.root],
+      args: ["--import", "tsx", "--input-type", "module", "-e", driver, JSON.stringify(["--target", f.root, "--checks", "package", "--out", f.config.reportDir, "--format", "text"]), packageRoot],
       cwd: toolRoot, timeoutMs: 30_000 });
     expect(result.exitCode, result.stderr).toBe(0);
-    expect(result.stdout).toContain("Findings: 0");
+    expect(result.stdout).toMatch(/^Findings\s*:\s*0\s*$/m);
     expect(await snapshot(f.root)).toEqual(before);
   }, 30_000);
 

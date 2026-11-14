@@ -28,6 +28,15 @@ describe("package script contract: test vs verify", () => {
     expect(pkg.scripts.test).toBe("vitest run");
   });
 
+  it("exposes public verification separately from mandatory protected provenance and binding", () => {
+    expect(pkg.scripts["test:public"]).toBe("node scripts/run-verification-lane.mjs public");
+    expect(pkg.scripts["verify:provenance"]).toBe("node scripts/verify-private-provenance.mjs");
+    expect(pkg.scripts["verify:readiness-binding"]).toBe("node scripts/verify-private-provenance.mjs --check-binding");
+    const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+    expect(workflow).toContain("npm test -- --exclude tests/audits/kitSourceDifferential.test.ts --exclude tests/audits/kitSourceReaderReplacement.test.ts");
+    expect(workflow).toContain("neither was executed or passed by this job");
+  });
+
   it("defines a verify script", () => {
     expect(pkg.scripts.verify).toBeDefined();
   });

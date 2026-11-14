@@ -1,14 +1,19 @@
+import { createRequire } from "node:module";
+import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scanProjectInventory } from "../../../src/audits/core/projectInventory.js";
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
-import { collectSourceFacts } from "../../../src/audits/core/collectSourceFacts.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { DEAD_CODE_CANDIDATE_DETECTOR } from "../../../src/audits/codeRot/detectors/deadCodeCandidateDetector.js";
 import type { AuditDetectorContext } from "../../../src/audits/core/auditRegistry.js";
+
+// Production-positive fixtures use the actual managed published provider.
+// Historical Candidate 05 bytes and differential-comparison fixtures stay unchanged.
+const publishedKitRoot = path.dirname(createRequire(import.meta.url).resolve("@dailephd/my-dev-kit/package.json"));
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "dead-code-test-"));
@@ -40,13 +45,12 @@ function buildContext(root: string): AuditDetectorContext {
 
 async function run(root: string) {
   const ctx = buildContext(root);
-  return DEAD_CODE_CANDIDATE_DETECTOR.run(ctx);
+  return executeWithKit(ctx);
 }
 
 async function runWithSourceFacts(root: string) {
-  const ctx = buildContext(root);
-  const sourceFacts = await collectSourceFacts(root, ctx.inventory);
-  return DEAD_CODE_CANDIDATE_DETECTOR.run({ ...ctx, sourceFacts });
+  // The runner supplies qualified facts and its authenticated reader together.
+  return executeWithKit(buildContext(root));
 }
 
 describe("DEAD_CODE_CANDIDATE_DETECTOR — unreferenced scripts/ files", () => {
@@ -185,15 +189,13 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — source-facts-derived reference eviden
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
-      // A dynamic import has no "from"/"require(" token, so the regex-based
-      // reverse-reference scan (IMPORT_SPECIFIER_PATTERN) never sees it --
-      // only the TypeScript/JavaScript analyzer's structured ImportFact
-      // (kind "dynamic") records this reference.
+      // Kit supplies the dynamic import proof for both default and explicit
+      // source-facts execution.
       writeFile(root, "src/main.ts", 'export async function load() { return import("./helper.js"); }\n');
       writeFile(root, "src/helper.ts", "export function helper() {}\n");
 
-      const withoutFacts = await run(root);
-      expect(withoutFacts.some((i) => i.title.includes("helper.ts"))).toBe(true);
+      const defaultKit = await run(root);
+      expect(defaultKit.some((i) => i.title.includes("helper.ts"))).toBe(false);
 
       const withFacts = await runWithSourceFacts(root);
       expect(withFacts.some((i) => i.title.includes("helper.ts"))).toBe(false);
@@ -210,7 +212,10 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — source-facts-derived reference eviden
       const issues = await runWithSourceFacts(root);
       const issue = issues.find((i) => i.title.includes("orphanModule.ts"));
       expect(issue).toBeDefined();
-      expect(issue?.evidence.some((e) => e.message.startsWith("Source facts:"))).toBe(true);
+      const sourceEvidence = issue?.evidence.find((e) => e.message.startsWith("Source facts for"));
+      expect(sourceEvidence).toMatchObject({ filePath: "src/orphanModule.ts", kind: "reference", confidence: "medium" });
+      expect(sourceEvidence?.message).toContain('Source facts for "src/orphanModule.ts" (typescript)');
+      expect(sourceEvidence?.message).toContain("recorded 1 export(s), 1 declaration(s), and 0 import(s)");
     } finally {
       cleanup(root);
     }
@@ -358,13 +363,14 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — Python declaration candidates (Batch 
     }
   });
 
-  it("does not flag anything when sourceFacts is absent from the detector context", async () => {
+  it("fails closed when authenticated source content is absent from the detector context", async () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "src/widget.py", "def unreferenced_fn():\n    return 1\n");
-      const issues = await run(root); // buildContext() with no sourceFacts field
-      expect(issues.some((i) => i.title.includes('"unreferenced_fn"'))).toBe(false);
+      await expect(DEAD_CODE_CANDIDATE_DETECTOR.run(buildContext(root))).rejects.toMatchObject({
+        category: "invalid-request",
+      });
     } finally {
       cleanup(root);
     }
@@ -588,20 +594,40 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — Kotlin declaration candidates (v0.3.3
 });
 
 describe("DEAD_CODE_CANDIDATE_DETECTOR — real self-scan regression guard", () => {
-  it("produces no medium+ severity findings against this repo's own current state", async () => {
-    const issues = await run(process.cwd());
+  it("fails closed when the real repository contains unqualified required import evidence", async () => {
+    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
+  }, 1800000);
+
+  // Qualified bounded cases retain the finding-policy assertions independently
+  // of the real repository acquisition failure above.
+  it("keeps qualified Python declaration candidates conservative without treating acquisition failure as empty findings", async () => {
+    const root = makeTempDir();
+    try {
+    writeFile(root, "package.json", JSON.stringify({ name: "qualified-python-guard", version: "1.0.0" }));
+    writeFile(root, "src/unused.py", "def unreferenced_fn():\n    return 1\n");
+    const issues = await runWithSourceFacts(root);
     const nonInfoLow = issues.filter((i) => i.severity !== "info" && i.severity !== "low");
     expect(nonInfoLow).toEqual([]);
-  });
-
-  // v0.3.2 Batch 2 -- the test above uses run() (no sourceFacts), which
-  // never exercises findPossiblyUnreferencedPythonDeclarations() against
-  // this repo's real Python fixtures (benchmarks/projects/*/py, todo-python,
-  // etc.). This is the real regression guard for that check.
-  it("keeps Python declaration candidates at info/low against this repo's own real source facts", async () => {
-    const issues = await runWithSourceFacts(process.cwd());
     const pythonDeclIssues = issues.filter((i) => i.id.startsWith(`${"dead-code-candidate"}:unreferenced-python-declaration:`));
+    expect(pythonDeclIssues.length).toBeGreaterThan(0);
     expect(pythonDeclIssues.every((i) => i.severity === "info")).toBe(true);
     expect(pythonDeclIssues.every((i) => i.confidence === "low")).toBe(true);
-  });
+    } finally { cleanup(root); }
+  }, 1800000);
 });
+
+// Real whole-repository acquisition performs paged CLI queries for every selected file.
+// Its integration timeout includes those queries; finding assertions remain unchanged.
+// Test setup delegates source acquisition to the real qualified provider.
+let selfRun: Promise<Awaited<ReturnType<typeof DEAD_CODE_CANDIDATE_DETECTOR.run>>> | undefined;
+async function executeWithKit(ctx: AuditDetectorContext) {
+  const perform = async () => {
+  const result = await runAudit({ config: ctx.config, toolRoot: ctx.target.rootPath, target: ctx.target, registry: [DEAD_CODE_CANDIDATE_DETECTOR],
+    kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot } });
+  if (result.detectorErrors.length) throw new Error(JSON.stringify(result.detectorErrors));
+  return result.issues;
+
+  };
+  if (path.resolve(ctx.target.rootPath) === path.resolve(process.cwd())) return selfRun ??= perform();
+  return perform();
+}

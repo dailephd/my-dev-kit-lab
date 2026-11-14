@@ -12,3 +12,5 @@ export * from "./agents/index.js";
 export * from "./gallery/index.js";
 export * from "./plots/index.js";
 export * from "./visualizationDemos/index.js";
+export { readExecutableEvidence, captureAuthorizedEvidence, evaluateExecutableEvidence, certifyExecutableEvidenceBundle } from "./evaluation/executableEvidence/index.js";
+export type * from "./evaluation/executableEvidence/types.js";

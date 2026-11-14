@@ -1,10 +1,11 @@
+import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scanProjectInventory } from "../../../src/audits/core/projectInventory.js";
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
-import { collectSourceFacts } from "../../../src/audits/core/collectSourceFacts.js";
+import { collectKitSourceFacts } from "../../../src/audits/core/kitSourceProvider.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { TEST_ROT_DETECTOR } from "../../../src/audits/codeRot/detectors/testRotDetector.js";
@@ -40,13 +41,12 @@ function buildContext(root: string): AuditDetectorContext {
 
 async function run(root: string) {
   const ctx = buildContext(root);
-  return TEST_ROT_DETECTOR.run(ctx);
+  return executeWithKit(ctx);
 }
 
 async function buildContextWithSourceFacts(root: string): Promise<AuditDetectorContext> {
-  const ctx = buildContext(root);
-  const sourceFacts = await collectSourceFacts(root, ctx.inventory);
-  return { ...ctx, sourceFacts };
+  // Acquisition belongs to runAudit, which supplies both facts and reader.
+  return buildContext(root);
 }
 
 describe("TEST_ROT_DETECTOR — missing source imports", () => {
@@ -54,6 +54,7 @@ describe("TEST_ROT_DETECTOR — missing source imports", () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/selectionWitness.ts", "export {};\n");
       writeFile(root, "tests/example.test.ts", 'import { thing } from "../src/doesNotExist.js";\nthing();\n');
       const issues = await run(root);
       expect(issues.some((i) => i.title.includes("missing source file"))).toBe(true);
@@ -207,7 +208,7 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
       writeFile(root, "src/pkg/foo.py", "def do_thing():\n    return 1\n");
       writeFile(root, "tests/test_foo.py", "from ..src.pkg.foo import do_thing\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -221,7 +222,7 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
       writeFile(root, "tests/foo.py", "def do_thing():\n    return 1\n");
       writeFile(root, "tests/test_foo.py", "from .foo import do_thing\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -234,7 +235,7 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       const issue = issues.find((i) => i.title.includes("may not exist"));
       expect(issue).toBeDefined();
       expect(issue?.title).toContain(".missing_module");
@@ -249,14 +250,13 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
     }
   });
 
-  it("T8: flags a Python test importing a missing sibling name via bare 'from . import name'", async () => {
+  it("T8: rejects an unqualified Python sibling import proof without guessing a target", async () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "tests/test_foo.py", "from . import missing_sibling\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
-      expect(issues.some((i) => i.title.includes("missing_sibling") || i.title.includes('"."'))).toBe(true);
+      await expect(executeWithKit(ctx)).rejects.toThrow(/PYTHON_CANDIDATES_NOT_ENUMERABLE/);
     } finally {
       cleanup(root);
     }
@@ -268,7 +268,7 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "tests/test_foo.py", "import os\nfrom pkg.module import Name\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -281,7 +281,7 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       const matches = issues.filter((i) => i.title.includes(".missing_module"));
       expect(matches).toHaveLength(1);
     } finally {
@@ -296,7 +296,7 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
       writeFile(root, "pytest.ini", "[pytest]\n");
       writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       const issue = issues.find((i) => i.title.includes("may not exist"));
       expect(issue).toBeDefined();
       expect(issue?.severity).toBe("low");
@@ -313,7 +313,7 @@ describe("TEST_ROT_DETECTOR — Python test/source mapping (Batch 2)", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       const issue = issues.find((i) => i.title.includes("may not exist"));
       expect(issue).toBeDefined();
       expect(issue?.evidence.some((e) => e.message.includes("pytest configuration"))).toBe(false);
@@ -335,7 +335,7 @@ describe("TEST_ROT_DETECTOR — Java test/source mapping (v0.3.3 Batch 2)", () =
         "package com.example;\n\nimport com.example.Foo;\n\nclass FooTest {\n}\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -352,8 +352,8 @@ describe("TEST_ROT_DETECTOR — Java test/source mapping (v0.3.3 Batch 2)", () =
         "package com.example;\n\nimport com.example.MissingThing;\n\nclass FooTest {\n}\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
-      const issue = issues.find((i) => i.title.includes("may not exist"));
+      const issues = await executeWithKit(ctx);
+      const issue = issues.find((i) => i.title.includes("has no selected Java declaration"));
       expect(issue).toBeDefined();
       expect(issue?.title).toContain("com.example.MissingThing");
       expect(issue?.severity).toBe("low");
@@ -362,8 +362,8 @@ describe("TEST_ROT_DETECTOR — Java test/source mapping (v0.3.3 Batch 2)", () =
       // Conservative wording -- this is a candidate, not a proven-broken test.
       expect(issue?.description.toLowerCase()).not.toContain("broken test");
       expect(issue?.description.toLowerCase()).not.toContain("missing dependency");
-      expect(issue?.description).toContain("no compiler/classpath analysis was performed");
-      expect(issue?.description).toContain("no Gradle/Maven execution was performed");
+      expect(issue?.description).toContain("complete witnessed selected ordinary JVM source domain");
+      expect(issue?.description).toContain("does not establish static-member binding or global compiler/classpath absence");
     } finally {
       cleanup(root);
     }
@@ -380,7 +380,7 @@ describe("TEST_ROT_DETECTOR — Java test/source mapping (v0.3.3 Batch 2)", () =
         "package com.example;\n\nimport static com.example.Foo.bar;\n\nclass FooTest {\n}\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -393,10 +393,10 @@ describe("TEST_ROT_DETECTOR — Kotlin test/source mapping (v0.3.3 Batch 2)", ()
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
-      writeFile(root, "src/main/kotlin/com/example/Foo.kt", "package com.example\n\nclass Foo\n");
-      writeFile(root, "src/test/kotlin/com/example/FooSpec.kt", "package com.example\n\nimport com.example.Foo\n\nclass FooSpec\n");
+      writeFile(root, "src/main/kotlin/com/example/Foo.kt", "package com.example\n\nclass Foo {}\n");
+      writeFile(root, "src/test/kotlin/com/example/FooSpec.kt", "package com.example\n\nimport com.example.Foo\n\nclass FooSpec {}\n");
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -410,11 +410,11 @@ describe("TEST_ROT_DETECTOR — Kotlin test/source mapping (v0.3.3 Batch 2)", ()
       writeFile(
         root,
         "src/test/kotlin/com/example/FooSpec.kt",
-        "package com.example\n\nimport com.example.MissingThing\n\nclass FooSpec\n"
+        "package com.example\n\nimport com.example.MissingThing\n\nclass FooSpec {}\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
-      const issue = issues.find((i) => i.title.includes("may not exist"));
+      const issues = await executeWithKit(ctx);
+      const issue = issues.find((i) => i.title.includes("has no selected Kotlin declaration"));
       expect(issue).toBeDefined();
       expect(issue?.title).toContain("com.example.MissingThing");
       expect(issue?.severity).toBe("low");
@@ -426,19 +426,18 @@ describe("TEST_ROT_DETECTOR — Kotlin test/source mapping (v0.3.3 Batch 2)", ()
     }
   });
 
-  it("does not flag a Kotlin test importing an aliased existing local class", async () => {
+  it("fails closed for an aliased Kotlin import whose declaration domain is unqualified", async () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
-      writeFile(root, "src/main/kotlin/com/example/Foo.kt", "package com.example\n\nclass Foo\n");
+      writeFile(root, "src/main/kotlin/com/example/Foo.kt", "package com.example\n\nclass Foo {}\n");
       writeFile(
         root,
         "src/test/kotlin/com/example/FooSpec.kt",
-        "package com.example\n\nimport com.example.Foo as Bar\n\nclass FooSpec\n"
+        "package com.example\n\nimport com.example.Foo as Bar\n\nclass FooSpec {}\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
-      expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
+      await expect(executeWithKit(ctx)).rejects.toThrow(/JVM_DECLARATION_DOMAIN_INCOMPLETE/);
     } finally {
       cleanup(root);
     }
@@ -452,10 +451,10 @@ describe("TEST_ROT_DETECTOR — Kotlin test/source mapping (v0.3.3 Batch 2)", ()
       writeFile(
         root,
         "src/test/kotlin/com/example/FooSpec.kt",
-        "package com.example\n\nimport com.example.JavaHelper\n\nclass FooSpec\n"
+        "package com.example\n\nimport com.example.JavaHelper\n\nclass FooSpec {}\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -487,7 +486,7 @@ describe("TEST_ROT_DETECTOR — JVM standard-library/third-party import suppress
         ].join("\n") + "\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -513,7 +512,7 @@ describe("TEST_ROT_DETECTOR — JVM standard-library/third-party import suppress
         ].join("\n") + "\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -530,7 +529,7 @@ describe("TEST_ROT_DETECTOR — JVM standard-library/third-party import suppress
         "package com.example;\n\nimport com.example.other.*;\n\nclass FooTest {\n}\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("may not exist"))).toBe(false);
     } finally {
       cleanup(root);
@@ -547,7 +546,7 @@ describe("TEST_ROT_DETECTOR — JVM standard-library/third-party import suppress
         "package com.example;\n\nimport com.example.MissingThing;\n\nclass FooTest {\n}\n"
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       const matches = issues.filter((i) => i.title.includes("com.example.MissingThing"));
       expect(matches).toHaveLength(1);
     } finally {
@@ -568,11 +567,15 @@ describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
       writeFile(root, `${generated}/history/src/copied.py`, "historical = True\n");
       writeFile(root, `${generated}-notes/tests/current.test.ts`, 'it.only("retained", () => {});\n');
       const ctx = await buildContextWithSourceFacts(root);
+      // This test inspects the snapshot itself as well as runner findings.
+      ctx.sourceFacts = await collectKitSourceFacts({ targetRoot: root, inventory: ctx.inventory, requiredCapabilities: [], includeScriptsRoot: true }, {
+
+      });
       expect(ctx.inventory.files.some((file) => file.relativePath.startsWith(`${generated}/`))).toBe(false);
       expect(ctx.sourceFacts!.files.some((file) => file.relativePath.startsWith(`${generated}/`))).toBe(false);
       expect(ctx.sourceFacts!.files.map((file) => file.relativePath)).toEqual(expect.arrayContaining(["src/current.py", "tests/test_current.py"]));
       expect(ctx.inventory.excludedDirectorySummary).toContainEqual({ name: generated, occurrences: 1 });
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       const focused = issues.filter((issue) => issue.title.includes(".only("));
       expect(focused.map((issue) => issue.affectedFiles[0]).sort()).toEqual([`${generated}-notes/tests/current.test.ts`, "tests/current.test.ts"].sort());
       expect(focused.every((issue) => issue.severity === "high")).toBe(true);
@@ -582,22 +585,27 @@ describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
     } finally {
       cleanup(root);
     }
-  });
+  }, 90000);
 
-  it("produces no .only findings against this repo's own current test suite", async () => {
-    const issues = await run(process.cwd());
+  it("fails closed when a whole-repository test import lacks a qualified proof", async () => {
+    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
+  }, 1800000);
+
+  // Qualified bounded cases retain the finding-policy assertions independently
+  // of the real repository acquisition failure above.
+  it("preserves no-only and conservative Python severity policies over qualified source evidence", async () => {
+    const root = makeTempDir();
+    try {
+    writeFile(root, "package.json", JSON.stringify({ name: "qualified-test-guard", version: "1.0.0" }));
+    writeFile(root, "tests/test_foo.py", "from .missing_module import Thing\n");
+    const ctx = await buildContextWithSourceFacts(root);
+    const issues = await executeWithKit(ctx);
     expect(issues.some((i) => i.title.includes(".only("))).toBe(false);
-  });
-
-  // v0.3.2 Batch 2 -- the test above uses run() (no sourceFacts), which
-  // never exercises findMissingPythonSourceImports() against this repo's
-  // real Python benchmark fixtures. This is the real regression guard.
-  it("does not crash and stays conservative for Python test-rot findings against this repo's own real source facts", async () => {
-    const ctx = await buildContextWithSourceFacts(process.cwd());
-    const issues = await TEST_ROT_DETECTOR.run(ctx);
     const pythonImportIssues = issues.filter((i) => i.id.includes("missing-python-source-import"));
+    expect(pythonImportIssues.length).toBeGreaterThan(0);
     expect(pythonImportIssues.every((i) => i.severity === "low" || i.severity === "info")).toBe(true);
-  });
+    } finally { cleanup(root); }
+  }, 1800000);
 });
 
 describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
@@ -605,6 +613,7 @@ describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/selectionWitness.ts", "export {};\n");
       // A dynamic import has no "from"/"require(" token, so
       // RELATIVE_IMPORT_PATTERN never matches it -- only the
       // TypeScript/JavaScript analyzer's structured ImportFact (kind
@@ -615,7 +624,7 @@ describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
         'it("loads", async () => { const mod = await import("../src/missingDynamic.js"); expect(mod).toBeDefined(); });\n'
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("missing source file") && i.title.includes("missingDynamic.js"))).toBe(true);
     } finally {
       cleanup(root);
@@ -633,17 +642,18 @@ describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
         'it("loads", async () => { const mod = await import("../src/thing.js"); expect(mod).toBeDefined(); });\n'
       );
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       expect(issues.some((i) => i.title.includes("missing source file"))).toBe(false);
     } finally {
       cleanup(root);
     }
   });
 
-  it("does not crash and falls back to the regex-only check when sourceFacts is absent", async () => {
+  it("acquires qualified Kit import proofs by default", async () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/selectionWitness.ts", "export {};\n");
       writeFile(root, "tests/example.test.ts", 'import { thing } from "../src/doesNotExist.js";\nthing();\n');
       const issues = await run(root); // buildContext() with no sourceFacts field
       expect(issues.some((i) => i.title.includes("missing source file"))).toBe(true);
@@ -652,13 +662,14 @@ describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
     }
   });
 
-  it("does not double-report the same missing specifier when both the regex and source-facts checks match it", async () => {
+  it("does not double-report the same qualified missing specifier", async () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "src/selectionWitness.ts", "export {};\n");
       writeFile(root, "tests/example.test.ts", 'import { thing } from "../src/doesNotExist.js";\nthing();\n');
       const ctx = await buildContextWithSourceFacts(root);
-      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      const issues = await executeWithKit(ctx);
       const matches = issues.filter((i) => i.title.includes("missing source file") && i.title.includes("doesNotExist.js"));
       expect(matches).toHaveLength(1);
     } finally {
@@ -666,3 +677,19 @@ describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
     }
   });
 });
+
+// Real whole-repository acquisition performs paged CLI queries for every selected file.
+// Its integration timeout includes those queries; finding assertions remain unchanged.
+// Test setup delegates source acquisition to the real qualified provider.
+let selfRun: Promise<Awaited<ReturnType<typeof TEST_ROT_DETECTOR.run>>> | undefined;
+async function executeWithKit(ctx: AuditDetectorContext) {
+  const perform = async () => {
+  const result = await runAudit({ config: ctx.config, toolRoot: ctx.target.rootPath, target: ctx.target, registry: [TEST_ROT_DETECTOR],
+    kitSourceProviderDependencies: {} });
+  if (result.detectorErrors.length) throw new Error(JSON.stringify(result.detectorErrors));
+  return result.issues;
+
+  };
+  if (path.resolve(ctx.target.rootPath) === path.resolve(process.cwd())) return selfRun ??= perform();
+  return perform();
+}

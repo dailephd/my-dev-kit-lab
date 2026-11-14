@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { runCodeqlCheck } from "../../src/securityValidation/staticScans/codeql.js";
 import { runSemgrepCheck, parseSemgrepJson } from "../../src/securityValidation/staticScans/semgrep.js";
 import * as commands from "../../src/securityValidation/commandRunner.js";
@@ -10,7 +13,20 @@ import { renderJsonReport } from "../../src/securityValidation/report/renderSecu
 import type { CommandExecutionResult } from "../../src/securityValidation/types.js";
 import { DEFAULT_SECURITY_CONFIG, resolveSemgrepCommandTimeoutMs } from "../../src/securityValidation/config.js";
 
-afterEach(() => vi.restoreAllMocks());
+const reportRoots: string[] = [];
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const root of reportRoots.splice(0)) {
+    const relative = path.relative(os.tmpdir(), root);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Unowned static report root");
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+function isolatedOutputConfig() {
+  const reportDir = mkdtempSync(path.join(os.tmpdir(), "static-check-report-"));
+  reportRoots.push(reportDir);
+  return { reportDir, rawOutputDir: path.join(reportDir, "raw") };
+}
 const cleanOutput = { results: [], errors: [], paths: { scanned: ["src/index.ts"] } };
 function finding(severity = "ERROR") {
   return { check_id: `rule-${severity}`, path: "src/index.ts", start: { line: 10 },
@@ -167,7 +183,7 @@ describe("Semgrep execution evidence contract", () => {
     const now = new Date().toISOString();
     const codeqlSpy = vi.spyOn(codeql, "runCodeqlCheck").mockResolvedValue({ id: "codeql-scan", name: "CodeQL", category: "static-scan",
       status: "skipped", severity: "skipped", startedAt: now, finishedAt: now, durationMs: 0, findings: [], skippedReason: "Optional tool unavailable" });
-    await runSecurityValidation({ cwd: process.cwd(), selectedChecks: ["static"] });
+    await runSecurityValidation({ cwd: process.cwd(), selectedChecks: ["static"], config: isolatedOutputConfig() });
     expect(command).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ timeoutMs: process.platform === "win32" ? 300_000 : 60_000 }));
     expect(codeqlSpy).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ timeoutMs: 60_000 }));
     expect(DEFAULT_SECURITY_CONFIG.commandTimeoutMs).toBe(60_000);
@@ -281,7 +297,7 @@ describe("Semgrep execution evidence contract", () => {
     const now = new Date().toISOString();
     vi.spyOn(codeql, "runCodeqlCheck").mockResolvedValue({ id: "codeql-scan", name: "CodeQL", category: "static-scan",
       status: "skipped", severity: "skipped", startedAt: now, finishedAt: now, durationMs: 0, findings: [], skippedReason: "Controlled optional tool unavailable" });
-    const summary = await runSecurityValidation({ cwd: process.cwd(), selectedChecks: ["static"] });
+    const summary = await runSecurityValidation({ cwd: process.cwd(), selectedChecks: ["static"], config: isolatedOutputConfig() });
     const actual = summary.checks.find((item) => item.id === "semgrep-scan");
     expect(actual?.status).toBe(status);
     const json = JSON.parse(renderJsonReport(buildSecurityReportFromSummary(summary)));

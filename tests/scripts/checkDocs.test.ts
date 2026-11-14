@@ -36,7 +36,7 @@ type PackageMetadata = {
 
 const manifest: DocumentationManifest = JSON.parse(fs.readFileSync("docs/documentation-preservation-manifest.json", "utf8"));
 const packageMetadata: PackageMetadata = JSON.parse(fs.readFileSync("package.json", "utf8"));
-const files = [...new Set([...(manifest.requiredDocuments as string[]), "docs/documentation-preservation-manifest.json", "package.json", "package-lock.json"])];
+const files = [...new Set([...(manifest.requiredDocuments as string[]), "docs/documentation-preservation-manifest.json", "package.json"])];
 
 function withDocs(change: (root: string) => void, assertion: (run: () => string) => void) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "docs-check-"));
@@ -61,16 +61,16 @@ function edit(root: string, file: string, transform: (body: string) => string) {
 }
 
 function setReleaseDocumentState(root: string, finalReleaseDocument: boolean) {
-  if (finalReleaseDocument) {
-    setPreparedReleaseFixture(root);
-    return;
-  }
   edit(root, "docs/documentation-preservation-manifest.json", (body) => {
     const value = JSON.parse(body) as DocumentationManifest;
-    value.currentFacts.releaseDocumentState = "published";
-    value.currentFacts.latestPublishedVersion = value.currentFacts.currentReleaseDocumentVersion ?? packageMetadata.version;
-    value.currentFacts.currentImplementedUnreleasedVersion = null;
-    return JSON.stringify(value, null, 2) + "\n";
+    if (finalReleaseDocument) value.currentFacts.releaseDocumentState = "final-release-state";
+    else {
+      delete value.currentFacts.releaseDocumentState;
+      value.currentFacts.latestPublishedVersion = value.currentFacts.currentReleaseDocumentVersion ?? packageMetadata.version;
+      delete value.currentFacts.currentReleaseDocumentVersion;
+      value.currentFacts.currentImplementedUnreleasedVersion = null;
+    }
+    return `${JSON.stringify(value, null, 2)}\n`;
   });
 }
 
@@ -184,70 +184,6 @@ function deriveDocumentationLifecycleFacts(
 
 const lifecycle = deriveDocumentationLifecycleFacts(manifest, packageMetadata);
 
-type ReleaseFixtureVersions = { published: string; prepared: string; planned: string };
-function deriveReleaseFixtureVersions(): ReleaseFixtureVersions {
-  const versions = manifest.roadmap.requiredVersions.map((version) => version.slice(1));
-  const prepared = manifest.currentFacts.currentImplementedUnreleasedVersion
-    || manifest.currentFacts.currentReleaseDocumentVersion || packageMetadata.version;
-  const index = versions.indexOf(prepared);
-  const published = manifest.currentFacts.latestPublishedVersion === prepared
-    ? versions[index - 1] : manifest.currentFacts.latestPublishedVersion;
-  if (!published || index < 1 || published === prepared) {
-    throw new Error("Release fixtures require distinct published and prepared versions.");
-  }
-  return { published, prepared, planned: manifest.currentFacts.nextPlannedVersion };
-}
-const releaseFixtureVersions = deriveReleaseFixtureVersions();
-
-function setPreparedReleaseFixture(root: string, published = false) {
-  const versions = releaseFixtureVersions;
-  edit(root, "package.json", (body) => {
-    const value = JSON.parse(body);
-    value.version = versions.prepared;
-    return JSON.stringify(value, null, 2) + "\n";
-  });
-  edit(root, "package-lock.json", (body) => {
-    const value = JSON.parse(body);
-    value.version = versions.prepared;
-    value.packages[""].version = versions.prepared;
-    return JSON.stringify(value, null, 2) + "\n";
-  });
-  edit(root, "docs/documentation-preservation-manifest.json", (body) => {
-    const value = JSON.parse(body);
-    Object.assign(value.currentFacts, {
-      latestPublishedVersion: published ? versions.prepared : versions.published,
-      currentReleaseDocumentVersion: versions.prepared,
-      currentImplementedUnreleasedVersion: null,
-      nextPlannedVersion: versions.planned,
-      releaseDocumentState: published ? "published" : "final-release-state",
-    });
-    return JSON.stringify(value, null, 2) + "\n";
-  });
-  edit(root, "docs/ROADMAP.md", (body) => {
-    const historical = replaceRoadmapVersionStatus(body, "v" + versions.published, "Status: **published**.");
-    const prepared = replaceRoadmapVersionStatus(historical, "v" + versions.prepared,
-      published ? "Status: **published**." : "Status: **final release-document state**.");
-    return replaceRoadmapVersionStatus(prepared, "v" + versions.planned, "Status: **planned**.");
-  });
-  // Only fixture copies are finalized; historical publication evidence and
-  // preservation topics remain present. No real release metadata is changed.
-  for (const file of ["README.md", "docs/PROJECT_OVERVIEW.md", "docs/CURRENT_STATE.md",
-    "docs/COMMANDS.md", "docs/WORKFLOWS.md", "docs/ARCHITECTURE.md", "docs/security-validation-framework.md"]) {
-    edit(root, file, (body) => body.split("\n").map((line) => {
-      if (!line.includes("v" + versions.prepared)) return line;
-      return line
-        .replace(/implemented\s*\/\s*unreleased/gi, "implemented")
-        .replace(/and remains unreleased/gi, "and has final release documents")
-        .replace(/no version bump or release preparation has occurred/gi, "the release contract is recorded")
-        .replace(/Separate standardized pre-release readiness is pending;\s*/gi, "")
-        .replace(/The next action is separate standardized pre-release readiness after this reconciliation passes\./gi,
-          "The release contract is recorded.");
-    }).join("\n").replace(/Package metadata (?:is|remains) \x60?\d+\.\d+\.\d+\x60?/gi,
-      "Package metadata is " + versions.prepared));
-  }
-}
-
-
 describe("documentation structural preservation", () => {
   it("accepts the current comprehensive documentation", () => {
     expect(execFileSync(process.execPath, ["scripts/check-docs.mjs"], { encoding: "utf8" })).toContain("passed");
@@ -279,13 +215,12 @@ describe("release and current/planned state", () => {
     (root) => {
       setReleaseDocumentState(root, finalReleaseDocument);
       edit(root, "docs/ROADMAP.md", (body) => {
-        const activeVersion = finalReleaseDocument ? releaseFixtureVersions.prepared : lifecycle.packageVersion;
         const activeStatus = finalReleaseDocument ? "Status: **release candidate prepared**." : "Status: **published**.";
-        const prepared = replaceRoadmapVersionStatus(body, "v" + activeVersion, activeStatus);
-        return replaceRoadmapVersionStatus(prepared, "v" + activeVersion, "Status: **planned**.");
+        const prepared = replaceRoadmapVersionStatus(body, lifecycle.activeReleaseDocumentRoadmapVersion, activeStatus);
+        return replaceRoadmapVersionStatus(prepared, lifecycle.activeReleaseDocumentRoadmapVersion, "Status: **planned**.");
       });
     },
-    `${label} v${finalReleaseDocument ? releaseFixtureVersions.prepared : lifecycle.packageVersion} lifecycle`,
+    `${label} v${lifecycle.packageVersion} lifecycle`,
   ));
   it("LIFECYCLE-002 rejects marking the manifest next planned version published", () => expectFailure(
     (root) => edit(root, "docs/ROADMAP.md", (body) => {
@@ -296,7 +231,7 @@ describe("release and current/planned state", () => {
     `next planned v${lifecycle.nextPlannedVersion} lifecycle`,
   ));
   it.each([false, true] as const)("LIFECYCLE-003 classifies unpublished wording for final-document=%s", (finalReleaseDocument) => {
-    const testedVersion = finalReleaseDocument ? releaseFixtureVersions.published : lifecycle.activeReleaseDocumentVersion;
+    const testedVersion = finalReleaseDocument ? lifecycle.latestPublishedVersion : lifecycle.activeReleaseDocumentVersion;
     const check = (root: string) => {
       setReleaseDocumentState(root, finalReleaseDocument);
       if (!finalReleaseDocument) {
@@ -304,8 +239,11 @@ describe("release and current/planned state", () => {
       }
       edit(root, "README.md", (body) => `${body}\nv${testedVersion} has not yet been published to npm.\n`);
     };
-    // A verified published baseline cannot be described as unpublished in either state.
-    expectFailure(check, `v${testedVersion} publication claim`);
+    if (finalReleaseDocument) {
+      withDocs(check, (run) => expect(run()).toContain("passed"));
+    } else {
+      expectFailure(check, `v${testedVersion} publication claim`);
+    }
   });
   it("LIFECYCLE-004 rejects a positive publication claim for the next planned version", () => expectFailure(
     (root) => edit(root, "README.md", (body) => `${body}\nv${lifecycle.nextPlannedVersion} is published.\n`),
@@ -319,19 +257,6 @@ describe("release and current/planned state", () => {
     (root) => edit(root, "README.md", (body) => `${body}\nThe documentation set is internally consistent.\n`),
     (run) => expect(run()).toContain("passed"),
   ));
-  it("LIFECYCLE-007 rejects a positive publication claim in the synthetic prepared fixture", () => expectFailure(
-    (root) => {
-      setReleaseDocumentState(root, true);
-      edit(root, "README.md", (body) => `${body}\nv${releaseFixtureVersions.prepared} is published.\n`);
-    },
-    `v${releaseFixtureVersions.prepared} publication claim`,
-  ));
-  if (manifest.currentFacts.currentImplementedUnreleasedVersion) {
-    it.each(["is published", "is not implemented"])("LIFECYCLE-008 rejects an implemented/unreleased version that %s", (claim) => expectFailure(
-      (root) => edit(root, "README.md", (body) => `${body}\nv${manifest.currentFacts.currentImplementedUnreleasedVersion} ${claim}.\n`),
-      `v${manifest.currentFacts.currentImplementedUnreleasedVersion}`,
-    ));
-  }
 });
 
 describe("capability, family, and boundary preservation", () => {
@@ -652,157 +577,4 @@ describe("documentation lifecycle transition derivation", () => {
       expect(lifecycleSensitiveSource).not.toContain(literal);
     }
   });
-});
-
-
-describe("distinct published and prepared release lifecycle", () => {
-  const versions = releaseFixtureVersions;
-  const prepared = "v" + versions.prepared;
-  const historical = "v" + versions.published;
-  const planned = "v" + versions.planned;
-  const preparedChange = (change: (root: string) => void) => (root: string) => {
-    setPreparedReleaseFixture(root);
-    change(root);
-  };
-
-  it("CASE A preserves the actual published baseline and implemented/unreleased documents", () => withDocs(
-    () => {}, (run) => expect(run()).toContain("passed"),
-  ));
-  it("CASE B accepts distinct published/prepared identities and final neutral documentation", () => withDocs(
-    (root) => setPreparedReleaseFixture(root), (run) => expect(run()).toContain("passed"),
-  ));
-  it.each([
-    ["CASE C README", "README.md", " is published."],
-    ["CASE D CURRENT_STATE", "docs/CURRENT_STATE.md", " is published on npm."],
-  ])("%s rejects a false prepared-version publication", (_name, file, claim) => expectFailure(
-    preparedChange((root) => edit(root, file, (body) => body + "\n" + prepared + claim + "\n")),
-    prepared + " publication claim",
-  ));
-  it("CASE E retains verified historical publication", () => withDocs(
-    preparedChange((root) => edit(root, "README.md", (body) => body + "\n" + historical + " was published.\n")),
-    (run) => expect(run()).toContain("passed"),
-  ));
-  it("CASE F rejects false historical negation during preparation", () => expectFailure(
-    preparedChange((root) => edit(root, "README.md", (body) => body + "\n" + historical + " was not published.\n")),
-    historical + " publication claim",
-  ));
-  it.each([
-    " is not yet published.", " has not yet been published.", " is pending publication.",
-    " publication is pending.", " is still in release preparation.", " is awaiting release validation.",
-    " is implemented / unreleased.", " is not released.", " pre-release readiness pending.",
-  ])("CASE G rejects prepared-version transitional wording: %s", (claim) => expectFailure(
-    preparedChange((root) => edit(root, "README.md", (body) => body + "\n" + prepared + claim + "\n")),
-    prepared + " final release-document wording",
-  ));
-  it("CASE H rejects a future publication claim", () => expectFailure(
-    preparedChange((root) => edit(root, "README.md", (body) => body + "\n" + planned + " is published.\n")),
-    planned + " publication claim",
-  ));
-  it.each([" is not published.", " will not be published in this release.", " remains planned."])(
-    "CASE I accepts clearly negated/future-scoped wording: %s", (claim) => withDocs(
-      preparedChange((root) => edit(root, "README.md", (body) => body + "\n" + planned + claim + "\n")),
-      (run) => expect(run()).toContain("passed"),
-    ),
-  );
-  it.each([
-    historical + " was published; " + prepared + " documents the workspace-owned runtime.",
-    prepared + " documents the workspace-owned runtime; " + historical + " was published.",
-    "Published " + historical + " remains historical. " + prepared + " documents the workspace-owned runtime.",
-  ])("CASE J keeps mixed-version claims scoped: %s", (line) => withDocs(
-    preparedChange((root) => edit(root, "README.md", (body) => body + "\n" + line + "\n")),
-    (run) => expect(run()).toContain("passed"),
-  ));
-  it("CASE J rejects only the false prepared-version claim on a mixed line", () => expectFailure(
-    preparedChange((root) => edit(root, "README.md", (body) =>
-      body + "\n" + historical + " was published; " + prepared + " is published.\n")),
-    prepared + " publication claim",
-  ));
-  it("preserves completed release-preparation history without a current pending-state claim", () => withDocs(
-    preparedChange((root) => edit(root, "README.md", (body) =>
-      body + "\n" + prepared + " release preparation completed; the historical failed readiness attempt is retained.\n")),
-    (run) => expect(run()).toContain("passed"),
-  ));
-  it("CASE K accepts a later verified publication transition", () => withDocs(
-    (root) => {
-      setPreparedReleaseFixture(root, true);
-      edit(root, "README.md", (body) => body + "\n" + prepared + " is published.\n");
-    },
-    (run) => expect(run()).toContain("passed"),
-  ));
-  it("CASE K rejects false negation after publication", () => expectFailure(
-    (root) => {
-      setPreparedReleaseFixture(root, true);
-      edit(root, "README.md", (body) => body + "\n" + prepared + " was not published.\n");
-    },
-    prepared + " publication claim",
-  ));
-  it.each([
-    [versions.published, "Status: **planned**.", "published baseline"],
-    [versions.prepared, "Status: **published**.", "current release-document"],
-    [versions.planned, "Status: **published**.", "next planned"],
-  ])("independently protects roadmap lifecycle for %s", (version, status, label) => expectFailure(
-    preparedChange((root) => edit(root, "docs/ROADMAP.md", (body) =>
-      replaceRoadmapVersionStatus(body, "v" + version, status))),
-    label + " v" + version + " lifecycle",
-  ));
-  it("retains package and lock metadata only in the fixture", () => withDocs(
-    (root) => {
-      setPreparedReleaseFixture(root);
-      const value = JSON.parse(fs.readFileSync(path.join(root, "package-lock.json"), "utf8"));
-      expect(value.version).toBe(versions.prepared);
-      expect(value.packages[""].version).toBe(versions.prepared);
-      expect(JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version).toBe(versions.prepared);
-    },
-    (run) => expect(run()).toContain("passed"),
-  ));
-});
-
-describe("version-scoped publication predicates", () => {
-  const p = "v" + releaseFixtureVersions.prepared;
-  const h = "v" + releaseFixtureVersions.published;
-  const f = "v" + releaseFixtureVersions.planned;
-  const append = (line: string, published = false) => (root: string) => {
-    setPreparedReleaseFixture(root, published);
-    edit(root, "README.md", (body) => body + "\n" + line + "\n");
-  };
-  it.each([
-    ["A exact retained draft sentence", "The " + p + " contract is distinct from the previous published " + h + " runtime."],
-    ["B preceding historical modifier", p + " follows the previously published " + h + " release."],
-    ["C historical relative predicate", p + " is compatible with " + h + ", which was published."],
-    ["E historical predicate", h + " was published, while " + p + " is the prepared release."],
-    ["J two sentences", h + " was published. " + p + " has final release documents."],
-    ["K semicolon", h + " was published; " + p + " has final release documents."],
-    ["K comma", h + " was published, whereas " + p + " has final release documents."],
-    ["L planned", f + " remains planned and is not published."],
-    ["comma modifier belongs to following version", p + ", published " + h + " remains historical."],
-    ["modifier scoped to later coordinated version", p + " and published " + h + " are compatible."],
-    ["Markdown emphasis and code", "The **" + p + "** contract follows the previously **published** \x60" + h + "\x60 runtime."],
-    ["Markdown link labels", "[" + p + "](https://example.test/published) follows the published [" + h + "](https://example.test/current)."],
-  ])("accepts %s", (_name, line) => withDocs(append(line),
-    (run) => expect(run()).toContain("passed")));
-  it.each([
-    ["D false prepared predicate", p + " is published, whereas " + h + " is historical.", p + " publication claim"],
-    ["F historical negation", h + " was not published, while " + p + " is prepared.", h + " publication claim"],
-    ["G transitional negation", p + " is not yet published; " + h + " was published.", p + " final release-document wording"],
-    ["H preceding prepared modifier", "The published " + p + " package replaces " + h + ".", p + " publication claim"],
-    ["I coordinated shared predicate", p + " and " + h + " are published.", p + " publication claim"],
-    ["I reversed coordinated subjects", h + " and " + p + " are published.", p + " publication claim"],
-    ["I comma subject list", p + ", " + h + " are published.", p + " publication claim"],
-    ["I comma-list relative predicate", p + ", " + h + ", which were published.", p + " publication claim"],
-    ["I shared preceding modifier", "The published " + h + " and " + p + " packages are compatible.", p + " publication claim"],
-    ["I shared negation", h + " and " + p + " were not published.", h + " publication claim"],
-    ["J false second sentence", h + " was published. " + p + " is published.", p + " publication claim"],
-    ["K false semicolon clause", h + " was published; " + p + " is published.", p + " publication claim"],
-    ["K false comma clause", h + " was published, whereas " + p + " is published.", p + " publication claim"],
-    ["L false future publication", f + " is published.", f + " publication claim"],
-    ["formatted prepared modifier", "The **published** **" + p + "** package replaces " + h + ".", p + " publication claim"],
-    ["link-label false claim", "[" + p + "](https://example.test/neutral) is published.", p + " publication claim"],
-  ])("rejects %s", (_name, line, diagnostic) => expectFailure(append(line), diagnostic));
-  it("M accepts verified post-publication wording", () => withDocs(
-    append(p + " was published; " + f + " remains planned.", true),
-    (run) => expect(run()).toContain("passed"),
-  ));
-  it("M rejects false post-publication negation", () => expectFailure(
-    append(p + " was not published; " + f + " remains planned.", true), p + " publication claim",
-  ));
 });

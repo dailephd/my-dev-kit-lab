@@ -3,6 +3,7 @@ import path from "node:path";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { SourceOfTruthSnapshot } from "../../core/sourceOfTruth.js";
+import { KitSourceEvidenceAcquisitionError, qualifyKitDeclarationPredicate } from "../../core/kitSourceEvidence.js";
 import { collectJvmProjectMetadata, type JvmProjectMetadataSnapshot } from "../../core/jvmProjectMetadata.js";
 import {
   currentClaimPatternFor,
@@ -100,15 +101,12 @@ const FEATURE_CHECKS: readonly FeatureCheck[] = [
   },
 ];
 
-// v0.3.3 Batch 3 -- backtick-quoted-only Java/Kotlin FQCN-shaped symbol
-// scan (T1-T4). Requiring the mention to be inside an inline code span
-// (`` `com.example.Foo` ``) is what keeps this conservative: ordinary prose
-// mentioning a capitalized word is extremely common and would be far too
-// noisy to scan directly, but a backtick-quoted, fully-dotted,
-// lowercase-package-then-Capitalized-name token is specifically how a
-// real symbol reference is conventionally written in markdown docs.
+// Qualified inline identifiers have a lowercase package and capitalized owner
+// chain/name. An observed unqualified name can positively match, but an unknown
+// bare word retains the existing exclusion from absence claims. This is docs
+// grammar, not a source parser or compiler binding resolver.
 const BACKTICK_SPAN_PATTERN = /`([^`]+)`/g;
-const JVM_FQCN_PATTERN = /^[a-z][\w]*(?:\.[a-z][\w]*)*\.[A-Z]\w*$/;
+const JVM_FQCN_PATTERN = /^(?:[a-z]\w*\.)*[A-Z]\w*(?:\.[A-Z]\w*)*$/;
 
 // Reused by both the symbol-claim check and the Gradle/Maven command-claim
 // check below: a broader set of future/negative-boundary hedge phrases than
@@ -122,23 +120,39 @@ const JVM_FUTURE_OR_NEGATIVE_HEDGE_PATTERN =
 const GRADLE_COMMAND_PATTERN = /\b(?:\.\/)?gradlew(?:\.bat)?\b|\bgradle\b/i;
 const MAVEN_COMMAND_PATTERN = /\bmvnw(?:\.cmd)?\b|\bmvn\b/i;
 
-// Declaration kinds treated as safe, implementation-weight symbol claims --
-// same conservative kind allowlist Batch 2's duplicate/dead-code checks
-// already use (methods/variables/constants excluded as too noisy/ambiguous
-// for a name-only, no-package-tracking cross-check).
+// Existing legacy kinds remain unchanged. The Kit predicate qualifier also
+// recognizes positively authenticated Kotlin object/type provenance.
 const JVM_SYMBOL_DECLARATION_KINDS = new Set(["class", "interface", "enum", "function"]);
 
-function collectKnownJvmDeclarationNames(ctx: AuditDetectorContext): Set<string> {
+function collectKnownJvmDeclarationNames(ctx: AuditDetectorContext) {
   const names = new Set<string>();
-  if (!ctx.sourceFacts) return names;
+  const qualified = new Set<string>();
+  const unqualifiedNames = new Set<string>();
+  const unavailableClaims = new Set<string>();
+  const kit = ctx.sourceFacts?.provider === "kit";
+  // Earlier qualified candidates predate JVM identities. Preserve their
+  // complete-source name-only comparison contract; Candidate05 supplies the
+  // authenticated 1.1 identity domain required by the new qualified route.
+  const qualifiedNamesRequired = kit && ctx.sourceFacts?.kitEvidence?.artifactSchemaVersion === "1.1.0";
+  let complete = true;
+  const limitedPaths: string[] = [];
+  if (!ctx.sourceFacts) return { names, qualified, unqualifiedNames, unavailableClaims, qualifiedNamesRequired, complete, limitedPaths, positiveClaims: 0 };
   for (const file of ctx.sourceFacts.files) {
     if (file.language !== "java" && file.language !== "kotlin") continue;
-    if (file.parseStatus !== "parsed") continue;
+    if (kit && qualifyKitDeclarationPredicate(file) !== "QUALIFIED_NEGATIVE") {
+      complete = false;
+      limitedPaths.push(file.relativePath);
+    }
+    if (!kit && file.parseStatus !== "parsed") continue;
     for (const decl of file.declarations) {
-      if (JVM_SYMBOL_DECLARATION_KINDS.has(decl.kind)) names.add(decl.name);
+      if (kit ? qualifyKitDeclarationPredicate(file, decl) === "QUALIFIED_POSITIVE" : JVM_SYMBOL_DECLARATION_KINDS.has(decl.kind)) {
+        names.add(decl.name);
+        if (kit && decl.jvmDeclaration) qualified.add(decl.jvmDeclaration.qualifiedName);
+        else if (kit) unqualifiedNames.add(decl.name);
+      }
     }
   }
-  return names;
+  return { names, qualified, unqualifiedNames, unavailableClaims, qualifiedNamesRequired, complete, limitedPaths, positiveClaims: 0 };
 }
 
 export const DOCS_CODE_MISMATCH_DETECTOR: AuditDetector = {
@@ -214,6 +228,13 @@ export const DOCS_CODE_MISMATCH_DETECTOR: AuditDetector = {
       }
     }
 
+    if (!knownJvmDeclarationNames.complete || knownJvmDeclarationNames.unavailableClaims.size > 0) {
+      const limitation = `docs-code-mismatch partial source evidence. Only qualified predicates executed; unmatched claims requiring unavailable evidence are UNAVAILABLE. Declaration absence inference excluded where declaration coverage or the needed qualified identity is incomplete or unknown; no compiler binding is established. Affected paths: ${knownJvmDeclarationNames.limitedPaths.join(", ")}. Unavailable claims: ${[...knownJvmDeclarationNames.unavailableClaims].join(", ")}.`;
+      if (knownJvmDeclarationNames.positiveClaims === 0) {
+        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", limitation + " No applicable qualified positive claim permits a partial result.");
+      }
+      if (!ctx.sourceFacts!.warnings.includes(limitation)) ctx.sourceFacts!.warnings.push(limitation);
+    }
     return deduplicateIssuesById(issues);
   },
 };
@@ -223,17 +244,15 @@ export const DOCS_CODE_MISMATCH_DETECTOR: AuditDetector = {
 // without this gate, a project with no JVM code whatsoever (e.g. this repo
 // itself) would have every backtick-quoted FQCN-shaped mention trivially
 // "fail" to match anything, which would be pure noise rather than a real
-// signal. Matches by simple declaration name only (see
-// collectKnownJvmDeclarationNames()'s header comment) -- this cannot verify
-// the claimed package prefix actually matches, only that some declaration
-// with that name exists somewhere in the scanned Java/Kotlin source, which
-// is why this is always a "weak signal" candidate, never a proof.
+// signal. Qualified Kit claims use the producer's exact package/owner/name
+// identity; unqualified claims use observed names. Legacy comparison retains
+// its name-only contract. Neither path establishes compiler binding.
 function findJvmSymbolClaimMismatches(
   relativePath: string,
   lineNumber: number,
   line: string,
   jvmMetadata: JvmProjectMetadataSnapshot,
-  knownJvmDeclarationNames: Set<string>
+  knownJvmDeclarationNames: ReturnType<typeof collectKnownJvmDeclarationNames>
 ): AuditIssue[] {
   if (!jvmMetadata.hasJavaSource && !jvmMetadata.hasKotlinSource) return [];
 
@@ -243,7 +262,16 @@ function findJvmSymbolClaimMismatches(
     const candidate = match[1];
     if (!JVM_FQCN_PATTERN.test(candidate)) continue;
     const simpleName = candidate.slice(candidate.lastIndexOf(".") + 1);
-    if (knownJvmDeclarationNames.has(simpleName)) continue;
+    if (!candidate.includes(".") && !knownJvmDeclarationNames.names.has(simpleName)) continue;
+    const present = knownJvmDeclarationNames.qualifiedNamesRequired && candidate.includes(".")
+      ? knownJvmDeclarationNames.qualified.has(candidate)
+      : knownJvmDeclarationNames.names.has(simpleName);
+    if (present) { knownJvmDeclarationNames.positiveClaims++; continue; }
+    if (knownJvmDeclarationNames.qualifiedNamesRequired && candidate.includes(".") && knownJvmDeclarationNames.unqualifiedNames.has(simpleName)) {
+      knownJvmDeclarationNames.unavailableClaims.add(candidate);
+      continue;
+    }
+    if (!knownJvmDeclarationNames.complete) continue;
 
     issues.push(
       makeCodeRotIssue({
@@ -251,7 +279,7 @@ function findJvmSymbolClaimMismatches(
         detectorId: DETECTOR_ID,
         idCues: [relativePath, "jvm-symbol-claim-mismatch", String(lineNumber), candidate],
         title: `Docs mention a Java/Kotlin symbol not found in static source facts: "${candidate}"`,
-        description: `${relativePath}:${lineNumber} mentions \`${candidate}\`, but no scanned Java/Kotlin declaration named "${simpleName}" was found. This is a static source-facts signal from a conservative, name-only scan -- it cannot verify the claimed package prefix, only that no declaration with this simple name exists anywhere in the scanned Java/Kotlin file set, so this is a candidate docs-code mismatch (weak signal), not proof.`,
+        description: `${relativePath}:${lineNumber} mentions \`${candidate}\`, but no matching supported Java/Kotlin declaration was found in the selected static source facts. This is a candidate docs-code mismatch (weak signal), not proof of compiler binding or runtime availability; definitions outside the scanned source set remain unknown.`,
         severity: "info",
         confidence: "low",
         falsePositiveRisk: "high",
@@ -265,7 +293,7 @@ function findJvmSymbolClaimMismatches(
         evidence: [
           {
             kind: "file",
-            message: `Static source-facts check did not find a Java/Kotlin declaration named "${simpleName}" in the scanned file set.`,
+            message: `Static source-facts check did not find a matching supported Java/Kotlin declaration for "${candidate}" in the scanned file set.`,
             filePath: relativePath,
             line: lineNumber,
             excerpt: line.trim().slice(0, 200),

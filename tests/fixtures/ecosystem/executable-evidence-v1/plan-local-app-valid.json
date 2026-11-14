@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0.0",
+  "planId": "local-app-native-verification",
+  "policyVersion": "1.0.0",
+  "subject": {
+    "schemaVersion": "1.0.0",
+    "authority": "@dailephd/my-dev-kit-lab",
+    "namespace": "my-dev-kit-lab/evidence",
+    "value": "tutorial-browser"
+  },
+  "profileId": "local-app-verification-v1",
+  "selectedInputs": {
+    "paths": [
+      "index.html",
+      "prepare.mjs",
+      "scenario.json",
+      "server.mjs"
+    ],
+    "exclusions": [],
+    "policyId": "all-copyable-nonsecret-inputs-v1",
+    "relevantIgnoredPaths": []
+  },
+  "requirements": [
+    {
+      "requirementId": "node-regression",
+      "capabilityId": "node-regression",
+      "criticality": "critical",
+      "acceptedArtifactKinds": [
+        "node-test-tap-v1"
+      ],
+      "acceptedSchemaVersions": [
+        "1.0.0"
+      ],
+      "requiredCapabilities": [
+        "native-test-result",
+        "trustworthy-test-totals"
+      ],
+      "freshnessPolicy": "current",
+      "nativeSuccessRequired": true,
+      "applicability": "applicable"
+    },
+    {
+      "requirementId": "local-browser",
+      "capabilityId": "browser-session",
+      "criticality": "critical",
+      "acceptedArtifactKinds": [
+        "lab-tutorial-native-v1"
+      ],
+      "acceptedSchemaVersions": [
+        "1.0.0"
+      ],
+      "requiredCapabilities": [
+        "browser-session-provenance"
+      ],
+      "freshnessPolicy": "current",
+      "nativeSuccessRequired": true,
+      "applicability": "applicable"
+    }
+  ],
+  "checks": []
+}

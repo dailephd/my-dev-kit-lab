@@ -107,9 +107,9 @@ export function renderTextReport(report: SecurityReport): string {
     { num: 4, title: "Security Model", ids: [], alwaysShow: true },
     { num: 5, title: "CodeQL Result", ids: ["codeql-scan"] },
     { num: 6, title: "Semgrep Result", ids: ["semgrep-scan"] },
-    { num: 7, title: "npm audit Result", ids: ["npm-audit-full", "npm-audit-runtime"] },
+    { num: 7, title: "npm audit Result", ids: ["npm-audit-full", "npm-audit-runtime", "dependency-checks"] },
     { num: 8, title: "OSV-Scanner Result", ids: ["osv-scanner"] },
-    { num: 9, title: "Package Tarball Inspection", ids: ["npm-pack-dry-run"] },
+    { num: 9, title: "Package Tarball Inspection", ids: ["npm-pack-dry-run", "package-content"] },
     { num: 10, title: "CLI / File-System / Path Traversal Tests", ids: ["cli-adversarial-suite", "path-traversal-root", "path-traversal-out", "path-traversal-index", "absolute-path-escape", "path-harness-escape-detection"] },
     { num: 11, title: "Source Read-Only Boundary Tests", ids: ["source-files-not-modified", "writes-limited-to-output", "index-write-containment", "artifact-cleanup-safe"] },
     { num: 12, title: "Graphviz / Subprocess Safety Tests", ids: ["graphviz-label-escaping", "subprocess-no-shell-interpolation"] },
@@ -204,7 +204,7 @@ export function renderTextReport(report: SecurityReport): string {
       if (check.stderrSummary) {
         lines.push(`       Stderr: ${sanitizeForTextReport(check.stderrSummary).slice(0, 200)}`);
       }
-      if (check.status === "skipped" && check.skippedReason) {
+      if ((check.status === "skipped" || check.status === "failed") && check.skippedReason) {
         lines.push(`       Reason: ${sanitizeForTextReport(check.skippedReason)}`);
       }
       if (check.findings.length > 0) {

@@ -3,8 +3,26 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveCommand } from "../../src/core/resolveCommand.js";
+const providerOverride = vi.hoisted(() => ({ root: undefined as string | undefined }));
+vi.mock("../../src/audits/core/auditRunner.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/audits/core/auditRunner.js")>("../../src/audits/core/auditRunner.js");
+  return { ...actual, runAudit: (options: Parameters<typeof actual.runAudit>[0]) => actual.runAudit(
+    providerOverride.root === undefined ? options : { ...options, kitSourceProviderDependencies: { installedPackageRoot: providerOverride.root } }
+  ) };
+});
+import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
+
+async function runAuditWithoutProvider(args: string[], missingRoot: string) {
+  providerOverride.root = missingRoot;
+  const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const status = await runAuditCommandFromArgs(args);
+    return { status, stderr: error.mock.calls.map(parts => parts.join(" ")).join("\n") };
+  } finally { providerOverride.root = undefined; log.mockRestore(); error.mockRestore(); }
+}
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 6 — external target regression guard (spec 3.9).
@@ -67,18 +85,10 @@ function hashAllFiles(root: string): Map<string, string> {
 }
 
 function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
-  const resolved = resolveCommand("npx", { cwd: toolRoot });
-  const needsResolvedPathArg =
-    resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
-  const fullArgs = [
-    ...resolved.argsPrefix,
-    ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
-    "tsx",
-    "scripts/audits/runAudit.ts",
-    ...args,
-  ];
+  if (args.includes("--out")) args = ["--include", "docs", ...args];
+  const fullArgs = [path.join(toolRoot, "node_modules/tsx/dist/cli.mjs"), path.join(toolRoot, "scripts/audits/runAudit.ts"), ...args];
   try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" });
+    const stdout = execFileSync(process.execPath, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };
@@ -165,22 +175,17 @@ describe("audit --target <external-dir> — end-to-end regression guard", () => 
     expect(parsed.sourceOfTruth.packageName).toBe("external-fixture");
   }, 30_000);
 
-  it("default --out (omitted) still resolves under the tool's own reports/ tree, never the external target", () => {
+  it("default --out (omitted) fails closed for an explicitly unavailable provider without changing output or target", async () => {
     const externalRoot = makeTempDir("audit-external-default-out-");
     makeExternalFixture(externalRoot);
 
-    const result = runAuditCli(["--target", externalRoot, "--types", "code-rot", "--fail-on", "none"]);
-    expect(result.status).toBe(0);
-    expect(fs.existsSync(path.join(externalRoot, "reports"))).toBe(false);
-    // Default --out target is reports/audits/code-rot under the tool root --
-    // clean up whatever it wrote there so this test doesn't leave repo
-    // state behind (this directory is git-ignored generated output, not a
-    // tracked file, but leaving it around is still untidy for local runs).
-    const defaultOut = path.join(path.resolve(toolRoot), "reports", "audits", "code-rot");
-    try {
-      expect(fs.existsSync(defaultOut)).toBe(true);
-    } finally {
-      fs.rmSync(defaultOut, { recursive: true, force: true });
-    }
+    const before = hashAllFiles(externalRoot);
+    const defaultOut = path.join(toolRoot,"reports/audits/code-rot");
+    const defaultBefore = fs.existsSync(defaultOut) ? hashAllFiles(defaultOut) : null;
+    const result = await runAuditWithoutProvider(["--target", externalRoot, "--types", "code-rot", "--fail-on", "none"], path.join(externalRoot, "missing-kit"));
+    expect(result.status).toBe(2); expect(result.stderr).toContain("package-missing");
+    expect(fs.existsSync(path.join(externalRoot,"reports"))).toBe(false);
+    expect(hashAllFiles(externalRoot)).toEqual(before);
+    expect(fs.existsSync(defaultOut) ? hashAllFiles(defaultOut) : null).toEqual(defaultBefore);
   }, 30_000);
 });

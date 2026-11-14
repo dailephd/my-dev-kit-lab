@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
-import { collectSourceFacts } from "../../src/audits/core/collectSourceFacts.js";
+import { collectKitSourceFacts } from "../../src/audits/core/kitSourceProvider.js";
 import { resolveAuditTarget } from "../../src/audits/core/auditTarget.js";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { scanProjectInventory, type ProjectInventorySnapshot } from "../../src/audits/core/projectInventory.js";
@@ -81,19 +81,20 @@ function withBackslashInventoryPaths(inventory: ProjectInventorySnapshot): Proje
 async function runCodeRotAudit(toolRoot: string, targetRoot: string, outDir: string) {
   const config = normalizeAuditConfig({ target: targetRoot, types: "code-rot", out: outDir, failOn: "none" }, toolRoot);
   const target = resolveAuditTarget(targetRoot, toolRoot);
-  const result = await runAudit({ config, toolRoot, target });
+  const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot, target });
   const model = buildAuditReportModel(result, { target });
   const writeResult = writeAuditReports({ model, config, outDir });
   return { config, target, result, model, writeResult };
 }
 
 describe("cross-platform path stability — PATH1/PATH6 source-facts and inventory normalization", () => {
-  it("keeps source-fact identity stable when inventory relative paths use Windows-style separators", async () => {
+  it("keeps target separator identity stable and rejects noncanonical inventory paths", async () => {
     const root = buildMixedLanguageFixture("path-stability-fixture-");
     const inventory = scanProjectInventory(root);
     const baseline = await collectSourceFacts(root, inventory);
     const backslashInventory = withBackslashInventoryPaths(inventory);
-    const normalized = await collectSourceFacts(root.replace(/\\/g, "/"), backslashInventory);
+    await expect(collectSourceFacts(root.replace(/\\/g, "/"), backslashInventory)).rejects.toMatchObject({ category: "path-invalid" });
+    const normalized = await collectSourceFacts(root.replace(/\\/g, "/"), inventory);
 
     expect(normalized.files.map((file) => file.relativePath)).toEqual(baseline.files.map((file) => file.relativePath));
 
@@ -243,29 +244,23 @@ describe("cross-platform path stability — LINE1/LINE2/LINE3 parser stability a
     const kotlinLf = byPath.get("src/main/kotlin/com/example/LfKotlin.kt")!;
     const kotlinCrlf = byPath.get("src/main/kotlin/com/example/CrlfKotlin.kt")!;
 
-    expect({
-      parseStatus: javaLf.parseStatus,
-      imports: javaLf.imports,
-      declarations: javaLf.declarations.filter((decl) => decl.name !== "LfJava"),
-      diagnostics: javaLf.diagnostics,
-    }).toEqual({
-      parseStatus: javaCrlf.parseStatus,
-      imports: javaCrlf.imports,
-      declarations: javaCrlf.declarations.filter((decl) => decl.name !== "CrlfJava"),
-      diagnostics: javaCrlf.diagnostics,
+    const semanticShape = (file: typeof javaLf) => ({
+      parseStatus: file.parseStatus,
+      imports: file.imports.map(({ source, kind, importedNames, line }) => ({ source, kind, importedNames, line })),
+      declarationKinds: file.declarations.map(({ kind, line, exported }) => ({ kind, line, exported })),
     });
+    expect(semanticShape(javaLf)).toEqual(semanticShape(javaCrlf));
+    expect(semanticShape(kotlinLf)).toEqual(semanticShape(kotlinCrlf));
+    for (const file of [javaLf, javaCrlf, kotlinLf, kotlinCrlf]) {
+      expect(file.kit?.contentSha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(file.diagnostics.every(diagnostic => diagnostic.path === file.relativePath)).toBe(true);
+      expect(file.declarations.every(declaration => declaration.provenance?.producer === "kit")).toBe(true);
+      expect(file.imports.every(fact => fact.provenance?.factId.includes(encodeURIComponent(file.relativePath)))).toBe(true);
+    }
+    expect(javaLf.kit?.contentSha256).not.toBe(javaCrlf.kit?.contentSha256);
+    expect(kotlinLf.kit?.contentSha256).not.toBe(kotlinCrlf.kit?.contentSha256);
+    expect(javaLf.declarations[0].provenance?.factId).not.toBe(javaCrlf.declarations[0].provenance?.factId);
 
-    expect({
-      parseStatus: kotlinLf.parseStatus,
-      imports: kotlinLf.imports,
-      declarations: kotlinLf.declarations.filter((decl) => decl.name !== "LfKotlin"),
-      diagnostics: kotlinLf.diagnostics,
-    }).toEqual({
-      parseStatus: kotlinCrlf.parseStatus,
-      imports: kotlinCrlf.imports,
-      declarations: kotlinCrlf.declarations.filter((decl) => decl.name !== "CrlfKotlin"),
-      diagnostics: kotlinCrlf.diagnostics,
-    });
   });
 
   it("collects mixed-language source facts correctly from a fixture with mixed LF and CRLF endings", async () => {
@@ -322,3 +317,7 @@ describe("cross-platform path stability — LINE4 docs-code mismatch robustness"
     expect(issues.some((issue) => /android|gradle|maven/i.test(issue.title))).toBe(false);
   });
 });
+
+async function collectSourceFacts(targetRoot: string, inventory: ReturnType<typeof scanProjectInventory>) {
+ return collectKitSourceFacts({ targetRoot, inventory, requiredCapabilities: [], includeScriptsRoot: true }, {  });
+}

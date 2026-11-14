@@ -1,19 +1,17 @@
 import fs from "node:fs";
+import { KitSourceEvidenceAcquisitionError } from "../../core/kitSourceEvidence.js";
+import { kitPredicateContent } from "../utils/sourceFactsLookup.js";
 import path from "node:path";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { SourceFileFacts } from "../../core/sourceFacts.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "../../core/pythonProjectMetadata.js";
 import { collectJvmProjectMetadata, type JvmProjectMetadataSnapshot } from "../../core/jvmProjectMetadata.js";
-import { readBoundedFileText } from "../utils/boundedRead.js";
-import { baseNameNoExt } from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 import { getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 import { splitLines } from "../utils/textLines.js";
 import {
-  jvmImportCandidatePaths,
   jvmImportLooksPossiblyLocal,
-  jvmImportSimpleName,
 } from "../utils/jvmSourceFactsUtils.js";
 
 // ---------------------------------------------------------------------------
@@ -31,14 +29,13 @@ import {
 // ---------------------------------------------------------------------------
 
 const DETECTOR_ID = "test-rot";
-const MAX_READ_BYTES = 200_000;
+export const MAX_READ_BYTES = 200_000;
 const RELATIVE_IMPORT_PATTERN = /(?:from|require\()\s*["'](\.\.?\/[^"']+)["']/g;
 const NPM_RUN_PATTERN = /npm run ([\w:.-]+)/g;
 const SKIP_PATTERN = /\b(describe|it|test)\.skip\s*\(/g;
 const ONLY_PATTERN = /\b(describe|it|test)\.only\s*\(/g;
 const TEST_TITLE_VERSION_PATTERN = /\b(describe|it|test)\s*\(\s*["'`][^"'`]*\bv(\d+\.\d+\.\d+)\b/;
 const HISTORICAL_HEDGE_PATTERN = /\b(regression|historical|legacy)\b/i;
-const RESOLVE_EXTENSIONS = ["", ".ts", ".tsx", ".js", ".mjs", ".cjs"];
 const VITEST_RUN_ARG_PATTERN = /vitest run ([^\s&|]+)/g;
 
 export const TEST_ROT_DETECTOR: AuditDetector = {
@@ -54,7 +51,8 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
     }
     return { skip: false };
   },
-  run: (ctx: AuditDetectorContext): AuditIssue[] => {
+  run: async (ctx: AuditDetectorContext): Promise<AuditIssue[]> => {
+    if (ctx.sourceFacts?.provider === "kit" && !ctx.kitSourceReader) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Kit-backed detector requires its validated per-audit reader; native fallback is forbidden.");
     const issues: AuditIssue[] = [];
     const scriptNames = new Set(ctx.sourceOfTruth.commands.allScriptNames);
     const currentVersion = ctx.sourceOfTruth.package?.version ?? null;
@@ -70,7 +68,11 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
     const jvmMetadata = collectJvmProjectMetadata(ctx.target.rootPath, ctx.inventory);
 
     for (const testFile of ctx.inventory.testFiles) {
-      const content = readBoundedFileText(ctx.target.rootPath, testFile.relativePath, testFile.sizeBytes, MAX_READ_BYTES);
+      // Preserve Lab's bounded lexical-policy scope; no occurrence query applies.
+      if (testFile.sizeBytes > MAX_READ_BYTES) continue;
+      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
+      if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required test ${testFile.relativePath} is unselected.`);
+      const content = await kitPredicateContent(ctx.kitSourceReader, testFile.relativePath, ["npm run ", "describe", "it", "test", "from", "require("]);
       if (content === null) continue;
 
       // tests/audits/codeRot/ is this project's own audit-detector test
@@ -87,7 +89,8 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // test suite of its own would never hit this exclusion.
       if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
 
-      issues.push(...findMissingSourceImports(ctx, testFile.relativePath, content));
+      const kitMissing = await kitMissingImports(ctx, testFile.relativePath, content, sourceFactsIndex.get(testFile.relativePath));
+      issues.push(...findMissingSourceImports(ctx, testFile.relativePath, content, kitMissing));
       // v0.3.1 Batch 4 -- when the TypeScript/JavaScript analyzer actually
       // parsed this test file, also check its structured import facts.
       // This catches import forms the regex above misses (e.g. multi-line
@@ -103,7 +106,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         // resolver below would misresolve every relative Python import and
         // flag it as missing regardless of whether it actually exists --
         // this guard is the fix for that latent cross-language bug.
-        issues.push(...findMissingPythonSourceImports(ctx, testFile.relativePath, parsedFacts, pythonMetadata));
+        issues.push(...findMissingPythonSourceImports(ctx, testFile.relativePath, parsedFacts, pythonMetadata, kitMissing));
       } else if (parsedFacts?.language === "java" || parsedFacts?.language === "kotlin") {
         // v0.3.3 Batch 2 -- Java/Kotlin imports are fully-qualified dotted
         // package names ("com.example.Foo"), neither TS/JS's path-like
@@ -111,9 +114,9 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         // Routing them through either existing resolver would misresolve
         // every import -- this guard is the JVM analogue of the Python
         // guard immediately above.
-        issues.push(...findMissingJvmSourceImports(ctx, testFile.relativePath, parsedFacts, jvmMetadata));
+        issues.push(...findMissingJvmSourceImports(ctx, testFile.relativePath, parsedFacts, jvmMetadata, kitMissing));
       } else if (parsedFacts) {
-        issues.push(...findMissingSourceImportsFromSourceFacts(ctx, testFile.relativePath, parsedFacts));
+        issues.push(...findMissingSourceImportsFromSourceFacts(ctx, testFile.relativePath, parsedFacts, kitMissing));
       }
       issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
       issues.push(...findSkipUsage(testFile.relativePath, content));
@@ -129,18 +132,46 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
   },
 };
 
-function findMissingSourceImports(ctx: AuditDetectorContext, testRelativePath: string, content: string): AuditIssue[] {
+async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, content: string, facts?: SourceFileFacts): Promise<Set<string>> {
+  const reader = ctx.kitSourceReader!;
+  const missing = new Set<string>();
+  const raw = [...content.matchAll(new RegExp(RELATIVE_IMPORT_PATTERN.source, "g"))].map((match) => match[1]);
+  // Qualified JSON supplies raw predicate content, not semantic imports. The
+  // complete literal queries above can discharge the lexical predicate only.
+  // A lexical import candidate still needs real parsed facts and fails closed.
+  if (reader.jsonRawLiteralContent === "selected-test-json-v1" && filePath.endsWith(".json") &&
+      facts?.parseStatus === "unsupported" && reader.selectedFile(filePath).status === "unsupported" && raw.length === 0) return missing;
+  if (!facts || facts.kit?.capabilities.imports !== "complete") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " requires complete imports.");
+  for (const specifier of raw) if (!facts.imports.some((fact) => fact.source === specifier)) {
+    throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " has a lexical relative-import candidate without a Kit import fact; semantic absence is not lexical absence.");
+  }
+  for (const imp of facts.imports) {
+    const applicable = facts.language === "java" || facts.language === "kotlin" ? jvmImportLooksPossiblyLocal(imp) : imp.source.startsWith(".");
+    if (!applicable) continue;
+    if (!imp.provenance?.factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", filePath + " import has no validated fact identity.");
+    const proof = await reader.importTarget(imp.provenance.factId);
+    if ((facts.language === "java" || facts.language === "kotlin") && !proof.declarationProof) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " JVM import requires qualified declaration-domain evidence.");
+    if (proof.status === "outside-selected-roots" || proof.status === "indeterminate") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " remains " + proof.status + " (" + proof.reasonCode + ").");
+    if (facts.language === "typescript" || facts.language === "javascript") {
+      if (proof.status === "proven-missing" && reader.jsTsRelativeImportCandidateProof !== "mjs-extensionless-complete-v1") {
+        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " lacks qualified legacy .mjs/extensionless candidate proof semantics.");
+      }
+      if (proof.status === "present" && !imp.targetPaths?.some((target) => proof.candidatePaths.includes(target) && /\.(ts|tsx|js|mjs|cjs)$/.test(target))) {
+        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import target presence is outside the verified legacy candidate policy.");
+      }
+    }
+    if (proof.status === "proven-missing") missing.add(imp.source);
+  }
+  return missing;
+}
+
+function findMissingSourceImports(ctx: AuditDetectorContext, testRelativePath: string, content: string, kitMissing: Set<string>): AuditIssue[] {
   const issues: AuditIssue[] = [];
-  const testDir = path.dirname(testRelativePath);
 
   RELATIVE_IMPORT_PATTERN.lastIndex = 0;
   for (const match of content.matchAll(RELATIVE_IMPORT_PATTERN)) {
     const specifier = match[1];
-    const resolvedBase = path.join(testDir, specifier).replace(/\\/g, "/");
-    const strippedBase = resolvedBase.replace(/\.[cm]?[jt]sx?$/, "");
-
-    const resolved = RESOLVE_EXTENSIONS.some((ext) => fs.existsSync(path.join(ctx.target.rootPath, `${strippedBase}${ext}`)));
-    if (resolved) continue;
+    if (!kitMissing.has(specifier)) continue;
 
     issues.push(
       makeCodeRotIssue({
@@ -186,18 +217,14 @@ function findMissingSourceImports(ctx: AuditDetectorContext, testRelativePath: s
 function findMissingSourceImportsFromSourceFacts(
   ctx: AuditDetectorContext,
   testRelativePath: string,
-  facts: SourceFileFacts
+  facts: SourceFileFacts,
+  kitMissing: Set<string>
 ): AuditIssue[] {
   const issues: AuditIssue[] = [];
-  const testDir = path.dirname(testRelativePath);
 
   for (const imp of facts.imports) {
     if (!imp.source.startsWith(".")) continue;
-    const resolvedBase = path.join(testDir, imp.source).replace(/\\/g, "/");
-    const strippedBase = resolvedBase.replace(/\.[cm]?[jt]sx?$/, "");
-
-    const resolved = RESOLVE_EXTENSIONS.some((ext) => fs.existsSync(path.join(ctx.target.rootPath, `${strippedBase}${ext}`)));
-    if (resolved) continue;
+    if (!kitMissing.has(imp.source)) continue;
 
     issues.push(
       makeCodeRotIssue({
@@ -233,72 +260,19 @@ function findMissingSourceImportsFromSourceFacts(
   return issues;
 }
 
-// v0.3.2 Batch 2 -- resolves a Python relative-import source (".module",
-// "..pkg.sub", or bare "."/".." paired with `from . import name`-style
-// imported names) to candidate local file paths, using Python's own
-// relative-import level semantics (one leading dot = the importing file's
-// own directory, each additional dot = one directory further up). This is a
-// conservative, path-based approximation -- it does not resolve namespace
-// packages, `sys.path` manipulation, editable installs, or anything beyond
-// simple on-disk file/package presence, so returning zero matches is a
-// candidate "may indicate a missing module" signal, not proof.
-function resolvePythonRelativeImportCandidatePaths(
-  testDir: string,
-  importSource: string,
-  importedNames: readonly string[] | undefined
-): string[] {
-  if (!importSource.startsWith(".")) return [];
-
-  let dotCount = 0;
-  while (dotCount < importSource.length && importSource[dotCount] === ".") dotCount += 1;
-  const remainder = importSource.slice(dotCount);
-  const upLevels = dotCount - 1;
-
-  let baseDir = testDir;
-  for (let i = 0; i < upLevels; i++) baseDir = path.dirname(baseDir);
-
-  const candidates: string[] = [];
-  const pushCandidatesFor = (moduleSegment: string) => {
-    candidates.push(path.join(baseDir, `${moduleSegment}.py`).replace(/\\/g, "/"));
-    candidates.push(path.join(baseDir, moduleSegment, "__init__.py").replace(/\\/g, "/"));
-  };
-
-  if (remainder) {
-    pushCandidatesFor(remainder.split(".").join("/"));
-  } else {
-    // Bare "." / ".." (e.g. `from . import sibling`) -- the module lives
-    // in `importedNames`, not in `importSource` itself.
-    for (const name of importedNames ?? []) pushCandidatesFor(name);
-  }
-  return candidates;
-}
-
-// v0.3.2 Batch 2 -- Python-specific counterpart to
-// findMissingSourceImportsFromSourceFacts() above. Only ever called for
-// facts with `language === "python"` (see caller) -- the two functions are
-// kept fully separate rather than parameterized by language, because their
-// resolution algorithms are genuinely different (dotted-module relative-
-// import-level semantics vs. path-like specifier semantics), and conflating
-// them risked silently misresolving one language or the other. Deliberately
-// lower severity/confidence than the TS/JS counterpart: this scan has no
-// real package/sys.path awareness, so it is weaker evidence than the
-// TS/JS analyzer's near-exact relative-path resolution.
+// Interpret qualified Kit relative-import proofs using the existing Python finding policy.
 function findMissingPythonSourceImports(
   ctx: AuditDetectorContext,
   testRelativePath: string,
   facts: SourceFileFacts,
-  pythonMetadata: PythonProjectMetadataSnapshot
+  pythonMetadata: PythonProjectMetadataSnapshot,
+  kitMissing: Set<string>
 ): AuditIssue[] {
   const issues: AuditIssue[] = [];
-  const testDir = path.dirname(testRelativePath);
 
   for (const imp of facts.imports) {
     if (!imp.source.startsWith(".")) continue; // conservative: only relative Python imports are checked
-    const candidates = resolvePythonRelativeImportCandidatePaths(testDir, imp.source, imp.importedNames);
-    if (candidates.length === 0) continue; // nothing checkable (e.g. bare "." with no imported names)
-
-    const resolved = candidates.some((candidate) => fs.existsSync(path.join(ctx.target.rootPath, candidate)));
-    if (resolved) continue;
+    if (!kitMissing.has(imp.source)) continue;
 
     const evidence: AuditIssue["evidence"] = [
       {
@@ -346,72 +320,29 @@ function findMissingPythonSourceImports(
   return issues;
 }
 
-// v0.3.3 Batch 2 -- Java/Kotlin-specific counterpart to
-// findMissingSourceImportsFromSourceFacts()/findMissingPythonSourceImports()
-// above. Only ever called for facts with `language === "java"` or
-// `"kotlin"` (see caller) -- kept fully separate from both existing
-// resolvers for the same reason the Python resolver is kept separate from
-// the TS/JS one: the resolution algorithm (fully-qualified dotted package
-// names -> conventional Gradle/Maven source-set paths) is genuinely
-// different from either.
-//
-// Deliberately lower severity/confidence than the TS/JS counterpart, same
-// tier as the Python counterpart: this scan has no real classpath/build
-// awareness (no Gradle/Maven execution, no compiler), so it is weaker
-// evidence than the TS/JS analyzer's near-exact relative-path resolution.
-// Standard-library, common third-party test-framework, and wildcard
-// imports are skipped entirely via jvmImportLooksPossiblyLocal() -- see
-// jvmSourceFactsUtils.ts for the full skip-prefix list and rationale.
+// Interpret qualified selected JVM declaration-domain proofs. Metadata supplies
+// supporting context only; Kit owns import and target resolution.
 function findMissingJvmSourceImports(
   ctx: AuditDetectorContext,
   testRelativePath: string,
   facts: SourceFileFacts,
-  jvmMetadata: JvmProjectMetadataSnapshot
+  jvmMetadata: JvmProjectMetadataSnapshot,
+  kitMissing: Set<string>
 ): AuditIssue[] {
   const issues: AuditIssue[] = [];
   const isKotlin = facts.language === "kotlin";
   const languageLabel = isKotlin ? "Kotlin" : "Java";
-  // Kotlin may legitimately import Java source in a mixed JVM project;
-  // Java never imports Kotlin-only source through a plain `import`
-  // statement in the way this conservative scan can see, so a Java test
-  // only ever checks .java candidates.
-  const extensions = isKotlin ? ["kt", "java"] : ["java"];
-  // Both recognized main and test source-set directories are checked --
-  // the latter specifically covers the "importing a test-scoped helper
-  // from another test-set file" case (the importing file here is, by
-  // definition, already test-scoped, since this function is only ever
-  // called from the per-test-file loop above).
+  // Lab-owned metadata is supporting context, never target-resolution proof.
   const candidateDirs = [...jvmMetadata.recognizedSourceDirectories, ...jvmMetadata.recognizedTestDirectories];
-  const inventoryBasenameIndex = buildJvmInventoryBasenameIndex(ctx, extensions);
-
   for (const imp of facts.imports) {
     if (!jvmImportLooksPossiblyLocal(imp)) continue;
 
-    // A Java `import static com.example.Foo.bar;` (or a Kotlin top-level
-    // member import) has its *member* name as the last dotted segment, not
-    // a class name -- this analyzer's ImportFact model (shared across
-    // every language) does not distinguish "static import of a member"
-    // from "plain class import", so both interpretations are tried: the
-    // full dotted path as-is (the common, plain-class-import case), and
-    // with its last segment dropped (the static/member-import case). This
-    // is a detector-side fix, not a change to javaAnalyzer.ts/
-    // kotlinAnalyzer.ts's ImportFact shape.
-    const parentSource = imp.source.includes(".") ? imp.source.slice(0, imp.source.lastIndexOf(".")) : null;
-
-    const conventionalCandidates = [
-      ...jvmImportCandidatePaths(imp.source, candidateDirs, extensions),
-      ...(parentSource ? jvmImportCandidatePaths(parentSource, candidateDirs, extensions) : []),
-    ];
-    const resolved =
-      conventionalCandidates.some((candidate) => fs.existsSync(path.join(ctx.target.rootPath, candidate))) ||
-      inventoryBasenameIndex.has(jvmImportSimpleName(imp.source)) ||
-      (parentSource !== null && inventoryBasenameIndex.has(jvmImportSimpleName(parentSource)));
-    if (resolved) continue;
+    if (!kitMissing.has(imp.source)) continue;
 
     const evidence: AuditIssue["evidence"] = [
       {
         kind: "file",
-        message: `Analyzer-recorded ${languageLabel} import does not resolve to a candidate local source file under a recognized source-set directory, nor to any inventoried file with a matching basename. This is a best-effort, path-based check -- no compiler/classpath analysis was performed, and no Gradle/Maven execution was performed, so confirm manually before treating it as stale.`,
+        message: `Qualified Kit declaration-domain evidence found no matching declaration in the complete witnessed selected ordinary JVM source domain. A Java static import concerns its owning type only; static-member binding and global compiler/classpath absence are not established. Import fact: ${imp.provenance?.factId}; snapshot: ${ctx.kitSourceReader?.snapshotId}.`,
         filePath: testRelativePath,
         excerpt: imp.source,
         source: DETECTOR_ID,
@@ -432,8 +363,8 @@ function findMissingJvmSourceImports(
         auditType: "code-rot",
         detectorId: DETECTOR_ID,
         idCues: [testRelativePath, `missing-${facts.language}-source-import`, imp.source],
-        title: `Test "${testRelativePath}" imports a ${languageLabel} class that may not exist: "${imp.source}"`,
-        description: `${testRelativePath} imports "${imp.source}" (source-facts-derived via the ${languageLabel} analyzer). No candidate local source file was found under a recognized source-set directory, and no inventoried file shares its simple name. This is a deterministic source-facts signal from a conservative, non-semantic scan -- no compiler/classpath analysis was performed, and no Gradle/Maven execution was performed, so this does not resolve the real classpath, package visibility, or multi-module project layout. It may indicate a stale import but is not proof.`,
+        title: `Test "${testRelativePath}" has no selected ${languageLabel} declaration for import "${imp.source}"`,
+        description: `${testRelativePath} imports "${imp.source}". Qualified Kit evidence establishes absence of a matching declaration within the complete witnessed selected ordinary JVM source domain. For a Java static import this concerns the owning type only. It does not establish static-member binding or global compiler/classpath absence; the intended declaration may be supplied by another module or dependency.`,
         severity: "low",
         confidence: "low",
         falsePositiveRisk: "medium",
@@ -450,23 +381,6 @@ function findMissingJvmSourceImports(
     );
   }
   return issues;
-}
-
-// Lowercased-basename index (without extension) of every inventoried
-// Java/Kotlin file matching the given extensions -- the lenient,
-// last-resort fallback used by findMissingJvmSourceImports() above so a
-// real (if unconventionally placed) local file is never flagged as
-// missing merely because the project doesn't follow the conventional
-// src/main/{java,kotlin} source-set layout (mirrors
-// jvmProjectMetadata.ts's own "non-conventional layout" reasoning).
-function buildJvmInventoryBasenameIndex(ctx: AuditDetectorContext, extensions: readonly string[]): Set<string> {
-  const extSet = new Set(extensions.map((e) => `.${e}`));
-  const basenames = new Set<string>();
-  for (const file of ctx.inventory.files) {
-    if (!extSet.has(file.extension)) continue;
-    basenames.add(baseNameNoExt(file.relativePath));
-  }
-  return basenames;
 }
 
 function findStaleNpmRunReferences(testRelativePath: string, content: string, scriptNames: Set<string>): AuditIssue[] {

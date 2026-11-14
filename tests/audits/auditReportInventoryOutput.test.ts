@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
@@ -24,18 +25,10 @@ afterEach(() => {
 });
 
 function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
-  const resolved = resolveCommand("npx", { cwd: toolRoot });
-  const needsResolvedPathArg =
-    resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
-  const fullArgs = [
-    ...resolved.argsPrefix,
-    ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
-    "tsx",
-    "scripts/audits/runAudit.ts",
-    ...args,
-  ];
+  args = ["--target", boundedCliTarget(), "--include", "docs", ...args];
+  const fullArgs = [path.join(toolRoot, "node_modules/tsx/dist/cli.mjs"), path.join(toolRoot, "scripts/audits/runAudit.ts"), ...args];
   try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" });
+    const stdout = execFileSync(process.execPath, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };
@@ -124,3 +117,11 @@ describe("npm run audit — text report inventory/source-of-truth integration", 
     expect(text).not.toMatch(/no code-rot detectors are registered yet/i);
   }, 30_000);
 });
+
+function boundedCliTarget(): string {
+ const root = mkdtempSync(path.join(os.tmpdir(), "audit-cli-bounded-")); cleanupDirs.push(root);
+ fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({name:"@dailephd/my-dev-kit-lab",version:"1.0.0",scripts:{}}));
+ fs.writeFileSync(path.join(root,"README.md"),"# Bounded audit fixture\n");
+ fs.mkdirSync(path.join(root,"src")); fs.writeFileSync(path.join(root,"src/index.ts"),"export const value = 1;\n");
+ return root;
+}

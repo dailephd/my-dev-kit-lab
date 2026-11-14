@@ -7,7 +7,7 @@ describe("canonical Vitest discovery", () => {
     const root = process.cwd();
     const output = execFileSync(
       process.execPath,
-      [path.join(root, "node_modules", "vitest", "vitest.mjs"), "list", "--filesOnly", "--config", path.join(root, "vitest.config.ts")],
+      [path.join(root, "node_modules", "vitest", "vitest.mjs"), "list", "--filesOnly", "--no-cache", "--configLoader", "runner", "--config", path.join(root, "vitest.config.ts")],
       { cwd: root, encoding: "utf8", windowsHide: true }
     );
     const files = output.split(/\r?\n/).filter((line) => /\.(test|spec)\.[jt]sx?$/.test(line));

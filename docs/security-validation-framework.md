@@ -153,6 +153,8 @@ tests/fuzz/
 - `reports/security/<prefix>-security-validation.txt`
 - `reports/security/<prefix>-security-validation.json`
 
+The installed CLI defaults all security artifacts to `<workspace>/reports/security`; the contributor command keeps its source-checkout default. Explicit `--out` controls both final reports and intermediate check JSON, raw streams, and the package-check npm cache (`raw/npm-cache`). Report prefixes must be filenames. Output symlinks/junctions and aliased report destinations are rejected rather than followed.
+
 Supported verdicts are:
 
 - ready for release preparation
@@ -163,6 +165,8 @@ Supported verdicts are:
 Optional scanners can be recorded as skipped. A skip is not silently converted into a pass, and its effect is reflected in the verdict and report.
 
 Failed or incomplete scanner execution cannot produce a false `PASS`: process failures, invalid output, or incomplete analysis remain failed/inconclusive evidence according to the existing check contract. Findings and severity mappings are preserved. Optional scanners that are unavailable are explicitly `SKIPPED` with a reason. This correction does not change verdict policy.
+
+A failed major or blocker check, including a selected check's orchestration error with no collected findings, produces a blocking verdict and exit 1. `--fail-on` cannot weaken that result. A final report persistence failure returns exit 4 and does not claim that evidence was persisted.
 
 ### CodeQL coverage contract
 

@@ -2,8 +2,29 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveCommand } from "../../src/core/resolveCommand.js";
+// Explicit unavailable-provider scenarios reuse the existing test-only runner
+// dependency seam. Other cases below retain real CLI subprocess execution.
+const missingProvider = vi.hoisted(() => ({ root: undefined as string | undefined }));
+vi.mock("../../src/audits/core/auditRunner.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/audits/core/auditRunner.js")>("../../src/audits/core/auditRunner.js");
+  return { ...actual, runAudit: (options: Parameters<typeof actual.runAudit>[0]) => actual.runAudit(
+    missingProvider.root === undefined ? options : { ...options, kitSourceProviderDependencies: { installedPackageRoot: missingProvider.root } }
+  ) };
+});
+import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
+async function runAuditWithoutProvider(args: string[]) {
+  const owned = fs.mkdtempSync(path.join(os.tmpdir(), "audit-missing-provider-")); cleanupDirs.push(owned);
+  missingProvider.root = path.join(owned, "missing-kit");
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  try {
+    const status = await runAuditCommandFromArgs(["--out", path.join(owned, "out"), ...args]);
+    return { status, stderr: error.mock.calls.map(parts => parts.join(" ")).join("\n"), stdout: log.mock.calls.map(parts => parts.join(" ")).join("\n") };
+  } finally { missingProvider.root = undefined; error.mockRestore(); log.mockRestore(); }
+}
+
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 6 — live self-audit smoke guard (spec 3.8).
@@ -28,18 +49,9 @@ afterEach(() => {
 });
 
 function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
-  const resolved = resolveCommand("npx", { cwd: toolRoot });
-  const needsResolvedPathArg =
-    resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
-  const fullArgs = [
-    ...resolved.argsPrefix,
-    ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
-    "tsx",
-    "scripts/audits/runAudit.ts",
-    ...args,
-  ];
+  const fullArgs = [path.join(toolRoot, "node_modules/tsx/dist/cli.mjs"), path.join(toolRoot, "scripts/audits/runAudit.ts"), ...args];
   try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8" });
+    const stdout = execFileSync(process.execPath, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };
@@ -48,11 +60,13 @@ function runAuditCli(args: string[]): { stdout: string; stderr: string; status: 
 }
 
 describe("live self-audit smoke — real subprocess against this repo's own current state", () => {
-  it("`npm run audit -- --fail-on none` exits 0, JSON is parseable, counts are internally consistent, no detector crashed", () => {
+  it("non-source CLI report counts remain internally consistent without a Kit acquisition", () => {
     const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-self-smoke-"));
     cleanupDirs.push(outDir);
 
-    const result = runAuditCli(["--fail-on", "none", "--format", "json", "--out", outDir]);
+    const target = fs.mkdtempSync(path.join(os.tmpdir(),"audit-counts-target-")); cleanupDirs.push(target);
+    fs.writeFileSync(path.join(target,"package.json"), JSON.stringify({name:"counts-fixture",version:"1.0.0",scripts:{}}));
+    const result = runAuditCli(["--target",target,"--include","package","--fail-on", "none", "--format", "json", "--out", outDir]);
     expect(result.status).toBe(0);
 
     const jsonPath = path.join(outDir, "code-rot-audit.json");
@@ -85,3 +99,10 @@ describe("live self-audit smoke — real subprocess against this repo's own curr
     console.log(`[Batch 6 self-audit smoke] actual current issue count: ${parsed.summary.totalIssues}`, parsed.summary.issuesBySeverity);
   }, 30_000);
 });
+
+it("self source audit fails closed without a qualified installed producer", async () => {
+ const out = fs.mkdtempSync(path.join(os.tmpdir(),"self-source-fatal-")); cleanupDirs.push(out);
+ const result = await runAuditWithoutProvider(["--fail-on","none","--format","json","--out",out]);
+ expect(result.status).toBe(2); expect(result.stderr).toContain("package-missing");
+ expect(fs.existsSync(path.join(out,"code-rot-audit.json"))).toBe(false);
+},30000);

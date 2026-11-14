@@ -29,7 +29,7 @@ function runGit(cwd: string, args: readonly string[], input?: string): Promise<G
   return new Promise((resolve, reject) => {
     const child = execFile(
       "git",
-      [...args],
+      ["-c", "core.longpaths=true", ...args],
       { cwd, env: gitEnvironment(), encoding: "utf8", maxBuffer: GIT_MAX_BUFFER_BYTES, windowsHide: true },
       (error, stdout) => {
         if (error) {

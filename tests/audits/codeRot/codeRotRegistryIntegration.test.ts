@@ -79,7 +79,7 @@ describe("runAudit — Batch 3 default registry behavior", () => {
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0" }));
       const config = normalizeAuditConfig({}, root);
-      const result = await runAudit({ config, toolRoot: root });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root });
       expect(result.noDetectorsRegistered).toBe(false);
     } finally {
       cleanup(root);
@@ -92,7 +92,7 @@ describe("runAudit — Batch 3 default registry behavior", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "README.md", "Run `npm run totally-fake-command` to get started.\n");
       const config = normalizeAuditConfig({ failOn: "none" }, root);
-      const result = await runAudit({ config, toolRoot: root });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root });
       expect(result.issues.length).toBeGreaterThan(0);
     } finally {
       cleanup(root);
@@ -105,7 +105,7 @@ describe("runAudit — Batch 3 default registry behavior", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "README.md", "Run `npm run totally-fake-command` to get started.\n");
       const config = normalizeAuditConfig({ failOn: "none" }, root);
-      const result = await runAudit({ config, toolRoot: root });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root });
       expect(result.issues.length).toBeGreaterThan(0);
       expect(result.exitCode).toBe(0);
     } finally {
@@ -119,7 +119,7 @@ describe("runAudit — Batch 3 default registry behavior", () => {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       writeFile(root, "README.md", "Run `npm run totally-fake-command` to get started.\n");
       const config = normalizeAuditConfig({ failOn: "high" }, root);
-      const result = await runAudit({ config, toolRoot: root });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root });
       expect(result.issues.some((i) => i.severity === "high")).toBe(true);
       expect(result.exitCode).toBe(1);
     } finally {
@@ -135,7 +135,7 @@ describe("runAudit — Batch 3 default registry behavior", () => {
       writeFile(root, "CHANGELOG.md", "# Changelog\n\n## [1.0.0] - 2024-01-01\n\nInitial.\n");
       writeFile(root, "README.md", "This is a clean fixture project with no stale references.\n");
       const config = normalizeAuditConfig({}, root);
-      const result = await runAudit({ config, toolRoot: root });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root });
       expect(result.issues).toEqual([]);
       expect(result.exitCode).toBe(0);
     } finally {
@@ -148,7 +148,7 @@ describe("runAudit — Batch 3 default registry behavior", () => {
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
       const config = normalizeAuditConfig({ include: "package" }, root);
-      const result = await runAudit({ config, toolRoot: root });
+      const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root });
       const skippedIds = result.skippedDetectors.map((d) => d.id);
       expect(skippedIds).toContain("stale-command-reference");
       expect(skippedIds).toContain("docs-code-mismatch");

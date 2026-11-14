@@ -1,3 +1,4 @@
+import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
@@ -39,7 +40,7 @@ function buildContext(root: string): AuditDetectorContext {
 
 async function run(root: string) {
   const ctx = buildContext(root);
-  return CROSS_PLATFORM_ROT_DETECTOR.run(ctx);
+  return executeWithKit(ctx);
 }
 
 describe("CROSS_PLATFORM_ROT_DETECTOR — POSIX-only script syntax", () => {
@@ -131,8 +132,32 @@ describe("CROSS_PLATFORM_ROT_DETECTOR — real self-scan regression guard", () =
   // detector no longer has any real finding against this repo's own source
   // -- verified via a real self-audit run (see the Batch 6 final report),
   // not just this unit-level check.
-  it("finds nothing against this repo's own current source (the pre-existing raw-split finding is fixed)", async () => {
-    const issues = await run(process.cwd());
-    expect(issues).toEqual([]);
+  it("fails closed when whole-repository source exceeds authenticated contiguous content bounds", async () => {
+    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
+  }, 1800000);
+  it("retains the splitLines regression guard over qualified bounded source", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "qualified-line-guard", version: "1.0.0" }));
+      writeFile(root, "src/audits/core/sourceOfTruth.ts", "export const parse = (content: string) => splitLines(content);\n");
+      const issues = await run(root);
+      expect(issues).toEqual([]);
+    } finally { cleanup(root); }
   });
 });
+
+// Real whole-repository acquisition performs paged CLI queries for every selected file.
+// Its integration timeout includes those queries; finding assertions remain unchanged.
+// Test setup delegates source acquisition to the real qualified provider.
+let selfRun: Promise<Awaited<ReturnType<typeof CROSS_PLATFORM_ROT_DETECTOR.run>>> | undefined;
+async function executeWithKit(ctx: AuditDetectorContext) {
+  const perform = async () => {
+  const result = await runAudit({ config: ctx.config, toolRoot: ctx.target.rootPath, target: ctx.target, registry: [CROSS_PLATFORM_ROT_DETECTOR],
+    kitSourceProviderDependencies: {} });
+  if (result.detectorErrors.length) throw new Error(JSON.stringify(result.detectorErrors));
+  return result.issues;
+
+  };
+  if (path.resolve(ctx.target.rootPath) === path.resolve(process.cwd())) return selfRun ??= perform();
+  return perform();
+}

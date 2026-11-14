@@ -154,8 +154,8 @@ export async function resolveControlledBenchmarkProject(toolRoot: string, benchm
 }
 
 /** The runtime root lives under the experiment output root and must never overlap the controlled benchmarks. */
-export async function resolveSandboxRuntimeRoot(outDir: string, toolRoot: string): Promise<string> {
-  const runtimeRoot = path.join(path.resolve(outDir), "sandboxes");
+export async function resolveSandboxRuntimeRoot(outDir: string, toolRoot: string, directory: "sandboxes" | "r" = "sandboxes"): Promise<string> {
+  const runtimeRoot = path.join(path.resolve(outDir), directory);
   const physicalRuntime = await resolvePhysicalPath(runtimeRoot);
   const physicalBenchmarks = await resolvePhysicalPath(path.join(path.resolve(toolRoot), "benchmarks"));
   if (isSameOrInside(physicalBenchmarks, physicalRuntime) || isSameOrInside(physicalRuntime, physicalBenchmarks)) {

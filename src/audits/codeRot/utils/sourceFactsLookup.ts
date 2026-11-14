@@ -1,5 +1,33 @@
 import type { SourceFactsSnapshot, SourceFileFacts } from "../../core/sourceFacts.js";
 import { baseNameNoExt } from "./filePatternUtils.js";
+import type { KitSourceReader } from "../../core/kitSourceProvider.js";
+import { KitSourceEvidenceAcquisitionError, type KitOccurrence } from "../../core/kitSourceEvidence.js";
+
+export function requireCompleteKitOccurrence(result: KitOccurrence): KitOccurrence {
+  if (!result.complete) throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
+    `${result.filePath} literal ${JSON.stringify(result.value)} is incomplete (${result.reasonCode}).`);
+  return result;
+}
+
+// A conservative bridge for the existing whole-content regex predicates.
+// No windows are stitched: a nonzero anchor needs one authenticated window
+// covering the whole file. Otherwise the existing unbounded regex/150-char
+// neighborhood cannot be reproduced safely from the bounded interface.
+export async function kitPredicateContent(reader: KitSourceReader | undefined, filePath: string, anchors: readonly string[], byteNeighborhood = false): Promise<string> {
+  if (!reader) throw new KitSourceEvidenceAcquisitionError("invalid-request", `${filePath} requires its validated Kit source reader.`);
+  const file = reader.selectedFile(filePath);
+  for (const anchor of anchors) {
+    const result = requireCompleteKitOccurrence(await reader.occurrences(filePath, anchor));
+    if (!result.matchCount) continue;
+    const whole = result.matches.find((match) => match.windowStart === 1 && file.lineCount !== null &&
+      (match.windowEnd === file.lineCount || (match.windowEnd === file.lineCount - 1 && match.windowEnd < match.line + 40)) &&
+      (!byteNeighborhood || Buffer.byteLength(match.content, "utf8") === file.sizeBytes || Buffer.byteLength(match.content, "utf8") + 1 === file.sizeBytes));
+    if (!whole) throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
+      `${filePath} has insufficient contiguous source context for the original predicate (including newline identity).`);
+    return whole.content;
+  }
+  return "";
+}
 
 // ---------------------------------------------------------------------------
 // v0.3.1 Batch 4 -- shared source-facts lookup helpers for code-rot

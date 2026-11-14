@@ -1,0 +1,2 @@
+# Exact upstream schema hashes authenticate raw bytes, independent of checkout settings.
+eco00-*.json -text

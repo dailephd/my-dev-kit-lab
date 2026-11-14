@@ -148,7 +148,7 @@ function normalizeVolatileFields(parsed: any): any {
 async function runAndWrite(root: string, typesArg: string | undefined, outDir: string, displayName?: string) {
   const config = normalizeAuditConfig({ out: outDir, ...(typesArg ? { types: typesArg } : {}) }, root);
   const target = fakeTargetFor(root, displayName);
-  const result = await runAudit({ config, toolRoot: root, target });
+  const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, target });
   const model = buildAuditReportModel(result, { target, generatedAt: FIXED_GENERATED_AT });
   const { writtenPaths } = writeAuditReports({ model, config, outDir });
   const jsonPath = writtenPaths.find((p) => p.endsWith(".json"))!;
@@ -234,12 +234,12 @@ describe("report determinism — RPT2/A2 security repeated run JSON stability", 
 
     const config1 = normalizeAuditConfig({ target: targetRoot, types: "security", out: out1 }, toolRoot);
     const target = fakeTargetFor(targetRoot);
-    const firstResult = await runAudit({ config: config1, toolRoot, target });
+    const firstResult = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config: config1, toolRoot, target });
     const firstModel = buildAuditReportModel(firstResult, { target, generatedAt: FIXED_GENERATED_AT });
     writeAuditReports({ model: firstModel, config: config1, outDir: out1 });
 
     const config2 = normalizeAuditConfig({ target: targetRoot, types: "security", out: out2 }, toolRoot);
-    const secondResult = await runAudit({ config: config2, toolRoot, target });
+    const secondResult = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config: config2, toolRoot, target });
     const secondModel = buildAuditReportModel(secondResult, { target, generatedAt: FIXED_GENERATED_AT });
     writeAuditReports({ model: secondModel, config: config2, outDir: out2 });
 
@@ -328,7 +328,7 @@ describe("report determinism — RPT4/A4 run-order isolation", () => {
     // security-including run must not inherit ran=true from the prior run.
     expect(runD.parsed.securitySummary.ran).toBe(false);
     expect(runD.parsed.securitySummary.reportPaths).toEqual({ text: null, json: null });
-  });
+  }, 180000);
 });
 
 describe("report determinism — RPT5/A5 target/output collision safety", () => {

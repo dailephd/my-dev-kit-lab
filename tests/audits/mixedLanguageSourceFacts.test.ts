@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
-import { collectSourceFacts } from "../../src/audits/core/collectSourceFacts.js";
-import {
-  DEFAULT_LANGUAGE_ANALYZER_REGISTRY,
-  selectLanguageAnalyzer,
-} from "../../src/audits/core/languageAnalyzerRegistry.js";
+import { collectKitSourceFacts } from "../../src/audits/core/kitSourceProvider.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import type { AuditTarget } from "../../src/audits/core/auditTarget.js";
@@ -47,7 +43,7 @@ describe("mixed-language source facts — T1 mixed-language collection completes
   it("collects source facts from a project containing TS, JS, Python, Java, and Kotlin files without crashing", async () => {
     const root = fixturePath("mixed-ts-python-jvm");
     const inventory = scanProjectInventory(root);
-    const snapshot = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
+    const snapshot = await collectSourceFacts(root, inventory);
 
     expect(snapshot.filesByLanguage.typescript).toBeGreaterThan(0);
     expect(snapshot.filesByLanguage.javascript).toBeGreaterThan(0);
@@ -66,15 +62,15 @@ describe("mixed-language source facts — T2 stable language identity", () => {
   it("maps each extension to the expected analyzer across a mixed-language project", async () => {
     const root = fixturePath("mixed-ts-python-jvm");
     const inventory = scanProjectInventory(root);
-    const snapshot = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
+    const snapshot = await collectSourceFacts(root, inventory);
 
     const byPath = (p: string) => snapshot.files.find((f) => f.relativePath === p);
 
-    expect(byPath("src/index.ts")?.analyzerId).toBe("typescript-javascript-analyzer");
-    expect(byPath("src/helper.js")?.analyzerId).toBe("typescript-javascript-analyzer");
-    expect(byPath("src/app.py")?.analyzerId).toBe("python-analyzer");
-    expect(byPath("src/main/java/com/example/Multiplier.java")?.analyzerId).toBe("java-analyzer");
-    expect(byPath("src/main/kotlin/com/example/Divider.kt")?.analyzerId).toBe("kotlin-analyzer");
+    expect(byPath("src/index.ts")?.analyzerId).toBe("kit:typescript-ast");
+    expect(byPath("src/helper.js")?.analyzerId).toBe("kit:typescript-ast");
+    expect(byPath("src/app.py")?.analyzerId).toBe("kit:python-ast");
+    expect(byPath("src/main/java/com/example/Multiplier.java")?.analyzerId).toBe("kit:java-lexical");
+    expect(byPath("src/main/kotlin/com/example/Divider.kt")?.analyzerId).toBe("kit:kotlin-lexical");
   });
 
   it("routes a Gradle Kotlin DSL build script to config, never to the Kotlin analyzer", () => {
@@ -91,7 +87,7 @@ describe("mixed-language source facts — T2 stable language identity", () => {
     // practice -- but confirm directly that if it were, .kts still resolves
     // to the Kotlin analyzer only for genuine Kotlin *source* extensions,
     // never based on role.
-    expect(selectLanguageAnalyzer(DEFAULT_LANGUAGE_ANALYZER_REGISTRY, "kotlin", ".kts")?.id).toBe("kotlin-analyzer");
+    expect(inventory.sourceFiles.some(file => file.relativePath === "build.gradle.kts" || file.relativePath === "settings.gradle.kts")).toBe(false);
   });
 });
 
@@ -122,7 +118,7 @@ describe("mixed-language source facts — T3 stable file-role classification", (
     expect(inventory.files.some((f) => f.relativePath.startsWith("dist/"))).toBe(false);
     expect(inventory.files.some((f) => f.relativePath.startsWith("build/"))).toBe(false);
 
-    const snapshot = collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
+    const snapshot = collectSourceFacts(root, inventory);
     return snapshot.then((s) => {
       const paths = s.files.map((f) => f.relativePath);
       expect(paths).toContain("src/index.ts");
@@ -138,8 +134,8 @@ describe("mixed-language source facts — T4 deterministic declarations", () => 
   it("returns the same normalized declaration list across repeated collections", async () => {
     const root = fixturePath("mixed-ts-python-jvm");
     const inventory = scanProjectInventory(root);
-    const first = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
-    const second = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
+    const first = await collectSourceFacts(root, inventory);
+    const second = await collectSourceFacts(root, inventory);
 
     const declOf = (snap: typeof first, p: string) =>
       snap.files.find((f) => f.relativePath === p)?.declarations.map((d) => `${d.kind}:${d.name}`);
@@ -159,8 +155,8 @@ describe("mixed-language source facts — T5 deterministic diagnostics", () => {
   it("produces stable diagnostics with no compiler/runtime claims across repeated runs", async () => {
     const root = fixturePath("mixed-ts-python-jvm");
     const inventory = scanProjectInventory(root);
-    const first = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
-    const second = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
+    const first = await collectSourceFacts(root, inventory);
+    const second = await collectSourceFacts(root, inventory);
 
     expect(first.filesByParseStatus).toEqual(second.filesByParseStatus);
     expect(first.analyzerDiagnostics).toEqual(second.analyzerDiagnostics);
@@ -180,7 +176,7 @@ describe("mixed-language source facts — T6 fallback behavior remains stable", 
     // README.md/build.gradle.kts are present (docs/config roles) alongside
     // real Java/Kotlin source -- neither is source-facts eligible, and their
     // presence must not disturb the Java/Kotlin entries.
-    const snapshot = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
+    const snapshot = await collectSourceFacts(root, inventory);
     const paths = snapshot.files.map((f) => f.relativePath);
     expect(paths).not.toContain("README.md");
     expect(paths).not.toContain("build.gradle.kts");
@@ -196,7 +192,7 @@ describe("mixed-language source facts — T7 SourceFacts schema remains unchange
   it("conforms to the existing SourceFileFacts shape with no Java/Kotlin-only required fields", async () => {
     const root = fixturePath("mixed-ts-python-jvm");
     const inventory = scanProjectInventory(root);
-    const snapshot = await collectSourceFacts(root, inventory, DEFAULT_LANGUAGE_ANALYZER_REGISTRY);
+    const snapshot = await collectSourceFacts(root, inventory);
 
     const expectedKeys = [
       "relativePath",
@@ -213,9 +209,10 @@ describe("mixed-language source facts — T7 SourceFacts schema remains unchange
 
     for (const file of snapshot.files) {
       const actualKeys = Object.keys(file)
-        .filter((k) => k !== "lineCount")
+        .filter((k) => k !== "lineCount" && k !== "kit")
         .sort();
       expect(actualKeys).toEqual(expectedKeys);
+      expect(file.kit?.contentSha256).toMatch(/^[0-9a-f]{64}$/);
     }
   });
 });
@@ -225,7 +222,7 @@ describe("mixed-language source facts — T8 report source-facts summary compati
     const root = fixturePath("mixed-ts-python-jvm");
     const config = normalizeAuditConfig({}, root);
     const target = fakeTargetFor(root);
-    const result = await runAudit({ config, toolRoot: root, target });
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: {}, config, toolRoot: root, target });
 
     const model = buildAuditReportModel(result, { target });
     const json = renderAuditJsonReport(model);
@@ -240,3 +237,7 @@ describe("mixed-language source facts — T8 report source-facts summary compati
     expect(parsed.securitySummary.ran).toBeDefined();
   });
 });
+
+async function collectSourceFacts(targetRoot: string, inventory: ReturnType<typeof scanProjectInventory>) {
+ return collectKitSourceFacts({ targetRoot, inventory, requiredCapabilities: [], includeScriptsRoot: true }, {  });
+}

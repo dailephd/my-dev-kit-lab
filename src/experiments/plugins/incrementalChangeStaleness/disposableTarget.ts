@@ -98,6 +98,26 @@ export async function verifyRuntimeDirectory(directory: string): Promise<string>
   return verifyDirectoryWithinRoot(path.parse(directory).root, directory);
 }
 
+/** Keep the complete native file ID: Windows file IDs can exceed Number's safe integer range. */
+export type RuntimeDirectoryIdentity = { root: string; dev: bigint; ino: bigint };
+function usableDirectoryIdentity(identity: RuntimeDirectoryIdentity): boolean {
+  return typeof identity.dev === "bigint" && identity.dev > 0n &&
+    typeof identity.ino === "bigint" && identity.ino > 0n;
+}
+export async function captureRuntimeDirectoryIdentity(directory: string): Promise<RuntimeDirectoryIdentity> {
+  const root = await verifyRuntimeDirectory(directory);
+  const info = await lstat(directory, { bigint: true });
+  const identity = { root, dev: info.dev, ino: info.ino };
+  if (!info.isDirectory() || info.isSymbolicLink() || !usableDirectoryIdentity(identity)) {
+    throw new Error("Unavailable or ambiguous runtime directory identity.");
+  }
+  return identity;
+}
+export function matchesRuntimeDirectoryIdentity(expected: RuntimeDirectoryIdentity, actual: RuntimeDirectoryIdentity): boolean {
+  return usableDirectoryIdentity(expected) && usableDirectoryIdentity(actual) &&
+    expected.root === actual.root && expected.dev === actual.dev && expected.ino === actual.ino;
+}
+
 /** Create one component at a time, checking before descending; never mkdir through a junction. */
 export async function ensureRuntimeDirectory(boundary: string, directory: string): Promise<string> {
   assertAbsoluteRuntimePath(boundary);
@@ -180,15 +200,13 @@ export async function createDisposableTreatmentTarget<T extends IncrementalChang
     canonicalProjectRoot,
     targetRoot
   };
-  const info = await lstat(targetRoot);
   const boundary = options.runtimeBoundary ?? resolvedRepoRoot;
-  const boundaryInfo = await lstat(boundary);
-  targetIdentities.set(target, { root: await verifyRuntimeDirectory(targetRoot), dev: info.dev, ino: info.ino,
-    boundary: { root: await verifyRuntimeDirectory(boundary), dev: boundaryInfo.dev, ino: boundaryInfo.ino } });
+  targetIdentities.set(target, { ...await captureRuntimeDirectoryIdentity(targetRoot),
+    boundary: await captureRuntimeDirectoryIdentity(boundary) });
   return target;
 }
 
-type TargetDirectoryIdentity = { root: string; dev: number; ino: number };
+type TargetDirectoryIdentity = RuntimeDirectoryIdentity;
 const targetIdentities = new WeakMap<object, TargetDirectoryIdentity & { boundary: TargetDirectoryIdentity }>();
 
 async function assertCopyTree(directory: string): Promise<void> {
@@ -202,14 +220,11 @@ async function assertCopyTree(directory: string): Promise<void> {
 
 export async function verifyDisposableTreatmentTarget(target: Pick<DisposableTreatmentTargetV1, "targetRoot">): Promise<void> {
   const identity = targetIdentities.get(target);
-  const root = await verifyRuntimeDirectory(target.targetRoot);
-  const info = await lstat(target.targetRoot);
-  if (!identity || identity.root !== root || identity.dev !== info.dev || identity.ino !== info.ino) {
+  const current = await captureRuntimeDirectoryIdentity(target.targetRoot);
+  if (!identity || !matchesRuntimeDirectoryIdentity(identity, current)) {
     throw new Error("Unverified disposable target identity.");
   }
-  const realBoundary = await verifyRuntimeDirectory(identity.boundary.root);
-  const boundaryInfo = await lstat(identity.boundary.root);
-  if (realBoundary !== identity.boundary.root || boundaryInfo.dev !== identity.boundary.dev || boundaryInfo.ino !== identity.boundary.ino) {
+  if (!matchesRuntimeDirectoryIdentity(identity.boundary, await captureRuntimeDirectoryIdentity(identity.boundary.root))) {
     throw new Error("Unverified disposable runtime boundary identity.");
   }
 }

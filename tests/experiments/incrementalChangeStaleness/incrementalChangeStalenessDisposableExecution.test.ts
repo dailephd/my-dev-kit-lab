@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -57,7 +57,12 @@ afterEach(async () => {
 // Disposable runtime roots must stay inside the my-dev-kit-lab worktree
 // (Section 6 of the spec), so test run roots live under the gitignored
 // .my-dev-kit-context/ directory rather than the OS temp directory.
-const testRuntimeParent = path.join(repoRoot, ".my-dev-kit-context", "test-runtime");
+const configuredRuntime = path.relative(repoRoot, path.resolve(os.tmpdir()));
+const testRuntimeParent = configuredRuntime !== "" && !configuredRuntime.startsWith("..") && !path.isAbsolute(configuredRuntime)
+  ? path.resolve(os.tmpdir()) : path.join(repoRoot, ".my-dev-kit-context", "test-runtime");
+if (path.relative(repoRoot, testRuntimeParent).startsWith("..") || path.isAbsolute(path.relative(repoRoot, testRuntimeParent))) {
+  throw new Error("Disposable test runtime must be inside the repository worktree.");
+}
 mkdirSync(testRuntimeParent, { recursive: true });
 
 function makeRunRoot(): string {
@@ -87,12 +92,14 @@ describe("createDisposableTreatmentTarget", () => {
 
   it("copies and mutates a complete benchmark outside the resource root using a separate authorized boundary", async () => {
     const options = separateOptions(workspace());
+    options.repoRoot = workspace();
+    cpSync(path.join(repoRoot, options.canonicalProjectRootRelative), path.join(options.repoRoot, options.canonicalProjectRootRelative), { recursive: true });
     const { cases } = await loadFixtures();
     const catalog = await readProductionIncrementalChangeStalenessScenarioCatalog(repoRoot);
     const scenario = catalog.scenarios.find((entry) => entry.id === "L2")!;
     const baseCase = cases.find((entry) => entry.id === scenario.baseCaseId)!;
     const target = await createDisposableTreatmentTarget(options);
-    const relativeTarget = path.relative(repoRoot, target.targetRoot);
+    const relativeTarget = path.relative(options.repoRoot, target.targetRoot);
     // Different Windows drives produce an absolute relative() result.
     expect(path.isAbsolute(relativeTarget) || relativeTarget === ".." || relativeTarget.startsWith(`..${path.sep}`)).toBe(true);
     expect(existsSync(path.join(target.targetRoot, "README.md"))).toBe(true);
@@ -101,7 +108,7 @@ describe("createDisposableTreatmentTarget", () => {
     expect(result.status).toBe("applied");
     expect(result.files.every((file) => file.written && file.observedPostSha256 === file.expectedPostSha256)).toBe(true);
     expectCanonicalFilesUnchanged();
-    await removeDisposableTreatmentTarget(target, repoRoot, options.runRoot, options.runtimeBoundary);
+    await removeDisposableTreatmentTarget(target, options.repoRoot, options.runRoot, options.runtimeBoundary);
     expect(existsSync(target.targetRoot)).toBe(false);
   });
 

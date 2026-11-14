@@ -1,3 +1,5 @@
+import { createLabExecutionContext } from "../../src/runtime/labExecutionContext.js";
+import { runSecurityValidationCommandFromArgs } from "../../src/commands/runSecurityValidationCommand.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -216,50 +218,13 @@ describe("--out / --format output location consistency (Batch 6, real CLI)", () 
     expect(files.some((f) => f.endsWith(".json"))).toBe(true);
   }, 30_000);
 
-  it("default (no --out) still writes to reports/security", () => {
-    // Runs the CLI itself rather than relying on some other test file having
-    // already created reports/security as a side effect -- that assumption
-    // broke once reports/security/raw/.gitkeep stopped being a tracked file
-    // (a fresh checkout no longer has an empty reports/security/ directory
-    // present before any test runs).
-    //
-    // scripts/security/validate.ts derives its toolRoot from its own file
-    // location (resolveToolRoot.ts walks up from import.meta.url to the
-    // nearest package.json), not from this subprocess's cwd -- so there is
-    // no way to redirect this specific real-CLI invocation to an isolated
-    // directory without weakening the exact default-output-location
-    // guarantee this test exists to prove. That means this test's
-    // `--checks secrets` smoke run necessarily writes to the SAME fixed,
-    // non-run-scoped stable path (reports/security/v<version>-security-
-    // validation.json/.txt) that a real `npm run security:validate`
-    // invocation and human/CI consumers read as the canonical release-
-    // readiness snapshot (see securityAuditAdapter.ts's run-scoped suffix
-    // for how the audit-linked reports avoid this by contrast). Left
-    // unguarded, this narrow secrets-only run silently overwrote that
-    // canonical snapshot every time this test executed -- the confirmed
-    // root cause of the v0.3.4 pre-release-readiness "stale stable security
-    // report" correction. The stable prefix is read from package.json at
-    // test time (not hardcoded to one version string) so this protection
-    // survives every future version bump, not just the version current when
-    // the fix was written. Snapshotting and restoring the stable files
-    // around this test preserves its real assertion (the CLI still creates
-    // reports/security and writes into it by default) without leaving
-    // collateral staleness for whoever reads the stable snapshot next.
-    const currentVersion = JSON.parse(readFileSync(path.join(toolRoot, "package.json"), "utf8")).version as string;
-    const stableJsonPath = path.join(toolRoot, "reports", "security", `v${currentVersion}-security-validation.json`);
-    const stableTxtPath = path.join(toolRoot, "reports", "security", `v${currentVersion}-security-validation.txt`);
-    const previousJson = existsSync(stableJsonPath) ? readFileSync(stableJsonPath, "utf8") : null;
-    const previousTxt = existsSync(stableTxtPath) ? readFileSync(stableTxtPath, "utf8") : null;
-
-    try {
-      runValidateCli(["--checks", "secrets", "--format", "json"]);
-      expect(existsSync(path.join(toolRoot, "reports", "security"))).toBe(true);
-    } finally {
-      if (previousJson !== null) writeFileSync(stableJsonPath, previousJson, "utf8");
-      else if (existsSync(stableJsonPath)) rmSync(stableJsonPath);
-      if (previousTxt !== null) writeFileSync(stableTxtPath, previousTxt, "utf8");
-      else if (existsSync(stableTxtPath)) rmSync(stableTxtPath);
-    }
+  it("default (no --out) still writes to reports/security", async () => {
+    const workspaceRoot = mkdtempSync(path.join(os.tmpdir(), "security-default-"));
+    cleanupDirs.push(workspaceRoot);
+    const context = createLabExecutionContext({ packageRoot: toolRoot, workspaceRoot, invocationCwd: workspaceRoot });
+    const status = await runSecurityValidationCommandFromArgs(["--checks", "secrets", "--format", "json"], { context, defaultOutRoot: workspaceRoot });
+    expect(status).toBe(0);
+    expect(existsSync(path.join(workspaceRoot, "reports", "security"))).toBe(true);
   }, 30_000);
 });
 

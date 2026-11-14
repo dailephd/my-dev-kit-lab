@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dailephd/my-dev-kit/main/contracts/ecosystem/v1/evidence-requirement-v1.schema.json",
+  "title": "EvidenceRequirementV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "requirementId",
+    "capabilityId",
+    "criticality",
+    "acceptedArtifactKinds"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "requirementId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilityId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "criticality": {
+      "enum": [
+        "critical",
+        "noncritical"
+      ]
+    },
+    "responsibility": {
+      "$ref": "https://raw.githubusercontent.com/dailephd/my-dev-kit/main/contracts/ecosystem/v1/subject-identity-v1.schema.json"
+    },
+    "acceptedArtifactKinds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

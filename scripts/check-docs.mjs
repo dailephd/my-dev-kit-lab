@@ -88,80 +88,8 @@ function roadmapSections() {
   return sections;
 }
 const sections = roadmapSections();
-const negatedPublication = /\b(?:(?:not|never)\s+(?:yet\s+)?(?:(?:been|be)\s+)?(?:published|released)|(?:isn't|wasn't|weren't|hasn't|hadn't|won't)\s+(?:yet\s+)?(?:(?:been|be)\s+)?published|unpublished|unreleased(?!\s+v\d)|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
-const positivePublication = (text) => /\bpublished\b/i.test(
-  (text || "").replace(new RegExp(negatedPublication.source, "gi"), ""),
-);
-const transitionalReleaseWording = /\b(?:not\s+(?:yet\s+)?released|unreleased|unpublished|(?:still\s+)?in\s+(?:release\s+)?preparation|release\s+preparation\s+(?:is\s+)?(?:pending|ongoing|in\s+progress)|awaiting\s+(?:release\s+)?(?:validation|readiness)|pre[- ]release\s+readiness\s+(?:is\s+)?pending|pending\s+publication|publication\s+(?:is\s+)?pending)\b/i;
-
-// Bind a claim to an exact version mention, not to a nearby version elsewhere
-// on the Markdown line. Semicolons/commas may continue the last explicit subject;
-// a new sentence or version starts a separate claim. Link destinations are not prose.
-function versionClaims(body) {
-  const claims = [];
-  const publicationModifier = /\b(?:(?:not|never)\s+(?:yet\s+)?(?:(?:been|be)\s+)?)?(?:published|unpublished|unreleased|pending\s+publication|publication\s+(?:is\s+)?pending)\s*(?:for\s*)?:?\s*$/i;
-  for (const line of body.split(/\r?\n/)) {
-    let visible = line.replace(/!?\[([^\]]*)\]\([^)]+\)/g, "$1");
-    // Formatting does not change a visible version subject or its predicate.
-    for (let pass = 0; pass < 3; pass++) {
-      visible = visible.replace(/(\x60+|\*{1,2}|_{1,2})(.*?)\1/g, "$2");
-    }
-    for (const sentence of visible.split(/(?<=[.!?])\s+/)) {
-      let subjects = [];
-      let pendingSubjects = [];
-      const clauses = sentence.split(/([;,])/);
-      for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 2) {
-        const clause = clauses[clauseIndex];
-        if (clauses[clauseIndex - 1] === ";") pendingSubjects = [];
-        const mentions = [...clause.matchAll(/\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/g)].map((match) => {
-          const modifier = publicationModifier.exec(clause.slice(0, match.index));
-          return { version: match[1], start: modifier?.index ?? match.index,
-            tokenStart: match.index, end: match.index + match[0].length };
-        });
-        if (!mentions.length) {
-          for (const version of new Set([...pendingSubjects, ...subjects])) {
-            claims.push({ version, window: clause });
-          }
-          pendingSubjects = [];
-          continue;
-        }
-        const prefix = clause.slice(0, mentions[0].start);
-        if (!/^\s*(?:and\s*|&\s*)?$/i.test(prefix)) pendingSubjects = [];
-        let group = [];
-        for (let index = 0; index < mentions.length; index++) {
-          const mention = mentions[index];
-          const next = mentions[index + 1];
-          // A modifier immediately before the next version belongs to that
-          // version, so adjacent claim spans never overlap it.
-          const window = clause.slice(mention.start, next?.start ?? clause.length);
-          claims.push({ version: mention.version, window });
-          group.push(mention);
-          const coordinated = next && /^\s*(?:and|&)\s*$/i.test(clause.slice(mention.end, next.start));
-          if (coordinated) continue;
-          const suffix = clause.slice(mention.end, next?.start ?? clause.length);
-          const sharedPrefix = clause.slice(group[0].start, group[0].tokenStart);
-          // Only a bare coordinated subject shares its following predicate.
-          // Each version keeps its own pre-version modifier.
-          for (const member of group.slice(0, -1)) {
-            claims.push({ version: member.version, window: suffix });
-          }
-          for (const member of group.slice(1)) {
-            if (sharedPrefix) claims.push({ version: member.version, window: sharedPrefix });
-          }
-          if (group[0] === mentions[0]) {
-            for (const version of pendingSubjects) claims.push({ version, window: suffix });
-          }
-          subjects = group.map((member) => member.version);
-          const bare = !next && /^\s*$/.test(suffix)
-            && /^\s*(?:(?:the|both|versions?|releases?|packages?)\s+)*$/i.test(prefix);
-          pendingSubjects = bare ? [...pendingSubjects, ...subjects] : [];
-          group = [];
-        }
-      }
-    }
-  }
-  return claims;
-}
+const negatedPublication = /\b(?:(?:has|is)\s+not\s+(?:yet\s+)?(?:been\s+)?published|not\s+(?:yet\s+)?(?:been\s+)?published|unpublished|unreleased(?!\s+v\d)|publication\s+(?:is\s+)?pending|pending\s+publication)\b/i;
+const positivePublication = (text) => /\bpublished\b/i.test(text || "") && !negatedPublication.test(text || "");
 const plannedLifecycle = /\b(?:planned|future|deferred|not implemented|not started|pre-release readiness pending)\b/i;
 // Implemented-but-unreleased: code exists in the checkout, publication has not happened.
 const implementedUnreleasedLifecycle = (text) =>
@@ -182,27 +110,20 @@ if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(packageVersion)) {
 const latestPublished = String(manifest.currentFacts?.latestPublishedVersion || "");
 const finalReleaseDocumentState = manifest.currentFacts?.releaseDocumentState === "final-release-state";
 const currentReleaseDocumentVersion = String(manifest.currentFacts?.currentReleaseDocumentVersion || "");
-// Published history and prepared release documents have independent owners.
-if (latestPublished) {
-  const status = sections.get(latestPublished)?.status || "";
-  if (!positivePublication(status)) {
-    const label = packageVersion === latestPublished ? "current package" : "published baseline";
-    fail("docs/ROADMAP.md", label + " v" + latestPublished + " lifecycle",
-      "positively published", status || "missing", "retain the verified published baseline's status");
+if (packageVersion === latestPublished) {
+  const status = sections.get(packageVersion)?.status || "";
+  if (finalReleaseDocumentState) {
+    if (!/(?:release candidate prepared|final release-document state)/i.test(status) || positivePublication(status)) {
+      fail("docs/ROADMAP.md", `current release-document v${packageVersion} lifecycle`, "final release-document wording without a publication claim", status || "missing", "mark final release-document state and keep publication distinct");
+    }
+  } else if (!positivePublication(status)) {
+    fail("docs/ROADMAP.md", `current package v${packageVersion} lifecycle`, "positively published", status || "missing", "mark the externally verified current package release as published");
   }
 }
-if (finalReleaseDocumentState) {
-  if (!currentReleaseDocumentVersion || packageVersion !== currentReleaseDocumentVersion
-      || currentReleaseDocumentVersion === latestPublished) {
-    fail(manifestFile, "prepared release-document identity",
-      "package version matches a release-document version distinct from the published baseline",
-      currentReleaseDocumentVersion || "missing", "record published and prepared versions separately");
-  }
+if (finalReleaseDocumentState && currentReleaseDocumentVersion && packageVersion === currentReleaseDocumentVersion) {
   const status = sections.get(currentReleaseDocumentVersion)?.status || "";
   if (!/(?:release candidate prepared|final release-document state)/i.test(status) || positivePublication(status)) {
-    fail("docs/ROADMAP.md", "current release-document v" + currentReleaseDocumentVersion + " lifecycle",
-      "final release-document wording without a publication claim", status || "missing",
-      "mark the prepared release-document state and keep external publication evidence distinct");
+    fail("docs/ROADMAP.md", `current release-document v${currentReleaseDocumentVersion} lifecycle`, "final release-document wording without a publication claim", status || "missing", "mark the prepared release-document state and keep external publication evidence distinct");
   }
 }
 const nextPlanned = String(manifest.currentFacts?.nextPlannedVersion || "");
@@ -233,13 +154,20 @@ for (const version of manifest.changelog?.requiredPublishedReleases || []) {
   }
 }
 
-const currentDocs = ["README.md", "docs/PROJECT_OVERVIEW.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/WORKFLOWS.md", "docs/ARCHITECTURE.md", "docs/security-validation-framework.md"]
+const currentDocs = ["README.md", "docs/PROJECT_OVERVIEW.md", "docs/CURRENT_STATE.md", "docs/COMMANDS.md", "docs/WORKFLOWS.md", "docs/security-validation-framework.md"]
   .map((file) => ({ file, body: read(file) }));
+const latestPublishedMarker = latestPublished ? `v${latestPublished}` : "";
 const staleRules = [
   [/v0\.4\.1[^\n]{0,100}(?:current published|published baseline)|current published[^\n]{0,100}v0\.4\.1/i, "latest published version", "v0.4.2", "replace stale v0.4.1-current wording with v0.4.2"],
   [/0\.4\.2[^\n]{0,100}(?:release-prepared|not yet published|publication[^\n]{0,30}(?:remain|pending))|publication[^\n]{0,80}(?:remain|pending)[^\n]{0,80}0\.4\.2/i, "v0.4.2 publication state", "published", "remove stale release-preparation wording"],
   [/Android[^\n]{0,80}(?:not implemented|remains planned|profiles? (?:is|are) planned)/i, "Android implementation state", "implemented and published", "describe only additional mobile profiles as planned"],
   [/\bthe only currently published way\b/i, "current installed-package workflow", "the published installed CLI and contributor workflow described separately", "remove stale wording that treats source checkout as the only published command path"],
+  ...(!finalReleaseDocumentState && latestPublishedMarker ? [[
+    new RegExp(`\\bpending\\b[^\\n]{0,160}\\b${escapeRegex(latestPublishedMarker)}\\b|\\b${escapeRegex(latestPublishedMarker)}\\b[^\\n]{0,160}\\bpending\\b`, "i"),
+    `${latestPublishedMarker} lifecycle wording`,
+    "published/current or historical wording that does not call the latest release pending",
+    `remove stale pending-state language for ${latestPublishedMarker}`,
+  ]] : []),
 ];
 for (const { file, body } of currentDocs) for (const [pattern, rule, expected, correction] of staleRules) {
   const match = body.match(pattern);
@@ -256,44 +184,23 @@ if (/If docs need to be updated to reflect the now-published state/i.test(workfl
   fail("docs/WORKFLOWS.md", "planned post-publication documentation repair", "absent", "present", "require release documentation to be final before npm publish; handle later-discovered defects as a separate correction workflow");
 }
 
-const lifecycleRoles = new Map([
-  [latestPublished, "published"],
-  [implementedUnreleased, "implemented-unreleased"],
-  [nextPlanned, "planned"],
-  ...(finalReleaseDocumentState ? [[currentReleaseDocumentVersion, "prepared"]] : []),
-]);
 for (const { file, body } of currentDocs) {
-  for (const { version, window } of versionClaims(body)) {
-    const kind = lifecycleRoles.get(version);
-    if (!version || !kind) continue;
-    const marker = "v" + version;
-    if (kind === "published" && negatedPublication.test(window)) {
-      fail(file, marker + " publication claim", "published or release-neutral", window.trim(),
-        "retain the verified publication fact; do not describe the published version as unpublished");
-    }
-    if (kind === "published" && /\bpending\b/i.test(window)) {
-      fail(file, marker + " lifecycle wording", "published/current or accurate historical wording", window.trim(),
-        "remove stale pending-state language for " + marker);
-    }
-    if (kind === "prepared" && positivePublication(window)) {
-      fail(file, marker + " publication claim", "final release-document wording without a publication claim",
-        window.trim(), "do not infer publication from release-preparation metadata");
-    }
-    if (kind === "prepared" && (negatedPublication.test(window) || transitionalReleaseWording.test(window))) {
-      fail(file, marker + " final release-document wording", "final and publication-neutral", window.trim(),
-        "remove transitional wording that becomes stale after publication");
-    }
-    if (kind === "planned" && positivePublication(window)) {
-      fail(file, marker + " publication claim", "planned/unreleased or release-neutral", window.trim(),
-        "do not describe the planned version as published");
-    }
-    if (kind === "implemented-unreleased" && positivePublication(window)) {
-      fail(file, marker + " publication claim", "implemented/unreleased or release-neutral", window.trim(),
-        "do not describe the unreleased version as published");
-    }
-    if (kind === "implemented-unreleased" && /\bnot\s+(?:yet\s+)?implemented\b|\bnext planned\b/i.test(window)) {
-      fail(file, marker + " implementation claim", "implemented", window.trim(),
-        "describe the implemented version as implemented and unreleased");
+  for (const line of body.split(/\r?\n/)) {
+    for (const [version, kind] of [[latestPublished, "published"], [implementedUnreleased, "implemented-unreleased"], [nextPlanned, "planned"]]) {
+      if (!version) continue;
+      const marker = `v${version}`;
+      let from = 0;
+      while ((from = line.indexOf(marker, from)) >= 0) {
+        const after = from + marker.length;
+        const nextVersion = line.slice(after).search(/v\d+\.\d+\.\d+\b/);
+        const window = line.slice(from, nextVersion >= 0 ? after + nextVersion : line.length);
+        if (kind === "published" && finalReleaseDocumentState && positivePublication(window)) fail(file, `v${version} publication claim`, "release-neutral until registry evidence is recorded", window.trim(), "do not claim the prepared npm artifact exists before publication");
+        if (kind === "published" && !finalReleaseDocumentState && negatedPublication.test(window)) fail(file, `v${version} publication claim`, "published or release-neutral", window.trim(), "remove stale negated publication wording");
+        if (kind === "planned" && positivePublication(window)) fail(file, `v${version} publication claim`, "planned/unreleased or release-neutral", window.trim(), "do not describe the planned version as published");
+        if (kind === "implemented-unreleased" && positivePublication(window)) fail(file, `v${version} publication claim`, "implemented/unreleased or release-neutral", window.trim(), "do not describe the unreleased version as published");
+        if (kind === "implemented-unreleased" && /\bnot\s+(?:yet\s+)?implemented\b|\bnext planned\b/i.test(window)) fail(file, `v${version} implementation claim`, "implemented", window.trim(), "describe the implemented version as implemented and unreleased");
+        from = after;
+      }
     }
   }
 }

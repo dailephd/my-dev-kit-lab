@@ -52,6 +52,39 @@ const ARTIFACT_KIND = "orchestrator-run-integrity-evidence-v1" as const;
 const EXPECTED_JUDGE_VERDICTS = ["PASS", "NEED_CONTEXT"] as const;
 const APPLICABLE_CONTEXT_KINDS = ["implementation", "test"] as const;
 
+/** Published Orchestrator 1.7.0 status/check --json projection, not the Lab fixture envelope. */
+export type NativeOrchestratorInspectionV1 = {
+  schemaVersion: "1.0.0";
+  run: { runId: string; mode: string; currentStage: string; status: string };
+  ecosystem: { required: boolean; classification: "not-required" | "ready" | "warning" | "blocked"; requirements: Array<{ requirementId: string; capabilityId: string; criticality: "critical" | "noncritical"; state: "satisfied" | "unmet-critical" | "unmet-noncritical"; matchingEvidenceIds: string[]; issueCodes: string[] }>; blockers: string[]; warnings: string[] };
+  integrity: { ready: boolean; expectedJudgeVerdict: "PASS" | "NEED_CONTEXT"; blockingCodes: string[] };
+  judge: { accepted: boolean; finalReportEligible: boolean };
+  checks?: { selection: "default" | "single-artifact" | "artifacts" | "all" | "prompts" | "trace" | "design-map"; outcome: "passed" | "warning" | "failed" | "not-run"; issueCounts: { fail: number | null; warn: number | null }; strict: boolean; exitCode: 0 | 1 };
+};
+
+export function validateNativeOrchestratorInspectionV1(value: JsonObject, sourcePath: string): UpstreamArtifactReadResult<NativeOrchestratorInspectionV1> {
+  const ctx: FieldContext = { artifactKind: ARTIFACT_KIND, sourcePath };
+  try {
+    const obj = (v: JsonValue, field: string) => requiredObject(ctx, v, field);
+    const str = (v: JsonObject, key: string) => requiredString(ctx, requiredField(ctx, v, key, key), key);
+    const bool = (v: JsonObject, key: string) => requiredBoolean(ctx, requiredField(ctx, v, key, key), key);
+    const arr = (v: JsonObject, key: string) => requiredStringArray(ctx, requiredField(ctx, v, key, key), key);
+    requiredLiteral(ctx, value.schemaVersion, "schemaVersion", ["1.0.0"]);
+    const run = obj(value.run, "run"); ["runId", "mode", "currentStage", "status"].forEach(k => str(run, k));
+    const eco = obj(value.ecosystem, "ecosystem"); bool(eco, "required"); requiredLiteral(ctx, eco.classification, "ecosystem.classification", ["not-required", "ready", "warning", "blocked"]); arr(eco, "blockers"); arr(eco, "warnings");
+    requiredArray(ctx, eco.requirements, "ecosystem.requirements").forEach((entry, index) => { const r = obj(entry, `ecosystem.requirements[${index}]`); str(r, "requirementId"); str(r, "capabilityId"); requiredLiteral(ctx, r.criticality, "criticality", ["critical", "noncritical"]); requiredLiteral(ctx, r.state, "state", ["satisfied", "unmet-critical", "unmet-noncritical"]); arr(r, "matchingEvidenceIds"); arr(r, "issueCodes"); });
+    const integrity = obj(value.integrity, "integrity"); bool(integrity, "ready"); requiredLiteral(ctx, integrity.expectedJudgeVerdict, "integrity.expectedJudgeVerdict", ["PASS", "NEED_CONTEXT"]); arr(integrity, "blockingCodes");
+    const judge = obj(value.judge, "judge"); bool(judge, "accepted"); bool(judge, "finalReportEligible");
+    if (value.checks !== undefined) {
+      const checks = obj(value.checks, "checks"); requiredLiteral(ctx, checks.selection, "checks.selection", ["default", "single-artifact", "artifacts", "all", "prompts", "trace", "design-map"]); requiredLiteral(ctx, checks.outcome, "checks.outcome", ["passed", "warning", "failed", "not-run"]); bool(checks, "strict");
+      const counts = obj(checks.issueCounts, "checks.issueCounts");
+      for (const key of ["fail", "warn"]) { const count = requiredField(ctx, counts, key, key); if (count !== null && (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)) throw new ArtifactValidationError({ ok: false, artifactKind: ARTIFACT_KIND, sourcePath, code: "INVALID_FIELD_TYPE", message: "Native issue counts must be nonnegative integers or null.", fieldPath: `checks.issueCounts.${key}` }); }
+      if (checks.exitCode !== 0 && checks.exitCode !== 1) throw new ArtifactValidationError({ ok: false, artifactKind: ARTIFACT_KIND, sourcePath, code: "INVALID_LITERAL_VALUE", message: "Native checks exitCode must be 0 or 1.", fieldPath: "checks.exitCode" });
+    }
+    return { ok: true, artifactKind: ARTIFACT_KIND, sourcePath, schemaVersion: "1.0.0", schemaMajor: 1, artifact: value as unknown as NativeOrchestratorInspectionV1, rawArtifact: value };
+  } catch (error) { if (error instanceof ArtifactValidationError) return error.failure; throw error; }
+}
+
 function validateContextReadinessNested(ctx: FieldContext, value: JsonValue, fieldPath: string): OrchestratorContextReadinessResultV1 {
   const result = validateOrchestratorContextReadinessResultV1(value, `${ctx.sourcePath}#${fieldPath}`);
   if (!result.ok) {

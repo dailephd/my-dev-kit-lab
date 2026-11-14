@@ -1,10 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { runSecurityValidation } from "../../../src/securityValidation/validate/runSecurityValidation.js";
 import { renderTextReport, renderJsonReport } from "../../../src/securityValidation/report/renderSecurityReport.js";
 import type { SecurityReport } from "../../../src/securityValidation/report/securityReportTypes.js";
 import type { AttackResult } from "../../../src/securityValidation/attackScenarios/attackResult.js";
 
 const toolRoot = process.cwd();
+const reportRoots: string[] = [];
+afterEach(() => {
+  for (const root of reportRoots.splice(0)) {
+    const relative = path.relative(os.tmpdir(), root);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Unowned attack report root");
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 describe("runSecurityValidation — attack scenario integration (Batch 2/3/4)", () => {
   it("selecting boundary/secrets runs concrete scenarios for both groups (Batch 4 registered secrets)", async () => {
@@ -38,9 +49,12 @@ describe("runSecurityValidation — attack scenario integration (Batch 2/3/4)", 
   }, 20_000);
 
   it("defaults to an empty attackResults array when no attack-scenario checks are selected", async () => {
+    const reportDir = mkdtempSync(path.join(os.tmpdir(), "attack-deps-report-"));
+    reportRoots.push(reportDir);
     const summary = await runSecurityValidation({
       cwd: toolRoot,
       selectedChecks: ["deps"],
+      config: { reportDir, rawOutputDir: path.join(reportDir, "raw") },
     });
     expect(summary.attackResults).toEqual([]);
   }, 60_000);
