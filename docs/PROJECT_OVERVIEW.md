@@ -16,7 +16,7 @@ The strongest retrieval use case is a localized task in a repository that is lar
 
 ## Current baseline
 
-Local package and retained release-document metadata remain v0.9.6; the latest verified npm publication is v0.9.7 (2026-11-11 registry check). Its installed incremental-experiment runtime containment is preserved. The v0.10.0 implementation is complete and unreleased, with prospective acceptance passed; separate standardized pre-release readiness is still required. See [CURRENT_STATE.md](CURRENT_STATE.md) for exact validation identities and historical limitations.
+Package and final release-document version: v0.10.0. The historical registry snapshot on 2026-11-14 records package 0.9.7. Incremental-experiment runtime containment is preserved. LAB-KIT-01 and LAB-EVIDENCE-01 are implemented and prospectively accepted. See [CURRENT_STATE.md](CURRENT_STATE.md) for validation identities and historical limitations.
 
 Version v0.9.3 adds hardened prompt contracts, extensible reports with metric evidence, broader gallery inputs, and prompt-template comparison. Security verdict strictness is unchanged. The v0.4.5 context-integrity evaluation remains intentionally frozen against the published `@dailephd/my-dev-kit@1.10.4` and `@dailephd/my-dev-kit-orchestrator@1.2.3` contracts; those versions are historical validation baselines. See [CURRENT_STATE.md](CURRENT_STATE.md) for the release state.
 
@@ -156,7 +156,7 @@ Context-pack generation experiments shipped in v0.8.2.
 
 The published v0.9.1 release adds provenance-aware provider telemetry, resumable agent-success-rate campaigns, durable checkpoints, explicit recovery controls, and validated plugin-specific progress reports while preserving existing provider adapters and scientific artifact contracts.
 
-Local package and retained release-document version: v0.9.6. Latest verified npm publication: v0.9.7. The v0.10.0 implementation completes LAB-KIT-01 Gates 1–6 and LAB-EVIDENCE-01 under its accepted prospective route. The original historical RSP-011 remains unsatisfied; current acceptance does not authenticate the lost original bytes. See the [canonical disposition](CURRENT_STATE.md#v0100-development-lab-evidence-01).
+Package and final release-document version: v0.10.0. LAB-KIT-01 Gates 1?6 and LAB-EVIDENCE-01 are complete under the accepted prospective route. The original historical RSP-011 remains unsatisfied; current acceptance does not authenticate the lost original bytes. See the [canonical disposition](CURRENT_STATE.md#v0100-development-lab-evidence-01).
 
 The preceding v0.9.2 release includes external npm package entrypoint validation, strict Lab self-package inventory, corrected Semgrep failure evidence, and campaign filesystem identity, path-safety, and cross-platform corrections. The v0.9.1 campaign capabilities remain included.
 
@@ -170,6 +170,6 @@ v0.9.4 is a maintenance release with Kit symbol-index schema-3 compatibility alo
 
 ## Version lifecycle
 
-The package version is `0.9.6`. Bounded full-refresh reference adequacy improves source-content evidence while preserving default retrieval, four treatments, V1/V2 readers, and inconclusive outcomes for incomplete evidence. The v0.9.5 release corrected bounded evidence collection and strengthened disposable validation.
+The package version is `0.10.0`. Bounded full-refresh reference adequacy improves source-content evidence while preserving default retrieval, four treatments, V1/V2 readers, and inconclusive outcomes for incomplete evidence. The v0.9.5 release corrected bounded evidence collection and strengthened disposable validation.
 
-The retained v0.9.6 release-document baseline is distinct from the published v0.9.7 predecessor and the v0.10.0 milestone, which is implemented and unreleased. LAB-KIT-01 uses published Kit 1.15.0 through the existing managed bridge, including conservative Rust reuse. LAB-EVIDENCE-01 adds authorized capture/passive import, exact evidence identity, required/optional evaluation, and scoped certification while preserving native producer result ownership. Its independent prospective native acceptance passed; the original historical RSP-011 preservation failure remains unsatisfied. Neither implementation acceptance nor this documentation reconciliation establishes standardized pre-release readiness. See the [source producer-consumer boundary](ARCHITECTURE.md#kit-source-authority-v0100-development), [executable-evidence contracts](ARCHITECTURE.md#executable-evidence-foundation-v0100-development), and [current state](CURRENT_STATE.md).
+The v0.10.0 release preserves LAB-KIT-01 published Kit 1.15.0 reuse, including conservative Rust support, and LAB-EVIDENCE-01 authorized capture/passive import, exact evidence identity, required/optional evaluation and scoped certification. Native producers retain result ownership. Prospective acceptance does not repair original RSP-011 historical loss. See [current state](CURRENT_STATE.md).

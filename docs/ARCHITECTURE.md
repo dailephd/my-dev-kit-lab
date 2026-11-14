@@ -1072,13 +1072,13 @@ Fail-on policy: `--fail-on blocker|high|medium|low|none` (default `blocker`; see
 
 ### Language-analyzer boundary
 
-The historical Lab analyzer substrate supplied TypeScript/JavaScript, Python, Java, and Kotlin facts. In v0.10.0 development, Kit supplies these source facts and Lab retains detector policy. JVM project metadata remains static presence/text extraction rather than a report-schema field.
+The historical Lab analyzer substrate supplied TypeScript/JavaScript, Python, Java, and Kotlin facts. In v0.10.0, Kit supplies these source facts and Lab retains detector policy. JVM project metadata remains static presence/text extraction rather than a report-schema field.
 
 This is conservative candidate evidence. It does not provide type checking, full module or classpath resolution, runtime reachability, clone detection, coverage analysis, compiler execution, Gradle/Maven execution, target-test execution, or dependency-freshness proof. See [CHANGELOG.md](../CHANGELOG.md) for the release-by-release history of this substrate.
 
 ### Kit source authority (v0.10.0 development)
 
-LAB-KIT-01 Gates 1–6 are complete and unreleased. Kit owns source discovery, parsing, source facts, authenticated content/occurrences, and import/source proofs. Lab owns the audit registry, selected-detector applicability, policy predicates, finding interpretation, severity, and reporting. The provider, validators, adapter, and per-audit reader reuse the existing runner; there is no second source-fact producer or production native fallback.
+LAB-KIT-01 Gates 1 through 6 are complete in v0.10.0. Kit owns source discovery, parsing, source facts, authenticated content/occurrences, and import/source proofs. Lab owns the audit registry, selected-detector applicability, policy predicates, finding interpretation, severity, and reporting. The provider, validators, adapter, and per-audit reader reuse the existing runner; there is no second source-fact producer or production native fallback.
 
 `runAudit()` defaults to `sourceProviderMode: "kit"`; `kit` is the only selectable programmatic mode. `legacy-comparison` throws a retirement `RangeError`, and other unsupported values throw explicitly before audit side effects. Historical snapshot serialization may still contain `legacy-comparison` or omit provider identity; those compatibility labels do not enable a current execution mode.
 

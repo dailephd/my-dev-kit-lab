@@ -2,16 +2,16 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
-## [Unreleased]
+## [0.10.0] - 2026-11-14
 
-### v0.10.0 development: executable-evidence foundation (LAB-EVIDENCE-01)
+### executable-evidence foundation (LAB-EVIDENCE-01)
 
 - Add `evidence import`, explicitly authorized `evidence capture`, and `evidence certify`, plus four library functions for passive reading, controlled capture, requirement evaluation, and exact-artifact certification.
 - Preserve original native bytes and SHA-256 references alongside separate Lab qualification records, frozen plan and subject identities, deterministic bounded reports, and required-evidence blockers. Supported adapters cover Node TAP, Kit context/retrieval evidence, and Orchestrator instruction/run-integrity evidence.
 - Qualify exact package combinations for selected CLI/local-app profiles without replacing native producer verdicts or automatically activating bundles. Capture uses disposable copies and bounded process execution; network isolation and caller cancellation are unsupported.
-- Complete prospective acceptance under `V010-EVIDENCE-ACCEPTANCE-ROUTE-01/1.0.0`: deterministic CLI and real Chromium full-stack fixtures, exact-package certification, current test corroboration, complete repository validation and accepted native judge PASS. The [historical RSP-011 preservation failure](docs/CURRENT_STATE.md#v0100-development-lab-evidence-01) remains unsatisfied and disclosed; this is not native supersession. v0.10.0 remains unreleased, with package metadata 0.9.6 and standardized pre-release readiness separate.
+- Complete prospective acceptance under `V010-EVIDENCE-ACCEPTANCE-ROUTE-01/1.0.0`: deterministic CLI and real Chromium full-stack fixtures, exact-package certification, current test corroboration, complete repository validation and accepted native judge PASS. The [historical RSP-011 preservation failure](docs/CURRENT_STATE.md#v0100-development-lab-evidence-01) remains unsatisfied and disclosed; this is not native supersession. Prospective acceptance does not recover the original historical payload.
 
-### v0.10.0 development: Kit-backed source audits (LAB-KIT-01)
+### Kit-backed source audits (LAB-KIT-01)
 
 - Source-dependent audits now use qualified Kit source facts and authenticated source evidence by default. The duplicate production Lab parsers and source readers are retired; required acquisition failures exit 2, including with `--fail-on none`. Non-source-only selections run without Kit.
 - Programmatic `legacy-comparison` selection is retired; only `kit` is supported. Existing audit CLI flags are unchanged. The qualified current producer is published Kit 1.15.0, pinned as an exact runtime dependency. Candidate 05 remains a distinct historical development producer with 1.14.0 metadata, not public Kit 1.14.0.

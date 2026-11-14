@@ -10,9 +10,9 @@ my-dev-kit-lab ships a supported installed CLI (see "Installed CLI commands" bel
 
 ## Installed CLI commands
 
-This section describes the current source checkout and published package, with unreleased development commands explicitly labeled. The `evidence` family below is implemented in the v0.10.0 development checkout and remains unreleased.
+This section describes the v0.10.0 source and package command surface, including the implemented `evidence` family.
 
-The latest verified published package is 0.9.7; the local checkout metadata remains 0.9.6. Public 0.9.7 does not include the new v0.10.0 evidence family. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, remains included in the published package.
+The package metadata version is 0.10.0. The historical registry baseline checked on 2026-11-14 is 0.9.7; registry publication is established separately. The `context-window-scaling` command surface (v0.7.0), including the `--synthetic-config` option added in v0.7.1, remains included in the published package.
 
 The `--local-subject-config` option and the external local-repository mode described under `context-window-scaling` were added in v0.7.2 and are included in the current package.
 
@@ -44,7 +44,7 @@ my-dev-kit-lab demo final [options]
 
 ### `my-dev-kit-lab evidence` (v0.10.0 development)
 
-This unreleased family exposes capture, passive import, and exact-artifact certification through the built checkout CLI (`node dist/scripts/cli.js`) or a separately built development package. Package metadata remains `0.9.6`; installing public 0.9.7 does not supply this new functionality.
+This family exposes capture, passive import, and exact-artifact certification through the built checkout CLI (`node dist/scripts/cli.js`) and the v0.10.0 package.
 
 ```text
 my-dev-kit-lab [--workspace <path>] evidence --help
@@ -78,7 +78,7 @@ An evidence run contains `manifest.json`, `assessment.json`, `report.json`, and 
 
 Exit codes: help and satisfied capture/import or certified bundles return `0`; valid but unmet assessments or uncertified bundles return `1`; malformed/unknown/duplicate/missing arguments, rejected authorization/path/digest/schema, infrastructure exceptions, and capture/certify assessments with an incompatible critical requirement return `2`. Import's assessment path returns `1` when unsatisfied after successful import. These results do not change native Orchestrator acceptance.
 
-The library exports `readExecutableEvidence`, `captureAuthorizedEvidence`, `evaluateExecutableEvidence`, and `certifyExecutableEvidenceBundle`, plus the Lab request/result types, from `src/index.ts` (built at `dist/src/index.js`). Import that module by its explicit path in an installed development package; `package.json` does not declare a package-root `main` or `exports` entry. Read/capture return structured results, while pure evaluation/certification validate their supplied records and may throw on invalid requests. The API capture authorization permits up to 120 seconds and 1 MiB per output stream, independently of the CLI's 30-second setting.
+The library exports `readExecutableEvidence`, `captureAuthorizedEvidence`, `evaluateExecutableEvidence`, and `certifyExecutableEvidenceBundle`, plus the Lab request/result types, from `src/index.ts` (built at `dist/src/index.js`). Import that module by its explicit path in an installed package; `package.json` does not declare a package-root `main` or `exports` entry. Read/capture return structured results, while pure evaluation/certification validate their supplied records and may throw on invalid requests. The API capture authorization permits up to 120 seconds and 1 MiB per output stream, independently of the CLI's 30-second setting.
 
 ### `my-dev-kit-lab tutorial`
 
@@ -886,7 +886,7 @@ Current options:
 | `--out <path>` | Optional report output directory |
 | `--android` | Optional; requires `--types` to include `security` |
 
-Development source-audit prerequisite (LAB-KIT-01, v0.10.0 implemented and unreleased): source-dependent selections use the exact qualified runtime dependency `@dailephd/my-dev-kit@1.15.0` described in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development). Lab and installed-consumer qualification against that published producer passed. Candidate 05 remains historical and is distinct from public Kit 1.14.0. The provider resolves Kit through Lab module resolution and never installs it automatically. A separately installed retrieval CLI or an experiment `--kit-command` does not configure this audit provider. Non-source-only selections and selections with no applicable source paths do not require Kit. An include area can select both source-dependent and non-source detectors; `--include package` can require source declarations for duplicate-implementation checks. Rust `.rs` selection uses the same command and generic bridge, with no language flag or Rust runner; [capability and applicability limits](ARCHITECTURE.md#rust-source-evidence-reuse) remain explicit.
+Source-audit prerequisite (LAB-KIT-01, v0.10.0): source-dependent selections use the exact qualified runtime dependency `@dailephd/my-dev-kit@1.15.0` described in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development). Lab and installed-consumer qualification against that published producer passed. Candidate 05 remains historical and is distinct from public Kit 1.14.0. The provider resolves Kit through Lab module resolution and never installs it automatically. A separately installed retrieval CLI or an experiment `--kit-command` does not configure this audit provider. Non-source-only selections and selections with no applicable source paths do not require Kit. An include area can select both source-dependent and non-source detectors; `--include package` can require source declarations for duplicate-implementation checks. Rust `.rs` selection uses the same command and generic bridge, with no language flag or Rust runner; [capability and applicability limits](ARCHITECTURE.md#rust-source-evidence-reuse) remain explicit.
 
 The programmatic `runAudit` option `sourceProviderMode` defaults to `kit` and accepts only `kit`; `legacy-comparison` is retired and unsupported values fail explicitly. The provider dependency injection seam is internal, not a public configuration option. There is no audit `--source-provider` flag.
 

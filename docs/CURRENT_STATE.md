@@ -7,13 +7,13 @@ This document records the repository's operational state. It is the source of tr
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Latest release: v0.9.7, verified from npm on 2026-11-11.
-- Latest verified npm publication: **v0.9.7**; npm version and latest tag verified 2026-11-11, publication timestamp 2026-11-09. The 2026-11-05 v0.9.6 npm/GitHub Release observation and 2026-10-28 v0.9.5 pre-preparation registry snapshot remain historical evidence.
+- Latest release: v0.10.0 final release-document state; latest registry baseline remains 0.9.7 per the 2026-11-14 check.
+- Latest verified registry package: **0.9.7**; registry version/latest tag checked 2026-11-14 (publication date 2026-11-09). The 2026-11-05 v0.9.6 npm/GitHub Release observation and 2026-10-28 v0.9.5 pre-preparation registry snapshot remain historical evidence.
 - Exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed local and hosted standardized readiness on 2026-10-26. Release preparation is recorded separately; npm reported baseline `0.9.4` and an explicit not-found result for `0.9.5` before the versioned release artifact was prepared.
-- Current release-document and package metadata version: `v0.9.6`; registry publication is established separately from external npm evidence.
-- Previous published release: `v0.9.6`; v0.9.5 preceded it; historical `v0.9.3` added prompt, report, metric, gallery, and comparison improvements.
+- Current release-document and package metadata version: `v0.10.0`; final release-document state. Historical registry snapshot on 2026-11-14: 0.9.7.
+- Previous release: `v0.9.7`; v0.9.6 preceded it; v0.9.5 preceded it; historical `v0.9.3` added prompt, report, metric, gallery, and comparison improvements.
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
-- Retained local release-document and package metadata version: v0.9.6; this feature branch is not a v0.9.7 package preparation or publication.
+- Historical v0.9.6 release-document metadata is superseded by the current v0.10.0 final release-document state.
 - Recorded v0.9.2 GitHub release date: `2026-10-13`.
 - Historical release: `v0.9.1` (2026-10-12), followed by `v0.9.2` on 2026-10-13.
 - Historical release: `v0.9.0` (agent-success-rate evaluation); `v0.8.2` (context-pack generation experiments) preceded it.
@@ -23,9 +23,9 @@ This document records the repository's operational state. It is the source of tr
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Historical v0.9.2 validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
-- Package version: `0.9.6`. Its historical release-document baseline remains in final-release state; the current implemented milestone is separately v0.10.0, unreleased.
-- VERIFIED_LATEST_NPM_PUBLICATION: v0.9.7 (2026-11-11 registry check). LOCAL_RELEASE_DOCUMENT_AND_PACKAGE_VERSION: v0.9.6. CURRENT_IMPLEMENTED_UNRELEASED_VERSION: v0.10.0; LAB-KIT-01 Gates 1–6 complete; LAB-EVIDENCE-01 prospective functional/native acceptance passed.
-- Active implemented version: `v0.10.0`, unreleased. Implementation is complete and prospective acceptance passed; standardized pre-release readiness has not been established.
+- Package version: `0.10.0`, in final release-document state.
+- Historical registry snapshot on 2026-11-14: package 0.9.7. Current release-document and package version: 0.10.0; LAB-KIT-01 Gates 1 through 6 complete; LAB-EVIDENCE-01 prospective functional/native acceptance passed.
+- Active version: `v0.10.0`, final release-document state. Validated implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed standardized readiness; release package bytes are validated separately.
 - Next planned feature version: v0.11.0; all future assignments remain unchanged.
 - The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
@@ -41,7 +41,7 @@ LAB-KIT-01 Gates 1–6 are complete on `feature/v0.10.0-kit-backed-source-audits
 
 Historical Gate 5 acceptance remains: 8,438 passed, zero failed, nine skips across 545 canonical test files; native PASS and 11/11 artifacts. Its canonical local report remains `reports/v0.10.0-lab-kit-01-gate5-default-cutover.txt`, including retained earlier failures. The later Gate 6 report records qualified Kit/Rust installed acceptance, applicable positive/negative findings, required cfg failure exit 2 and unchanged target/packages. Both historical Candidate 05 and the qualified current Kit match all 150 accepted decisions across 15 roots and 121 pinned fixture files; 134 historical parity decisions, 16 accepted differences and three incomparable profiles remain explicit, not universal legacy equivalence. M01–M25, including M07 partial-positive, M13 dynamic-export and M17 qualified-owner limitations, remain preserved. Historical eleven-log loss and damaged Gate 4B are disclosed, not retroactively recovered.
 
-Package metadata remains `0.9.6`; v0.10.0 is unreleased. Candidate 05 is a historical qualified development producer with 1.14.0 metadata, distinct from public 1.14.0 and current published Kit 1.15.0. Current published-dependency and installed-consumer qualification passed. Rust uses the generic bridge with explicit unsupported/incomplete policies and no Lab-native parser. KIT-API-01 remains a separately owned upstream workstream; this Lab milestone does not establish ecosystem-wide ECO-SOURCE-01 completion.
+Package metadata and final release-document version are `0.10.0`. Candidate 05 is a historical qualified development producer with 1.14.0 metadata, distinct from public 1.14.0 and current published Kit 1.15.0. Current published-dependency and installed-consumer qualification passed. Rust uses the generic bridge with explicit unsupported/incomplete policies and no Lab-native parser. KIT-API-01 remains a separately owned upstream workstream; this Lab milestone does not establish ecosystem-wide ECO-SOURCE-01 completion.
 
 ## v0.10.0 development: LAB-EVIDENCE-01
 
@@ -63,11 +63,11 @@ Explicit governance adoption changed the version-level acceptance basis prospect
 
 The mandatory disclosure applies to future release evidence: **original payload UNRECOVERED; original RSP-011 UNSATISFIED; original judge NOT_ACCEPTED; historical supersession UNSUPPORTED**. Prospective current behavior and preservation from its approved baseline are separate claims; no uninterrupted historical preservation, recovered original or original-run PASS is asserted.
 
-Local-only historical evidence remains in `reports/v0.10.0-lab-evidence-01-implementation.txt` (sections 57–78) and its separate documentation audit. Later private completion, recovery, governance, adoption and prospective reports retain their original identities; they are not shipped package assets. Current implementation/prospective acceptance is complete, while standardized pre-release readiness is pending. Documentation reconciliation does not authorize release preparation or publication.
+Local-only historical evidence retains its original identity outside the package. Current implementation and prospective acceptance are complete; validated implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed standardized readiness. Release package and commit binding are verified separately. Publication requires explicit authorization.
 
 ## v0.9.7 runtime containment and validation
 
-npm publication of v0.9.7 occurred on 2026-11-09; it remains the latest registry tag at the 2026-11-11 check. Its local historical Git tag resolves to `17d59972c4364693ea04495fd09dda0d74863d48`; publication is independently established by npm, not inferred from this tag. The retained feature checkout still has package metadata 0.9.6.
+npm publication of v0.9.7 occurred on 2026-11-09; it remains the latest registry tag at the 2026-11-11 check. Its local historical Git tag resolves to `17d59972c4364693ea04495fd09dda0d74863d48`; publication is independently established by npm, not inferred from this tag. That historical feature checkout retained package metadata 0.9.6.
 
 The patch keeps incremental-change-staleness disposable copies, indexes, command logs and agent scratch below the authorized workspace, separate from immutable package resources and independently persisted reports. It propagates existing workspace authority without package/current-directory fallback, uses exclusive invocation ownership and physical filesystem identity for cleanup, preserves reports, and handles supported Windows paths and the genuine macOS system temporary alias. Commands, options, six scenarios, four treatments and artifact/report schemas remain unchanged.
 
@@ -141,7 +141,7 @@ The exact v0.9.5 implementation candidate passed its historical A?Q and F1?F16 r
 
 ## v0.9.6 release-prepared state
 
-The final release-document and package contract is v0.9.6. The exact implementation source qualified for release preparation is commit 36eb75f3325515830f81e97a6e9ac6c0d9d6216d (tree eefaf7378f4af1041a78487a797ab21fd8da9e9e); release preparation changes package metadata and current-version documentation only.
+The historical v0.9.6 final release-document and package contract was v0.9.6. The exact implementation source qualified for release preparation is commit 36eb75f3325515830f81e97a6e9ac6c0d9d6216d (tree eefaf7378f4af1041a78487a797ab21fd8da9e9e); release preparation changes package metadata and current-version documentation only.
 
 The accepted R6 Kit evidence covers six adequate references, 24 treatments, 18 valid comparisons, and 25 source-supported assertions, with zero redundant source calls and complete retained source-command evidence. One comparison correctly remains inconclusive. The full canonical Lab suite on the exact candidate completed with 543 files, 8,144 passed, zero failed, and nine skipped. Exact packed-package acceptance passed, including AGENT_SUCCESS_OUTPUT_ROOT.
 
@@ -340,7 +340,7 @@ The following remain planned, not implemented:
 
 ## Validation state
 
-For implemented, unreleased v0.10.0, the current accepted implementation suite is 8,714 passed/zero failed/nine skipped on source `d6236759cebcdfa6ac029da583ec26ac62cdad95`, with completed prospective native acceptance. See [its exact evidence and limitations](#v0100-development-lab-evidence-01). Documentation-only reconciliation does not rerun that suite or establish pre-release readiness; the older observations below remain historical.
+Historical pre-release implementation evidence for v0.10.0: the accepted suite at that checkpoint was 8,714 passed/zero failed/nine skipped on source `d6236759cebcdfa6ac029da583ec26ac62cdad95`, with completed prospective native acceptance. See [its exact evidence and limitations](#v0100-development-lab-evidence-01). Documentation-only reconciliation does not rerun that suite or establish pre-release readiness; the older observations below remain historical.
 
 - Inherited readiness was accepted for exact implementation SHA `d6289600273a0d573f8d71dcdd975546c683dc6b`; local Node latest gates and the hosted Ubuntu/macOS/Windows Node 24 matrix passed. Hosted GitHub Actions CodeQL analyses for JavaScript/TypeScript and Actions passed on that candidate. The local optional CodeQL scanner was unavailable and correctly reported SKIPPED; that is not a pass. Earlier failed attempts remain historical and are superseded by the accepted exact-SHA result.
 - The release-prepared main candidate `a4ef38c800d96bf4462360ae3f6c47139b09d211` passed GitHub Actions CI run `38457883307` on Ubuntu, macOS, and Windows / Node 24, including full tests and packed-package verification. Hosted CodeQL run `38457883400` passed JavaScript/TypeScript and Actions analysis on the same exact SHA.
@@ -389,7 +389,7 @@ Documentation reconciliation and implementation-completeness evidence: [v0.7.0 a
 
 ## Blockers
 
-For unreleased v0.10.0, implementation and prospective native acceptance are complete; standardized pre-release readiness remains a separate required gate on the final reconciled source/package. Original critical RSP-011 and its missing historical report remain unsatisfied, disclosed and unaltered. That historical route is not relabeled successful by current acceptance. See [the canonical disposition](#v0100-development-lab-evidence-01).
+For v0.10.0, implementation and prospective native acceptance are complete. Original critical RSP-011 and its missing historical report remain unsatisfied, disclosed and unaltered. That historical route is not relabeled successful by current acceptance. See [the canonical disposition](#v0100-development-lab-evidence-01).
 
 For the published `v0.8.1`: release blockers — none. Pre-release readiness passed on the exact validated candidate, and the prepared release commit passed local validation and exact-SHA hosted CI and CodeQL.
 
@@ -409,17 +409,7 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-Local release-document and package version: v0.9.6. Latest verified npm publication: v0.9.7 (2026-11-11). Active v0.10.0 is implemented, prospectively accepted and unreleased; standardized pre-release readiness remains pending.
-
-Release-document and package version: v0.9.6.
-
-The `published/current` designation is based on external npm evidence, not package metadata or release-document wording.
-
-The v0.9.3 release includes the prompt/report/gallery scope; real-provider effectiveness remains NOT_VERIFIED and non-gating. Later roadmap assignments are unchanged. The tracked [v0.8.0 release-preparation report](reports/v0.8.0-release-preparation.md) is historical evidence for v0.8.0 only; v0.8.1 and v0.8.2 readiness and release-preparation evidence remains associated with their exact Git/CI history.
-
-Release lifecycle evidence (PR merge, main checks, tag, GitHub Release, and npm publication) is established through the corresponding GitHub and npm records, not package metadata alone. Real-provider effectiveness remains NOT_VERIFIED and is not a release gate.
-
-Exact next action: after the scoped documentation-reconciliation commit and its checks pass, run the separate standardized v0.10.0 pre-release readiness workflow against that exact final candidate SHA and measured package bytes. Retain the original RSP-011 historical-loss disclosure in all future acceptance/release evidence. Do not rerun recovery, reopen completed implementation workstreams, create another native run, bump versions, prepare a release or publish as part of documentation reconciliation. KIT-API-01 and ecosystem-wide ECO-SOURCE-01 remain separately owned upstream work.
+The v0.10.0 release documentation and package metadata are prepared from validated implementation commit b0c06bc3ca933d8bda2db34ba0480da741af60f5. Package metadata and final release-document state are v0.10.0; the historical registry snapshot on 2026-11-14 records package 0.9.7. Original RSP-011 remains unsatisfied and its payload unrecovered; prospective 14/14 acceptance does not repair that historical loss. The next planned feature version is v0.11.0.
 
 Historical v0.9.5 readiness and release-preparation evidence remains attached to its own source and package identities.
 
@@ -427,3 +417,5 @@ Historical v0.9.5 readiness and release-preparation evidence remains attached to
 ## Previous v0.9.1 release history
 
 The v0.9.1 release includes normalized provider telemetry, integrated Codex/Claude parsing and outcome handling, deterministic campaign queues, checkpoint v1/v2 recovery contracts, explicit resume and verified completed-unit reuse, provider-limit pause/continuation, public campaign CLI routing and timeout presets, and plugin-specific progress evidence. Partial progress is operational evidence; final scientific execution and analysis artifacts are published only after campaign finalization. Uncertain provider invocations are not replayed automatically. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [ROADMAP.md](ROADMAP.md).
+
+The published/current designation is established by external registry evidence, separately from final release-document metadata.

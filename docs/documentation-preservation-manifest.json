@@ -456,8 +456,9 @@
   },
   "currentFacts": {
     "latestPublishedVersion": "0.9.7",
-    "latestPublishedVersionEvidenceContext": "Live npm registry verification on 2026-11-11: version and latest tag 0.9.7, published 2026-11-09. Local package/release-document metadata remains 0.9.6; implemented unreleased milestone 0.10.0 is separate. Earlier 0.9.5/0.9.6 registry snapshots remain historical.",
-    "currentImplementedUnreleasedVersion": "0.10.0",
+    "latestPublishedVersionEvidenceContext": "Live npm registry verification on 2026-11-14: latest published baseline 0.9.7; target 0.10.0 returned E404 before release preparation. The intended final release-document version is recorded separately from observed registry state. Earlier 0.9.5/0.9.6 snapshots remain historical.",
+    "currentReleaseVersion": "0.10.0",
+    "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.11.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
@@ -495,6 +496,6 @@
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
     "releaseDocumentState": "final-release-state",
-    "currentReleaseDocumentVersion": "0.9.6"
+    "currentReleaseDocumentVersion": "0.10.0"
   }
 }
