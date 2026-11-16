@@ -7,6 +7,9 @@ import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
 import { QUALIFIED_PUBLISHED_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
+import { execFileSync } from "node:child_process";
+// @ts-expect-error Source-checkout verification is an existing plain ESM owner.
+import { verificationOutputDirectory } from "../../scripts/run-verification-lane.mjs";
 
 const root = process.cwd();
 const privateLane = process.env.LAB_VERIFICATION_LANE === "private";
@@ -26,6 +29,8 @@ const expectation: KitCandidateExpectation = {
 type Decision = (typeof oracle.decisions)[number];
 const fixtureRoots: string[] = [...new Set<string>(oracle.decisions.map((d: Decision) => d.fixtureRoot))].sort();
 const completed: { decisionId: string; normalizedKitFindings: unknown }[] = [];
+const currentCompleted: { decisionId: string; normalizedKitFindings: unknown }[] = [];
+const currentCoverage: unknown[] = [];
 
 // Identical to the accepted differential normalization: arrays keep their order.
 function normalize(value: unknown, target: string): any {
@@ -139,6 +144,8 @@ describe("Gate5 committed accepted oracle", () => {
     const config = normalizeAuditConfig({ target, types: "code-rot", include: "docs,tests,package,architecture,cli", failOn: "none", out: path.join(workspace, "reports") }, root);
     const result = await runAudit({ config, toolRoot: root, kitSourceProviderDependencies: { installedPackageRoot: provider === "historical" ? candidate : path.join(root, "node_modules/@dailephd/my-dev-kit"), expectation: provider === "historical" ? expectation : QUALIFIED_PUBLISHED_KIT, workDir: path.join(workspace, "kit") } });
     expect(result.detectorErrors).toEqual([]);
+    if (provider === "published") currentCoverage.push({ fixtureRoot, detectors: DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort(),
+      detectorErrors: result.detectorErrors, skippedDetectors: result.skippedDetectors, exitCode: result.exitCode });
     const findings = result.issues.map(issue => normalize(issue, target)).sort((a, b) => a.id.localeCompare(b.id));
     const decisions = oracle.decisions.filter((d: Decision) => d.fixtureRoot === fixtureRoot);
     expect(decisions).toHaveLength(10);
@@ -147,8 +154,20 @@ describe("Gate5 committed accepted oracle", () => {
       const actual = findings.filter(f => f.detectorId === decision.detectorId);
       expect(actual, decision.decisionId).toEqual(decision.normalizedKitFindings);
       if (provider === "historical") completed.push({ decisionId: decision.decisionId, normalizedKitFindings: actual });
+      else currentCompleted.push({ decisionId: decision.decisionId, normalizedKitFindings: actual });
     }
   }, 180_000);
+});
+
+afterAll(() => {
+  const output = process.env.LAB_CURRENT_ORACLE_OUTPUT;
+  if (!output) return;
+  if (privateLane) throw new Error("Current results cannot use the historical provider");
+  const common = path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim());
+  if (path.basename(common) !== ".git") throw new Error("Unknown current evidence authority");
+  verificationOutputDirectory(path.dirname(common), output);
+  fs.writeFileSync(output, JSON.stringify({ contractId: "LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0", provider: "published-1.15.0",
+    decisions: currentCompleted.sort((a, b) => a.decisionId.localeCompare(b.decisionId)), coverage: currentCoverage }, null, 2) + "\n", { flag: "wx" });
 });
 
 afterAll(() => {

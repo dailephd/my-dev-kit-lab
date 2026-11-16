@@ -1185,7 +1185,7 @@ After committing unchanged tested source bytes, `--rebind <prior-binding>` can
 bind the final SHA only after reexamining all private bytes and proving the
 complete public source inventory and verifier are unchanged.
 
-Release readiness requires three separate results: PUBLIC_LANE PASS,
+The original historical acceptance route requires three separate results: PUBLIC_LANE PASS,
 PRIVATE_LANE PASS, and BINDING_VERIFICATION PASS. Run
 `npm run verify:readiness-binding -- --inputs <private-input-map> --out <private-binding>`
 against the exact candidate. This reexamines private bytes and rejects a stale
@@ -1207,3 +1207,11 @@ Manual pentest is deferred until after `v1.0.0`.
 It is a human-led workflow and is not required for automated Android security validation.
 
 The reader performs bounded, read-only evidence validation and delegates complete checkpoint-store validation to the campaign owners against trusted task definitions authenticated by persisted task digests. If required historical corpus or artifact evidence is unavailable, that side is unverifiable and the comparison is `INCOMPARABLE`; checkpoint hashes alone do not establish semantic validity. V2 prompt-contract integrity is validated. V1 identity does not bind a prompt template: sidecar self-consistency or an intact prompt-artifact hash alone cannot prove historical template identity, so unsupported V1 evidence remains `UNVERIFIED`/`INCOMPARABLE`, without a winner or improvement rate. Only a completed provider response with persisted evidence of a response-contract violation enters the invalid-output numerator; bare `invalid-output` status and infrastructure outcomes are excluded from both numerator and denominator. Task-success and repair outcomes remain separate. Real-provider improvement remains `NOT_VERIFIED` pending authorized smoke evidence.
+
+### Authorized current LAB-KIT-01 acceptance
+
+User decision SW-121 adopts **V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0**, contract **LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0**, against proposal SHA-256 `f4595f2b0f9ac0a56d96a8c22b6f78f2cec24b8d6c4f6030e11dd8b3a166a36e`. This is a separate current-product acceptance basis; adoption is not verification PASS. Its governance record and sixteen current disposition reviews are retained in `tests/fixtures/audits/currentKitAcceptance.v010.json`. The three incomparable profiles remain incomparable. The Python review preserves the historical broad-M13 warning while distinguishing bounded file-level candidates from unknown-export declaration claims; it does not retroactively resolve that historical warning.
+
+The source-checkout verifier collects finite public/current-protected/platform/packed lanes through existing native process and evidence owners. A separate verification process reopens native outputs, derives the test responsibility list from the current source, rejects missing/filtered/failed assertions, and compares all 150 current finding records and 121 fixture hashes against the unchanged oracle. The packed lane rebuilds, installs and executes the exact package. Native Windows/Linux/macOS evidence is mandatory; live exact-candidate CI run/job/artifact corroboration is required for hosted cells. Caller-authored OS or PASS labels and unsigned receipts alone are insufficient.
+
+The current route remains **BLOCKED_REQUIRED_EVIDENCE** until its complete public, current-protected, package, native platform and independent binding requirements pass. The local original historical gate remains available unchanged. Historical provenance stays **UNVERIFIED**; original private verification and original readiness binding stay **NOT_PASSED**. LAB-EVIDENCE-01 adoption does not substitute for this contract. Current acceptance establishes neither Step 5 readiness nor publication authority.

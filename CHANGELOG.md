@@ -4,6 +4,8 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+- Add the separately user-authorized current LAB-KIT-01 acceptance route, finite native evidence collection, independent semantic verification and exact-candidate binding. Preserve the original historical verifier, missing-evidence identities and NOT_PASSED states; current acceptance requires complete platform evidence and is not release readiness.
+
 ### Partial-source-evidence compatibility correction
 
 - Retain qualified partial imports and independent findings; withhold unsupported missing-import and dead-code conclusions. Mandatory incomplete coverage remains exit 2 with findings preserved.

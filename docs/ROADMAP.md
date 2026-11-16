@@ -1749,7 +1749,7 @@ Acceptance:
 
 ### v0.10.1 - partial-source-evidence compatibility correction (proposed patch)
 
-Status: **implemented correction; unreleased; proposed patch version**. The correction is integrated on the published baseline; missing mandatory historical evidence remains a protected release blocker. This recommendation authorizes no release preparation or publication.
+Status: **implemented correction; unreleased; proposed patch version**. The correction is integrated on the published baseline; the historical provenance gap remains permanently disclosed. The separately user-authorized current Kit acceptance route requires all A-L evidence and actual Windows/Linux/macOS cells; current acceptance remains blocked until those gates pass. This recommendation authorizes no release preparation or publication.
 
 * Retain qualified partial imports and independent findings; mandatory unavailable import/absence predicates remain incomplete with exit 2.
 * Preserve complete-evidence findings/IDs/severity/exit behavior, strict integrity checks, current flags and schema-1.0 reports.

@@ -941,3 +941,19 @@ Current report details:
 - The audit command has no `--checks`, `--profile`, `--languages`, or `--frameworks` option. Android audit integration uses only `--android`.
 
 Unsupported command/profile names such as `android-compose`, `security:pentest`, `security:android`, `mobile:detect`, and `mobile:validate` are not current syntax. See [ROADMAP.md](ROADMAP.md) for approved future scope.
+
+## Current Kit acceptance (source checkout only)
+
+The authorized current route uses the existing source-checkout verifier; these are not installed `my-dev-kit-lab` CLI flags. Build first. Choose a fresh output under the Git authority's private `.my-dev-kit-workflow` or `.my-dev-kit-context` roots. Existing destinations are refused; raw evidence is retained.
+
+`node scripts/verify-private-provenance.mjs --current collect --lane public --out <new-run-directory>`
+
+Finite lane choices are `public`, `protected`, `platform`, and `packed`. Public executes the canonical public script; protected/platform execute exact finite `npm test` selections. The unchanged original historical files remain assigned to their original mandatory contract. Packed rebuilds and runs genuine installed-consumer verification.
+
+`node scripts/verify-private-provenance.mjs --current verify --inputs <manifest.json> --out <new-verification-directory>`
+
+`node scripts/verify-private-provenance.mjs --current bind --inputs <binding-plan.json> --out <new-binding-directory>`
+
+A binding plan contains the exact current `contractId`, a `manifests` array of native collection-manifest paths, and, for required hosted corroboration, `hostedRunId`. Binding reopens inputs; it does not trust prior receipt PASS fields. Hosted checks use the existing authenticated GitHub CLI read interface against the fixed Lab repository, never a caller-supplied network URL. Completed exact-SHA CI and one unexpired native artifact from each required OS job are mandatory.
+
+Exit 0 means the selected collection/verification completed, or every required binding gate passed. Binding exit 2 means `BLOCKED_REQUIRED_EVIDENCE` with explicit missing gates. Invalid, failed, conflicting or tampered evidence exits 1. A completed collection or scoped verification is not whole-candidate acceptance. All receipts disclose historical provenance `UNVERIFIED`, original private verification `NOT_PASSED`, and original readiness binding `NOT_PASSED`. No command pushes, publishes or starts Step 5.

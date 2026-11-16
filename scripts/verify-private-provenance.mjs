@@ -7,6 +7,74 @@ import { PRIVATE_TEST_FILES, sourceIdentity, verificationOutputDirectory } from 
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const canonical = value => JSON.stringify(value, (_key, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v);
+
+// Inactive SW-120 prototype. No CLI, historical gate or readiness consumer calls
+// this function. It checks bytes/cross-bindings, not the truth of a runner's
+// outcome claims. `expected` must come from an independent trusted observation,
+// never from the submitted bundle. Governance and native assessment remain open.
+export const PROSPECTIVE_DRAFT_CONTRACT = 'LAB-KIT-01-CURRENT-CANDIDATE-DRAFT/1.0.0';
+export const PROSPECTIVE_DRAFT_ROLES = Object.freeze([
+  'source-package', 'kit-runtime', 'decisions', 'detector-coverage',
+  'complete-partial', 'invalid-stale-tamper', 'filesystem-windows',
+  'filesystem-linux', 'filesystem-macos', 'public-tests',
+  'current-protected-tests', 'packed-package', 'immutability',
+  'provenance', 'historical-loss',
+]);
+function readDraftFile(root, relative, maximum = 32 * 1024 * 1024) {
+  if (typeof relative !== 'string' || !relative || path.isAbsolute(relative)) throw new Error('Unsafe draft input');
+  const absolute = path.resolve(root, relative), rel = path.relative(root, absolute);
+  if (!rel || rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) throw new Error('Draft path escape');
+  let current = path.parse(absolute).root;
+  for (const part of path.relative(current, absolute).split(path.sep)) {
+    current = path.join(current, part);
+    if (fs.lstatSync(current).isSymbolicLink()) throw new Error('Linked draft input');
+  }
+  const stat = fs.statSync(absolute);
+  if (!stat.isFile() || stat.size > maximum) throw new Error('Invalid draft input size/type');
+  const bytes = fs.readFileSync(absolute);
+  if (bytes.length !== stat.size) throw new Error('Draft input changed during read');
+  return bytes;
+}
+export function inspectProspectiveDraftBundle(root, bundle, expected) {
+  if (!bundle || Object.keys(bundle).sort().join(',') !== 'artifacts,candidateSha,contractId,createdAt,kit,packageSha256,runId,sourceIdentity' ||
+      bundle.contractId !== PROSPECTIVE_DRAFT_CONTRACT) throw new Error('Wrong draft contract or fields');
+  if (!/^lab-kit-current-[A-Za-z0-9-]+$/.test(bundle.runId ?? '') || bundle.runId !== expected.runId ||
+      !Number.isFinite(Date.parse(bundle.createdAt)) || bundle.createdAt !== expected.createdAt) throw new Error('Stale draft run identity');
+  for (const [key, length] of [['candidateSha', 40], ['sourceIdentity', 64], ['packageSha256', 64]]) {
+    if (!new RegExp('^[a-f0-9]{' + length + '}$').test(bundle[key] ?? '') || bundle[key] !== expected[key]) throw new Error('Draft identity mismatch: ' + key);
+  }
+  if (canonical(bundle.kit) !== canonical(expected.kit) || bundle.kit?.packageName !== '@dailephd/my-dev-kit' ||
+      bundle.kit?.packageVersion !== '1.15.0') throw new Error('Invalid draft Kit identity');
+  if (hash(readDraftFile(root, expected.packagePath, 128 * 1024 * 1024)) !== expected.packageSha256 ||
+      hash(readDraftFile(root, expected.kitCliPath)) !== bundle.kit.cliSha256) throw new Error('Draft package/runtime bytes changed');
+  const oracleBytes = readDraftFile(root, 'tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json');
+  if (hash(oracleBytes) !== expected.oracleSha256) throw new Error('Modified draft oracle');
+  const oracle = JSON.parse(oracleBytes);
+  if (!oracle.fixtureFileHashes || !Object.keys(oracle.fixtureFileHashes).length || oracle.decisions?.length !== 150 ||
+      new Set(oracle.decisions.map(d => d.decisionId)).size !== 150) throw new Error('Incomplete draft oracle');
+  for (const [file, digest] of Object.entries(oracle.fixtureFileHashes)) {
+    if (hash(readDraftFile(root, file)) !== digest) throw new Error('Modified draft fixture: ' + file);
+  }
+  if (!Array.isArray(bundle.artifacts) || bundle.artifacts.length !== PROSPECTIVE_DRAFT_ROLES.length ||
+      new Set(bundle.artifacts.map(a => a.role)).size !== PROSPECTIVE_DRAFT_ROLES.length) throw new Error('Missing/duplicate draft evidence');
+  for (const role of PROSPECTIVE_DRAFT_ROLES) {
+    const artifact = bundle.artifacts.find(a => a.role === role), digest = expected.evidenceDigests?.[role];
+    if (!artifact || !/^[a-f0-9]{64}$/.test(digest ?? '') || artifact.sha256 !== digest) throw new Error('Missing independent draft digest: ' + role);
+    const bytes = readDraftFile(expected.evidenceRoot, artifact.path);
+    if (hash(bytes) !== digest) throw new Error('Tampered draft evidence: ' + role);
+    const record = JSON.parse(bytes);
+    for (const key of ['contractId', 'runId', 'candidateSha', 'sourceIdentity', 'packageSha256']) {
+      if (record[key] !== bundle[key]) throw new Error('Cross-contract/stale draft evidence: ' + role);
+    }
+    if (record.role !== role || record.status !== 'PASS' || record.coverage !== 'COMPLETE' || record.qualification !== 'QUALIFIED') throw new Error('Unavailable/unqualified draft evidence: ' + role);
+    if (role === 'decisions' && canonical(record.decisions) !== canonical(oracle.decisions)) throw new Error('Draft scientific decisions differ');
+    if (role === 'historical-loss' && canonical(record.historical) !== canonical({ provenance: 'UNVERIFIED', privateVerification: 'NOT_PASSED', readinessBinding: 'NOT_PASSED' })) throw new Error('Historical substitution refused');
+  }
+  return { contractId: PROSPECTIVE_DRAFT_CONTRACT, runId: bundle.runId,
+    integrityStatus: 'DRAFT_BYTE_AND_BINDING_CHECKS_PASSED', semanticAssurance: 'NOT_VERIFIED',
+    acceptance: 'PENDING_GOVERNANCE_AUTHORIZATION', routeActive: false,
+    historical: { provenance: 'UNVERIFIED', privateVerification: 'NOT_PASSED', readinessBinding: 'NOT_PASSED' } };
+}
 export function verifyPrivateBytes(root, inputs) {
   const contract = JSON.parse(fs.readFileSync(path.join(root, 'tests/fixtures/audits/historicalEvidenceIdentity.v010.json')));
   const oracleBytes = fs.readFileSync(path.join(root, 'tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json'));
@@ -95,6 +163,10 @@ function main() {
   fs.writeFileSync(output + '.txt', `PRIVATE_LANE: PASS\nArtifacts authenticated: ${privateLane.artifacts.length}\nScientific decisions: 150/150\nCandidate: ${identity.candidateSha}\nBinding: PASS (${binding.readinessScope})\nUnsigned local verification; no claim of hosted private execution.\n`, { flag: 'wx' });
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  if (process.argv[2] === '--current') {
+    try { process.exitCode = await (await import('./verifyCurrentKitAcceptance.mjs')).currentMain(process.argv.slice(3)); }
+    catch (error) { console.error('CURRENT_KIT_GATE_FAILED: ' + error.message); process.exitCode = 1; }
+  } else {
   try { main(); } catch (error) {
     console.error('PRIVATE_OR_BINDING_GATE_FAILED: ' + error.message); process.exitCode = 1;
     const args = process.argv.slice(2), output = args.includes('--out') ? args[args.indexOf('--out') + 1] : process.env.LAB_PRIVATE_VERIFICATION_OUTPUT;
@@ -106,5 +178,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
       fs.writeFileSync(output + '.failure.json', JSON.stringify(failure, null, 2) + '\n', { flag: 'wx' });
       fs.writeFileSync(output + '.failure.txt', 'PRIVATE_OR_BINDING_GATE_FAILED: ' + error.message + '\n', { flag: 'wx' });
     } catch (persistenceError) { console.error('Failure evidence was not persisted: ' + persistenceError.message); }
+  }
   }
 }

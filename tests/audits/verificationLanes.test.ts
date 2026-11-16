@@ -5,11 +5,86 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 // @ts-expect-error Existing verification entrypoints are plain ESM scripts.
-import { verifyPrivateBytes, validateBinding } from "../../scripts/verify-private-provenance.mjs";
+import { verifyPrivateBytes, validateBinding, inspectProspectiveDraftBundle, PROSPECTIVE_DRAFT_CONTRACT, PROSPECTIVE_DRAFT_ROLES } from "../../scripts/verify-private-provenance.mjs";
 // @ts-expect-error Existing verification entrypoints are plain ESM scripts.
 import { sourceIdentity, observeSourceExecution, runPublicTests, publicTemporaryRoot, ownedDirectory, PRIVATE_TEST_FILES, publicExecutionScope } from "../../scripts/run-verification-lane.mjs";
 const owned: string[] = [];
 const sha = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
+
+describe("inactive prospective Kit draft evidence inspection", () => {
+  // Synthetic bytes exercise integrity/refusal logic only. These are not native
+  // observations or current-product acceptance evidence.
+  function draftFixture() {
+    const f = fixture();
+    fs.writeFileSync(path.join(f.root, "fixture.txt"), "frozen fixture");
+    fs.writeFileSync(path.join(f.root, "package.tgz"), "synthetic package bytes");
+    fs.writeFileSync(path.join(f.root, "kit-cli.js"), "synthetic Kit runtime bytes");
+    const oraclePath = path.join(f.root, "tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json");
+    const oracle = JSON.parse(fs.readFileSync(oraclePath, "utf8"));
+    oracle.fixtureFileHashes = { "fixture.txt": sha("frozen fixture") };
+    fs.writeFileSync(oraclePath, JSON.stringify(oracle));
+    const bundle: any = { contractId: PROSPECTIVE_DRAFT_CONTRACT, runId: "lab-kit-current-fixture-001", createdAt: "2026-11-16T16:00:00.000Z",
+      candidateSha: "a".repeat(40), sourceIdentity: "b".repeat(64), packageSha256: sha("synthetic package bytes"),
+      kit: { packageName: "@dailephd/my-dev-kit", packageVersion: "1.15.0", cliSha256: sha("synthetic Kit runtime bytes") }, artifacts: [] };
+    const expected: any = { ...bundle, oracleSha256: sha(fs.readFileSync(oraclePath)), evidenceRoot: f.root,
+      packagePath: "package.tgz", kitCliPath: "kit-cli.js", evidenceDigests: {} };
+    const records: Record<string, any> = {};
+    for (const role of PROSPECTIVE_DRAFT_ROLES as string[]) {
+      records[role] = { contractId: bundle.contractId, runId: bundle.runId, candidateSha: bundle.candidateSha,
+        sourceIdentity: bundle.sourceIdentity, packageSha256: bundle.packageSha256, role, status: "PASS", coverage: "COMPLETE", qualification: "QUALIFIED" };
+      if (role === "decisions") records[role].decisions = oracle.decisions;
+      if (role === "historical-loss") records[role].historical = { provenance: "UNVERIFIED", privateVerification: "NOT_PASSED", readinessBinding: "NOT_PASSED" };
+      const bytes = JSON.stringify(records[role]); fs.writeFileSync(path.join(f.root, role + ".json"), bytes);
+      bundle.artifacts.push({ role, path: role + ".json", sha256: sha(bytes) }); expected.evidenceDigests[role] = sha(bytes);
+    }
+    const reseal = (role: string) => { const bytes = JSON.stringify(records[role]); fs.writeFileSync(path.join(f.root, role + ".json"), bytes);
+      bundle.artifacts.find((a: any) => a.role === role).sha256 = sha(bytes); expected.evidenceDigests[role] = sha(bytes); };
+    return { ...f, bundle, expected, records, reseal, inspect: () => inspectProspectiveDraftBundle(f.root, bundle, expected) };
+  }
+  it("accepts independently digest-pinned bytes for inspection without activating acceptance", () => {
+    const f = draftFixture(); expect(f.inspect()).toMatchObject({ integrityStatus: "DRAFT_BYTE_AND_BINDING_CHECKS_PASSED",
+      semanticAssurance: "NOT_VERIFIED", acceptance: "PENDING_GOVERNANCE_AUTHORIZATION", routeActive: false,
+      historical: { provenance: "UNVERIFIED", privateVerification: "NOT_PASSED", readinessBinding: "NOT_PASSED" } });
+  });
+  it.each(["candidateSha", "sourceIdentity", "packageSha256"])("denies changed %s", key => {
+    const f = draftFixture(); f.bundle[key] = "0".repeat(key === "candidateSha" ? 40 : 64); expect(f.inspect).toThrow("identity mismatch");
+  });
+  it.each(["fixture.txt", "package.tgz", "kit-cli.js", "tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json"])("denies modified %s", file => {
+    const f = draftFixture(); fs.appendFileSync(path.join(f.root, file), "tampered"); expect(f.inspect).toThrow();
+  });
+  it("denies missing, duplicate and truncated evidence", () => {
+    const f = draftFixture(); const a = f.bundle.artifacts.pop(); expect(f.inspect).toThrow("Missing/duplicate");
+    f.bundle.artifacts.push(f.bundle.artifacts[0]); expect(f.inspect).toThrow("Missing/duplicate");
+    f.bundle.artifacts.pop(); f.bundle.artifacts.push(a); fs.writeFileSync(path.join(f.root, "decisions.json"), "{"); expect(f.inspect).toThrow("Tampered");
+  });
+  it("denies unqualified partial evidence and unavailable required coverage", () => {
+    const f = draftFixture(); f.records["complete-partial"].qualification = "UNQUALIFIED"; f.reseal("complete-partial"); expect(f.inspect).toThrow("Unqualified".toLowerCase());
+    f.records["complete-partial"].qualification = "QUALIFIED"; f.records["complete-partial"].coverage = "UNAVAILABLE"; f.reseal("complete-partial"); expect(f.inspect).toThrow("Unavailable");
+  });
+  it("denies invalid Kit identity even if the supplied expectations repeat it", () => {
+    const f = draftFixture(); f.bundle.kit = { ...f.bundle.kit, packageVersion: "9.0.0" }; f.expected.kit = f.bundle.kit; expect(f.inspect).toThrow("Kit identity");
+  });
+  it("denies changed scientific findings even with a fresh valid artifact digest", () => {
+    const f = draftFixture(); f.records.decisions.decisions[0].normalizedKitFindings = [{ id: "invented", severity: "low" }]; f.reseal("decisions"); expect(f.inspect).toThrow("Scientific".toLowerCase());
+  });
+  it("denies stale runs, cross-contract evidence and historical PASS substitution", () => {
+    const f = draftFixture(); f.records.provenance.runId = "old"; f.reseal("provenance"); expect(f.inspect).toThrow("stale");
+    f.records.provenance.runId = f.bundle.runId; f.records.provenance.contractId = "LAB-EVIDENCE-01"; f.reseal("provenance"); expect(f.inspect).toThrow("Cross-contract");
+    f.records.provenance.contractId = f.bundle.contractId; f.reseal("provenance"); f.records["historical-loss"].historical.provenance = "PASS"; f.reseal("historical-loss"); expect(f.inspect).toThrow("Historical substitution");
+  });
+  it("cannot substitute the draft for historical verification/binding or accept a caller approval switch", () => {
+    const f = draftFixture(); const draft = f.inspect(); const historical = fixture();
+    expect(() => verifyPrivateBytes(historical.root, f.bundle)).toThrow("Missing private artifact");
+    expect(() => validateBinding(draft, { candidateSha: f.bundle.candidateSha, source: f.bundle.sourceIdentity, oracleSha256: f.expected.oracleSha256 })).toThrow("Stale");
+    f.bundle.ownerApproval = true; expect(f.inspect).toThrow("fields");
+  });
+  it("denies linked and traversing evidence inputs", () => {
+    const f = draftFixture(); f.bundle.artifacts[0].path = "../escape"; expect(f.inspect).toThrow("escape");
+    const directory = path.join(f.root, "link-target"); fs.mkdirSync(directory); fs.writeFileSync(path.join(directory, "record.json"), "{}");
+    fs.symlinkSync(directory, path.join(f.root, "linked"), process.platform === "win32" ? "junction" : "dir");
+    f.bundle.artifacts[0].path = "linked/record.json"; expect(f.inspect).toThrow("Linked");
+  });
+});
 afterEach(() => { for (const root of owned.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "verification-lanes-")); owned.push(root);
@@ -77,6 +152,7 @@ describe("mandatory protected verification and exact-candidate binding", () => {
   it("never presents filtered, sharded or unknown public execution as a full suite", () => {
     expect(publicExecutionScope([])).toBe("full");
     expect(publicExecutionScope(["--reporter", "verbose", "--maxWorkers", "2"])).toBe("full");
+    expect(publicExecutionScope(["--reporter=json", "--outputFile=private-native.json"])).toBe("full");
     for (const args of [["tests/audits"], ["--testNamePattern", "one"], ["--shard", "1/2"], ["--exclude", "tests/security"], ["--unknown"]]) expect(publicExecutionScope(args)).toBe("focused");
   });
 });

@@ -7,8 +7,8 @@ import { pathToFileURL } from 'node:url';
 export const PRIVATE_TEST_FILES = ['tests/audits/kitSourceDifferential.test.ts', 'tests/audits/kitSourceReaderReplacement.test.ts'];
 export function publicExecutionScope(args) {
   for (let index = 0; index < args.length; index++) {
-    if (['--reporter', '--maxWorkers', '--minWorkers'].includes(args[index]) && args[index + 1]) { index++; continue; }
-    if (/^--(?:reporter|maxWorkers|minWorkers)=.+/.test(args[index]) || ['--no-cache', '--no-file-parallelism'].includes(args[index])) continue;
+    if (['--reporter', '--outputFile', '--maxWorkers', '--minWorkers'].includes(args[index]) && args[index + 1]) { index++; continue; }
+    if (/^--(?:reporter|outputFile|maxWorkers|minWorkers)=.+/.test(args[index]) || ['--no-cache', '--no-file-parallelism'].includes(args[index])) continue;
     return 'focused'; // Unknown options can filter or shard tests; fail closed.
   }
   return 'full';

@@ -8,7 +8,7 @@ This document records the repository's operational state. It is the source of tr
 
 The partial-source-evidence compatibility correction is integrated locally and remains unreleased.
 
-Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. Current package metadata remains 0.10.0; a prospective patch version does not authorize release preparation. Historical Kit provenance remains a separate mandatory protected gate.
+Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. Current package metadata remains 0.10.0; a prospective patch version does not authorize release preparation. The original historical Kit gate remains intact; a separately authorized current-candidate route has distinct mandatory verification requirements.
 
 SW-118 correction commit 34e3296 supplies the bounded audit-owner changes. SW-119-R1 recovered source fixes and preserved the original divergent worktree; the integrated candidate instead starts from the published source and already contains those fixes. No stale 0.9.6 branch status is transplanted.
 
@@ -429,3 +429,9 @@ Historical v0.9.5 readiness and release-preparation evidence remains attached to
 The v0.9.1 release includes normalized provider telemetry, integrated Codex/Claude parsing and outcome handling, deterministic campaign queues, checkpoint v1/v2 recovery contracts, explicit resume and verified completed-unit reuse, provider-limit pause/continuation, public campaign CLI routing and timeout presets, and plugin-specific progress evidence. Partial progress is operational evidence; final scientific execution and analysis artifacts are published only after campaign finalization. Uncertain provider invocations are not replayed automatically. See [COMMANDS.md](COMMANDS.md), [WORKFLOWS.md](WORKFLOWS.md), and [ROADMAP.md](ROADMAP.md).
 
 The published/current designation is established by external registry evidence, separately from final release-document metadata.
+
+## SW-121 current Kit acceptance authorization
+
+SW-121 authorizes `V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0` under `LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0`. The implemented source-checkout collector and independent native semantic verifier retain every A-L obligation, all sixteen current disposition reviews and all three incomparable profiles. Current acceptance remains **BLOCKED_REQUIRED_EVIDENCE** pending complete exact-candidate platform and binding evidence. Authorization alone is not acceptance.
+
+The eight missing historical byte identities covering ten references remain unavailable. Historical provenance is **UNVERIFIED**; original private verification and original readiness binding are **NOT_PASSED**. Their inventories, tests, hashes and failure records are unchanged. A fresh current acceptance never claims historical recovery. The original Python M13 qualification warning is preserved and disclosed in the current bounded-candidacy review. No release, version bump or Step 5 audit is established by this work.

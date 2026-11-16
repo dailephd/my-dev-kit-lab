@@ -1,0 +1,760 @@
+{
+  "contractId": "LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0",
+  "routeId": "V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0",
+  "authorization": {
+    "decisionId": "SW-121-USER-AUTHORIZATION",
+    "recordedAtUtc": "2026-11-16T16:57:40.715Z",
+    "authority": "Explicit user instruction SW-121 section1; no owner signature or historical approval invented",
+    "baselineSha": "241cdc69f9a0f61d3fc046548fc4c76fa1aff6c4",
+    "proposalSha256": "f4595f2b0f9ac0a56d96a8c22b6f78f2cec24b8d6c4f6030e11dd8b3a166a36e",
+    "scope": "ALL_A_L_WITH_REAL_THREE_PLATFORM_EVIDENCE",
+    "signature": "NONE; explicit user instruction recorded prospectively"
+  },
+  "historical": {
+    "provenance": "UNVERIFIED",
+    "privateVerification": "NOT_PASSED",
+    "readinessBinding": "NOT_PASSED"
+  },
+  "reviews": [
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/java::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.187Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "Alpha.java places NestedPublicWidget inside package-private PackageWidget. Local public syntax does not make its effective owner chain public. Retain the low-confidence nested declaration candidate; Kit export counts describe type visibility, not legacy method/member counts.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/build.gradle",
+          "sha256": "461e4422090e3156c3c03c1b1bb03ab1fb8d2cb6c53f5e30c5a56d8639ef2363"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/main/java/com/example/Alpha.java",
+          "sha256": "9d343c37fdb73de020d8dd9dfcdedde8082fceb42107d4a53e6034858e0584ad"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/main/java/com/example/Beta.java",
+          "sha256": "ad5425f1e08b0caf61695c1c34c220587d0fd0bfeab5ff407ca2472e76de56aa"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/test/java/com/example/AlphaTest.java",
+          "sha256": "bca616f396b9bd25a9faa11b16ab1a3826025ce642dea43f5645ca61e721198f"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "findingsSha256": "b468fb03e62a98e0e35f3db16180fbc72a9495057b6bddaf0416a812e4f8e2fb"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/java::duplicate-implementation-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.199Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "Alpha.java and Beta.java do not give NestedPublicWidget equivalent public owner chains. Equal nested class spelling alone cannot qualify two exported implementations. The absent duplicate candidate is supported by effective ownership, not a blanket finding suppression.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/build.gradle",
+          "sha256": "461e4422090e3156c3c03c1b1bb03ab1fb8d2cb6c53f5e30c5a56d8639ef2363"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/main/java/com/example/Alpha.java",
+          "sha256": "9d343c37fdb73de020d8dd9dfcdedde8082fceb42107d4a53e6034858e0584ad"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/main/java/com/example/Beta.java",
+          "sha256": "ad5425f1e08b0caf61695c1c34c220587d0fd0bfeab5ff407ca2472e76de56aa"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/test/java/com/example/AlphaTest.java",
+          "sha256": "bca616f396b9bd25a9faa11b16ab1a3826025ce642dea43f5645ca61e721198f"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "findingsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/java::test-rot",
+      "reviewedAtUtc": "2026-11-16T17:08:24.200Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "AlphaTest.java imports AbsentWidget; the retained ordinary JVM fixture domain contains no matching declaration. Qualified selected-domain absence supports a bounded missing-import candidate, not global compiler/classpath absence. npm reference and script-path findings remain unchanged.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/build.gradle",
+          "sha256": "461e4422090e3156c3c03c1b1bb03ab1fb8d2cb6c53f5e30c5a56d8639ef2363"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/main/java/com/example/Alpha.java",
+          "sha256": "9d343c37fdb73de020d8dd9dfcdedde8082fceb42107d4a53e6034858e0584ad"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/main/java/com/example/Beta.java",
+          "sha256": "ad5425f1e08b0caf61695c1c34c220587d0fd0bfeab5ff407ca2472e76de56aa"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/src/test/java/com/example/AlphaTest.java",
+          "sha256": "bca616f396b9bd25a9faa11b16ab1a3826025ce642dea43f5645ca61e721198f"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/java/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "findingsSha256": "57bd8f28f74f1716ed59841d8f412f061b2dd07778a309215f8f0b7611cd03d0"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/javascript::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.202Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "The JavaScript fixture contains inline/nonliteral process forms, CommonJS, module suffixes and re-exports. The retained findings use the same bounded relative-reference candidates while provenance/export-count evidence is language-profile-specific. Equal IDs are not evidence-field parity; all changed evidence must match the oracle.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/alpha.js",
+          "sha256": "9fde38af2ad2997d38b420463ed26df634d0d3f3fcd95dfbbd0df519688ebf2c"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/audits/inline.js",
+          "sha256": "53ddc28dd4d55c9294011a7619d608b3e31a55c9b5984c31772e159483d2dfd3"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/audits/negative.js",
+          "sha256": "476aba5720ef6990142e789bb8a7dde39875cb7f05038a597d2d9f22923a453d"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/audits/positive.js",
+          "sha256": "dc92049bd0774183fa9467b56c9f5c9def0cfbab3e5f437f642813eb7c8de30d"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/beta.js",
+          "sha256": "82bbc8aba308adea8e7552d725e13b06db83f91ca0b798cf7cea31fd628de5e1"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/common.cjs",
+          "sha256": "40812f2d5fe0159043e04fdeee34fe15115dce6fa998264779f0346b720273a4"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/detectors/first.ts",
+          "sha256": "372ed45dfd396f0a2e9a59cfcc4a4718ab426484b6edd7ffa0996ee467c3449a"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/detectors/imported.ts",
+          "sha256": "4bab086d85e36bb452b5b52ddb012b78a42ff864e5f1c963eea056e2b5a246b4"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/detectors/second.ts",
+          "sha256": "2fe381dbb16e5e1201f0119d96b99231f1c810513a03f24914cd723985440985"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/hidden.js",
+          "sha256": "b1762c6e58b6a736b8962bee08230495be7529d623e0a8410aa3e62362e4894a"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/ids.ts",
+          "sha256": "fbcfeda85ac227716d32631d8f00056508edb87c16e2e83876856f5a8d4067ae"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/module.cts",
+          "sha256": "310a518e9fef9de82037ce7d3f74d1d0eb8419e44f681a3db4b160f3fc475151"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/module.mts",
+          "sha256": "4046bb02756bf3eb886db9cecf7632cfbb7c0b8a78442e3776e749a2e312716c"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/src/reexport.js",
+          "sha256": "5e6ff32a06b86b0cfe0b032f173643db32c51d6c498a8807915ed51285c48d89"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/tests/check.sample.js.input",
+          "sha256": "57fd6dd669f918ecf460773297f1ce1c0aae9c3c1c2aa723224d6f8643d3f23d"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/javascript/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "findingsSha256": "ca56bface49afabe2355571f45adf38d9fb6b816cf4da169f2ba66a0c2c8416d"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/kotlin::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.204Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "Kotlin fixture ownership and top-level declarations differ from Java-style exported-member counting, including script.kts. Preserve the same bounded file candidates with explicit current declaration/export evidence; no unused-symbol or cross-provider count equality is inferred.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/build.gradle.kts",
+          "sha256": "968c22309d10fb9562986a74508755ad1d56b8e4c64949bd5ec6c37333010db5"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/src/main/kotlin/com/example/Alpha.kt",
+          "sha256": "796bca4b260400391cb3b819e87423af3c279ca60f0af165f4ee526740c18bd8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/src/main/kotlin/com/example/Beta.kt",
+          "sha256": "60003f663de0e826d6b4daf15c0a9a8e8a983c59407881d5f8f8e1361b23b50e"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/src/script.kts",
+          "sha256": "a68b8c92211f32087f2b31bb9663030b4aa1dc49af25ff7de85596d30c599550"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/src/test/kotlin/com/example/AlphaTest.kt",
+          "sha256": "93568448d45f5bd84bfc7190d0aff231ad730a763621f87d723ec80486a93602"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "findingsSha256": "0e1d15404093dedd555f32ecc98a046a51b2f68d5a6867c5a3a345f2a61b3ac4"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/kotlin::test-rot",
+      "reviewedAtUtc": "2026-11-16T17:08:24.205Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "DifferentialWidget is declared in a differently named source file, so qualified declaration-domain evidence refutes the former basename-only absence. AbsentWidget/topLevel candidates retain their bounded ordinary-domain proof and provenance. No global classpath or static-member binding is claimed.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/build.gradle.kts",
+          "sha256": "968c22309d10fb9562986a74508755ad1d56b8e4c64949bd5ec6c37333010db5"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/src/main/kotlin/com/example/Alpha.kt",
+          "sha256": "796bca4b260400391cb3b819e87423af3c279ca60f0af165f4ee526740c18bd8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/src/main/kotlin/com/example/Beta.kt",
+          "sha256": "60003f663de0e826d6b4daf15c0a9a8e8a983c59407881d5f8f8e1361b23b50e"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/src/script.kts",
+          "sha256": "a68b8c92211f32087f2b31bb9663030b4aa1dc49af25ff7de85596d30c599550"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/src/test/kotlin/com/example/AlphaTest.kt",
+          "sha256": "93568448d45f5bd84bfc7190d0aff231ad730a763621f87d723ec80486a93602"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/kotlin/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "findingsSha256": "dafa04fba6cee25237f20869c24119ddc692785b0219ffe37c1dd1308376be84"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/large::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.208Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "The large fixture retains the file-level bounded reference candidate for src/one.ts. Current occurrence/source-fact provenance is compared in full, including count evidence. Large input does not authorize truncation as completeness or removal of qualified findings.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/large/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/large/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/large/src/one.ts",
+          "sha256": "56b28e03c6a57555ba4495bb41eb4990e33d8069ee3b7d1bdff1accb63a40217"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/large/tests/check.sample.ts",
+          "sha256": "a631ddc43ab6a20cf972483ae8d3732e35ccd3f1e53ff0ec0c1f82a7964ee8e7"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/large/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "findingsSha256": "36a6f1364a95aafef62355761d37d758be6d8dad36bb3574d875485e0ffc849a"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/mixed::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.210Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "The mixed fixture includes conventional and unconventional JVM roots plus Python/JavaScript. Current source selection and language-specific recorded export/declaration domains are retained without equating provider counts. All six changed evidence records and unchanged candidate identities must be reproduced.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/src/custom/java/Unconventional.java",
+          "sha256": "aca5c679cb51dd03b50c004ffb823d43fab7a37accde8967914ed53bd62131c5"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/src/custom/kotlin/Unconventional.kt",
+          "sha256": "a75654a27b0f583d979b8d04f42ad0c40310d534030d4ce3ec1f45d52044aa7d"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/src/Five.kt",
+          "sha256": "8f4c65af163c35aa1542805bbe6e38eeb6524dbe963693c0feaba1a6fbfdcee5"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/src/Four.java",
+          "sha256": "3e12148354944ea28d8605ac91300ca91e8b6dec57e6b4247406118dac0dccfb"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/src/one.ts",
+          "sha256": "379712826747c29945b0281f5095a23df868314925be9dffb8f009e8eec76e91"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/src/test/RoleWidget.java",
+          "sha256": "2d2f645b1e134917e4ea02ce5600e6feb696a639c130545583c7e5197e5a6b90"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/src/three.py",
+          "sha256": "1aab8e30495f11ad64b94722d0a9fbf4662bc96a09ca0c1072189c1727779a01"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/src/two.js",
+          "sha256": "76f513b60026569c91d2080be309b49bff21bf43e066b3bfeae8b10a631d49ad"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/tests/check.sample.ts",
+          "sha256": "fea204231f13e185b95d153dffe7e543c793a5c68863fe2cbaf26c0a2a926c7d"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/mixed/tests/test_check.py",
+          "sha256": "fd8aa072a39dcbbd21706be1cb5cac3d9fd32d28190a65285dae68abcaafc2b0"
+        }
+      ],
+      "findingsSha256": "dfdaed2f9e99c2c8199722698672942e4fa34ad9dba4b29d18e1421eeaa578e1"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/outside-root::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.211Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "The selected root includes src/selected.ts while outside-root material is outside the selected source universe. Retain only the bounded selected-file candidate and current export provenance; neither exclusion nor an absent selected reference proves whole-repository dead code.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/outside-root/lib/outside.ts",
+          "sha256": "8cef67d77826e4e7398d7de9a771a30fba2c50b4158ad3266abdc983f24348cf"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/outside-root/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/outside-root/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/outside-root/src/selected.ts",
+          "sha256": "8a1c9e39a5390b6a03cb4d91ad2c28e5d8d639233c7b20d00f131821e9b2f893"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/outside-root/tests/check.sample.ts",
+          "sha256": "8ca1b57730f7960faeae0a1ff701be9805dc303d97a8386fcaf0dca411c9899c"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/outside-root/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        }
+      ],
+      "findingsSha256": "ebbec8c89fb568292c8fe7dc391ee54b06033de536118408e3e1abea0d131393"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/python::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.213Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "alpha.py explicit __all__ and nested ownership constrain declaration candidates; dynamic.py has dynamic __all__, so UnknownWidget is not established as a dead declaration. Its separate file-level relative-import candidate is low-confidence, requires manual confirmation and does not assert export/unused-symbol absence. This current bounded distinction is independently reviewed; the retained historical qualification warning about broad M13 wording is NOT re-established or silently rewritten.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/python/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/python/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/python/src/__init__.py",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/python/src/alpha.py",
+          "sha256": "85243b655899b93f4d82b0341f2973363c21acd705c7bc9b8409dec38fa2d736"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/python/src/beta.py",
+          "sha256": "f853fc24e58d3fcecd9a59050a21e0b57dada3af27c18c73bc55c18a1181da7a"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/python/src/dynamic.py",
+          "sha256": "fc24c8eab36de26bebb75d0596a7a518476b2fcd4a6c3a6ac68b775ebb0b1da0"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/python/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/python/tests/test_check.py",
+          "sha256": "51e37fb333f99097cf57c79f1b6f2854744280a926ea2de0a6ed1c4a440a4b01"
+        }
+      ],
+      "findingsSha256": "a08f87e4b92154b7fa729106eeedd6831af6c78f47652941155b033bc614675c"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/typescript::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.216Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "TypeScript fixture includes CommonJS, .cts/.mts and re-exports. Retain all full finding/evidence fields and bounded file-candidate identities; recorded declaration/export/import accounting is a current syntactic domain, not proof of semantic unused code or parity with retired parsing.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/package.json",
+          "sha256": "b063fa6971ed4db3a050fe9dbe03044a7e72e8b671fdb6cd0c463e0de4cb4272"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/README.md",
+          "sha256": "d05c92bebcbd6ca197bc0e5f176a3d48648c4d23809e01afeb55d2e586db2ca8"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/alpha.ts",
+          "sha256": "2b027e11a7081da9f42fe621ca63b3daca11d3cc17a43def4ed434b691e9379e"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/audits/inline.ts",
+          "sha256": "9962228f49e4ae1575ace5fa1be0631b5dfba7f179d6421953c68ba4da3ac6da"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/audits/negative.ts",
+          "sha256": "800371b6c32954670a00c0a819d79ddd771d3cedb97b530fe6dbd877ae3027de"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/audits/positive.ts",
+          "sha256": "d51a6dbe4f6459414035f54054672b16e179e7fbd1a91317ff9851e063e7dfcd"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/beta.ts",
+          "sha256": "fdf369bd899dde04e41f969508da46d764cbf8138574edfebf00ff057be016c1"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/common.cjs",
+          "sha256": "40812f2d5fe0159043e04fdeee34fe15115dce6fa998264779f0346b720273a4"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/detectors/first.ts",
+          "sha256": "372ed45dfd396f0a2e9a59cfcc4a4718ab426484b6edd7ffa0996ee467c3449a"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/detectors/imported.ts",
+          "sha256": "4bab086d85e36bb452b5b52ddb012b78a42ff864e5f1c963eea056e2b5a246b4"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/detectors/second.ts",
+          "sha256": "2fe381dbb16e5e1201f0119d96b99231f1c810513a03f24914cd723985440985"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/hidden.ts",
+          "sha256": "8f0c6353516a15ac2217b07de4f42c65e9993aedf6de14d6a97b7c23d3343e48"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/ids.ts",
+          "sha256": "fbcfeda85ac227716d32631d8f00056508edb87c16e2e83876856f5a8d4067ae"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/module.cts",
+          "sha256": "310a518e9fef9de82037ce7d3f74d1d0eb8419e44f681a3db4b160f3fc475151"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/module.mts",
+          "sha256": "4046bb02756bf3eb886db9cecf7632cfbb7c0b8a78442e3776e749a2e312716c"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/src/reexport.ts",
+          "sha256": "80f2fe255012bc95aab8fec5cb8afd391f9e30ac3e725b9f5b3bfe4dfb179026"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/tests/check.sample.ts.input",
+          "sha256": "a5eed4ad962692975b07b636ad7ba581763ad9cb3ad6c01bf4f3d47ee0796f4f"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/tests/fixtures/payload.json",
+          "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+        },
+        {
+          "path": "tests/fixtures/audits/kit-differential-v010/typescript/tests/fixtures/role.ts",
+          "sha256": "f394f2d0f9f2ac24e1e38474b3253d1997a70c9ab2fa67f51c7efdab77009a7a"
+        }
+      ],
+      "findingsSha256": "e0fd3fc7d7d2354b49a809e98d21c8ae2ced99de3130f1d400748a0e262a0740"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/mixed-language/mixed-docs-claims::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.216Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "INCOMPARABLE_PROFILES_RETAINED",
+      "parityClaim": false,
+      "reason": "Widget.java and Gadget.kt contain public types and members, but legacy member-inclusive exports and current type-role exports have no qualified common role universe. Preserve INCOMPARABLE_PROFILES and the exact bounded file findings; never convert count differences into parity or quality improvement.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-docs-claims/build.gradle.kts",
+          "sha256": "7ae8775626f011fc634525a610dcf29609aafe544a2fe54e72aed0b97701bb4e"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-docs-claims/README.md",
+          "sha256": "a47d905f3be3ac0c329b2815d061cf33c7589712d8fd4a567c7108d4d08515e2"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-docs-claims/src/main/java/com/example/Widget.java",
+          "sha256": "1b070ef6fe05ef9e7e81cd2460dd289469cb642a652b9abfb89e70d1521a6399"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-docs-claims/src/main/kotlin/com/example/Gadget.kt",
+          "sha256": "5d7c185c9e1d6c41eaf8f4f4314dc5a216e229072f5b70749a2509ec6ebc9c00"
+        }
+      ],
+      "findingsSha256": "54d11e6c7bf8c08fd22b8f76a2c955021418c6449441fc78cf20b049cbbea628"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/mixed-language/mixed-java-kotlin::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.218Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "INCOMPARABLE_PROFILES_RETAINED",
+      "parityClaim": false,
+      "reason": "FooService/BarService source and test witnesses combine Java/Kotlin type/member profiles. No common exported-role domain is established across retired/current extraction. Retain INCOMPARABLE_PROFILES, source hashes and exact current findings; no compiler/module-resolution or cross-provider parity claim.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-java-kotlin/build.gradle.kts",
+          "sha256": "85df5f8682c3df150e61293f3ca0a8fb6b5bd75f59de034541825aa3607da09f"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-java-kotlin/README.md",
+          "sha256": "15fa00c60964077232cfee3492cbeb15e1b9d9b2093917522cd719e0f3cb372b"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-java-kotlin/settings.gradle.kts",
+          "sha256": "bb46e53c0d59ec10b63663505b6192969fc4919d2ba40148aee67a94a70f4659"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-java-kotlin/src/main/java/com/example/FooService.java",
+          "sha256": "101b9e7e74b13d8e371ebd649f8921e6ccb9d690af76b8567a87709c1514f992"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-java-kotlin/src/main/kotlin/com/example/BarService.kt",
+          "sha256": "cfc3fc5ac3f3be41f82591b791e3e771e766ed6f25672b86ff4c3d5b8f899bee"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-java-kotlin/src/test/java/com/example/FooServiceTest.java",
+          "sha256": "8d040a1ef37e9e0569138f8b67496e3f55685397a1975f949a4462cb9f09f814"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-java-kotlin/src/test/kotlin/com/example/BarServiceTest.kt",
+          "sha256": "09345dd5ac292e75fecadca0214cfd850503bd3eef7c6b42d941b4f631248cab"
+        }
+      ],
+      "findingsSha256": "80ff72e94609c340ba6e9fb1a15def4822af430e32444c5e1dea1b2fee02dad9"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/mixed-language/mixed-python-ts::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.218Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "app.py and TypeScript interaction retain the same Calculator/file candidates. Python recorded export evidence has its own completeness/ownership meaning; source-fact counts are retained in full without asserting cross-provider equivalence or semantic non-use.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-python-ts/README.md",
+          "sha256": "948efc8c1ef480b027baa244b554e1c15cb7acb8b40d2d2e9974c660ea0a6503"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-python-ts/src/app.py",
+          "sha256": "470976509762a89bd34f962896709ae44adb3e7867fcb4a82763c9e398485afa"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-python-ts/src/index.ts",
+          "sha256": "47b1a2a7dd3664cf3bb42fb761fd111754f9eb83679b40d5c30c7b5563d69594"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-python-ts/tests/test_app.py",
+          "sha256": "895c953515acfa8bd525f5e2154e049c0f504e007039ab078d2a74a960944376"
+        }
+      ],
+      "findingsSha256": "3394c815e06d5ad813a9b141e00d4cffbe6a69b5a27d1240d066b620948d851a"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/mixed-language/mixed-ts-js::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.219Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "QUALIFIED_CURRENT_BOUNDED_SCOPE",
+      "parityClaim": false,
+      "reason": "helper.js is CommonJS within a TypeScript/JavaScript fixture. Current commonjs export-origin evidence replaces the former unqualified count label while retaining the bounded file candidate. Same membership is not evidence parity; compare complete records.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-js/README.md",
+          "sha256": "4bd52922e0b9a74e60eeefa44622d4f6d393de8f13bd1b1f63607923e28157f3"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-js/src/helper.js",
+          "sha256": "8b23fbbcea0ddb32eda290a5a9e06d00b9c094c572816f4cbfd30d8f8e5dc80d"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-js/src/index.ts",
+          "sha256": "59be0eea484b18ebe9945c2273a28a5cfb09de6ce03f46545e2b836af1afc3f2"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-js/tests/index.sample.ts",
+          "sha256": "9277dd4dac0686be2667b17ba250d91de117d3d0bd5d481cc1f20b77fd81a9f8"
+        }
+      ],
+      "findingsSha256": "0400aca068ff1839dcaf6781204ea802e17f9255d1badba2871e227d75a3ec27"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm::dead-code-candidate",
+      "reviewedAtUtc": "2026-11-16T17:08:24.220Z",
+      "reviewer": "SW-121 implementing-agent current-source review; independently checked by native oracle/semantic verifier; no owner signature claimed",
+      "currentDisposition": "INCOMPARABLE_PROFILES_RETAINED",
+      "parityClaim": false,
+      "reason": "The mixed Python/TypeScript/Java/Kotlin corpus has different member/type/test-observation role domains. Multiplier/Divider witnesses preserve INCOMPARABLE_PROFILES with no qualified common universe; all four bounded file candidates and complete provenance remain required, with no parity or aggregate improvement claim.",
+      "remainingUncertainty": "Historical raw producer/approval continuity remains UNVERIFIED. Current static candidates are not compiler/classpath or semantic unused-code proofs.",
+      "historicalProvenance": "UNVERIFIED",
+      "sourceWitnesses": [
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm/build.gradle.kts",
+          "sha256": "7ae8775626f011fc634525a610dcf29609aafe544a2fe54e72aed0b97701bb4e"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm/pytests/test_app.py",
+          "sha256": "8062780d243aa9ea82bc41a2d34c33d26678f40f06f695d37a87e30058d48f27"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm/README.md",
+          "sha256": "b22bb423f419c41aff875eed09df56060eed4406d19c16b9bcabfba841f7ca31"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm/src/app.py",
+          "sha256": "17b0b2e95282c04a1e750b7ad881c89460e50f41e3096a0e80ef8b3ccbc952e6"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm/src/helper.js",
+          "sha256": "956ddc69dd912708cfb04d7160817ccab57234687d03b89f566674deee943d24"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm/src/index.ts",
+          "sha256": "619cf7546bbdb8129640a45ff16574eba4efa4832123fa73b1ef80395ec9f1fd"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm/src/main/java/com/example/Multiplier.java",
+          "sha256": "4798ef7b417857e7f063faac311cde3c90b84641e4209a818e8b1afdb3ae1d22"
+        },
+        {
+          "path": "tests/fixtures/audits/mixed-language/mixed-ts-python-jvm/src/main/kotlin/com/example/Divider.kt",
+          "sha256": "d459b914c2aabbf3b2aa02355479260e0ce1dd99c80a1b11358435cce07fdac9"
+        }
+      ],
+      "findingsSha256": "720ce59dc84a5664802a782cf65bf1868efa15cb8637a421c53df66672aa4613"
+    }
+  ]
+}
