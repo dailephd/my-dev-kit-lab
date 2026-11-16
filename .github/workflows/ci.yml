@@ -102,10 +102,15 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
+      - name: Test Windows campaign execution without parallel-file contention
+        if: runner.os == 'Windows'
+        run: npm test -- tests/experiments/agentSuccessRate/campaignExecution.test.ts
+
       - name: Test
         # Whole-repository Kit scans run in the required repository-self-scans
         # matrix below so their nested lookup processes cannot starve campaign tests.
-        run: npm test -- --exclude tests/audits/kitSourceDifferential.test.ts --exclude tests/audits/kitSourceReaderReplacement.test.ts --exclude tests/audits/codeRot/testRotDetector.test.ts --exclude tests/audits/codeRot/duplicateImplementationDetector.test.ts
+        # The full campaign file ran above on Windows; Linux/macOS retain it here.
+        run: npm test -- --exclude tests/audits/kitSourceDifferential.test.ts --exclude tests/audits/kitSourceReaderReplacement.test.ts --exclude tests/audits/codeRot/testRotDetector.test.ts --exclude tests/audits/codeRot/duplicateImplementationDetector.test.ts ${{ runner.os == 'Windows' && '--exclude tests/experiments/agentSuccessRate/campaignExecution.test.ts' || '' }}
 
       - name: Describe mandatory protected release gates
         run: node -e "console.log('PUBLIC CI ONLY. Private provenance and exact-commit binding are separate mandatory release-readiness gates; neither was executed or passed by this job.')"

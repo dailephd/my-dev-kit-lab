@@ -37,6 +37,25 @@ describe("package script contract: test vs verify", () => {
     expect(workflow).toContain("neither was executed or passed by this job");
   });
 
+  it("retains the whole Windows campaign file in an isolated step and all other platform coverage", () => {
+    const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8").replace(/\r\n/g, "\n");
+    const file = "tests/experiments/agentSuccessRate/campaignExecution.test.ts";
+    const isolated = `      - name: Test Windows campaign execution without parallel-file contention\n        if: runner.os == 'Windows'\n        run: npm test -- ${file}`;
+    const conditionalExclude = `\${{ runner.os == 'Windows' && '--exclude ${file}' || '' }}`;
+    const qualifies = (body: string) => {
+      const normalJob = body.replace(/\r\n/g, "\n").split("  repository-self-scans:")[0];
+      const bulk = normalJob.split("\n").find(line => line.trimStart().startsWith("run: npm test -- --exclude")) ?? "";
+      return normalJob.includes(isolated + "\n") && bulk.includes(conditionalExclude) &&
+        normalJob.indexOf(isolated) < normalJob.indexOf(bulk) &&
+        normalJob.split(`run: npm test -- ${file}`).length === 2;
+    };
+    expect(qualifies(workflow)).toBe(true);
+    expect(qualifies(workflow.replace(`run: npm test -- ${file}`, "run: echo omitted"))).toBe(false);
+    expect(qualifies(workflow.replace(isolated, isolated.replace("if: runner.os == 'Windows'", "if: runner.os == 'Linux'")))).toBe(false);
+    expect(qualifies(workflow.replace(conditionalExclude, `--exclude ${file}`))).toBe(false);
+    expect(qualifies(workflow.replace(isolated, isolated + " -t PHYSICAL-PATH-ALIAS"))).toBe(false);
+  });
+
   it("defines a verify script", () => {
     expect(pkg.scripts.verify).toBeDefined();
   });
