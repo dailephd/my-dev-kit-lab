@@ -6,6 +6,8 @@ import { execFileSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error Existing source-checkout verifier is plain ESM.
 import { verifyNativeTests, verifyResponsibilityInventory, verifyCurrentDecisions, verifyHostedMetadata, currentIdentity, verifyCurrentLane, bindCurrent, CURRENT_CONTRACT, CURRENT_ROUTE, HISTORICAL_STATE, CURRENT_PROTECTED_TESTS } from '../../scripts/verifyCurrentKitAcceptance.mjs';
+// @ts-expect-error Existing source-checkout path authority is plain ESM.
+import { publicTemporaryRoot } from '../../scripts/run-verification-lane.mjs';
 
 const sha = (b: string | Buffer) => createHash('sha256').update(b).digest('hex');
 const oracle = JSON.parse(fs.readFileSync('tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json', 'utf8'));
@@ -105,6 +107,10 @@ describe('authorized current Kit native semantic verification', () => {
   });
   it('reopens native bytes and denies missing or tampered payloads before semantic qualification', async () => {
     const f = repository(), identity = await currentIdentity(f.root), input = path.join(f.root, '.my-dev-kit-workflow/input'); fs.mkdirSync(input, { recursive: true });
+    // Raw-evidence refusal must precede listing prerequisites on every OS.
+    // The existing temp authority must still reject this file collision.
+    fs.writeFileSync(path.join(f.root, '.my-dev-kit-workflow/t'), 'unusable fixture temp');
+    expect(() => publicTemporaryRoot(f.root)).toThrow('Unsafe');
     fs.writeFileSync(path.join(input, 'stdout.txt'), ''); fs.writeFileSync(path.join(input, 'stderr.txt'), '');
     const manifest = { contractId: CURRENT_CONTRACT, routeId: CURRENT_ROUTE, lane: 'protected', identity, historical: HISTORICAL_STATE,
       environment: { platform: process.platform, arch: process.arch, node: process.version }, command: [...CURRENT_PROTECTED_TESTS], invocation: { stdout: 'stdout.txt', stdoutSha256: sha(''), stderr: 'stderr.txt', stderrSha256: sha(''), exitCode: 0 }, native: { file: 'missing.json', sha256: '0'.repeat(64) } };

@@ -262,10 +262,10 @@ export async function verifyCurrentLane(root, manifestFile, verifyOutput) {
     observation = { packageSha256: manifest.package.sha256, installedIdentity: manifest.package.installedIdentity };
   } else {
     assert(stable(manifest.command) === stable(currentCommand(manifest.lane)), 'Filtered-only current command');
-    const env = { ...process.env, TEMP: publicTemporaryRoot(root), TMP: publicTemporaryRoot(root), TMPDIR: publicTemporaryRoot(root), TSX_DISABLE_CACHE: '1', LAB_VERIFICATION_LANE: 'public' };
     const native = JSON.parse(await nativeBytes(root, directory, manifest.native.file, manifest.native.sha256));
     assert(Number.isFinite(native.startTime) && native.startTime >= Date.parse(manifest.startedAt) && native.startTime <= Date.parse(manifest.endedAt), 'Stale native execution time');
     const original = JSON.parse(await nativeBytes(root, directory, manifest.listing.file, manifest.listing.sha256));
+    const env = { ...process.env, TEMP: publicTemporaryRoot(root), TMP: publicTemporaryRoot(root), TMPDIR: publicTemporaryRoot(root), TSX_DISABLE_CACHE: '1', LAB_VERIFICATION_LANE: 'public' };
     const independent = await deriveListing(root, verifyOutput, manifest.lane, env, 'independent');
     verifyResponsibilityInventory(original, independent.value, root);
     observation = verifyNativeTests(native, independent.value, root, manifest.environment.platform, manifest.lane);
