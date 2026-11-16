@@ -72,7 +72,23 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       if (testFile.sizeBytes > MAX_READ_BYTES) continue;
       if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
       if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required test ${testFile.relativePath} is unselected.`);
-      const content = await kitPredicateContent(ctx.kitSourceReader, testFile.relativePath, ["npm run ", "describe", "it", "test", "from", "require("]);
+      const unsupportedRaw = ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial")
+        ? ctx.kitSourceReader?.unsupportedRawContentReason?.(testFile.relativePath) : undefined;
+      if (unsupportedRaw && ctx.reportUnavailable) {
+        ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, unsupportedRaw, "raw-content");
+        continue;
+      }
+      let content: string;
+      try {
+        content = await kitPredicateContent(ctx.kitSourceReader, testFile.relativePath, ["npm run ", "describe", "it", "test", "from", "require("]);
+      } catch (error) {
+        if (ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial") && ctx.reportUnavailable &&
+            error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
+          ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, error.message, "raw-content");
+          continue;
+        }
+        throw error;
+      }
       if (content === null) continue;
 
       // tests/audits/codeRot/ is this project's own audit-detector test
@@ -89,7 +105,24 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // test suite of its own would never hit this exclusion.
       if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
 
-      const kitMissing = await kitMissingImports(ctx, testFile.relativePath, content, sourceFactsIndex.get(testFile.relativePath));
+      const observed = sourceFactsIndex.get(testFile.relativePath);
+      const partialImports = observed?.kit?.capabilities.imports === "partial";
+      if (partialImports) {
+        const reason = observed.diagnostics.map(d => d.code + ": " + d.message).join("; ");
+        if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", testFile.relativePath + " requires complete imports. " + reason);
+        ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", testFile.relativePath, reason);
+      }
+      let kitMissing = new Set<string>();
+      if (!partialImports) {
+        try {
+          kitMissing = await kitMissingImports(ctx, testFile.relativePath, content, observed);
+        } catch (error) {
+          if (ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial") && ctx.reportUnavailable &&
+              error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
+            ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", testFile.relativePath, error.message);
+          } else throw error;
+        }
+      }
       issues.push(...findMissingSourceImports(ctx, testFile.relativePath, content, kitMissing));
       // v0.3.1 Batch 4 -- when the TypeScript/JavaScript analyzer actually
       // parsed this test file, also check its structured import facts.

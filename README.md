@@ -22,6 +22,10 @@ The historical v0.9.6 release covered bounded full-refresh source-content eviden
 
 v0.4.6 adds a supported `my-dev-kit-lab` installed CLI router (`--help`, `--version`, `security validate`, `audit`, the `experiment` family, `report render`, `plots generate`, `gallery build`, `demo final`, and the historical direct final-demo invocation form), a writable lab workspace model kept separate from the installed package and the inspected target, and a permanent packed-tarball installation/execution acceptance gate (`npm run verify:packed-package`). See [docs/ROADMAP.md](docs/ROADMAP.md) and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md) for status detail and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the runtime path model. The "Installed CLI" section below documents the shipped command surface; the source-checkout `npm run` workflow in Quickstart remains available for contributors.
 
+The partial-source-evidence compatibility correction is integrated locally and remains unreleased.
+
+Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. Current package metadata remains 0.10.0; a prospective patch version does not authorize release preparation. Historical Kit provenance remains a separate mandatory protected gate.
+
 ## Current capabilities
 
 v0.10.0 is the current release-document and package version. It builds on v0.9.7 workspace containment and installed-resource immutability. Its Kit-backed audits use Kit 1.15.0; LAB-EVIDENCE-01 supplies authorized evidence capture/import and scoped certification. The original RSP-011 payload remains unrecovered, as recorded in [current state](docs/CURRENT_STATE.md#v0100-development-lab-evidence-01).

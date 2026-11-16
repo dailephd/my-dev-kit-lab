@@ -147,3 +147,34 @@ function boundedCliTarget(): string {
  fs.mkdirSync(path.join(root,"src")); fs.writeFileSync(path.join(root,"src/index.ts"),"export const value = 1;\n");
  return root;
 }
+
+describe("partial evidence command disposition", () => {
+  it("writes findings and coverage reports while returning and printing exit 2", () => {
+    const owned=mkdtempSync(path.join(os.tmpdir(), "audit-partial-command-")); cleanupDirs.push(owned);
+    const target=path.join(owned,"target"), out=path.join(owned,"reports");
+    fs.mkdirSync(path.join(target,"src"),{recursive:true});
+    fs.mkdirSync(path.join(target,"tests"),{recursive:true});
+    fs.writeFileSync(path.join(target,"package.json"),JSON.stringify({name:"partial-command",version:"1.0.0"}));
+    fs.writeFileSync(path.join(target,"src/load.ts"),"const target='./sdk.js'; export async function load(){return import(target)}\n");
+    fs.writeFileSync(path.join(target,"tests/load.test.ts"),"const target='../src/load.js'; await import(target); test.skip('independent',()=>{});\n");
+    const result=runAuditCli(["--target",target,"--types","code-rot","--include","docs,tests,package,architecture,cli","--format","text,json","--fail-on","none","--out",out]);
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("Exit 2 -- required audit coverage incomplete.");
+    expect(result.stdout).not.toContain("Exit 1 -- fail-on threshold breached.");
+    const report=JSON.parse(readFileSync(path.join(out,"code-rot-audit.json"),"utf8"));
+    expect(report.exit.code).toBe(2);
+    expect(report.exit.breached).toBe(false);
+    expect(report.summary.failOnBreached).toBe(false);
+    const thresholdOut=path.join(owned,"threshold-reports");
+    const thresholdResult=runAuditCli(["--target",target,"--types","code-rot","--include","docs,tests,package,architecture,cli","--format","text,json","--fail-on","medium","--out",thresholdOut]);
+    expect(thresholdResult.status).toBe(2);
+    const thresholdReport=JSON.parse(readFileSync(path.join(thresholdOut,"code-rot-audit.json"),"utf8"));
+    expect(thresholdReport.exit.code).toBe(2);
+    expect(thresholdReport.exit.breached).toBe(true);
+    expect(thresholdReport.summary.failOnBreached).toBe(true);
+    expect(thresholdReport.exit.reason).toContain("INCOMPLETE");
+    expect(thresholdReport.schemaVersion).toBe("1.0");
+    expect(report.detectorErrors.some((e:{message:string})=>e.message.includes("PARTIAL_COVERAGE UNAVAILABLE"))).toBe(true);
+    expect(report.issues.some((i:{detectorId:string})=>i.detectorId==="test-rot")).toBe(true);
+  },120000);
+});

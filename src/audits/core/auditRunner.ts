@@ -181,6 +181,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
           targetRoot: target.rootPath,
           inventory,
           requiredCapabilities: kitRequirement.capabilities,
+          deferPartialImports: true,
           includeScriptsRoot: kitRequirement.includeScriptsRoot,
           requiredPaths: applicable.paths,
           capabilitiesForPath: (filePath) => requiredKitCapabilitiesForPath(applicable.requirements, filePath),
@@ -195,11 +196,27 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   } catch (error) {
     rethrowWithKitRequirementContext(error, selected);
   }
-  const ctx = { target, config, inventory, sourceOfTruth, sourceFacts, kitSourceReader };
 
   const issues: AuditIssue[] = [];
   const skippedDetectors: AuditSkippedDetector[] = [];
   const detectorErrors: AuditDetectorError[] = [];
+  const ctx = { target, config, inventory, sourceOfTruth, sourceFacts, kitSourceReader,
+    reportUnavailable: (id: string, predicate: string, filePath: string, reason: string, capability = "imports") => {
+      detectorErrors.push({ id, message: `PARTIAL_COVERAGE UNAVAILABLE: ${predicate}; file=${filePath}; capability=${capability}; ${reason}` });
+    } };
+
+
+  // Account for every required partial file before any predicate can fail.
+  const partialImportFiles = sourceFacts.files.filter(file => file.kit?.capabilities.imports === "partial");
+  if (partialImportFiles.length) {
+    const applicable = resolveApplicableKitRequirements(selected, inventory, config.include);
+    for (const file of partialImportFiles) {
+      for (const requirement of applicable.requirements.filter(r => r.path === file.relativePath && r.capability === "imports" && r.applicability === "APPLICABLE_REQUIRED")) {
+        ctx.reportUnavailable(requirement.detectorId, "import-dependent predicates", file.relativePath,
+          file.diagnostics.map(d => d.code + ": " + d.message).join("; "));
+      }
+    }
+  }
 
   // Sequential, in registry order -- keeps issue ordering deterministic
   // without needing a secondary sort step.
@@ -247,7 +264,10 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   }
 
   const issueCounts = countIssuesBySeverity(issues);
-  const { exitCode, reason } = calculateAuditExitCode(issues, config.failOn);
+  const decision = calculateAuditExitCode(issues, config.failOn);
+  const incomplete = detectorErrors.some(error => error.message.startsWith("PARTIAL_COVERAGE UNAVAILABLE:"));
+  const exitCode = incomplete ? 2 : decision.exitCode;
+  const reason = incomplete ? "Required audit coverage is INCOMPLETE; see detectorErrors. Findings retained; --fail-on cannot waive unavailable evidence." : decision.reason;
 
   return {
     configSummary: {

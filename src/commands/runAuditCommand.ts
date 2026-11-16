@@ -170,7 +170,9 @@ export async function runAuditCommandFromArgs(
   console.log(
     model.exit.code === AUDIT_EXIT_CODES.SUCCESS
       ? `Exit 0 -- audit completed.`
-      : `Exit 1 -- fail-on threshold breached.`
+      : model.exit.code === AUDIT_EXIT_CODES.FATAL_ERROR
+        ? `Exit 2 -- required audit coverage incomplete.`
+        : `Exit 1 -- fail-on threshold breached.`
   );
 
   return model.exit.code;

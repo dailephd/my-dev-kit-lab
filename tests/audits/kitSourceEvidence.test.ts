@@ -13,6 +13,7 @@ import {
   flattenInventoryPages,
   sha256Hex,
   validateFactPage,
+  validateKitFact,
   validateInventoryPage,
   validateKitArtifact,
   validateKitManifestReference,
@@ -444,5 +445,24 @@ describe("JSON raw evidence is independent of semantic support", () => {
   it("rejects unqualified producers and arbitrary extensions", () => {
     expectFailure(() => assertKitJsonRawContent(record, false), "capability-insufficient");
     expectFailure(() => assertKitJsonRawContent({ ...record, path: "tests/file.txt" }, true), "capability-insufficient");
+  });
+});
+
+describe("qualified bounded literal values", () => {
+  const observation = () => factJson("tests/a.ts", "audit-fact:tests%2Fa.ts#test-observation#1#0#0", {
+    kind: "test-observation", observationKind: "test-title", value: null,
+    valueTruncated: true, valueSha256: HASH,
+  });
+  it("retains producer-redacted scalar values as unknown with their hash, never as absence", () => {
+    const fact = validateKitFact(observation(), "fact", "tests/a.ts");
+    expect(fact.value).toBeNull();
+    expect(fact.valueTruncated).toBe(true);
+    expect(fact.valueSha256).toBe(HASH);
+  });
+  it.each([
+    {value: 42}, {value: "prefix", valueTruncated: true}, {valueSha256: undefined},
+    {valueSha256: "bad"}, {valueTruncated: "true"}, {value: undefined},
+  ])("refuses malformed or contradictory bounded literal metadata %j", override => {
+    expectFailure(() => validateKitFact({...observation(),...override}, "fact", "tests/a.ts"), "page-invalid");
   });
 });

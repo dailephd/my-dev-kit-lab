@@ -2,6 +2,13 @@
 
 All notable changes to my-dev-kit-lab are documented here.
 
+## [Unreleased]
+
+### Partial-source-evidence compatibility correction
+
+- Retain qualified partial imports and independent findings; withhold unsupported missing-import and dead-code conclusions. Mandatory incomplete coverage remains exit 2 with findings preserved.
+- Preserve strict evidence integrity, existing flags/report schemas, and all published v0.10.0 filesystem/security fixes. This correction is local and unreleased.
+
 ## [0.10.0] - 2026-11-14
 
 ### executable-evidence foundation (LAB-EVIDENCE-01)

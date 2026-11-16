@@ -369,6 +369,7 @@
       "v0.9.6",
       "v0.9.7",
       "v0.10.0",
+      "v0.10.1",
       "v0.11.0",
       "v0.12.0",
       "v0.13.0",
@@ -451,14 +452,15 @@
       "0.9.4",
       "0.9.5",
       "0.9.6",
-      "0.9.7"
+      "0.9.7",
+      "0.10.0"
     ]
   },
   "currentFacts": {
-    "latestPublishedVersion": "0.9.7",
-    "latestPublishedVersionEvidenceContext": "Live npm registry verification on 2026-11-14: latest published baseline 0.9.7; target 0.10.0 returned E404 before release preparation. The intended final release-document version is recorded separately from observed registry state. Earlier 0.9.5/0.9.6 snapshots remain historical.",
+    "latestPublishedVersion": "0.10.0",
+    "latestPublishedVersionEvidenceContext": "Published v0.10.0 baseline verified in SW119;tag c4b72e1e22c0babddcba752dfd605a41a21a45af;publication2026-11-14. Local source metadata0.10.0 retained;unreleased compatibility correction separate.",
     "currentReleaseVersion": "0.10.0",
-    "currentImplementedUnreleasedVersion": null,
+    "currentImplementedUnreleasedVersion": "0.10.1",
     "nextPlannedVersion": "0.11.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
@@ -495,7 +497,7 @@
     "candidateEvidenceMeaning": "review-only evidence, not a confirmed SecurityFinding or AuditIssue",
     "manualPentestState": "post-v1 / version TBD",
     "standaloneSecurityCommand": "security:validate remains separate from npm run audit",
-    "releaseDocumentState": "final-release-state",
+    "releaseDocumentState": "published",
     "currentReleaseDocumentVersion": "0.10.0"
   }
 }

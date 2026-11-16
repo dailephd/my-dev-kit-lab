@@ -465,7 +465,7 @@ The run proceeds in this order:
 
 **Interpretation and limits:** the measures are set-based, not ranked. They are evidence about the executed cases only. The lifecycle expands only the top search candidate. No retrieval-strategy comparison, ranking, winner, or composite score exists in v0.8.0. In external-local output, `<redacted file N>`, `<redacted symbol N>`, and `<redacted fact N>` mean an identity existed and was withheld, not that the list is empty. The console summary of a successful run can still show the physical output directory even though durable files redact it. Very long platform paths can fail cleanly instead of running.
 
-**Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080) for exact definitions.
+**Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precisionrecall-evidence-v080) for exact definitions.
 
 ## Retrieval query strategy comparison experiment (v0.8.1)
 
@@ -871,6 +871,14 @@ Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json
 **Failure handling:** exit code `1` means an issue met the selected threshold; exit code `2` means invalid configuration, target resolution failure, or runtime failure. Required Kit acquisition failures remain exit `2` even with `--fail-on none`; inspect the explicit category rather than treating missing evidence as a clean audit. Review candidates before treating them as defects.
 
 **Completion:** reports are written, target files remain unchanged, and every issue is interpreted as evidence rather than proof.
+
+### Unreleased partial-import coverage correction
+
+After an audit, inspect coverage as well as findings/severity. Qualified partial import records remain partial. Independent checks continue only with sufficient evidence; affected missing-import, dead-code and fixture-absence predicates retain file, capability, diagnostic and detector reasons in `PARTIAL_COVERAGE UNAVAILABLE` errors. Mandatory incomplete coverage returns exit 2 even with `--fail-on none`; retain findings and JSON/text reports. Complete inventory is not complete semantic coverage.
+
+Malformed, stale, corrupted, untrusted or unselected evidence still fails closed. A missing report after acquisition failure is not an empty successful audit. A retained report may expose both exit 2 and a severity breach. Missing qualified evidence must be recovered or handled by an explicitly applicable policy disposition; unavailable conclusions never become PASS. Schema 1.0 and existing flags are unchanged.
+
+Preserve failed attempts and retry logs. The reported SW-118 timeouts and unchanged retries are historical observations, not a clean full-suite result. Step 5 separately applies standardized flake adjudication. Missing originals remain evidence gaps. Surviving transcript excerpts may authenticate an observation without reconstructing a complete original file. Keep transcript record hashes/timestamps separate from newly generated validation identities; never backdate regenerated evidence or manufacture a historical ownership/qualification marker.
 
 ## Security-validation audit adapter
 

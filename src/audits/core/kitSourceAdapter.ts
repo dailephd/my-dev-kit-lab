@@ -20,7 +20,7 @@ import type {
   KitRequiredCapabilities,
   KitSourceEvidence,
 } from "./kitSourceEvidence.js";
-import { assertSelectionCoversRequired, registerKitDeclarationPredicateEvidence } from "./kitSourceEvidence.js";
+import { assertSelectionCoversRequired, hasQualifiedPartialImports, registerKitDeclarationPredicateEvidence } from "./kitSourceEvidence.js";
 
 // ---------------------------------------------------------------------------
 // v0.10.0 Gate 3 -- Kit evidence -> Lab SourceFactsSnapshot adapter.
@@ -280,6 +280,7 @@ export function adaptKitFile(
 }
 
 export type AdaptKitEvidenceOptions = {
+  deferPartialImports?: boolean;
   evidence: KitSourceEvidence;
   inventory: ProjectInventorySnapshot;
   targetRoot: string;
@@ -304,8 +305,10 @@ export function adaptKitEvidenceToSourceFacts(options: AdaptKitEvidenceOptions):
     consumed.add(entry.relativePath);
     const fileEvidence = evidence.fileEvidence.get(entry.relativePath);
     // The exact-file record carries producer diagnostics; the inventory record does not.
-    const file = adaptKitFile(fileEvidence, fileEvidence?.record ?? record, entry,
-      options.capabilitiesForPath?.(entry.relativePath) ?? requiredCapabilities);
+    const exact = fileEvidence?.record ?? record;
+    const required = options.capabilitiesForPath?.(entry.relativePath) ?? requiredCapabilities;
+    const file = adaptKitFile(fileEvidence, exact, entry,
+      options.deferPartialImports && hasQualifiedPartialImports(exact) ? required.filter(c => c !== "imports") : required);
     registerKitDeclarationPredicateEvidence(file, evidence);
     files.push(file);
   }

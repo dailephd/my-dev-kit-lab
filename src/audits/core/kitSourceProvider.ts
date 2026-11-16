@@ -13,6 +13,7 @@ import {
   KIT_SOURCE_AUDIT_SCHEMA_VERSION,
   KitSourceEvidenceAcquisitionError,
   assertRequiredCapabilities,
+  hasQualifiedPartialImports,
   assertQualifiedPartialDeclarations,
   assertKitJsonRawContent,
   assertSelectionCoversRequired,
@@ -330,6 +331,7 @@ export type KitEvidenceRequest = {
   selectFactPaths: (inventory: readonly KitFileRecord[]) => readonly string[];
   requiredCapabilities: (record: KitFileRecord) => KitRequiredCapabilities;
   allowPartialDeclarationsForPath?: (filePath: string) => boolean;
+  deferPartialImports?: boolean;
 };
 
 function normalizeRootForCompare(value: string): string {
@@ -443,7 +445,12 @@ export async function acquireKitSourceEvidence(
         if ((expectation.cliSha256 === QUALIFIED_KIT_CANDIDATE.cliSha256 || expectation.cliSha256 === QUALIFIED_PUBLISHED_KIT.cliSha256) &&
             request.allowPartialDeclarationsForPath?.(filePath)) {
           assertQualifiedPartialDeclarations(record, request.requiredCapabilities(record));
-        } else assertRequiredCapabilities(record, request.requiredCapabilities(record));
+        } else {
+          const required = request.requiredCapabilities(record);
+          const qualifiedProducer = expectation.cliSha256 === QUALIFIED_PUBLISHED_KIT.cliSha256 || expectation.cliSha256 === QUALIFIED_KIT_CANDIDATE.cliSha256;
+          assertRequiredCapabilities(record, request.deferPartialImports && qualifiedProducer && hasQualifiedPartialImports(record)
+            ? required.filter(capability => capability !== "imports") : required);
+        }
         outcomes[index] = { pages };
       } catch (error) {
         outcomes[index] = { error };
@@ -493,6 +500,7 @@ export type KitSourceFactsRequest = {
   requiredPaths?: readonly string[];
   capabilitiesForPath?: (filePath: string) => KitRequiredCapabilities;
   allowPartialDeclarationsForPath?: (filePath: string) => boolean;
+  deferPartialImports?: boolean;
   onReader?: (reader: KitSourceReader) => void;
 };
 
@@ -502,6 +510,7 @@ export type KitSourceReader = {
   snapshotId: string;
   producer: KitSourceEvidence["producer"];
   selectedFile: (filePath: string) => KitFileRecord;
+  unsupportedRawContentReason?: (filePath: string) => string | undefined;
   occurrences: (filePath: string, value: string) => Promise<KitOccurrence>;
   importTarget: (factId: string) => Promise<KitImportProof>;
   dispose: () => void;
@@ -575,6 +584,19 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     jsTsRelativeImportCandidateProof: IMPORT_PROOF_PROFILES[ctx.pkg.cliSha256],
     jsonRawLiteralContent,
     selectedFile,
+    unsupportedRawContentReason(filePath) {
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      validateKitRelativePath(filePath, "raw coverage file");
+      const file = evidence.inventory.find(record => record.path === filePath);
+      if (!file) fail("selection-incomplete", `Required file ${filePath} is missing from validated selected inventory.`);
+      const input = testFiles.find(entry => entry.relativePath === filePath);
+      if (input && input.sizeBytes !== file.sizeBytes) fail("stale-evidence", `${filePath} size differs from Lab's inventory.`);
+      // An authenticated unsupported inventory record is valid metadata, not
+      // permission to read unauthenticated content or infer lexical absence.
+      return input && file.status === "unsupported" && file.contentSha256 === null
+        ? "Validated Kit inventory declares unsupported raw source without a content hash; raw-content predicates are UNAVAILABLE."
+        : undefined;
+    },
     occurrences(filePath, value) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       validateKitRelativePath(filePath, "occurrence file");
@@ -761,6 +783,7 @@ export async function collectKitSourceFacts(
         },
         requiredCapabilities: (record) => request.capabilitiesForPath?.(record.path) ?? request.requiredCapabilities,
         allowPartialDeclarationsForPath: request.allowPartialDeclarationsForPath,
+        deferPartialImports: request.deferPartialImports,
       },
       pkg,
       deps,
@@ -773,6 +796,7 @@ export async function collectKitSourceFacts(
       targetRoot,
       requiredCapabilities: request.requiredCapabilities,
       capabilitiesForPath: request.capabilitiesForPath,
+      deferPartialImports: request.deferPartialImports,
     });
     if (scope.widerSelection) snapshot.warnings.push("Required root-level source selected with --src .; only validated selected files provide source evidence.");
     if (request.onReader) {

@@ -162,7 +162,7 @@ const staleRules = [
   [/0\.4\.2[^\n]{0,100}(?:release-prepared|not yet published|publication[^\n]{0,30}(?:remain|pending))|publication[^\n]{0,80}(?:remain|pending)[^\n]{0,80}0\.4\.2/i, "v0.4.2 publication state", "published", "remove stale release-preparation wording"],
   [/Android[^\n]{0,80}(?:not implemented|remains planned|profiles? (?:is|are) planned)/i, "Android implementation state", "implemented and published", "describe only additional mobile profiles as planned"],
   [/\bthe only currently published way\b/i, "current installed-package workflow", "the published installed CLI and contributor workflow described separately", "remove stale wording that treats source checkout as the only published command path"],
-  ...(!finalReleaseDocumentState && latestPublishedMarker ? [[
+  ...(!(finalReleaseDocumentState && currentReleaseDocumentVersion === latestPublished) && latestPublishedMarker ? [[
     new RegExp(`\\bpending\\b[^\\n]{0,160}\\b${escapeRegex(latestPublishedMarker)}\\b|\\b${escapeRegex(latestPublishedMarker)}\\b[^\\n]{0,160}\\bpending\\b`, "i"),
     `${latestPublishedMarker} lifecycle wording`,
     "published/current or historical wording that does not call the latest release pending",
@@ -186,7 +186,7 @@ if (/If docs need to be updated to reflect the now-published state/i.test(workfl
 
 for (const { file, body } of currentDocs) {
   for (const line of body.split(/\r?\n/)) {
-    for (const [version, kind] of [[latestPublished, "published"], [implementedUnreleased, "implemented-unreleased"], [nextPlanned, "planned"]]) {
+    for (const [version, kind] of [[latestPublished, "published"], [implementedUnreleased, "implemented-unreleased"], [nextPlanned, "planned"], ...(finalReleaseDocumentState && currentReleaseDocumentVersion !== latestPublished ? [[currentReleaseDocumentVersion, "prepared"]] : [])]) {
       if (!version) continue;
       const marker = `v${version}`;
       let from = 0;
@@ -194,8 +194,8 @@ for (const { file, body } of currentDocs) {
         const after = from + marker.length;
         const nextVersion = line.slice(after).search(/v\d+\.\d+\.\d+\b/);
         const window = line.slice(from, nextVersion >= 0 ? after + nextVersion : line.length);
-        if (kind === "published" && finalReleaseDocumentState && positivePublication(window)) fail(file, `v${version} publication claim`, "release-neutral until registry evidence is recorded", window.trim(), "do not claim the prepared npm artifact exists before publication");
-        if (kind === "published" && !finalReleaseDocumentState && negatedPublication.test(window)) fail(file, `v${version} publication claim`, "published or release-neutral", window.trim(), "remove stale negated publication wording");
+        if ((kind === "prepared" || kind === "published" && finalReleaseDocumentState && currentReleaseDocumentVersion === latestPublished) && positivePublication(window)) fail(file, `v${version} publication claim`, "release-neutral until registry evidence is recorded", window.trim(), "do not claim the prepared npm artifact exists before publication");
+        if (kind === "published" && !(finalReleaseDocumentState && currentReleaseDocumentVersion === latestPublished) && negatedPublication.test(window)) fail(file, `v${version} publication claim`, "published or release-neutral", window.trim(), "remove stale negated publication wording");
         if (kind === "planned" && positivePublication(window)) fail(file, `v${version} publication claim`, "planned/unreleased or release-neutral", window.trim(), "do not describe the planned version as published");
         if (kind === "implemented-unreleased" && positivePublication(window)) fail(file, `v${version} publication claim`, "implemented/unreleased or release-neutral", window.trim(), "do not describe the unreleased version as published");
         if (kind === "implemented-unreleased" && /\bnot\s+(?:yet\s+)?implemented\b|\bnext planned\b/i.test(window)) fail(file, `v${version} implementation claim`, "implemented", window.trim(), "describe the implemented version as implemented and unreleased");

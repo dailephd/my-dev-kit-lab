@@ -927,6 +927,7 @@ Current behavior:
 - the default, no-flag `npm run audit` run is unchanged — it still runs `code-rot` only; `security` must be explicitly requested via `--types`
 - audit findings are heuristic candidates, not proof of defects
 - target files are not modified
+- valid partial import evidence does not abort independent checks: reports retain findings and explicit `PARTIAL_COVERAGE UNAVAILABLE` detector errors; incomplete required coverage returns exit 2 even with `--fail-on none`
 - audit does not auto-fix issues
 - `--android` runs the same nineteen static Android checks through the existing adapter; confirmed findings can map to audit issues, while `CandidateEvidence` remains review-only
 - omitting `--android` starts no Android validation

@@ -4,11 +4,21 @@ This document records the repository's operational state. It is the source of tr
 
 - v0.6.3 readiness covered the exact candidate: GitHub Code Scanning recorded JavaScript/TypeScript and Actions analyses with zero results and zero open alerts; six-cell standard CI and three-OS latest-Node readiness completed successfully. Local optional scanner availability is recorded separately in the readiness evidence.
 
+## Partial-source-evidence compatibility correction
+
+The partial-source-evidence compatibility correction is integrated locally and remains unreleased.
+
+Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. Current package metadata remains 0.10.0; a prospective patch version does not authorize release preparation. Historical Kit provenance remains a separate mandatory protected gate.
+
+SW-118 correction commit 34e3296 supplies the bounded audit-owner changes. SW-119-R1 recovered source fixes and preserved the original divergent worktree; the integrated candidate instead starts from the published source and already contains those fixes. No stale 0.9.6 branch status is transplanted.
+
+Original full SW-118 audit/timeout artifacts and mandatory historical Kit reconciliation, replay, ledger and qualification bytes remain unavailable. Authentic transcript-derived observations and newly identified SW-119-R1 evidence are retained separately; regeneration never authenticates lost historical bytes. The original two timeout observations remain failures with their unchanged retries recorded, not unconditional clean-suite evidence. LAB-EVIDENCE-01 prospective acceptance does not replace historical Kit provenance.
+
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Latest release: v0.10.0 final release-document state; latest registry baseline remains 0.9.7 per the 2026-11-14 check.
-- Latest verified registry package: **0.9.7**; registry version/latest tag checked 2026-11-14 (publication date 2026-11-09). The 2026-11-05 v0.9.6 npm/GitHub Release observation and 2026-10-28 v0.9.5 pre-preparation registry snapshot remain historical evidence.
+- Latest release: v0.10.0 (2026-11-14); source tag c4b72e1e22c0babddcba752dfd605a41a21a45af. The following dated registry observations remain historical.
+- Historical verified registry package: **0.9.7**; registry version/latest tag checked 2026-11-14 (publication date 2026-11-09). The 2026-11-05 v0.9.6 npm/GitHub Release observation and 2026-10-28 v0.9.5 pre-preparation registry snapshot remain historical evidence.
 - Exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed local and hosted standardized readiness on 2026-10-26. Release preparation is recorded separately; npm reported baseline `0.9.4` and an explicit not-found result for `0.9.5` before the versioned release artifact was prepared.
 - Current release-document and package metadata version: `v0.10.0`; final release-document state. Historical registry snapshot on 2026-11-14: 0.9.7.
 - Previous release: `v0.9.7`; v0.9.6 preceded it; v0.9.5 preceded it; historical `v0.9.3` added prompt, report, metric, gallery, and comparison improvements.

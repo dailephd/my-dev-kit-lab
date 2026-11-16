@@ -280,7 +280,9 @@ export type KitFact = {
   importResolution?: string;
   targetPaths?: string[];
   observationKind?: string;
-  value?: string;
+  value?: string | null;
+  valueSha256?: string;
+  valueTruncated?: boolean;
 };
 
 export type KitArtifactHeader = {
@@ -574,13 +576,27 @@ export function validateKitFact(value: unknown, label: string, filePath: string)
     "sourceSpecifier",
     "importResolution",
     "observationKind",
-    "value",
   ] as const;
   for (const key of optionalStrings) {
     if (obj[key] === undefined) continue;
     if (typeof obj[key] !== "string") fail("page-invalid", `${label}.${key} must be a string.`);
     fact[key] = obj[key] as string;
   }
+  // Kit's bounded literal payload is distinct from incomplete page traversal.
+  // A redacted scalar stays unknown; no detector consumes it as an empty value.
+  if (obj.value !== undefined) {
+    if (obj.value !== null && typeof obj.value !== "string") fail("page-invalid", `${label}.value must be a string or null.`);
+    fact.value = obj.value as string | null;
+  }
+  if (obj.valueSha256 !== undefined) {
+    if (typeof obj.valueSha256 !== "string" || !SHA256_PATTERN.test(obj.valueSha256)) fail("page-invalid", `${label}.valueSha256 must be a SHA-256.`);
+    fact.valueSha256 = obj.valueSha256;
+  }
+  if (obj.valueTruncated !== undefined) {
+    if (typeof obj.valueTruncated !== "boolean" || obj.value === undefined) fail("page-invalid", `${label}.valueTruncated requires a boolean and value.`);
+    fact.valueTruncated = obj.valueTruncated;
+  }
+  if (fact.valueTruncated === true && (fact.value !== null || fact.valueSha256 === undefined)) fail("page-invalid", `${label} truncated literal requires null and a hash.`);
   if (obj.ownerKey !== undefined) {
     if (obj.ownerKey !== null && typeof obj.ownerKey !== "string") {
       fail("page-invalid", `${label}.ownerKey must be a string or null.`);
@@ -1038,6 +1054,14 @@ export function assertQualifiedPartialDeclarations(record: KitFileRecord, requir
       !record.contentSha256 || !/^[a-f0-9]{64}$/.test(record.contentSha256)) {
     assertRequiredCapabilities(record, required);
   }
+}
+
+// Retrieval permission only: a pinned producer's explicit unresolved import is
+// valid evidence, but cannot discharge an import-dependent audit predicate.
+export function hasQualifiedPartialImports(record: KitFileRecord): boolean {
+  return record.status === "parsed" && record.capabilities.imports === "partial" &&
+    record.contentSha256 !== null && /^[a-f0-9]{64}$/.test(record.contentSha256) &&
+    !!record.diagnostics?.some(d => ["unsupported-dynamic-import", "unsupported-require"].includes(d.code));
 }
 
 export function assertRequiredCapabilities(

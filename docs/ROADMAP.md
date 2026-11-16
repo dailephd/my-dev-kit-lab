@@ -1708,7 +1708,7 @@ Dependencies and exclusions:
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 
-Status: **v0.10.0 final release-document state; prospective acceptance passed**. LAB-KIT-01 Gates 1 through 6 and LAB-EVIDENCE-01 are complete under the adopted current-candidate route. Registry publication is established separately from this document state.
+Status: **published v0.10.0** (2026-11-14). The accepted release scope and historical validation below remain intact.
 
 Prospective acceptance route **V010-EVIDENCE-ACCEPTANCE-ROUTE-01/1.0.0 is adopted and completed** under contract `LAB-EVIDENCE-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0`. Independent native test run `20261111T132003-v010-lab-evidence-prospective-acceptance` completed 9/9 artifacts and 14/14 current critical responsibilities, verification and accepted judge PASS; complete repository validation passed. This changes only the version-level acceptance basis. The original RSP-011 remains unsatisfied and its run unchanged and unaccepted; no historical supersession, recovered payload or uninterrupted preservation is claimed. The [canonical historical disposition](CURRENT_STATE.md#v0100-development-lab-evidence-01) remains mandatory.
 
@@ -1746,6 +1746,15 @@ Acceptance:
 * Exact package/contract identities and immutable result references can be written into a tested/certified compatibility bundle.
 * Malformed, stale, unsupported, or unauthorized evidence fails closed or remains explicitly unevaluated.
 * No unrestricted task runner or second audit/runtime framework is introduced.
+
+### v0.10.1 - partial-source-evidence compatibility correction (proposed patch)
+
+Status: **implemented correction; unreleased; proposed patch version**. The correction is integrated on the published baseline; missing mandatory historical evidence remains a protected release blocker. This recommendation authorizes no release preparation or publication.
+
+* Retain qualified partial imports and independent findings; mandatory unavailable import/absence predicates remain incomplete with exit 2.
+* Preserve complete-evidence findings/IDs/severity/exit behavior, strict integrity checks, current flags and schema-1.0 reports.
+* Preserve released v0.10.0 source compatibility and retain authentic recovered observations and separately identified fresh cross-application/timeout evidence. Step 5 separately covers standardized flake handling, security, CodeQL, cross-platform CI and exact-candidate/package validation.
+* No new experiment/parser, automatic security exception, version bump or reassignment of v0.11.0 features.
 
 ### v0.11.0 — bounded accessibility assurance (LAB-A11Y-01)
 

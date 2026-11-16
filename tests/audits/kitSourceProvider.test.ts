@@ -801,3 +801,19 @@ it("accepts the exact published 1.15.0 provider and authenticates its selected s
   expect(snapshot.kitEvidence!.factPages).toBeGreaterThan(snapshot.files.length);
   expect(snapshot.kitEvidence?.packageVersion).toBe("1.15.0");
 }, 120000);
+describe("partial-import deferral never relaxes evidence integrity", () => {
+  it.each<[string, Mutators, string]>([
+    ["schema", {artifact: a => {a.schemaVersion = "invalid";}}, "schema-mismatch"],
+    ["artifact hash", {manifest: m => {m.sourceAuditEvidence.sha256 = "0".repeat(64);}}, "artifact-invalid"],
+    ["producer", {artifact: a => {a.producer.packageVersion = "9.9.9";}}, "package-identity"],
+    ["selection", {droppedFromInventory: ["src/b.ts"]}, "selection-incomplete"],
+    ["source hash", {factPage: (_p,_i,page) => ({...page,file:{...page.file,contentSha256:"7".repeat(64)}})}, "stale-evidence"],
+    ["snapshot", {factPage: (_p,_i,page) => ({...page,snapshotId:"9".repeat(64)})}, "snapshot-mismatch"],
+    ["truncated stream", {rawResult: (kind,raw) => kind === "audit-files" ? result('{"schemaVersion":', {ok:false,outputLimit:{stream:"stdout",limitBytes:8388608}}) : raw}, "output-limit"],
+    ["corrupt facts", {factPage: (_p,_i,page) => ({...page,facts:page.facts.map((f:any)=>({...f,span:{...f.span,path:"../escape.ts"}}))})}, "path-invalid"],
+  ])("refuses %s with its established category", async (_name,mutators,category) => {
+    const project=labProject(), world=fakeWorld(project,mutators);
+    await expectAcquisitionFailure(collectKitSourceFacts({targetRoot:project,inventory:scanProjectInventory(project),requiredCapabilities:["declarations","imports"],includeScriptsRoot:false,deferPartialImports:true},
+      {installedPackageRoot:fakePackage(),expectation:FAKE_EXPECTATION,runCommand:world.runCommand}), category);
+  });
+});

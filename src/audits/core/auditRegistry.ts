@@ -49,6 +49,8 @@ export type AuditDetectorContext = {
   // type-checking unchanged. No current detector reads this field yet.
   sourceFacts?: SourceFactsSnapshot;
   kitSourceReader?: KitSourceReader;
+  // Non-fatal mandatory predicate coverage; the runner retains it as a detector error.
+  reportUnavailable?: (detectorId: string, predicate: string, filePath: string, reason: string, capability?: string) => void;
 };
 
 export type AuditDetectorSkip = { skip: true; reason: string } | { skip: false };

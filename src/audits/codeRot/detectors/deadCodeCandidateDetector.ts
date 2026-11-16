@@ -52,12 +52,28 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     const issues: AuditIssue[] = [];
     const pkg = ctx.sourceOfTruth.package;
     const docsConcat = concatDocsContent(ctx);
+    // Reverse-reference absence requires a complete project import domain.
+    // One unresolved import may target any candidate, including another language.
+    const partialImports = ctx.sourceFacts?.files.filter(f => f.kit?.capabilities.imports === "partial") ?? [];
+    const referencesAvailable = partialImports.length === 0;
+    const predicates: string[] = [];
+    if (ctx.config.include.includes("package") && pkg && ctx.inventory.scriptFiles.length) predicates.push("unreferenced-script-file");
+    if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
+      if (ctx.inventory.sourceFiles.length) predicates.push("unreferenced-source-file");
+      if (ctx.inventory.sourceFiles.some(f => f.language === "python")) predicates.push("possibly-unreferenced-python-declaration");
+      if (ctx.inventory.sourceFiles.some(f => f.language === "java" || f.language === "kotlin")) predicates.push("possibly-unreferenced-jvm-declaration");
+    }
+    for (const file of partialImports) for (const predicate of predicates) {
+      const reason = file.diagnostics.map(d => d.code + ": " + d.message).join("; ");
+      if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", file.relativePath + " requires complete imports. " + reason);
+      ctx.reportUnavailable(DETECTOR_ID, predicate, file.relativePath, reason);
+    }
 
-    if (ctx.config.include.includes("package") && pkg) {
+    if (referencesAvailable && ctx.config.include.includes("package") && pkg) {
       issues.push(...(await findUnreferencedScriptFiles(ctx, pkg)));
     }
 
-    if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
+    if (referencesAvailable && (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture"))) {
       issues.push(...(await findUnreferencedSourceFiles(ctx, pkg, docsConcat)));
     }
 
@@ -68,7 +84,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       issues.push(...(await findUnreferencedFixtures(ctx)));
     }
 
-    if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
+    if (referencesAvailable && (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture"))) {
       issues.push(...findPossiblyUnreferencedPythonDeclarations(ctx));
       issues.push(...findPossiblyUnreferencedJvmDeclarations(ctx));
     }
@@ -555,21 +571,52 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
   const fixtureFiles = ctx.inventory.files.filter((f) => f.relativePath.includes("/fixtures/") || f.relativePath.startsWith("fixtures/"));
   if (fixtureFiles.length === 0) return [];
 
+  // This absence predicate depends on every bounded test input. Once an
+  // authenticated inventory record declares unsupported raw content, no
+  // fixture-absence finding can be qualified; report the entire affected
+  // predicate before issuing unrelated occurrence queries.
+  if (ctx.reportUnavailable && ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial")) {
+    const unsupported = ctx.inventory.testFiles.filter(test => test.sizeBytes <= MAX_READ_BYTES)
+      .map(test => ({file: test.relativePath, reason: ctx.kitSourceReader?.unsupportedRawContentReason?.(test.relativePath)}))
+      .filter(input => input.reason !== undefined);
+    if (unsupported.length) {
+      for (const fixture of fixtureFiles) for (const input of unsupported) {
+        ctx.reportUnavailable(DETECTOR_ID, "unreferenced-fixture " + fixture.relativePath, input.file, input.reason!, "raw-content");
+      }
+      return [];
+    }
+  }
   const referenced = new Set<string>();
+  const unavailable = new Set<string>();
   for (const fixture of fixtureFiles) {
     const base = path.basename(fixture.relativePath);
     for (const test of ctx.inventory.testFiles) {
       if (test.sizeBytes > MAX_READ_BYTES) continue;
       if (!ctx.kitSourceReader) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Required fixture-reference test needs its validated Kit reader.");
-      const result = requireCompleteKitOccurrence(await ctx.kitSourceReader.occurrences(test.relativePath, base));
-      if (result.matchCount > 0) referenced.add(base);
+      const unsupportedRaw = ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial")
+        ? ctx.kitSourceReader.unsupportedRawContentReason?.(test.relativePath) : undefined;
+      if (unsupportedRaw && ctx.reportUnavailable) {
+        unavailable.add(fixture.relativePath);
+        ctx.reportUnavailable(DETECTOR_ID, "unreferenced-fixture " + fixture.relativePath, test.relativePath, unsupportedRaw, "raw-content");
+        continue;
+      }
+      try {
+        const result = requireCompleteKitOccurrence(await ctx.kitSourceReader.occurrences(test.relativePath, base));
+        if (result.matchCount > 0) referenced.add(base);
+      } catch (error) {
+        if (ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial") && ctx.reportUnavailable &&
+            error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
+          unavailable.add(fixture.relativePath);
+          ctx.reportUnavailable(DETECTOR_ID, "unreferenced-fixture " + fixture.relativePath, test.relativePath, error.message, "raw-content");
+        } else throw error;
+      }
     }
   }
 
   const issues: AuditIssue[] = [];
   for (const fixture of fixtureFiles) {
     const base = path.basename(fixture.relativePath);
-    if (referenced.has(base)) continue;
+    if (referenced.has(base) || unavailable.has(fixture.relativePath)) continue;
 
     issues.push(
       makeCodeRotIssue({
