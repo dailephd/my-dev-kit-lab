@@ -41,7 +41,7 @@ Original full SW-118 audit/timeout artifacts and mandatory historical Kit reconc
 - Historical v0.9.2 validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
 - Package version: `0.10.0`, in final release-document state.
 - Historical registry snapshot on 2026-11-14: package 0.9.7. Current release-document and package version: 0.10.0; LAB-KIT-01 Gates 1 through 6 complete; LAB-EVIDENCE-01 prospective functional/native acceptance passed.
-- Active version: `v0.10.0`, final release-document state. Validated implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed standardized readiness; release package bytes are validated separately.
+- Active corrective target: `v0.10.1` (immediate SW-123 repair, not implemented or release-prepared); the latest published version and current package metadata remain `v0.10.0`. The historical v0.10.0 implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed its own standardized readiness; that does not qualify the current v0.10.1 candidate.
 - Next planned feature version: v0.11.0; all future assignments remain unchanged.
 - The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
