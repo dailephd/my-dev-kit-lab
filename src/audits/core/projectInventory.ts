@@ -136,6 +136,10 @@ function classifyFileRole(
   if (extension === ".tsbuildinfo" || segments.some((s) => BUILD_OUTPUT_PATH_SEGMENTS.has(s))) return "build-output";
   if (extension === ".map" || segments.some((s) => GENERATED_PATH_SEGMENTS.has(s))) return "generated";
 
+  // Gradle Kotlin DSL names identify configuration even inside a test corpus.
+  // Keep the coarse category for existing raw-fixture checks; role owns semantics.
+  if (basename.endsWith(".gradle.kts")) return "config";
+
   switch (category) {
     case "tests":
       return "test";
@@ -568,7 +572,7 @@ function isConfigFile(relativePath: string, basename: string, extension: string)
   // below; the other names have no source-extension conflict but are listed
   // here for the same "project metadata, not source" reasoning.
   if (basename === "setup.py" || PYTHON_PROJECT_METADATA_FILE_NAMES.has(basename)) return true;
-  if (JVM_PROJECT_METADATA_FILE_NAMES.has(basename)) return true;
+  if (JVM_PROJECT_METADATA_FILE_NAMES.has(basename) || basename.endsWith(".gradle.kts")) return true;
   // Root-level dotfile configs (e.g. .prettierrc, .babelrc) not already
   // covered above -- deliberately conservative (root-only, not recursive)
   // to avoid misclassifying dotfiles inside fixture/benchmark projects.

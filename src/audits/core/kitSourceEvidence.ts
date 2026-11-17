@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { splitLines } from "./textLines.js";
-import type { DeclarationFact, SourceFileFacts } from "./sourceFacts.js";
+import type { DeclarationFact, ImportFact, SourceFileFacts } from "./sourceFacts.js";
 
 // ---------------------------------------------------------------------------
 // v0.10.0 Gate 3 -- validated Kit source-evidence envelope.
@@ -1008,6 +1008,7 @@ export type KitRequiredCapabilities = readonly KitCapabilityName[];
 export type KitPredicateQualification = "QUALIFIED_POSITIVE" | "QUALIFIED_NEGATIVE" | "UNAVAILABLE";
 const predicateEvidence = new WeakMap<SourceFileFacts, {
   identity: string; declarations: Map<DeclarationFact, string>; negative: boolean; allDeclarations: string;
+  imports: Map<ImportFact, string>; negativeImports: boolean; allImports: string;
 }>();
 const predicateFileIdentity = (file: SourceFileFacts) => JSON.stringify({ path: file.relativePath,
   language: file.language, role: file.role, analyzerId: file.analyzerId, kit: file.kit });
@@ -1026,23 +1027,55 @@ export function registerKitDeclarationPredicateEvidence(file: SourceFileFacts, e
       declarations.set(declaration, JSON.stringify(declaration));
     }
   }
-  predicateEvidence.set(file, { identity: predicateFileIdentity(file), declarations,
+  const imports = new Map<ImportFact, string>();
+  for (const observed of file.imports) {
+    const fact = exact.facts.find(f => f.kind === "import" && f.id === observed.provenance?.factId);
+    if (fact && fact.sourceSpecifier === observed.source && fact.span.path === file.relativePath &&
+        fact.span.startLine === observed.provenance?.startLine &&
+        ["complete", "partial"].includes(exact.record.capabilities.imports)) imports.set(observed, JSON.stringify(observed));
+  }
+  predicateEvidence.set(file, { identity: predicateFileIdentity(file), declarations, imports,
     // This proves the declaration-name domain only. A qualified-identity
     // predicate must separately account for observed names lacking identity.
-    negative: exact.record.status === "parsed" && exact.record.capabilities.declarations === "complete",
+    negative: exact.record.capabilities.declarations === "complete",
+    negativeImports: exact.record.capabilities.imports === "complete",
+    allImports: JSON.stringify(file.imports),
     allDeclarations: JSON.stringify(file.declarations) });
 }
 
 export function qualifyKitDeclarationPredicate(file: SourceFileFacts, declaration?: DeclarationFact): KitPredicateQualification {
   const trusted = predicateEvidence.get(file);
   if (!trusted || trusted.identity !== predicateFileIdentity(file)) return "UNAVAILABLE";
-  if (declaration === undefined) return trusted.negative && file.parseStatus === "parsed" &&
+  if (declaration === undefined) return trusted.negative &&
     trusted.allDeclarations === JSON.stringify(file.declarations) ? "QUALIFIED_NEGATIVE" : "UNAVAILABLE";
   if (!file.declarations.includes(declaration) || trusted.declarations.get(declaration) !== JSON.stringify(declaration)) return "UNAVAILABLE";
   const supported = ["class", "interface", "enum", "function"].includes(declaration.kind) ||
     (file.language === "kotlin" && declaration.kind === "unknown" && declaration.providerKind === "object" &&
       declaration.jvmDeclaration?.role === "type" && declaration.provenance?.extractionMethod === "kotlin-lexical");
   return supported ? "QUALIFIED_POSITIVE" : "UNAVAILABLE";
+}
+
+// Completeness qualifies only this file's explicit import inventory. It does
+// not establish resolution, cross-file absence or audit readiness.
+export function qualifyKitImportPredicate(file: SourceFileFacts, observed?: ImportFact): KitPredicateQualification {
+  const trusted = predicateEvidence.get(file);
+  if (!trusted || trusted.identity !== predicateFileIdentity(file)) return "UNAVAILABLE";
+  if (observed === undefined) return trusted.negativeImports && trusted.allImports === JSON.stringify(file.imports)
+    ? "QUALIFIED_NEGATIVE" : "UNAVAILABLE";
+  return file.imports.includes(observed) && trusted.imports.get(observed) === JSON.stringify(observed)
+    ? "QUALIFIED_POSITIVE" : "UNAVAILABLE";
+}
+
+// Internal acquisition route only after the provider validates explicit known
+// detector requirements. Retention is not a completeness or negative claim.
+export function assertPredicateScopedCapabilities(record: KitFileRecord, required: KitRequiredCapabilities): void {
+  if (!["parsed", "partial"].includes(record.status) || !record.contentSha256 || !/^[a-f0-9]{64}$/.test(record.contentSha256)) {
+    fail("capability-insufficient", `${record.path} lacks hash-identified parsed/partial predicate evidence.`);
+  }
+  for (const capability of required) {
+    if (!["declarations", "imports"].includes(capability) ||
+        !["complete", "partial"].includes(record.capabilities[capability])) assertRequiredCapabilities(record, [capability]);
+  }
 }
 
 // Acquisition permission for the registry's docs-only positive route. This

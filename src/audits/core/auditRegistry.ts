@@ -162,6 +162,7 @@ export type ApplicableKitFileRequirement = {
   detectorId: string;
   capability: KitCapabilityName;
   applicability: KitRequirementApplicability;
+  reason?: string;
 };
 
 // Gate 1 structured-fact scopes. Raw-reader dependencies remain Gate 4 bypasses;
@@ -185,7 +186,7 @@ export function resolveApplicableKitRequirements(
   // qualified raw content without requiring semantic imports/declarations.
   if (selected.some(({ id }) => id === "test-rot") && include.includes("tests")) {
     for (const entry of inventory.testFiles) {
-      if (entry.relativePath.endsWith(".json") && entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) paths.add(entry.relativePath);
+      if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts"))) && entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) paths.add(entry.relativePath);
     }
   }
   // Dead-code's reverse-reference and fixture-basename predicates read every
@@ -197,7 +198,7 @@ export function resolveApplicableKitRequirements(
         (include.includes("package") && inventory.scriptFiles.length > 0) ||
         (include.includes("tests") && hasFixtureInputs))) {
     for (const entry of inventory.testFiles) {
-      if (entry.relativePath.endsWith(".json") && entry.sizeBytes <= DEAD_CODE_MAX_READ_BYTES) paths.add(entry.relativePath);
+      if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts"))) && entry.sizeBytes <= DEAD_CODE_MAX_READ_BYTES) paths.add(entry.relativePath);
     }
     // Reverse-reference predicates also read generated/vendor entries in the existing
     // source category. Request raw evidence without making semantic facts apply.
@@ -208,12 +209,24 @@ export function resolveApplicableKitRequirements(
       }
     }
   }
-  if (docsSelected && !hasJvmInput && (inventory.filesByLanguage.java > 0 || inventory.filesByLanguage.kotlin > 0)) {
+  if (docsSelected && !hasJvmInput && inventory.files.some(entry =>
+      (entry.language === "java" || entry.language === "kotlin") && entry.role === "unknown")) {
     throw new KitSourceEvidenceAcquisitionError("selection-incomplete",
       "docs-code-mismatch JVM applicability is undetermined: language metadata exists but no eligible source/test declaration paths can be established.");
   }
   for (const entry of inventory.files) {
-    if (!languages.has(entry.language) || (entry.role !== "source" && entry.role !== "test")) continue;
+    if (!languages.has(entry.language) || (entry.role !== "source" && entry.role !== "test" && entry.role !== "config")) continue;
+    if (entry.role === "config") {
+      for (const { id } of selected) {
+        for (const capability of KIT_SOURCE_EVIDENCE_REQUIREMENTS[id]?.capabilities ?? []) {
+          requirements.push({ path: entry.relativePath, detectorId: id, capability, applicability: "NOT_APPLICABLE",
+            reason: "Configuration role is outside application/test declaration and import predicates; raw configuration checks remain selected independently." });
+        }
+        if ((id === "test-rot" || id === "dead-code-candidate") && paths.has(entry.relativePath)) requirements.push({ path: entry.relativePath, detectorId: id,
+          capability: "source-ranges", applicability: "APPLICABLE_OPTIONAL", reason: "Selected configuration fixture supplies authenticated raw content, not semantic completeness." });
+      }
+      continue;
+    }
     const jvm = entry.language === "java" || entry.language === "kotlin";
     for (const { id } of selected) {
       const capabilities: KitCapabilityName[] = [];
@@ -244,11 +257,13 @@ export function resolveApplicableKitRequirements(
         paths.add(entry.relativePath);
         // Full range coverage enriches provenance; Gate 1 requires only
         // start-line locations for the current structural consumers.
-        requirements.push({ path: entry.relativePath, detectorId: id, capability: "source-ranges", applicability: "APPLICABLE_OPTIONAL" });
+        requirements.push({ path: entry.relativePath, detectorId: id, capability: "source-ranges", applicability: "APPLICABLE_OPTIONAL",
+          reason: "Selected detector uses this path; start-line provenance is sufficient." });
       }
       for (const capability of KIT_SOURCE_EVIDENCE_REQUIREMENTS[id]?.capabilities ?? []) {
         requirements.push({ path: entry.relativePath, detectorId: id, capability,
-          applicability: capabilities.includes(capability) ? "APPLICABLE_REQUIRED" : "NOT_APPLICABLE" });
+          applicability: capabilities.includes(capability) ? "APPLICABLE_REQUIRED" : "NOT_APPLICABLE",
+          reason: capabilities.includes(capability) ? `${id} requires ${capability} for this ${entry.role} file and selected include areas.` : `${id} has no ${capability} predicate for this file role and selected include areas.` });
       }
     }
   }

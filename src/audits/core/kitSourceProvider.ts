@@ -13,6 +13,7 @@ import {
   KIT_SOURCE_AUDIT_SCHEMA_VERSION,
   KitSourceEvidenceAcquisitionError,
   assertRequiredCapabilities,
+  assertPredicateScopedCapabilities,
   hasQualifiedPartialImports,
   assertQualifiedPartialDeclarations,
   assertKitJsonRawContent,
@@ -43,6 +44,7 @@ import {
 } from "./kitSourceEvidence.js";
 import { NORMALIZED_LANGUAGES, type NormalizedLanguage, type ProjectInventorySnapshot } from "./projectInventory.js";
 import { SOURCE_FACT_PARSE_STATUSES, type SourceFactParseStatus, type SourceFactsSnapshot } from "./sourceFacts.js";
+import { KIT_SOURCE_EVIDENCE_REQUIREMENTS, requiredKitCapabilitiesForPath, type ApplicableKitFileRequirement } from "./auditRegistry.js";
 
 // ---------------------------------------------------------------------------
 // v0.10.0 Gate 3 -- managed Kit source-evidence provider.
@@ -324,6 +326,8 @@ async function runKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitArgs:
 // ---------------------------------------------------------------------------
 
 export type KitEvidenceRequest = {
+  // Internal opt-in: the runner must account for unavailable predicates before enabling this.
+  predicateRequirements?: readonly ApplicableKitFileRequirement[];
   targetRoot: string;
   sourceRoots: readonly string[];
   // Chooses which inventoried files need exact-file facts. May throw a
@@ -346,6 +350,10 @@ export async function acquireKitSourceEvidence(
   expectation: KitCandidateExpectation,
   workDir: string
 ): Promise<KitSourceEvidence> {
+  if (request.predicateRequirements && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
+      !["source-audit-v1.5.0", "source-audit-v1.5.1"].includes(expectation.extractorRevision))) {
+    fail("invalid-request", "Predicate evidence requires an exact CLI digest and an explicitly qualified source-audit contract.");
+  }
   const logDir = path.join(workDir, "logs");
   const indexDir = path.join(workDir, "index");
   fs.mkdirSync(logDir, { recursive: true });
@@ -442,7 +450,17 @@ export async function acquireKitSourceEvidence(
         const inventoryRecord = recordByPath.get(filePath)!;
         crossValidateFileRecord(inventoryRecord, pages[0]!.file);
         const record = pages[0]!.file;
-        if ((expectation.cliSha256 === QUALIFIED_KIT_CANDIDATE.cliSha256 || expectation.cliSha256 === QUALIFIED_PUBLISHED_KIT.cliSha256) &&
+        if (request.predicateRequirements) {
+          const requirements = request.predicateRequirements.filter(r => r.path === filePath);
+          const required = request.requiredCapabilities(record);
+          if (required.length > 0 && (requirements.length === 0 || requirements.some(r =>
+              !KIT_SOURCE_EVIDENCE_REQUIREMENTS[r.detectorId] ||
+              (r.applicability === "APPLICABLE_REQUIRED" && !KIT_SOURCE_EVIDENCE_REQUIREMENTS[r.detectorId]!.capabilities.includes(r.capability))) ||
+              JSON.stringify([...required].sort()) !== JSON.stringify(requiredKitCapabilitiesForPath(requirements, filePath)))) {
+            fail("invalid-request", `${filePath} predicate requirements do not cover its requested capabilities.`);
+          }
+          assertPredicateScopedCapabilities(record, required);
+        } else if ((expectation.cliSha256 === QUALIFIED_KIT_CANDIDATE.cliSha256 || expectation.cliSha256 === QUALIFIED_PUBLISHED_KIT.cliSha256) &&
             request.allowPartialDeclarationsForPath?.(filePath)) {
           assertQualifiedPartialDeclarations(record, request.requiredCapabilities(record));
         } else {
@@ -492,6 +510,7 @@ export async function acquireKitSourceEvidence(
 // ---------------------------------------------------------------------------
 
 export type KitSourceFactsRequest = {
+  predicateRequirements?: readonly ApplicableKitFileRequirement[];
   targetRoot: string;
   inventory: ProjectInventorySnapshot;
   // Capabilities required of every Lab source/test file Kit analyzes.
@@ -662,7 +681,8 @@ export function selectKitSourceRoots(
     const entry = byPath.get(filePath);
     const rawJson = rawTests.has(filePath) && isKitJsonTestContentPath(filePath);
     const rawSource = (entry?.role === "generated" || entry?.role === "vendor") && rawSources.has(filePath);
-    if (entry && !labRequiresKitFacts(entry) && !rawJson && !rawSource) { excludedPaths.push(filePath); continue; }
+    const rawConfig = entry?.role === "config" && filePath.endsWith(".gradle.kts") && rawSourcePaths.includes(filePath);
+    if (entry && !labRequiresKitFacts(entry) && !rawJson && !rawSource && !rawConfig) { excludedPaths.push(filePath); continue; }
     if (!entry) { unresolvedPaths.push(filePath); continue; }
     try {
       let current = base;
@@ -710,12 +730,25 @@ export async function collectKitSourceFacts(
   const targetRoot = path.resolve(request.targetRoot);
   let readerIssued = false;
   const requiredSet = new Set(request.requiredPaths ?? request.inventory.files.filter(labRequiresKitFacts).map((entry) => entry.relativePath));
+  if (request.predicateRequirements) {
+    if (!request.requiredPaths || !request.capabilitiesForPath) fail("invalid-request", "Predicate acquisition requires explicit selected paths and per-path capabilities.");
+    for (const filePath of requiredSet) {
+      const scoped = request.predicateRequirements.filter(r => r.path === filePath);
+      if (scoped.length === 0 || scoped.some(r => !KIT_SOURCE_EVIDENCE_REQUIREMENTS[r.detectorId] ||
+          (r.applicability === "APPLICABLE_REQUIRED" && !KIT_SOURCE_EVIDENCE_REQUIREMENTS[r.detectorId]!.capabilities.includes(r.capability))) ||
+          JSON.stringify([...request.capabilitiesForPath(filePath)].sort()) !== JSON.stringify(requiredKitCapabilitiesForPath(scoped, filePath))) {
+        fail("invalid-request", `${filePath} lacks matching known detector predicate requirements.`);
+      }
+    }
+  }
   // Only an explicit raw-only capability request can admit a generated/vendor source
   // category entry. Ordinary/default semantic collection still excludes it.
   const rawSourceFiles = request.inventory.sourceFiles.filter((entry) => (entry.role === "generated" || entry.role === "vendor") &&
     SOURCE_LANGUAGES.has(entry.language) && requiredSet.has(entry.relativePath) &&
     request.capabilitiesForPath?.(entry.relativePath).length === 0);
-  const rawSourcePaths = rawSourceFiles.map((entry) => entry.relativePath);
+  const rawConfigFiles = request.inventory.files.filter(entry => entry.role === "config" && entry.relativePath.endsWith(".gradle.kts") &&
+    requiredSet.has(entry.relativePath) && request.capabilitiesForPath?.(entry.relativePath).length === 0);
+  const rawSourcePaths = [...rawSourceFiles, ...rawConfigFiles].map((entry) => entry.relativePath);
   const scope = selectKitSourceRoots(targetRoot, request.inventory, [...requiredSet], rawSourcePaths);
   if (!scope.complete) fail("selection-incomplete", `unresolved required paths: ${scope.unresolvedPaths.join(", ")}; excluded required paths: ${scope.excludedPaths.join(", ")}.`);
   const requiredEntries = request.inventory.files.filter((entry) => requiredSet.has(entry.relativePath));
@@ -770,7 +803,7 @@ export async function collectKitSourceFacts(
                 `${entry.relativePath} is ${entry.sizeBytes} byte(s) in Lab's inventory but ${record.sizeBytes} in Kit's index.`
               );
             }
-            if (!labRequiresKitFacts(entry)) {
+            if (!labRequiresKitFacts(entry) && !rawConfigFiles.includes(entry)) {
               assertRequiredCapabilities(record, request.capabilitiesForPath?.(record.path) ?? request.requiredCapabilities);
               if (rawSourcePaths.includes(entry.relativePath)) {
                 assertKitNonSemanticRawContent(record, NON_SEMANTIC_RAW_CONTENT_PROFILES.has(pkg.cliSha256));
@@ -779,11 +812,12 @@ export async function collectKitSourceFacts(
               }
             }
           }
-          return requiredEntries.filter(labRequiresKitFacts).map((entry) => entry.relativePath);
+          return requiredEntries.filter(entry => labRequiresKitFacts(entry) || rawConfigFiles.includes(entry)).map((entry) => entry.relativePath);
         },
         requiredCapabilities: (record) => request.capabilitiesForPath?.(record.path) ?? request.requiredCapabilities,
         allowPartialDeclarationsForPath: request.allowPartialDeclarationsForPath,
         deferPartialImports: request.deferPartialImports,
+        predicateRequirements: request.predicateRequirements,
       },
       pkg,
       deps,

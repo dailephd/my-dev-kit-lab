@@ -108,11 +108,10 @@ export function collectJvmProjectMetadata(
   // project can validly keep Java/Kotlin files outside the conventional
   // src/main|test/{java,kotlin} layout, so this does not attempt to prove
   // "has no Java/Kotlin source"; it only reports the conventional-layout
-  // signal explicitly. hasJavaSource/hasKotlinSource below fall back to any
-  // scanned file of that language so they stay meaningful even for
-  // non-conventional layouts.
-  const hasJavaSource = javaSourceDirs.length > 0 || inventory.filesByLanguage.java > 0;
-  const hasKotlinSource = kotlinSourceDirs.length > 0 || inventory.filesByLanguage.kotlin > 0;
+  // signal explicitly. Source/test roles below also cover non-conventional
+  // layouts, without treating Kotlin Gradle configuration as application source.
+  const hasJavaSource = inventory.files.some(f => f.language === "java" && (f.role === "source" || f.role === "test"));
+  const hasKotlinSource = inventory.files.some(f => f.language === "kotlin" && (f.role === "source" || f.role === "test"));
   const hasJavaTests = javaTestDirs.length > 0;
   const hasKotlinTests = kotlinTestDirs.length > 0;
 

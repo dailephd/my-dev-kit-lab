@@ -14,6 +14,7 @@ import {
   type KitCommandRunner,
 } from "../../src/audits/core/kitSourceProvider.js";
 import { KitSourceEvidenceAcquisitionError } from "../../src/audits/core/kitSourceEvidence.js";
+import { resolveApplicableKitRequirements, requiredKitCapabilitiesForPath } from "../../src/audits/core/auditRegistry.js";
 import { runMeasuredCommand, type MeasuredCommandResult } from "../../src/core/runMeasuredCommand.js";
 
 const CANDIDATE_ROOT = path.resolve(
@@ -173,6 +174,7 @@ describe("Kit source root selection", () => {
 type FakeFile = { path: string; sizeBytes: number; contentSha256: string; lineCount: number; language: string; role: string };
 
 type Mutators = {
+  status?: string;
   artifact?: (artifact: Record<string, any>) => void;
   manifest?: (manifest: Record<string, any>) => void;
   skipArtifact?: boolean;
@@ -182,7 +184,7 @@ type Mutators = {
   rawResult?: (kind: "index" | "audit-files" | "audit-file", result: MeasuredCommandResult) => MeasuredCommandResult;
   rootsAreOverridden?: string[];
   extraInventory?: FakeFile[];
-  droppedFromInventory?: string[];
+  droppedFromInventory?: readonly string[];
   declarationsPerFile?: number;
 };
 
@@ -242,7 +244,7 @@ function fakeWorld(targetRoot: string, mutators: Mutators = {}) {
     contentSha256: file.contentSha256,
     language: file.language,
     role: file.role,
-    status: "parsed",
+    status: mutators.status ?? "parsed",
     lineCount: file.lineCount,
     analyzerId: file.language === "python" ? "python-ast" : "typescript-ast",
     capabilities: {
@@ -376,6 +378,63 @@ function labProject(): string {
   });
   return root;
 }
+
+describe("explicit predicate acquisition", () => {
+  async function scoped(mutators: Mutators = {}, optIn = true, identity: Partial<KitCandidateExpectation> = {}) {
+    const project = labProject(), pkgRoot = fakePackage();
+    const expectation = { ...FAKE_EXPECTATION, cliSha256: createHash("sha256").update(fs.readFileSync(path.join(pkgRoot, "dist/cli.js"))).digest("hex"), ...identity };
+    const inventory = scanProjectInventory(project);
+    const selection = resolveApplicableKitRequirements([{ id: "dead-code-candidate" }, { id: "duplicate-implementation-candidate" }], inventory, ["package", "cli", "architecture", "tests"]);
+    return collectKitSourceFacts({ targetRoot: project, inventory, requiredPaths: selection.paths,
+      requiredCapabilities: ["declarations", "imports"], includeScriptsRoot: true,
+      capabilitiesForPath: file => requiredKitCapabilitiesForPath(selection.requirements, file),
+      ...(optIn ? { predicateRequirements: selection.requirements } : {}),
+    }, { installedPackageRoot: pkgRoot, expectation, runCommand: fakeWorld(project, mutators).runCommand });
+  }
+
+  it.each(["declarations", "imports"])("retains authenticated partial %s only through the explicit route", async capability => {
+    const snapshot = await scoped({ capabilities: { [capability]: "partial" } });
+    const source = snapshot.files.find(f => f.relativePath === "src/a.ts")!;
+    expect(source.kit?.capabilities[capability]).toBe("partial");
+    expect(source.parseStatus).toBe("file-level-only");
+    expect(source.declarations).toHaveLength(1);
+    await expectAcquisitionFailure(scoped({ capabilities: { [capability]: "partial" } }, false), "capability-insufficient");
+  });
+
+  it("retains a valid partial file status while keeping unsupported requirements unavailable", async () => {
+    const snapshot = await scoped({ status: "partial", capabilities: { declarations: "partial" } });
+    expect(snapshot.files.every(file => file.parseStatus === "file-level-only")).toBe(true);
+    await expectAcquisitionFailure(scoped({ capabilities: { declarations: "unsupported" } }), "capability-insufficient");
+  });
+
+  it.each(["absent", "unknown"] as const)(
+    "rejects %s predicate obligations before package resolution", async mode => {
+      const predicateRequirements = mode === "absent" ? [] : [{ path: "src/a.ts", detectorId: "unknown-detector", capability: "declarations" as const, applicability: "APPLICABLE_REQUIRED" as const }];
+      const project = labProject();
+      await expectAcquisitionFailure(collectKitSourceFacts({ targetRoot: project, inventory: scanProjectInventory(project),
+        requiredPaths: ["src/a.ts"], requiredCapabilities: ["declarations"], capabilitiesForPath: () => ["declarations"],
+        includeScriptsRoot: false, predicateRequirements }, { installedPackageRoot: path.join(project, "absent-kit") }), "invalid-request");
+    });
+
+  it.each([
+    ["altered bytes", { manifest: (value: any) => { value.sourceAuditEvidence.sha256 = "0".repeat(64); } }, "artifact-invalid"],
+    ["missing path", { droppedFromInventory: ["src/a.ts"] }, "selection-incomplete"],
+    ["mismatched snapshot", { factPage: (_file: string, _page: number, value: any) => ({ ...value, snapshotId: "0".repeat(64) }) }, "snapshot-mismatch"],
+    ["stale exact-file identity", { factPage: (_file: string, _page: number, value: any) => ({ ...value, file: { ...value.file, contentSha256: "0".repeat(64) } }) }, "stale-evidence"],
+    ["incomplete pages", { inventoryPage: (_page: number, value: any) => ({ ...value, totalPages: 2, nextPageIndex: null }) }, "page-invalid"],
+  ] as const)("keeps %s fatal in the partial route", async (_label, mutators, category) => {
+    await expectAcquisitionFailure(scoped({ ...mutators, capabilities: { declarations: "partial" } }), category);
+  });
+
+  it.each([
+    [{ packageVersion: "0.0.0" }, "package-identity"],
+    [{ cliSha256: "0".repeat(64) }, "package-identity"],
+    [{ extractorRevision: "source-audit-v0.0.0" }, "extractor-mismatch"],
+    [{ cliSha256: null }, "invalid-request"],
+  ])("does not bypass producer qualification: %j", async (identity, category) => {
+    await expectAcquisitionFailure(scoped({ capabilities: { declarations: "partial" } }, true, identity), category as string);
+  });
+});
 
 it("does not qualify an unknown future producer from shared metadata or extractor revision", async () => {
   const targetRoot = labProject();

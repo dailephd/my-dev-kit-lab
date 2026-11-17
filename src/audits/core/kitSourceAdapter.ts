@@ -261,6 +261,8 @@ export function adaptKitFile(
     });
   } else {
     for (const fact of evidence.facts) {
+      const capability = fact.kind === "import" ? "imports" : fact.kind === "declaration" ? "declarations" : fact.kind === "export" ? "exports" : undefined;
+      if (capability && (!["parsed", "partial"].includes(record.status) || !["complete", "partial"].includes(record.capabilities[capability]))) continue;
       if (fact.kind === "import") imports.push(adaptKitImport(fact));
       else if (fact.kind === "export") exports.push(adaptKitExport(fact));
       else if (fact.kind === "declaration") declarations.push(adaptKitDeclaration(fact));
@@ -299,7 +301,7 @@ export function adaptKitEvidenceToSourceFacts(options: AdaptKitEvidenceOptions):
 
   // inventory.files is sorted by relativePath, so output order is deterministic.
   for (const entry of inventory.files) {
-    if (entry.role !== "source" && entry.role !== "test") continue;
+    if (entry.role !== "source" && entry.role !== "test" && !(entry.role === "config" && entry.relativePath.endsWith(".gradle.kts"))) continue;
     const record = kitByPath.get(entry.relativePath);
     if (record === undefined) continue; // Not selected by Kit; required paths were verified earlier.
     consumed.add(entry.relativePath);
