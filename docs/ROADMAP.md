@@ -1747,14 +1747,37 @@ Acceptance:
 * Malformed, stale, unsupported, or unauthorized evidence fails closed or remains explicitly unevaluated.
 * No unrestricted task runner or second audit/runtime framework is introduced.
 
-### v0.10.1 - partial-source-evidence compatibility correction (proposed patch)
+### v0.10.1 — partial-source-evidence and predicate-coverage correction
 
-Status: **implemented correction; unreleased; proposed patch version**. The correction is integrated on the published baseline; the historical provenance gap remains permanently disclosed. The separately user-authorized current Kit acceptance route requires all A-L evidence and actual Windows/Linux/macOS cells; current acceptance remains blocked until those gates pass. This recommendation authorizes no release preparation or publication.
+**Status: active immediate corrective patch; earlier partial-import implementation integrated but the SW-123 expansion is planned and not implemented.** The candidate inherited from `fix/sw119-r2-v010-partial-evidence` includes the bounded SW-118/SW-119 partial JavaScript import correction, but its Step 5 full-source audit remains **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture. This entry replaces neither the completed v0.10.0 milestone nor the future v0.11.0 accessibility plan. Current package metadata is 0.10.0; version 0.10.1 is the **target patch release**, not yet published or release-prepared.
 
-* Retain qualified partial imports and independent findings; mandatory unavailable import/absence predicates remain incomplete with exit 2.
-* Preserve complete-evidence findings/IDs/severity/exit behavior, strict integrity checks, current flags and schema-1.0 reports.
-* Preserve released v0.10.0 source compatibility and retain authentic recovered observations and separately identified fresh cross-application/timeout evidence. Step 5 separately covers standardized flake handling, security, CodeQL, cross-platform CI and exact-candidate/package validation.
-* No new experiment/parser, automatic security exception, version bump or reassignment of v0.11.0 features.
+**Goal:** consume independently qualified Kit capabilities and retain every supported audit finding, while explicitly identifying unavailable required predicates and maintaining exit 2 for incomplete mandatory coverage. The corresponding Kit producer correction is scoped to **v1.15.2**; Kit v1.15.0 is the original SW-123 producer and remains a historical frozen input. Do not silently substitute a differently packaged producer.
+
+**Preserved implemented baseline:**
+
+- Qualified partial JavaScript imports and source-independent findings continue; unsupported missing-import, reverse-reference, dead-code and fixture-absence conclusions remain unavailable where required coverage is incomplete.
+- Preserve existing detector IDs, finding IDs/severity, schema-`1.0` text/JSON reports, current audit flags, strict acquisition integrity checks, and released v0.10.0 source compatibility.
+- SW-118/SW-119 authentic recovery and fresh timeout/cross-application evidence remain distinct from unrecovered original provenance; the historical loss is not cured by this patch.
+
+**SW-123 correction scope and owners:**
+
+- **Applicability:** in `src/audits/core/auditRegistry.ts`, `projectInventory.ts`, and JVM metadata interpretation, distinguish a Gradle DSL configuration fixture from an executable test module without blanket `.kts`/fixture exclusions. Resolve each detector/file/predicate obligation as required, optional, explicitly inapplicable, or undetermined, recording the reason. Retain configuration and raw-fixture checks that actually apply.
+- **Acquisition and qualification:** in `kitSourceProvider.ts` and `kitSourceEvidence.ts`, separate authenticated evidence acquisition from semantic sufficiency. Preserve verified partial records, then qualify the precise predicate using the producer capability and provenance. Wrong producer, stale/missing/altered source, hash/selection/page failure and malformed records still fail closed. Keep strict direct-provider semantics unless a consumer explicitly qualifies partial facts.
+- **Adapter:** in `kitSourceAdapter.ts`, retain usable complete import evidence even if declarations are partial. The general file parse status remains conservative; downstream consumers must not interpret `file-level-only` or a missing fact array as complete absence.
+- **Detectors:** in `docsCodeMismatchDetector.ts`, `testRotDetector.ts` and `deadCodeCandidateDetector.ts`, preserve independent findings, require complete relevant premises for absence, and record separate mandatory coverage gaps. A docs positive match must neither be needed to retain unrelated findings nor waive a different unresolved claim. Cross-file unresolved imports must not induce a false unreferenced/dead-code finding.
+- **Reporting:** in the existing `auditRunner.ts`/result owners, derive incomplete-readiness disposition from explicit required coverage, not only the text prefix of an error. Reuse public `detectorErrors` and `PARTIAL_COVERAGE UNAVAILABLE` messages with path/domain, detector, predicate, capability, actual status, diagnostic and reason. Preserve exit **0** for complete/under threshold, **1** for complete/threshold breach, and **2** for mandatory unavailable coverage or invalid acquisition, including with `--fail-on none`. Continue independent checks; retain qualified findings and incomplete reports where safe.
+
+**Ordered correction and verification:**
+
+1. **L0 — Reproduce and freeze SW-123:** retain the exact fixture, Kit 1.15.0 package/record, diagnostic and file hashes, candidate SHA and original failed whole-source audit; map each applicable predicate without editing historical evidence.
+2. **L1 — Integrity, applicability and adapter:** preserve verified partial acquisition, refine test/config roles and independent capability access; retain strict integrity and negative-inference boundaries.
+3. **L2 — Consumer and result semantics:** repair docs/test/dead-code predicate handling, deterministic gap reporting and exit calculation; verify existing JavaScript and complete-evidence results remain unchanged.
+4. **L3 — Qualified Kit producer integration:** test the corrected Kit v1.15.2 exact candidate with Lab, including producer schema, extractor revision, CLI identity, package/lockfile qualification, fresh snapshot proofs, installed consumer and old retained inputs. Only update the production Kit pin after exact qualification; do not rewrite historical pins.
+5. **L4 — Original audit replay and independent readiness:** rerun the original full selected-source audit, not a narrowed scope; run complete tests, docs, packed-package, security, cross-platform CI/CodeQL and required current-candidate gates as separate readiness work after implementation/documentation reconciliation.
+
+**Acceptance:** Complete import enumeration may coexist with partial Kotlin declarations; no false missing import/declaration, unreferenced script or fixture-negative claim is emitted. Real test modules remain tested, configuration fixtures remain eligible for applicable checks, independent documentation findings survive partial declaration evidence, and one positive claim never waives a different mandatory gap. Invalid, stale, tampered, mismatched or unselected producer evidence remains fatal. All mandatory requirements are either qualified, explicitly inapplicable, or reported unavailable with a non-success exit; no fabricated PASS. Existing complete-evidence oracle, 150 accepted Kit decisions, schemas, command surface and producer/consumer ownership are preserved.
+
+**Exclusions:** no Lab Kotlin parser or native source fallback; no Gradle, compiler, target-test or network execution; no new audit type, CLI flag, report schema, experiment, automatic risk exception or v0.11.0 feature reassignment. This roadmap authorizes immediate corrective implementation, **not** a version bump, release preparation, merge, tag or publication.
 
 ### v0.11.0 — bounded accessibility assurance (LAB-A11Y-01)
 
