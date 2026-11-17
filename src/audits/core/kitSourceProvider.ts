@@ -538,6 +538,9 @@ export type KitSourceReader = {
 // Private semantic compatibility profiles, independent of package/schema versions.
 // Add future producer identities only after qualifying the same proof contract.
 const IMPORT_PROOF_PROFILES: Readonly<Record<string, "mjs-extensionless-complete-v1">> = Object.freeze({
+  // SW-123 P5: exact unpublished P2 archive, metadata 1.15.1. Installed
+  // proof/occurrence tests qualify this digest; it does not advance the pin.
+  "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb": "mjs-extensionless-complete-v1",
   "35dbc49fc91f8c47f1e7cdaf86223414a54517ff25a1a29f87231b2bae3807b8": "mjs-extensionless-complete-v1",
   "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f": "mjs-extensionless-complete-v1",
   "9c4b4aa51e17d2a3a973cbc320fa45659bea79d831c046226e3adf4eb7717004": "mjs-extensionless-complete-v1",
@@ -550,6 +553,7 @@ const IMPORT_PROOF_PROFILES: Readonly<Record<string, "mjs-extensionless-complete
 // separately qualified selected JSON content with extractor source-audit-v1.3.0.
 // Neither a package version nor an extractor revision self-certifies this.
 const JSON_RAW_CONTENT_PROFILES: Readonly<Record<string, "selected-test-json-v1">> = Object.freeze({
+  "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb": "selected-test-json-v1",
   "35dbc49fc91f8c47f1e7cdaf86223414a54517ff25a1a29f87231b2bae3807b8": "selected-test-json-v1",
   "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f": "selected-test-json-v1",
   "9c4b4aa51e17d2a3a973cbc320fa45659bea79d831c046226e3adf4eb7717004": "selected-test-json-v1",
@@ -560,6 +564,7 @@ const JSON_RAW_CONTENT_PROFILES: Readonly<Record<string, "selected-test-json-v1"
 // independently qualified selected generated and vendor raw occurrences without changing
 // the public role schema or admitting generated semantic source facts.
 const NON_SEMANTIC_RAW_CONTENT_PROFILES: ReadonlySet<string> = new Set([
+  "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
   "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f",
   "35dbc49fc91f8c47f1e7cdaf86223414a54517ff25a1a29f87231b2bae3807b8",
   "9c4b4aa51e17d2a3a973cbc320fa45659bea79d831c046226e3adf4eb7717004",

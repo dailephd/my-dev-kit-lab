@@ -15,6 +15,13 @@ import {
 } from "../../src/audits/core/kitSourceProvider.js";
 import { KitSourceEvidenceAcquisitionError } from "../../src/audits/core/kitSourceEvidence.js";
 import { resolveApplicableKitRequirements, requiredKitCapabilitiesForPath } from "../../src/audits/core/auditRegistry.js";
+import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
+import { runAudit } from "../../src/audits/core/auditRunner.js";
+import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
+import { qualifyKitDeclarationPredicate, qualifyKitImportPredicate } from "../../src/audits/core/kitSourceEvidence.js";
+import { buildAuditReportModel } from "../../src/audits/report/auditReportModel.js";
+import { renderAuditJsonReport } from "../../src/audits/report/renderAuditJsonReport.js";
+import { resolveAuditTarget } from "../../src/audits/core/auditTarget.js";
 import { runMeasuredCommand, type MeasuredCommandResult } from "../../src/core/runMeasuredCommand.js";
 
 const CANDIDATE_ROOT = path.resolve(
@@ -898,3 +905,258 @@ describe("partial-import deferral never relaxes evidence integrity", () => {
       {installedPackageRoot:fakePackage(),expectation:FAKE_EXPECTATION,runCommand:world.runCommand}), category);
   });
 });
+
+// Opt-in installed artifact qualification. The unpublished subject is never
+// substituted for the production dependency or the default provider identity.
+const p5Root = process.env.LAB_SW123_P5_ROOT;
+const p5Package = process.env.LAB_SW123_P5_PACKAGE_ROOT;
+if (p5Root || p5Package) {
+  if (!p5Root || !p5Package) throw new Error("P5 requires both its owned workspace and installed package root.");
+  const workspace = fs.realpathSync(p5Root);
+  const installed = fs.realpathSync(p5Package);
+  const expectation: KitCandidateExpectation = {
+    packageName: "@dailephd/my-dev-kit", packageVersion: "1.15.1",
+    artifactSchemaVersion: "1.1.0", extractorRevision: "source-audit-v1.5.1",
+    cliSha256: "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
+  };
+  const ownedDirectory = (area: string, label: string) => {
+    const parent = fs.realpathSync(path.join(workspace, area));
+    const relative = path.relative(workspace, parent);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Uncontained P5 output.");
+    return fs.mkdtempSync(path.join(parent, label + "-"));
+  };
+  const evidenceDirectory = ownedDirectory("candidate-results", "native-tests");
+  const save = (label: string, value: unknown) => fs.writeFileSync(path.join(evidenceDirectory, label + ".json"), JSON.stringify(value, null, 2) + "\n", { flag: "wx" });
+  const target = (label: string, files: Record<string, string>) => {
+    const root = ownedDirectory("integration-target", label);
+    writeFiles(root, { "package.json": JSON.stringify({ name: label, version: "1.0.0", scripts: { test: "vitest run" } }), ...files });
+    return root;
+  };
+  const dependencies = (label: string, mutate?: (args: string[], index: string) => void) => {
+    const workDir = ownedDirectory("integration-index", label), calls: unknown[] = [];
+    const runCommand: KitCommandRunner = async options => {
+      const result = await runMeasuredCommand(options);
+      const args = [...(options.args ?? [])];
+      calls.push({ executable: options.executable, args, ok: result.ok, exitCode: result.exitCode,
+        stdoutSha256: createHash("sha256").update(result.stdout).digest("hex"), stderr: result.stderr });
+      if (result.ok && args[1] === "index") mutate?.(args, path.join(workDir, "index"));
+      return result;
+    };
+    return { deps: { installedPackageRoot: installed, expectation, workDir, runCommand }, calls, workDir };
+  };
+  const config = (root: string, include = "docs,tests,package,architecture,cli", failOn = "none") =>
+    normalizeAuditConfig({ target: root, include, failOn, out: path.join(evidenceDirectory, "reports") }, process.cwd());
+
+  describe("SW123 P5 installed candidate", () => {
+    it("keeps freshly generated historical 1.15.0 Kotlin evidence partial under its separate original producer profile", async () => {
+      const relative = "tests/fixtures/config.gradle.kts", root = target("historical-contract", {
+        "tests/reference.test.ts": "const fixture='config.gradle.kts'; test('fixture reference',()=>void fixture);\n",
+      });
+      const source = "tests/fixtures/android/advanced-security-fixtures/release-configuration/kotlin-release-debuggable-false.gradle.kts";
+      fs.mkdirSync(path.dirname(path.join(root, relative)), { recursive: true });
+      fs.writeFileSync(path.join(root, relative), fs.readFileSync(source), { flag: "wx" });
+      const bridge = dependencies("historical-contract");
+      const result = await runAudit({ config: config(root, "tests"), toolRoot: root, kitSourceProviderDependencies: {
+        ...bridge.deps, installedPackageRoot: path.resolve("node_modules/@dailephd/my-dev-kit"), expectation: QUALIFIED_PUBLISHED_KIT,
+      } });
+      const file = result.sourceFacts.files.find(f => f.relativePath === relative)!;
+      expect(file.kit!.capabilities).toMatchObject({ declarations: "partial", imports: "partial", jvmDeclarations: "unsupported" });
+      expect(qualifyKitImportPredicate(file)).toBe("UNAVAILABLE");
+      expect(file.diagnostics.some(d => d.code === "kit:kotlin-script-statement")).toBe(true);
+      expect(result.exitCode).toBe(0); // Current configuration applicability, not the old whole-source audit.
+      save("historical-contract", { evidenceKind: "fresh historical-producer contract regression; not original incident artifact", result, workDir: bridge.workDir, calls: bridge.calls });
+    }, 120000);
+
+    it("binds the installed archive identity and exact current Gradle fixture without executable-test obligations", async () => {
+      expect(resolveInstalledKitPackage({ installedPackageRoot: installed, expectation })).toMatchObject({
+        packageName: expectation.packageName, packageVersion: "1.15.1", cliSha256: expectation.cliSha256,
+      });
+      expect(QUALIFIED_PUBLISHED_KIT.packageVersion).toBe("1.15.0");
+      expect(() => resolveInstalledKitPackage({ installedPackageRoot: installed })).toThrowError(/package-identity/);
+      const relative = "tests/fixtures/android/advanced-security-fixtures/release-configuration/kotlin-release-debuggable-false.gradle.kts";
+      const bytes = fs.readFileSync(relative), root = target("exact-gradle", {
+        "tests/reference.test.ts": "const fixture = 'kotlin-release-debuggable-false.gradle.kts'; test('fixture reference',()=>void fixture);\n",
+      });
+      fs.mkdirSync(path.dirname(path.join(root, relative)), { recursive: true });
+      fs.writeFileSync(path.join(root, relative), bytes, { flag: "wx" });
+      const bridge = dependencies("exact-gradle");
+      const result = await runAudit({ config: config(root, "tests"), toolRoot: root, kitSourceProviderDependencies: bridge.deps });
+      const artifact = JSON.parse(fs.readFileSync(path.join(bridge.workDir, "index/source-audit-evidence.json"), "utf8"));
+      const record = artifact.files.find((f: {path: string}) => f.path === relative);
+      expect(record.contentSha256).toBe(createHash("sha256").update(bytes).digest("hex"));
+      expect(record.capabilities).toMatchObject({ declarations: "partial", imports: "complete", jvmDeclarations: "unsupported", exports: "partial", "source-ranges": "partial" });
+      const file = result.sourceFacts.files.find(f => f.relativePath === relative)!;
+      expect(file.role).toBe("config");
+      expect(file.imports).toEqual([]);
+      expect(file.diagnostics.some(d => d.code === "kit:kotlin-script-statement")).toBe(true);
+      expect(qualifyKitImportPredicate(file)).toBe("QUALIFIED_NEGATIVE");
+      expect(qualifyKitDeclarationPredicate(file)).toBe("UNAVAILABLE");
+      expect(result.exitCode).toBe(0);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues).toEqual([]);
+      expect(result.coverage!.filter(c => c.source.identity === relative && c.capability === "imports").every(c => c.status === "NOT_APPLICABLE")).toBe(true);
+      expect(bridge.calls.length).toBeGreaterThan(2);
+      save("exact-gradle", { fixtureSha256: record.contentSha256, record, artifactSource: artifact.source, result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("retains mixed-capability positives, independent findings and separate mandatory gaps deterministically", async () => {
+      const root = target("mixed", {
+        "src/NoImports.kts": 'class ScriptPresent {}\nprintln("statement")\n',
+        "src/Explicit.kts": 'import java.io.File\nprintln("statement")\n',
+        "src/Ambiguous.kts": 'import java.io.File as\nclass Observed {}\n',
+        "src/main/kotlin/com/example/Present.kt": 'package com.example\nclass Present {}\n',
+        "src/main/java/com/example/Stable.java": 'package com.example;\npublic class Stable {}\n',
+        "src/helper.py": 'def python_present():\n    return 1\n',
+        "src/lib.rs": 'pub fn rust_present() -> u32 { 1 }\n',
+        "src/plain.js": 'export const jsPresent = 1;\n',
+        "src/dynamic.js": "import './plain.js'; export const retainedJS=1; const target='./unknown.js'; void import(target);\n",
+        "src/partial.ts": 'export function retained() { return 1; } const target="./unknown.js"; void import(target);\n',
+        "src/importer.ts": "import '../unselected/hidden.js';\n",
+        "src/candidate.ts": 'export const candidate = 1;\n',
+        "src/old/retired.ts": '// independent deprecated candidate\n',
+        "src/orphan.generated.ts": '// independent generated candidate\n',
+        "tests/real.test.ts": "import '../src/candidate.js';\ntest.only('independent finding',()=>{});\n",
+        "tests/fixtures/config.gradle.kts": '// npm run vanished\nandroid { buildTypes { release { isDebuggable = false } } }\n',
+        "README.md": 'Security validation is implemented.\nUse `com.example.Present`, `ScriptPresent`, `com.example.Missing`, and `com.example.Other`.\n',
+      });
+      const registry = DEFAULT_AUDIT_REGISTRY.filter(d => ["docs-code-mismatch", "test-rot", "dead-code-candidate"].includes(d.id));
+      const firstBridge = dependencies("mixed-first"), secondBridge = dependencies("mixed-second");
+      const first = await runAudit({ config: config(root), toolRoot: root, registry, kitSourceProviderDependencies: firstBridge.deps });
+      const second = await runAudit({ config: config(root), toolRoot: root, registry, kitSourceProviderDependencies: secondBridge.deps });
+      save("mixed-observed", { first, second, workDirs: [firstBridge.workDir, secondBridge.workDir], calls: [firstBridge.calls, secondBridge.calls] });
+      const byPath = new Map(first.sourceFacts.files.map(f => [f.relativePath, f]));
+      for (const file of ["src/NoImports.kts", "src/Explicit.kts"]) {
+        expect(byPath.get(file)!.kit!.capabilities).toMatchObject({ declarations: "partial", imports: "complete" });
+        expect(qualifyKitImportPredicate(byPath.get(file)!)).toBe("QUALIFIED_NEGATIVE");
+        expect(qualifyKitDeclarationPredicate(byPath.get(file)!)).toBe("UNAVAILABLE");
+      }
+      expect(byPath.get("src/Explicit.kts")!.imports[0]).toMatchObject({ source: "java.io.File", provenance: { extractionMethod: "kotlin-lexical" } });
+      expect(byPath.get("src/Ambiguous.kts")!.kit!.capabilities.imports).toBe("partial");
+      expect(qualifyKitImportPredicate(byPath.get("src/Ambiguous.kts")!)).toBe("UNAVAILABLE");
+      expect(byPath.get("src/partial.ts")!.declarations.length).toBeGreaterThan(0);
+      expect(byPath.get("src/partial.ts")!.kit!.capabilities.imports).toBe("partial");
+      expect(qualifyKitImportPredicate(byPath.get("src/partial.ts")!)).toBe("UNAVAILABLE");
+      expect(qualifyKitDeclarationPredicate(byPath.get("src/partial.ts")!, byPath.get("src/partial.ts")!.declarations[0])).toBe("QUALIFIED_POSITIVE");
+      expect(byPath.get("src/main/kotlin/com/example/Present.kt")!.kit!.capabilities).toMatchObject({ declarations: "complete", imports: "complete" });
+      for (const [file, language] of [["src/main/java/com/example/Stable.java", "java"], ["src/helper.py", "python"], ["src/lib.rs", "rust"], ["src/plain.js", "javascript"]]) {
+        expect(byPath.get(file)!.language).toBe(language);
+        expect(byPath.get(file)!.declarations.length).toBeGreaterThan(0);
+        expect(byPath.get(file)!.declarations[0].provenance!.factId).toMatch(/^audit-fact:/);
+      }
+      const dynamicJS = byPath.get("src/dynamic.js")!;
+      expect(dynamicJS.kit!.capabilities.imports).toBe("partial");
+      expect(qualifyKitImportPredicate(dynamicJS)).toBe("UNAVAILABLE");
+      expect(qualifyKitImportPredicate(dynamicJS, dynamicJS.imports[0])).toBe("QUALIFIED_POSITIVE");
+      expect(first.exitCode).toBe(2);
+      for (const cue of ["security validation", ".only", "old/deprecated", "orphaned", "vanished"]) expect(first.issues.some(i => i.title.toLowerCase().includes(cue)), cue).toBe(true);
+      expect(first.issues.some(i => /symbol not found|no detected in-repo importer|imports a missing source/.test(i.title))).toBe(false);
+      expect(first.coverage!.filter(c => c.predicate.startsWith("jvm-symbol-claim")).map(c => c.predicate)).toEqual([
+        "jvm-symbol-claim README.md:2 com.example.Missing", "jvm-symbol-claim README.md:2 com.example.Other",
+      ]);
+      expect(first.coverage).toEqual(second.coverage);
+      expect(first.sourceFacts.kitEvidence!.snapshotId).toBe(second.sourceFacts.kitEvidence!.snapshotId);
+      expect(first.issues).toEqual(second.issues);
+      expect(new Set(first.detectorErrors.map(e => JSON.stringify(e))).size).toBe(first.detectorErrors.length);
+      const report = JSON.parse(renderAuditJsonReport(buildAuditReportModel(first, { target: resolveAuditTarget(root, root), registry })));
+      expect(report.schemaVersion).toBe("1.0");
+      expect(report.coverage).toBeUndefined();
+      expect(report.summary.finalExitCode).toBe(2);
+      save("mixed", { first, second, report, workDirs: [firstBridge.workDir, secondBridge.workDir], calls: [firstBridge.calls, secondBridge.calls] });
+      const strict = dependencies("strict-partial");
+      await expect(collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root), requiredCapabilities: ["declarations", "imports"], includeScriptsRoot: true }, strict.deps)).rejects.toMatchObject({ category: "capability-insufficient" });
+    }, 180000);
+
+    it.each([["none", 0], ["medium", 1]] as const)("preserves complete installed-candidate coverage and fail-on %s exit %s", async (failOn, exitCode) => {
+      const root = target("threshold-" + failOn, { "tests/threshold.test.ts": "test.only('threshold breach',()=>{});\n" });
+      const bridge = dependencies("threshold-" + failOn);
+      const result = await runAudit({ config: config(root, "tests", failOn), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(result.exitCode).toBe(exitCode);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues.some(i => i.title.includes(".only"))).toBe(true);
+      save("threshold-" + failOn, { result, workDir: bridge.workDir, calls: bridge.calls });
+    }, 120000);
+
+    it("independently qualifies exact CLI raw JSON/generated and mjs/extensionless proof profiles before consuming them", async () => {
+      const root = target("proof-profiles", {
+        "src/present.ts": "export const present = 1;\n",
+        "generated/schema.ts": "export type Schema = { id: string };\n",
+        "tests/data.json": '{"marker":"raw fixture"}\n',
+        "tests/profile.test.ts": "import '../src/absent.mjs';\nimport '../src/extensionless';\ntest.skip('independent',()=>{});\n",
+      });
+      const direct = dependencies("profile-independent"), cli = path.join(installed, "dist/cli.js"), index = path.join(direct.workDir, "index");
+      const command = async (label: string, args: string[], commandCli = cli) => {
+        const result = await direct.deps.runCommand({ commandId: label, cwd: root, outDir: direct.workDir,
+          executable: process.execPath, args: [commandCli, ...args], resolveCommand: false });
+        expect(result.ok, result.stderr).toBe(true);
+        return JSON.parse(result.stdout);
+      };
+      await command("independent-index", ["index", "--root", root, "--src", "src", "--src", "tests", "--src", "generated", "--out", index, "--json"]);
+      const artifact = JSON.parse(fs.readFileSync(path.join(index, "source-audit-evidence.json"), "utf8"));
+      const observations: unknown[] = [];
+      for (const [file, marker] of [["tests/data.json", "marker"], ["generated/schema.ts", "Schema"]]) {
+        const record = artifact.files.find((f: {path: string}) => f.path === file);
+        expect(record.contentSha256).toBe(createHash("sha256").update(fs.readFileSync(path.join(root, file))).digest("hex"));
+        const raw = await command("raw-occurrence", ["source", "--index", index, "--file", file, "--contains", marker, "--json"]);
+        expect(raw).toMatchObject({ complete: true, matchCount: 1 });
+        observations.push({ file, record, raw });
+      }
+      const facts = artifact.files.find((f: {path: string}) => f.path === "tests/profile.test.ts").facts;
+      for (const specifier of ["../src/absent.mjs", "../src/extensionless"]) {
+        const fact = facts.find((f: {kind: string;sourceSpecifier: string}) => f.kind === "import" && f.sourceSpecifier === specifier);
+        const proof = await command("import-proof", ["lookup", "--index", index, "--audit-import-target", fact.id, "--json"]);
+        expect(proof).toMatchObject({ status: "proven-missing" });
+        expect(proof.candidatePaths).toContain(specifier.slice(3) + (specifier.endsWith(".mjs") ? "" : ".ts"));
+        const publishedProof = await command("historical-import-proof", ["lookup", "--index", index, "--audit-import-target", fact.id, "--json"],
+          path.resolve("node_modules/@dailephd/my-dev-kit/dist/cli.js"));
+        expect(proof).toEqual(publishedProof);
+        observations.push({ fact, proof, publishedProof });
+      }
+      save("independent-profiles", { observations, artifactSource: artifact.source, workDir: direct.workDir, calls: direct.calls });
+      const bridge = dependencies("profile-consumer");
+      let result: Awaited<ReturnType<typeof runAudit>> | undefined, failure: unknown;
+      try { result = await runAudit({ config: config(root), toolRoot: root, kitSourceProviderDependencies: bridge.deps }); }
+      catch (error) { failure = error; }
+      save("profile-consumer", { result, failure: failure instanceof Error ? failure.message : failure, workDir: bridge.workDir, calls: bridge.calls });
+      expect(failure).toBeUndefined();
+      expect(result!.detectorErrors).toEqual([]);
+      expect(result!.exitCode).toBe(0);
+      expect(result!.issues.filter(i => i.detectorId === "test-rot" && i.title.includes("missing source")).length).toBe(2);
+    }, 120000);
+
+    it.each([
+      ["package-name", { packageName: "@dailephd/incorrect" }, "package-identity"],
+      ["package-version", { packageVersion: "1.15.2" }, "package-identity"],
+      ["cli-digest", { cliSha256: "0".repeat(64) }, "package-identity"],
+      ["extractor-revision", { extractorRevision: "source-audit-v0.0.0" }, "extractor-mismatch"],
+    ] as const)("refuses incorrect installed %s without weakening package resolution", (label, changed, category) => {
+      expect(() => resolveInstalledKitPackage({ installedPackageRoot: installed, expectation: { ...expectation, ...changed } })).toThrowError(new RegExp(category));
+      save(label, { syntheticExpectationCorruption: changed, expectedCategory: category });
+    });
+
+    it.each(["schema", "artifact-bytes", "manifest-hash", "snapshot", "source-bytes", "record-shape"])("keeps synthetic %s corruption fatal through real installed acquisition", async label => {
+      const root = target("negative-" + label, { "src/a.ts": "export const a = 1;\n" });
+      const bridge = dependencies("negative-" + label, (_args, index) => {
+        const artifactPath = path.join(index, "source-audit-evidence.json"), manifestPath = path.join(index, "manifest.json");
+        const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8")), manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        if (label === "artifact-bytes") { fs.appendFileSync(artifactPath, " "); return; }
+        if (label === "manifest-hash") manifest.sourceAuditEvidence.sha256 = "0".repeat(64);
+        if (label === "source-bytes") { fs.appendFileSync(path.join(root, "src/a.ts"), "// synthetic post-index mutation\n"); return; }
+        if (label === "schema") artifact.schemaVersion = "9.0.0";
+        if (label === "snapshot") artifact.source.snapshotId = "0".repeat(64);
+        if (label === "record-shape") artifact.files[0].status = "invalid-record-status";
+        if (label !== "manifest-hash") {
+          const bytes = Buffer.from(JSON.stringify(artifact)); fs.writeFileSync(artifactPath, bytes);
+          manifest.sourceAuditEvidence.sha256 = createHash("sha256").update(bytes).digest("hex");
+        }
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      });
+      let caught: unknown;
+      try { await runAudit({ config: config(root, "package"), toolRoot: root, kitSourceProviderDependencies: bridge.deps }); }
+      catch (error) { caught = error; }
+      expect(caught).toBeInstanceOf(KitSourceEvidenceAcquisitionError);
+      save("negative-" + label, { syntheticCorruption: label, category: (caught as KitSourceEvidenceAcquisitionError).category,
+        message: (caught as Error).message, workDir: bridge.workDir, calls: bridge.calls });
+    }, 120000);
+  });
+}
