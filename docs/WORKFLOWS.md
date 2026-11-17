@@ -872,6 +872,14 @@ Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json
 
 **Completion:** reports are written, target files remain unchanged, and every issue is interpreted as evidence rather than proof.
 
+### Planned immediate SW-123 repair and whole-source audit replay (v0.10.1)
+
+This is a **future corrective procedure, not current released audit behavior**. Preserve the failed Step 5 SW-123 candidate and qualification records first. Reproduce the original audit using its full selected source/domain and Kit 1.15.0 evidence, with the same required detector set; do not narrow source roots, disable detectors or recast partial evidence as clean to manufacture PASS.
+
+Correct Kit v1.15.2 lexical import capability and Lab v0.10.1 applicability/acquisition/adapter/detector/reporting separately at their existing owners. Test capability-specific positive and negative qualifications, real test versus configuration-fixture roles, mixed complete/partial files, dependent cross-file absence, documentation findings alongside unavailable declarations, tampered evidence, source freshness and unchanged complete-evidence outputs. Freeze exact package, source, revision, CLI digest and selection identities for each coordinated run. When Kit's producer is corrected, qualify its exact packed candidate independently before updating Lab's production dependency; no sibling checkout or moving `@latest` substitute.
+
+A valid partial file may yield independently qualified findings and `PARTIAL_COVERAGE UNAVAILABLE` records together. Required unavailable coverage returns exit 2 even with `--fail-on none`. Integrity/acquisition defects remain fatal; applicable incomplete predicates never become PASS or automatically NOT_APPLICABLE. Replay the unchanged whole-source audit after correction, retaining original failure evidence and the separate new validation identity. Perform full documentation reconciliation and a new exact-candidate pre-release readiness; no release, tag, package bump or publication occurs in this repair workflow. See [v0.10.1 scope](ROADMAP.md#v0101--partial-source-evidence-and-predicate-coverage-correction) and [planned architecture](ARCHITECTURE.md#planned-v0101-predicate-scoped-source-evidence-compatibility-correction-sw-123).
+
 ### Unreleased partial-import coverage correction
 
 After an audit, inspect coverage as well as findings/severity. Qualified partial import records remain partial. Independent checks continue only with sufficient evidence; affected missing-import, dead-code and fixture-absence predicates retain file, capability, diagnostic and detector reasons in `PARTIAL_COVERAGE UNAVAILABLE` errors. Mandatory incomplete coverage returns exit 2 even with `--fail-on none`; retain findings and JSON/text reports. Complete inventory is not complete semantic coverage.
