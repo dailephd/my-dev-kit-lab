@@ -744,7 +744,7 @@ Explicit exclusions:
 
 ### Post-v1 / version TBD — manual pentest
 
-Status: **deferred**.
+Manual-pentest disposition: **deferred**.
 
 * Manual pentest is no longer assigned to v0.4.0 and is not assigned to v0.4.1 or v0.4.2.
 * It remains a human-led post-v1 / version-TBD workflow.
@@ -1749,7 +1749,9 @@ Acceptance:
 
 ### v0.10.1 — partial-source-evidence and predicate-coverage correction
 
-**Status: active immediate corrective patch; earlier partial-import implementation integrated but the SW-123 expansion is planned and not implemented.** The candidate inherited from `fix/sw119-r2-v010-partial-evidence` includes the bounded SW-118/SW-119 partial JavaScript import correction, but its Step 5 full-source audit remains **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture. This entry replaces neither the completed v0.10.0 milestone nor the future v0.11.0 accessibility plan. Current package metadata is 0.10.0; version 0.10.1 is the **target patch release**, not yet published or release-prepared.
+Status: **partially implemented; unreleased; SW-123 correction active.**
+
+The candidate inherited from `fix/sw119-r2-v010-partial-evidence` includes the bounded SW-118/SW-119 partial JavaScript import correction; its historical Step 5 full-source audit was **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture. P3 has implemented Gradle configuration roles, per-predicate applicability, authenticated partial-evidence acquisition and capability-independent adapter qualification, with focused tests, typecheck and build passing. Detector and required-coverage correction (P4), exact Kit package qualification and the production pin transition (P5), and original audit replay (P6) remain pending. The internal predicate-aware acquisition route is not yet enabled in the audit runner, and the complete SW-123 audit is not certified. This entry replaces neither the completed v0.10.0 milestone nor the future v0.11.0 accessibility plan. Current package metadata is 0.10.0; version 0.10.1 is the **target patch release**, not yet published or release-prepared.
 
 **Goal:** consume independently qualified Kit capabilities and retain every supported audit finding, while explicitly identifying unavailable required predicates and maintaining exit 2 for incomplete mandatory coverage. The corresponding Kit producer correction is scoped to **v1.15.2**; Kit v1.15.0 is the original SW-123 producer and remains a historical frozen input. Do not silently substitute a differently packaged producer.
 
