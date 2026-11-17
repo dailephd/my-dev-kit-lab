@@ -380,6 +380,28 @@ function labProject(): string {
 }
 
 describe("explicit predicate acquisition", () => {
+  it.each(["declarations", "imports"])("runner enables predicate acquisition for partial %s without erasing the other capability", async capability => {
+    const project = labProject(), pkgRoot = fakePackage();
+    const expectation = { ...FAKE_EXPECTATION, cliSha256: createHash("sha256").update(fs.readFileSync(path.join(pkgRoot, "dist/cli.js"))).digest("hex") };
+    const { runAudit } = await import("../../src/audits/core/auditRunner.js");
+    const { normalizeAuditConfig } = await import("../../src/audits/core/auditConfig.js");
+    const { qualifyKitImportPredicate, qualifyKitDeclarationPredicate } = await import("../../src/audits/core/kitSourceEvidence.js");
+    let executed = false;
+    const result = await runAudit({ config: normalizeAuditConfig({ target: project, include: "package,cli,architecture,tests", failOn: "none" }, project),
+      toolRoot: project, kitSourceProviderDependencies: { installedPackageRoot: pkgRoot, expectation, runCommand: fakeWorld(project, { capabilities: { [capability]: "partial" } }).runCommand },
+      registry: [{ id: "dead-code-candidate", auditType: "code-rot", title: "bridge", description: "bridge", supportedIncludeAreas: ["package"], run: ctx => {
+        executed = true;
+        const file = ctx.sourceFacts!.files.find(f => f.relativePath === "src/a.ts")!;
+        expect(file.kit?.capabilities[capability]).toBe("partial");
+        expect(qualifyKitDeclarationPredicate(file, file.declarations[0])).toBe("QUALIFIED_POSITIVE");
+        expect(qualifyKitImportPredicate(file)).toBe(capability === "imports" ? "UNAVAILABLE" : "QUALIFIED_NEGATIVE");
+        return [];
+      } }] });
+    expect(executed).toBe(true);
+    expect(result.exitCode).toBe(capability === "imports" ? 2 : 0);
+    expect(result.coverage!.some(c => c.capability === "imports" && c.mandatory && c.status === (capability === "imports" ? "UNAVAILABLE" : "QUALIFIED"))).toBe(true);
+  });
+
   async function scoped(mutators: Mutators = {}, optIn = true, identity: Partial<KitCandidateExpectation> = {}) {
     const project = labProject(), pkgRoot = fakePackage();
     const expectation = { ...FAKE_EXPECTATION, cliSha256: createHash("sha256").update(fs.readFileSync(path.join(pkgRoot, "dist/cli.js"))).digest("hex"), ...identity };

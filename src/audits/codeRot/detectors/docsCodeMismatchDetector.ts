@@ -139,6 +139,7 @@ function collectKnownJvmDeclarationNames(ctx: AuditDetectorContext) {
   if (!ctx.sourceFacts) return { names, qualified, unqualifiedNames, unavailableClaims, qualifiedNamesRequired, complete, limitedPaths, positiveClaims: 0 };
   for (const file of ctx.sourceFacts.files) {
     if (file.language !== "java" && file.language !== "kotlin") continue;
+    if (file.role !== "source" && file.role !== "test") continue;
     if (kit && qualifyKitDeclarationPredicate(file) !== "QUALIFIED_NEGATIVE") {
       complete = false;
       limitedPaths.push(file.relativePath);
@@ -150,6 +151,15 @@ function collectKnownJvmDeclarationNames(ctx: AuditDetectorContext) {
         if (kit && decl.jvmDeclaration) qualified.add(decl.jvmDeclaration.qualifiedName);
         else if (kit) unqualifiedNames.add(decl.name);
       }
+    }
+  }
+  // A selected-domain absence needs every eligible inventory record, including
+  // files for which no adapted facts were retrieved. Missing acquisition is fatal.
+  if (kit) for (const entry of ctx.inventory.files) {
+    if ((entry.language === "java" || entry.language === "kotlin") &&
+        (entry.role === "source" || entry.role === "test") &&
+        !ctx.sourceFacts.files.some(file => file.relativePath === entry.relativePath)) {
+      throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Missing required JVM source ${entry.relativePath}.`);
     }
   }
   return { names, qualified, unqualifiedNames, unavailableClaims, qualifiedNamesRequired, complete, limitedPaths, positiveClaims: 0 };
@@ -221,7 +231,7 @@ export const DOCS_CODE_MISMATCH_DETECTOR: AuditDetector = {
 
         if (!JVM_FUTURE_OR_NEGATIVE_HEDGE_PATTERN.test(line)) {
           issues.push(
-            ...findJvmSymbolClaimMismatches(docFile.relativePath, i + 1, line, jvmMetadata, knownJvmDeclarationNames)
+            ...findJvmSymbolClaimMismatches(docFile.relativePath, i + 1, line, jvmMetadata, knownJvmDeclarationNames, ctx)
           );
           issues.push(...findJvmBuildCommandClaimMismatches(docFile.relativePath, i + 1, line, jvmMetadata));
         }
@@ -230,9 +240,6 @@ export const DOCS_CODE_MISMATCH_DETECTOR: AuditDetector = {
 
     if (!knownJvmDeclarationNames.complete || knownJvmDeclarationNames.unavailableClaims.size > 0) {
       const limitation = `docs-code-mismatch partial source evidence. Only qualified predicates executed; unmatched claims requiring unavailable evidence are UNAVAILABLE. Declaration absence inference excluded where declaration coverage or the needed qualified identity is incomplete or unknown; no compiler binding is established. Affected paths: ${knownJvmDeclarationNames.limitedPaths.join(", ")}. Unavailable claims: ${[...knownJvmDeclarationNames.unavailableClaims].join(", ")}.`;
-      if (knownJvmDeclarationNames.positiveClaims === 0) {
-        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", limitation + " No applicable qualified positive claim permits a partial result.");
-      }
       if (!ctx.sourceFacts!.warnings.includes(limitation)) ctx.sourceFacts!.warnings.push(limitation);
     }
     return deduplicateIssuesById(issues);
@@ -252,7 +259,8 @@ function findJvmSymbolClaimMismatches(
   lineNumber: number,
   line: string,
   jvmMetadata: JvmProjectMetadataSnapshot,
-  knownJvmDeclarationNames: ReturnType<typeof collectKnownJvmDeclarationNames>
+  knownJvmDeclarationNames: ReturnType<typeof collectKnownJvmDeclarationNames>,
+  ctx: AuditDetectorContext
 ): AuditIssue[] {
   if (!jvmMetadata.hasJavaSource && !jvmMetadata.hasKotlinSource) return [];
 
@@ -267,11 +275,22 @@ function findJvmSymbolClaimMismatches(
       ? knownJvmDeclarationNames.qualified.has(candidate)
       : knownJvmDeclarationNames.names.has(simpleName);
     if (present) { knownJvmDeclarationNames.positiveClaims++; continue; }
-    if (knownJvmDeclarationNames.qualifiedNamesRequired && candidate.includes(".") && knownJvmDeclarationNames.unqualifiedNames.has(simpleName)) {
+    if (!knownJvmDeclarationNames.complete ||
+        (knownJvmDeclarationNames.qualifiedNamesRequired && candidate.includes(".") && knownJvmDeclarationNames.unqualifiedNames.has(simpleName))) {
       knownJvmDeclarationNames.unavailableClaims.add(candidate);
+      const reason = `Claim ${candidate} requires complete selected JVM declarations and qualified identity; partial facts cannot establish absence or compiler binding.`;
+      if (ctx.reportCoverage) {
+        ctx.reportCoverage({ detectorId: DETECTOR_ID, predicate: `jvm-symbol-claim ${relativePath}:${lineNumber} ${candidate}`,
+          source: { kind: "domain", identity: "selected JVM source/test declarations" }, capability: "declarations",
+          actualStatus: knownJvmDeclarationNames.complete ? "identity-unavailable" : "partial", status: "UNAVAILABLE", mandatory: true,
+          diagnostic: knownJvmDeclarationNames.limitedPaths.map(p => {
+            const file = ctx.sourceFacts?.files.find(f => f.relativePath === p);
+            return `${p}: ${file?.diagnostics.map(d => d.code + ": " + d.message).join("; ")}`;
+          }).join("; "), reason });
+      } else if (ctx.reportUnavailable) ctx.reportUnavailable(DETECTOR_ID, `jvm-symbol-claim ${candidate}`, relativePath, reason, "declarations");
+      else throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
       continue;
     }
-    if (!knownJvmDeclarationNames.complete) continue;
 
     issues.push(
       makeCodeRotIssue({

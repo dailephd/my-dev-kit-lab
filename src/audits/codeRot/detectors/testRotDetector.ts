@@ -8,7 +8,7 @@ import type { SourceFileFacts } from "../../core/sourceFacts.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "../../core/pythonProjectMetadata.js";
 import { collectJvmProjectMetadata, type JvmProjectMetadataSnapshot } from "../../core/jvmProjectMetadata.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
-import { getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
+import { getImportSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 import { splitLines } from "../utils/textLines.js";
 import {
   jvmImportLooksPossiblyLocal,
@@ -90,6 +90,12 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         throw error;
       }
       if (content === null) continue;
+      if (testFile.role === "config") {
+        // Configuration fixtures retain raw command checks without acquiring
+        // executable test/import/title obligations from their directory.
+        issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
+        continue;
+      }
 
       // tests/audits/codeRot/ is this project's own audit-detector test
       // suite. Its whole purpose is to construct FIXTURE content (via
@@ -117,7 +123,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         try {
           kitMissing = await kitMissingImports(ctx, testFile.relativePath, content, observed);
         } catch (error) {
-          if (ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial") && ctx.reportUnavailable &&
+          if (ctx.reportUnavailable &&
               error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
             ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", testFile.relativePath, error.message);
           } else throw error;
@@ -131,7 +137,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // checks already found: idCues use the same shape
       // (testRelativePath, "missing-source-import", specifier), so an
       // identical id is deduplicated by deduplicateIssuesById() below.
-      const parsedFacts = getParsedSourceFacts(sourceFactsIndex, testFile.relativePath);
+      const parsedFacts = getImportSourceFacts(sourceFactsIndex, testFile.relativePath);
       if (parsedFacts?.language === "python") {
         // v0.3.2 Batch 2 -- Python relative imports use dotted-module
         // notation (".module", "..pkg.module"), not TS/JS's path-like
@@ -182,18 +188,23 @@ async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, co
     const applicable = facts.language === "java" || facts.language === "kotlin" ? jvmImportLooksPossiblyLocal(imp) : imp.source.startsWith(".");
     if (!applicable) continue;
     if (!imp.provenance?.factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", filePath + " import has no validated fact identity.");
-    const proof = await reader.importTarget(imp.provenance.factId);
-    if ((facts.language === "java" || facts.language === "kotlin") && !proof.declarationProof) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " JVM import requires qualified declaration-domain evidence.");
-    if (proof.status === "outside-selected-roots" || proof.status === "indeterminate") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " remains " + proof.status + " (" + proof.reasonCode + ").");
-    if (facts.language === "typescript" || facts.language === "javascript") {
-      if (proof.status === "proven-missing" && reader.jsTsRelativeImportCandidateProof !== "mjs-extensionless-complete-v1") {
-        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " lacks qualified legacy .mjs/extensionless candidate proof semantics.");
+    try {
+      const proof = await reader.importTarget(imp.provenance.factId);
+      if ((facts.language === "java" || facts.language === "kotlin") && !proof.declarationProof) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " JVM import requires qualified declaration-domain evidence.");
+      if (proof.status === "outside-selected-roots" || proof.status === "indeterminate") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " remains " + proof.status + " (" + proof.reasonCode + ").");
+      if (facts.language === "typescript" || facts.language === "javascript") {
+        if (proof.status === "proven-missing" && reader.jsTsRelativeImportCandidateProof !== "mjs-extensionless-complete-v1") {
+          throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " lacks qualified legacy .mjs/extensionless candidate proof semantics.");
+        }
+        if (proof.status === "present" && !imp.targetPaths?.some((target) => proof.candidatePaths.includes(target) && /\.(ts|tsx|js|mjs|cjs)$/.test(target))) {
+          throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import target presence is outside the verified legacy candidate policy.");
+        }
       }
-      if (proof.status === "present" && !imp.targetPaths?.some((target) => proof.candidatePaths.includes(target) && /\.(ts|tsx|js|mjs|cjs)$/.test(target))) {
-        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import target presence is outside the verified legacy candidate policy.");
-      }
+      if (proof.status === "proven-missing") missing.add(imp.source);
+    } catch (error) {
+      if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient" || !ctx.reportUnavailable) throw error;
+      ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, `Import ${imp.source}: ${error.message}`);
     }
-    if (proof.status === "proven-missing") missing.add(imp.source);
   }
   return missing;
 }

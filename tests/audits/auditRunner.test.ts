@@ -5,6 +5,8 @@ import { runAudit } from "../../src/audits/core/auditRunner.js";
 import type { AuditDetector } from "../../src/audits/core/auditRegistry.js";
 import type { AuditIssue } from "../../src/audits/core/auditIssue.js";
 import type { AuditTarget } from "../../src/audits/core/auditTarget.js";
+import fs from "node:fs";
+import os from "node:os";
 
 const toolRoot = process.cwd();
 
@@ -55,6 +57,51 @@ function fakeTarget(): AuditTarget {
     safeReportOutputRoot: path.join(toolRoot, "reports", "audits"),
   };
 }
+
+describe("structured predicate coverage disposition", () => {
+  it.each([
+    ["QUALIFIED", true, "none", 0],
+    ["NOT_APPLICABLE", true, "none", 0],
+    ["UNAVAILABLE", false, "none", 0],
+    ["UNDETERMINED", false, "none", 0],
+    ["UNAVAILABLE", true, "none", 2],
+    ["UNAVAILABLE", true, "medium", 2],
+    ["UNDETERMINED", true, "none", 2],
+    ["QUALIFIED", true, "medium", 1],
+  ] as const)("%s mandatory=%s failOn=%s returns %s", async (status, mandatory, failOn, exitCode) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "p4-coverage-"));
+    try {
+      const config = normalizeAuditConfig({ include: "docs", failOn }, root);
+      const registry = [makeDetector({ run: ctx => {
+        const record = { detectorId: "test-detector", predicate: "claim A", source: { kind: "domain" as const, identity: "selected sources" },
+          capability: "declarations", actualStatus: "partial", status, mandatory, diagnostic: "producer diagnostic", reason: "bounded predicate" };
+        ctx.reportCoverage!(record);
+        ctx.reportCoverage!({ ...record });
+        ctx.reportCoverage!({ ...record, predicate: "claim B" });
+        ctx.reportCoverage!({ ...record, reason: "a distinct producer limitation" });
+        return [makeIssue({ id: "first" }), makeIssue({ id: "second" })];
+      } })];
+      const first = await runAudit({ config, toolRoot: root, registry });
+      const second = await runAudit({ config, toolRoot: root, registry });
+      expect(first.exitCode).toBe(exitCode);
+      expect(first.coverage).toHaveLength(3);
+      expect(first.coverage).toEqual(second.coverage);
+      expect(first.detectorErrors).toHaveLength(exitCode === 2 ? 3 : 0);
+      expect(first.issues.map(i => i.id)).toEqual(["first", "second"]);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("does not derive coverage disposition from an ordinary error's English prefix", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "p4-message-"));
+    try {
+      const result = await runAudit({ config: normalizeAuditConfig({}, root), toolRoot: root,
+        registry: [makeDetector({ run: () => { throw new Error("PARTIAL_COVERAGE UNAVAILABLE: arbitrary detector failure"); } })] });
+      expect(result.coverage).toEqual([]);
+      expect(result.exitCode).toBe(0);
+      expect(result.detectorErrors).toHaveLength(1);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+});
 
 describe("runAudit — zero detectors", () => {
   it("handles an empty registry without overclaiming (no issues, no false confidence)", async () => {

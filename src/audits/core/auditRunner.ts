@@ -9,6 +9,7 @@ import {
   allowsKitPartialPositiveDeclarations,
   selectDetectors,
   type AuditDetector,
+  type AuditPredicateCoverage,
 } from "./auditRegistry.js";
 import { resolveAuditTarget, type AuditTarget } from "./auditTarget.js";
 import type { AuditSeverity } from "./auditTypes.js";
@@ -71,6 +72,8 @@ export type AuditResult = {
   issues: AuditIssue[];
   skippedDetectors: AuditSkippedDetector[];
   detectorErrors: AuditDetectorError[];
+  // Always populated by runAudit; optional for historical in-memory fixtures.
+  coverage?: AuditPredicateCoverage[];
   issueCounts: Record<AuditSeverity, number>;
   exitCode: number;
   exitReason: string;
@@ -169,9 +172,9 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   const selected = selectDetectors(registry, config.types, config.include);
   let sourceFacts: SourceFactsSnapshot;
   let kitSourceReader: KitSourceReader | undefined;
+  const applicable = resolveApplicableKitRequirements(selected, inventory, config.include);
   try {
     const kitRequirement = resolveKitSourceEvidenceRequirement(selected);
-    const applicable = resolveApplicableKitRequirements(selected, inventory, config.include);
     if (kitRequirement.required && applicable.paths.length > 0) {
       // Any acquisition failure propagates as KitSourceEvidenceAcquisitionError
       // (exit 2 via the command boundary, independent of --fail-on). There is
@@ -184,6 +187,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
           deferPartialImports: true,
           includeScriptsRoot: kitRequirement.includeScriptsRoot,
           requiredPaths: applicable.paths,
+          predicateRequirements: applicable.requirements,
           capabilitiesForPath: (filePath) => requiredKitCapabilitiesForPath(applicable.requirements, filePath),
           allowPartialDeclarationsForPath: (filePath) => allowsKitPartialPositiveDeclarations(applicable.requirements, filePath),
           onReader: (reader) => { kitSourceReader = reader; },
@@ -200,23 +204,25 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   const issues: AuditIssue[] = [];
   const skippedDetectors: AuditSkippedDetector[] = [];
   const detectorErrors: AuditDetectorError[] = [];
+  const coverage: AuditPredicateCoverage[] = [];
+  const coverageKeys = new Set<string>();
+  const reportCoverage = (record: AuditPredicateCoverage) => {
+    if (!record.source.identity.trim()) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Predicate coverage requires a file or domain identity.");
+    const key = JSON.stringify([record.detectorId, record.predicate, record.source.kind, record.source.identity,
+      record.capability, record.actualStatus, record.status, record.mandatory, record.diagnostic, record.reason]);
+    if (!coverageKeys.has(key)) { coverageKeys.add(key); coverage.push({ ...record, source: { ...record.source } }); }
+  };
   const ctx = { target, config, inventory, sourceOfTruth, sourceFacts, kitSourceReader,
+    reportCoverage,
     reportUnavailable: (id: string, predicate: string, filePath: string, reason: string, capability = "imports") => {
-      detectorErrors.push({ id, message: `PARTIAL_COVERAGE UNAVAILABLE: ${predicate}; file=${filePath}; capability=${capability}; ${reason}` });
+      const file = sourceFacts.files.find(f => f.relativePath === filePath);
+      reportCoverage({ detectorId: id, predicate, source: { kind: "file", identity: filePath }, capability,
+        actualStatus: file?.kit?.capabilities[capability] ?? "unavailable",
+        status: "UNAVAILABLE", mandatory: true,
+        diagnostic: file?.diagnostics.map(d => d.code + ": " + d.message).join("; ") ?? "",
+        reason });
     } };
 
-
-  // Account for every required partial file before any predicate can fail.
-  const partialImportFiles = sourceFacts.files.filter(file => file.kit?.capabilities.imports === "partial");
-  if (partialImportFiles.length) {
-    const applicable = resolveApplicableKitRequirements(selected, inventory, config.include);
-    for (const file of partialImportFiles) {
-      for (const requirement of applicable.requirements.filter(r => r.path === file.relativePath && r.capability === "imports" && r.applicability === "APPLICABLE_REQUIRED")) {
-        ctx.reportUnavailable(requirement.detectorId, "import-dependent predicates", file.relativePath,
-          file.diagnostics.map(d => d.code + ": " + d.message).join("; "));
-      }
-    }
-  }
 
   // Sequential, in registry order -- keeps issue ordering deterministic
   // without needing a secondary sort step.
@@ -264,8 +270,27 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   }
 
   const issueCounts = countIssuesBySeverity(issues);
+  // Reconcile every registry obligation after consumers have named their
+  // specific predicates. This safety net does not duplicate a consumer gap.
+  for (const requirement of applicable.requirements) {
+    const file = sourceFacts.files.find(f => f.relativePath === requirement.path);
+    const actualStatus = file?.kit?.capabilities[requirement.capability] ?? "unavailable";
+    const mandatory = requirement.applicability === "APPLICABLE_REQUIRED" || requirement.applicability === "UNDETERMINED";
+    const status = requirement.applicability === "NOT_APPLICABLE" ? "NOT_APPLICABLE"
+      : requirement.applicability === "UNDETERMINED" ? "UNDETERMINED"
+      : actualStatus === "complete" ? "QUALIFIED" : "UNAVAILABLE";
+    if (mandatory && coverage.some(c => c.detectorId === requirement.detectorId && c.capability === requirement.capability &&
+        c.source.identity === requirement.path && c.mandatory && c.status === "UNAVAILABLE")) continue;
+    reportCoverage({ detectorId: requirement.detectorId, predicate: `${requirement.capability} evidence`,
+      source: { kind: "file", identity: requirement.path }, capability: requirement.capability, actualStatus, status, mandatory,
+      diagnostic: file?.diagnostics.map(d => d.code + ": " + d.message).join("; ") ?? "",
+      reason: requirement.reason ?? "Registry source-evidence obligation." });
+  }
+  for (const record of coverage.filter(c => c.mandatory && (c.status === "UNAVAILABLE" || c.status === "UNDETERMINED"))) {
+    detectorErrors.push({ id: record.detectorId, message: `PARTIAL_COVERAGE UNAVAILABLE: ${record.predicate}; ${record.source.kind}=${record.source.identity}; capability=${record.capability}; status=${record.actualStatus}; ${record.reason}; ${record.diagnostic}` });
+  }
   const decision = calculateAuditExitCode(issues, config.failOn);
-  const incomplete = detectorErrors.some(error => error.message.startsWith("PARTIAL_COVERAGE UNAVAILABLE:"));
+  const incomplete = coverage.some(c => c.mandatory && (c.status === "UNAVAILABLE" || c.status === "UNDETERMINED"));
   const exitCode = incomplete ? 2 : decision.exitCode;
   const reason = incomplete ? "Required audit coverage is INCOMPLETE; see detectorErrors. Findings retained; --fail-on cannot waive unavailable evidence." : decision.reason;
 
@@ -287,6 +312,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     issues,
     skippedDetectors,
     detectorErrors,
+    coverage,
     issueCounts,
     exitCode,
     exitReason: reason,

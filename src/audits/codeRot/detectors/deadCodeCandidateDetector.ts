@@ -1,5 +1,5 @@
 import path from "node:path";
-import { KitSourceEvidenceAcquisitionError } from "../../core/kitSourceEvidence.js";
+import { KitSourceEvidenceAcquisitionError, qualifyKitImportPredicate } from "../../core/kitSourceEvidence.js";
 import { kitPredicateContent, requireCompleteKitOccurrence } from "../utils/sourceFactsLookup.js";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
@@ -10,7 +10,7 @@ import { readBoundedFileText } from "../utils/boundedRead.js";
 import { baseNameNoExt, isGenericOrTestPrefixedDeclarationName } from "../utils/filePatternUtils.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 import { collectRelativeImportBasenames, getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
-import { isJvmLifecycleOrConventionalDeclarationName, jvmImportSimpleName } from "../utils/jvmSourceFactsUtils.js";
+import { isJvmLifecycleOrConventionalDeclarationName, jvmImportSimpleName, jvmImportLooksPossiblyLocal } from "../utils/jvmSourceFactsUtils.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 4 — dead-code candidate detector.
@@ -54,8 +54,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     const docsConcat = concatDocsContent(ctx);
     // Reverse-reference absence requires a complete project import domain.
     // One unresolved import may target any candidate, including another language.
-    const partialImports = ctx.sourceFacts?.files.filter(f => f.kit?.capabilities.imports === "partial") ?? [];
-    const referencesAvailable = partialImports.length === 0;
+    let referencesAvailable = true;
     const predicates: string[] = [];
     if (ctx.config.include.includes("package") && pkg && ctx.inventory.scriptFiles.length) predicates.push("unreferenced-script-file");
     if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
@@ -63,18 +62,59 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       if (ctx.inventory.sourceFiles.some(f => f.language === "python")) predicates.push("possibly-unreferenced-python-declaration");
       if (ctx.inventory.sourceFiles.some(f => f.language === "java" || f.language === "kotlin")) predicates.push("possibly-unreferenced-jvm-declaration");
     }
-    for (const file of partialImports) for (const predicate of predicates) {
-      const reason = file.diagnostics.map(d => d.code + ": " + d.message).join("; ");
-      if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", file.relativePath + " requires complete imports. " + reason);
-      ctx.reportUnavailable(DETECTOR_ID, predicate, file.relativePath, reason);
+    const unavailable = (filePath: string, reason: string) => {
+      referencesAvailable = false;
+      if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+      for (const predicate of predicates) ctx.reportUnavailable(DETECTOR_ID, predicate, filePath, reason);
+    };
+    if (predicates.length && ctx.sourceFacts?.provider === "kit") {
+      // The entire selected reference domain matters, not just candidate files
+      // or the completeness of one local import inventory.
+      const participants = [...new Map([...ctx.inventory.sourceFiles, ...ctx.inventory.testFiles, ...ctx.inventory.scriptFiles]
+        .filter(f => (f.role === "source" || f.role === "test") &&
+          ["typescript", "javascript", "python", "java", "kotlin", "rust"].includes(f.language))
+        .map(f => [f.relativePath, f])).values()];
+      for (const entry of participants) {
+        const file = ctx.sourceFacts.files.find(f => f.relativePath === entry.relativePath);
+        if (!file) throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required reverse-reference source ${entry.relativePath} is unselected.`);
+        if (qualifyKitImportPredicate(file) !== "QUALIFIED_NEGATIVE") {
+          unavailable(entry.relativePath, "Reverse-reference absence requires complete authenticated imports across the selected source domain.");
+          continue;
+        }
+        for (const imp of file.imports) {
+          if (!(imp.source.startsWith(".") || ((file.language === "java" || file.language === "kotlin") && jvmImportLooksPossiblyLocal(imp)))) continue;
+          if (!imp.provenance?.factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", `Import in ${entry.relativePath} lacks fact identity.`);
+          try {
+            const proof = await ctx.kitSourceReader!.importTarget(imp.provenance.factId);
+            if (proof.status === "indeterminate" || proof.status === "outside-selected-roots") {
+              unavailable(entry.relativePath, `Import ${imp.source} remains ${proof.status} (${proof.reasonCode}); it may reference a candidate.`);
+            }
+          } catch (error) {
+            if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
+            unavailable(entry.relativePath, `Import ${imp.source}: ${error.message}`);
+          }
+        }
+      }
+    }
+
+    let references = new Set<string>();
+    if (referencesAvailable && predicates.length) {
+      try { references = await buildReverseReferenceIndex(ctx); }
+      catch (error) {
+        if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient" || !ctx.reportCoverage) throw error;
+        referencesAvailable = false;
+        for (const predicate of predicates) ctx.reportCoverage({ detectorId: DETECTOR_ID, predicate,
+          source: { kind: "domain", identity: "selected project reverse-reference sources" }, capability: "raw-content",
+          actualStatus: "unavailable", status: "UNAVAILABLE", mandatory: true, diagnostic: "", reason: error.message });
+      }
     }
 
     if (referencesAvailable && ctx.config.include.includes("package") && pkg) {
-      issues.push(...(await findUnreferencedScriptFiles(ctx, pkg)));
+      issues.push(...(await findUnreferencedScriptFiles(ctx, pkg, references)));
     }
 
     if (referencesAvailable && (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture"))) {
-      issues.push(...(await findUnreferencedSourceFiles(ctx, pkg, docsConcat)));
+      issues.push(...(await findUnreferencedSourceFiles(ctx, pkg, docsConcat, references)));
     }
 
     issues.push(...findOldOrDeprecatedFilesNotInDocs(ctx, docsConcat));
@@ -126,7 +166,7 @@ function binTargetsAsSourceCandidates(pkg: PackageTruth): Set<string> {
   return candidates;
 }
 
-async function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: PackageTruth): Promise<AuditIssue[]> {
+async function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: PackageTruth, referencedBasenames: Set<string>): Promise<AuditIssue[]> {
   if (ctx.inventory.scriptFiles.length === 0) return [];
   const scriptCommandsBlob = Object.values(pkg.scripts).join(" \n ");
   const binCandidates = binTargetsAsSourceCandidates(pkg);
@@ -135,7 +175,6 @@ async function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: Packa
   // scripts/security/resolveToolRoot.ts) is not dead code even though no
   // package.json script command names it directly -- discovered via a real
   // false positive during self-testing.
-  const referencedBasenames = await buildReverseReferenceIndex(ctx);
   const issues: AuditIssue[] = [];
 
   for (const file of ctx.inventory.scriptFiles) {
@@ -194,6 +233,7 @@ async function buildReverseReferenceIndex(ctx: AuditDetectorContext): Promise<Se
   ];
 
   for (const file of allCandidateFiles) {
+    if (file.role === "config") continue;
     // Match the existing bounded native predicate before requesting raw evidence.
     if (file.sizeBytes > MAX_READ_BYTES) continue;
     if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required reverse-reference source ${file.relativePath} is unselected.`);
@@ -212,13 +252,13 @@ async function buildReverseReferenceIndex(ctx: AuditDetectorContext): Promise<Se
   return referencedBasenames;
 }
 
-async function findUnreferencedSourceFiles(ctx: AuditDetectorContext, pkg: PackageTruth | null, docsConcat: string): Promise<AuditIssue[]> {
-  const referencedBasenames = await buildReverseReferenceIndex(ctx);
+async function findUnreferencedSourceFiles(ctx: AuditDetectorContext, pkg: PackageTruth | null, docsConcat: string, referencedBasenames: Set<string>): Promise<AuditIssue[]> {
   const binCandidates = pkg ? binTargetsAsSourceCandidates(pkg) : new Set<string>();
   const sourceFactsIndex = indexSourceFactsByPath(ctx.sourceFacts);
   const issues: AuditIssue[] = [];
 
   for (const file of ctx.inventory.sourceFiles) {
+    if (file.role === "config") continue;
     if (file.sizeBytes > MAX_READ_BYTES) continue;
     // This relative import/require basename policy does not model Rust mod/use
     // targets. Syntax-only imports cannot establish Rust file non-reference.
@@ -325,8 +365,9 @@ function findPossiblyUnreferencedPythonDeclarations(ctx: AuditDetectorContext): 
   // comment on why `references` stays empty by design).
   const importedNamesAcrossProject = new Set<string>();
   for (const facts of index.values()) {
-    if (facts.language !== "python" || facts.parseStatus !== "parsed") continue;
+    if (facts.language !== "python") continue;
     for (const imp of facts.imports) {
+      if (facts.kit ? qualifyKitImportPredicate(facts, imp) !== "QUALIFIED_POSITIVE" : facts.parseStatus !== "parsed") continue;
       for (const name of imp.importedNames ?? []) importedNamesAcrossProject.add(name);
     }
   }
@@ -431,8 +472,9 @@ function findPossiblyUnreferencedJvmDeclarations(ctx: AuditDetectorContext): Aud
   // offer, same role as Python's importedNamesAcrossProject above.
   const importedSimpleNamesAcrossProject = new Set<string>();
   for (const facts of index.values()) {
-    if ((facts.language !== "java" && facts.language !== "kotlin") || facts.parseStatus !== "parsed") continue;
+    if (facts.language !== "java" && facts.language !== "kotlin") continue;
     for (const imp of facts.imports) {
+      if (facts.kit ? qualifyKitImportPredicate(facts, imp) !== "QUALIFIED_POSITIVE" : facts.parseStatus !== "parsed") continue;
       importedSimpleNamesAcrossProject.add(jvmImportSimpleName(imp.source));
     }
   }

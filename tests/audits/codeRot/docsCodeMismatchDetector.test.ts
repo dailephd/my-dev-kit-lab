@@ -49,6 +49,25 @@ async function runWithSourceFacts(root: string) {
 }
 
 describe("documentation symbol token boundaries", () => {
+  it.each([false, true])("retains independent findings and every unavailable claim with positive match=%s", async positive => {
+    const root = makeTempDir();
+    try {
+      writeFixturePackage(root);
+      writeFile(root, "src/Script.kts", 'class Present {}\nprintln("opaque script statement")\n');
+      writeFile(root, "README.md", `Security validation is implemented.\n${positive ? 'Use `Present`.\n' : ''}Use \`com.example.Missing\` and \`com.example.Other\`.\n`);
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [DOCS_CODE_MISMATCH_DETECTOR] });
+      expect(result.exitCode).toBe(2);
+      expect(result.issues.some(i => i.title.includes("security validation"))).toBe(true);
+      expect(result.issues.some(i => i.title.includes("symbol not found"))).toBe(false);
+      const claims = result.coverage!.filter(c => c.predicate.startsWith("jvm-symbol-claim"));
+      expect(claims.map(c => c.predicate)).toEqual([
+        "jvm-symbol-claim README.md:3 com.example.Missing", "jvm-symbol-claim README.md:3 com.example.Other"
+      ].map(p => positive ? p : p.replace(":3 ", ":2 ")));
+      expect(claims.every(c => c.status === "UNAVAILABLE" && c.mandatory && c.source.kind === "domain")).toBe(true);
+      expect(result.detectorErrors).toHaveLength(result.coverage!.filter(c => c.mandatory && c.status === "UNAVAILABLE").length);
+    } finally { cleanup(root); }
+  }, 120000);
+
   it("retains simple claims and recognizes nested owner tokens without treating arbitrary dotted text as a type", async () => {
     const root = makeTempDir();
     try {

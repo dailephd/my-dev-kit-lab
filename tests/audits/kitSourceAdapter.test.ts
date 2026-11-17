@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { qualifyKitDeclarationPredicate, qualifyKitImportPredicate } from "../../src/audits/core/kitSourceEvidence.js";
+import { getImportSourceFacts, indexSourceFactsByPath } from "../../src/audits/codeRot/utils/sourceFactsLookup.js";
 import {
   adaptKitDeclaration,
   adaptKitEvidenceToSourceFacts,
@@ -279,6 +280,7 @@ describe("snapshot adaptation", () => {
     expect(qualifyKitImportPredicate(file, file.imports[0])).toBe("QUALIFIED_POSITIVE");
     expect(qualifyKitDeclarationPredicate(file)).toBe(declarationNegative);
     expect(qualifyKitImportPredicate(file)).toBe(importNegative);
+    expect(getImportSourceFacts(indexSourceFactsByPath(snapshot), file.relativePath)).toBe(imports === "complete" ? file : null);
     expect(file.imports[0]!.provenance?.factId).toBe(facts[1]!.id);
     expect(adaptKitEvidenceToSourceFacts(options)).toEqual(snapshot);
     const cloned = { ...file.imports[0]! };
@@ -286,6 +288,7 @@ describe("snapshot adaptation", () => {
     file.imports[0]!.source = "fabricated";
     expect(qualifyKitImportPredicate(file, file.imports[0])).toBe("UNAVAILABLE");
     expect(qualifyKitImportPredicate(file)).toBe("UNAVAILABLE");
+    expect(getImportSourceFacts(indexSourceFactsByPath(snapshot), file.relativePath)).toBeNull();
   });
 
   it("never qualifies missing exact facts or unsupported fact families as negative evidence", () => {

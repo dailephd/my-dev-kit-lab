@@ -1,7 +1,7 @@
 import type { SourceFactsSnapshot, SourceFileFacts } from "../../core/sourceFacts.js";
 import { baseNameNoExt } from "./filePatternUtils.js";
 import type { KitSourceReader } from "../../core/kitSourceProvider.js";
-import { KitSourceEvidenceAcquisitionError, type KitOccurrence } from "../../core/kitSourceEvidence.js";
+import { KitSourceEvidenceAcquisitionError, qualifyKitImportPredicate, type KitOccurrence } from "../../core/kitSourceEvidence.js";
 
 export function requireCompleteKitOccurrence(result: KitOccurrence): KitOccurrence {
   if (!result.complete) throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
@@ -62,6 +62,13 @@ export function getParsedSourceFacts(
   return facts && facts.parseStatus === "parsed" ? facts : null;
 }
 
+// Import consumers must not discard authenticated complete imports merely
+// because an unrelated declaration capability downgraded the file status.
+export function getImportSourceFacts(index: Map<string, SourceFileFacts>, relativePath: string): SourceFileFacts | null {
+  const facts = index.get(relativePath);
+  return facts && (facts.kit ? qualifyKitImportPredicate(facts) === "QUALIFIED_NEGATIVE" : facts.parseStatus === "parsed") ? facts : null;
+}
+
 // Basenames referenced by any parsed file's relative import/re-export
 // specifier, lowercased. Mirrors deadCodeCandidateDetector.ts's regex-based
 // buildReverseReferenceIndex() basename matching, but sourced from
@@ -73,8 +80,8 @@ export function collectRelativeImportBasenames(sourceFacts?: SourceFactsSnapshot
   const basenames = new Set<string>();
   if (!sourceFacts) return basenames;
   for (const file of sourceFacts.files) {
-    if (file.parseStatus !== "parsed") continue;
     for (const imp of file.imports) {
+      if (file.kit ? qualifyKitImportPredicate(file, imp) !== "QUALIFIED_POSITIVE" : file.parseStatus !== "parsed") continue;
       if (!imp.source.startsWith(".")) continue;
       const base = baseNameNoExt(imp.source.split("?")[0]);
       basenames.add(base.toLowerCase());

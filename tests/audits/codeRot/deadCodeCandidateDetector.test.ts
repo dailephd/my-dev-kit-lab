@@ -593,13 +593,42 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — Kotlin declaration candidates (v0.3.3
   });
 });
 
-describe("DEAD_CODE_CANDIDATE_DETECTOR — real self-scan regression guard", () => {
-  it("fails closed when the real repository contains unqualified required import evidence", async () => {
-    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
-  }, 1800000);
+describe("DEAD_CODE_CANDIDATE_DETECTOR — bounded coverage regression guard", () => {
+  it("retains deprecated findings when JVM target proof cannot qualify a declaration domain", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "jvm-domain-gap", version: "1.0.0" }));
+      writeFile(root, "src/main/kotlin/com/example/Foo.kt", "package com.example\nclass Foo {}\n");
+      writeFile(root, "src/test/kotlin/com/example/FooSpec.kt", "package com.example\nimport com.example.Foo as Bar\nclass FooSpec {}\n");
+      writeFile(root, "src/old/retired.ts", "// independent deprecated finding\n");
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      expect(result.exitCode).toBe(2);
+      expect(result.issues.some(i => i.title.includes("old/deprecated"))).toBe(true);
+      expect(result.coverage!.some(c => c.status === "UNAVAILABLE" && c.reason.includes("JVM_DECLARATION_DOMAIN_INCOMPLETE"))).toBe(true);
+      expect(result.issues.some(i => i.title.includes("no detected in-repo importer"))).toBe(false);
+    } finally { cleanup(root); }
+  }, 120000);
 
-  // Qualified bounded cases retain the finding-policy assertions independently
-  // of the real repository acquisition failure above.
+  it("records unavailable reverse-reference coverage for a complete local inventory with an unresolved cross-file target", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "domain-gap", version: "1.0.0" }));
+      writeFile(root, "src/importer.ts", "import '../unselected/hidden.js';\n");
+      writeFile(root, "src/candidate.ts", "export const candidate = 1;\n");
+      writeFile(root, "src/old/retired.ts", "// independently deprecated\n");
+      writeFile(root, "src/orphan.generated.ts", "// independently orphaned\n");
+      const ctx = buildContext(root);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      expect(result.sourceFacts.files.every(f => f.kit?.capabilities.imports === "complete")).toBe(true);
+      expect(result.exitCode).toBe(2);
+      expect(result.coverage!.some(c => c.predicate === "unreferenced-source-file" && c.status === "UNAVAILABLE" && c.reason.includes("outside-selected-roots"))).toBe(true);
+      expect(result.issues.some(i => i.title.includes("no detected in-repo importer"))).toBe(false);
+      expect(result.issues.some(i => i.title.includes("old/deprecated"))).toBe(true);
+      expect(result.issues.some(i => i.affectedFiles.includes("src/orphan.generated.ts"))).toBe(true);
+    } finally { cleanup(root); }
+  }, 120000);
+
+  // Complete bounded cases retain the existing finding-policy assertions.
   it("keeps qualified Python declaration candidates conservative without treating acquisition failure as empty findings", async () => {
     const root = makeTempDir();
     try {

@@ -46,6 +46,8 @@ describe('qualified partial import coverage',()=>{
     expect(partial.map(f=>f.relativePath)).toEqual(['src/load.ts','tests/load.test.ts']);
     expect(partial.every(f=>f.diagnostics.some(d=>d.code==='kit:unsupported-dynamic-import'))).toBe(true);
     expect(result.exitCode).toBe(2);
+    expect(result.coverage!.some(c=>c.status==='UNAVAILABLE' && c.mandatory && c.capability==='imports')).toBe(true);
+    expect(result.coverage!.filter(c=>c.mandatory && c.status==='UNAVAILABLE').length).toBe(result.detectorErrors.length);
     expect(result.exitReason).toContain('INCOMPLETE');
     expect(result.detectorErrors.some(e=>e.message.includes('tests/fixtures/view.html') && e.message.includes('raw-content'))).toBe(true);
     expect(result.issues.some(i=>i.id.includes('unreferenced-fixture'))).toBe(false);
@@ -59,3 +61,25 @@ describe('qualified partial import coverage',()=>{
     await expect(collectKitSourceFacts({targetRoot:root,inventory:scanProjectInventory(root),requiredCapabilities:['imports'],includeScriptsRoot:false})).rejects.toMatchObject({category:'capability-insufficient'});
   },120000);
 });
+
+it('does not assign executable test obligations to a Gradle configuration fixture; raw command checks remain',async()=>{
+  const root=fixture(false);
+  const file='tests/fixtures/config.gradle.kts';
+  fs.mkdirSync(path.dirname(path.join(root,file)),{recursive:true});
+  fs.writeFileSync(path.join(root,file),'// npm run vanished\n// test.only("configuration text")\nandroid { buildTypes { release { isDebuggable = false } } }\n');
+  const result=await runAudit({config:normalizeAuditConfig({target:root,include:'tests',failOn:'none'},root),toolRoot:root});
+  expect(result.exitCode).toBe(0);
+  expect(result.detectorErrors).toEqual([]);
+  expect(result.issues.some(i=>i.title.includes('vanished') && i.affectedFiles.includes(file))).toBe(true);
+  expect(result.issues.some(i=>i.title.includes('.only') && i.affectedFiles.includes(file))).toBe(false);
+  expect(result.coverage!.filter(c=>c.source.identity===file && c.capability==='imports').every(c=>c.status==='NOT_APPLICABLE')).toBe(true);
+},120000);
+
+it('keeps raw JSON fixture selection optional for the semantic import domain',async()=>{
+  const root=fixture(false);
+  fs.writeFileSync(path.join(root,'tests/data.json'),'{}\n');
+  const result=await runAudit({config:config(root),toolRoot:root});
+  expect(result.exitCode).toBe(0);
+  expect(result.detectorErrors).toEqual([]);
+  expect(result.coverage!.filter(c=>c.source.identity==='tests/data.json').every(c=>!c.mandatory)).toBe(true);
+},120000);

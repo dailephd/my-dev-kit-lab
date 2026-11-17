@@ -555,7 +555,7 @@ describe("TEST_ROT_DETECTOR — JVM standard-library/third-party import suppress
   });
 });
 
-describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
+describe("TEST_ROT_DETECTOR — bounded coverage regression guard", () => {
   it.each(["tmp", ".my-dev-kit-workflow"])("excludes generated %s inputs while retaining current tests and source facts", async (generated) => {
     const root = makeTempDir();
     try {
@@ -587,12 +587,25 @@ describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
     }
   }, 90000);
 
-  it("fails closed when a whole-repository test import lacks a qualified proof", async () => {
-    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
-  }, 1800000);
+  it("retains independent test findings when a complete import inventory has an indeterminate target", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "test-domain-gap", version: "1.0.0" }));
+      writeFile(root, "tests/check.test.ts", "import './before.js';\nimport '../unselected/hidden.js';\nimport './after.js';\ntest.only('independent finding',()=>{});\n");
+      const ctx = buildContext(root);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.sourceFacts.files.every(f => f.kit?.capabilities.imports === "complete")).toBe(true);
+      expect(result.exitCode).toBe(2);
+      expect(result.coverage!.some(c => c.predicate === "missing-source-import" && c.status === "UNAVAILABLE")).toBe(true);
+      expect(result.issues.some(i => i.title.includes(".only"))).toBe(true);
+      expect(result.issues.filter(i => i.title.includes("missing source")).map(i => i.title)).toEqual([
+        'Test "tests/check.test.ts" imports a missing source file: "./before.js"',
+        'Test "tests/check.test.ts" imports a missing source file: "./after.js"',
+      ]);
+    } finally { cleanup(root); }
+  }, 120000);
 
-  // Qualified bounded cases retain the finding-policy assertions independently
-  // of the real repository acquisition failure above.
+  // Complete bounded cases retain the existing finding-policy assertions.
   it("preserves no-only and conservative Python severity policies over qualified source evidence", async () => {
     const root = makeTempDir();
     try {
