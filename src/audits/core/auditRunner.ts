@@ -279,6 +279,12 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     const status = requirement.applicability === "NOT_APPLICABLE" ? "NOT_APPLICABLE"
       : requirement.applicability === "UNDETERMINED" ? "UNDETERMINED"
       : actualStatus === "complete" ? "QUALIFIED" : "UNAVAILABLE";
+    // Consumers can discharge this exact registry dependency after applying
+    // their actual predicate premises. An undetermined applicability remains
+    // undetermined; one unrelated positive predicate cannot waive it.
+    if (requirement.applicability !== "UNDETERMINED" && coverage.some(c => c.detectorId === requirement.detectorId &&
+        c.predicate === `${requirement.capability} evidence` && c.capability === requirement.capability &&
+        c.source.kind === "file" && c.source.identity === requirement.path && c.status === "NOT_APPLICABLE")) continue;
     if (mandatory && coverage.some(c => c.detectorId === requirement.detectorId && c.capability === requirement.capability &&
         c.source.identity === requirement.path && c.mandatory && c.status === "UNAVAILABLE")) continue;
     reportCoverage({ detectorId: requirement.detectorId, predicate: `${requirement.capability} evidence`,

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
+import { kitPredicateContent } from "../../src/audits/codeRot/utils/sourceFactsLookup.js";
 import {
   QUALIFIED_KIT_CANDIDATE,
   QUALIFIED_PUBLISHED_KIT,
@@ -948,6 +949,88 @@ if (p5Root || p5Package) {
     normalizeAuditConfig({ target: root, include, failOn, out: path.join(evidenceDirectory, "reports") }, process.cwd());
 
   describe("SW123 P5 installed candidate", () => {
+    it.each(["complete", "partial"])("qualifies command-only JSON from %s literal evidence without demanding unrelated whole content", async mode => {
+      const file = "tests/packet.json";
+      const body = JSON.stringify({ before: Array.from({ length: 180 }, (_, i) => `before ${i}`),
+        commands: Array.from({ length: mode === "partial" ? 201 : 1 }, () => "npm run removed"),
+        after: Array.from({ length: 180 }, (_, i) => `after ${i}`) }, null, 2) + "\n";
+      const root = target("raw-command-" + mode, { [file]: body });
+      const bridge = dependencies("raw-command-" + mode);
+      const result = await runAudit({ config: config(root, "tests", "none"), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(detector => detector.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(result.sourceFacts.files.find(entry => entry.relativePath === file)!.kit!.capabilities.imports).toBe("unsupported");
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0]!.id).toBe("test-rot:tests/packet.json:stale-npm-run-reference:removed");
+      expect(result.issues[0]!.severity).toBe("medium");
+      expect(result.exitCode).toBe(mode === "partial" ? 2 : 0);
+      expect(result.coverage?.some(record => record.predicate === "bounded-content predicates" && record.status === "UNAVAILABLE")).toBe(mode === "partial");
+      expect(result.coverage?.some(record => record.predicate === "bounded-content predicates" && record.status === "QUALIFIED")).toBe(mode === "complete");
+      save("raw-command-" + mode, { result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("authenticates empty selected source bytes without requesting a nonexistent first line", async () => {
+      const root = target("empty-raw-content", {
+        "tests/check.test.ts": "export {};\n",
+        "tests/fixtures/python/src/__init__.py": "",
+      });
+      const bridge = dependencies("empty-raw-content");
+      let reader: import("../../src/audits/core/kitSourceProvider.js").KitSourceReader | undefined;
+      try {
+        await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root),
+          requiredCapabilities: [], requiredPaths: ["tests/check.test.ts", "tests/fixtures/python/src/__init__.py"],
+          includeScriptsRoot: false, onReader: value => { reader = value; } }, bridge.deps);
+        const file = reader!.selectedFile("tests/fixtures/python/src/__init__.py");
+        expect(file.sizeBytes).toBe(0);
+        expect(file.contentSha256).toBe(createHash("sha256").update("").digest("hex"));
+        expect(await reader!.authenticatedContent!(file.path)).toBe("");
+        expect(bridge.calls.some(call => (call as { args: string[] }).args.includes("--start"))).toBe(false);
+        save("empty-raw-content", { file, calls: bridge.calls, workDir: bridge.workDir });
+      } finally { reader?.dispose(); }
+    }, 120000);
+
+    it("qualifies raw JSON bytes independently of a truncated literal-match inventory", async () => {
+      const root = target("partial-literal-complete-bytes", {
+        "tests/payload.json": JSON.stringify({ text: "it ".repeat(201) }) + "\n",
+        "tests/long.test.ts": "// it\n".repeat(201) + "export {};\n",
+      });
+      const bridge = dependencies("partial-literal-complete-bytes");
+      const result = await runAudit({ config: config(root, "tests"), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(detector => detector.id === "test-rot").map(detector => ({ ...detector, run: async ctx => {
+          expect(await kitPredicateContent(ctx.kitSourceReader, "tests/payload.json", ["it"])).toBe(JSON.stringify({ text: "it ".repeat(201) }) + "\n");
+          expect(await kitPredicateContent(ctx.kitSourceReader, "tests/long.test.ts", ["it"])).toBe("// it\n".repeat(201) + "export {};\n");
+          return detector.run(ctx);
+        } })), kitSourceProviderDependencies: bridge.deps });
+      expect(result.exitCode).toBe(0);
+      expect(result.issues).toEqual([]);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.sourceFacts.files.find(file => file.relativePath === "tests/payload.json")!.kit!.capabilities.imports).toBe("unsupported");
+      save("partial-literal-complete-bytes", { result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("retains authenticated positive fixture and re-export identities without claiming their domains complete", async () => {
+      const root = target("positive-references", {
+        "tests/check.test.ts": 'const fixture = path.resolve(process.cwd(), "tests/fixtures/payload.json");\n',
+        "tests/fixtures/payload.json": '{"value":"payload"}\n',
+        "src/thing.ts": "export const thing = 1;\n",
+        "src/reexport.ts": 'export { thing } from "./thing.js";\n',
+      });
+      const bridge = dependencies("positive-references");
+      let reader: import("../../src/audits/core/kitSourceProvider.js").KitSourceReader | undefined;
+      try {
+        const facts = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root),
+          requiredCapabilities: [], requiredPaths: ["tests/check.test.ts", "src/reexport.ts", "src/thing.ts"],
+          includeScriptsRoot: false, onReader: value => { reader = value; } }, bridge.deps);
+        expect(reader!.fixtureReferenceBasenames!("tests/check.test.ts")).toContain("payload.json");
+        expect(reader!.reExportSpecifiers!("src/reexport.ts")).toEqual(["./thing.js"]);
+        await reader!.occurrences("tests/fixtures/payload.json", '"');
+        expect(await reader!.authenticatedContent!("tests/fixtures/payload.json")).toBe('{"value":"payload"}\n');
+        expect(facts.files.find(file => file.relativePath === "tests/check.test.ts")!.kit!.capabilities["fixture-references"]).toBe("partial");
+        expect(() => reader!.fixtureReferenceBasenames!("../escape.ts")).toThrow();
+        save("positive-references", { facts, calls: bridge.calls, workDir: bridge.workDir });
+      } finally { reader?.dispose(); }
+      expect(() => reader!.reExportSpecifiers!("src/reexport.ts")).toThrow(/closed/);
+    }, 120000);
+
     it("keeps freshly generated historical 1.15.0 Kotlin evidence partial under its separate original producer profile", async () => {
       const relative = "tests/fixtures/config.gradle.kts", root = target("historical-contract", {
         "tests/reference.test.ts": "const fixture='config.gradle.kts'; test('fixture reference',()=>void fixture);\n",
@@ -1042,7 +1125,8 @@ if (p5Root || p5Package) {
         expect.stringContaining("vanished-generated"), expect.stringContaining("vanished-vendor"),
       ]);
       expect(result.detectorErrors).toEqual([]);
-      expect(result.coverage!.some(c => c.mandatory)).toBe(false);
+      expect(result.coverage!.some(c => c.mandatory && c.capability === "imports")).toBe(false);
+      expect(result.coverage!.filter(c => c.capability === "raw-content").every(c => c.status === "QUALIFIED")).toBe(true);
       expect(result.exitCode).toBe(0);
       save("generated-test-inputs", { result, calls: bridge.calls, workDir: bridge.workDir });
     }, 120000);

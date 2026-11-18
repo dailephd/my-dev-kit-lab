@@ -124,6 +124,30 @@ export type KitImportProof = {
   };
 };
 
+// Already validated Kit windows may overlap or come from separate literal
+// queries. Only the exact selected byte identity establishes whole content.
+export function authenticateKitWindowContent(filePath: string, file: Pick<KitFileRecord, "contentSha256" | "sizeBytes">,
+  matches: readonly KitOccurrence["matches"][number][]): string | null {
+  if (!file.contentSha256 || matches.length === 0) return null;
+  const lines = new Map<number, string>();
+  for (const match of matches) for (const [offset, line] of splitLines(match.content).entries()) {
+    const number = match.windowStart + offset;
+    if (lines.has(number) && lines.get(number) !== line) fail("artifact-invalid", `${filePath} has conflicting authenticated source windows.`);
+    lines.set(number, line);
+  }
+  let end = 0;
+  while (lines.has(end + 1)) end++;
+  const normalized = Array.from({ length: end }, (_, index) => lines.get(index + 1)!).join("\n");
+  for (const newline of ["\n", "\r\n"]) {
+    const text = normalized.replace(/\n/g, newline);
+    for (const candidate of [text, text + newline]) {
+      if (Buffer.byteLength(candidate, "utf8") === file.sizeBytes &&
+          createHash("sha256").update(candidate, "utf8").digest("hex") === file.contentSha256) return candidate;
+    }
+  }
+  return null;
+}
+
 export function validateKitOccurrence(raw: unknown, expected: { snapshotId: string; file: KitFileRecord; value: string }): KitOccurrence {
   const r = raw as KitOccurrence;
   const integer = (n: unknown, min = 0): n is number => Number.isSafeInteger(n) && (n as number) >= min;

@@ -7,7 +7,7 @@ import type { SourceOfTruthSnapshot } from "./sourceOfTruth.js";
 import type { SourceFactsSnapshot } from "./sourceFacts.js";
 import type { KitSourceReader } from "./kitSourceProvider.js";
 import { MAX_READ_BYTES as DEAD_CODE_MAX_READ_BYTES } from "../codeRot/detectors/deadCodeCandidateDetector.js";
-import { MAX_READ_BYTES as TEST_ROT_MAX_READ_BYTES } from "../codeRot/detectors/testRotDetector.js";
+import { isTestRotRawOnlyInput, MAX_READ_BYTES as TEST_ROT_MAX_READ_BYTES } from "../codeRot/detectors/testRotDetector.js";
 import { KitSourceEvidenceAcquisitionError, type KitCapabilityName } from "./kitSourceEvidence.js";
 import {
   STALE_COMMAND_REFERENCE_DETECTOR,
@@ -207,7 +207,7 @@ export function resolveApplicableKitRequirements(
   if (selected.some(({ id }) => id === "test-rot") && include.includes("tests")) {
     for (const entry of inventory.testFiles) {
       if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts")) ||
-          ((entry.role === "generated" || entry.role === "vendor") && languages.has(entry.language))) &&
+          (isTestRotRawOnlyInput(entry) && languages.has(entry.language))) &&
           entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) selectRawPath(entry.relativePath, "test-rot");
     }
   }
@@ -272,7 +272,7 @@ export function resolveApplicableKitRequirements(
         // Source files are selected as import-target inventory, not required
         // import observations. Test-rot reads imports only from test files.
         select = true;
-        if (entry.role === "test" && entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) capabilities.push("imports");
+        if (entry.role === "test" && !isTestRotRawOnlyInput(entry) && entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) capabilities.push("imports");
       } else if (id === "cross-platform-rot" && include.includes("cli") && entry.role === "source" &&
         entry.relativePath.startsWith("src/audits/") && !entry.relativePath.endsWith("/textLines.ts")) {
         select = true;

@@ -81,5 +81,6 @@ it('keeps raw JSON fixture selection optional for the semantic import domain',as
   const result=await runAudit({config:config(root),toolRoot:root});
   expect(result.exitCode).toBe(0);
   expect(result.detectorErrors).toEqual([]);
-  expect(result.coverage!.filter(c=>c.source.identity==='tests/data.json').every(c=>!c.mandatory)).toBe(true);
+  expect(result.coverage!.filter(c=>c.source.identity==='tests/data.json' && c.capability==='imports').every(c=>!c.mandatory)).toBe(true);
+  expect(result.coverage!.some(c=>c.source.identity==='tests/data.json' && c.capability==='raw-content' && c.status==='QUALIFIED')).toBe(true);
 },120000);

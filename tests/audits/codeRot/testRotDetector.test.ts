@@ -9,7 +9,7 @@ import { collectKitSourceFacts } from "../../../src/audits/core/kitSourceProvide
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { TEST_ROT_DETECTOR } from "../../../src/audits/codeRot/detectors/testRotDetector.js";
-import type { AuditDetectorContext } from "../../../src/audits/core/auditRegistry.js";
+import { resolveApplicableKitRequirements, type AuditDetectorContext } from "../../../src/audits/core/auditRegistry.js";
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "test-rot-test-"));
@@ -50,6 +50,121 @@ async function buildContextWithSourceFacts(root: string): Promise<AuditDetectorC
 }
 
 describe("TEST_ROT_DETECTOR — missing source imports", () => {
+  it.each(["kotlin-main", "typescript-source"])("retains raw checks without executable-test obligations on a %s fixture", async kind => {
+    const root = makeTempDir();
+    try {
+      const file = kind === "kotlin-main" ? "tests/fixtures/app/src/main/kotlin/MainActivity.kt" : "tests/fixtures/app/src/reexport.ts";
+      writeFile(root, "package.json", JSON.stringify({ name: "source-fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, file, (kind === "kotlin-main" ? "package com.example\nimport androidx.compose.runtime.Composable\nclass MainActivity {}\n" :
+        'export { missing } from "./missing.js";\n') + "// npm run removed\n");
+      const ctx = buildContext(root);
+      const applicable = resolveApplicableKitRequirements([TEST_ROT_DETECTOR], ctx.inventory, ["tests"]);
+      expect(applicable.paths).toContain(file);
+      expect(applicable.requirements.filter(requirement => requirement.path === file && requirement.capability === "imports")
+        .every(requirement => requirement.applicability === "NOT_APPLICABLE")).toBe(true);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.exitCode).toBe(0);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0]!.title).toContain("removed");
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it.each(["typescript-colocated", "java-test-source"])("retains genuine executable %s fixture checks", async kind => {
+    const root = makeTempDir();
+    try {
+      const file = kind === "java-test-source" ? "tests/fixtures/app/src/test/java/com/example/RealTest.java" : "tests/fixtures/app/src/real.test.ts";
+      writeFile(root, "package.json", JSON.stringify({ name: "test-source-fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, file, kind === "java-test-source" ? "package com.example;\nimport com.example.Missing;\npublic class RealTest {}\n" :
+        'import { missing } from "./missing.js";\n');
+      const ctx = buildContext(root);
+      const applicable = resolveApplicableKitRequirements([TEST_ROT_DETECTOR], ctx.inventory, ["tests"]);
+      expect(applicable.requirements.some(requirement => requirement.path === file && requirement.capability === "imports" &&
+        requirement.applicability === "APPLICABLE_REQUIRED")).toBe(true);
+      ctx.config.failOn = "low";
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.exitCode).toBe(1);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues.some(issue => /missing source|has no selected Java declaration/i.test(issue.title))).toBe(true);
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("retains raw command checks on report fixtures without executable-test obligations", async () => {
+    const root = makeTempDir();
+    try {
+      const body = '{"sample":"it.only(","command":"npm run removed"}';
+      writeFile(root, "package.json", JSON.stringify({ name: "report-fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/implementation-audit.json", body);
+      const ctx = buildContext(root);
+      expect(ctx.inventory.testFiles[0]!.role).toBe("report-output");
+      ctx.kitSourceReader = {
+        selectedFile: () => ({ lineCount: 1, sizeBytes: Buffer.byteLength(body) }),
+        occurrences: async () => ({ complete: true, matchCount: 1, matches: [{ windowStart: 1, windowEnd: 1, line: 1, content: body }] }),
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]!.title).toContain("removed");
+    } finally { cleanup(root); }
+  });
+
+  it("retains a real re-export target obligation separately from complete imports", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "re-export", version: "1.0.0" }));
+      writeFile(root, "src/real.ts", "export const real = 1;\n");
+      writeFile(root, "tests/check.test.ts", 'export { real } from "../src/real.js";\n');
+      const ctx = buildContext(root);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.exitCode).toBe(2);
+      expect(result.issues).toEqual([]);
+      expect(result.coverage?.some(record => record.status === "UNAVAILABLE" && record.capability === "exports" && record.reason.includes("export-target proof"))).toBe(true);
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("uses complete semantic imports without treating an embedded fixture string as another import", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "import-string", version: "1.0.0" }));
+      writeFile(root, "tests/check.test.ts", 'const fixture = `import "../src/synthetic.js"`;\nexport {};\n');
+      expect(await run(root)).toEqual([]);
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("records unsupported raw coverage independently of unrelated partial imports", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "tests/input.xml", "<input/>\n");
+      const ctx = buildContext(root);
+      const gaps: string[] = [];
+      ctx.reportUnavailable = (_id, predicate) => { gaps.push(predicate); };
+      ctx.kitSourceReader = { unsupportedRawContentReason: () => "authenticated inventory lacks raw content" } as unknown as AuditDetectorContext["kitSourceReader"];
+      expect(await TEST_ROT_DETECTOR.run(ctx)).toEqual([]);
+      expect(gaps).toEqual(["bounded-content predicates"]);
+    } finally { cleanup(root); }
+  });
+
+  it("does not use complete imports to waive unknown re-exports when export evidence is partial", async () => {
+    const root = makeTempDir();
+    try {
+      const body = 'const fixture = `from "../src/missing.js"`;';
+      writeFile(root, "tests/check.test.ts", body);
+      const ctx = buildContext(root);
+      ctx.config.include = ["tests"];
+      const gaps: string[] = [];
+      ctx.reportUnavailable = (_id, _predicate, _file, _reason, capability) => { gaps.push(capability ?? "imports"); };
+      ctx.sourceFacts = { provider: "kit", files: [{ relativePath: "tests/check.test.ts", language: "typescript", parseStatus: "parsed",
+        kit: { capabilities: { imports: "complete", exports: "partial" } }, imports: [], exports: [], diagnostics: [] }] } as unknown as AuditDetectorContext["sourceFacts"];
+      ctx.kitSourceReader = {
+        selectedFile: () => ({ lineCount: 1, sizeBytes: Buffer.byteLength(body) }),
+        reExportSpecifiers: () => [],
+        occurrences: async (_file: string, value: string) => ({ complete: true, matchCount: body.includes(value) ? 1 : 0,
+          matches: body.includes(value) ? [{ windowStart: 1, windowEnd: 1, line: 1, content: body }] : [] }),
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      expect(await TEST_ROT_DETECTOR.run(ctx)).toEqual([]);
+      expect(gaps).toEqual(["exports"]);
+    } finally { cleanup(root); }
+  });
+
   it("flags a test importing a missing source file", async () => {
     const root = makeTempDir();
     try {

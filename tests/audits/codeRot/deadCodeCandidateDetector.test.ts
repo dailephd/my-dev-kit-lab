@@ -646,6 +646,68 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — bounded coverage regression guard", (
 });
 
 // Real whole-repository acquisition performs paged CLI queries for every selected file.
+describe("fixture-reference positive and negative premises", () => {
+  it.each(["source", "script", "re-export"])("requires no global negative proof when every %s candidate is independently referenced", async kind => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "positive-domain", version: "1.0.0",
+        scripts: kind === "script" ? { check: "node scripts/thing.mjs" } : {} }));
+      writeFile(root, kind === "script" ? "scripts/thing.mjs" : "src/thing.ts", "export const thing = 1;\n");
+      if (kind === "re-export") writeFile(root, "src/index.ts", 'export { thing } from "./thing.js";\n');
+      writeFile(root, "tests/check.test.ts", (kind === "source" ? 'import { thing } from "../src/thing.js";\n' : "") +
+        "declare const unknown: string;\nvoid import(unknown);\n");
+      const ctx = buildContext(root);
+      ctx.config.include = kind === "script" ? ["package", "tests"] : ["cli", "tests"];
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      expect(result.sourceFacts.files.find(file => file.relativePath === "tests/check.test.ts")!.kit!.capabilities.imports).toBe("partial");
+      expect(result.exitCode).toBe(0);
+      expect(result.issues).toEqual([]);
+      expect(result.coverage?.some(record => record.status === "NOT_APPLICABLE" && record.predicate === `unreferenced-${kind === "script" ? "script" : "source"}-file`)).toBe(true);
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("preserves the inventory-qualified empty test domain without requiring a source reader", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "fixtures/unused.txt", "unused");
+      const ctx = buildContext(root);
+      ctx.config.include = ["tests"];
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      expect(result.exitCode).toBe(0);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues.some(issue => issue.title.includes("unused.txt"))).toBe(true);
+    } finally { cleanup(root); }
+  });
+
+  it.each(["fact", "content", "partial occurrence"])("retains a qualified %s witness despite other unavailable raw inputs", async mode => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "tests/check.test.ts", "// bounded test input\n");
+      writeFile(root, "tests/unsupported.xml", "<fixture/>\n");
+      writeFile(root, "fixtures/used.bin", "used");
+      writeFile(root, "fixtures/absent.bin", "absent");
+      const ctx = buildContext(root);
+      ctx.config.include = ["tests"];
+      const gaps: string[][] = [];
+      const qualified: string[] = [];
+      ctx.reportUnavailable = (_id, predicate, file) => { gaps.push([predicate, file]); };
+      ctx.reportCoverage = record => { if (record.status === "QUALIFIED") qualified.push(record.predicate); };
+      // Synthetic unit reader: package/byte validation is exercised separately
+      // through the existing installed-provider integration tests.
+      ctx.kitSourceReader = {
+        unsupportedRawContentReason: (file: string) => file.endsWith(".xml") ? "authenticated inventory lacks raw content" : undefined,
+        fixtureReferenceBasenames: () => mode === "fact" ? ["used.bin"] : [],
+        authenticatedContent: mode === "partial occurrence" ? undefined : async () => mode === "content" ? "used.bin" : "",
+        occurrences: async (_file: string, value: string) => ({ complete: value !== "used.bin",
+          matchCount: value === "used.bin" ? 1 : 0, matches: value === "used.bin" ? [{ content: "used.bin" }] : [] }),
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      expect(await DEAD_CODE_CANDIDATE_DETECTOR.run(ctx)).toEqual([]);
+      expect(qualified).toEqual(["unreferenced-fixture fixtures/used.bin"]);
+      expect(gaps).toEqual([["unreferenced-fixture fixtures/absent.bin", "tests/unsupported.xml"]]);
+    } finally { cleanup(root); }
+  });
+});
+
 // Its integration timeout includes those queries; finding assertions remain unchanged.
 // Test setup delegates source acquisition to the real qualified provider.
 let selfRun: Promise<Awaited<ReturnType<typeof DEAD_CODE_CANDIDATE_DETECTOR.run>>> | undefined;

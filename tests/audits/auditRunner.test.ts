@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as registryModule from "../../src/audits/core/auditRegistry.js";
 import path from "node:path";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
@@ -59,6 +60,32 @@ function fakeTarget(): AuditTarget {
 }
 
 describe("structured predicate coverage disposition", () => {
+  it("does not waive undetermined registry applicability with a consumer not-applicable disposition", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "r1-undetermined-"));
+    const original = registryModule.resolveApplicableKitRequirements;
+    const spy = vi.spyOn(registryModule, "resolveApplicableKitRequirements").mockImplementation((...args) => {
+      const applicable = original(...args);
+      return { ...applicable, requirements: applicable.requirements.map(requirement => requirement.capability === "imports"
+        ? { ...requirement, applicability: "UNDETERMINED" as const, reason: "Synthetic unresolved applicability for the registry-disposition test." }
+        : requirement) };
+    });
+    let consumerRan = false;
+    try {
+      fs.mkdirSync(path.join(root, "src"));
+      fs.writeFileSync(path.join(root, "src/main.ts"), "export const main = 1;\n");
+      const registry = [makeDetector({ id: "dead-code-candidate", supportedIncludeAreas: ["cli", "tests"], run: ctx => {
+        consumerRan = true;
+        for (const file of ctx.sourceFacts?.files ?? []) ctx.reportCoverage!({ detectorId: "dead-code-candidate", predicate: "imports evidence",
+          source: { kind: "file", identity: file.relativePath }, capability: "imports", actualStatus: "complete",
+          status: "NOT_APPLICABLE", mandatory: false, diagnostic: "", reason: "Synthetic consumer disposition." });
+        return [];
+      } })];
+      await expect(runAudit({ config: normalizeAuditConfig({ include: "cli,tests", failOn: "none" }, root), toolRoot: root, registry }))
+        .rejects.toMatchObject({ category: "capability-insufficient", message: expect.stringContaining("undetermined") });
+      expect(consumerRan).toBe(false);
+    } finally { spy.mockRestore(); fs.rmSync(root, { recursive: true, force: true }); }
+  }, 120000);
+
   it.each([
     ["QUALIFIED", true, "none", 0],
     ["NOT_APPLICABLE", true, "none", 0],

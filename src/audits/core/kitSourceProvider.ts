@@ -14,6 +14,7 @@ import {
   KIT_SOURCE_AUDIT_SCHEMA_VERSION,
   KitSourceEvidenceAcquisitionError,
   assertRequiredCapabilities,
+  authenticateKitWindowContent,
   assertPredicateScopedCapabilities,
   hasQualifiedPartialImports,
   assertQualifiedPartialDeclarations,
@@ -530,6 +531,9 @@ export type KitSourceReader = {
   snapshotId: string;
   producer: KitSourceEvidence["producer"];
   selectedFile: (filePath: string) => KitFileRecord;
+  // Positive path-literal facts only; this never certifies text absence.
+  fixtureReferenceBasenames?: (filePath: string) => readonly string[];
+  reExportSpecifiers?: (filePath: string) => readonly string[];
   unsupportedRawContentReason?: (filePath: string) => string | undefined;
   occurrences: (filePath: string, value: string) => Promise<KitOccurrence>;
   // Private exact-producer profile: contiguous Kit ranges, authenticated
@@ -613,9 +617,48 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     jsTsRelativeImportCandidateProof: IMPORT_PROOF_PROFILES[ctx.pkg.cliSha256],
     jsonRawLiteralContent,
     selectedFile,
+    reExportSpecifiers(filePath) {
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      selectedFile(filePath);
+      const full = evidence.fileEvidence.get(filePath);
+      if (!full || !["complete", "partial"].includes(full.record.capabilities.exports)) return [];
+      return full.facts.filter(fact => fact.kind === "export" && fact.exportOrigin === "re-export" &&
+        typeof fact.sourceSpecifier === "string").map(fact => fact.sourceSpecifier!) ?? [];
+    },
+    fixtureReferenceBasenames(filePath) {
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      selectedFile(filePath);
+      const full = evidence.fileEvidence.get(filePath);
+      if (!full || !["complete", "partial"].includes(full.record.capabilities["fixture-references"])) return [];
+      return full.facts.filter(fact => fact.kind === "fixture-reference" &&
+        typeof fact.value === "string" && typeof fact.name === "string" &&
+        path.posix.basename(fact.name.replace(/\\/g, "/")) === fact.value).map(fact => fact.value!) ?? [];
+    },
     authenticatedContent: ctx.pkg.cliSha256 === "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb" ? (filePath) => {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       const file = selectedFile(filePath);
+      if (contents.has(filePath)) return contents.get(filePath)!;
+      // Zero bytes plus their authenticated digest establish the entire
+      // content. Kit has no first source line to return for an empty file.
+      if (file.sizeBytes === 0 && file.contentSha256) {
+        if (file.contentSha256 !== createHash("sha256").update("").digest("hex")) {
+          fail("stale-evidence", `${filePath} has an inconsistent authenticated empty-file digest.`);
+        }
+        const empty = Promise.resolve("");
+        contents.set(filePath, empty);
+        return empty;
+      }
+      if (filePath.endsWith(".json") && file.contentSha256 && file.sizeBytes <= 200000) return (async () => {
+        const matches: KitOccurrence["matches"] = [];
+        for (const [key, query] of cache) {
+          const [snapshot, origin] = JSON.parse(key) as string[];
+          if (snapshot === evidence.snapshotId && origin === filePath) matches.push(...(await query).matches);
+        }
+        const content = authenticateKitWindowContent(filePath, file, matches);
+        if (content === null) fail("capability-insufficient", `${filePath} lacks complete hash-identified cached source windows.`);
+        contents.set(filePath, Promise.resolve(content));
+        return content;
+      })();
       if (!file.contentSha256 || file.lineCount === null || file.sizeBytes > 200000 || !SOURCE_LANGUAGES.has(file.language)) {
         fail("capability-insufficient", `${filePath} lacks bounded hash-identified whole-content evidence.`);
       }

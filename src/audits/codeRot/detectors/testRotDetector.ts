@@ -5,6 +5,7 @@ import path from "node:path";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { SourceFileFacts } from "../../core/sourceFacts.js";
+import type { InventoryFileEntry } from "../../core/projectInventory.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "../../core/pythonProjectMetadata.js";
 import { collectJvmProjectMetadata, type JvmProjectMetadataSnapshot } from "../../core/jvmProjectMetadata.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
@@ -30,6 +31,24 @@ import {
 
 const DETECTOR_ID = "test-rot";
 export const MAX_READ_BYTES = 200_000;
+
+// Shared with acquisition applicability: fixture production-source areas do
+// not acquire executable-test obligations from the outer tests/ directory.
+// Their raw command checks remain selected. Unknown source types stay unknown.
+export function isTestRotRawOnlyInput(file: Pick<InventoryFileEntry, "role" | "relativePath" | "language">): boolean {
+  if (file.language === "json" || ["config", "generated", "vendor", "report-output"].includes(file.role) ||
+      file.relativePath.endsWith(".gradle") || file.relativePath.endsWith(".gradle.kts")) return true;
+  if (!/(?:^|\/)fixtures\//.test(file.relativePath) ||
+      !["typescript", "javascript", "python", "java", "kotlin", "rust"].includes(file.language)) return false;
+  const sourceIndex = file.relativePath.lastIndexOf("/src/");
+  if (sourceIndex < 0) return false;
+  const tail = file.relativePath.slice(sourceIndex + 5).split("/");
+  if ((file.language === "java" || file.language === "kotlin") && tail[0] === "main") return true;
+  if (tail.slice(0, -1).some(segment => /^(?:__tests__|tests?|specs?|.*Test)$/i.test(segment))) return false;
+  const basename = tail.at(-1)!;
+  return !/^(?:test|spec)|[._-](?:test|spec)(?:[._-]|$)|(?:Test|Tests|Spec)\.[^.]+$/i.test(basename);
+}
+
 const RELATIVE_IMPORT_PATTERN = /(?:from|require\()\s*["'](\.\.?\/[^"']+)["']/g;
 const NPM_RUN_PATTERN = /npm run ([\w:.-]+)/g;
 const SKIP_PATTERN = /\b(describe|it|test)\.skip\s*\(/g;
@@ -73,17 +92,26 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       if (testFile.sizeBytes > MAX_READ_BYTES) return issues;
       if (testFile.relativePath.startsWith("tests/audits/codeRot/")) return issues;
       if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required test ${testFile.relativePath} is unselected.`);
-      const unsupportedRaw = ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial")
-        ? ctx.kitSourceReader?.unsupportedRawContentReason?.(testFile.relativePath) : undefined;
+      const observed = sourceFactsIndex.get(testFile.relativePath);
+      const rawOnly = isTestRotRawOnlyInput(testFile);
+      if (rawOnly) ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "imports evidence",
+        source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
+        actualStatus: observed?.kit?.capabilities.imports ?? "unavailable", status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
+        reason: "Configuration/generated/report or fixture production-source input has no executable-test import predicate; raw command checks remain selected." });
+      const unsupportedRaw = ctx.kitSourceReader?.unsupportedRawContentReason?.(testFile.relativePath);
       if (unsupportedRaw && ctx.reportUnavailable) {
         ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, unsupportedRaw, "raw-content");
         return issues;
       }
       let content: string;
       try {
+        if (rawOnly) {
+          issues.push(...await findRawOnlyNpmRunReferences(ctx, testFile.relativePath, scriptNames));
+          return issues;
+        }
         content = await kitPredicateContent(ctx.kitSourceReader, testFile.relativePath, ["npm run ", "describe", "it", "test", "from", "require("]);
       } catch (error) {
-        if (ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial") && ctx.reportUnavailable &&
+        if (ctx.reportUnavailable &&
             error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
           ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, error.message, "raw-content");
           return issues;
@@ -91,12 +119,6 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         throw error;
       }
       if (content === null) return issues;
-      if (testFile.role === "config" || testFile.role === "generated" || testFile.role === "vendor") {
-        // Non-semantic inputs retain raw command checks without acquiring
-        // executable test/import/title obligations from their directory.
-        issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
-        return issues;
-      }
 
       // tests/audits/codeRot/ is this project's own audit-detector test
       // suite. Its whole purpose is to construct FIXTURE content (via
@@ -112,7 +134,6 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // test suite of its own would never hit this exclusion.
       if (testFile.relativePath.startsWith("tests/audits/codeRot/")) return issues;
 
-      const observed = sourceFactsIndex.get(testFile.relativePath);
       const partialImports = observed?.kit?.capabilities.imports === "partial";
       if (partialImports) {
         const reason = observed.diagnostics.map(d => d.code + ": " + d.message).join("; ");
@@ -201,8 +222,23 @@ async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, co
   if (reader.jsonRawLiteralContent === "selected-test-json-v1" && filePath.endsWith(".json") &&
       facts?.parseStatus === "unsupported" && reader.selectedFile(filePath).status === "unsupported" && raw.length === 0) return missing;
   if (!facts || facts.kit?.capabilities.imports !== "complete") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " requires complete imports.");
-  for (const specifier of raw) if (!facts.imports.some((fact) => fact.source === specifier)) {
-    throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " has a lexical relative-import candidate without a Kit import fact; semantic absence is not lexical absence.");
+  // A complete semantic inventory determines actual imports. Text inside a
+  // fixture string/comment is not another import requiring target proof.
+  // Every real import below still requires its authenticated fact and proof.
+  if (raw.some(specifier => !facts.imports.some(fact => fact.source === specifier)) && facts.kit.capabilities.exports !== "complete") {
+    const reason = "Relative lexical candidates require complete export evidence to rule out an unrecorded re-export; incomplete exports do not establish absence.";
+    if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");
+  }
+  const reExports = reader.reExportSpecifiers?.(filePath);
+  if (!reExports && facts.exports.some(fact => fact.exportOrigin === "re-export")) {
+    throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " lacks authenticated re-export source identities.");
+  }
+  for (const specifier of reExports ?? []) {
+    if (!specifier.startsWith(".")) continue;
+    const reason = `Re-export ${specifier} lacks qualified export-target proof; a complete import inventory does not establish export-target presence or absence.`;
+    if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");
   }
   for (const imp of facts.imports) {
     const applicable = facts.language === "java" || facts.language === "kotlin" ? jvmImportLooksPossiblyLocal(imp) : imp.source.startsWith(".");
@@ -447,7 +483,51 @@ function findMissingJvmSourceImports(
   return issues;
 }
 
+async function findRawOnlyNpmRunReferences(ctx: AuditDetectorContext, filePath: string, scriptNames: Set<string>): Promise<AuditIssue[]> {
+  const reader = ctx.kitSourceReader;
+  if (!reader) throw new KitSourceEvidenceAcquisitionError("invalid-request", `${filePath} requires its validated Kit source reader.`);
+  const result = await reader.occurrences(filePath, "npm run ");
+  const qualify = (actualStatus: string, reason: string) => ctx.reportCoverage?.({ detectorId: DETECTOR_ID,
+    predicate: "bounded-content predicates", source: { kind: "file", identity: filePath }, capability: "raw-content",
+    actualStatus, status: "QUALIFIED", mandatory: true, diagnostic: "", reason });
+  if (!result.complete) {
+    // Whole authenticated bytes can discharge this predicate independently
+    // of a truncated literal inventory, without promoting that inventory.
+    if (reader.authenticatedContent) {
+      try {
+        const content = await reader.authenticatedContent(filePath);
+        qualify("authenticated-content", "Authenticated whole bytes qualify the raw command predicate independently of literal-inventory completeness.");
+        return findStaleNpmRunReferences(filePath, content, scriptNames);
+      } catch (error) {
+        if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
+      }
+    }
+    const reason = `Raw command coverage requires a complete authenticated npm-run literal inventory or whole content; inventory is incomplete (${result.reasonCode}).`;
+    if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", filePath, reason, "raw-content");
+  } else {
+    qualify("complete-literal-inventory", "Complete authenticated npm-run occurrences and their matched lines qualify the command-only predicate; unrelated source lines and semantic imports are not premises.");
+  }
+  // The original predicate is per-line, including its writeFile exclusion.
+  // These are authenticated line observations, never fabricated whole content.
+  const lines = new Map<number, string>();
+  for (const match of result.matches) {
+    for (const [offset, line] of splitLines(match.content).entries()) {
+      const number = match.windowStart + offset;
+      if (lines.has(number) && lines.get(number) !== line) {
+        throw new KitSourceEvidenceAcquisitionError("artifact-invalid", `${filePath} has conflicting authenticated command lines.`);
+      }
+      lines.set(number, line);
+    }
+  }
+  return findStaleNpmRunReferenceLines(filePath, [...lines].sort(([a], [b]) => a - b).map(([, line]) => line), scriptNames);
+}
+
 function findStaleNpmRunReferences(testRelativePath: string, content: string, scriptNames: Set<string>): AuditIssue[] {
+  return findStaleNpmRunReferenceLines(testRelativePath, splitLines(content), scriptNames);
+}
+
+function findStaleNpmRunReferenceLines(testRelativePath: string, lines: readonly string[], scriptNames: Set<string>): AuditIssue[] {
   const issues: AuditIssue[] = [];
   const seen = new Set<string>();
 
@@ -460,7 +540,6 @@ function findStaleNpmRunReferences(testRelativePath: string, content: string, sc
   // detector flags this repo's own accurate test suite as if its
   // synthetic fixture strings were real stale command references, a false
   // positive confirmed via self-testing.
-  const lines = splitLines(content);
   for (const line of lines) {
     if (/\bwriteFile\s*\(/.test(line)) continue;
 
