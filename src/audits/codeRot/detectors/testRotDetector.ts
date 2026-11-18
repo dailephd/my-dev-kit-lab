@@ -234,8 +234,19 @@ async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, co
   if (!reExports && facts.exports.some(fact => fact.exportOrigin === "re-export")) {
     throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " lacks authenticated re-export source identities.");
   }
-  for (const specifier of reExports ?? []) {
+  const reExportTargets = reader.reExportTargets?.(filePath);
+  for (const specifier of new Set(reExports ?? [])) {
     if (!specifier.startsWith(".")) continue;
+    const targets = reExportTargets?.filter(fact => fact.sourceSpecifier === specifier) ?? [];
+    if (targets.length > 0 && (facts.language === "typescript" || facts.language === "javascript")) {
+      const proofs = await Promise.all(targets.map(fact => reader.importTarget(fact.id)));
+      if (proofs.every(proof => proof.status === "present")) continue;
+      if (reader.jsTsRelativeImportCandidateProof === "mjs-extensionless-complete-v1" &&
+          proofs.every(proof => proof.status === "proven-missing")) {
+        missing.add(specifier);
+        continue;
+      }
+    }
     const reason = `Re-export ${specifier} lacks qualified export-target proof; a complete import inventory does not establish export-target presence or absence.`;
     if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
     ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");

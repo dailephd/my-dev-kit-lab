@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
-import { QUALIFIED_PUBLISHED_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
+import { QUALIFIED_PUBLISHED_KIT, QUALIFIED_SW123_P6_R2_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error Source-checkout verification is an existing plain ESM owner.
 import { verificationOutputDirectory } from "../../scripts/run-verification-lane.mjs";
@@ -31,17 +31,22 @@ const fixtureRoots: string[] = [...new Set<string>(oracle.decisions.map((d: Deci
 const completed: { decisionId: string; normalizedKitFindings: unknown }[] = [];
 const currentCompleted: { decisionId: string; normalizedKitFindings: unknown }[] = [];
 const currentCoverage: unknown[] = [];
-const p5Root = process.env.LAB_SW123_P5_ROOT;
-const p5Package = process.env.LAB_SW123_P5_PACKAGE_ROOT;
+const p6Root = process.env.LAB_SW123_P6_R3_ROOT;
+const p6Package = process.env.LAB_SW123_P6_R3_PACKAGE_ROOT;
+if (Boolean(p6Root) !== Boolean(p6Package) || (p6Root && (process.env.LAB_SW123_P5_ROOT || process.env.LAB_SW123_P5_PACKAGE_ROOT))) {
+  throw new Error("Select one complete SW123 qualification lane.");
+}
+const p5Root = p6Root ?? process.env.LAB_SW123_P5_ROOT;
+const p5Package = p6Package ?? process.env.LAB_SW123_P5_PACKAGE_ROOT;
 if (Boolean(p5Root) !== Boolean(p5Package)) throw new Error("P5 requires both workspace and installed producer.");
-const p5Expectation: KitCandidateExpectation = {
+const p5Expectation: KitCandidateExpectation = p6Root ? QUALIFIED_SW123_P6_R2_KIT : {
   packageName: "@dailephd/my-dev-kit", packageVersion: "1.15.1", artifactSchemaVersion: "1.1.0",
   extractorRevision: "source-audit-v1.5.1", cliSha256: "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
 };
 const p5Completed: unknown[] = [];
 const p5Authority = p5Root ? path.dirname(path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim())) : root;
 if (p5Root) assertContainedDirectory(p5Root, p5Authority);
-const p5Output = p5Root ? fs.mkdtempSync(path.join(p5Root, "candidate-results/accepted-oracle-")) : undefined;
+const p5Output = p5Root ? fs.mkdtempSync(path.join(p5Root, p6Root ? "qualification/accepted-oracle-" : "candidate-results/accepted-oracle-")) : undefined;
 
 // Identical to the accepted differential normalization: arrays keep their order.
 function normalize(value: unknown, target: string): any {
@@ -140,7 +145,7 @@ describe("Gate5 committed accepted oracle", () => {
   });
 
   it.each(fixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : p5Root ? ["published", "p5-candidate"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
-    const base = provider === "p5-candidate" ? path.join(p5Root!, "integration-target") : os.tmpdir();
+    const base = provider === "p5-candidate" ? path.join(p5Root!, p6Root ? "raw-reader" : "integration-target") : os.tmpdir();
     assertContainedDirectory(base, p5Root ? p5Authority : root);
     const workspace = fs.mkdtempSync(path.join(base, "gate5-oracle-"));
     const target = path.join(workspace, "target");
@@ -154,7 +159,7 @@ describe("Gate5 committed accepted oracle", () => {
       fs.writeFileSync(output, relative.endsWith(".input") ? JSON.parse(bytes.toString("utf8")) : bytes, { flag: "wx" });
     }
     const config = normalizeAuditConfig({ target, types: "code-rot", include: "docs,tests,package,architecture,cli", failOn: "none", out: path.join(workspace, "reports") }, root);
-    const workDir = provider === "p5-candidate" ? fs.mkdtempSync(path.join(p5Root!, "integration-index/oracle-")) : path.join(workspace, "kit");
+    const workDir = provider === "p5-candidate" ? fs.mkdtempSync(path.join(p5Root!, p6Root ? "qualification/oracle-" : "integration-index/oracle-")) : path.join(workspace, "kit");
     const result = await runAudit({ config, toolRoot: root, kitSourceProviderDependencies: {
       installedPackageRoot: provider === "historical" ? candidate : provider === "p5-candidate" ? p5Package : path.join(root, "node_modules/@dailephd/my-dev-kit"),
       expectation: provider === "historical" ? expectation : provider === "p5-candidate" ? p5Expectation : QUALIFIED_PUBLISHED_KIT, workDir,
@@ -178,7 +183,7 @@ describe("Gate5 committed accepted oracle", () => {
         files: artifact.files.map((f: any) => ({ path: f.path, contentSha256: f.contentSha256,
           selectionStatus: f.status === "unsupported" ? "unsupported" : "supported", language: f.language, role: f.role, status: f.status })),
       }));
-      expect(snapshot("source-audit-v1.5.1")).toBe(artifact.source.snapshotId);
+      expect(snapshot(p5Expectation.extractorRevision)).toBe(artifact.source.snapshotId);
       expect(result.sourceFacts.kitEvidence!.snapshotId).toBe(artifact.source.snapshotId);
       identityProjection = { historicalSnapshot: snapshot("source-audit-v1.5.0"), candidateSnapshot: artifact.source.snapshotId };
     }

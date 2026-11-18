@@ -187,6 +187,18 @@ export function validateKitImportProof(raw: unknown, expected: { snapshotId: str
       !["present", "proven-missing", "outside-selected-roots", "indeterminate"].includes(r.status) ||
       typeof r.selectionComplete !== "boolean" || typeof r.reasonCode !== "string" || !Array.isArray(r.candidatePaths)) fail("artifact-invalid", "Import proof does not match the validated fact.");
   for (const p of r.candidatePaths) validateKitRelativePath(p, "import proof candidate");
+  if (expected.fact.kind === "export") {
+    const presentReason = r.candidatePaths.length === 1 ? "TARGET_IN_SELECTED_INVENTORY" : "MULTIPLE_TARGETS_IN_SELECTED_INVENTORY";
+    const evidence = expected.evidence;
+    if (!evidence || r.selectionComplete !== (evidence.coverage.inventoryComplete && evidence.coverage.exclusionsAreExplicit) ||
+        r.declarationProof !== undefined ||
+        (r.status === "present" && (r.reasonCode !== presentReason || !r.candidatePaths.length ||
+          r.candidatePaths.some(candidate => !evidence.inventory.some(file => file.path === candidate)))) ||
+        (r.status === "proven-missing" && (r.reasonCode !== "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION" ||
+          evidence.inventory.some(file => r.candidatePaths.includes(file.path))))) {
+      fail("artifact-invalid", "Re-export target proof contradicts the selected target domain.");
+    }
+  }
   if (r.declarationProof !== undefined) {
     const d = r.declarationProof;
     const keys = ["scope", "targetKind", "targetQualifiedName", "targetPackageName", "domainComplete", "packageWitnessFactIds", "matchingDeclarationFactIds", "matchingSourcePaths", "matchingQualifiedNames", "incompletenessReasons"];

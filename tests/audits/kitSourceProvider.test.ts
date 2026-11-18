@@ -8,6 +8,7 @@ import { kitPredicateContent } from "../../src/audits/codeRot/utils/sourceFactsL
 import {
   QUALIFIED_KIT_CANDIDATE,
   QUALIFIED_PUBLISHED_KIT,
+  QUALIFIED_SW123_P6_R2_KIT,
   collectKitSourceFacts,
   resolveInstalledKitPackage,
   selectKitSourceRoots,
@@ -909,13 +910,18 @@ describe("partial-import deferral never relaxes evidence integrity", () => {
 
 // Opt-in installed artifact qualification. The unpublished subject is never
 // substituted for the production dependency or the default provider identity.
-const p5Root = process.env.LAB_SW123_P5_ROOT;
-const p5Package = process.env.LAB_SW123_P5_PACKAGE_ROOT;
+const p6Root = process.env.LAB_SW123_P6_R3_ROOT;
+const p6Package = process.env.LAB_SW123_P6_R3_PACKAGE_ROOT;
+if (Boolean(p6Root) !== Boolean(p6Package) || (p6Root && (process.env.LAB_SW123_P5_ROOT || process.env.LAB_SW123_P5_PACKAGE_ROOT))) {
+  throw new Error("Select one complete SW123 qualification lane.");
+}
+const p5Root = p6Root ?? process.env.LAB_SW123_P5_ROOT;
+const p5Package = p6Package ?? process.env.LAB_SW123_P5_PACKAGE_ROOT;
 if (p5Root || p5Package) {
   if (!p5Root || !p5Package) throw new Error("P5 requires both its owned workspace and installed package root.");
   const workspace = fs.realpathSync(p5Root);
   const installed = fs.realpathSync(p5Package);
-  const expectation: KitCandidateExpectation = {
+  const expectation: KitCandidateExpectation = p6Root ? QUALIFIED_SW123_P6_R2_KIT : {
     packageName: "@dailephd/my-dev-kit", packageVersion: "1.15.1",
     artifactSchemaVersion: "1.1.0", extractorRevision: "source-audit-v1.5.1",
     cliSha256: "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
@@ -926,15 +932,15 @@ if (p5Root || p5Package) {
     if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Uncontained P5 output.");
     return fs.mkdtempSync(path.join(parent, label + "-"));
   };
-  const evidenceDirectory = ownedDirectory("candidate-results", "native-tests");
+  const evidenceDirectory = ownedDirectory(p6Root ? "qualification" : "candidate-results", "native-tests");
   const save = (label: string, value: unknown) => fs.writeFileSync(path.join(evidenceDirectory, label + ".json"), JSON.stringify(value, null, 2) + "\n", { flag: "wx" });
   const target = (label: string, files: Record<string, string>) => {
-    const root = ownedDirectory("integration-target", label);
+    const root = ownedDirectory(p6Root ? "raw-reader" : "integration-target", label);
     writeFiles(root, { "package.json": JSON.stringify({ name: label, version: "1.0.0", scripts: { test: "vitest run" } }), ...files });
     return root;
   };
   const dependencies = (label: string, mutate?: (args: string[], index: string) => void) => {
-    const workDir = ownedDirectory("integration-index", label), calls: unknown[] = [];
+    const workDir = ownedDirectory(p6Root ? "negative-cases" : "integration-index", label), calls: unknown[] = [];
     const runCommand: KitCommandRunner = async options => {
       const result = await runMeasuredCommand(options);
       const args = [...(options.args ?? [])];
@@ -948,7 +954,91 @@ if (p5Root || p5Package) {
   const config = (root: string, include = "docs,tests,package,architecture,cli", failOn = "none") =>
     normalizeAuditConfig({ target: root, include, failOn, out: path.join(evidenceDirectory, "reports") }, process.cwd());
 
-  describe("SW123 P5 installed candidate", () => {
+  describe(p6Root ? "SW123 P6-R3 installed candidate" : "SW123 P5 installed candidate", () => {
+    if (p6Root) it("qualifies P6-R2 selected unsupported text and static re-export facts through the installed reader", async () => {
+      const root = target("selected-raw-and-reexport", {
+        "src/main.ts": "import './peer.js';\nexport { value as alias } from './peer.js';\nexport const direct = 1;\n",
+        "src/peer.ts": "export const value = 1;\n",
+        "src/cycle.ts": "export { alias } from './main.js';\nexport * from './cycle.js';\nexport * from 'external';\n",
+        "src/raw.xml": "<raw>witness</raw>\n",
+        "src/empty.xml": "",
+        "src/many.xml": "witness ".repeat(201),
+        "src/large.xml": "x".repeat(200001),
+        "src/binary.properties": "abc\0defghij",
+        "src/invalid.xml": "invalid",
+        "scripts/unselected.xml": "witness",
+      });
+      fs.writeFileSync(path.join(root, "src/invalid.xml"), Buffer.from([0xc3, 0x28]));
+      const bridge = dependencies("selected-raw-and-reexport");
+      let reader: import("../../src/audits/core/kitSourceProvider.js").KitSourceReader | undefined;
+      try {
+        const result = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root),
+          requiredCapabilities: ["imports", "exports"], requiredPaths: ["src/main.ts", "src/peer.ts", "src/cycle.ts"],
+          includeScriptsRoot: false, onReader: value => { reader = value; } }, bridge.deps);
+        const r = reader!;
+        expect(result.files.map(file => file.relativePath)).not.toContain("src/raw.xml");
+        expect(r.selectedFile("src/raw.xml")).toMatchObject({ status: "unsupported",
+          capabilities: { imports: "unsupported", exports: "unsupported", declarations: "unsupported" } });
+        const raw = await r.occurrences("src/raw.xml", "witness");
+        expect(raw).toMatchObject({ complete: true, matchCount: 1 });
+        expect(await r.authenticatedContent!("src/raw.xml")).toBe("<raw>witness</raw>\n");
+        await expect(r.authenticatedContent!("src/empty.xml")).rejects.toMatchObject({ category: "capability-insufficient" });
+        expect(await r.occurrences("src/empty.xml", "witness")).toMatchObject({ complete: true, matchCount: 0 });
+        expect(await r.authenticatedContent!("src/empty.xml")).toBe("");
+        expect(await r.occurrences("src/many.xml", "witness")).toMatchObject({ complete: false, truncated: true, matchCount: 201 });
+        for (const file of ["src/large.xml", "src/binary.properties", "src/invalid.xml"]) {
+          expect(() => r.selectedFile(file)).toThrow(/capability-insufficient/);
+        }
+        expect(() => r.occurrences("scripts/unselected.xml", "witness")).toThrow(/selection-incomplete/);
+        expect(() => r.occurrences("../outside.xml", "witness")).toThrow(/path-invalid/);
+        const main = result.files.find(file => file.relativePath === "src/main.ts")!;
+        const imp = await r.importTarget(main.imports[0]!.provenance!.factId);
+        const staticExport = r.reExportTargets!("src/main.ts")[0]!;
+        const proof = await r.importTarget(staticExport.id);
+        expect(proof).toMatchObject({ importFactId: staticExport.id, originFile: "src/main.ts",
+          sourceSpecifier: "./peer.js", status: "present", candidatePaths: ["src/peer.ts"],
+          selectionComplete: true, reasonCode: "TARGET_IN_SELECTED_INVENTORY" });
+        expect(imp).toMatchObject({ status: "present", candidatePaths: ["src/peer.ts"] });
+        const direct = main.exports.find(fact => fact.name === "direct")!;
+        expect(() => r.importTarget(direct.provenance!.factId)).toThrow(/invalid-request/);
+        expect(() => r.importTarget(staticExport.id + "-fabricated")).toThrow(/invalid-request/);
+        const cycle = r.reExportTargets!("src/cycle.ts");
+        const external = cycle.find(fact => fact.sourceSpecifier === "external")!;
+        expect(await r.importTarget(external.id)).toMatchObject({ status: "indeterminate" });
+        const self = cycle.find(fact => fact.sourceSpecifier === "./cycle.js")!;
+        expect(await r.importTarget(self.id)).toMatchObject({ status: "present", candidatePaths: ["src/cycle.ts"] });
+        fs.writeFileSync(path.join(root, "src/raw.xml"), "<raw>changed</raw>\n");
+        await expect(r.occurrences("src/raw.xml", "changed")).rejects.toMatchObject({ category: "stale-evidence" });
+        save("selected-raw-and-reexport", { raw, imp, proof, calls: bridge.calls, workDir: bridge.workDir });
+      } finally { reader?.dispose(); }
+    }, 120000);
+
+    if (p6Root) it("uses immediate re-export proofs in test-rot and rejects a mismatched returned origin", async () => {
+      const root = target("reexport-predicate", {
+        "tests/reexport.test.ts": "export { value } from '../src/peer.js';\nexport * from './gone.js';\n",
+        "src/peer.ts": "export const value = 1;\n",
+      });
+      const run = (bridge: ReturnType<typeof dependencies>) => runAudit({
+        config: config(root, "tests", "medium"), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(detector => detector.id === "test-rot"),
+        kitSourceProviderDependencies: bridge.deps,
+      });
+      const bridge = dependencies("reexport-predicate");
+      const result = await run(bridge);
+      expect(result.issues.map(issue => issue.id)).toEqual(["test-rot:tests/reexport.test.ts:missing-source-import:./gone.js"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.coverage?.some(gap => gap.predicate === "missing-source-import" && gap.status === "UNAVAILABLE")).toBe(false);
+      const corrupt = dependencies("reexport-origin-mismatch");
+      const native = corrupt.deps.runCommand;
+      corrupt.deps.runCommand = async options => {
+        const response = await native(options);
+        if (!response.ok || !options.args?.includes("--audit-import-target")) return response;
+        return { ...response, stdout: JSON.stringify({ ...JSON.parse(response.stdout), originFile: "src/peer.ts" }) };
+      };
+      await expect(run(corrupt)).rejects.toMatchObject({ category: "artifact-invalid" });
+      save("reexport-predicate", { result, calls: bridge.calls, mismatchedCalls: corrupt.calls });
+    }, 120000);
+
     it.each(["complete", "partial"])("qualifies command-only JSON from %s literal evidence without demanding unrelated whole content", async mode => {
       const file = "tests/packet.json";
       const body = JSON.stringify({ before: Array.from({ length: 180 }, (_, i) => `before ${i}`),
@@ -1050,7 +1140,7 @@ if (p5Root || p5Package) {
       save("historical-contract", { evidenceKind: "fresh historical-producer contract regression; not original incident artifact", result, workDir: bridge.workDir, calls: bridge.calls });
     }, 120000);
 
-    it("binds the installed archive identity and exact current Gradle fixture without executable-test obligations", async () => {
+    if (!p6Root) it("binds the installed archive identity and exact current Gradle fixture without executable-test obligations", async () => {
       expect(resolveInstalledKitPackage({ installedPackageRoot: installed, expectation })).toMatchObject({
         packageName: expectation.packageName, packageVersion: "1.15.1", cliSha256: expectation.cliSha256,
       });
