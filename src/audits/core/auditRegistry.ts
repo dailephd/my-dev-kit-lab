@@ -206,7 +206,9 @@ export function resolveApplicableKitRequirements(
   // qualified raw content without requiring semantic imports/declarations.
   if (selected.some(({ id }) => id === "test-rot") && include.includes("tests")) {
     for (const entry of inventory.testFiles) {
-      if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts"))) && entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) selectRawPath(entry.relativePath, "test-rot");
+      if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts")) ||
+          ((entry.role === "generated" || entry.role === "vendor") && languages.has(entry.language))) &&
+          entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) selectRawPath(entry.relativePath, "test-rot");
     }
   }
   // Dead-code's reverse-reference and fixture-basename predicates read every
@@ -218,7 +220,9 @@ export function resolveApplicableKitRequirements(
         (include.includes("package") && inventory.scriptFiles.length > 0) ||
         (include.includes("tests") && hasFixtureInputs))) {
     for (const entry of inventory.testFiles) {
-      if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts"))) && entry.sizeBytes <= DEAD_CODE_MAX_READ_BYTES) selectRawPath(entry.relativePath, "dead-code-candidate");
+      if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts")) ||
+          ((entry.role === "generated" || entry.role === "vendor") && languages.has(entry.language))) &&
+          entry.sizeBytes <= DEAD_CODE_MAX_READ_BYTES) selectRawPath(entry.relativePath, "dead-code-candidate");
     }
     // Reverse-reference predicates also read generated/vendor entries in the existing
     // source category. Request raw evidence without making semantic facts apply.

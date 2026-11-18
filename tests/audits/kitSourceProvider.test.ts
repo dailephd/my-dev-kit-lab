@@ -999,6 +999,127 @@ if (p5Root || p5Package) {
       save("exact-gradle", { fixtureSha256: record.contentSha256, record, artifactSource: artifact.source, result, calls: bridge.calls, workDir: bridge.workDir });
     }, 120000);
 
+    it.each(["\n", "\r\n"])("authenticates contiguous large-file Kit ranges with %j newlines before registry predicates", async newline => {
+      const text = ['const DETECTOR_ID = "shared";', 'export const detector = { id: DETECTOR_ID };',
+        ...Array.from({ length: 300 }, (_, i) => `// padding ${i}`), ''].join(newline);
+      const root = target("whole-context", { "src/detectors/a.ts": text, "src/detectors/b.ts": text });
+      const bridge = dependencies("whole-context");
+      const result = await runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "duplicate-implementation-candidate"),
+        kitSourceProviderDependencies: bridge.deps });
+      const duplicates = result.issues.filter(i => i.id.includes("duplicate-detector-id"));
+      expect(duplicates).toHaveLength(1);
+      expect(duplicates[0]).toMatchObject({ severity: "medium", confidence: "medium" });
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.exitCode).toBe(0);
+      expect((bridge.calls as { args: string[] }[]).some(c => c.args.includes("--start"))).toBe(true);
+      save("whole-context-" + (newline === "\n" ? "lf" : "crlf"), { result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it.each(["\n", "\r\n"])("authenticates bounded large selected JSON occurrence windows (%j)", async newline => {
+      const relative = "tests/fixtures/repeated.json";
+      const json = JSON.stringify({ title: "it ".repeat(200), padding: "x".repeat(38000), command: "npm run vanished" }) + newline;
+      const root = target("json-context", { [relative]: json });
+      const bridge = dependencies("json-context");
+      const result = await runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(result.issues.some(i => i.affectedFiles.includes(relative) && i.title.includes("npm run vanished"))).toBe(true);
+      expect(result.detectorErrors).toEqual([]);
+      const calls = bridge.calls as { args: string[] }[];
+      expect(calls.some(c => c.args.includes(relative) && c.args.includes("--contains"))).toBe(true);
+      save("json-context-" + (newline === "\n" ? "lf" : "crlf"), { result, calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("retains generated/vendor test-fixture raw checks without semantic import obligations", async () => {
+      const root = target("generated-test-inputs", {
+        "tests/fixtures/generated/schema.ts": "// npm run vanished-generated\nexport type Schema = { id: string };\n",
+        "tests/fixtures/vendor/lib.py": "# npm run vanished-vendor\ndef helper():\n    return 1\n",
+      });
+      const bridge = dependencies("generated-test-inputs");
+      const result = await runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(result.issues.map(i => i.title)).toEqual([
+        expect.stringContaining("vanished-generated"), expect.stringContaining("vanished-vendor"),
+      ]);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.coverage!.some(c => c.mandatory)).toBe(false);
+      expect(result.exitCode).toBe(0);
+      save("generated-test-inputs", { result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("bounds concurrent test-file reads and preserves finding and unavailable-predicate order", async () => {
+      const paths = ["tests/a.test.ts", "tests/b.test.ts", "tests/c.test.ts", "tests/d.test.ts"];
+      const root = target("ordered-test-reads", Object.fromEntries(paths.map(file => [file,
+        "const target='./unknown.js'; void import(target); test.only('qualified positive',()=>{});\n"])));
+      const bridge = dependencies("ordered-test-reads");
+      const original = bridge.deps.runCommand;
+      let active = 0, peak = 0;
+      bridge.deps.runCommand = async options => {
+        if (options.args?.[1] !== "source") return original(options);
+        active++; peak = Math.max(peak, active);
+        try { return await original(options); } finally { active--; }
+      };
+      const result = await runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(peak).toBe(4);
+      expect(result.issues.map(i => i.affectedFiles[0])).toEqual(paths);
+      expect(result.coverage!.filter(c => c.mandatory && c.status === "UNAVAILABLE").map(c => c.source.identity)).toEqual(paths);
+      expect(result.exitCode).toBe(2);
+      save("ordered-test-reads", { result, peak, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it.each(["content", "coordinates", "path", "null"])("rejects synthetic whole-context range %s corruption without native fallback", async corruption => {
+      const text = 'const DETECTOR_ID = "shared";\nexport const detector = { id: DETECTOR_ID };\n' + '// padding\n'.repeat(300);
+      const root = target("invalid-context", { "src/detectors/a.ts": text });
+      const bridge = dependencies("invalid-context");
+      let changed = false;
+      const original = bridge.deps.runCommand;
+      const runCommand: KitCommandRunner = async options => {
+        const result = await original(options);
+        if (options.args?.includes("--start") && result.ok) {
+          if (corruption === "null") { changed = true; return { ...result, stdout: "null" }; }
+          const raw = JSON.parse(result.stdout);
+          if (corruption === "content") raw.content = raw.content.replace("shared", "forged");
+          if (corruption === "coordinates") raw.startLine++;
+          if (corruption === "path") raw.filePath = "src/other.ts";
+          changed = true;
+          return { ...result, stdout: JSON.stringify(raw) };
+        }
+        return result;
+      };
+      await expect(runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "duplicate-implementation-candidate"),
+        kitSourceProviderDependencies: { ...bridge.deps, runCommand } })).rejects.toMatchObject({
+          category: corruption === "content" ? "stale-evidence" : "artifact-invalid",
+        });
+      expect(changed).toBe(true);
+      save("invalid-context-" + corruption, { syntheticCorruption: corruption, calls: bridge.calls });
+    }, 120000);
+
+    it("keeps a corrupt concurrently requested import proof fatal", async () => {
+      const root = target("invalid-parallel-proof", {
+        "src/a.ts": "import './target.js';\n",
+        "src/b.ts": "import './target.js';\n",
+        "src/target.ts": "export const target = 1;\n",
+      });
+      const bridge = dependencies("invalid-parallel-proof");
+      const original = bridge.deps.runCommand;
+      let corrupted = false;
+      const runCommand: KitCommandRunner = async options => {
+        const result = await original(options);
+        if (options.args?.includes("--audit-import-target") && result.ok) {
+          corrupted = true;
+          return { ...result, stdout: JSON.stringify({ ...JSON.parse(result.stdout), snapshotId: "0".repeat(64) }) };
+        }
+        return result;
+      };
+      await expect(runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "dead-code-candidate"),
+        kitSourceProviderDependencies: { ...bridge.deps, runCommand } })).rejects.toMatchObject({ category: "snapshot-mismatch" });
+      expect(corrupted).toBe(true);
+      save("invalid-parallel-proof", { syntheticProofCorruption: "snapshot", calls: bridge.calls });
+    }, 120000);
+
     it("retains mixed-capability positives, independent findings and separate mandatory gaps deterministically", async () => {
       const root = target("mixed", {
         "src/NoImports.kts": 'class ScriptPresent {}\nprintln("statement")\n',
@@ -1015,15 +1136,24 @@ if (p5Root || p5Package) {
         "src/candidate.ts": 'export const candidate = 1;\n',
         "src/old/retired.ts": '// independent deprecated candidate\n',
         "src/orphan.generated.ts": '// independent generated candidate\n',
-        "tests/real.test.ts": "import '../src/candidate.js';\ntest.only('independent finding',()=>{});\n",
+        "tests/real.test.ts": "import '../src/candidate.js';\nimport '../src/plain.js';\ntest.only('independent finding',()=>{});\n",
         "tests/fixtures/config.gradle.kts": '// npm run vanished\nandroid { buildTypes { release { isDebuggable = false } } }\n',
         "README.md": 'Security validation is implemented.\nUse `com.example.Present`, `ScriptPresent`, `com.example.Missing`, and `com.example.Other`.\n',
       });
       const registry = DEFAULT_AUDIT_REGISTRY.filter(d => ["docs-code-mismatch", "test-rot", "dead-code-candidate"].includes(d.id));
       const firstBridge = dependencies("mixed-first"), secondBridge = dependencies("mixed-second");
+      let activeProofs = 0, peakProofs = 0;
+      const measured = firstBridge.deps.runCommand;
+      firstBridge.deps.runCommand = async options => {
+        if (!options.args?.includes("--audit-import-target")) return measured(options);
+        activeProofs++; peakProofs = Math.max(peakProofs, activeProofs);
+        try { return await measured(options); } finally { activeProofs--; }
+      };
       const first = await runAudit({ config: config(root), toolRoot: root, registry, kitSourceProviderDependencies: firstBridge.deps });
       const second = await runAudit({ config: config(root), toolRoot: root, registry, kitSourceProviderDependencies: secondBridge.deps });
       save("mixed-observed", { first, second, workDirs: [firstBridge.workDir, secondBridge.workDir], calls: [firstBridge.calls, secondBridge.calls] });
+      expect(peakProofs).toBeGreaterThan(1);
+      expect(peakProofs).toBeLessThanOrEqual(4);
       const byPath = new Map(first.sourceFacts.files.map(f => [f.relativePath, f]));
       for (const file of ["src/NoImports.kts", "src/Explicit.kts"]) {
         expect(byPath.get(file)!.kit!.capabilities).toMatchObject({ declarations: "partial", imports: "complete" });

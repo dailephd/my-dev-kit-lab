@@ -67,16 +67,17 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
     // treatment as pythonMetadata above.
     const jvmMetadata = collectJvmProjectMetadata(ctx.target.rootPath, ctx.inventory);
 
-    for (const testFile of ctx.inventory.testFiles) {
+    const inspectTest = async (testFile: AuditDetectorContext["inventory"]["testFiles"][number], ctx: AuditDetectorContext): Promise<AuditIssue[]> => {
+      const issues: AuditIssue[] = [];
       // Preserve Lab's bounded lexical-policy scope; no occurrence query applies.
-      if (testFile.sizeBytes > MAX_READ_BYTES) continue;
-      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
+      if (testFile.sizeBytes > MAX_READ_BYTES) return issues;
+      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) return issues;
       if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required test ${testFile.relativePath} is unselected.`);
       const unsupportedRaw = ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial")
         ? ctx.kitSourceReader?.unsupportedRawContentReason?.(testFile.relativePath) : undefined;
       if (unsupportedRaw && ctx.reportUnavailable) {
         ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, unsupportedRaw, "raw-content");
-        continue;
+        return issues;
       }
       let content: string;
       try {
@@ -85,16 +86,16 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         if (ctx.sourceFacts?.files.some(f => f.kit?.capabilities.imports === "partial") && ctx.reportUnavailable &&
             error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
           ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, error.message, "raw-content");
-          continue;
+          return issues;
         }
         throw error;
       }
-      if (content === null) continue;
-      if (testFile.role === "config") {
-        // Configuration fixtures retain raw command checks without acquiring
+      if (content === null) return issues;
+      if (testFile.role === "config" || testFile.role === "generated" || testFile.role === "vendor") {
+        // Non-semantic inputs retain raw command checks without acquiring
         // executable test/import/title obligations from their directory.
         issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
-        continue;
+        return issues;
       }
 
       // tests/audits/codeRot/ is this project's own audit-detector test
@@ -109,7 +110,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // below). This whole subdirectory is therefore excluded from this
       // detector's per-file checks -- a project without an audit-detector
       // test suite of its own would never hit this exclusion.
-      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
+      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) return issues;
 
       const observed = sourceFactsIndex.get(testFile.relativePath);
       const partialImports = observed?.kit?.capabilities.imports === "partial";
@@ -161,8 +162,27 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       issues.push(...findSkipUsage(testFile.relativePath, content));
       issues.push(...findOnlyUsage(testFile.relativePath, content));
       if (currentVersion) issues.push(...findStaleVersionMentions(testFile.relativePath, content, currentVersion));
-    }
+      return issues;
+    };
 
+    // Bound native Kit processes while committing findings and coverage in
+    // inventory order, independently of asynchronous completion order.
+    for (let offset = 0; offset < ctx.inventory.testFiles.length; offset += 4) {
+      const jobs = ctx.inventory.testFiles.slice(offset, offset + 4).map(testFile => {
+        const events: (() => void)[] = [];
+        const perFile: AuditDetectorContext = { ...ctx,
+          reportUnavailable: ctx.reportUnavailable ? (...args) => { events.push(() => ctx.reportUnavailable!(...args)); } : undefined,
+          reportCoverage: ctx.reportCoverage ? coverage => { events.push(() => ctx.reportCoverage!(coverage)); } : undefined,
+        };
+        return { events, run: () => inspectTest(testFile, perFile) };
+      });
+      const outcomes = await Promise.allSettled(jobs.map(job => job.run()));
+      for (const [index, outcome] of outcomes.entries()) {
+        if (outcome.status === "rejected") throw outcome.reason;
+        for (const event of jobs[index]!.events) event();
+        issues.push(...outcome.value);
+      }
+    }
     if (ctx.config.include.includes("package") && ctx.sourceOfTruth.package) {
       issues.push(...findScriptsReferencingMissingTestPaths(ctx));
     }

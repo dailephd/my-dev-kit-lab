@@ -74,25 +74,39 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
         .filter(f => (f.role === "source" || f.role === "test") &&
           ["typescript", "javascript", "python", "java", "kotlin", "rust"].includes(f.language))
         .map(f => [f.relativePath, f])).values()];
+      const checks: { filePath: string; run: () => Promise<string | undefined> }[] = [];
       for (const entry of participants) {
         const file = ctx.sourceFacts.files.find(f => f.relativePath === entry.relativePath);
         if (!file) throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required reverse-reference source ${entry.relativePath} is unselected.`);
         if (qualifyKitImportPredicate(file) !== "QUALIFIED_NEGATIVE") {
-          unavailable(entry.relativePath, "Reverse-reference absence requires complete authenticated imports across the selected source domain.");
+          checks.push({ filePath: entry.relativePath, run: async () => "Reverse-reference absence requires complete authenticated imports across the selected source domain." });
           continue;
         }
         for (const imp of file.imports) {
           if (!(imp.source.startsWith(".") || ((file.language === "java" || file.language === "kotlin") && jvmImportLooksPossiblyLocal(imp)))) continue;
-          if (!imp.provenance?.factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", `Import in ${entry.relativePath} lacks fact identity.`);
-          try {
-            const proof = await ctx.kitSourceReader!.importTarget(imp.provenance.factId);
-            if (proof.status === "indeterminate" || proof.status === "outside-selected-roots") {
-              unavailable(entry.relativePath, `Import ${imp.source} remains ${proof.status} (${proof.reasonCode}); it may reference a candidate.`);
+          const factId = imp.provenance?.factId;
+          if (!factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", `Import in ${entry.relativePath} lacks fact identity.`);
+          checks.push({ filePath: entry.relativePath, run: async () => {
+            try {
+              const proof = await ctx.kitSourceReader!.importTarget(factId);
+              if (proof.status === "indeterminate" || proof.status === "outside-selected-roots") {
+                return `Import ${imp.source} remains ${proof.status} (${proof.reasonCode}); it may reference a candidate.`;
+              }
+            } catch (error) {
+              if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
+              return `Import ${imp.source}: ${error.message}`;
             }
-          } catch (error) {
-            if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
-            unavailable(entry.relativePath, `Import ${imp.source}: ${error.message}`);
-          }
+          } });
+        }
+      }
+      // Match acquisition's bounded concurrency. Fold settled outcomes in the
+      // original file/fact order. No proof is skipped; invalid evidence is fatal.
+      for (let offset = 0; offset < checks.length; offset += 4) {
+        const batch = checks.slice(offset, offset + 4);
+        const outcomes = await Promise.allSettled(batch.map(check => check.run()));
+        for (const [index, outcome] of outcomes.entries()) {
+          if (outcome.status === "rejected") throw outcome.reason;
+          if (outcome.value !== undefined) unavailable(batch[index]!.filePath, outcome.value);
         }
       }
     }

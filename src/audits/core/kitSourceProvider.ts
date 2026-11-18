@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { runMeasuredCommand, type MeasuredCommandResult, type RunMeasuredCommandOptions } from "../../core/runMeasuredCommand.js";
 import { adaptKitEvidenceToSourceFacts } from "./kitSourceAdapter.js";
@@ -252,7 +253,7 @@ export function resolveInstalledKitPackage(
 // Command execution
 // ---------------------------------------------------------------------------
 
-type KitCommandKind = "index" | "lookup-audit-files" | "lookup-audit-file" | "source-occurrence" | "import-target";
+type KitCommandKind = "index" | "lookup-audit-files" | "lookup-audit-file" | "source-occurrence" | "source-range" | "import-target";
 
 type KitCommandContext = {
   pkg: InstalledKitPackage;
@@ -279,7 +280,7 @@ function classifyStderrCode(stderr: string): KitEvidenceFailureCategory | undefi
   }
 }
 
-async function runKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitArgs: string[]): Promise<unknown> {
+async function runKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitArgs: string[], stdoutMaxBytes = KIT_STDOUT_MAX_BYTES): Promise<unknown> {
   const commandId = `kit-${String(ctx.sequence.next++).padStart(6, "0")}-${kind}`;
   let result: MeasuredCommandResult;
   try { result = await ctx.runCommand({
@@ -290,7 +291,7 @@ async function runKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitArgs:
     outDir: ctx.logDir,
     resolveCommand: false,
     timeoutMs: kind === "index" ? KIT_INDEX_TIMEOUT_MS : KIT_LOOKUP_TIMEOUT_MS,
-    stdoutMaxBytes: KIT_STDOUT_MAX_BYTES,
+    stdoutMaxBytes,
     stderrMaxBytes: KIT_STDERR_MAX_BYTES,
     terminateProcessTree: true,
   }); } catch (error) {
@@ -531,6 +532,9 @@ export type KitSourceReader = {
   selectedFile: (filePath: string) => KitFileRecord;
   unsupportedRawContentReason?: (filePath: string) => string | undefined;
   occurrences: (filePath: string, value: string) => Promise<KitOccurrence>;
+  // Private exact-producer profile: contiguous Kit ranges, authenticated
+  // against the selected record's byte hash before any whole-text predicate.
+  authenticatedContent?: (filePath: string) => Promise<string>;
   importTarget: (factId: string) => Promise<KitImportProof>;
   dispose: () => void;
 };
@@ -581,6 +585,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   testFiles: ProjectInventorySnapshot["testFiles"], rawSourceFiles: ProjectInventorySnapshot["sourceFiles"]): KitSourceReader {
   const cache = new Map<string, Promise<KitOccurrence>>();
   const proofs = new Map<string, Promise<KitImportProof>>();
+  const contents = new Map<string, Promise<string>>();
   const indexDir = path.join(ctx.workDir, "index");
   const jsonRawLiteralContent = JSON_RAW_CONTENT_PROFILES[ctx.pkg.cliSha256];
   const selectedFile = (filePath: string): KitFileRecord => {
@@ -608,6 +613,51 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     jsTsRelativeImportCandidateProof: IMPORT_PROOF_PROFILES[ctx.pkg.cliSha256],
     jsonRawLiteralContent,
     selectedFile,
+    authenticatedContent: ctx.pkg.cliSha256 === "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb" ? (filePath) => {
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      const file = selectedFile(filePath);
+      if (!file.contentSha256 || file.lineCount === null || file.sizeBytes > 200000 || !SOURCE_LANGUAGES.has(file.language)) {
+        fail("capability-insufficient", `${filePath} lacks bounded hash-identified whole-content evidence.`);
+      }
+      if (!contents.has(filePath)) contents.set(filePath, (async () => {
+        const parts: string[] = [];
+        for (let start = 1; start <= file.lineCount!; start += 160) {
+          const end = Math.min(start + 159, file.lineCount!);
+          const raw = await runKitJson(ctx, "source-range", ["source", "--index", indexDir,
+            "--file", filePath, "--start", String(start), "--end", String(end), "--max-lines", "160", "--json"]);
+          const r = raw as { status?: unknown; mode?: unknown; filePath?: unknown; indexDir?: unknown;
+            absolutePath?: unknown; startLine?: unknown; endLine?: unknown; lineCount?: unknown; content?: unknown;
+            continuationCursor?: { eof?: unknown } };
+          // The pinned generic range renderer omits one terminal empty line.
+          // Any other missing range, wrong identity or inconsistent coordinates
+          // is invalid evidence, not a coverage warning.
+          if (!r || typeof r !== "object" || Array.isArray(r) || r.status !== "ok" || r.mode !== "line-range" || r.filePath !== filePath ||
+              typeof r.indexDir !== "string" || path.resolve(r.indexDir) !== path.resolve(indexDir) ||
+              typeof r.absolutePath !== "string" || path.resolve(r.absolutePath) !== path.resolve(evidence.source.projectRoot, filePath) ||
+              r.startLine !== start || typeof r.endLine !== "number" ||
+              !(r.endLine === end || (end === file.lineCount && r.endLine === end - 1 && r.continuationCursor?.eof === true)) ||
+              r.endLine < start || r.lineCount !== r.endLine - start + 1 || typeof r.content !== "string" ||
+              r.content.includes("\r") || r.content.split("\n").length !== r.lineCount ||
+              Buffer.byteLength(r.content, "utf8") > file.sizeBytes) {
+            fail("artifact-invalid", `${filePath} has inconsistent authenticated source-range coordinates or identity.`);
+          }
+          parts.push(r.content);
+          if (r.endLine === file.lineCount! - 1 && r.continuationCursor?.eof === true) break;
+        }
+        const normalized = parts.join("\n");
+        // Kit renders ranges with LF and omits the terminal newline. Only an
+        // exact original-byte digest match admits either supported encoding.
+        for (const newline of ["\n", "\r\n"]) {
+          const text = normalized.replace(/\n/g, newline);
+          for (const candidate of [text, text + newline]) {
+            if (Buffer.byteLength(candidate, "utf8") === file.sizeBytes &&
+                createHash("sha256").update(candidate, "utf8").digest("hex") === file.contentSha256) return candidate;
+          }
+        }
+        fail("stale-evidence", `${filePath} source ranges do not reproduce the authenticated file bytes.`);
+      })());
+      return contents.get(filePath)!;
+    } : undefined,
     unsupportedRawContentReason(filePath) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       validateKitRelativePath(filePath, "raw coverage file");
@@ -627,8 +677,14 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       const file = selectedFile(filePath);
       if (!value || value.length > 4096 || /[\r\n]/.test(value)) fail("invalid-request", "An occurrence literal must be nonempty, bounded and single-line.");
       const key = JSON.stringify([evidence.snapshotId, filePath, value]);
+      // The exact candidate returns up to 200 windows, each repeating a
+      // single-line JSON document. Budget for JSON escaping (at most 6x),
+      // while retaining a finite bound and fatal rejection of truncation.
+      const outputBudget = ctx.pkg.cliSha256 === "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb" &&
+        filePath.endsWith(".json") && file.sizeBytes <= 200000
+        ? Math.max(KIT_STDOUT_MAX_BYTES, file.sizeBytes * 200 * 6 + 131072) : KIT_STDOUT_MAX_BYTES;
       if (!cache.has(key)) cache.set(key, runKitJson(ctx, "source-occurrence", ["source", "--index", indexDir,
-        "--file", filePath, "--contains", value, "--context", "40", "--json"])
+        "--file", filePath, "--contains", value, "--context", "40", "--json"], outputBudget)
         .then((raw) => {
           if ((raw as { schemaVersion?: unknown })?.schemaVersion !== evidence.artifactSchemaVersion) fail("schema-mismatch", "Occurrence schema differs from the validated artifact.");
           return validateKitOccurrence(raw, { snapshotId: evidence.snapshotId, file, value });
@@ -679,7 +735,7 @@ export function selectKitSourceRoots(
   const unresolvedPaths: string[] = [];
   const required = [...new Set(requiredPaths)].sort();
   const rawTests = new Set(inventory.testFiles.map((entry) => entry.relativePath));
-  const rawSources = new Set(inventory.sourceFiles.filter((entry) => (entry.role === "generated" || entry.role === "vendor") &&
+  const rawSources = new Set(inventory.files.filter((entry) => (entry.role === "generated" || entry.role === "vendor") &&
     SOURCE_LANGUAGES.has(entry.language) && rawSourcePaths.includes(entry.relativePath)).map((entry) => entry.relativePath));
   for (const filePath of required) {
     validateKitRelativePath(filePath, "required Lab path");
@@ -748,7 +804,7 @@ export async function collectKitSourceFacts(
   }
   // Only an explicit raw-only capability request can admit a generated/vendor source
   // category entry. Ordinary/default semantic collection still excludes it.
-  const rawSourceFiles = request.inventory.sourceFiles.filter((entry) => (entry.role === "generated" || entry.role === "vendor") &&
+  const rawSourceFiles = request.inventory.files.filter((entry) => (entry.role === "generated" || entry.role === "vendor") &&
     SOURCE_LANGUAGES.has(entry.language) && requiredSet.has(entry.relativePath) &&
     request.capabilitiesForPath?.(entry.relativePath).length === 0);
   const rawConfigFiles = request.inventory.files.filter(entry => entry.role === "config" && entry.relativePath.endsWith(".gradle.kts") &&

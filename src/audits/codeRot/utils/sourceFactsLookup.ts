@@ -1,6 +1,7 @@
 import type { SourceFactsSnapshot, SourceFileFacts } from "../../core/sourceFacts.js";
 import { baseNameNoExt } from "./filePatternUtils.js";
 import type { KitSourceReader } from "../../core/kitSourceProvider.js";
+import { createHash } from "node:crypto";
 import { KitSourceEvidenceAcquisitionError, qualifyKitImportPredicate, type KitOccurrence } from "../../core/kitSourceEvidence.js";
 
 export function requireCompleteKitOccurrence(result: KitOccurrence): KitOccurrence {
@@ -10,18 +11,31 @@ export function requireCompleteKitOccurrence(result: KitOccurrence): KitOccurren
 }
 
 // A conservative bridge for the existing whole-content regex predicates.
-// No windows are stitched: a nonzero anchor needs one authenticated window
-// covering the whole file. Otherwise the existing unbounded regex/150-char
-// neighborhood cannot be reproduced safely from the bounded interface.
+// A nonzero anchor needs whole-file text. The separately qualified range
+// reader verifies original bytes; occurrence windows are never enlarged.
 export async function kitPredicateContent(reader: KitSourceReader | undefined, filePath: string, anchors: readonly string[], byteNeighborhood = false): Promise<string> {
   if (!reader) throw new KitSourceEvidenceAcquisitionError("invalid-request", `${filePath} requires its validated Kit source reader.`);
   const file = reader.selectedFile(filePath);
   for (const anchor of anchors) {
     const result = requireCompleteKitOccurrence(await reader.occurrences(filePath, anchor));
     if (!result.matchCount) continue;
+    // Qualified selected JSON may have no semantic line count. Whole-byte
+    // identity establishes raw context without creating semantic capabilities.
+    if (filePath.endsWith(".json") && reader.authenticatedContent && file.contentSha256) {
+      let wholeByteLength = false;
+      for (const match of result.matches) {
+        for (const text of [match.content, match.content + "\n", match.content.replace(/\n/g, "\r\n"), match.content.replace(/\n/g, "\r\n") + "\r\n"]) {
+          if (Buffer.byteLength(text, "utf8") !== file.sizeBytes) continue;
+          wholeByteLength = true;
+          if (createHash("sha256").update(text, "utf8").digest("hex") === file.contentSha256) return text;
+        }
+      }
+      if (wholeByteLength) throw new KitSourceEvidenceAcquisitionError("stale-evidence", `${filePath} JSON windows differ from authenticated file bytes.`);
+    }
     const whole = result.matches.find((match) => match.windowStart === 1 && file.lineCount !== null &&
       (match.windowEnd === file.lineCount || (match.windowEnd === file.lineCount - 1 && match.windowEnd < match.line + 40)) &&
       (!byteNeighborhood || Buffer.byteLength(match.content, "utf8") === file.sizeBytes || Buffer.byteLength(match.content, "utf8") + 1 === file.sizeBytes));
+    if (!whole && reader.authenticatedContent) return reader.authenticatedContent(filePath);
     if (!whole) throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
       `${filePath} has insufficient contiguous source context for the original predicate (including newline identity).`);
     return whole.content;
