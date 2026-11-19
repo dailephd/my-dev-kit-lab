@@ -161,16 +161,22 @@ describe("TEST_ROT_DETECTOR — missing source imports", () => {
     } finally { cleanup(root); }
   }, 120000);
 
-  it("records unsupported raw coverage independently of unrelated partial imports", async () => {
+  it("records unsupported binary command coverage without reading the input as text", async () => {
     const root = makeTempDir();
     try {
-      writeFile(root, "tests/input.xml", "<input/>\n");
+      writeFile(root, "tests/fixtures/input.properties", "npm run x\0\n");
       const ctx = buildContext(root);
       const gaps: string[] = [];
       ctx.reportUnavailable = (_id, predicate) => { gaps.push(predicate); };
-      ctx.kitSourceReader = { unsupportedRawContentReason: () => "authenticated inventory lacks raw content" } as unknown as AuditDetectorContext["kitSourceReader"];
+      ctx.kitSourceReader = {
+        unsupportedRawContentReason: () => "authenticated inventory lacks raw content",
+        occurrences: async () => { throw new Error("Binary text lookup"); },
+        authenticatedContent: async () => { throw new Error("Binary text read"); },
+      } as unknown as AuditDetectorContext["kitSourceReader"];
       expect(await TEST_ROT_DETECTOR.run(ctx)).toEqual([]);
       expect(gaps).toEqual(["bounded-content predicates"]);
+      ctx.reportUnavailable = undefined;
+      await expect(TEST_ROT_DETECTOR.run(ctx)).rejects.toThrow("authenticated inventory lacks raw content");
     } finally { cleanup(root); }
   });
 

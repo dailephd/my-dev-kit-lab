@@ -105,7 +105,8 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         actualStatus: observed?.kit?.capabilities.imports ?? "unavailable", status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
         reason: "Configuration, report, or data/production-source fixture has no executable-test import predicate; raw command checks remain selected." });
       const unsupportedRaw = ctx.kitSourceReader?.unsupportedRawContentReason?.(testFile.relativePath);
-      if (unsupportedRaw && ctx.reportUnavailable) {
+      if (unsupportedRaw) {
+        if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
         ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, unsupportedRaw, "raw-content");
         return issues;
       }

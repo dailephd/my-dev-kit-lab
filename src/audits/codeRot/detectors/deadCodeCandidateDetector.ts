@@ -33,6 +33,12 @@ const ORPHAN_GENERATED_PATTERN = /\.generated\.|\.bak$|\.orig$/;
 const IMPORT_SPECIFIER_PATTERN = /(?:from|require\()\s*["']([^"']+)["']/g;
 const PLANNED_LABEL_PATTERN = /\b(planned|future|roadmap|not implemented|not yet implemented|coming soon)\b/i;
 const SETUP_FILE_PATTERN = /setup[tT]ests?|vitest\.setup|test-setup/i;
+const PYTHON_DECLARATION_PREDICATE = "possibly-unreferenced-python-declaration";
+const JVM_DECLARATION_PREDICATE = "possibly-unreferenced-jvm-declaration";
+
+function isJvmLanguage(language: string): boolean {
+  return language === "java" || language === "kotlin";
+}
 
 export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
   id: DETECTOR_ID,
@@ -52,10 +58,9 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     const issues: AuditIssue[] = [];
     const pkg = ctx.sourceOfTruth.package;
     const docsConcat = concatDocsContent(ctx);
-    // Reverse-reference absence requires a complete project import domain.
-    // One unresolved import may target any candidate, including another language.
-    let referencesAvailable = true;
-    const predicates: string[] = [];
+    const filePredicates = new Map<string, readonly InventoryFileEntry[]>();
+    const declarationPredicates: string[] = [];
+    const unavailablePredicates = new Set<string>();
     const positiveReferences = collectRelativeImportBasenames(ctx.sourceFacts);
     for (const file of ctx.sourceFacts?.files ?? []) {
       if (!file.exports.some(fact => fact.exportOrigin === "re-export")) continue;
@@ -64,7 +69,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       }
     }
     const registerFilePredicate = (predicate: string, candidates: readonly InventoryFileEntry[]) => {
-      if (candidates.length) predicates.push(predicate);
+      if (candidates.length) filePredicates.set(predicate, candidates);
       else ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate,
         source: { kind: "domain", identity: "eligible selected file candidates" }, capability: "imports",
         actualStatus: "not-required", status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
@@ -75,9 +80,10 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     }
     if (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture")) {
       if (ctx.inventory.sourceFiles.length) registerFilePredicate("unreferenced-source-file", unreferencedSourceCandidates(ctx, pkg, docsConcat, positiveReferences));
-      if (ctx.inventory.sourceFiles.some(f => f.language === "python")) predicates.push("possibly-unreferenced-python-declaration");
-      if (ctx.inventory.sourceFiles.some(f => f.language === "java" || f.language === "kotlin")) predicates.push("possibly-unreferenced-jvm-declaration");
+      if (ctx.inventory.sourceFiles.some(f => f.language === "python")) declarationPredicates.push(PYTHON_DECLARATION_PREDICATE);
+      if (ctx.inventory.sourceFiles.some(f => isJvmLanguage(f.language))) declarationPredicates.push(JVM_DECLARATION_PREDICATE);
     }
+    const predicates = [...filePredicates.keys(), ...declarationPredicates];
     if (predicates.length === 0) {
       // No semantic import inventory is consumed when every absence family
       // has no remaining candidate. Raw fixture checks retain their own proof.
@@ -91,10 +97,12 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
         }
       }
     }
-    const unavailable = (filePath: string, reason: string) => {
-      referencesAvailable = false;
+    const unavailable = (filePath: string, reason: string, affectedPredicates: readonly string[]) => {
       if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
-      for (const predicate of predicates) ctx.reportUnavailable(DETECTOR_ID, predicate, filePath, reason);
+      for (const predicate of affectedPredicates) {
+        unavailablePredicates.add(predicate);
+        ctx.reportUnavailable(DETECTOR_ID, predicate, filePath, reason);
+      }
     };
     if (predicates.length && ctx.sourceFacts?.provider === "kit") {
       // The entire selected reference domain matters, not just candidate files
@@ -103,19 +111,42 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
         .filter(f => (f.role === "source" || f.role === "test") &&
           ["typescript", "javascript", "python", "java", "kotlin", "rust"].includes(f.language))
         .map(f => [f.relativePath, f])).values()];
-      const checks: { filePath: string; run: () => Promise<string | undefined> }[] = [];
+      const checks: { filePath: string; predicates: readonly string[]; run: () => Promise<string | undefined> }[] = [];
+      const sourceFacts = indexSourceFactsByPath(ctx.sourceFacts);
       for (const entry of participants) {
-        const file = ctx.sourceFacts.files.find(f => f.relativePath === entry.relativePath);
+        const file = sourceFacts.get(entry.relativePath);
         if (!file) throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required reverse-reference source ${entry.relativePath} is unselected.`);
+        const jvm = isJvmLanguage(file.language);
+        const affected = predicates.filter(predicate => {
+          // Declaration heuristics use imported names from their own language domain.
+          if (predicate === PYTHON_DECLARATION_PREDICATE) return file.language === "python";
+          if (predicate === JVM_DECLARATION_PREDICATE) return jvm;
+          // JVM imports can bind to Java/Kotlin declarations. Textual
+          // from/require matches are checked separately for file predicates.
+          return !jvm || filePredicates.get(predicate)!.some(candidate => isJvmLanguage(candidate.language));
+        });
+        const reportDisjoint = (subject: string) => {
+          for (const predicate of predicates) {
+            if (affected.includes(predicate)) continue;
+            ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate,
+              source: { kind: "file", identity: entry.relativePath }, capability: "imports",
+              actualStatus: file.kit?.capabilities.imports ?? "unavailable", status: "NOT_APPLICABLE", mandatory: false,
+              diagnostic: "", reason: `${subject} cannot contribute an imported name or binding to this predicate's selected language domain.` });
+          }
+        };
         if (qualifyKitImportPredicate(file) !== "QUALIFIED_NEGATIVE") {
-          checks.push({ filePath: entry.relativePath, run: async () => "Reverse-reference absence requires complete authenticated imports across the selected source domain." });
+          reportDisjoint(`The ${file.language} import inventory`);
+          if (affected.length) checks.push({ filePath: entry.relativePath, predicates: affected,
+            run: async () => "Reverse-reference absence requires complete authenticated imports across the selected source domain." });
           continue;
         }
         for (const imp of file.imports) {
-          if (!(imp.source.startsWith(".") || ((file.language === "java" || file.language === "kotlin") && jvmImportLooksPossiblyLocal(imp)))) continue;
+          if (!(imp.source.startsWith(".") || (jvm && jvmImportLooksPossiblyLocal(imp)))) continue;
           const factId = imp.provenance?.factId;
           if (!factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", `Import in ${entry.relativePath} lacks fact identity.`);
-          checks.push({ filePath: entry.relativePath, run: async () => {
+          if (jvm) reportDisjoint(`JVM import ${imp.source}`);
+          if (!affected.length) continue;
+          checks.push({ filePath: entry.relativePath, predicates: affected, run: async () => {
             try {
               const proof = await ctx.kitSourceReader!.importTarget(factId);
               if (proof.status === "indeterminate" || proof.status === "outside-selected-roots") {
@@ -135,28 +166,32 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
         const outcomes = await Promise.allSettled(batch.map(check => check.run()));
         for (const [index, outcome] of outcomes.entries()) {
           if (outcome.status === "rejected") throw outcome.reason;
-          if (outcome.value !== undefined) unavailable(batch[index]!.filePath, outcome.value);
+          const check = batch[index]!;
+          if (outcome.value !== undefined) unavailable(check.filePath, outcome.value, check.predicates);
         }
       }
     }
 
     let references = new Set(positiveReferences);
-    if (referencesAvailable && predicates.length) {
+    const availableFilePredicates = [...filePredicates.keys()].filter(predicate => !unavailablePredicates.has(predicate));
+    if (availableFilePredicates.length) {
       try { references = await buildReverseReferenceIndex(ctx); }
       catch (error) {
         if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient" || !ctx.reportCoverage) throw error;
-        referencesAvailable = false;
-        for (const predicate of predicates) ctx.reportCoverage({ detectorId: DETECTOR_ID, predicate,
-          source: { kind: "domain", identity: "selected project reverse-reference sources" }, capability: "raw-content",
-          actualStatus: "unavailable", status: "UNAVAILABLE", mandatory: true, diagnostic: "", reason: error.message });
+        for (const predicate of availableFilePredicates) {
+          unavailablePredicates.add(predicate);
+          ctx.reportCoverage({ detectorId: DETECTOR_ID, predicate,
+            source: { kind: "domain", identity: "selected project reverse-reference sources" }, capability: "raw-content",
+            actualStatus: "unavailable", status: "UNAVAILABLE", mandatory: true, diagnostic: "", reason: error.message });
+        }
       }
     }
 
-    if (referencesAvailable && ctx.config.include.includes("package") && pkg) {
+    if (filePredicates.has("unreferenced-script-file") && !unavailablePredicates.has("unreferenced-script-file") && pkg) {
       issues.push(...(await findUnreferencedScriptFiles(ctx, pkg, references)));
     }
 
-    if (referencesAvailable && (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture"))) {
+    if (filePredicates.has("unreferenced-source-file") && !unavailablePredicates.has("unreferenced-source-file")) {
       issues.push(...(await findUnreferencedSourceFiles(ctx, pkg, docsConcat, references)));
     }
 
@@ -167,8 +202,10 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       issues.push(...(await findUnreferencedFixtures(ctx)));
     }
 
-    if (referencesAvailable && (ctx.config.include.includes("cli") || ctx.config.include.includes("architecture"))) {
+    if (declarationPredicates.includes(PYTHON_DECLARATION_PREDICATE) && !unavailablePredicates.has(PYTHON_DECLARATION_PREDICATE)) {
       issues.push(...findPossiblyUnreferencedPythonDeclarations(ctx));
+    }
+    if (declarationPredicates.includes(JVM_DECLARATION_PREDICATE) && !unavailablePredicates.has(JVM_DECLARATION_PREDICATE)) {
       issues.push(...findPossiblyUnreferencedJvmDeclarations(ctx));
     }
 
@@ -667,6 +704,7 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
   const basenames = new Set(fixtureFiles.map(fixture => path.basename(fixture.relativePath)));
   const gaps = new Map<string, { file: string; reason: string }[]>();
   const unsupported = new Map(tests.map(test => [test.relativePath, reader.unsupportedRawContentReason?.(test.relativePath)]));
+  const cannotContainBasename = new Map<string, InventoryFileEntry[]>();
   // Positive references discharge this heuristic without a negative premise
   // about other inputs. Partial reference inventories may supply witnesses.
   for (const test of tests) {
@@ -707,6 +745,14 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
     const unsupportedRaw = unsupported.get(test.relativePath);
     for (const base of basenames) {
       if (referenced.has(base)) continue;
+      // A literal in lossless UTF-8 needs at least its own byte length.
+      // The reader has checked the unavailable input's selected byte size.
+      if (unsupportedRaw && Buffer.byteLength(base, "utf8") > test.sizeBytes) {
+        const inputs = cannotContainBasename.get(base) ?? [];
+        inputs.push(test);
+        cannotContainBasename.set(base, inputs);
+        continue;
+      }
       try {
         if (unsupportedRaw) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
         const result = await reader.occurrences(test.relativePath, base);
@@ -737,6 +783,12 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
     for (const gap of gaps.get(base) ?? []) {
       unavailable.add(fixture.relativePath);
       ctx.reportUnavailable!(DETECTOR_ID, "unreferenced-fixture " + fixture.relativePath, gap.file, gap.reason, "raw-content");
+    }
+    for (const test of cannotContainBasename.get(base) ?? []) {
+      ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "unreferenced-fixture " + fixture.relativePath,
+        source: { kind: "file", identity: test.relativePath }, capability: "raw-content",
+        actualStatus: "unavailable", status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
+        reason: `The literal basename needs ${Buffer.byteLength(base, "utf8")} UTF-8 bytes and the selected input is only ${test.sizeBytes} bytes.` });
     }
   }
 

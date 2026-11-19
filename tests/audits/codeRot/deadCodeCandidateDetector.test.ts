@@ -628,6 +628,44 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — bounded coverage regression guard", (
     } finally { cleanup(root); }
   }, 120000);
 
+  it("keeps dynamic imports mandatory for file candidates but outside the Python declaration premise", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/candidate.ts", "export const candidate = 1;\n");
+      writeFile(root, "src/task.py", "def unused_task():\n    return 1\n");
+      writeFile(root, "tests/check.test.ts", "declare const target: string;\nvoid import(target);\n");
+      const ctx = buildContext(root);
+      ctx.config.failOn = "none";
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      const records = result.coverage?.filter(c => c.source.identity === "tests/check.test.ts") ?? [];
+      expect(records.filter(c => c.mandatory).map(c => [c.predicate, c.status])).toEqual([
+        ["unreferenced-source-file", "UNAVAILABLE"],
+      ]);
+      expect(records).toContainEqual(expect.objectContaining({
+        predicate: "possibly-unreferenced-python-declaration", actualStatus: "partial",
+        status: "NOT_APPLICABLE", mandatory: false,
+      }));
+      expect(result.issues.map(i => i.title)).toEqual([expect.stringContaining('"unused_task"')]);
+      expect(result.exitCode).toBe(2);
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("limits JVM binding uncertainty to families with selected JVM candidates", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "src/candidate.ts", "export const candidate = 1;\n");
+      writeFile(root, "src/task.py", "def unused_task():\n    return 1\n");
+      writeFile(root, "src/test/kotlin/com/example/Check.kt", "package com.example\nimport sample.library.Unresolved\nclass Check\n");
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      const records = result.coverage?.filter(c => c.reason.startsWith("JVM import sample.library.Unresolved"));
+      expect(records?.map(c => [c.predicate, c.status, c.mandatory])).toEqual([
+        ["unreferenced-source-file", "NOT_APPLICABLE", false],
+        ["possibly-unreferenced-python-declaration", "NOT_APPLICABLE", false],
+      ]);
+      expect(result.exitCode).toBe(0);
+    } finally { cleanup(root); }
+  }, 120000);
+
   // Complete bounded cases retain the existing finding-policy assertions.
   it("keeps qualified Python declaration candidates conservative without treating acquisition failure as empty findings", async () => {
     const root = makeTempDir();
@@ -647,6 +685,30 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — bounded coverage regression guard", (
 
 // Real whole-repository acquisition performs paged CLI queries for every selected file.
 describe("fixture-reference positive and negative premises", () => {
+  it("uses the selected byte bound for literal feasibility while retaining a possible binary witness gap", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "fixtures/long-name.txt");
+      writeFile(root, "fixtures/x.txt");
+      writeFile(root, "tests/data.xml", "x.txt\0");
+      const ctx = buildContext(root);
+      ctx.config.include = ["tests"];
+      const gaps: string[] = [];
+      const inapplicable: string[] = [];
+      ctx.reportUnavailable = (_id, predicate) => { gaps.push(predicate); };
+      ctx.reportCoverage = record => { if (record.status === "NOT_APPLICABLE") inapplicable.push(record.predicate); };
+      ctx.kitSourceReader = {
+        unsupportedRawContentReason: () => "selected input lacks authenticated text",
+        occurrences: async () => { throw new Error("Binary text lookup"); },
+        authenticatedContent: async () => { throw new Error("Binary text read"); },
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      const issues = await DEAD_CODE_CANDIDATE_DETECTOR.run(ctx);
+      expect(inapplicable).toEqual(["unreferenced-fixture fixtures/long-name.txt"]);
+      expect(gaps).toEqual(["unreferenced-fixture fixtures/x.txt"]);
+      expect(issues.map(issue => issue.affectedFiles)).toEqual([["fixtures/long-name.txt"]]);
+    } finally { cleanup(root); }
+  });
+
   it.each(["source", "script", "re-export"])("requires no global negative proof when every %s candidate is independently referenced", async kind => {
     const root = makeTempDir();
     try {
