@@ -17,8 +17,8 @@ flowchart LR
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2] --> V093[v0.9.3]
   V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V096[v0.9.6] --> V097[v0.9.7] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
-  V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
-  V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
+  V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0] --> V0180[v0.18.0]
+  V0180 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
 ```
 
@@ -1749,7 +1749,7 @@ Acceptance:
 
 ### v0.10.1 — partial-source-evidence and predicate-coverage correction
 
-Status: **partially implemented; unreleased; coordinated SW-123 and iworkhere evidence correction active.** The candidate inherited from `fix/sw119-r2-v010-partial-evidence` includes the bounded SW-118/SW-119 partial JavaScript import correction, but its **historical SW-123 Step 5** full-source audit was **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture; later local corrective candidates remain incompletely accepted for separate evidence reasons. This entry replaces neither the completed v0.10.0 milestone nor the future v0.11.0 accessibility plan. Current package metadata is 0.10.0; version 0.10.1 is the **target patch release**, not yet published or release-prepared.
+Status: **preserved unreleased v0.10.1 corrective candidate baseline; consolidated into coordinated Lab v0.11.0, not separately scheduled for publication.** The candidate inherited from `fix/sw119-r2-v010-partial-evidence` includes the bounded SW-118/SW-119 partial JavaScript import correction, but its **historical SW-123 Step 5** full-source audit was **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture; later local corrective candidates remain incompletely accepted for separate evidence reasons. This entry replaces neither the completed v0.10.0 milestone nor the future v0.11.0 accessibility plan. Current Lab package metadata remains 0.10.0; v0.10.1 is the authenticated corrective candidate scope, **not** a publication target. Its implemented corrections carry forward to the approved Lab v0.11.0 release, consuming Kit v1.16.0.
 
 **Goal:** consume independently qualified Kit capabilities and retain every supported audit finding, while explicitly identifying unavailable required predicates and maintaining exit 2 for incomplete mandatory coverage. The corresponding Kit producer correction is scoped to **v1.15.2**; Kit v1.15.0 is the original SW-123 producer and remains a historical frozen input. Do not silently substitute a differently packaged producer.
 
@@ -1772,12 +1772,12 @@ Status: **partially implemented; unreleased; coordinated SW-123 and iworkhere ev
 1. **L0 — Reproduce and freeze SW-123:** retain the exact fixture, Kit 1.15.0 package/record, diagnostic and file hashes, candidate SHA and original failed whole-source audit; map each applicable predicate without editing historical evidence.
 2. **L1 — Integrity, applicability and adapter:** preserve verified partial acquisition, refine test/config roles and independent capability access; retain strict integrity and negative-inference boundaries.
 3. **L2 — Consumer and result semantics:** repair docs/test/dead-code predicate handling, deterministic gap reporting and exit calculation; verify existing JavaScript and complete-evidence results remain unchanged.
-4. **L3 — Qualified Kit producer integration:** test the corrected Kit v1.15.2 exact candidate with Lab, including producer schema, extractor revision, CLI identity, package/lockfile qualification, fresh snapshot proofs, installed consumer and old retained inputs. Only update the production Kit pin after exact qualification; do not rewrite historical pins.
+4. **L3 — Qualified Kit producer integration:** retain and test the corrected Kit v1.15.2 candidate as the local baseline, then qualify the final Kit v1.16.0 exact archive/installed consumer for Lab v0.11.0, including producer schema, extractor revision, CLI identity, package/lockfile qualification, fresh snapshot proofs and retained historical inputs. Only update the production Kit pin after actual published Kit qualification; never rewrite historical pins.
 5. **L4 — Original audit replay and independent readiness:** rerun the original full selected-source audit, not a narrowed scope; run complete tests, docs, packed-package, security, cross-platform CI/CodeQL and required current-candidate gates as separate readiness work after implementation/documentation reconciliation.
 
 **Acceptance:** Complete import enumeration may coexist with partial Kotlin declarations; no false missing import/declaration, unreferenced script or fixture-negative claim is emitted. Real test modules remain tested, configuration fixtures remain eligible for applicable checks, independent documentation findings survive partial declaration evidence, and one positive claim never waives a different mandatory gap. Invalid, stale, tampered, mismatched or unselected producer evidence remains fatal. All mandatory requirements are either qualified, explicitly inapplicable, or reported unavailable with a non-success exit; no fabricated PASS. Existing complete-evidence oracle, 150 accepted Kit decisions, schemas, command surface and producer/consumer ownership are preserved.
 
-**Exclusions:** no Lab Kotlin parser or native source fallback; no Gradle, compiler, target-test or network execution; no new audit type, CLI flag, report schema, experiment, automatic risk exception or v0.11.0 feature reassignment. This roadmap authorizes immediate corrective implementation, **not** a version bump, release preparation, merge, tag or publication.
+**Exclusions:** no Lab Kotlin parser or native source fallback; no Gradle, compiler, target-test or network execution; no new audit type, CLI flag, report schema, experiment, automatic risk exception or v0.11.0 feature reassignment. This roadmap authorizes the corrective subtrack as part of the **new v0.11.0 coordinated release**, not a v0.10.1 version bump, separate release preparation, merge, tag or publication.
 
 #### Coordinated dual-target acceptance extension (SW-123 and iworkhere.space v0.4.4)
 
@@ -1785,10 +1785,10 @@ Status: **partially implemented; unreleased; coordinated SW-123 and iworkhere ev
 
 **Verified website acceptance:** iworkhere.space v0.4.4 immutable `94a60ad37dc4e1d2d4a3ad322e468ec7dbeca927`, read-only. The original readiness report identifies three missing selected `server-only.d.ts` ambient declaration files and partial import evidence for the computed `await import(pathToFileURL(path.join(temp, "qpdf.mjs")).href)` at `script/pdfFixture.ts:73`. Audit acquisition exited `2`; no original code-rot JSON was generated. The scratch export with the declarations deleted was diagnostic only, **not** the accepted website source scope.
 
-**A1 compatibility decision — keep the complete two-target objective:**
+**Approved 2026-11-19 release allocation — one coordinated implementation and two eventual releases:**
 
-- **Corrective Kit v1.15.2 / Lab v0.10.1:** audit-only declaration selection without ordinary graph changes; supported ambient declaration facts in the documented existing schema; per-capability status; existing direct/literal/single-use import semantics; Lab predicate-specific applicability and qualified partial positives; integrity, unavailable records, retained findings and exit `2`. Qualify these as compatible patches before implementation. No product version bump at this stage.
-- **Separately versioned proof feature — exact release numbers TBD:** new public binary-byte occurrence and computed-domain response modes, opt-in Kit source-audit schema `1.2.0`, and whole-file ambient classification. Kit `1.x` requires a minor-or-higher release for new public functionality; Lab feature-version allocation also needs a distinct roadmap decision. The design does **not** move these features into reserved Kit v1.16.0 or Lab v0.11.0. Feature scope is not silently inserted into the patches or abandoned. Patch-only corrections cannot close SW-123/website full acceptance while mandatory proofs remain unavailable.
+- **Inherited candidate corrections (Kit v1.15.2 / Lab v0.10.1):** audit-only declaration selection without ordinary graph changes; supported ambient facts under existing `1.1.0`; truthful capability status; existing direct/literal/qualified single-use import semantics; predicate-specific applicability and qualified partial positives; intact integrity, findings and exit `2`. Retain their exact implementation SHAs and tests as baselines, **without separately publishing the two patches**. Product package versions remain unchanged during implementation.
+- **Approved new release versions: Kit v1.16.0 → Lab v0.11.0.** Kit v1.16.0 combines inherited corrections with newly public raw byte occurrence, computed import-domain proof, opt-in source-audit schema `1.2.0` and whole-file ambient classification; legacy `1.1.0` stays the default. Lab v0.11.0 explicitly qualifies and consumes those protocols with report schema `1.0`. This user-approved minor-version reassignment moves prior Kit KIT-OPS-01 to v1.17.0, frontend retrieval to v1.18.0, and the old Lab v0.11.0–v0.17.0 feature sequence intact to v0.12.0–v0.18.0. No previously published versions or historical proofs are rewritten. A completed interface alone cannot turn unavailable runtime domains into PASS.
 - **Producer boundary:** one Kit source-discovery ledger, adapters, normalized facts, managed artifact/hash/snapshot/cache and bounded source/lookup readers. Audit-only `.d.ts` files are selected and authenticated without creating graph symbols, imports or runtime exports. `declare module` is source syntax, not runtime reachability. A computed import may be observed without a resolved target. New finite-domain proof requires exhaustively justified alternatives or a sound disjoint upper bound, never unknown-CWD or runtime assumptions.
 - **Consumer boundary:** one Lab managed provider, inventory, registry, adapter, detector framework and runner. Exact archive/installed CLI/schema/extractor profile, source selection and freshness are integrity prerequisites. Each detector/predicate independently qualifies its premises; no broad source-read fallback. Complete relevant origin/domain proof is mandatory for negative unreferenced/missing-import claims. A possible target in an overapproximation is not an independently proved positive reference.
 - **Raw binary proof:** the feature protocol matches exact byte needles (1–4096 bytes) in an authenticated selected file within a 200,000-byte scan and 200-returned-match bound, with zero-based offsets and distinct scan/count/returned-match completeness. Literal-byte evidence may qualify only equivalent detector predicates; it cannot prove decoded text, regex, parser, runtime execution or all of R6-12 by default.
@@ -1814,12 +1814,22 @@ Status: **partially implemented; unreleased; coordinated SW-123 and iworkhere ev
 
 Ledger digest: `d155afb9e2fcc1a9064b0bb562aff5a4ac2d61b2a65ab2f9fd3e6def0a460ec7`. The previously discharged **R6-02/R6-11** remain bound only to their historical `RUNNER_MODULE` origin and immediate target, receipt `f776356fba05628f6c8d78799dd336da9fcb7be7e80fcd9583a95d9cacd4990e`. Neither discharge establishes any other target or downstream dependency.
 
-**Ordered remaining work:** **B1** focused Kit declaration/ambient/graph/cache correction; **B2** preserve existing finite import support and implement only public proof functions with their separate release allocation; **B3** qualify the exact packed/installed Kit producer before Lab adapter, provider, applicability and detector changes; **B4** focused website and all SW-123 obligation replays with source/target proof receipts; **B5** one coordinated full Kit/Lab regression, security/package/Windows/hosted-Linux qualification and two independent full-selected-source code-rot audits. Original SW-123 retains ten detectors and `--fail-on blocker`; website retains immutable source and original threshold. Full suites belong to B5, not every B1–B4 patch. A mandatory unsupported proof keeps its failure regardless of otherwise passing findings.
+**One coordinated B1–B5 sequence (Kit v1.16.0 → Lab v0.11.0):** **B1** focused Kit declaration/ambient/graph/cache correction on the inherited candidate; **B2** Kit public source-audit `1.2.0`, raw-byte and computed-target domain protocols, preserving `1.1.0` defaults and prior finite import support; **B3** exact packed/installed v1.16.0 Kit qualification before Lab v0.11.0 provider, adapter, applicability and detector integration; **B4** focused website and per-obligation SW-123 replays; **B5** one coordinated full Kit/Lab regression, package/security/Windows/hosted-Linux qualification and two independent full-selected-source code-rot audits. The previously unallocated feature-release gate is resolved. Original SW-123 retains ten detectors and `--fail-on blocker`; website retains immutable source and original threshold. Full suites belong to B5, not every B1–B4 patch. A mandatory unsupported proof keeps its failure regardless of otherwise passing findings.
 
-**Completion and release ordering:** a truthful partial correction is not full audit completion. Only after both audits have qualified complete mandatory coverage and recorded actual findings, run separate Kit/Lab Step 4 documentation reconciliation and Step 5 exact-candidate readiness, then appropriate release preparation/publication, published-Kit qualification, Lab production-pin migration, Lab publication, and official website readiness. The 18 assessed website dev-only advisories (11 dashboard, seven root) remain `ACCEPTED_NONBLOCKING_FOR_V0.4.4` only; no source/coverage waiver or claim of vulnerability-free dependencies. No new CI, package, Git or publication action is authorized by this documentation decision. See [consumer architecture](ARCHITECTURE.md#planner-decided-a1-lab-consumer-contract-sw-123-and-iworkherespace), [procedure](WORKFLOWS.md#coordinated-dual-target-source-evidence-correction-kit-v1152--lab-v0101) and Kit's corresponding [producer roadmap](https://github.com/dailephd/my-dev-kit/blob/fix/v1.15.2-kotlin-source-evidence/docs/ROADMAP.md#version-1152--kotlin-script-source-audit-capability-correction).
+**Completion and release ordering for Kit v1.16.0 and Lab v0.11.0:** a truthful partial correction is not full audit completion. Only after both audits have qualified complete mandatory coverage and recorded actual findings, run separate Kit/Lab Step 4 documentation reconciliation and Step 5 exact-candidate readiness, then appropriate release preparation/publication, published-Kit qualification, Lab production-pin migration, Lab publication, and official website readiness. The 18 assessed website dev-only advisories (11 dashboard, seven root) remain `ACCEPTED_NONBLOCKING_FOR_V0.4.4` only; no source/coverage waiver or claim of vulnerability-free dependencies. No new CI, package, Git or publication action is authorized by this documentation decision. See [consumer architecture](ARCHITECTURE.md#planner-decided-a1-lab-consumer-contract-sw-123-and-iworkherespace), [procedure](WORKFLOWS.md#coordinated-dual-target-source-evidence-correction-kit-v1160--lab-v0110) and Kit's corresponding [producer roadmap](https://github.com/dailephd/my-dev-kit/blob/fix/v1.15.2-kotlin-source-evidence/docs/ROADMAP.md#version-1152--kotlin-script-source-audit-capability-correction).
 
 
-### v0.11.0 — bounded accessibility assurance (LAB-A11Y-01)
+### v0.11.0 — coordinated source-evidence completeness (SW-123 / iworkhere.space v0.4.4)
+
+**Status: planned and approved 2026-11-19; not implemented, published or release-prepared.** This is the **single Lab release target**, integrating the preserved v0.10.1 consumer corrections with Kit v1.16.0's new public proof contract. It replaces the former v0.11.0 LAB-A11Y-01 version allocation without dropping accessibility; that milestone now occupies v0.12.0. Every later planned v0.12.0–v0.17.0 milestone shifts intact to v0.13.0–v0.18.0.
+
+**Scope:** preserve one managed Kit source authority and independent per-predicate applicability/proof sufficiency; qualify exact published/default Kit source-audit `1.1.0` versus opt-in `1.2.0`, validated byte occurrence and finite/disjoint import-domain response protocols; preserve report schema `1.0`, detector IDs/severity, independent findings, typed mandatory coverage and exit `2` under `--fail-on none`. Reuse existing inventory, provider, adapter, registry, code-rot detectors and runner; no second Lab parser, source fallback, website allowlist or unqualified negative inference.
+
+**Acceptance:** exact immutable SW-123 and iworkhere.space v0.4.4 scopes are separately evaluated with a qualified Kit v1.16.0 → Lab v0.11.0 pair. Retain all 13 SW-123 mandatory unavailable obligations until individual sound proof, plus the prior exact R6-02/R6-11 discharges. Original SW-123 retains ten detectors and `--fail-on blocker`; website original selection, threshold and 18 scoped dev-only advisories are preserved. Full GitHub/Windows/hosted-Linux, package, security and source audit gates belong to B5, then separate documentation reconciliation/readiness and npm-last release processes. Unavailable mandatory coverage is not PASS. See the [coordinated workflow](WORKFLOWS.md#coordinated-dual-target-source-evidence-correction-kit-v1160--lab-v0110) and [Lab consumer architecture](ARCHITECTURE.md#planner-decided-a1-lab-consumer-contract-sw-123-and-iworkherespace).
+
+### v0.12.0 — bounded accessibility assurance (LAB-A11Y-01)
+
+**Version relocation (2026-11-19):** moved intact from planned v0.11.0 by explicit approval; original purpose, owner and acceptance are unchanged.
 
 Status: **planned; not implemented**.
 
@@ -1840,7 +1850,9 @@ Acceptance:
 * Reports identify the rule/profile and evidence source for each automated finding.
 * The Lab does not claim to replace a complete accessibility review.
 
-### v0.12.0 — local web-application security assurance (LAB-WEBSEC-01)
+### v0.13.0 — local web-application security assurance (LAB-WEBSEC-01)
+
+**Version relocation (2026-11-19):** moved intact from planned v0.12.0 by explicit approval; original purpose, owner and acceptance are unchanged.
 
 Status: **planned; not implemented**.
 
@@ -1861,7 +1873,9 @@ Acceptance:
 * Remote/manual penetration testing remains out of scope by default.
 * Network/process activity stays inside the declared profile boundary.
 
-### v0.13.0 — performance evidence and regression policy (LAB-PERF-01)
+### v0.14.0 — performance evidence and regression policy (LAB-PERF-01)
+
+**Version relocation (2026-11-19):** moved intact from planned v0.13.0 by explicit approval; original purpose, owner and acceptance are unchanged.
 
 Status: **planned; not implemented**.
 
@@ -1882,7 +1896,9 @@ Acceptance:
 * Incompatible environments are not compared as equivalent.
 * No universal performance score is introduced.
 
-### v0.14.0 — API/schema and migration assurance (LAB-API-01)
+### v0.15.0 — API/schema and migration assurance (LAB-API-01)
+
+**Version relocation (2026-11-19):** moved intact from planned v0.14.0 by explicit approval; original purpose, owner and acceptance are unchanged.
 
 Status: **planned; not implemented**.
 
@@ -1902,7 +1918,9 @@ Acceptance:
 * Fixtures prove compatible/incompatible API or schema cases and explicit migration-verification outcomes.
 * A static relationship never substitutes for successful executable verification.
 
-### v0.15.0 — supply-chain evidence (LAB-SUPPLY-01)
+### v0.16.0 — supply-chain evidence (LAB-SUPPLY-01)
+
+**Version relocation (2026-11-19):** moved intact from planned v0.15.0 by explicit approval; original purpose, owner and acceptance are unchanged.
 
 Status: **planned; not implemented**.
 
@@ -1921,7 +1939,9 @@ Acceptance:
 * Reports state exactly which evidence was checked and which claims remain unavailable.
 * No automatic publication or legal-conformance claim is made.
 
-### v0.16.0 — test-quality evidence (LAB-TEST-01)
+### v0.17.0 — test-quality evidence (LAB-TEST-01)
+
+**Version relocation (2026-11-19):** moved intact from planned v0.16.0 by explicit approval; original purpose, owner and acceptance are unchanged.
 
 Status: **planned; not implemented**.
 
@@ -1941,7 +1961,9 @@ Acceptance:
 * Deterministic fixtures exercise supported evidence and missing-evidence behavior.
 * Reports remain traceable to native tool output or immutable summaries.
 
-### v0.17.0 — operational/configuration evidence (LAB-OPS-01)
+### v0.18.0 — operational/configuration evidence (LAB-OPS-01)
+
+**Version relocation (2026-11-19):** moved intact from planned v0.17.0 by explicit approval; original purpose, owner and acceptance are unchanged.
 
 Status: **planned; not implemented**.
 
