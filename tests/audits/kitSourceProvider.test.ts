@@ -9,6 +9,7 @@ import {
   QUALIFIED_KIT_CANDIDATE,
   QUALIFIED_PUBLISHED_KIT,
   QUALIFIED_SW123_P6_R2_KIT,
+  QUALIFIED_SW123_P6_R7_KIT,
   collectKitSourceFacts,
   resolveInstalledKitPackage,
   selectKitSourceRoots,
@@ -907,6 +908,57 @@ describe("partial-import deferral never relaxes evidence integrity", () => {
       {installedPackageRoot:fakePackage(),expectation:FAKE_EXPECTATION,runCommand:world.runCommand}), category);
   });
 });
+
+const p6R8Package = process.env.LAB_SW123_P6_R8_PACKAGE_ROOT;
+it.skipIf(!p6R8Package)("qualifies the P6-R7 import and bounded ranges without admitting unrelated proof profiles", async () => {
+  const expectation = QUALIFIED_SW123_P6_R7_KIT;
+  const installedPackageRoot = p6R8Package!;
+  expect(resolveInstalledKitPackage({ installedPackageRoot, expectation })).toMatchObject({
+    packageVersion: "1.15.1", cliSha256: expectation.cliSha256,
+  });
+  for (const [override, category] of [
+    [{ cliSha256: "0".repeat(64) }, "package-identity"],
+    [{ cliSha256: null }, "package-identity"],
+    [{ extractorRevision: "source-audit-v1.5.2" }, "extractor-mismatch"],
+    [{ packageVersion: "1.15.2" }, "package-identity"],
+    [{ artifactSchemaVersion: "1.0.0" }, "schema-mismatch"],
+  ] as const) {
+    expect(() => resolveInstalledKitPackage({
+      installedPackageRoot, expectation: { ...expectation, ...override },
+    })).toThrowError(new RegExp(category));
+  }
+
+  const root = tempDir("p6-r8");
+  const origin = "tests/check.test.ts";
+  const source = 'const target = "../src/peer.js";\nexport const load = () => import(target);\n';
+  writeFiles(root, { "package.json": '{"name":"p6-r8","version":"0.0.0"}', [origin]: source,
+    "src/peer.ts": "export const value = 1;\n" });
+  const detector = DEFAULT_AUDIT_REGISTRY.find(entry => entry.id === "test-rot")!;
+  const result = await runAudit({
+    config: normalizeAuditConfig({ target: root, include: "tests", failOn: "none" }, root),
+    toolRoot: root,
+    registry: [{ ...detector, async run(ctx) {
+      const reader = ctx.kitSourceReader!;
+      expect(reader.jsTsRelativeImportCandidateProof).toBeUndefined();
+      expect(reader.jsonRawLiteralContent).toBeUndefined();
+      expect(reader.reExportTargets).toBeUndefined();
+      expect(await reader.authenticatedContent!(origin)).toBe(source);
+      const facts = ctx.sourceFacts!.files.find(file => file.relativePath === origin)!;
+      expect(qualifyKitImportPredicate(facts)).toBe("QUALIFIED_NEGATIVE");
+      const fact = facts.imports.find(f => f.source === "../src/peer.js")!;
+      expect(qualifyKitImportPredicate(facts, fact)).toBe("QUALIFIED_POSITIVE");
+      expect(await reader.importTarget(fact.provenance!.factId)).toMatchObject({
+        status: "present", originFile: origin, candidatePaths: ["src/peer.ts"],
+      });
+      return detector.run(ctx);
+    } }],
+    kitSourceProviderDependencies: { installedPackageRoot, expectation },
+  });
+  expect(result.exitCode).toBe(0);
+  expect(result.detectorErrors).toEqual([]);
+  expect(result.issues).toEqual([]);
+  expect(result.coverage?.some(record => record.mandatory && record.status === "UNAVAILABLE")).toBe(false);
+}, 120000);
 
 // Opt-in installed artifact qualification. The unpublished subject is never
 // substituted for the production dependency or the default provider identity.

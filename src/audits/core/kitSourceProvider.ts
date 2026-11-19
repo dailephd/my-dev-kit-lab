@@ -114,8 +114,19 @@ export const QUALIFIED_SW123_P6_R2_KIT = {
   cliSha256: "11330f9ead9e498f6b5d622b3491cbd813da0760d2032d2ee577f5de6f846544",
 } satisfies KitCandidateExpectation;
 
-function isSw123P6R2Expectation(expectation: KitCandidateExpectation): boolean {
-  const exact = QUALIFIED_SW123_P6_R2_KIT;
+// P6-R7 is qualified for predicate acquisition and bounded semantic source
+// ranges. Other reader capabilities retain their existing exact profiles.
+export const QUALIFIED_SW123_P6_R7_KIT = {
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.15.1",
+  artifactSchemaVersion: "1.1.0",
+  extractorRevision: "source-audit-v1.5.3",
+  cliSha256: "59e7ab158d833c2ac82f2bb007129483eda8722e0ee1450d54df8d1b33835c62",
+} satisfies KitCandidateExpectation;
+
+const SW123_EXACT_KIT_PROFILES = [QUALIFIED_SW123_P6_R2_KIT, QUALIFIED_SW123_P6_R7_KIT] as const;
+
+function matchesExactKitExpectation(expectation: KitCandidateExpectation, exact: KitCandidateExpectation): boolean {
   return expectation.packageName === exact.packageName && expectation.packageVersion === exact.packageVersion &&
     expectation.artifactSchemaVersion === exact.artifactSchemaVersion && expectation.extractorRevision === exact.extractorRevision &&
     expectation.cliSha256 === exact.cliSha256;
@@ -254,11 +265,11 @@ export function resolveInstalledKitPackage(
       `installed Kit CLI SHA-256 ${cliSha256} is not the qualified candidate ${expectation.cliSha256}.`
     );
   }
-  if (cliSha256 === QUALIFIED_SW123_P6_R2_KIT.cliSha256) {
-    const exact = QUALIFIED_SW123_P6_R2_KIT;
-    if (expectation.extractorRevision !== exact.extractorRevision) fail("extractor-mismatch", "P6-R2 requires its exact extractor revision.");
-    if (expectation.artifactSchemaVersion !== exact.artifactSchemaVersion) fail("schema-mismatch", "P6-R2 requires its exact source-audit schema.");
-    if (!isSw123P6R2Expectation(expectation)) fail("package-identity", "P6-R2 requires its exact package identity and CLI digest.");
+  const exact = SW123_EXACT_KIT_PROFILES.find(profile => profile.cliSha256 === cliSha256);
+  if (exact) {
+    if (expectation.extractorRevision !== exact.extractorRevision) fail("extractor-mismatch", "The SW-123 candidate requires its exact extractor revision.");
+    if (expectation.artifactSchemaVersion !== exact.artifactSchemaVersion) fail("schema-mismatch", "The SW-123 candidate requires its exact source-audit schema.");
+    if (!matchesExactKitExpectation(expectation, exact)) fail("package-identity", "The SW-123 candidate requires its exact package identity and CLI digest.");
   }
   if (!cliBytes.includes(Buffer.from(expectation.extractorRevision, "utf8"))) {
     fail("extractor-mismatch", `installed Kit CLI does not carry extractor revision ${expectation.extractorRevision}.`);
@@ -376,7 +387,7 @@ export async function acquireKitSourceEvidence(
 ): Promise<KitSourceEvidence> {
   if (request.predicateRequirements && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
       (!["source-audit-v1.5.0", "source-audit-v1.5.1"].includes(expectation.extractorRevision) &&
-        !isSw123P6R2Expectation(expectation)))) {
+        !SW123_EXACT_KIT_PROFILES.some(profile => matchesExactKitExpectation(expectation, profile))))) {
     fail("invalid-request", "Predicate evidence requires an exact CLI digest and an explicitly qualified source-audit contract.");
   }
   const logDir = path.join(workDir, "logs");
@@ -624,7 +635,11 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     ctx.pkg.packageVersion === QUALIFIED_SW123_P6_R2_KIT.packageVersion &&
     evidence.artifactSchemaVersion === QUALIFIED_SW123_P6_R2_KIT.artifactSchemaVersion &&
     evidence.extractorRevision === QUALIFIED_SW123_P6_R2_KIT.extractorRevision;
-  const authenticatedRanges = p6R2 || ctx.pkg.cliSha256 === "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb";
+  const p6R7 = matchesExactKitExpectation({
+    ...ctx.pkg, artifactSchemaVersion: evidence.artifactSchemaVersion, extractorRevision: evidence.extractorRevision,
+  }, QUALIFIED_SW123_P6_R7_KIT);
+  const authenticatedRanges = p6R2 || p6R7 ||
+    ctx.pkg.cliSha256 === "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb";
   const selectedFile = (filePath: string): KitFileRecord => {
     validateKitRelativePath(filePath, "required content file");
     const file = evidence.inventory.find((record) => record.path === filePath);
