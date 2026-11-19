@@ -38,8 +38,14 @@ export const MAX_READ_BYTES = 200_000;
 export function isTestRotRawOnlyInput(file: Pick<InventoryFileEntry, "role" | "relativePath" | "language">): boolean {
   if (file.language === "json" || ["config", "generated", "vendor", "report-output"].includes(file.role) ||
       file.relativePath.endsWith(".gradle") || file.relativePath.endsWith(".gradle.kts")) return true;
-  if (!/(?:^|\/)fixtures\//.test(file.relativePath) ||
-      !["typescript", "javascript", "python", "java", "kotlin", "rust"].includes(file.language)) return false;
+  if (!/(?:^|\/)fixtures\//.test(file.relativePath)) return false;
+  // These fixture formats are data or recorded output. The enclosing tests
+  // directory still makes their bounded command text applicable.
+  if (["markdown", "xml", "toml"].includes(file.language) ||
+      /(?:^|\/)\.gitattributes$|\.(?:properties|jks|tap|[jt]s\.input)$/.test(file.relativePath) ||
+      /(?:^|\/)(?:PROVENANCE|malformed-json)\.txt$/.test(file.relativePath) ||
+      /(?:^|\/)fixtures\/ecosystem\/context-integrity\/[^/]+\/[^/]+\/(?:00-request|(?:artifacts|tool-versions)\/[^/]+)\.txt$/.test(file.relativePath)) return true;
+  if (!["typescript", "javascript", "python", "java", "kotlin", "rust"].includes(file.language)) return false;
   const sourceIndex = file.relativePath.lastIndexOf("/src/");
   if (sourceIndex < 0) return false;
   const tail = file.relativePath.slice(sourceIndex + 5).split("/");
@@ -97,7 +103,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       if (rawOnly) ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "imports evidence",
         source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
         actualStatus: observed?.kit?.capabilities.imports ?? "unavailable", status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
-        reason: "Configuration/generated/report or fixture production-source input has no executable-test import predicate; raw command checks remain selected." });
+        reason: "Configuration, report, or data/production-source fixture has no executable-test import predicate; raw command checks remain selected." });
       const unsupportedRaw = ctx.kitSourceReader?.unsupportedRawContentReason?.(testFile.relativePath);
       if (unsupportedRaw && ctx.reportUnavailable) {
         ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, unsupportedRaw, "raw-content");

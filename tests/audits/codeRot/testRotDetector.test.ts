@@ -107,6 +107,37 @@ describe("TEST_ROT_DETECTOR — missing source imports", () => {
     } finally { cleanup(root); }
   });
 
+  it.each([
+    "tests/fixtures/app/src/main/res/xml/backup_rules.xml",
+    "tests/fixtures/example/README.md",
+    "tests/fixtures/gradle/libs.versions.toml",
+    "tests/fixtures/executable-evidence/node-tap-pass.tap",
+    "tests/fixtures/differential/check.sample.ts.input",
+    "tests/fixtures/ecosystem/context-integrity/v0.4.5/failed-run/artifacts/test-context-packet.txt",
+  ])("retains raw command checks and skips executable imports for data fixture %s", async file => {
+    const root = makeTempDir();
+    try {
+      const body = '<sample>from "./missing.js" and npm run removed</sample>';
+      writeFile(root, file, body);
+      const ctx = buildContext(root);
+      const dispositions: string[] = [];
+      const literals: string[] = [];
+      ctx.reportCoverage = record => { dispositions.push(record.capability + ":" + record.status); };
+      ctx.reportUnavailable = (_id, predicate) => { throw new Error(predicate); };
+      ctx.kitSourceReader = {
+        selectedFile: () => ({ lineCount: null, sizeBytes: Buffer.byteLength(body) }),
+        occurrences: async (_path: string, value: string) => {
+          literals.push(value);
+          return { complete: true, matchCount: 1, matches: [{ windowStart: 1, windowEnd: 1, line: 1, content: body }] };
+        },
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(literals).toEqual(["npm run "]);
+      expect(dispositions).toContain("imports:NOT_APPLICABLE");
+      expect(issues.map(issue => issue.id)).toEqual([`test-rot:${file}:stale-npm-run-reference:removed`]);
+    } finally { cleanup(root); }
+  });
+
   it("retains a real re-export target obligation separately from complete imports", async () => {
     const root = makeTempDir();
     try {
