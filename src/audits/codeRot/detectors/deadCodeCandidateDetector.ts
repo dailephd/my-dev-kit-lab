@@ -353,6 +353,8 @@ async function buildReverseReferenceIndex(ctx: AuditDetectorContext, r3Reference
     // Match the existing bounded native predicate before requesting raw evidence.
     if (file.sizeBytes > MAX_READ_BYTES) continue;
     if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required reverse-reference source ${file.relativePath} is unselected.`);
+    const unsupportedRaw = ctx.kitSourceReader?.unsupportedRawContentReason?.(file.relativePath);
+    if (unsupportedRaw) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
     const content = await kitPredicateContent(ctx.kitSourceReader, file.relativePath, ["from", "require("]);
     if (content === null) continue;
 

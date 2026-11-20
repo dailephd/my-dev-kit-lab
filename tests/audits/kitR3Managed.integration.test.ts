@@ -138,3 +138,52 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     } finally { reader?.dispose(); }
   }, 60_000
 );
+
+it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
+  "retains reports and independent findings when a selected text fixture has no qualified raw-content reader",
+  async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-fixture-gap-"));
+    const target = path.join(root, "target");
+    fs.mkdirSync(path.join(target, "tests", "fixtures"), { recursive: true });
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"fixture-gap","type":"module"}');
+    fs.writeFileSync(path.join(target, "README.md"), "Security validation is implemented in this project.\n");
+    fs.mkdirSync(path.join(target, "src"));
+    fs.writeFileSync(path.join(target, "src", "peer.mjs"), "export {};\n");
+    fs.writeFileSync(path.join(target, "src", "orphan.mjs"), "export {};\n");
+    fs.writeFileSync(path.join(target, "tests", "probe.test.mjs"),
+      'test.only("independent", () => {});\nvoid import("../src/peer.mjs");\n');
+    const marker = "tests/fixtures/unreferenced-marker.txt";
+    // Longer than its basename, so inventory size alone cannot establish absence.
+    fs.writeFileSync(path.join(target, marker), "Controlled unsupported text fixture.\n");
+    const out = path.join(root, "reports");
+    const code = await runAuditCommandFromArgs([
+      "--target", target, "--include", "docs,tests,package,architecture,cli", "--format", "text,json",
+      "--fail-on", "none", "--out", out,
+    ], { evidenceWorkspace: root, kitSourceProviderDependencies: {
+      installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT,
+    } });
+    expect(code).toBe(2);
+    const evidence = path.join(root, "lab-output", "evidence");
+    const [id] = fs.readdirSync(evidence);
+    const receipt = (name: string) => JSON.parse(fs.readFileSync(path.join(evidence, id!, name + ".json"), "utf8")).evidence;
+    expect(receipt("kit-selection").inventory).toContainEqual(expect.objectContaining({
+      path: marker, status: "unsupported", contentSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }));
+    expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
+      detectorId: "dead-code-candidate", predicate: "unreferenced-fixture " + marker,
+      source: { kind: "file", identity: marker }, status: "UNAVAILABLE", mandatory: true,
+    }));
+    expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
+      detectorId: "dead-code-candidate", predicate: "unreferenced-source-file",
+      capability: "raw-content", status: "UNAVAILABLE", mandatory: true,
+    }));
+    const json = JSON.parse(fs.readFileSync(path.join(out, "code-rot-audit.json"), "utf8"));
+    const issueIds = json.issues.map((issue: { id: string }) => issue.id);
+    expect(issueIds).toContain("docs-code-mismatch:README.md:current-but-missing:security-validation");
+    expect(issueIds).toContain("test-rot:tests/probe.test.mjs:only-usage:1");
+    expect(issueIds).not.toContain("dead-code-candidate:unreferenced-fixture:" + marker);
+    expect(json.exit).toMatchObject({ code: 2, breached: false });
+    expect(receipt("outcome").reports).toHaveLength(2);
+    expect(fs.readFileSync(path.join(out, "code-rot-audit.txt"), "utf8")).toContain(json.exit.reason);
+  },
+);

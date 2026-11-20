@@ -872,11 +872,17 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       if (!file) fail("selection-incomplete", `Required file ${filePath} is missing from validated selected inventory.`);
       const input = testFiles.find(entry => entry.relativePath === filePath);
       if (input && input.sizeBytes !== file.sizeBytes) fail("stale-evidence", `${filePath} size differs from Lab's inventory.`);
-      // An authenticated unsupported inventory record is valid metadata, not
-      // permission to read unauthenticated content or infer lexical absence.
-      return input && file.status === "unsupported" && file.contentSha256 === null
-        ? "Validated Kit inventory declares unsupported raw source without a content hash; raw-content predicates are UNAVAILABLE."
-        : undefined;
+      // A selected unsupported file can have a byte hash without a qualified
+      // content reader. Keep that gap distinct from a missing selection.
+      if (!input || file.status !== "unsupported") return undefined;
+      if (file.contentSha256 === null) {
+        return "Validated Kit inventory declares unsupported raw source without a content hash; raw-content predicates are UNAVAILABLE.";
+      }
+      if (r3 && !evidence.fileEvidence.has(filePath) && !filePath.endsWith(".json")) {
+        assertFresh(file);
+        return "Validated Kit inventory identifies unsupported test bytes without a qualified raw-content reader.";
+      }
+      return undefined;
     },
     ...(r3 ? {
       async expressionDomains(filePath: string) {
