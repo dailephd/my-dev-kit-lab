@@ -1,3 +1,4 @@
+import { describeAuditFile, type AuditExecutionReceipt } from "./auditExecutionReceipt.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -170,6 +171,7 @@ export type KitSourceProviderDependencies = {
   // Task-owned working directory for the Kit index and command logs. When
   // omitted a fresh directory is created and removed after acquisition.
   workDir?: string;
+  receipt?: AuditExecutionReceipt;
 };
 
 function fail(category: KitEvidenceFailureCategory, message: string, detail?: string): never {
@@ -325,6 +327,7 @@ type KitCommandContext = {
   workDir: string;
   logDir: string;
   sequence: { next: number };
+  receipt?: AuditExecutionReceipt;
 };
 
 function classifyStderrCode(stderr: string): KitEvidenceFailureCategory | undefined {
@@ -346,8 +349,7 @@ function classifyStderrCode(stderr: string): KitEvidenceFailureCategory | undefi
 
 async function runKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitArgs: string[], stdoutMaxBytes = KIT_STDOUT_MAX_BYTES): Promise<unknown> {
   const commandId = `kit-${String(ctx.sequence.next++).padStart(6, "0")}-${kind}`;
-  let result: MeasuredCommandResult;
-  try { result = await ctx.runCommand({
+  const options: RunMeasuredCommandOptions = {
     commandId,
     executable: process.execPath,
     args: [ctx.pkg.cliPath, ...kitArgs],
@@ -358,10 +360,41 @@ async function runKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitArgs:
     stdoutMaxBytes,
     stderrMaxBytes: KIT_STDERR_MAX_BYTES,
     terminateProcessTree: true,
-  }); } catch (error) {
+  };
+  const receipt = ctx.receipt;
+  // Predicate literals can be source-derived. They are not part of the
+  // reconstructible invocation when retained evidence redacts them.
+  const secretIndex = kitArgs.findIndex(arg => arg === "--contains" || arg === "--contains-bytes-hex");
+  const args = [...options.args!];
+  if (secretIndex >= 0) args[secretIndex + 2] = "[REDACTED]";
+  let observedExit: number | null = null;
+  if (receipt) {
+    options.telemetryArgs = args;
+    options.exclusiveArtifacts = true;
+    options.onSettled = result => {
+      observedExit = result.exitCode;
+      receipt.write(commandId + "-exit", {
+        exitCode: result.exitCode, signal: result.signal ?? null, ok: result.ok,
+        startedAt: result.startedAt, endedAt: result.endedAt, timedOut: result.timedOut,
+        outputLimit: result.outputLimit, processTreeCleanup: result.processTreeCleanup, error: result.error,
+      });
+    };
+    receipt.write(commandId + "-initial", { ...options, args, telemetryArgs: undefined,
+      exactArgv: secretIndex < 0, environment: { mode: "inherited", omitted: true, nodeOptionsPresent: process.env.NODE_OPTIONS !== undefined }, launcher: "node:child_process.spawn" });
+  }
+  let result: MeasuredCommandResult;
+  try { result = await ctx.runCommand(options); } catch (error) {
+    receipt?.write(commandId + "-failure", { exitCode: observedExit, error: String(error) });
     if (error instanceof KitSourceEvidenceAcquisitionError) throw error;
     fail("subprocess-failed", `Kit ${kind} executor failed: ${error instanceof Error ? error.message : String(error)}`);
   }
+  if (receipt) receipt.write(commandId + "-result", {
+    exitCode: result.exitCode, signal: result.signal ?? null, ok: result.ok, error: result.error,
+    startedAt: result.startedAt, endedAt: result.endedAt, timedOut: result.timedOut,
+    outputLimit: result.outputLimit, processTreeCleanup: result.processTreeCleanup,
+    artifacts: [result.stdoutPath, result.stderrPath, result.telemetryPath].map(file =>
+      file && fs.existsSync(file) ? describeAuditFile(file) : null),
+  });
   if (result.timedOut) {
     fail("subprocess-timeout", `Kit ${kind} command timed out.`);
   }
@@ -433,6 +466,7 @@ export async function acquireKitSourceEvidence(
     workDir,
     logDir,
     sequence: { next: 0 },
+    receipt: deps.receipt,
   };
 
   // 1. Index immediately before obtaining evidence, outside the target.
@@ -440,7 +474,21 @@ export async function acquireKitSourceEvidence(
   for (const root of request.sourceRoots) indexArgs.push("--src", root);
   if (proofProfile) indexArgs.push("--source-audit-schema", "1.2.0");
   indexArgs.push("--out", indexDir, "--json");
-  const indexResult = await runKitJson(ctx, "index", indexArgs);
+  deps.receipt?.setStage("kit-index");
+  let indexResult: unknown;
+  try {
+    indexResult = await runKitJson(ctx, "index", indexArgs);
+  } finally {
+    if (deps.receipt) {
+      const files = ["manifest.json", KIT_SOURCE_AUDIT_ARTIFACT_FILENAME].map(name => {
+        const filename = path.join(indexDir, name);
+        return fs.existsSync(filename) && fs.lstatSync(filename).isFile() &&
+          path.relative(filename, fs.realpathSync(filename)) === "" ? describeAuditFile(filename) : null;
+      });
+      deps.receipt.write("kit-index-artifacts", files);
+    }
+  }
+  deps.receipt?.setStage("kit-artifact-validation");
   if (typeof indexResult !== "object" || indexResult === null || (indexResult as { mode?: unknown }).mode !== "index") {
     fail("artifact-invalid", "Kit index command did not report mode index.");
   }
@@ -473,6 +521,10 @@ export async function acquireKitSourceEvidence(
   }
 
   // 3. Complete inventory traversal.
+  deps.receipt?.write("kit-artifact-identity", {
+    producer: header.producer, source: header.source, coverage: header.coverage, schemaVersion: header.schemaVersion,
+  });
+  deps.receipt?.setStage("kit-inventory");
   const snapshotId = header.source.snapshotId;
   const inventoryPages: KitInventoryPage[] = await collectAllPages(
     async (pageIndex) => {
@@ -485,10 +537,13 @@ export async function acquireKitSourceEvidence(
     { maxPages: KIT_MAX_INVENTORY_PAGES, label: "inventory traversal" }
   );
   const inventory = flattenInventoryPages(inventoryPages);
+  deps.receipt?.write("kit-selection", { inventory, pageCount: inventoryPages.length });
   crossValidateInventory(header, inventory, inventoryPages, request.sourceRoots);
+  deps.receipt?.setStage("kit-required-coverage");
 
   // 4. Exact-file fact traversal for the files the caller needs.
   const factPaths = [...new Set([...request.selectFactPaths(inventory), ...(["1.1.0", "1.2.0"].includes(header.schemaVersion) ? inventory.filter(file => /\.(java|kt)$/i.test(file.path)).map(file => file.path) : [])])].sort();
+  deps.receipt?.setStage("kit-fact-pages");
   const recordByPath = new Map(inventory.map((record) => [record.path, record]));
   for (const factPath of factPaths) {
     if (!requestedPathMatchesCanonical(factPath) || !recordByPath.has(factPath)) {
@@ -1003,7 +1058,9 @@ export async function collectKitSourceFacts(
   const rawConfigFiles = request.inventory.files.filter(entry => entry.role === "config" && entry.relativePath.endsWith(".gradle.kts") &&
     requiredSet.has(entry.relativePath) && request.capabilitiesForPath?.(entry.relativePath).length === 0);
   const rawSourcePaths = [...rawSourceFiles, ...rawConfigFiles].map((entry) => entry.relativePath);
+  deps.receipt?.setStage("lab-required-source-scope");
   const scope = selectKitSourceRoots(targetRoot, request.inventory, [...requiredSet], rawSourcePaths);
+  deps.receipt?.write("lab-required-source-scope", scope);
   if (!scope.complete) fail("selection-incomplete", `unresolved required paths: ${scope.unresolvedPaths.join(", ")}; excluded required paths: ${scope.excludedPaths.join(", ")}.`);
   const requiredEntries = request.inventory.files.filter((entry) => requiredSet.has(entry.relativePath));
   if (requiredEntries.length === 0) {
@@ -1025,6 +1082,13 @@ export async function collectKitSourceFacts(
 
   // Evidence is required: verify the managed package before anything else. A
   // missing or wrong Kit is fatal.
+  deps.receipt?.setStage("kit-package-qualification");
+  const archive = deps.receipt && deps.qualifiedArchivePath && fs.existsSync(deps.qualifiedArchivePath)
+    ? describeAuditFile(deps.qualifiedArchivePath) : null;
+  deps.receipt?.write("kit-package-request", {
+    expectation, installedPackageRoot: deps.installedPackageRoot ?? null,
+    archivePath: deps.qualifiedArchivePath ?? null, observedArchive: archive,
+  });
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: deps.installedPackageRoot, expectation });
   if (pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 &&
       (!deps.installedPackageRoot || !deps.qualifiedArchivePath ||
@@ -1032,6 +1096,8 @@ export async function collectKitSourceFacts(
     fail("package-identity", "Managed R3 requires the exact qualified local archive and an isolated installed package root.");
 
 
+  deps.receipt?.write("kit-package", { ...pkg, expectation,
+    archive });
   const sourceRoots = scope.sourceRoots;
   if (sourceRoots.length === 0) {
     fail(
@@ -1040,8 +1106,8 @@ export async function collectKitSourceFacts(
     );
   }
 
-  const ownedWorkDir = deps.workDir === undefined;
-  const workDir = deps.workDir ?? fs.mkdtempSync(path.join(os.tmpdir(), "lab-kit-source-"));
+  const ownedWorkDir = deps.workDir === undefined && deps.receipt === undefined;
+  const workDir = deps.receipt?.directory ?? deps.workDir ?? fs.mkdtempSync(path.join(os.tmpdir(), "lab-kit-source-"));
   try {
     const evidence = await acquireKitSourceEvidence(
       {
@@ -1049,8 +1115,9 @@ export async function collectKitSourceFacts(
         sourceRoots,
         selectFactPaths: (kitInventory) => {
           const requiredPaths = requiredEntries.map((entry) => entry.relativePath);
-          assertSelectionCoversRequired(kitInventory, requiredPaths);
           const kitByPath = new Map(kitInventory.map((record) => [record.path, record]));
+          deps.receipt?.write("kit-required-inclusion", requiredPaths.map(file => ({ file, selected: kitByPath.has(file) })));
+          assertSelectionCoversRequired(kitInventory, requiredPaths);
           // A Lab inventory entry and the Kit record for the same path must
           // describe the same bytes; a size difference means the source
           // changed between Lab's scan and Kit's index.
@@ -1095,7 +1162,7 @@ export async function collectKitSourceFacts(
     if (scope.widerSelection) snapshot.warnings.push("Required root-level source selected with --src .; only validated selected files provide source evidence.");
     if (request.onReader) {
       const reader = createKitSourceReader(evidence, { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
-        workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 } },
+        workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt },
         () => { if (ownedWorkDir) fs.rmSync(workDir, { recursive: true, force: true }); }, request.inventory.testFiles, rawSourceFiles, request.inventory.files);
       request.onReader(reader);
       readerIssued = true;

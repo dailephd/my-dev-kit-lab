@@ -221,7 +221,7 @@ Same command owner and options as `npm run security:validate` (see "Security-val
 
 ### `my-dev-kit-lab audit`
 
-Same command owner and options as `npm run audit` (see "Audit commands" below). `--out` defaults to `<workspace>/reports/audits/<type>` when omitted.
+Same command owner and options as `npm run audit` (see "Audit commands" below). Run from the Lab project or set `--workspace` to an existing Lab project workspace outside the inspected target.
 
 ### `my-dev-kit-lab experiment list`
 
@@ -883,7 +883,12 @@ Current options:
 | `--include <ids>` | `docs`, `tests`, `package`, `architecture`, `cli`; defaults to all |
 | `--format <ids>` | `text`, `json`, or both; defaults to both |
 | `--fail-on <level>` | `blocker`, `high`, `medium`, `low`, `none`; defaults to `blocker` |
-| `--out <path>` | Optional report output directory |
+| `--out <path>` | Optional output directory under the workspace's ignored `reports/` or `lab-output/` |
+| `--kit-archive <file>`, `--kit-package-root <dir>` | Select the exact qualified local Kit archive and isolated installation together |
+| `--source-export <file>` | Record the supplied export's bytes and SHA-256 |
+| `--source-snapshot <git-sha>` | Declare a full source Git object ID |
+| `--require-source <relative-path>` | Require an export path in Lab's readable inventory. Repeat for each path |
+| `--retry-of <execution-id>` | Link the new run to an earlier receipt in the same workspace |
 | `--android` | Optional; requires `--types` to include `security` |
 
 Source-audit prerequisite (LAB-KIT-01, v0.10.0): source-dependent selections use the exact qualified runtime dependency `@dailephd/my-dev-kit@1.15.0` described in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development). Lab and installed-consumer qualification against that published producer passed. Candidate 05 remains historical and is distinct from public Kit 1.14.0. The provider resolves Kit through Lab module resolution and never installs it automatically. A separately installed retrieval CLI or an experiment `--kit-command` does not configure this audit provider. Non-source-only selections and selections with no applicable source paths do not require Kit. An include area can select both source-dependent and non-source detectors; `--include package` can require source declarations for duplicate-implementation checks. Rust `.rs` selection uses the same command and generic bridge, with no language flag or Rust runner; [capability and applicability limits](ARCHITECTURE.md#rust-source-evidence-reuse) remain explicit.
@@ -931,7 +936,12 @@ Current behavior:
 - audit does not auto-fix issues
 - `--android` runs the same nineteen static Android checks through the existing adapter; confirmed findings can map to audit issues, while `CandidateEvidence` remains review-only
 - omitting `--android` starts no Android validation
-- reports are written under `reports/audits/<type>/code-rot-audit.txt` and/or `code-rot-audit.json` by default (the report filename is fixed regardless of `--types`; only the containing directory changes, e.g. `reports/audits/security/` for `--types security`)
+- Lab writes CLI audit receipts under `lab-output/evidence/audit-<uuid>/`. The run's `reports/` directory holds reports by default. An explicit report destination is exclusive and a filename collision returns exit 2 with an intact receipt.
+
+The initial receipt records Lab and Node identity, working directory, arguments, and options. Later records preserve Lab's inventory, Kit's selected inventory and completeness, Kit command receipts and bounded output, and report digests. A partial audit can retain findings and reports with exit 2. A pre-report failure leaves the original receipt, the observations already acquired, and a separate failure record. Final records list the size and SHA-256 of each earlier checkpoint. Verify those checkpoints and the referenced artifacts before using them as evidence.
+
+Lab records supplied exports by hash and declares their relationship to the target and the externally executed export command unknown. An observed Git HEAD and cleanliness describe the worktree at inventory time. Keep receipt directories local and private because raw Kit responses can contain source-derived content. Sources of redacted arguments are marked in the receipt.
+
 Current report details:
 
 - JSON reports include source-facts, Python project metadata, and security-summary fields where applicable; JVM metadata remains detector input rather than a separate top-level field.

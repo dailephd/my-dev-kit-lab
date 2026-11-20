@@ -1,3 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describeAuditFile, observedAuditArguments, reserveAuditExecution, type AuditExecutionReceipt } from "../audits/core/auditExecutionReceipt.js";
+import { QUALIFIED_B3_P1_KIT } from "../audits/core/kitSourceProvider.js";
 import { parseAuditArgs, normalizeAuditConfig, type AuditConfig } from "../audits/core/auditConfig.js";
 import { resolveAuditTarget, type AuditTarget } from "../audits/core/auditTarget.js";
 import { runAudit } from "../audits/core/auditRunner.js";
@@ -23,6 +28,9 @@ export const AUDIT_USAGE =
   "Usage: my-dev-kit-lab audit [--target <path>] [--types code-rot,security] " +
   "[--include docs,tests,package,architecture,cli] [--format text,json] " +
   "[--fail-on blocker|high|medium|low|none] [--out <path>] [--android]\n" +
+  "  --kit-archive <file> and --kit-package-root <dir> select the qualified local Kit package.\n" +
+  "  --source-export <file> records the supplied export file's digest. --retry-of <id> links a previous run.\n" +
+  "  --source-snapshot <git-sha> declares the source revision. Repeat --require-source <relative-path> to require export files.\n" +
   "\n" +
   "  --android opts into Batch 2's programmatic Android security integration.\n" +
   "  Requires --types to include \"security\" (e.g. --types security or --types\n" +
@@ -42,6 +50,10 @@ export type RunAuditCommandOptions = {
   // discovered LabExecutionContext's packageRoot, matching the previous
   // script's resolveToolRoot(import.meta.url) behavior.
   context?: LabExecutionContext;
+  /** Existing project workspace root for durable audit evidence. */
+  evidenceWorkspace?: string;
+  /** Global options and command name, before audit options. */
+  launcherArgv?: readonly string[];
   // Root used only when --out was not supplied. Defaults to the target
   // toolRoot (context.packageRoot) -- the contributor npm script's exact
   // current behavior. The installed CLI router passes context.workspaceRoot
@@ -68,8 +80,9 @@ export async function runAuditCommandFromArgs(
   }
 
   let config: AuditConfig;
+  let args: ReturnType<typeof parseAuditArgs>;
   try {
-    const args = parseAuditArgs(argv);
+    args = parseAuditArgs(argv);
     config = normalizeAuditConfig(args, defaultOutRoot);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -101,17 +114,105 @@ export async function runAuditCommandFromArgs(
   console.log(`Include    : ${config.include.join(", ")}`);
   console.log("");
 
-  let result;
+  let receipt: AuditExecutionReceipt | undefined;
+  let model: ReturnType<typeof buildAuditReportModel>;
+  const writtenPaths: string[] = [];
+  const reportArtifacts: ReturnType<typeof describeAuditFile>[] = [];
   try {
-    result = await runAudit({ config, toolRoot, target, kitSourceProviderDependencies: options.kitSourceProviderDependencies });
+    const workspace = options.evidenceWorkspace ??
+      (args.kitArchive || args.kitPackageRoot || args.retryOf || args.sourceExport ||
+        args.sourceSnapshot || args.requiredSourcePaths ? context.invocationCwd : undefined);
+    if (workspace) {
+      receipt = reserveAuditExecution(workspace, target.rootPath, args.retryOf, target.isSelf);
+      console.log(`Execution receipt: ${receipt.directory}`);
+      const entrypoint = options.launcherArgv && process.argv[1] ? describeAuditFile(process.argv[1]) : null;
+      const invocation = observedAuditArguments(argv);
+      receipt.write("initial", {
+        createdAt: new Date().toISOString(), retryOf: receipt.retryOf,
+        cwd: process.cwd(), target, explicit: invocation,
+        launcher: describeAuditFile(process.execPath), entrypoint,
+        launcherArgv: options.launcherArgv ? {
+          args: [...options.launcherArgv, ...invocation.args],
+          exact: invocation.exact && process.execArgv.length === 0,
+          nodeOptionsRedacted: process.execArgv.length > 0,
+        } : null,
+        nodeVersion: process.version, platform: process.platform, arch: process.arch,
+        labVersion: JSON.parse(fs.readFileSync(path.join(toolRoot, "package.json"), "utf8")).version,
+        labCommandModule: describeAuditFile(fileURLToPath(import.meta.url)),
+        effective: config, sourceProvider: "kit",
+        declaredSnapshot: args.sourceSnapshot ?? null, requiredSourcePaths: args.requiredSourcePaths ?? [],
+        sourceExport: args.sourceExport ? path.resolve(args.sourceExport) : null,
+      });
+    }
+    if (Boolean(args.kitArchive) !== Boolean(args.kitPackageRoot)) {
+      throw new Error("The qualified Kit archive and installed package root must be supplied together.");
+    }
+    const deps = args.kitArchive ? { expectation: QUALIFIED_B3_P1_KIT,
+      qualifiedArchivePath: path.resolve(args.kitArchive), installedPackageRoot: path.resolve(args.kitPackageRoot!) }
+      : options.kitSourceProviderDependencies;
+    receipt?.setStage("source-export");
+    if (args.sourceExport) receipt?.write("source-export", {
+      file: describeAuditFile(path.resolve(args.sourceExport)),
+      relationshipToTarget: null, archiveCommand: null,
+    });
+    if (receipt) {
+      receipt.setStage("report-destination");
+      if (!config.outWasDefault) {
+        const workspaceRoot = fs.realpathSync(workspace!);
+        const relative = path.relative(workspaceRoot, config.out);
+        if (path.isAbsolute(relative) || !["lab-output", "reports"].includes(relative.split(path.sep)[0]!)) {
+          throw new Error("Managed audit reports require a destination under the workspace lab-output or reports directory.");
+        }
+        // Reject existing links (including ancestor junctions) before writing.
+        let current = workspaceRoot;
+        for (const segment of relative.split(path.sep)) {
+          current = path.join(current, segment);
+          try {
+            if (!fs.lstatSync(current).isDirectory() || path.relative(current, fs.realpathSync(current)) !== "") {
+              throw new Error("Managed audit report destination is not a physical workspace directory.");
+            }
+          } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+        }
+        const targetRelative = path.relative(target.rootPath, config.out);
+        if (!target.isSelf && !path.isAbsolute(targetRelative) && targetRelative !== ".." &&
+            !targetRelative.startsWith(".." + path.sep)) throw new Error("Managed audit reports cannot be written into the inspected target.");
+      } else {
+        config = { ...config, out: path.join(receipt.directory, "reports") };
+      }
+      receipt.write("effective-config", config);
+    }
+    const result = await runAudit({ config, toolRoot, target, declaredSnapshot: args.sourceSnapshot,
+      requiredSourcePaths: args.requiredSourcePaths, kitSourceProviderDependencies: { ...deps, receipt } });
+    if (receipt) receipt.write("audit-result", {
+      exitCode: result.exitCode, exitReason: result.exitReason, coverage: result.coverage,
+      issues: result.issues, skippedDetectors: result.skippedDetectors, detectorErrors: result.detectorErrors,
+    });
+    receipt?.setStage("report-generation");
+    model = buildAuditReportModel(result, { target });
+    for (const report of [...Object.values(model.securitySummary.reportPaths), ...Object.values(model.androidSecurity.summary.reportPaths)]) {
+      if (receipt && report && fs.existsSync(report)) reportArtifacts.push(describeAuditFile(report));
+    }
+    writeAuditReports({ model, config, outDir: config.out, exclusive: Boolean(receipt),
+      onWritten: (filename) => {
+        writtenPaths.push(filename);
+        if (receipt) {
+          const artifact = describeAuditFile(filename);
+          reportArtifacts.push(artifact);
+          receipt.write("audit-report-" + path.extname(filename).slice(1), artifact);
+        }
+      } });
+    receipt?.write("outcome", { exitCode: model.exit.code, exitReason: model.exit.reason, reports: reportArtifacts });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (receipt) {
+      try { receipt.write("failure", { stage: receipt.stage, error: msg,
+        category: err instanceof Error && "category" in err ? err.category : null,
+        exitCode: AUDIT_EXIT_CODES.FATAL_ERROR, reports: reportArtifacts }); }
+      catch (receiptError) { console.error(`ERROR: could not finalize audit receipt: ${String(receiptError)}`); }
+    }
     console.error(`\nERROR: audit runtime failure: ${msg}`);
     return AUDIT_EXIT_CODES.FATAL_ERROR;
   }
-
-  const model = buildAuditReportModel(result, { target });
-  const { writtenPaths } = writeAuditReports({ model, config, outDir: config.out });
 
   console.log(`Issues found        : ${model.summary.totalIssues}`);
   console.log(

@@ -22,6 +22,7 @@ export type MeasuredCommandResult = {
   endedAt: string;
   durationMs: number;
   exitCode: number | null;
+  signal?: NodeJS.Signals | null;
   stdout: string;
   stderr: string;
   stdoutPath: string;
@@ -40,6 +41,10 @@ export type MeasuredCommandResult = {
 
 type MeasuredCommandBaseOptions = {
   commandId: string;
+  /** Optional redacted argv used only for the persisted telemetry. */
+  telemetryArgs?: readonly string[];
+  exclusiveArtifacts?: boolean;
+  onSettled?: (result: MeasuredCommandResult) => void;
   cwd: string;
   outDir: string;
   extraArgs?: string[];
@@ -129,7 +134,12 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
   const startedAt = new Date().toISOString();
   const started = Date.now();
 
-  const result = await new Promise<MeasuredCommandResult>((resolve) => {
+  const write = (filename: string, value: string | Buffer) =>
+    writeArtifact(filename, value, options.exclusiveArtifacts);
+  const telemetry = (result: MeasuredCommandResult) => JSON.stringify(
+    options.telemetryArgs ? { ...result, args: options.telemetryArgs,
+      commandString: serializeCommand([executable, ...options.telemetryArgs]) } : result, null, 2);
+  const result = await new Promise<MeasuredCommandResult>((resolve, reject) => {
     const stdoutCollector = new OutputCollector(options.stdoutMaxBytes);
     const stderrCollector = new OutputCollector(options.stderrMaxBytes);
     let outputLimit: MeasuredCommandResult["outputLimit"];
@@ -176,11 +186,12 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         error: message,
         resolvedCommand: resolution
       };
+      options.onSettled?.(measured);
       void Promise.all([
-        writeArtifact(stdoutPath, ""),
-        writeArtifact(stderrPath, ""),
-        writeArtifact(telemetryPath, JSON.stringify(measured, null, 2))
-      ]).then(() => resolve(measured));
+        write(stdoutPath, ""),
+        write(stderrPath, ""),
+        write(telemetryPath, telemetry(measured))
+      ]).then(() => resolve(measured), reject);
       return;
     }
 
@@ -195,7 +206,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         forceTerminateProcess(child.pid);
       }
       killGraceTimeout ??= setTimeout(() => {
-        void settle(null);
+        void settle(null).catch(reject);
       }, KILL_GRACE_MS);
     };
     const collect = (collector: OutputCollector, stream: "stdout" | "stderr", limit: number | undefined) => (chunk: Buffer | string) => {
@@ -238,7 +249,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     // Tree termination is awaited before a bounded result is returned. The helper has its own
     // platform-specific time bound; a failed or timed-out tree kill remains visible in `error`.
     // Non-tree callers retain the legacy kill-grace fallback below.
-    const settle = async (exitCode: number | null) => {
+    const settle = async (exitCode: number | null, signal: NodeJS.Signals | null = null) => {
       if (settled) return;
       if (terminationPromise) {
         const terminated = await terminationPromise;
@@ -267,8 +278,6 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       const durationMs = Date.now() - started;
       const stdout = stdoutCollector.toString();
       const stderr = stderrCollector.toString();
-      await writeArtifact(stdoutPath, bounded ? stdoutCollector.toBuffer() : stdout);
-      await writeArtifact(stderrPath, bounded ? stderrCollector.toBuffer() : stderr);
       const measured: MeasuredCommandResult = {
         commandId: options.commandId,
         commandString,
@@ -279,6 +288,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         endedAt,
         durationMs,
         exitCode,
+        ...(options.exclusiveArtifacts ? { signal } : {}),
         stdout,
         stderr,
         stdoutPath,
@@ -289,7 +299,10 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         resolvedCommand: resolution,
         ...(bounded ? { timedOut, ...(outputLimit ? { outputLimit } : {}), ...(options.terminateProcessTree === true ? { processTreeCleanup } : {}) } : {})
       };
-      await writeArtifact(telemetryPath, JSON.stringify(measured, null, 2));
+      options.onSettled?.(measured);
+      await write(stdoutPath, bounded ? stdoutCollector.toBuffer() : stdout);
+      await write(stderrPath, bounded ? stderrCollector.toBuffer() : stderr);
+      await write(telemetryPath, telemetry(measured));
       resolve(measured);
     };
 
@@ -300,8 +313,8 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         terminate();
       }, options.timeoutMs);
     }
-    child.on("close", (exitCode) => {
-      void settle(exitCode);
+    child.on("close", (exitCode, signal) => {
+      void settle(exitCode, signal).catch(reject);
     });
   });
 
@@ -352,9 +365,9 @@ class OutputCollector {
   toBuffer(): Buffer { return this.limit === undefined ? Buffer.from(this.text, "utf8") : Buffer.concat(this.chunks); }
 }
 
-async function writeArtifact(filePath: string, value: string | Buffer): Promise<void> {
+async function writeArtifact(filePath: string, value: string | Buffer, exclusive?: boolean): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, value, "utf8");
+  await writeFile(filePath, value, exclusive ? { flag: "wx", mode: 0o600, flush: true } : "utf8");
 }
 
 /**

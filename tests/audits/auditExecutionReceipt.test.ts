@@ -1,0 +1,172 @@
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { expect, it } from "vitest";
+import { collectKitSourceFacts, QUALIFIED_B3_P1_KIT, QUALIFIED_PUBLISHED_KIT } from "../../src/audits/core/kitSourceProvider.js";
+import { reserveAuditExecution } from "../../src/audits/core/auditExecutionReceipt.js";
+import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
+import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
+import { runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
+
+function fixture() {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-audit-receipt-"));
+  const target = path.join(workspace, "target");
+  fs.mkdirSync(path.join(target, "tests"), { recursive: true });
+  fs.writeFileSync(path.join(target, "package.json"), '{"name":"audit-receipt-test","type":"module"}');
+  fs.writeFileSync(path.join(target, "tests", "spec.test.mjs"), 'test.only("independent", () => {});\n');
+  const root = path.join(workspace, "lab-output", "evidence");
+  const argv = ["--target", target, "--types", "code-rot", "--include", "tests", "--format", "text,json", "--fail-on", "none"];
+  return { workspace, target, root, argv };
+}
+
+type Digest = { path: string; bytes: number; sha256: string };
+function verify(artifact: Digest) {
+  const bytes = fs.readFileSync(artifact.path);
+  expect(bytes.length).toBe(artifact.bytes);
+  expect(createHash("sha256").update(bytes).digest("hex")).toBe(artifact.sha256);
+  return bytes;
+}
+function load(directory: string, name: string) {
+  return JSON.parse(fs.readFileSync(path.join(directory, name + ".json"), "utf8"));
+}
+function verifyConclusion(directory: string, name: string) {
+  const result = load(directory, name);
+  expect(result.executionId).toBe(path.basename(directory));
+  for (const artifact of result.checkpoints) verify(artifact);
+  for (const artifact of result.evidence.reports) verify(artifact);
+  return result.evidence;
+}
+function executions(root: string) {
+  return fs.readdirSync(root).map(id => path.join(root, id));
+}
+
+it("retains a real nonzero child, its prelaunch argv, and both byte streams before report generation", async () => {
+  const { target, workspace, argv, root } = fixture();
+  const pkg = path.join(workspace, "kit");
+  fs.mkdirSync(pkg);
+  fs.writeFileSync(path.join(pkg, "package.json"), JSON.stringify({
+    name: QUALIFIED_PUBLISHED_KIT.packageName, version: QUALIFIED_PUBLISHED_KIT.packageVersion, bin: "cli.js",
+  }));
+  fs.writeFileSync(path.join(pkg, "cli.js"), `// ${QUALIFIED_PUBLISHED_KIT.extractorRevision}
+process.stdout.write(Buffer.from([255, 10])); process.stderr.write("fixture failure"); process.exitCode = 17;`);
+  // The fake CLI exercises retention only. Use a runner seam that starts the
+  // real process even though this fixture is outside Kit's predicate profile.
+  const receipt = reserveAuditExecution(workspace, target);
+  receipt.write("initial", { fixture: true });
+  await expect(collectKitSourceFacts({
+    targetRoot: target, inventory: scanProjectInventory(target), requiredCapabilities: [], includeScriptsRoot: false,
+  }, { installedPackageRoot: pkg, expectation: { ...QUALIFIED_PUBLISHED_KIT, cliSha256: null }, receipt,
+    async runCommand(options) {
+      expect(load(receipt.directory, options.commandId + "-initial").evidence.args).toEqual(options.args);
+      return runMeasuredCommand(options);
+    },
+  })).rejects.toThrow(/exit 17/);
+  const command = load(receipt.directory, "kit-000000-index-result").evidence;
+  expect(command.exitCode).toBe(17);
+  expect(verify(command.artifacts[0])).toEqual(Buffer.from([255, 10]));
+  expect(verify(command.artifacts[1]).toString()).toBe("fixture failure");
+  expect(JSON.parse(verify(command.artifacts[2]).toString()).exitCode).toBe(17);
+  expect(fs.existsSync(path.join(receipt.directory, "reports"))).toBe(false);
+
+  const before = fs.readFileSync(path.join(receipt.directory, "initial.json"));
+  const status = await runAuditCommandFromArgs([...argv, "--retry-of", receipt.id, "--ignored-secret=omit-me"], {
+    evidenceWorkspace: workspace, kitSourceProviderDependencies: { installedPackageRoot: path.join(workspace, "missing") },
+  });
+  expect(status).toBe(2);
+  const retry = executions(root).find(dir => dir !== receipt.directory)!;
+  expect(load(retry, "initial").evidence).toMatchObject({ retryOf: receipt.id, explicit: { exact: false } });
+  expect(fs.readFileSync(path.join(retry, "initial.json"), "utf8")).not.toContain("omit-me");
+  expect(fs.readFileSync(path.join(receipt.directory, "initial.json"))).toEqual(before);
+  expect(verifyConclusion(retry, "failure")).toMatchObject({ stage: "kit-package-qualification", reports: [], exitCode: 2 });
+});
+
+it("retains an absent required path before running Kit", async () => {
+  const { target, workspace } = fixture();
+  const receipt = reserveAuditExecution(workspace, target);
+  await expect(collectKitSourceFacts({ targetRoot: target, inventory: scanProjectInventory(target),
+    requiredPaths: ["tests/absent.test.mjs"], requiredCapabilities: [], includeScriptsRoot: false },
+    { receipt })).rejects.toThrow(/selection-incomplete/);
+  expect(load(receipt.directory, "lab-required-source-scope").evidence).toMatchObject({
+    requiredPaths: ["tests/absent.test.mjs"], unresolvedPaths: ["tests/absent.test.mjs"], complete: false,
+  });
+  expect(fs.readdirSync(receipt.directory)).toEqual(["lab-required-source-scope.json"]);
+});
+
+const archive = process.env.LAB_R3_KIT_ARCHIVE;
+const pkg = process.env.LAB_R3_INSTALLED_KIT;
+it.skipIf(!archive || !pkg)("retains qualified selection, partial coverage, collisions and invalid artifacts", async () => {
+  const { target, workspace, argv, root } = fixture();
+  const deps = { expectation: QUALIFIED_B3_P1_KIT, qualifiedArchivePath: archive, installedPackageRoot: pkg };
+  const out = path.join(workspace, "reports");
+  const run = (extra: string[] = [], dependencies = deps) => runAuditCommandFromArgs([...argv, ...extra], {
+    evidenceWorkspace: workspace, kitSourceProviderDependencies: dependencies,
+  });
+  expect(await run(["--out", out])).toBe(0);
+  const [success] = executions(root);
+  const complete = verifyConclusion(success, "outcome");
+  expect(complete.exitCode).toBe(0);
+  expect(complete.reports).toHaveLength(2);
+  const selection = load(success, "kit-selection").evidence.inventory;
+  const relevant = selection.find((file: { path: string }) => file.path === "tests/spec.test.mjs");
+  const source = load(success, "source-inventory").evidence.inventory.find((file: { path: string }) => file.path === relevant.path);
+  expect(source).toMatchObject({ bytes: relevant.sizeBytes, sha256: relevant.contentSha256 });
+  const selected = load(success, "kit-artifact-identity").evidence;
+  expect(selected.source.selectionFingerprint).toMatch(/^[a-f0-9]{64}$/);
+  expect(selected.coverage.inventoryComplete).toBe(true);
+
+  expect(await run(["--retry-of", path.basename(success), "--out", out])).toBe(2);
+  const collision = executions(root).find(dir => dir !== success)!;
+  expect(verifyConclusion(collision, "failure")).toMatchObject({ stage: "report-generation", error: expect.stringContaining("EEXIST") });
+  verifyConclusion(success, "outcome");
+
+  const beforeMissing = executions(root);
+  expect(await run(["--require-source", "tests/absent.test.mjs"])).toBe(2);
+  const missing = executions(root).find(dir => !beforeMissing.includes(dir))!;
+  expect(verifyConclusion(missing, "failure")).toMatchObject({ stage: "declared-required-files", category: "selection-incomplete" });
+  expect(load(missing, "declared-required-files").evidence).toEqual([{ path: "tests/absent.test.mjs", present: false }]);
+
+  const beforeSelectionGap = executions(root);
+  const missingDuringIndex = path.join(target, "tests", "spec.test.mjs");
+  fs.writeFileSync(path.join(target, "tests", "another.test.mjs"), 'test("another", () => {});');
+  const omitDuringIndex = { ...deps, async runCommand(options: Parameters<typeof runMeasuredCommand>[0]) {
+    if (options.args?.[1] !== "index") return runMeasuredCommand(options);
+    const bytes = fs.readFileSync(missingDuringIndex);
+    fs.unlinkSync(missingDuringIndex);
+    try { return await runMeasuredCommand(options); }
+    finally { fs.writeFileSync(missingDuringIndex, bytes); }
+  } };
+  expect(await run([], omitDuringIndex)).toBe(2);
+  const gap = executions(root).find(dir => !beforeSelectionGap.includes(dir))!;
+  expect(verifyConclusion(gap, "failure")).toMatchObject({ stage: "kit-required-coverage", category: "selection-incomplete" });
+  expect(load(gap, "kit-required-inclusion").evidence).toContainEqual({ file: "tests/spec.test.mjs", selected: false });
+  expect(load(gap, "kit-000000-index-result").evidence.exitCode).toBe(0);
+
+  const beforePartial = executions(root);
+  fs.appendFileSync(path.join(target, "tests", "spec.test.mjs"), "void import(process.env.UNRESOLVED);\n");
+  expect(await run()).toBe(2);
+  const partial = executions(root).find(dir => !beforePartial.includes(dir))!;
+  expect(verifyConclusion(partial, "outcome")).toMatchObject({ exitCode: 2, reports: expect.any(Array) });
+  expect(load(partial, "audit-result").evidence.issues.some((issue: { id: string }) => issue.id.includes("only"))).toBe(true);
+
+  const beforeTamper = executions(root);
+  const tamperingDeps = { ...deps, async runCommand(options: Parameters<typeof runMeasuredCommand>[0]) {
+    const result = await runMeasuredCommand(options);
+    if (options.args?.[1] === "index") {
+      fs.appendFileSync(path.join(options.cwd, "index", "source-audit-evidence.json"), "tamper");
+    }
+    return result;
+  } };
+  expect(await run([], tamperingDeps)).toBe(2);
+  const invalid = executions(root).find(dir => !beforeTamper.includes(dir))!;
+  expect(verifyConclusion(invalid, "failure")).toMatchObject({ stage: "kit-artifact-validation", reports: [], exitCode: 2 });
+  verify(load(invalid, "kit-index-artifacts").evidence[1]);
+
+  const beforeMismatch = executions(root);
+  const otherArchive = path.join(workspace, "other.tgz");
+  fs.writeFileSync(otherArchive, "different bytes");
+  expect(await run([], { ...deps, qualifiedArchivePath: otherArchive })).toBe(2);
+  const mismatch = executions(root).find(dir => !beforeMismatch.includes(dir))!;
+  expect(verifyConclusion(mismatch, "failure")).toMatchObject({ category: "package-identity", reports: [] });
+  expect(verify(load(mismatch, "kit-package-request").evidence.observedArchive).toString()).toBe("different bytes");
+}, 120_000);

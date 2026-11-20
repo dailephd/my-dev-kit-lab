@@ -117,7 +117,9 @@ export async function runLabCli(argv: string[], options: RunLabCliOptions = {}):
   }
 
   if (command === "audit") {
-    return runAuditCommandFromArgs(rest, { context, defaultOutRoot: context.workspaceRoot });
+    return runAuditCommandFromArgs(rest, { context, defaultOutRoot: context.workspaceRoot,
+      evidenceWorkspace: globalOptions.workspaceRoot ? context.workspaceRoot : context.invocationCwd,
+      launcherArgv: argv.slice(0, argv.length - rest.length) });
   }
 
   if (command === "evidence") return runEvidenceCommand(rest, { context, writers });

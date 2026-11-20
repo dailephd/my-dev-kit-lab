@@ -1,3 +1,4 @@
+import { describeAuditFile, type AuditExecutionReceipt } from "../core/auditExecutionReceipt.js";
 import path from "node:path";
 import { runSecurityValidation } from "../../securityValidation/validate/runSecurityValidation.js";
 import { reportFilenamePrefix } from "../../securityValidation/validate/resolveTarget.js";
@@ -33,6 +34,7 @@ import {
 
 export type RunSecurityAuditAdapterOptions = {
   toolRoot: string;
+  receipt?: AuditExecutionReceipt;
   config: AuditConfig;
   // v0.4.2 Batch 2 — internal/programmatic-only Android integration request.
   // No CLI flag sets this yet (deferred to a later batch); omitted means
@@ -70,6 +72,7 @@ export async function runSecurityAuditAdapter(
   // skippedCheck() in runSecurityValidation.ts), so it can never silently
   // masquerade as an issue or as a passed check here.
   const issues = summary.findings.map(mapSecurityFindingToAuditIssue);
+  options.receipt?.write("security-observations", { verdict: summary.verdict, issues });
 
   const report = buildSecurityReportFromSummary(summary, {
     profile: DEFAULT_SECURITY_PROFILE,
@@ -77,7 +80,7 @@ export async function runSecurityAuditAdapter(
     formats: ["text", "json"],
   });
 
-  const reportDir = path.join(toolRoot, "reports", "security");
+  const reportDir = path.join(options.receipt?.directory ?? toolRoot, "reports", "security");
   const prefix = reportFilenamePrefix({
     isSelf: summary.isSelf,
     packageName: summary.packageName,
@@ -91,6 +94,9 @@ export async function runSecurityAuditAdapter(
     report,
     formats: ["text", "json"],
     reportPathSuffix: runSuffix,
+    exclusive: !!options.receipt,
+    onWritten: filename => options.receipt?.write("security-report-" + path.extname(filename).slice(1),
+      describeAuditFile(filename)),
   });
 
   const findingCounts = {

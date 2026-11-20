@@ -24,6 +24,8 @@ export type WriteAuditReportsOptions = {
   model: AuditReportModel;
   config: AuditConfig;
   outDir: string;
+  exclusive?: boolean;
+  onWritten?: (filename: string) => void;
 };
 
 export type WriteAuditReportsResult = {
@@ -34,6 +36,7 @@ export function writeAuditReports(options: WriteAuditReportsOptions): WriteAudit
   const { model, config, outDir } = options;
   const resolvedOutDir = path.resolve(outDir);
   const writtenPaths: string[] = [];
+  const writeOptions = options.exclusive ? { flag: "wx", mode: 0o600, flush: true } : "utf8" as const;
 
   if (config.formats.length === 0) {
     return { writtenPaths };
@@ -45,13 +48,15 @@ export function writeAuditReports(options: WriteAuditReportsOptions): WriteAudit
 
   if (config.formats.includes("json")) {
     const jsonPath = path.join(resolvedOutDir, AUDIT_JSON_REPORT_FILENAME);
-    fs.writeFileSync(jsonPath, renderAuditJsonReport(model), "utf8");
+    fs.writeFileSync(jsonPath, renderAuditJsonReport(model), writeOptions);
+    options.onWritten?.(jsonPath);
     writtenPaths.push(jsonPath);
   }
 
   if (config.formats.includes("text")) {
     const textPath = path.join(resolvedOutDir, AUDIT_TEXT_REPORT_FILENAME);
-    fs.writeFileSync(textPath, renderAuditTextReport(model), "utf8");
+    fs.writeFileSync(textPath, renderAuditTextReport(model), writeOptions);
+    options.onWritten?.(textPath);
     writtenPaths.push(textPath);
   }
 

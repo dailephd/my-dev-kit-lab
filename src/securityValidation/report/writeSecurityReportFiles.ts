@@ -9,6 +9,8 @@ export type WriteSecurityReportFilesOptions = {
   report: SecurityReport;
   formats: readonly string[];
   reportPathSuffix?: string;
+  exclusive?: boolean;
+  onWritten?: (filename: string) => void;
 };
 
 export type WriteSecurityReportFilesResult = {
@@ -94,15 +96,18 @@ export function writeSecurityReportFiles(
     : null;
 
   const writtenPaths: string[] = [];
+  const writeOptions = options.exclusive ? { flag: "wx", mode: 0o600, flush: true } : "utf8" as const;
   // Validate all requested destinations before persisting either format.
   if (textPath) assertSecurityOutputPath(textPath, true);
   if (jsonPath) assertSecurityOutputPath(jsonPath, true);
   if (textPath) {
-    fs.writeFileSync(textPath, renderTextReport(options.report), "utf8");
+    fs.writeFileSync(textPath, renderTextReport(options.report), writeOptions);
+    options.onWritten?.(textPath);
     writtenPaths.push(textPath);
   }
   if (jsonPath) {
-    fs.writeFileSync(jsonPath, renderJsonReport(options.report), "utf8");
+    fs.writeFileSync(jsonPath, renderJsonReport(options.report), writeOptions);
+    options.onWritten?.(jsonPath);
     writtenPaths.push(jsonPath);
   }
 

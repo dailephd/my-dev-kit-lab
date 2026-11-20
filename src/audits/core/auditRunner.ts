@@ -1,3 +1,4 @@
+import { observeAuditSource } from "./auditExecutionReceipt.js";
 import type { AuditConfig } from "./auditConfig.js";
 import { calculateAuditExitCode } from "./auditExitCode.js";
 import type { AuditIssue } from "./auditIssue.js";
@@ -22,7 +23,7 @@ import {
   type KitSourceProviderDependencies,
   type KitSourceReader,
 } from "./kitSourceProvider.js";
-import { KitSourceEvidenceAcquisitionError } from "./kitSourceEvidence.js";
+import { KitSourceEvidenceAcquisitionError, validateKitRelativePath } from "./kitSourceEvidence.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "./pythonProjectMetadata.js";
 import { runSecurityAuditAdapter } from "../security/securityAuditAdapter.js";
 import {
@@ -77,7 +78,7 @@ export type AuditResult = {
   issueCounts: Record<AuditSeverity, number>;
   exitCode: number;
   exitReason: string;
-  // v0.3.0 Batch 2 — data collected before detectors run. With
+  // v0.3.0 Batch 2 â€” data collected before detectors run. With
   // DEFAULT_AUDIT_REGISTRY still empty, these are the only substantive
   // output of a run; issues/detector fields above stay at their Batch 1
   // zero-value shape until a later batch registers real detectors.
@@ -117,6 +118,8 @@ export type AuditSourceProviderMode = "kit";
 export type RunAuditOptions = {
   config: AuditConfig;
   toolRoot: string;
+  declaredSnapshot?: string;
+  requiredSourcePaths?: readonly string[];
   sourceProviderMode?: AuditSourceProviderMode;
   // Internal test/consumer seam for the verified installed Kit package,
   // command runner and working directory. Not a public option.
@@ -162,7 +165,12 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   const registry = options.registry ?? DEFAULT_AUDIT_REGISTRY;
   const target = options.target ?? resolveAuditTarget(config.targetPathArg, toolRoot);
 
+  const receipt = options.kitSourceProviderDependencies?.receipt;
+  receipt?.setStage("lab-inventory");
   const inventory = scanProjectInventory(target.rootPath);
+  const observedSource = receipt ? await observeAuditSource(inventory) : undefined;
+  if (receipt && observedSource) receipt.write("source-inventory", { ...observedSource,
+    declaredSnapshot: options.declaredSnapshot ?? null });
   const sourceOfTruth = collectSourceOfTruth(target.rootPath, inventory);
   const pythonProjectMetadata = collectPythonProjectMetadata(target.rootPath, inventory);
 
@@ -173,6 +181,29 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   let sourceFacts: SourceFactsSnapshot;
   let kitSourceReader: KitSourceReader | undefined;
   const applicable = resolveApplicableKitRequirements(selected, inventory, config.include);
+  receipt?.write("lab-selection", { detectors: selected.map(detector => detector.id),
+    required: applicable.paths.map(file => ({ file, present: inventory.files.some(entry => entry.relativePath === file) })),
+    requirements: applicable.requirements });
+  receipt?.setStage("source-snapshot");
+  if (options.declaredSnapshot !== undefined && !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(options.declaredSnapshot)) {
+    throw new Error("The declared source snapshot must be a full Git object ID.");
+  }
+  if (observedSource?.candidateGitSha && options.declaredSnapshot &&
+      observedSource.candidateGitSha !== options.declaredSnapshot.toLowerCase()) {
+    throw new Error("The observed source Git HEAD differs from the declared snapshot.");
+  }
+  receipt?.setStage("declared-required-files");
+  const requiredExport = [...new Set(options.requiredSourcePaths)].sort().map(file => {
+    validateKitRelativePath(file, "declared required source path");
+    const observed = observedSource?.inventory.find(entry => entry.path === file);
+    return { path: file, present: observed ? observed.sha256 !== null :
+      inventory.files.some(entry => entry.relativePath === file) };
+  });
+  receipt?.write("declared-required-files", requiredExport);
+  const absent = requiredExport.filter(file => !file.present).map(file => file.path);
+  if (absent.length) {
+    throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Declared required files absent from readable Lab inventory: ${absent.join(", ")}.`);
+  }
   try {
     const kitRequirement = resolveKitSourceEvidenceRequirement(selected);
     if (kitRequirement.required && applicable.paths.length > 0) {
@@ -226,6 +257,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
 
   // Sequential, in registry order -- keeps issue ordering deterministic
   // without needing a secondary sort step.
+  receipt?.setStage("detectors");
   try {
     for (const detector of selected) {
     try {
@@ -247,7 +279,8 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     }
     }
   } finally {
-    kitSourceReader?.dispose();
+    try { receipt?.write("detector-observations", { issues, skippedDetectors, detectorErrors, coverage }); }
+    finally { kitSourceReader?.dispose(); }
   }
 
   // v0.3.2 Batch 4 -- security audit adapter. Conditional (see the
@@ -260,8 +293,9 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   let securitySummary: SecurityAuditReportSummary = SECURITY_AUDIT_NOT_RUN_SUMMARY;
   let androidSummary: AndroidAuditSummary = ANDROID_AUDIT_NOT_REQUESTED_SUMMARY;
   if (config.types.includes("security")) {
+    receipt?.setStage("security-validation");
     const securityAudit = await runSecurityAuditAdapter(
-      { toolRoot, config, android: config.android ? { enabled: true } : undefined },
+      { toolRoot, config, receipt, android: config.android ? { enabled: true } : undefined },
       options.securityDependencies
     );
     issues.push(...securityAudit.issues);
