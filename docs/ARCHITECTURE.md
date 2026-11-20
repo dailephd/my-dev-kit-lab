@@ -1431,3 +1431,27 @@ The generic report family uses `src/report/experiments/reportSectionRegistry.ts`
 `scripts/verify-private-provenance.mjs --current` delegates only the explicitly selected current route to its private companion `scripts/verifyCurrentKitAcceptance.mjs`. Historical verification and binding functions remain authoritative for the original contract. No alternate audit engine or source provider is introduced. The companion reuses `runMeasuredCommand`, executable-evidence `readEvidenceBytes`, source identities, the qualified Kit runtime, existing finite tests and packed-package verification. The Gate 5 test can emit a separate fresh current-decision artifact without changing its historical artifact channel.
 
 Independent verification reopens original native bytes, checks selected responsibilities against a separately derived source test inventory, examines all assertion outcomes and all 150 complete findings, and retains coverage denials. The existing raw source identity controls local immutability; explicitly declared UTF-8 CRLF/LF normalization permits source-content comparison across actual OS cells while retaining each raw identity. Hosted qualification checks live exact-SHA CI metadata and retrieves the corresponding three native artifacts. Unsigned local observations are not authorship attestations. Current and historical verdicts remain separate; no historical failure is converted to current or historical PASS.
+
+## Managed R3 evidence and durable audit execution
+
+The managed provider authenticates the producer package and CLI, source
+snapshot, selected inventory, page families, and origin/target content
+identities. Artifact, inventory and file fact pages use 1.2.0 in the R3
+route. Ordinary import-target and exact occurrence responses use 1.1.0.
+Expression-domain and exact-byte responses use 1.0.0. The provider checks
+each family against its own schema and provenance.
+
+An observed candidate can support diagnostics. A positive ESM reference
+requires a qualified witness. Negative predicates require appropriate
+profile premises, covered alternatives and all relevant origins. Required
+files are checked against the source inventory. A coverage gap applies to
+its affected predicate, so independent findings can still be reported.
+Mandatory incompleteness controls exit 2 ahead of issue thresholds.
+
+An execution reserves an initial receipt and records checkpoints and
+subprocess invocation, exit and artifact evidence. The terminal outcome or
+failure refers to available checkpoint and report digests. Early failures
+after reservation can have a terminal failure and zero reports. Retry
+links preserve the earlier execution. The digest of an externally supplied
+export identifies those bytes, while export-to-target provenance can remain
+unknown.

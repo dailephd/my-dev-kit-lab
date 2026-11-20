@@ -967,3 +967,27 @@ Finite lane choices are `public`, `protected`, `platform`, and `packed`. Public 
 A binding plan contains the exact current `contractId`, a `manifests` array of native collection-manifest paths, and, for required hosted corroboration, `hostedRunId`. Binding reopens inputs; it does not trust prior receipt PASS fields. Hosted checks use the existing authenticated GitHub CLI read interface against the fixed Lab repository, never a caller-supplied network URL. Completed exact-SHA CI and one unexpired native artifact from each required OS job are mandatory.
 
 Exit 0 means the selected collection/verification completed, or every required binding gate passed. Binding exit 2 means `BLOCKED_REQUIRED_EVIDENCE` with explicit missing gates. Invalid, failed, conflicting or tampered evidence exits 1. A completed collection or scoped verification is not whole-candidate acceptance. All receipts disclose historical provenance `UNVERIFIED`, original private verification `NOT_PASSED`, and original readiness binding `NOT_PASSED`. No command pushes, publishes or starts Step 5.
+
+## Managed audit with the qualified local Kit producer
+
+Run `my-dev-kit-lab --workspace <workspace> audit --target <project>
+--types code-rot --include tests --format json,text --fail-on none
+--kit-archive <qualified-tarball> --kit-package-root <isolated-package-root>`.
+Supply both Kit options together. The managed provider validates the
+qualified archive and installed CLI identities and requests Kit artifact
+schema 1.2.0. The production dependency remains Kit 1.15.0.
+
+Repeat `--require-source <relative-path>` for required inventory entries.
+`--source-snapshot <git-sha>` declares the intended revision.
+`--source-export <file>` records the supplied file's digest. It does not
+establish how that export was made or its relationship to the target tree.
+`--retry-of <id>` links an earlier execution in the same evidence workspace.
+
+Managed default reports live under the execution's `reports/` directory in
+`<workspace>/lab-output/evidence/audit-<id>/`. An explicit `--out` uses a
+physical directory under workspace `lab-output/` or `reports/`, outside
+the inspected external target. JSON reports use schema 1.0. Completed audits
+return exit 0 below the chosen threshold and exit 1 at or above it.
+Thresholds are blocker, high, medium, low and none. Mandatory incomplete
+coverage and fatal execution failures return exit 2, including under
+`--fail-on none`. Independent findings remain in completed partial reports.

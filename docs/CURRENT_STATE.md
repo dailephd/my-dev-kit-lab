@@ -444,3 +444,25 @@ The published/current designation is established by external registry evidence, 
 SW-121 authorizes `V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0` under `LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0`. The implemented source-checkout collector and independent native semantic verifier retain every A-L obligation, all sixteen current disposition reviews and all three incomparable profiles. Current acceptance remains **BLOCKED_REQUIRED_EVIDENCE** pending complete exact-candidate platform and binding evidence. Authorization alone is not acceptance.
 
 The eight missing historical byte identities covering ten references remain unavailable. Historical provenance is **UNVERIFIED**; original private verification and original readiness binding are **NOT_PASSED**. Their inventories, tests, hashes and failure records are unchanged. A fresh current acceptance never claims historical recovery. The original Python M13 qualification warning is preserved and disclosed in the current bounded-candidacy review. No release, version bump or Step 5 audit is established by this work.
+
+## Coordinated Kit/Lab candidate
+
+Lab's published baseline and the local candidate's package metadata are both
+0.10.0. The unpublished consumer implementation for the coordinated v0.11.0
+work is `23a03d99e180ef013c39dae3b2e1621bdec94686`. Its production Kit
+dependency remains exactly 1.15.0. The separate managed route explicitly
+selects the qualified local Kit R3 producer from source commit
+`bde00d9c165a6a546170ab72e7a9534d6929697e` and archive SHA-256
+`943b3506c7a3e9708f96d2e40a9fcfc720853c46a4273f31408568942a5599a6`.
+
+B4 Windows requalification recorded 26 installed audits (six exit 0, three
+exit 1 and seventeen exit 2), ten linked import-proof cases, fourteen compiled
+internal fault cases and forty terminal receipts with verified references.
+Lab Linux integration remains unqualified. Cross-platform qualification,
+implementation completeness and exact-package pre-release readiness are
+separate gates.
+
+Earlier SW-123 stage descriptions in this document are historical. All
+thirteen mandatory obligations remain unresolved, the original provenance
+remains unrecovered, and original iworkhere.space acceptance remains open.
+The existing later-version roadmap and release procedure still apply.
