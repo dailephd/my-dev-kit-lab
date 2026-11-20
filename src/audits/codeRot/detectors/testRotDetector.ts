@@ -141,16 +141,37 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // test suite of its own would never hit this exclusion.
       if (testFile.relativePath.startsWith("tests/audits/codeRot/")) return issues;
 
+      const reader = ctx.kitSourceReader;
+      const scopedDomains = (observed?.language === "typescript" || observed?.language === "javascript") && reader?.expressionDomains
+        ? await reader.expressionDomains(testFile.relativePath) : undefined;
+      const domainMissing = new Set<string>();
+      const linked = new Set<string>();
+      for (const { linkedImportFactId, proof } of scopedDomains ?? []) {
+        if (linkedImportFactId) linked.add(linkedImportFactId);
+        const imp = observed?.imports.find(i => i.provenance?.factId === linkedImportFactId);
+        const missingRelative = !!imp?.source.startsWith(".") && proof.excludesSelectedDomain;
+        if (missingRelative && imp) domainMissing.add(imp.source);
+        const qualified = proof.excludesSelectedDomain || proof.positivePaths.length > 0;
+        ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "missing-source-import",
+          source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
+          actualStatus: proof.outcome, status: missingRelative ? "FINDING_SUPPORTED"
+            : qualified ? "QUALIFIED" : "UNDETERMINED", mandatory: true, diagnostic: proof.reasonCode ?? "",
+          reason: qualified ? "Validated R3 expression reference or selected-domain exclusion."
+            : "Dynamic import evidence has no exact witness or complete selected-domain exclusion.",
+          proof: { kind: "import-domain", snapshotId: proof.snapshotId,
+            references: [proof.expressionFactId, ...(linkedImportFactId ? [linkedImportFactId] : []), ...proof.positivePaths] },
+        });
+      }
       const partialImports = observed?.kit?.capabilities.imports === "partial";
       if (partialImports) {
         const reason = observed.diagnostics.map(d => d.code + ": " + d.message).join("; ");
         if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", testFile.relativePath + " requires complete imports. " + reason);
         ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", testFile.relativePath, reason);
       }
-      let kitMissing = new Set<string>();
+      let kitMissing = domainMissing;
       if (!partialImports) {
         try {
-          kitMissing = await kitMissingImports(ctx, testFile.relativePath, content, observed);
+          kitMissing = new Set([...domainMissing, ...await kitMissingImports(ctx, testFile.relativePath, content, observed, linked)]);
         } catch (error) {
           if (ctx.reportUnavailable &&
               error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
@@ -166,7 +187,9 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // checks already found: idCues use the same shape
       // (testRelativePath, "missing-source-import", specifier), so an
       // identical id is deduplicated by deduplicateIssuesById() below.
-      const parsedFacts = getImportSourceFacts(sourceFactsIndex, testFile.relativePath);
+      // Domain-backed linked imports retain their own authenticated inference
+      // even when a separate expression leaves the file inventory partial.
+      const parsedFacts = domainMissing.size ? observed : getImportSourceFacts(sourceFactsIndex, testFile.relativePath);
       if (parsedFacts?.language === "python") {
         // v0.3.2 Batch 2 -- Python relative imports use dotted-module
         // notation (".module", "..pkg.module"), not TS/JS's path-like
@@ -219,7 +242,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
   },
 };
 
-async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, content: string, facts?: SourceFileFacts): Promise<Set<string>> {
+async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, content: string, facts?: SourceFileFacts, linked = new Set<string>()): Promise<Set<string>> {
   const reader = ctx.kitSourceReader!;
   const missing = new Set<string>();
   const raw = [...content.matchAll(new RegExp(RELATIVE_IMPORT_PATTERN.source, "g"))].map((match) => match[1]);
@@ -259,6 +282,7 @@ async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, co
     ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");
   }
   for (const imp of facts.imports) {
+    if (imp.provenance?.factId && linked.has(imp.provenance.factId)) continue;
     const applicable = facts.language === "java" || facts.language === "kotlin" ? jvmImportLooksPossiblyLocal(imp) : imp.source.startsWith(".");
     if (!applicable) continue;
     if (!imp.provenance?.factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", filePath + " import has no validated fact identity.");

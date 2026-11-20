@@ -1,3 +1,5 @@
+import { fileURLToPath, pathToFileURL } from "node:url";
+import path from "node:path";
 import { createHash } from "node:crypto";
 import { splitLines } from "./textLines.js";
 import type { DeclarationFact, ImportFact, SourceFileFacts } from "./sourceFacts.js";
@@ -23,6 +25,7 @@ import type { DeclarationFact, ImportFact, SourceFileFacts } from "./sourceFacts
 export const KIT_PACKAGE_NAME = "@dailephd/my-dev-kit";
 export const KIT_SOURCE_AUDIT_ARTIFACT_KIND = "my-dev-kit-v1-source-audit-evidence";
 export const KIT_SOURCE_AUDIT_SCHEMA_VERSION = "1.1.0";
+export const KIT_SOURCE_PROOF_SCHEMA_VERSION = "1.2.0";
 export const KIT_SOURCE_AUDIT_ARTIFACT_FILENAME = "source-audit-evidence.json";
 export const KIT_SOURCE_AUDIT_EXTRACTOR_REVISION = "source-audit-v1.5.0";
 
@@ -182,7 +185,7 @@ export function validateKitImportProof(raw: unknown, expected: { snapshotId: str
   const r = raw as KitImportProof;
   if (!r || r.mode !== "audit-import-target" || !["1.0.0", "1.1.0"].includes(r.schemaVersion)) fail("schema-mismatch", "Invalid import-target envelope.");
   if (r.snapshotId !== expected.snapshotId) fail("snapshot-mismatch", "Import proof snapshot differs from the audit snapshot.");
-  if (expected.evidence && r.schemaVersion !== expected.evidence.artifactSchemaVersion) fail("schema-mismatch", "Import proof schema differs from the validated artifact.");
+  if (expected.evidence && r.schemaVersion !== (expected.evidence.artifactSchemaVersion === "1.2.0" ? "1.1.0" : expected.evidence.artifactSchemaVersion)) fail("schema-mismatch", "Import proof schema differs from the validated artifact.");
   if (r.importFactId !== expected.fact.id || r.originFile !== expected.fact.span.path || r.sourceSpecifier !== expected.fact.sourceSpecifier ||
       !["present", "proven-missing", "outside-selected-roots", "indeterminate"].includes(r.status) ||
       typeof r.selectionComplete !== "boolean" || typeof r.reasonCode !== "string" || !Array.isArray(r.candidatePaths)) fail("artifact-invalid", "Import proof does not match the validated fact.");
@@ -278,7 +281,8 @@ export type KitFileRecord = {
   status: KitFileStatus;
   lineCount: number | null;
   analyzerId: string | null;
-  capabilities: Record<KitCapabilityName, KitCapabilityStatus> & { jvmDeclarations?: KitCapabilityStatus };
+  capabilities: Record<KitCapabilityName, KitCapabilityStatus> & { jvmDeclarations?: KitCapabilityStatus; "dynamic-import-expressions"?: KitCapabilityStatus };
+  ambientClassification?: KitAmbientClassification;
   warnings: string[];
   // Present on exact-file lookups only.
   diagnostics?: KitDiagnostic[];
@@ -297,7 +301,23 @@ export type KitSourceSpan = {
   endColumn: number | null;
 };
 
+export type KitAmbientClassification = {
+  profile: "typescript-ambient-stub-v1";
+  scope: "entire-file";
+  contentSha256: string;
+  outcome: "proven-ambient-only" | "not-ambient-only" | "undetermined";
+  reasonCode: null | "EXECUTABLE_SYNTAX_PRESENT" | "UNSUPPORTED_AMBIENT_PROFILE" | "PARSE_UNCERTAINTY";
+  witnessFactIds: string[];
+};
+
+export type KitDynamicImportExpression = {
+  operandForm: "string-literal" | "qualified-string-binding" | "computed";
+  operandSpan: KitSourceSpan;
+  literalImportFactId?: string;
+};
+
 export type KitFact = {
+  dynamicImport?: KitDynamicImportExpression;
   jvmDeclaration?: { packageName: string; qualifiedName: string; role: "type" | "kotlin-top-level-function" | "kotlin-top-level-property" };
   jvmImportTarget?: { kind: "java-type" | "java-static-owner" | "kotlin-direct" | "unsupported"; qualifiedName: string | null };
   id: string;
@@ -493,7 +513,7 @@ export function validateKitCoverage(value: unknown, label: string): KitCoverage 
   };
 }
 
-export function validateKitFileRecord(value: unknown, label: string): KitFileRecord {
+export function validateKitFileRecord(value: unknown, label: string, schema?: unknown): KitFileRecord {
   const obj = asObject(value, label, "page-invalid");
   const filePath = validateKitRelativePath(obj.path, `${label}.path`);
   const hash = obj.contentSha256;
@@ -530,6 +550,18 @@ export function validateKitFileRecord(value: unknown, label: string): KitFileRec
     capabilities,
     warnings: strArray(obj, "warnings", label, "page-invalid"),
   };
+  if (schema === KIT_SOURCE_PROOF_SCHEMA_VERSION) {
+    record.capabilities["dynamic-import-expressions"] = oneOf(capabilitiesRaw["dynamic-import-expressions"],
+      KIT_CAPABILITY_STATUSES, "dynamic-import-expressions", "page-invalid");
+    if (record.capabilities["dynamic-import-expressions"] === "complete" &&
+        (!record.contentSha256 || !["typescript", "javascript"].includes(record.language) ||
+         record.analyzerId !== "typescript-ast" || record.status !== "parsed")) {
+      fail("page-invalid", "Complete expression coverage requires authenticated parsed JS/TS.");
+    }
+    if (obj.ambientClassification !== undefined) record.ambientClassification = validateAmbientClassification(obj.ambientClassification, record);
+  } else if (obj.ambientClassification !== undefined || capabilitiesRaw["dynamic-import-expressions"] !== undefined) {
+    fail("schema-mismatch", "Proof-only fields require source-audit schema 1.2.0.");
+  }
   if (obj.jvmPackageName !== undefined) {
     if (typeof obj.jvmPackageName !== "string" || obj.jvmPackageName !== "" && !/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(obj.jvmPackageName)) fail("page-invalid", "Invalid JVM package identity.");
     record.jvmPackageName = obj.jvmPackageName;
@@ -551,6 +583,24 @@ export function validateKitFileRecord(value: unknown, label: string): KitFileRec
   return record;
 }
 
+function validateAmbientClassification(raw: unknown, file: KitFileRecord): KitAmbientClassification {
+  const c = asObject(raw, "ambient classification", "page-invalid");
+  const outcome = oneOf(c.outcome, ["proven-ambient-only", "not-ambient-only", "undetermined"] as const, "ambient outcome", "page-invalid");
+  const witnessFactIds = strArray(c, "witnessFactIds", "ambient classification", "page-invalid");
+  if (Object.keys(c).length !== 6 || c.profile !== "typescript-ambient-stub-v1" || c.scope !== "entire-file" ||
+      !file.contentSha256 || c.contentSha256 !== file.contentSha256 || file.language !== "typescript" || file.analyzerId !== "typescript-ast" ||
+      new Set(witnessFactIds).size !== witnessFactIds.length ||
+      (outcome === "proven-ambient-only" && (c.reasonCode !== null || !witnessFactIds.length ||
+        file.status !== "parsed" || file.capabilities.declarations !== "complete")) ||
+      (outcome === "not-ambient-only" && c.reasonCode !== "EXECUTABLE_SYNTAX_PRESENT") ||
+      (outcome === "undetermined" && c.reasonCode !== "UNSUPPORTED_AMBIENT_PROFILE" && c.reasonCode !== "PARSE_UNCERTAINTY") ||
+      (outcome !== "proven-ambient-only" && witnessFactIds.length !== 0)) {
+    fail("page-invalid", "Contradictory whole-file ambient classification.");
+  }
+  return { profile: c.profile, scope: c.scope, contentSha256: file.contentSha256, outcome,
+    reasonCode: c.reasonCode as KitAmbientClassification["reasonCode"], witnessFactIds };
+}
+
 function optionalColumn(obj: JsonObject, key: string, label: string): number | null {
   const value = obj[key];
   if (value === null || value === undefined) return null;
@@ -560,7 +610,17 @@ function optionalColumn(obj: JsonObject, key: string, label: string): number | n
   return value;
 }
 
-export function validateKitFact(value: unknown, label: string, filePath: string): KitFact {
+function comparePosition(line: number, column: number | null, otherLine: number, otherColumn: number | null): number {
+  return line - otherLine || (column ?? -1) - (otherColumn ?? -1);
+}
+
+function validExpressionSpan(span: KitSourceSpan): boolean {
+  return span.startLine > 0 && span.startColumn !== null &&
+    (span.endLine === null ? span.endColumn === null :
+      span.endColumn !== null && comparePosition(span.endLine, span.endColumn, span.startLine, span.startColumn) > 0);
+}
+
+export function validateKitFact(value: unknown, label: string, filePath: string, schema?: unknown): KitFact {
   const obj = asObject(value, label, "page-invalid");
   const id = str(obj, "id", label, "page-invalid");
   if (!id.startsWith("audit-fact:")) {
@@ -587,6 +647,35 @@ export function validateKitFact(value: unknown, label: string, filePath: string)
     },
     extractionMethod: str(obj, "extractionMethod", label, "page-invalid"),
   };
+  if (fact.kind === "dynamic-import-expression") {
+    if (schema !== KIT_SOURCE_PROOF_SCHEMA_VERSION) fail("schema-mismatch", "Dynamic expression requires source-audit schema 1.2.0.");
+    const operand = asObject(obj.operandSpan, "operand span", "page-invalid");
+    const span = {
+      path: filePath,
+      startLine: int(operand, "startLine", "operand span", "page-invalid"),
+      startColumn: optionalColumn(operand, "startColumn", "operand span"),
+      endLine: optionalColumn(operand, "endLine", "operand span"),
+      endColumn: optionalColumn(operand, "endColumn", "operand span"),
+    };
+    const operandForm = oneOf(obj.operandForm, ["string-literal", "qualified-string-binding", "computed"] as const,
+      "dynamic operand form", "page-invalid");
+    const linked = obj.literalImportFactId;
+    const call = fact.span;
+    if (Object.keys(obj).length !== (linked === undefined ? 6 : 7) || fact.extractionMethod !== "typescript-ast" ||
+        Object.keys(spanRaw).length !== 5 || Object.keys(operand).length !== 5 || operand.path !== filePath ||
+        !validExpressionSpan(call) || !validExpressionSpan(span) ||
+        comparePosition(span.startLine, span.startColumn, call.startLine, call.startColumn) <= 0 ||
+        (call.endLine !== null && (span.endLine === null ||
+          comparePosition(span.endLine, span.endColumn, call.endLine, call.endColumn) > 0)) ||
+        (linked !== undefined && (typeof linked !== "string" || operandForm === "computed" || !linked.startsWith("audit-fact:")))) {
+      fail("page-invalid", "Malformed dynamic import expression or literal linkage.");
+    }
+    fact.dynamicImport = { operandForm, operandSpan: span, ...(typeof linked === "string" ? { literalImportFactId: linked } : {}) };
+    return fact;
+  }
+  if (obj.operandForm !== undefined || obj.operandSpan !== undefined || obj.literalImportFactId !== undefined) {
+    fail("page-invalid", "Dynamic expression fields require a dynamic expression fact.");
+  }
   if (obj.jvmDeclaration !== undefined) {
     const identity = asObject(obj.jvmDeclaration, "jvmDeclaration", "page-invalid");
     if (fact.kind !== "declaration" || Object.keys(identity).sort().join(",") !== "packageName,qualifiedName,role" ||
@@ -684,7 +773,7 @@ export function validateKitManifestReference(manifest: unknown): KitManifestRefe
   if (reference.path !== KIT_SOURCE_AUDIT_ARTIFACT_FILENAME) {
     fail("artifact-invalid", `manifest artifact path must be ${KIT_SOURCE_AUDIT_ARTIFACT_FILENAME}.`);
   }
-  if (!["1.0.0", KIT_SOURCE_AUDIT_SCHEMA_VERSION].includes(reference.schemaVersion)) {
+  if (!["1.0.0", KIT_SOURCE_AUDIT_SCHEMA_VERSION, KIT_SOURCE_PROOF_SCHEMA_VERSION].includes(reference.schemaVersion)) {
     fail(
       "schema-mismatch",
       `manifest artifact schema ${reference.schemaVersion} is not ${KIT_SOURCE_AUDIT_SCHEMA_VERSION}.`
@@ -800,7 +889,7 @@ function validateEnvelope(
   expected: { mode: string; snapshotId: string; pageIndex: number; pageSize: number },
   label: string
 ): PageEnvelope {
-  if (!["1.0.0", KIT_SOURCE_AUDIT_SCHEMA_VERSION].includes(obj.schemaVersion as string)) {
+  if (!["1.0.0", KIT_SOURCE_AUDIT_SCHEMA_VERSION, KIT_SOURCE_PROOF_SCHEMA_VERSION].includes(obj.schemaVersion as string)) {
     fail("schema-mismatch", `${label} schemaVersion ${JSON.stringify(obj.schemaVersion)} is not ${KIT_SOURCE_AUDIT_SCHEMA_VERSION}.`);
   }
   if (obj.mode !== expected.mode) {
@@ -850,7 +939,7 @@ export function validateInventoryPage(raw: unknown, expected: { snapshotId: stri
     fail("page-invalid", `${label} holds ${obj.files.length} record(s), expected ${expectedRecordCount(envelope, KIT_INVENTORY_PAGE_SIZE)}.`);
   }
   const files = obj.files.map((entry, index) => {
-    const record = validateKitFileRecord(entry, `${label}.files[${index}]`);
+    const record = validateKitFileRecord(entry, `${label}.files[${index}]`, obj.schemaVersion);
     if (record.diagnostics !== undefined) {
       fail("page-invalid", `${label}.files[${index}] unexpectedly carries diagnostics.`);
     }
@@ -870,7 +959,7 @@ export function validateFactPage(
   if (obj.file === null || obj.file === undefined) {
     fail("selection-incomplete", `${label} returned no file record.`);
   }
-  const file = validateKitFileRecord(obj.file, `${label}.file`);
+  const file = validateKitFileRecord(obj.file, `${label}.file`, obj.schemaVersion);
   if (file.path !== expected.path) {
     fail("page-invalid", `${label} describes ${file.path}.`);
   }
@@ -878,7 +967,7 @@ export function validateFactPage(
   if (obj.facts.length !== expectedRecordCount(envelope, KIT_FACT_PAGE_SIZE)) {
     fail("page-invalid", `${label} holds ${obj.facts.length} fact(s), expected ${expectedRecordCount(envelope, KIT_FACT_PAGE_SIZE)}.`);
   }
-  const facts = obj.facts.map((entry, index) => validateKitFact(entry, `${label}.facts[${index}]`, expected.path));
+  const facts = obj.facts.map((entry, index) => validateKitFact(entry, `${label}.facts[${index}]`, expected.path, obj.schemaVersion));
   for (const fact of facts) {
     if (fact.jvmDeclaration && (!/\.(java|kt)$/i.test(file.path) || fact.jvmDeclaration.packageName !== file.jvmPackageName)) fail("page-invalid", "Declaration package differs from its ordinary file identity.");
     if (file.capabilities.jvmDeclarations === "complete" && fact.kind === "declaration" && !fact.jvmDeclaration) fail("page-invalid", "Complete JVM declarations omit identity.");
@@ -946,6 +1035,7 @@ export function flattenInventoryPages(pages: readonly KitInventoryPage[]): KitFi
 export function flattenFactPages(path: string, pages: readonly KitFactPage[], globalFactIds: Set<string>): KitFact[] {
   const facts: KitFact[] = [];
   for (const page of pages) {
+    if (pages[0]) crossValidateFileRecord(pages[0].file, page.file);
     for (const fact of page.facts) {
       if (globalFactIds.has(fact.id)) {
         fail("page-invalid", `fact identity ${fact.id} is repeated (file ${path}).`);
@@ -958,7 +1048,43 @@ export function flattenFactPages(path: string, pages: readonly KitFactPage[], gl
   if (facts.length !== total) {
     fail("traversal-incomplete", `fact traversal of ${path} collected ${facts.length} fact(s) of ${total} declared.`);
   }
+  const record = pages[0]?.file;
+  if (record?.capabilities["dynamic-import-expressions"] !== undefined) validateVersionedFileFacts(record, facts);
   return facts;
+}
+
+function validateVersionedFileFacts(record: KitFileRecord, facts: readonly KitFact[]): void {
+  const byId = new Map(facts.map(fact => [fact.id, fact]));
+  const expressions = new Set<string>();
+  for (const fact of facts) {
+    const expression = fact.dynamicImport;
+    if (!expression) continue;
+    const location = [fact.span.startLine, fact.span.startColumn].join("#");
+    const expectedId = ["audit-fact:" + encodeURIComponent(record.path), fact.kind, location, "0"].join("#");
+    if (!["complete", "partial"].includes(record.capabilities["dynamic-import-expressions"] ?? "") ||
+        fact.id !== expectedId || expressions.has(location) || record.lineCount === null ||
+        [fact.span, expression.operandSpan].some(span => (span.endLine ?? span.startLine) > record.lineCount!)) {
+      fail("page-invalid", "Invalid dynamic expression identity or capability.");
+    }
+    expressions.add(location);
+    if (expression.literalImportFactId !== undefined) {
+      const linked = byId.get(expression.literalImportFactId);
+      const importId = ["audit-fact:" + encodeURIComponent(record.path), "import", location, "0"].join("#");
+      if (!linked || linked.id !== importId || linked.kind !== "import" || linked.extractionMethod !== fact.extractionMethod ||
+          linked.sourceSpecifier === undefined || JSON.stringify(linked.span) !== JSON.stringify(fact.span)) {
+        fail("page-invalid", "Dynamic expression has an invalid linked ordinary import.");
+      }
+    }
+  }
+  const ambient = record.ambientClassification;
+  if (ambient?.outcome === "proven-ambient-only" &&
+      (ambient.witnessFactIds.length !== facts.length || ambient.witnessFactIds.some(id => {
+        const fact = byId.get(id);
+        return !fact || fact.kind !== "declaration" || fact.declarationKind !== "ambient-module" ||
+          fact.extractionMethod !== "typescript-ast" || !fact.name || !validExpressionSpan(fact.span);
+      }))) {
+    fail("page-invalid", "Whole-file ambient proof does not identify its actual declaration witnesses.");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1190,4 +1316,151 @@ export function assertSelectionCoversRequired(
       `${missing.length} Lab source/test file(s) fall outside Kit's selected coverage (${shown}${missing.length > 20 ? ", ..." : ""}).`
     );
   }
+}
+
+
+export type KitImportDomain = {
+  expressionFactId: string;
+  snapshotId: string;
+  reasonCode: string | null;
+  outcome: "finite" | "indeterminate" | "disjoint-selected-domain";
+  domainComplete: boolean;
+  positivePaths: readonly string[];
+  excludesSelectedDomain: boolean;
+};
+
+export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidence, fact: KitFact): KitImportDomain {
+  const r = asObject(raw, "import domain", "artifact-invalid");
+  const origin = evidence.fileEvidence.get(fact.span.path);
+  const sameSpan = (a: unknown, b: KitSourceSpan | undefined) => {
+    if (!b || !a || typeof a !== "object") return false;
+    const x = a as Record<string, unknown>;
+    return x.path === b.path && x.startLine === b.startLine && x.startColumn === b.startColumn &&
+      x.endLine === b.endLine && x.endColumn === b.endColumn;
+  };
+  const selected = new Map(evidence.inventory.map(f => [f.path, f]));
+  if (r.mode !== "audit-import-domain" || r.schemaVersion !== "1.0.0" || evidence.artifactSchemaVersion !== "1.2.0")
+    fail("schema-mismatch", "Unqualified import-domain protocol.");
+  if (!origin?.record.contentSha256 || !fact.dynamicImport || r.snapshotId !== evidence.snapshotId ||
+      r.selectionFingerprint !== evidence.source.selectionFingerprint || r.originFile !== fact.span.path ||
+      r.originContentSha256 !== origin.record.contentSha256 || r.importExpressionFactId !== fact.id ||
+      r.resolverProfile !== "js-ts-dynamic-import-v1" || r.pathIdentityProfile !== "selected-source-path-v1" ||
+      r.resolutionPlatform !== (process.platform === "win32" ? "win32" : "posix") ||
+      r.selectedDomainDigest !== sha256Hex(JSON.stringify([...selected.keys()].sort())))
+    fail("artifact-invalid", "Import domain identity or resolver profile differs from validated evidence.");
+  const outcome = oneOf(r.outcome, ["finite", "indeterminate", "disjoint-selected-domain"] as const, "domain outcome", "artifact-invalid");
+  const refs = r.premiseRefs, alternatives = r.operandAlternatives, witnesses = r.qualifiedPositiveWitnesses;
+  const finite = outcome !== "indeterminate";
+  if (!Array.isArray(refs) || refs.length > 256 || !Array.isArray(alternatives) || alternatives.length > 64 ||
+      !Array.isArray(witnesses) || witnesses.length > 1 || r.domainComplete !== finite ||
+      (finite ? !alternatives.length || !refs.length || r.reasonCode !== null :
+        alternatives.length || refs.length || witnesses.length || typeof r.reasonCode !== "string" || !r.reasonCode))
+    fail("artifact-invalid", "Invalid import-domain completeness or budget.");
+  for (const rawRef of refs) {
+    const ref = asObject(rawRef, "domain premise", "artifact-invalid");
+    if (ref.type !== "source-span" || ref.filePath !== fact.span.path || ref.contentSha256 !== origin.record.contentSha256 ||
+        !["operand", "guard", "operation", "binding"].includes(String(ref.role))) fail("artifact-invalid", "Wrong premise provenance.");
+    const span = asObject(ref.span, "premise span", "artifact-invalid");
+    if (span.path !== fact.span.path || ![span.startLine, span.endLine].every(v => Number.isSafeInteger(v) && Number(v) >= 1 && Number(v) <= (origin.record.lineCount ?? 0)) ||
+        ![span.startColumn, span.endColumn].every(v => Number.isSafeInteger(v) && Number(v) >= 0) ||
+        Number(span.startLine) > Number(span.endLine) ||
+        (span.startLine === span.endLine && Number(span.startColumn) > Number(span.endColumn)) ||
+        (ref.role === "operand" && !sameSpan(span, fact.dynamicImport.operandSpan))) fail("artifact-invalid", "Invalid premise span.");
+  }
+  const validIndexes = (v: unknown): v is number[] => Array.isArray(v) && v.length > 0 &&
+    new Set(v).size === v.length && v.every(i => Number.isSafeInteger(i) && i >= 0 && i < refs.length) &&
+    v.some(i => refs[i]?.role === "operand");
+  const seen = new Set<string>(), paths: string[] = [];
+  const selectionComplete = evidence.coverage.inventoryComplete && evidence.coverage.exclusionsAreExplicit;
+  const candidates = alternatives.map((rawAlt, i) => {
+    const a = asObject(rawAlt, "domain alternative", "artifact-invalid");
+    const q = asObject(a.resolution, "alternative resolution", "artifact-invalid");
+    if (a.alternativeIndex !== i || typeof a.specifier !== "string" || Buffer.byteLength(a.specifier) > 4096 ||
+        seen.has(a.specifier) || !validIndexes(a.premiseIndexes) ||
+        !["present", "proven-missing", "indeterminate", "outside-selected-roots"].includes(String(q.status)) ||
+        typeof q.reasonCode !== "string" || typeof q.candidateEnumerationComplete !== "boolean" ||
+        q.selectionComplete !== selectionComplete || !Array.isArray(q.candidatePaths) ||
+        new Set(q.candidatePaths).size !== q.candidatePaths.length)
+      fail("artifact-invalid", "Invalid import-domain alternative.");
+    seen.add(a.specifier);
+    const pp = q.candidatePaths.map(v => validateKitRelativePath(v, "domain candidate"));
+    const isSelected = (p: string) => selected.has(p) || (process.platform === "win32" &&
+      [...selected.keys()].some(k => k.toLowerCase() === p.toLowerCase()));
+    if (q.status === "proven-missing" && (!selectionComplete || !q.candidateEnumerationComplete ||
+        q.reasonCode !== "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION" || !pp.length || pp.some(isSelected)))
+      fail("artifact-invalid", "Contradictory absence in a domain alternative.");
+    if (q.candidateEnumerationComplete && q.status !== "present" && q.status !== "proven-missing")
+      fail("artifact-invalid", "An indeterminate alternative cannot close its candidate domain.");
+    paths.push(...pp);
+    return { status: q.status, complete: q.candidateEnumerationComplete, specifier: a.specifier, paths: pp };
+  });
+  if (paths.length > 256) fail("artifact-invalid", "Domain candidate path budget exceeded.");
+  if (outcome === "disjoint-selected-domain") {
+    const proof = asObject(r.disjointProof, "disjoint proof", "artifact-invalid");
+    if (!selectionComplete || !evidence.traversalComplete || !paths.length || proof.rule !== "fixed-normalized-path-v1" ||
+        !validIndexes(proof.premiseIndexes) || JSON.stringify(proof.values) !== JSON.stringify([...new Set(paths)].sort()) ||
+        candidates.some(a => a.status !== "proven-missing" || !a.complete))
+      fail("artifact-invalid", "Unqualified selected-domain exclusion.");
+  } else if (r.disjointProof !== null) fail("artifact-invalid", "Unexpected disjoint proof.");
+
+  const link = origin.facts.find(f => f.id === fact.dynamicImport?.literalImportFactId);
+  if (link && finite && (candidates.length !== 1 || candidates[0]?.specifier !== link.sourceSpecifier))
+    fail("artifact-invalid", "Domain operand differs from linked literal fact.");
+  const positivePaths = witnesses.map(rawWitness => {
+    const witness = asObject(rawWitness, "positive witness", "artifact-invalid");
+    const target = validateKitRelativePath(witness.targetPath, "positive witness target");
+    const record = selected.get(target);
+    if (!link || witness.importFactId !== link.id || outcome !== "finite" || !record?.contentSha256 ||
+        record.contentSha256 !== witness.targetContentSha256 || candidates.length !== 1 ||
+        candidates[0]?.status !== "present" || !candidates[0].complete || !candidates[0].paths.includes(target))
+      fail("artifact-invalid", "Unqualified positive reference witness.");
+    const proof = validateKitImportProof(witness.targetProof, { snapshotId: evidence.snapshotId, fact: link, evidence });
+    if (proof.status !== "present" || proof.reasonCode !== "TARGET_IN_SELECTED_INVENTORY" ||
+        proof.candidatePaths.length !== 1 || proof.candidatePaths[0] !== target) fail("artifact-invalid", "Wrong linked target witness.");
+    // Check the producer's exact file identity claim without enumerating or resolving any alternatives.
+    try {
+      const url = new URL(link.sourceSpecifier!, pathToFileURL(path.resolve(evidence.source.projectRoot, fact.span.path)));
+      if (path.relative(evidence.source.projectRoot, fileURLToPath(url)).split(path.sep).join("/") !== target)
+        fail("artifact-invalid", "Positive witness refers to a substituted path.");
+    } catch { fail("artifact-invalid", "Positive witness is not an exact file URL identity."); }
+    return target;
+  });
+  return { expressionFactId: fact.id, snapshotId: evidence.snapshotId,
+    reasonCode: typeof r.reasonCode === "string" ? r.reasonCode : null, outcome, domainComplete: finite, positivePaths, excludesSelectedDomain: outcome === "disjoint-selected-domain" };
+}
+
+export type KitByteOccurrence = { complete: boolean; matchCount: number; matches: { startByte: number; endByteExclusive: number }[] };
+
+export function validateKitByteOccurrence(raw: unknown, evidence: KitSourceEvidence, file: KitFileRecord, needle: string): KitByteOccurrence {
+  const r = asObject(raw, "byte occurrence", "artifact-invalid");
+  if (r.mode !== "exact-file-byte-occurrence" || r.schemaVersion !== "1.0.0" || evidence.artifactSchemaVersion !== "1.2.0")
+    fail("schema-mismatch", "Unqualified byte occurrence protocol.");
+  if (r.snapshotId !== evidence.snapshotId || r.selectionFingerprint !== evidence.source.selectionFingerprint ||
+      r.filePath !== file.path || r.sizeBytes !== file.sizeBytes || r.needleHex !== needle ||
+      r.matching !== "literal-bytes-overlapping" || r.expectedContentSha256 !== file.contentSha256)
+    fail("artifact-invalid", "Byte occurrence identity mismatch.");
+  const integer = (v: unknown, max: number): v is number => Number.isSafeInteger(v) && Number(v) >= 0 && Number(v) <= max;
+  if (!integer(r.scannedBytes, Math.min(file.sizeBytes, 200000)) || !integer(r.matchCount, 200000) ||
+      !integer(r.returnedMatches, 200) || !Array.isArray(r.matches) || r.matches.length !== r.returnedMatches ||
+      r.returnedMatches > r.matchCount ||
+      ![r.complete, r.scanComplete, r.matchesComplete, r.matchCountExact, r.sourceAuthenticated, r.truncated].every(v => typeof v === "boolean") ||
+      r.complete !== (r.scanComplete && r.matchesComplete) ||
+      r.matchCountExact !== r.scanComplete ||
+      r.matchesComplete !== (r.scanComplete && !r.truncated) ||
+      r.truncated !== (r.matchCount > r.returnedMatches) ||
+      (r.scanComplete ? !r.sourceAuthenticated || !file.contentSha256 || r.scannedBytes !== file.sizeBytes ||
+        r.verifiedContentSha256 !== file.contentSha256 : r.sourceAuthenticated || r.verifiedContentSha256 !== null || r.matches.length !== 0) ||
+      (r.complete ? r.reasonCode !== null : !["CONTENT_HASH_UNAVAILABLE", "FILE_EXCEEDS_SCAN_LIMIT", "MATCHES_TRUNCATED"].includes(String(r.reasonCode))) ||
+      (r.truncated && (r.reasonCode !== "MATCHES_TRUNCATED" || r.returnedMatches !== 200)))
+    fail("artifact-invalid", "Invalid byte occurrence bounds or completeness.");
+  let previous = -1;
+  const matches = r.matches.map(v => {
+    const m = asObject(v, "byte match", "artifact-invalid");
+    if (!integer(m.startByte, r.scannedBytes as number) || !integer(m.endByteExclusive, r.scannedBytes as number) ||
+        m.startByte <= previous || m.endByteExclusive - m.startByte !== needle.length / 2)
+      fail("artifact-invalid", "Invalid byte occurrence offsets.");
+    previous = m.startByte;
+    return { startByte: m.startByte, endByteExclusive: m.endByteExclusive };
+  });
+  return { complete: r.complete === true, matchCount: r.matchCount, matches };
 }

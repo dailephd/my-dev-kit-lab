@@ -1,0 +1,140 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { expect, it } from "vitest";
+import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
+import { runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
+import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
+import { collectKitSourceFacts, type KitSourceReader, QUALIFIED_B3_P1_KIT } from "../../src/audits/core/kitSourceProvider.js";
+
+const installedPackageRoot = process.env.LAB_R3_INSTALLED_KIT;
+const qualifiedArchivePath = process.env.LAB_R3_KIT_ARCHIVE;
+it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
+  "runs the managed R3 candidate through the audit command and retains findings at every mandatory-gap threshold",
+  async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-audit-"));
+    const target = path.join(root, "target");
+    fs.mkdirSync(path.join(target, "tests"), { recursive: true });
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"fixture","type":"module"}\n');
+    fs.writeFileSync(path.join(target, "tests/peer.mjs"), "export {};\n");
+    fs.writeFileSync(path.join(target, "tests/only-source.mts"), "export {};\n");
+    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), [
+      'test.only("independent", () => {});',
+      'void import("./peer");',
+      'void import("./only-source.mjs");',
+      'void import("./peer.mjs");',
+      'void import("./p%65er.mjs");',
+      'void import("./nested/%2e%2e/peer.mjs");',
+      'void import(process.env.CHOOSE ? "./peer.mjs" : "./mixed-missing.mjs");',
+      'void import(process.env.CHOOSE ? "./peer.mjs" : "unknown:operand");',
+      'void import(process.env.CHOOSE ? "./missing-first.mjs" : "./missing-second.mjs");',
+      'void import("./really-missing.mjs");',
+      'void import(process.env.RUNTIME_UNKNOWN);',
+    ].join("\n"));
+    for (const threshold of ["none", "low", "medium", "high", "blocker"]) {
+      const out = path.join(root, threshold);
+      const workDir = path.join(root, "kit-" + threshold);
+      const code = await runAuditCommandFromArgs([
+        "--target", target, "--types", "code-rot", "--include", "tests",
+        "--fail-on", threshold, "--format", "text,json", "--out", out,
+      ], { kitSourceProviderDependencies: { installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT, workDir } });
+      expect(code).toBe(2);
+      const files = fs.readdirSync(out);
+      const json = JSON.parse(fs.readFileSync(path.join(out, files.find(f => f.endsWith(".json"))!), "utf8"));
+      expect(json.schemaVersion).toBe("1.0");
+      expect(json.exit.code).toBe(2);
+      expect(json.exit.breached).toBe(["low", "medium", "high"].includes(threshold));
+      expect(json.issues.some((issue: { id: string }) => issue.id.includes("only"))).toBe(true);
+      const missing = json.issues.filter((issue: { id: string }) => issue.id.includes("missing-source-import"));
+      expect(missing).toHaveLength(1);
+      expect(missing[0].id).toContain("really-missing");
+      const gaps = json.detectorErrors.filter((error: { message: string }) => error.message.includes("Dynamic import evidence"));
+      expect(gaps).toHaveLength(5);
+      if (threshold === "none") {
+        const dir = path.join(workDir, "logs");
+        const responses = fs.readdirSync(dir).filter(name => name.endsWith("import-domain.stdout.txt"))
+          .map(name => JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")));
+        const byOperands = new Map(responses.map(response => [
+          response.operandAlternatives.map((alternative: { specifier: string }) => alternative.specifier).join("|"), response,
+        ]));
+        for (const unresolved of ["./peer", "./only-source.mjs"]) {
+          expect(byOperands.get(unresolved)).toMatchObject({
+            originFile: "tests/probe.test.mjs", outcome: "finite", qualifiedPositiveWitnesses: [],
+            operandAlternatives: [{ resolution: { status: "present" } }],
+          });
+        }
+        for (const exact of ["./peer.mjs", "./p%65er.mjs", "./nested/%2e%2e/peer.mjs"]) {
+          expect(byOperands.get(exact)?.qualifiedPositiveWitnesses).toMatchObject([{ targetPath: "tests/peer.mjs" }]);
+        }
+        expect(byOperands.get("./missing-first.mjs|./missing-second.mjs")?.outcome).toBe("disjoint-selected-domain");
+      }
+      expect(files.some(f => f.endsWith(".txt"))).toBe(true);
+    }
+  }, 180_000
+);
+
+
+
+it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
+  "authenticates overlapping byte proofs and whole-file ambient facts through the managed reader",
+  async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-content-"));
+    const target = path.join(root, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.writeFileSync(path.join(target, "src/anchor.ts"), 'void import("./peer.mjs");\n');
+    fs.writeFileSync(path.join(target, "src/peer.mjs"), "export {};\n");
+    fs.writeFileSync(path.join(target, "src/stub.d.ts"), 'declare module "ambient-only";\n');
+    fs.writeFileSync(path.join(target, "src/mixed.d.ts"), 'declare module "ambient-only";\nconst executable = () => 1;\n');
+    fs.writeFileSync(path.join(target, "src/blob.bin"), Buffer.from([255, 0, 0, 0, 13, 10]));
+    fs.writeFileSync(path.join(target, "src/capped.bin"), Buffer.alloc(201));
+    let reader: KitSourceReader | undefined;
+    const request = {
+      targetRoot: target,
+      inventory: scanProjectInventory(target),
+      requiredPaths: ["src/anchor.ts", "src/stub.d.ts", "src/mixed.d.ts"],
+      requiredCapabilities: [],
+      includeScriptsRoot: false,
+      onReader: (value: KitSourceReader) => { reader = value; },
+    };
+    const identity = { installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT, workDir: path.join(root, "kit") };
+    let legacy: KitSourceReader | undefined;
+    await collectKitSourceFacts({ ...request, onReader: (value: KitSourceReader) => { legacy = value; } }, {
+      ...identity, expectation: { ...QUALIFIED_B3_P1_KIT, artifactSchemaVersion: "1.1.0" },
+      workDir: path.join(root, "kit-legacy"),
+    });
+    try {
+      expect(legacy?.expressionDomains).toBeUndefined();
+      await expect(legacy?.occurrences("src/anchor.ts", "import")).resolves.toMatchObject({ complete: true });
+    } finally { legacy?.dispose(); }
+    const tamperedArchive = path.join(root, "tampered.tgz");
+    fs.writeFileSync(tamperedArchive, Buffer.concat([fs.readFileSync(qualifiedArchivePath!), Buffer.from([0])]));
+    await expect(collectKitSourceFacts(request, { ...identity, qualifiedArchivePath: tamperedArchive })).rejects.toThrow(/package-identity/);
+    const facts = await collectKitSourceFacts(request, { ...identity, runCommand: async options => {
+      const result = await runMeasuredCommand(options);
+      if (result.ok && options.args?.includes("--audit-import-domain")) {
+        const response = JSON.parse(result.stdout);
+        response.selectedDomainDigest = "0".repeat(64);
+        return { ...result, stdout: JSON.stringify(response) };
+      }
+      return result;
+    } });
+    try {
+      const importFactId = facts.files.find(file => file.relativePath === "src/anchor.ts")?.imports
+        .find(imp => imp.source === "./peer.mjs")?.provenance?.factId;
+      expect(importFactId).toBeTruthy();
+      await expect(reader?.importTarget(importFactId!)).resolves.toMatchObject({
+        status: "present", candidatePaths: ["src/peer.mjs"],
+      });
+      await expect(reader?.expressionDomains?.("src/anchor.ts")).rejects.toThrow(/import domain identity/i);
+      expect(reader?.ambientClassification?.("src/stub.d.ts")?.outcome).toBe("proven-ambient-only");
+      expect(reader?.ambientClassification?.("src/mixed.d.ts")?.outcome).toBe("not-ambient-only");
+      await expect(reader?.byteOccurrences?.("src/blob.bin", "0000")).resolves.toMatchObject({
+        complete: true, matchCount: 2, matches: [{ startByte: 1, endByteExclusive: 3 }, { startByte: 2, endByteExclusive: 4 }],
+      });
+      await expect(reader?.byteOccurrences?.("src/blob.bin", "abcd")).resolves.toMatchObject({ complete: true, matchCount: 0 });
+      await expect(reader?.byteOccurrences?.("src/capped.bin", "00")).resolves.toMatchObject({ complete: false, matchCount: 201 });
+      fs.writeFileSync(path.join(target, "src/stub.d.ts"), 'declare module "other-stub!!";\n');
+      expect(() => reader?.ambientClassification?.("src/stub.d.ts")).toThrow(/stale-evidence/);
+    } finally { reader?.dispose(); }
+  }, 60_000
+);

@@ -209,7 +209,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   const reportCoverage = (record: AuditPredicateCoverage) => {
     if (!record.source.identity.trim()) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Predicate coverage requires a file or domain identity.");
     const key = JSON.stringify([record.detectorId, record.predicate, record.source.kind, record.source.identity,
-      record.capability, record.actualStatus, record.status, record.mandatory, record.diagnostic, record.reason]);
+      record.capability, record.actualStatus, record.status, record.mandatory, record.diagnostic, record.reason, record.proof]);
     if (!coverageKeys.has(key)) { coverageKeys.add(key); coverage.push({ ...record, source: { ...record.source } }); }
   };
   const ctx = { target, config, inventory, sourceOfTruth, sourceFacts, kitSourceReader,

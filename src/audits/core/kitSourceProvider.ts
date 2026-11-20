@@ -34,6 +34,11 @@ import {
   validateKitRelativePath,
   validateKitOccurrence,
   validateKitImportProof,
+  validateKitImportDomain,
+  validateKitByteOccurrence,
+  type KitImportDomain,
+  type KitByteOccurrence,
+  type KitAmbientClassification,
   type KitOccurrence,
   type KitImportProof,
   type KitEvidenceFailureCategory,
@@ -105,7 +110,19 @@ export const QUALIFIED_PUBLISHED_KIT: KitCandidateExpectation = {
   extractorRevision: KIT_SOURCE_AUDIT_EXTRACTOR_REVISION,
   cliSha256: "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f",
 };
-// SW-123 P6-R2 archive. Each reader capability is qualified separately below.
+// B3-P1-R3 independently qualified unpublished Kit candidate.
+export const QUALIFIED_B3_P1_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.15.1",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.6.0",
+  cliSha256: "651c2a57987ec289ae963e3df9743b18d16f33c156154773de7225af9bd51165",
+  sourceSha: "bde00d9c165a6a546170ab72e7a9534d6929697e",
+  archiveSha256: "943b3506c7a3e9708f96d2e40a9fcfc720853c46a4273f31408568942a5599a6",
+  receiptSha256: "a7bcc8286939e4f32d60a0715fd63d4b41fb1950b2caf5b11ce78951ce038cf7",
+} satisfies KitCandidateExpectation & { sourceSha: string; archiveSha256: string; receiptSha256: string });
+
+// Historical SW-123 P6-R2 archive.
 export const QUALIFIED_SW123_P6_R2_KIT = {
   packageName: KIT_PACKAGE_NAME,
   packageVersion: "1.15.1",
@@ -144,6 +161,7 @@ export type KitCommandRunner = (options: RunMeasuredCommandOptions) => Promise<M
 
 // Internal test/consumer seam. Not a public CLI option.
 export type KitSourceProviderDependencies = {
+  qualifiedArchivePath?: string;
   // Programmatic installed-package root injection (still identity- and
   // containment-checked exactly like a resolved package).
   installedPackageRoot?: string;
@@ -265,6 +283,18 @@ export function resolveInstalledKitPackage(
       `installed Kit CLI SHA-256 ${cliSha256} is not the qualified candidate ${expectation.cliSha256}.`
     );
   }
+  const proofProfile = cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256;
+  if (expectation.artifactSchemaVersion === "1.2.0" && !proofProfile) {
+    fail("package-identity", "Source-audit schema 1.2.0 requires the exact qualified B3-P1 CLI.");
+  }
+  if (proofProfile && (expectation.extractorRevision !== QUALIFIED_B3_P1_KIT.extractorRevision ||
+      expectation.packageVersion !== QUALIFIED_B3_P1_KIT.packageVersion || expectation.packageName !== KIT_PACKAGE_NAME ||
+      expectation.cliSha256 !== QUALIFIED_B3_P1_KIT.cliSha256)) {
+    fail("package-identity", "B3-P1 requires its exact extractor, package and CLI identity.");
+  }
+  if (proofProfile && !["1.1.0", "1.2.0"].includes(expectation.artifactSchemaVersion)) {
+    fail("schema-mismatch", "B3-P1 supports legacy 1.1.0 and explicit 1.2.0.");
+  }
   const exact = SW123_EXACT_KIT_PROFILES.find(profile => profile.cliSha256 === cliSha256);
   if (exact) {
     if (expectation.extractorRevision !== exact.extractorRevision) fail("extractor-mismatch", "The SW-123 candidate requires its exact extractor revision.");
@@ -287,7 +317,7 @@ export function resolveInstalledKitPackage(
 // Command execution
 // ---------------------------------------------------------------------------
 
-type KitCommandKind = "index" | "lookup-audit-files" | "lookup-audit-file" | "source-occurrence" | "source-range" | "import-target";
+type KitCommandKind = "index" | "lookup-audit-files" | "lookup-audit-file" | "source-occurrence" | "source-range" | "import-target" | "import-domain" | "byte-occurrence";
 
 type KitCommandContext = {
   pkg: InstalledKitPackage;
@@ -385,7 +415,8 @@ export async function acquireKitSourceEvidence(
   expectation: KitCandidateExpectation,
   workDir: string
 ): Promise<KitSourceEvidence> {
-  if (request.predicateRequirements && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
+  const proofProfile = pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 && matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT);
+  if (request.predicateRequirements && !proofProfile && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
       (!["source-audit-v1.5.0", "source-audit-v1.5.1"].includes(expectation.extractorRevision) &&
         !SW123_EXACT_KIT_PROFILES.some(profile => matchesExactKitExpectation(expectation, profile))))) {
     fail("invalid-request", "Predicate evidence requires an exact CLI digest and an explicitly qualified source-audit contract.");
@@ -407,6 +438,7 @@ export async function acquireKitSourceEvidence(
   // 1. Index immediately before obtaining evidence, outside the target.
   const indexArgs = ["index", "--root", request.targetRoot];
   for (const root of request.sourceRoots) indexArgs.push("--src", root);
+  if (proofProfile) indexArgs.push("--source-audit-schema", "1.2.0");
   indexArgs.push("--out", indexDir, "--json");
   const indexResult = await runKitJson(ctx, "index", indexArgs);
   if (typeof indexResult !== "object" || indexResult === null || (indexResult as { mode?: unknown }).mode !== "index") {
@@ -430,6 +462,7 @@ export async function acquireKitSourceEvidence(
     "artifact-missing",
     "Kit source-audit artifact"
   );
+  if (reference.schemaVersion !== expectation.artifactSchemaVersion) fail("schema-mismatch", "Source-audit manifest schema differs from the producer expectation.");
   const header = validateKitArtifact(artifactBytes, reference, {
     packageName: expectation.packageName,
     packageVersion: expectation.packageVersion,
@@ -455,7 +488,7 @@ export async function acquireKitSourceEvidence(
   crossValidateInventory(header, inventory, inventoryPages, request.sourceRoots);
 
   // 4. Exact-file fact traversal for the files the caller needs.
-  const factPaths = [...new Set([...request.selectFactPaths(inventory), ...(header.schemaVersion === "1.1.0" ? inventory.filter(file => /\.(java|kt)$/i.test(file.path)).map(file => file.path) : [])])].sort();
+  const factPaths = [...new Set([...request.selectFactPaths(inventory), ...(["1.1.0", "1.2.0"].includes(header.schemaVersion) ? inventory.filter(file => /\.(java|kt)$/i.test(file.path)).map(file => file.path) : [])])].sort();
   const recordByPath = new Map(inventory.map((record) => [record.path, record]));
   for (const factPath of factPaths) {
     if (!requestedPathMatchesCanonical(factPath) || !recordByPath.has(factPath)) {
@@ -574,6 +607,9 @@ export type KitSourceReader = {
   // Private exact-producer profile: contiguous Kit ranges, authenticated
   // against the selected record's byte hash before any whole-text predicate.
   authenticatedContent?: (filePath: string) => Promise<string>;
+  expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
+  byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
+  ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
   importTarget: (factId: string) => Promise<KitImportProof>;
   dispose: () => void;
 };
@@ -628,8 +664,17 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   const cache = new Map<string, Promise<KitOccurrence>>();
   const proofs = new Map<string, Promise<KitImportProof>>();
   const contents = new Map<string, Promise<string>>();
+  const r3 = ctx.pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 && evidence.artifactSchemaVersion === "1.2.0";
+  const domainPromises = new Map<string, Promise<KitImportDomain>>();
+  const assertFresh = (file: KitFileRecord) => {
+    const root = fs.realpathSync(evidence.source.projectRoot);
+    const target = fs.realpathSync(path.resolve(root, file.path));
+    if (!isContained(root, target) || !file.contentSha256) fail("stale-evidence", "Required proof file lacks contained hashed bytes.");
+    const bytes = readBoundedFile(target, file.sizeBytes, "stale-evidence", "Proof source");
+    if (bytes.length !== file.sizeBytes || sha256Hex(bytes) !== file.contentSha256) fail("stale-evidence", "Proof source bytes changed.");
+  };
   const indexDir = path.join(ctx.workDir, "index");
-  const jsonRawLiteralContent = JSON_RAW_CONTENT_PROFILES[ctx.pkg.cliSha256];
+  const jsonRawLiteralContent = r3 ? "selected-test-json-v1" : JSON_RAW_CONTENT_PROFILES[ctx.pkg.cliSha256];
   const p6R2 = ctx.pkg.cliSha256 === QUALIFIED_SW123_P6_R2_KIT.cliSha256 &&
     ctx.pkg.packageName === QUALIFIED_SW123_P6_R2_KIT.packageName &&
     ctx.pkg.packageVersion === QUALIFIED_SW123_P6_R2_KIT.packageVersion &&
@@ -778,6 +823,44 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
         ? "Validated Kit inventory declares unsupported raw source without a content hash; raw-content predicates are UNAVAILABLE."
         : undefined;
     },
+    ...(r3 ? {
+      async expressionDomains(filePath: string) {
+        if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+        const entry = evidence.fileEvidence.get(filePath);
+        if (!entry) fail("selection-incomplete", "Domain origin is outside authenticated fact pages.");
+        assertFresh(entry.record);
+        const proofs = [];
+        for (const fact of entry.facts.filter(fact => fact.kind === "dynamic-import-expression")) {
+          if (!domainPromises.has(fact.id)) domainPromises.set(fact.id, runKitJson(ctx, "import-domain", [
+            "lookup", "--index", indexDir, "--audit-import-domain", fact.id, "--json",
+          ]).then(raw => validateKitImportDomain(raw, evidence, fact)));
+          const proof = await domainPromises.get(fact.id)!;
+          assertFresh(entry.record);
+          for (const target of proof.positivePaths) assertFresh(evidence.inventory.find(f => f.path === target)!);
+          proofs.push({ linkedImportFactId: fact.dynamicImport?.literalImportFactId, proof });
+        }
+        return proofs;
+      },
+      async byteOccurrences(filePath: string, needleHex: string) {
+        if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+        validateKitRelativePath(filePath, "byte occurrence path");
+        if (!/^(?:[0-9a-f]{2}){1,4096}$/.test(needleHex)) fail("invalid-request", "Expected a bounded lowercase literal byte sequence.");
+        const file = evidence.inventory.find(f => f.path === filePath);
+        if (!file) fail("selection-incomplete", "Byte predicate file is outside selected inventory.");
+        const raw = await runKitJson(ctx, "byte-occurrence", ["source", "--index", indexDir,
+          "--file", filePath, "--contains-bytes-hex", needleHex, "--json"]);
+        const proof = validateKitByteOccurrence(raw, evidence, file, needleHex);
+        if (proof.complete || proof.matches.length) assertFresh(file);
+        return proof;
+      },
+      ambientClassification(filePath: string) {
+        if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+        const file = evidence.fileEvidence.get(filePath)?.record;
+        if (!file?.ambientClassification) return undefined;
+        assertFresh(file);
+        return file.ambientClassification;
+      },
+    } : {}),
     occurrences(filePath, value) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       validateKitRelativePath(filePath, "occurrence file");
@@ -793,7 +876,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       if (!cache.has(key)) cache.set(key, runKitJson(ctx, "source-occurrence", ["source", "--index", indexDir,
         "--file", filePath, "--contains", value, "--context", "40", "--json"], outputBudget)
         .then((raw) => {
-          if ((raw as { schemaVersion?: unknown })?.schemaVersion !== evidence.artifactSchemaVersion) fail("schema-mismatch", "Occurrence schema differs from the validated artifact.");
+          if ((raw as { schemaVersion?: unknown })?.schemaVersion !== (r3 ? "1.1.0" : evidence.artifactSchemaVersion)) fail("schema-mismatch", "Occurrence schema differs from the validated artifact.");
           return validateKitOccurrence(raw, { snapshotId: evidence.snapshotId, file, value });
         }));
       return cache.get(key)!;
@@ -943,6 +1026,11 @@ export async function collectKitSourceFacts(
   // Evidence is required: verify the managed package before anything else. A
   // missing or wrong Kit is fatal.
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: deps.installedPackageRoot, expectation });
+  if (pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 &&
+      (!deps.installedPackageRoot || !deps.qualifiedArchivePath ||
+      sha256Hex(readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit R3 archive")) !== QUALIFIED_B3_P1_KIT.archiveSha256))
+    fail("package-identity", "Managed R3 requires the exact qualified local archive and an isolated installed package root.");
+
 
   const sourceRoots = scope.sourceRoots;
   if (sourceRoots.length === 0) {
@@ -979,7 +1067,8 @@ export async function collectKitSourceFacts(
               if (rawSourcePaths.includes(entry.relativePath)) {
                 assertKitNonSemanticRawContent(record, NON_SEMANTIC_RAW_CONTENT_PROFILES.has(pkg.cliSha256));
               } else {
-                assertKitJsonRawContent(record, JSON_RAW_CONTENT_PROFILES[pkg.cliSha256] === "selected-test-json-v1");
+                assertKitJsonRawContent(record, matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) ||
+                  JSON_RAW_CONTENT_PROFILES[pkg.cliSha256] === "selected-test-json-v1");
               }
             }
           }

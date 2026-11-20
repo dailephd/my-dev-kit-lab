@@ -43,7 +43,8 @@ export type AuditPredicateCoverage = {
   source: { kind: "file" | "domain"; identity: string };
   capability: string;
   actualStatus: string;
-  status: "QUALIFIED" | "NOT_APPLICABLE" | "UNAVAILABLE" | "UNDETERMINED";
+  status: "QUALIFIED" | "FINDING_SUPPORTED" | "NOT_APPLICABLE" | "UNAVAILABLE" | "UNDETERMINED";
+  proof?: { kind: "import-domain" | "exact-literal-byte"; snapshotId: string; references: readonly string[] };
   mandatory: boolean;
   diagnostic: string;
   reason: string;

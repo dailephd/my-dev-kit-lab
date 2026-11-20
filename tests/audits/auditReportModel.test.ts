@@ -471,3 +471,35 @@ describe("buildAuditReportModel — zero-issue and multi-severity cases", () => 
     expect(model.summary.highestSeverity).toBe("blocker");
   });
 });
+
+
+describe("typed mandatory coverage in reports", () => {
+  it("preserves the threshold result and exit 2 when diagnostic wording changes", async () => {
+    const config = normalizeAuditConfig({ failOn: "high" }, toolRoot);
+    const detector = makeDetector({
+      run: (context) => {
+        context.reportCoverage?.({
+          detectorId: "test-detector",
+          predicate: "missing-source-import",
+          source: { kind: "file", identity: "tests/example.mjs" },
+          capability: "imports",
+          actualStatus: "indeterminate",
+          status: "UNDETERMINED",
+          mandatory: true,
+          diagnostic: "",
+          reason: "Unqualified runtime profile.",
+        });
+        return [makeIssue({ severity: "high" })];
+      },
+    });
+    const registry = [detector];
+    const result = await runAudit({ sourceProviderMode: "kit", kitSourceProviderDependencies: { installedPackageRoot: publishedKitRoot }, config, toolRoot, target: fakeTarget(), registry });
+    expect(result.exitCode).toBe(2);
+    expect(result.detectorErrors.some(error => error.message.startsWith("PARTIAL_COVERAGE UNAVAILABLE"))).toBe(true);
+    const changed = { ...result, detectorErrors: result.detectorErrors.map(error => ({ ...error, message: "Different diagnostic wording." })) };
+    const report = buildAuditReportModel(changed, { target: fakeTarget(), registry });
+    expect(report.exit).toMatchObject({ code: 2, breached: true });
+    expect(report.summary.failOnBreached).toBe(true);
+    expect(report.issues).toHaveLength(1);
+  });
+});

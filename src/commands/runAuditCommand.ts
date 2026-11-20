@@ -48,6 +48,7 @@ export type RunAuditCommandOptions = {
   // here so installed execution never defaults report output under the
   // package root.
   defaultOutRoot?: string;
+  kitSourceProviderDependencies?: import("../audits/core/kitSourceProvider.js").KitSourceProviderDependencies;
 };
 
 export async function runAuditCommandFromArgs(
@@ -102,7 +103,7 @@ export async function runAuditCommandFromArgs(
 
   let result;
   try {
-    result = await runAudit({ config, toolRoot, target });
+    result = await runAudit({ config, toolRoot, target, kitSourceProviderDependencies: options.kitSourceProviderDependencies });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`\nERROR: audit runtime failure: ${msg}`);

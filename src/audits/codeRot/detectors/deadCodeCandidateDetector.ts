@@ -61,8 +61,12 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     const filePredicates = new Map<string, readonly InventoryFileEntry[]>();
     const declarationPredicates: string[] = [];
     const unavailablePredicates = new Set<string>();
-    const positiveReferences = collectRelativeImportBasenames(ctx.sourceFacts);
+    const r3 = ctx.kitSourceReader?.expressionDomains;
+    const positiveReferences = collectRelativeImportBasenames(r3 && ctx.sourceFacts ? {
+      ...ctx.sourceFacts, files: ctx.sourceFacts.files.filter(file => file.language !== "javascript" && file.language !== "typescript"),
+    } : ctx.sourceFacts);
     for (const file of ctx.sourceFacts?.files ?? []) {
+      if (r3 && (file.language === "javascript" || file.language === "typescript")) continue;
       if (!file.exports.some(fact => fact.exportOrigin === "re-export")) continue;
       for (const specifier of ctx.kitSourceReader?.reExportSpecifiers?.(file.relativePath) ?? []) {
         if (specifier.startsWith(".")) positiveReferences.add(baseNameNoExt(specifier.split("?")[0]).toLowerCase());
@@ -104,6 +108,12 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
         ctx.reportUnavailable(DETECTOR_ID, predicate, filePath, reason);
       }
     };
+    if (r3 && filePredicates.size) {
+      for (const script of ctx.inventory.scriptFiles) {
+        if (script.role !== "config") unavailable(script.relativePath,
+          "Script reference origins require a qualified R3 selected-domain proof.", [...filePredicates.keys()]);
+      }
+    }
     if (predicates.length && ctx.sourceFacts?.provider === "kit") {
       // The entire selected reference domain matters, not just candidate files
       // or the completeness of one local import inventory.
@@ -134,6 +144,31 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
               diagnostic: "", reason: `${subject} cannot contribute an imported name or binding to this predicate's selected language domain.` });
           }
         };
+        if (r3 && (file.language === "javascript" || file.language === "typescript") && affected.length) {
+          if (ctx.kitSourceReader?.ambientClassification?.(entry.relativePath)?.outcome === "proven-ambient-only") {
+            for (const predicate of affected) ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate,
+              source: { kind: "file", identity: entry.relativePath }, capability: "imports", actualStatus: "not-required",
+              status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
+              reason: "Authenticated entire-file ambient stub cannot contribute executable references." });
+            continue;
+          }
+          const domains = await r3(entry.relativePath);
+          const linked = new Set(domains.map(d => d.linkedImportFactId));
+          const closed = qualifyKitImportPredicate(file) === "QUALIFIED_NEGATIVE" &&
+            domains.every(d => d.proof.excludesSelectedDomain || d.proof.positivePaths.length === 1) &&
+            file.imports.every(imp => linked.has(imp.provenance?.factId)) &&
+            !file.exports.some(f => f.exportOrigin === "re-export");
+          if (!closed) {
+            unavailable(entry.relativePath, "Selected JS/TS reverse-reference domain lacks exact reference or complete exclusion evidence.", affected);
+            continue;
+          }
+          for (const { proof } of domains) for (const target of proof.positivePaths) {
+            const base = baseNameNoExt(target).toLowerCase();
+            if (ctx.inventory.files.filter(f => baseNameNoExt(f.relativePath).toLowerCase() === base).length === 1) positiveReferences.add(base);
+            else unavailable(entry.relativePath, "Exact witness cannot be represented by the legacy basename projection.", affected);
+          }
+          continue;
+        }
         if (qualifyKitImportPredicate(file) !== "QUALIFIED_NEGATIVE") {
           reportDisjoint(`The ${file.language} import inventory`);
           if (affected.length) checks.push({ filePath: entry.relativePath, predicates: affected,
@@ -175,7 +210,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     let references = new Set(positiveReferences);
     const availableFilePredicates = [...filePredicates.keys()].filter(predicate => !unavailablePredicates.has(predicate));
     if (availableFilePredicates.length) {
-      try { references = await buildReverseReferenceIndex(ctx); }
+      try { references = await buildReverseReferenceIndex(ctx, r3 ? positiveReferences : undefined); }
       catch (error) {
         if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient" || !ctx.reportCoverage) throw error;
         for (const predicate of availableFilePredicates) {
@@ -299,14 +334,14 @@ async function findUnreferencedScriptFiles(ctx: AuditDetectorContext, pkg: Packa
   return issues;
 }
 
-async function buildReverseReferenceIndex(ctx: AuditDetectorContext): Promise<Set<string>> {
+async function buildReverseReferenceIndex(ctx: AuditDetectorContext, r3References?: Set<string>): Promise<Set<string>> {
   // v0.3.1 Batch 4 -- seeded with basenames the TypeScript/JavaScript
   // analyzer already resolved from real import declarations (parsed files
   // only). This only ever adds references, never removes them, so it can
   // only reduce false positives relative to the regex-only scan below --
   // safe even though ctx.sourceFacts is optional (returns an empty set when
   // absent, e.g. in existing detector-only unit tests).
-  const referencedBasenames = collectRelativeImportBasenames(ctx.sourceFacts);
+  const referencedBasenames = r3References ? new Set(r3References) : collectRelativeImportBasenames(ctx.sourceFacts);
   const allCandidateFiles: InventoryFileEntry[] = [
     ...ctx.inventory.sourceFiles,
     ...ctx.inventory.testFiles,
@@ -314,7 +349,7 @@ async function buildReverseReferenceIndex(ctx: AuditDetectorContext): Promise<Se
   ];
 
   for (const file of allCandidateFiles) {
-    if (file.role === "config") continue;
+    if (file.role === "config" || r3References && (file.language === "typescript" || file.language === "javascript")) continue;
     // Match the existing bounded native predicate before requesting raw evidence.
     if (file.sizeBytes > MAX_READ_BYTES) continue;
     if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required reverse-reference source ${file.relativePath} is unselected.`);
@@ -755,6 +790,22 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
       }
       try {
         if (unsupportedRaw) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
+        // This predicate asks only for an exact, case-sensitive basename.
+        // For a parsed text input an ASCII literal has an identical byte
+        // spelling. Only a complete zero-match is used here; text windows,
+        // decoded content and other predicates retain their own authority.
+        if (reader.byteOccurrences && /^[\x20-\x7e]+$/.test(base) && reader.selectedFile(test.relativePath).status === "parsed") {
+          const bytes = await reader.byteOccurrences(test.relativePath, Buffer.from(base, "ascii").toString("hex"));
+          if (bytes.complete && bytes.matchCount === 0) {
+            ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "fixture literal absence " + base,
+              source: { kind: "file", identity: test.relativePath }, capability: "raw-content",
+              actualStatus: "complete", status: "QUALIFIED", mandatory: true, diagnostic: "",
+              reason: "Complete exact ASCII basename byte scan of this selected test input.",
+              proof: { kind: "exact-literal-byte", snapshotId: reader.snapshotId, references: [test.relativePath, base] },
+            });
+            continue;
+          }
+        }
         const result = await reader.occurrences(test.relativePath, base);
         if (result.matches.length > 0) {
           for (const match of result.matches) for (const candidate of basenames) {

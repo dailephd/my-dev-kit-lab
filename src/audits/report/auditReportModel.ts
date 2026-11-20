@@ -399,7 +399,7 @@ export function buildAuditReportModel(result: AuditResult, opts: BuildAuditRepor
   const issues = result.issues;
   const breached = result.exitCode === AUDIT_EXIT_CODES.THRESHOLD_BREACHED ||
     (result.exitCode === AUDIT_EXIT_CODES.FATAL_ERROR &&
-      result.detectorErrors.some(error => error.message.startsWith("PARTIAL_COVERAGE UNAVAILABLE:")) &&
+      (result.coverage ?? []).some(record => record.mandatory && (record.status === "UNAVAILABLE" || record.status === "UNDETERMINED")) &&
       issues.some(issue => issueBreachesFailOnThreshold(issue.severity, result.configSummary.failOn as AuditFailOnThreshold)));
   const verdictLabel = computeVerdictLabel(result, breached);
 
