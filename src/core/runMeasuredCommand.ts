@@ -144,6 +144,8 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     const stderrCollector = new OutputCollector(options.stderrMaxBytes);
     let outputLimit: MeasuredCommandResult["outputLimit"];
     let spawnError: string | undefined;
+    let startedProcess = false;
+    let spawnFailed = false;
     let timedOut = false;
     let timeout: NodeJS.Timeout | undefined;
     let killGraceTimeout: NodeJS.Timeout | undefined;
@@ -218,7 +220,9 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     };
     child.stdout!.on("data", collect(stdoutCollector, "stdout", options.stdoutMaxBytes));
     child.stderr!.on("data", collect(stderrCollector, "stderr", options.stderrMaxBytes));
+    child.once("spawn", () => { startedProcess = true; });
     child.on("error", (error) => {
+      if (!startedProcess) spawnFailed = true;
       spawnError = error.message;
       // A failed spawn in a working directory that exists is not a missing executable; the OS may be refusing the path (for
       // example a very long cwd on Windows). Report the measured length
@@ -314,7 +318,9 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       }, options.timeoutMs);
     }
     child.on("close", (exitCode, signal) => {
-      void settle(exitCode, signal).catch(reject);
+      // A failed spawn can emit a libuv error number as the close code.
+      // There is no child exit status unless the process actually started.
+      void settle(spawnFailed ? null : exitCode, spawnFailed ? null : signal).catch(reject);
     });
   });
 

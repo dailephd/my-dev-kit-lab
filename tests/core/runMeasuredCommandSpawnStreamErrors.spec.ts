@@ -66,11 +66,24 @@ describe("runMeasuredCommand failed-spawn stream errors", () => {
     };
     const result = await run(os.tmpdir());
     expect(result.ok).toBe(false);
-    expect(result.exitCode).toBe(-4058);
+    expect(result.exitCode).toBeNull();
     // the first cause wins and carries the measured cwd length; the later stream errors do not overwrite it
     expect(result.error).toContain("spawn tool ENOENT");
     expect(result.error).toContain(`cwd length ${os.tmpdir().length} characters`);
     expect(result.error).not.toContain("ENOTCONN");
+  });
+
+  it("retains a child exit after a process error following a successful spawn", async () => {
+    state.script = (child) => {
+      const c = child as EventEmitter;
+      c.emit("spawn");
+      c.emit("error", new Error("controlled post-spawn error"));
+      c.emit("close", 17);
+    };
+    const result = await run(os.tmpdir());
+    expect(result.ok).toBe(false);
+    expect(result.exitCode).toBe(17);
+    expect(result.error).toBe("controlled post-spawn error");
   });
 
   it("PATH-004: a stream error with no earlier spawn error is still a reported failure", async () => {
