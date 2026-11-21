@@ -386,3 +386,89 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     }));
   }, 60_000,
 );
+
+it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
+  "retains candidate-specific gaps for bounded, unknown and outside-root imports",
+  async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-candidate-domains-"));
+    const origin = "tests/probe.test.mjs";
+    for (const [label, code] of [
+      ["finite", 'void import(flag ? "../src/peer.mjs" : "../src/missing.mjs");'],
+      ["unknown", 'void import(process.env.MODULE_NAME);'],
+      ["outside", 'void import("../../outside.mjs");'],
+    ]) {
+      const workspace = path.join(root, label);
+      const target = path.join(workspace, "target");
+      fs.mkdirSync(path.join(target, "src"), { recursive: true });
+      fs.mkdirSync(path.join(target, "tests"));
+      fs.writeFileSync(path.join(target, "package.json"), '{"name":"candidate-domains","type":"module"}');
+      fs.writeFileSync(path.join(target, "src/peer.mjs"), "export {};\n");
+      fs.writeFileSync(path.join(target, "src/unrelated.mjs"), "export {};\n");
+      fs.writeFileSync(path.join(target, origin), "declareFlag();\n" + code + "\n");
+      const exit = await runAuditCommandFromArgs([
+        "--target", target, "--types", "code-rot", "--include", "cli,tests", "--fail-on", "none",
+      ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: {
+        installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT,
+      } });
+      const base = path.join(workspace, "lab-output", "evidence");
+      const [id] = fs.readdirSync(base);
+      const rows = JSON.parse(fs.readFileSync(path.join(base, id!, "audit-result.json"), "utf8")).evidence.coverage;
+      const detectorId = "dead-code-candidate";
+      const predicate = "unreferenced-source-file";
+      expect(exit).toBe(2);
+      expect(rows).toContainEqual(expect.objectContaining({
+        detectorId, predicate, source: { kind: "file", identity: origin }, mandatory: true, status: "UNAVAILABLE",
+      }));
+      expect(rows).toContainEqual(expect.objectContaining({
+        detectorId, predicate: predicate + " blocked candidate", source: { kind: "file", identity: "src/peer.mjs" },
+      }));
+      expect(rows).toContainEqual(expect.objectContaining({
+        detectorId, predicate: predicate + (label === "finite" ? " candidate exclusion" : " blocked candidate"),
+        source: { kind: "file", identity: "src/unrelated.mjs" },
+      }));
+    }
+  }, 60_000,
+);
+
+it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
+  "qualifies package roots and explicit Node built-ins while rejecting ESM extension substitution",
+  async () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-package-roots-"));
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.mkdirSync(path.join(target, "tests"));
+    fs.writeFileSync(path.join(target, "package.json"), JSON.stringify({
+      name: "candidate-roots", type: "module",
+      scripts: { dev: "tsx src/cli.ts", build: "tsup" }, devDependencies: { tsup: "^8.5.1" },
+    }));
+    for (const candidate of ["src/cli.ts", "src/esm-only.ts", "tsup.config.ts"]) {
+      fs.writeFileSync(path.join(target, candidate), "export {};\n");
+    }
+    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), 'export * from "../src/esm-only.js";\n');
+    fs.writeFileSync(path.join(target, "tests/builtin.test.mjs"), 'import "node:fs";\n');
+    const exit = await runAuditCommandFromArgs([
+      "--target", target, "--types", "code-rot", "--include", "cli,package,tests", "--fail-on", "none",
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: {
+      installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT,
+    } });
+    const base = path.join(workspace, "lab-output", "evidence");
+    const [id] = fs.readdirSync(base);
+    const rows = JSON.parse(fs.readFileSync(path.join(base, id!, "audit-result.json"), "utf8")).evidence.coverage;
+    const detectorId = "dead-code-candidate";
+    const predicate = "unreferenced-source-file";
+    expect(exit).toBe(2);
+    for (const candidate of ["src/cli.ts", "tsup.config.ts"]) expect(rows).toContainEqual(expect.objectContaining({
+      detectorId, predicate: "selected package script root", source: { kind: "file", identity: candidate }, status: "QUALIFIED",
+    }));
+    expect(rows).toContainEqual(expect.objectContaining({
+      detectorId, predicate: predicate + " blocked candidate", source: { kind: "file", identity: "src/esm-only.ts" },
+    }));
+    expect(rows).toContainEqual(expect.objectContaining({
+      detectorId, predicate, source: { kind: "file", identity: "tests/builtin.test.mjs" }, mandatory: false, status: "QUALIFIED",
+    }));
+    expect(rows).toContainEqual(expect.objectContaining({
+      detectorId, predicate, source: { kind: "file", identity: "tests/probe.test.mjs" }, mandatory: true, status: "UNAVAILABLE",
+      reason: expect.stringContaining("TARGET_IN_SELECTED_INVENTORY"),
+    }));
+  }, 60_000,
+);

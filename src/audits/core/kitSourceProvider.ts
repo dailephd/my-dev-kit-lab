@@ -667,10 +667,11 @@ export type KitSourceReader = {
   cachedAuthenticatedFixtureContent?: (filePath: string) => Promise<string | undefined>;
   // Exact selected bytes for text-only predicates. This supplies no semantic facts.
   authenticatedRawTestContent?: (filePath: string) => string | undefined;
+  explicitImportsCompleteWithExpressions?: (filePath: string, explicitImportCount: number) => boolean;
   expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
-  importTarget: (factId: string) => Promise<KitImportProof>;
+  importTarget: (factId: string) => Promise<KitImportProof & { exactSelectedPath?: string }>;
   dispose: () => void;
 };
 
@@ -964,6 +965,24 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       return undefined;
     },
     ...(r3 ? {
+      explicitImportsCompleteWithExpressions(filePath: string, explicitImportCount: number) {
+        if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+        const entry = evidence.fileEvidence.get(filePath);
+        if (!entry || !evidence.traversalComplete || !evidence.coverage.inventoryComplete ||
+            !evidence.coverage.exclusionsAreExplicit || entry.record.capabilities.imports !== "partial" ||
+            entry.record.capabilities["dynamic-import-expressions"] !== "complete" ||
+            entry.facts.filter(fact => fact.kind === "import").length !== explicitImportCount) return false;
+        const diagnostics = entry.record.diagnostics ?? [];
+        if (diagnostics.some(diagnostic => /truncat|dropped|unsupported-require|unsupported-import-specifier/.test(diagnostic.code))) return false;
+        const missingCalls = diagnostics.filter(diagnostic => diagnostic.code === "unsupported-dynamic-import");
+        const computedCalls = entry.facts.filter(fact =>
+          fact.kind === "dynamic-import-expression" && !fact.dynamicImport?.literalImportFactId);
+        // The exact producer reports each unsupported import call at its
+        // expression start. The complete expression inventory accounts for
+        // these partial ordinary imports.
+        return missingCalls.length > 0 && missingCalls.every(({ start }) => !!start &&
+          computedCalls.some(fact => start.line === fact.span.startLine && start.column === fact.span.startColumn));
+      },
       async expressionDomains(filePath: string) {
         if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
         const entry = evidence.fileEvidence.get(filePath);
@@ -976,7 +995,9 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
           ]).then(raw => validateKitImportDomain(raw, evidence, fact)));
           const proof = await domainPromises.get(fact.id)!;
           assertFresh(entry.record);
-          for (const target of proof.positivePaths) assertFresh(evidence.inventory.find(f => f.path === target)!);
+          for (const target of proof.selectedTargetUpperBound ?? proof.positivePaths) {
+            assertFresh(inventoryByPath.get(target)!);
+          }
           proofs.push({ linkedImportFactId: fact.dynamicImport?.literalImportFactId, proof });
         }
         return proofs;
@@ -1043,6 +1064,18 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
             if (!target) fail("artifact-invalid", "Import-target witness is outside selected inventory.");
             assertFresh(target);
           }
+          const selected = proof.candidatePaths[0]!;
+          const specifier = proof.sourceSpecifier;
+          const root = fs.realpathSync(evidence.source.projectRoot);
+          const isCanonical = (file: string) =>
+            path.relative(root, fs.realpathSync(path.resolve(root, file))).split(path.sep).join("/") === file;
+          // The ordinary lookup can return implementation-extension alternatives
+          // or configured candidates. Admit only a literal immediate path shared
+          // by ordinary relative ESM and CommonJS resolution.
+          if (proof.candidatePaths.length === 1 && /^\.\.?\//.test(specifier) &&
+              !/[\\%?#\s]/.test(specifier) && !specifier.endsWith("/") &&
+              path.posix.normalize(path.posix.join(path.posix.dirname(record.path), specifier)) === selected &&
+              isCanonical(record.path) && isCanonical(selected)) return { ...proof, exactSelectedPath: selected };
         } else if (proof.status === "proven-missing" &&
             (proof.reasonCode !== "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION" ||
             proof.candidatePaths.some(candidate => inventoryByPath.has(candidate)))) {

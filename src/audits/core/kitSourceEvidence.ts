@@ -294,6 +294,7 @@ export type KitFileRecord = {
 export type KitDiagnostic = {
   code: string;
   message: string;
+  start?: { line: number; column: number };
 };
 
 export type KitSourceSpan = {
@@ -576,11 +577,20 @@ export function validateKitFileRecord(value: unknown, label: string, schema?: un
       fail("page-invalid", `${label}.diagnostics must be an array.`);
     }
     record.diagnostics = obj.diagnostics.map((entry, index) => {
-      const diagnostic = asObject(entry, `${label}.diagnostics[${index}]`, "page-invalid");
-      return {
-        code: str(diagnostic, "code", `${label}.diagnostics[${index}]`, "page-invalid"),
-        message: str(diagnostic, "message", `${label}.diagnostics[${index}]`, "page-invalid"),
-      };
+      const diagnosticLabel = label + ".diagnostics[" + index + "]";
+      const diagnostic = asObject(entry, diagnosticLabel, "page-invalid");
+      const code = str(diagnostic, "code", diagnosticLabel, "page-invalid");
+      const message = str(diagnostic, "message", diagnosticLabel, "page-invalid");
+      const span = diagnostic.span;
+      if (schema !== KIT_SOURCE_PROOF_SCHEMA_VERSION || code !== "unsupported-dynamic-import" ||
+          span === null || span === undefined) return { code, message };
+      const location = asObject(span, "dynamic import diagnostic span", "page-invalid");
+      const line = int(location, "startLine", "dynamic import diagnostic span", "page-invalid");
+      const column = int(location, "startColumn", "dynamic import diagnostic span", "page-invalid");
+      if (location.path !== filePath || line < 1 || record.lineCount === null || line > record.lineCount) {
+        fail("page-invalid", "Dynamic import diagnostic is outside its selected origin.");
+      }
+      return { code, message, start: { line, column } };
     });
   }
   return record;
@@ -1330,6 +1340,7 @@ export type KitImportDomain = {
   domainComplete: boolean;
   positivePaths: readonly string[];
   excludesSelectedDomain: boolean;
+  selectedTargetUpperBound?: readonly string[];
 };
 
 export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidence, fact: KitFact): KitImportDomain {
@@ -1428,8 +1439,21 @@ export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidenc
     } catch { fail("artifact-invalid", "Positive witness is not an exact file URL identity."); }
     return target;
   });
+  // Complete dynamic alternatives enumerate possible paths, including absent
+  // implementation extensions. Intersect with the authenticated selection.
+  const selectedTargets = candidates.map(alternative => alternative.paths.filter(candidate => selected.has(candidate)));
+  const caseFoldedSelection = process.platform === "win32"
+    ? new Set([...selected.keys()].map(file => file.toLowerCase())) : undefined;
+  const selectedTargetUpperBound = finite && selectionComplete && evidence.traversalComplete &&
+    candidates.every((alternative, i) => alternative.complete &&
+      (alternative.status === "proven-missing" || alternative.status === "present" &&
+        selectedTargets[i]!.length > 0 && selectedTargets[i]!.every(candidate => !!selected.get(candidate)?.contentSha256) &&
+        alternative.paths.every(candidate => selected.has(candidate) || !caseFoldedSelection?.has(candidate.toLowerCase()))))
+    ? [...new Set(selectedTargets.flat())].sort()
+    : undefined;
   return { expressionFactId: fact.id, snapshotId: evidence.snapshotId,
-    reasonCode: typeof r.reasonCode === "string" ? r.reasonCode : null, outcome, domainComplete: finite, positivePaths, excludesSelectedDomain: outcome === "disjoint-selected-domain" };
+    reasonCode: typeof r.reasonCode === "string" ? r.reasonCode : null, outcome, domainComplete: finite, positivePaths,
+    excludesSelectedDomain: outcome === "disjoint-selected-domain", selectedTargetUpperBound };
 }
 
 export type KitByteOccurrence = { complete: boolean; matchCount: number; matches: { startByte: number; endByteExclusive: number }[] };

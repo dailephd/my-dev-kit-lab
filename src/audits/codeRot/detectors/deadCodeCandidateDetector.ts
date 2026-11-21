@@ -1,4 +1,5 @@
 import path from "node:path";
+import { isBuiltin } from "node:module";
 import { KitSourceEvidenceAcquisitionError, qualifyKitImportPredicate } from "../../core/kitSourceEvidence.js";
 import { kitPredicateContent, requireCompleteKitOccurrence } from "../utils/sourceFactsLookup.js";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
@@ -88,12 +89,16 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       if (ctx.inventory.sourceFiles.some(f => isJvmLanguage(f.language))) declarationPredicates.push(JVM_DECLARATION_PREDICATE);
     }
     const predicates = [...filePredicates.keys(), ...declarationPredicates];
+    // Keep the bounded lookup schedule independent of which returned paths
+    // qualify as references. A filesystem candidate can spend a probe without
+    // discharging any absence predicate.
     const unwitnessedCandidates = new Set([...filePredicates.values()].flatMap(files => files.map(file => file.relativePath)));
+    const allFileCandidatePaths = new Set(unwitnessedCandidates);
     const exactReferences = new Set<string>();
     // Try at most one indexed ordinary-import witness per candidate. Other
     // possible resolutions stay open if that proof cannot confirm the target.
     const triedIndexedTargets = new Set<string>();
-    const pendingFileGaps: { path: string; predicate: string; reason: string }[] = [];
+    const pendingFileGaps: { path: string; predicate: string; reason: string; possibleTargets?: ReadonlySet<string> }[] = [];
     if (predicates.length === 0) {
       // No semantic import inventory is consumed when every absence family
       // has no remaining candidate. Raw fixture checks retain their own proof.
@@ -112,12 +117,14 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       unavailablePredicates.add(predicate);
       ctx.reportUnavailable(DETECTOR_ID, predicate, filePath, reason);
     };
-    const unavailable = (filePath: string, reason: string, affectedPredicates: readonly string[]) => {
+    const unavailable = (filePath: string, reason: string, affectedPredicates: readonly string[], possibleTargets?: ReadonlySet<string>) => {
       for (const predicate of affectedPredicates) {
-        if (r3 && filePredicates.has(predicate)) pendingFileGaps.push({ path: filePath, predicate, reason });
+        if (r3 && filePredicates.has(predicate)) pendingFileGaps.push({ path: filePath, predicate, reason, possibleTargets });
         else reportGap(filePath, predicate, reason);
       }
     };
+    const builtinReference = (specifier: string) => !process.env.NODE_OPTIONS?.trim() &&
+      specifier.startsWith("node:") && isBuiltin(specifier);
     if (r3 && filePredicates.size) {
       for (const script of ctx.inventory.scriptFiles) {
         if (script.role !== "config") unavailable(script.relativePath,
@@ -187,7 +194,9 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             targetProofs.set(factId, proof);
             const [target] = proof.candidatePaths;
             if (proof.status === "present" && proof.candidatePaths.length === 1 && target &&
-                (!indexedTarget || indexedTarget === target) && unwitnessedCandidates.delete(target)) {
+                (!indexedTarget || indexedTarget === target)) unwitnessedCandidates.delete(target);
+            if (target && proof.exactSelectedPath === target && (!indexedTarget || indexedTarget === target) &&
+                !exactReferences.has(target) && allFileCandidatePaths.has(target)) {
               exactReferences.add(target);
               ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "selected module reference",
                 source: { kind: "file", identity: entry.relativePath }, capability: "imports",
@@ -242,8 +251,27 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
                 reExports.length !== file.exports.filter(fact => fact.exportOrigin === "re-export").length) {
               blockers.push("incomplete re-export inventory");
             }
+            const inventoriesComplete = (qualifyKitImportPredicate(file) === "QUALIFIED_NEGATIVE" ||
+              reader.explicitImportsCompleteWithExpressions?.(entry.relativePath, file.imports.length)) &&
+              file.kit?.capabilities.exports === "complete" &&
+              reExports.length === file.exports.filter(fact => fact.exportOrigin === "re-export").length;
+            const edgeExcluded = (factId: string | undefined, specifier: string) =>
+              !!factId && (builtinReference(specifier) || targetProofs.get(factId)?.status === "proven-missing");
+            const bounded = inventoriesComplete &&
+              staticImports.every(imp => qualifyKitImportPredicate(file, imp) === "QUALIFIED_POSITIVE" &&
+                edgeExcluded(imp.provenance?.factId, imp.source)) &&
+              reExports.every(fact => edgeExcluded(fact.id, fact.sourceSpecifier)) &&
+              domains.every(d => d.proof.selectedTargetUpperBound !== undefined);
+            const possibleTargets = bounded ? new Set(domains.flatMap(d => d.proof.selectedTargetUpperBound!)) : undefined;
+            if (possibleTargets?.size === 0) {
+              for (const predicate of affected) ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate,
+                source: { kind: "file", identity: entry.relativePath }, capability: "imports",
+                actualStatus: "disjoint-selected-domain", status: "QUALIFIED", mandatory: false, diagnostic: "",
+                reason: "Complete import and re-export evidence confines this origin to explicit Node built-ins or proven selected-domain exclusions." });
+              continue;
+            }
             unavailable(entry.relativePath, "Selected JS/TS reverse-reference domain lacks exact reference or complete exclusion evidence."
-              + (blockers.length ? " Unresolved references: " + blockers.join(" | ") + "." : ""), affected);
+              + (blockers.length ? " Unresolved references: " + blockers.join(" | ") + "." : ""), affected, possibleTargets);
           }
           continue;
         }
@@ -285,6 +313,15 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       }
     }
 
+    if (r3 && pkg) for (const file of filePredicates.get("unreferenced-source-file") ?? []) {
+      const script = sourceRootScript(pkg, file.relativePath);
+      if (!script || exactReferences.has(file.relativePath)) continue;
+      exactReferences.add(file.relativePath);
+      ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "selected package script root",
+        source: { kind: "file", identity: file.relativePath }, capability: "imports",
+        actualStatus: "positive-witness", status: "QUALIFIED", mandatory: false, diagnostic: "",
+        reason: 'package.json script ' + JSON.stringify(script) + ' identifies this selected entry or configuration file.' });
+    }
     const remainingFilePredicates = new Set(filePredicates.keys());
     for (const [predicate, candidates] of filePredicates) {
       if (candidates.some(candidate => !exactReferences.has(candidate.relativePath))) continue;
@@ -294,8 +331,13 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
         actualStatus: "positive-witness", status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
         reason: "Every eligible candidate has an authenticated positive path witness." });
     }
+    const blocks = (gap: typeof pendingFileGaps[number], candidate: string) =>
+      !exactReferences.has(candidate) && (!gap.possibleTargets || gap.possibleTargets.has(candidate));
     for (const gap of pendingFileGaps) {
-      if (remainingFilePredicates.has(gap.predicate)) reportGap(gap.path, gap.predicate, gap.reason);
+      if (!remainingFilePredicates.has(gap.predicate)) continue;
+      if (filePredicates.get(gap.predicate)!.some(candidate => blocks(gap, candidate.relativePath))) {
+        reportGap(gap.path, gap.predicate, gap.reason);
+      }
     }
     let references = new Set(positiveReferences);
     const availableFilePredicates = [...remainingFilePredicates].filter(predicate => !unavailablePredicates.has(predicate));
@@ -312,17 +354,23 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       }
     }
 
-    // Each candidate links to the shared origin gaps for its check. An open
-    // origin domain cannot exclude any remaining candidate by path.
     if (r3) for (const predicate of remainingFilePredicates) {
       if (!unavailablePredicates.has(predicate)) continue;
       for (const candidate of filePredicates.get(predicate)!) {
         const file = candidate.relativePath;
         if (exactReferences.has(file) || references.has(baseNameNoExt(file).toLowerCase())) continue;
+        const blockers = pendingFileGaps.filter(gap => gap.predicate === predicate && blocks(gap, file));
+        if (!blockers.length && pendingFileGaps.some(gap => gap.predicate === predicate)) {
+          ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: predicate + " candidate exclusion",
+            source: { kind: "file", identity: file }, capability: "imports", actualStatus: "disjoint-selected-domain",
+            status: "QUALIFIED", mandatory: false, diagnostic: "",
+            reason: "The remaining bounded JS/TS import domains for this check exclude this candidate. Other reference roles still require qualification." });
+          continue;
+        }
         ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: predicate + " blocked candidate",
           source: { kind: "file", identity: file }, capability: "imports", actualStatus: "unresolved",
           status: "UNDETERMINED", mandatory: false, diagnostic: "",
-          reason: "See " + predicate + " mandatory gaps for the shared set of origins and references which cannot rule out this candidate." });
+          reason: "See " + predicate + " mandatory gaps. " + blockers.length + " pending origin records cannot rule out this path." });
       }
     }
 
@@ -368,6 +416,17 @@ function docsDescribeAsPlanned(docsConcat: string, relativePath: string): boolea
   const windowStart = Math.max(0, idx - 100);
   const windowEnd = Math.min(docsConcat.length, idx + base.length + 100);
   return PLANNED_LABEL_PATTERN.test(docsConcat.slice(windowStart, windowEnd));
+}
+
+function sourceRootScript(pkg: PackageTruth, candidate: string): string | undefined {
+  return Object.entries(pkg.scripts).find(([, command]) => {
+    // A direct, option-free command names its entry point. Avoid interpreting
+    // shell syntax, interpolated commands or arbitrary basename matches.
+    const entry = /^(?:node|tsx) +(?:\.\/)?([\w.-]+(?:\/[\w.-]+)*)$/.exec(command.trim())?.[1];
+    if (entry === candidate) return true;
+    return candidate === "tsup.config.ts" && command.trim() === "tsup" &&
+      !!(pkg.devDependencies.tsup || pkg.dependencies.tsup);
+  })?.[0];
 }
 
 function binTargetsAsSourceCandidates(pkg: PackageTruth): Set<string> {
