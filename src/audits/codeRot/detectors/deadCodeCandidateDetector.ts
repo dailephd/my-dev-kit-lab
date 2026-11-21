@@ -353,9 +353,10 @@ async function buildReverseReferenceIndex(ctx: AuditDetectorContext, r3Reference
     // Match the existing bounded native predicate before requesting raw evidence.
     if (file.sizeBytes > MAX_READ_BYTES) continue;
     if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required reverse-reference source ${file.relativePath} is unselected.`);
+    const rawContent = ctx.kitSourceReader?.authenticatedRawTestContent?.(file.relativePath);
     const unsupportedRaw = ctx.kitSourceReader?.unsupportedRawContentReason?.(file.relativePath);
-    if (unsupportedRaw) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
-    const content = await kitPredicateContent(ctx.kitSourceReader, file.relativePath, ["from", "require("]);
+    if (unsupportedRaw && rawContent === undefined) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
+    const content = rawContent ?? await kitPredicateContent(ctx.kitSourceReader, file.relativePath, ["from", "require("]);
     if (content === null) continue;
 
     IMPORT_SPECIFIER_PATTERN.lastIndex = 0;
@@ -753,6 +754,7 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
   const pending: typeof tests = [];
   const contentGaps = new Map<string, string>();
   const authenticatedFixtures: typeof tests = [];
+  const verifiedRawFixtures = new Set<string>();
   const readContent = reader?.authenticatedFixtureContent ?? reader?.authenticatedContent;
   for (const test of tests) {
     if (referenced.size === basenames.size) break;
@@ -777,9 +779,16 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
         }
       }
     }
+    if (content === undefined) {
+      content = reader.authenticatedRawTestContent?.(test.relativePath);
+      if (content !== undefined) verifiedRawFixtures.add(test.relativePath);
+    }
     if (content === undefined) pending.push(test);
     else {
-      for (const base of basenames) if (content.includes(base)) referenced.add(base);
+      const bytes = verifiedRawFixtures.has(test.relativePath) ? Buffer.from(content, "utf8") : undefined;
+      for (const base of basenames) {
+        if (bytes ? bytes.includes(base, 0, "utf8") : content.includes(base)) referenced.add(base);
+      }
       if (reader.authenticatedFixtureContent) authenticatedFixtures.push(test);
     }
   }
@@ -824,10 +833,13 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
       ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "fixture literal absence " + base,
         source: { kind: "file", identity: test.relativePath }, capability: "raw-content",
         actualStatus: "complete", status: "QUALIFIED", mandatory: true, diagnostic: "",
-        reason: test.relativePath.endsWith(".json")
-          ? "Exact basename is absent from the complete, hash-verified Kit occurrence windows."
-          : "Exact basename is absent from the complete, hash-verified Kit source ranges.",
-        proof: { kind: "authenticated-source-ranges", snapshotId: reader.snapshotId, references: [test.relativePath, base] },
+        reason: verifiedRawFixtures.has(test.relativePath)
+          ? "Exact basename is absent from complete lossless UTF-8 bytes verified against the selected Kit file hash."
+          : test.relativePath.endsWith(".json")
+            ? "Exact basename is absent from the complete, hash-verified Kit occurrence windows."
+            : "Exact basename is absent from the complete, hash-verified Kit source ranges.",
+        proof: { kind: verifiedRawFixtures.has(test.relativePath) ? "exact-literal-byte" : "authenticated-source-ranges",
+          snapshotId: reader.snapshotId, references: [test.relativePath, base] },
       });
     }
   }

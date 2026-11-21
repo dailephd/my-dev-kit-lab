@@ -105,7 +105,8 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         actualStatus: observed?.kit?.capabilities.imports ?? "unavailable", status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
         reason: "Configuration, report, or data/production-source fixture has no executable-test import predicate; raw command checks remain selected." });
       const unsupportedRaw = ctx.kitSourceReader?.unsupportedRawContentReason?.(testFile.relativePath);
-      if (unsupportedRaw) {
+      const rawContent = unsupportedRaw ? ctx.kitSourceReader?.authenticatedRawTestContent?.(testFile.relativePath) : undefined;
+      if (unsupportedRaw && rawContent === undefined) {
         if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
         ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, unsupportedRaw, "raw-content");
         return issues;
@@ -113,10 +114,13 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       let content: string;
       try {
         if (rawOnly) {
-          issues.push(...await findRawOnlyNpmRunReferences(ctx, testFile.relativePath, scriptNames));
+          issues.push(...await findRawOnlyNpmRunReferences(ctx, testFile.relativePath, scriptNames, rawContent));
           return issues;
         }
-        content = await kitPredicateContent(ctx.kitSourceReader, testFile.relativePath, ["npm run ", "describe", "it", "test", "from", "require("]);
+        // Every lexical predicate can run on the complete validated text.
+        // Import resolution below still requires independent Kit facts/proofs.
+        content = rawContent ?? await ctx.kitSourceReader?.cachedAuthenticatedFixtureContent?.(testFile.relativePath)
+          ?? await kitPredicateContent(ctx.kitSourceReader, testFile.relativePath, ["npm run ", "describe", "it", "test", "from", "require("]);
       } catch (error) {
         if (ctx.reportUnavailable &&
             error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
@@ -525,16 +529,25 @@ function findMissingJvmSourceImports(
   return issues;
 }
 
-async function findRawOnlyNpmRunReferences(ctx: AuditDetectorContext, filePath: string, scriptNames: Set<string>): Promise<AuditIssue[]> {
+function reportAuthenticatedCommandCoverage(ctx: AuditDetectorContext, filePath: string): void {
+  ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "bounded-content predicates",
+    source: { kind: "file", identity: filePath }, capability: "raw-content",
+    actualStatus: "authenticated-content", status: "QUALIFIED", mandatory: true, diagnostic: "",
+    reason: "Authenticated whole bytes qualify the raw command predicate independently of literal-inventory completeness." });
+}
+
+async function findRawOnlyNpmRunReferences(
+  ctx: AuditDetectorContext, filePath: string, scriptNames: Set<string>, rawContent?: string,
+): Promise<AuditIssue[]> {
   const reader = ctx.kitSourceReader;
   if (!reader) throw new KitSourceEvidenceAcquisitionError("invalid-request", `${filePath} requires its validated Kit source reader.`);
   const qualify = (actualStatus: string, reason: string) => ctx.reportCoverage?.({ detectorId: DETECTOR_ID,
     predicate: "bounded-content predicates", source: { kind: "file", identity: filePath }, capability: "raw-content",
     actualStatus, status: "QUALIFIED", mandatory: true, diagnostic: "", reason });
-  const cached = await reader.cachedAuthenticatedFixtureContent?.(filePath);
-  if (cached !== undefined) {
-    qualify("authenticated-content", "Authenticated whole bytes qualify the raw command predicate independently of literal-inventory completeness.");
-    return findStaleNpmRunReferences(filePath, cached, scriptNames);
+  const content = rawContent ?? await reader.cachedAuthenticatedFixtureContent?.(filePath) ?? reader.authenticatedRawTestContent?.(filePath);
+  if (content !== undefined) {
+    reportAuthenticatedCommandCoverage(ctx, filePath);
+    return findStaleNpmRunReferences(filePath, content, scriptNames);
   }
   const result = await reader.occurrences(filePath, "npm run ");
   if (!result.complete) {

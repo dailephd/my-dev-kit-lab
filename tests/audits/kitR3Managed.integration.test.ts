@@ -116,10 +116,12 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     fs.writeFileSync(path.join(target, jsonPath), window);
     fs.writeFileSync(path.join(target, clippedPath), clipped);
     fs.writeFileSync(path.join(target, binaryPath), Buffer.from([255, 0, 34]));
+    const emptyPath = "tests/empty.json";
+    fs.writeFileSync(path.join(target, emptyPath), "");
     fs.writeFileSync(path.join(target, rustPath), malformed);
     const extendedRequest = {
       ...request, inventory: scanProjectInventory(target),
-      requiredPaths: [...request.requiredPaths, jsonPath, clippedPath, binaryPath, rustPath],
+      requiredPaths: [...request.requiredPaths, jsonPath, clippedPath, binaryPath, rustPath, emptyPath],
     };
     const tamperedArchive = path.join(root, "tampered.tgz");
     fs.writeFileSync(tamperedArchive, Buffer.concat([fs.readFileSync(qualifiedArchivePath!), Buffer.from([0])]));
@@ -153,6 +155,12 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       expect(reader?.selectedFile(rustPath).status).toBe("partial");
       await expect(reader?.authenticatedFixtureContent?.(rustPath)).resolves.toBe(malformed);
       await expect(reader?.authenticatedFixtureContent?.(jsonPath)).resolves.toBe(window);
+      expect(reader?.authenticatedRawTestContent?.(jsonPath)).toBe(window);
+      expect(reader?.authenticatedRawTestContent?.(emptyPath)).toBe("");
+      expect(reader?.authenticatedRawTestContent?.(binaryPath)).toBeUndefined();
+      expect(reader?.authenticatedRawTestContent?.("src/anchor.ts")).toBeUndefined();
+      fs.writeFileSync(path.join(target, jsonPath), window.replace("fixture", "altered"));
+      expect(() => reader?.authenticatedRawTestContent?.(jsonPath)).toThrow(/stale-evidence/);
       await expect(reader?.authenticatedFixtureContent?.(clippedPath))
         .rejects.toMatchObject({ category: "capability-insufficient" });
       await expect(reader?.occurrences(clippedPath, "absent-fixture.json")).resolves.toMatchObject({ complete: true, matchCount: 0 });
@@ -177,7 +185,7 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
 );
 
 it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
-  "retains reports and independent findings when a selected text fixture has no qualified raw-content reader",
+  "uses authenticated large and raw test content while retaining unqualified binary and mixed-range gaps",
   async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-fixture-gap-"));
     const target = path.join(root, "target");
@@ -195,7 +203,14 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     fs.writeFileSync(path.join(target, mixed), "// Mixed endings prevent reconstruction.\r\n// Second line.\n");
     const marker = "tests/fixtures/unreferenced-marker.txt";
     // Longer than its basename, so inventory size alone cannot establish absence.
-    fs.writeFileSync(path.join(target, marker), "Controlled unsupported text fixture.\n");
+    fs.writeFileSync(path.join(target, marker), Buffer.concat([Buffer.from("Controlled binary fixture "), Buffer.from([0, 255])]));
+    const xml = "tests/fixtures/raw-source.xml";
+    fs.writeFileSync(path.join(target, xml), '<fixture value="present.txt npm run missing-xml-command café"/>\r\n');
+    fs.writeFileSync(path.join(target, "tests/fixtures/present.txt"), "Harmless fixture contents.\n");
+    const largeJson = "tests/fixtures/large.json";
+    fs.writeFileSync(path.join(target, largeJson), JSON.stringify({ value: "x".repeat(10000) + " npm run missing-json-command" }) + "\r\n");
+    const longTest = "tests/long.test.mjs";
+    fs.writeFileSync(path.join(target, longTest), "// padding\n".repeat(120) + 'test.only("whole content", () => {});\n');
     const out = path.join(root, "reports");
     const code = await runAuditCommandFromArgs([
       "--target", target, "--include", "docs,tests,package,architecture,cli", "--format", "text,json",
@@ -208,6 +223,10 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
           expect(options.args).not.toContain("--contains-bytes-hex");
         }
         if (options.args?.includes(commandFixture)) expect(options.args).not.toContain("npm run ");
+        if (options.args?.includes(xml) || options.args?.includes(largeJson) || options.args?.includes(longTest)) {
+          expect(options.args).not.toContain("--contains");
+          expect(options.args).not.toContain("--contains-bytes-hex");
+        }
         if (options.commandId.endsWith("-source-range")) {
           const receiptDir = options.cwd!;
           const commands = fs.readdirSync(receiptDir);
@@ -253,6 +272,26 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     const issueIds = json.issues.map((issue: { id: string }) => issue.id);
     expect(issueIds).toContain("docs-code-mismatch:README.md:current-but-missing:security-validation");
     expect(issueIds).toContain("test-rot:tests/probe.test.mjs:only-usage:1");
+    expect(issueIds).toContain("test-rot:tests/long.test.mjs:only-usage:121");
+    expect(issueIds).toContain("test-rot:tests/fixtures/raw-source.xml:stale-npm-run-reference:missing-xml-command");
+    expect(issueIds).toContain("test-rot:tests/fixtures/large.json:stale-npm-run-reference:missing-json-command");
+    const coverage = receipt("audit-result").coverage;
+    for (const file of [xml, largeJson]) {
+      expect(coverage).toContainEqual(expect.objectContaining({
+        detectorId: "dead-code-candidate", predicate: "fixture literal absence unreferenced-marker.txt",
+        source: { kind: "file", identity: file }, status: "QUALIFIED",
+        reason: expect.stringContaining("selected Kit file hash"),
+        proof: expect.objectContaining({ kind: "exact-literal-byte" }),
+      }));
+    }
+    expect(coverage).toContainEqual(expect.objectContaining({
+      detectorId: "dead-code-candidate", predicate: "unreferenced-fixture tests/fixtures/present.txt",
+      actualStatus: "positive-witness", status: "QUALIFIED",
+    }));
+    expect(coverage).not.toContainEqual(expect.objectContaining({
+      detectorId: "test-rot", predicate: "bounded-content predicates",
+      source: { kind: "file", identity: longTest }, status: "UNAVAILABLE",
+    }));
     expect(json.issues).toContainEqual(expect.objectContaining({
       detectorId: "test-rot", title: expect.stringContaining("npm run missing-command"),
     }));

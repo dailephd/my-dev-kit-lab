@@ -665,6 +665,8 @@ export type KitSourceReader = {
   // Selected JSON can also come from hash-verified occurrence windows.
   authenticatedFixtureContent?: (filePath: string) => Promise<string>;
   cachedAuthenticatedFixtureContent?: (filePath: string) => Promise<string | undefined>;
+  // Exact selected bytes for text-only predicates. This supplies no semantic facts.
+  authenticatedRawTestContent?: (filePath: string) => string | undefined;
   expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
@@ -722,6 +724,8 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   const cache = new Map<string, Promise<KitOccurrence>>();
   const proofs = new Map<string, Promise<KitImportProof>>();
   const contents = new Map<string, Promise<string>>();
+  const rawTestContents = new Map<string, string | undefined>();
+  const testFileByPath = new Map(testFiles.map(file => [file.relativePath, file]));
   const r3 = ctx.pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 && evidence.artifactSchemaVersion === "1.2.0";
   const domainPromises = new Map<string, Promise<KitImportDomain>>();
   const assertFresh = (file: KitFileRecord) => {
@@ -730,6 +734,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     if (!isContained(root, target) || !file.contentSha256) fail("stale-evidence", "Required proof file lacks contained hashed bytes.");
     const bytes = readBoundedFile(target, file.sizeBytes, "stale-evidence", "Proof source");
     if (bytes.length !== file.sizeBytes || sha256Hex(bytes) !== file.contentSha256) fail("stale-evidence", "Proof source bytes changed.");
+    return bytes;
   };
   const indexDir = path.join(ctx.workDir, "index");
   const jsonRawLiteralContent = r3 ? "selected-test-json-v1" : JSON_RAW_CONTENT_PROFILES[ctx.pkg.cliSha256];
@@ -884,7 +889,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     return contents.get(filePath)!;
   }
   const reader: KitSourceReader = {
-    snapshotId: evidence.snapshotId, producer: evidence.producer, dispose: () => { closed = true; contents.clear(); dispose(); },
+    snapshotId: evidence.snapshotId, producer: evidence.producer, dispose: () => { closed = true; contents.clear(); rawTestContents.clear(); dispose(); },
     jsTsRelativeImportCandidateProof: IMPORT_PROOF_PROFILES[ctx.pkg.cliSha256],
     jsonRawLiteralContent,
     selectedFile,
@@ -914,6 +919,23 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       }
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       assertFresh(selectedFile(filePath));
+      return text;
+    } : undefined,
+    authenticatedRawTestContent: r3 ? filePath => {
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      validateKitRelativePath(filePath, "raw test content file");
+      const input = testFileByPath.get(filePath);
+      if (!input) return undefined;
+      const file = evidence.inventory.find(record => record.path === filePath);
+      if (!file) fail("selection-incomplete", `Required file ${filePath} is missing from validated selected inventory.`);
+      if (input.sizeBytes !== file.sizeBytes) fail("stale-evidence", `${filePath} size differs from Lab's inventory.`);
+      if (!file.contentSha256 || file.sizeBytes > 200000 || file.status !== "unsupported" ||
+          evidence.fileEvidence.has(filePath) && !filePath.endsWith(".json")) return undefined;
+      const bytes = assertFresh(file);
+      if (rawTestContents.has(filePath)) return rawTestContents.get(filePath);
+      const decoded = bytes.toString("utf8");
+      const text = !bytes.includes(0) && Buffer.from(decoded, "utf8").equals(bytes) ? decoded : undefined;
+      rawTestContents.set(filePath, text);
       return text;
     } : undefined,
     unsupportedRawContentReason(filePath) {
