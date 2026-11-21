@@ -58,6 +58,18 @@ describe("required JSON raw selection", () => {
     expect(() => selectKitSourceRoots(root, inventory, ["../outside.json"])).toThrow(/path-invalid/);
   });
 
+  it("admits required tsconfig bytes only through the qualified producer route", () => {
+    const file = "tests/fixtures/path-alias/tsconfig.json";
+    const root = fixture([file]);
+    const inventory = scanProjectInventory(root);
+    expect(selectKitSourceRoots(root, inventory, [file])).toMatchObject({
+      complete: false, excludedPaths: [file],
+    });
+    expect(selectKitSourceRoots(root, inventory, [file], [], true)).toMatchObject({
+      complete: true, requiredPaths: [file], sourceRoots: ["tests/fixtures/path-alias"],
+    });
+  });
+
   it("keeps source-only applicability free of JSON", () => {
     const root = fixture(["src/A.java", "tests/fixtures/a.json"]);
     expect(requirements(root, "duplicate-implementation-candidate").paths).toEqual(["src/A.java"]);

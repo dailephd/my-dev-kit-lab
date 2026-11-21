@@ -973,7 +973,8 @@ export function selectKitSourceRoots(
   targetRoot: string,
   inventory: ProjectInventorySnapshot,
   requiredPaths: readonly string[] = inventory.files.filter(labRequiresKitFacts).map((entry) => entry.relativePath),
-  rawSourcePaths: readonly string[] = []
+  rawSourcePaths: readonly string[] = [],
+  qualifiedTsconfigContent = false
 ): KitSourceScope {
   const base = fs.realpathSync(targetRoot);
   const byPath = new Map(inventory.files.map((entry) => [entry.relativePath, entry]));
@@ -994,7 +995,7 @@ export function selectKitSourceRoots(
   for (const filePath of required) {
     validateKitRelativePath(filePath, "required Lab path");
     const entry = byPath.get(filePath);
-    const rawJson = rawTests.has(filePath) && isKitJsonTestContentPath(filePath);
+    const rawJson = rawTests.has(filePath) && isKitJsonTestContentPath(filePath, qualifiedTsconfigContent);
     const rawSource = (entry?.role === "generated" || entry?.role === "vendor") && rawSources.has(filePath);
     const rawConfig = entry?.role === "config" && filePath.endsWith(".gradle.kts") && rawSourcePaths.includes(filePath);
     if (entry && !labRequiresKitFacts(entry) && !rawJson && !rawSource && !rawConfig) { excludedPaths.push(filePath); continue; }
@@ -1028,10 +1029,11 @@ function labRequiresKitFacts(entry: ProjectInventorySnapshot["files"][number]): 
 }
 
 // Candidate 03's selected test-content eligibility, without semantic parsing.
-function isKitJsonTestContentPath(filePath: string): boolean {
+function isKitJsonTestContentPath(filePath: string, qualifiedTsconfigContent: boolean): boolean {
   const segments = filePath.toLowerCase().split("/");
   const name = segments.pop()!;
-  return name.endsWith(".json") && !["package.json", "package-lock.json", "npm-shrinkwrap.json", "tsconfig.json", "jsconfig.json"].includes(name) &&
+  return name.endsWith(".json") && !["package.json", "package-lock.json", "npm-shrinkwrap.json", "jsconfig.json"].includes(name) &&
+    (qualifiedTsconfigContent || name !== "tsconfig.json") &&
     !name.endsWith(".lock.json") && !segments.some((segment) =>
       ["generated", "vendor", "node_modules", "target", ".next", "dist", "build", "coverage", "playwright-report", "test-results", "output", "out", ".cache", ".turbo", ".vercel", ".git", ".pytest_cache", "__pycache__", ".venv", "venv", ".gradle"].includes(segment) || segment === ".my-dev-kit" || segment.startsWith(".my-dev-kit-")) &&
     segments.some((segment) => ["test", "tests", "__tests__", "fixtures"].includes(segment));
@@ -1065,7 +1067,8 @@ export async function collectKitSourceFacts(
     requiredSet.has(entry.relativePath) && request.capabilitiesForPath?.(entry.relativePath).length === 0);
   const rawSourcePaths = [...rawSourceFiles, ...rawConfigFiles].map((entry) => entry.relativePath);
   deps.receipt?.setStage("lab-required-source-scope");
-  const scope = selectKitSourceRoots(targetRoot, request.inventory, [...requiredSet], rawSourcePaths);
+  const scope = selectKitSourceRoots(targetRoot, request.inventory, [...requiredSet], rawSourcePaths,
+    matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT));
   deps.receipt?.write("lab-required-source-scope", scope);
   if (!scope.complete) fail("selection-incomplete", `unresolved required paths: ${scope.unresolvedPaths.join(", ")}; excluded required paths: ${scope.excludedPaths.join(", ")}.`);
   const requiredEntries = request.inventory.files.filter((entry) => requiredSet.has(entry.relativePath));
