@@ -728,6 +728,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   const testFileByPath = new Map(testFiles.map(file => [file.relativePath, file]));
   const r3 = ctx.pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 && evidence.artifactSchemaVersion === "1.2.0";
   const domainPromises = new Map<string, Promise<KitImportDomain>>();
+  const inventoryByPath = new Map(evidence.inventory.map(record => [record.path, record]));
   const assertFresh = (file: KitFileRecord) => {
     const root = fs.realpathSync(evidence.source.projectRoot);
     const target = fs.realpathSync(path.resolve(root, file.path));
@@ -743,6 +744,11 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     ctx.pkg.packageVersion === QUALIFIED_SW123_P6_R2_KIT.packageVersion &&
     evidence.artifactSchemaVersion === QUALIFIED_SW123_P6_R2_KIT.artifactSchemaVersion &&
     evidence.extractorRevision === QUALIFIED_SW123_P6_R2_KIT.extractorRevision;
+  const importsById = new Map([...evidence.fileEvidence.values()].flatMap(({ record, facts }) =>
+    facts.filter(fact => fact.kind === "import" || (r3 || p6R2) && fact.kind === "export" &&
+      fact.exportOrigin === "re-export" && !!fact.sourceSpecifier &&
+      (record.language === "javascript" || record.language === "typescript"))
+      .map(fact => [fact.id, { fact, record }] as const)));
   const p6R7 = matchesExactKitExpectation({
     ...ctx.pkg, artifactSchemaVersion: evidence.artifactSchemaVersion, extractorRevision: evidence.extractorRevision,
   }, QUALIFIED_SW123_P6_R7_KIT);
@@ -894,7 +900,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     jsonRawLiteralContent,
     selectedFile,
     reExportSpecifiers: filePath => reExportTargets(filePath).map(fact => fact.sourceSpecifier),
-    reExportTargets: p6R2 ? reExportTargets : undefined,
+    reExportTargets: r3 || p6R2 ? reExportTargets : undefined,
     fixtureReferenceBasenames(filePath) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       selectedFile(filePath);
@@ -1015,16 +1021,35 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
         }));
       return cache.get(key)!;
     },
-    importTarget(factId) {
+    async importTarget(factId) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
-      const fact = [...evidence.fileEvidence.values()].flatMap(({ record, facts }) => facts.filter(fact =>
-        fact.id === factId && (fact.kind === "import" || p6R2 && fact.kind === "export" &&
-          fact.exportOrigin === "re-export" && !!fact.sourceSpecifier &&
-          (record.language === "javascript" || record.language === "typescript"))))[0];
-      if (!fact) fail("invalid-request", "Import fact ID is not in the validated fact pages.");
+      const entry = importsById.get(factId);
+      if (!entry) fail("invalid-request", "Import fact ID is not in the validated fact pages.");
+      const { fact, record } = entry;
       if (!proofs.has(factId)) proofs.set(factId, runKitJson(ctx, "import-target", ["lookup", "--index", indexDir,
         "--audit-import-target", factId, "--json"]).then((raw) => validateKitImportProof(raw, { snapshotId: evidence.snapshotId, fact, evidence })));
-      return proofs.get(factId)!;
+      const proof = await proofs.get(factId)!;
+      if (r3 && (record.language === "javascript" || record.language === "typescript")) {
+        if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+        assertFresh(record);
+        if (proof.selectionComplete !== (evidence.coverage.inventoryComplete && evidence.coverage.exclusionsAreExplicit)) {
+          fail("artifact-invalid", "Import-target proof contradicts the selected inventory completeness.");
+        }
+        if (proof.status === "present") {
+          const reason = proof.candidatePaths.length === 1 ? "TARGET_IN_SELECTED_INVENTORY" : "MULTIPLE_TARGETS_IN_SELECTED_INVENTORY";
+          if (proof.candidatePaths.length === 0 || proof.reasonCode !== reason) fail("artifact-invalid", "Invalid selected import-target witness.");
+          for (const candidate of proof.candidatePaths) {
+            const target = inventoryByPath.get(candidate);
+            if (!target) fail("artifact-invalid", "Import-target witness is outside selected inventory.");
+            assertFresh(target);
+          }
+        } else if (proof.status === "proven-missing" &&
+            (proof.reasonCode !== "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION" ||
+            proof.candidatePaths.some(candidate => inventoryByPath.has(candidate)))) {
+          fail("artifact-invalid", "Import-target exclusion contradicts the selected inventory.");
+        }
+      }
+      return proof;
     },
   };
   return reader;

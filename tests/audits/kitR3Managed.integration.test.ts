@@ -171,6 +171,7 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
         .resolves.toMatchObject({ complete: true, matchCount: 1 });
       fs.writeFileSync(path.join(target, "src/anchor.ts"), 'void import("./else.mjs");\n');
       await expect(reader?.cachedAuthenticatedFixtureContent?.("src/anchor.ts")).rejects.toMatchObject({ category: "stale-evidence" });
+      await expect(reader?.importTarget(importFactId!)).rejects.toMatchObject({ category: "stale-evidence" });
       expect(() => reader?.authenticatedFixtureContent?.("src/anchor.ts"))
         .toThrow(/stale-evidence/);
       await expect(reader?.byteOccurrences?.("src/blob.bin", "0000")).resolves.toMatchObject({
@@ -300,4 +301,88 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     expect(receipt("outcome").reports).toHaveLength(2);
     expect(fs.readFileSync(path.join(out, "code-rot-audit.txt"), "utf8")).toContain(json.exit.reason);
   },
+);
+
+it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
+  "uses exact static-import and re-export witnesses without closing unresolved reverse-reference domains",
+  async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-static-references-"));
+    for (const hasCollision of [false, true]) {
+      const workspace = path.join(root, hasCollision ? "collision" : "covered");
+      const target = path.join(workspace, "target");
+      fs.mkdirSync(path.join(target, "src", "a"), { recursive: true });
+      fs.mkdirSync(path.join(target, "tests"));
+      fs.writeFileSync(path.join(target, "package.json"), '{"name":"static-references","type":"module"}\n');
+      fs.writeFileSync(path.join(target, "src/a/peer.mjs"), "export const peer = 1;\n");
+      fs.writeFileSync(path.join(target, "src/forwarded.mjs"), "export const forwarded = 1;\n");
+      if (hasCollision) {
+        fs.mkdirSync(path.join(target, "src", "b"));
+        fs.writeFileSync(path.join(target, "src/b/peer.mjs"), "export const peer = 2;\n");
+      }
+      const origin = "tests/probe.test.mjs";
+      fs.writeFileSync(path.join(target, origin), [
+        'import { peer } from "../src/a/peer.mjs";',
+        'export { forwarded } from "../src/forwarded.mjs";',
+        'import "unresolved-alias";',
+        'void peer;',
+      ].join("\n"));
+      const code = await runAuditCommandFromArgs([
+        "--target", target, "--include", "cli,tests", "--format", "text,json", "--fail-on", "none",
+      ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: {
+        installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT,
+      } });
+      const evidence = path.join(workspace, "lab-output", "evidence");
+      const [id] = fs.readdirSync(evidence);
+      const run = path.join(evidence, id!);
+      const result = JSON.parse(fs.readFileSync(path.join(run, "audit-result.json"), "utf8")).evidence;
+      const rows = result.coverage.filter((row: { detectorId: string }) => row.detectorId === "dead-code-candidate");
+      const positiveTargets = rows.filter((row: { proof?: { kind: string } }) => row.proof?.kind === "import-target")
+        .map((row: { proof: { references: string[] } }) => row.proof.references[1]);
+      expect(positiveTargets.sort()).toEqual(["src/a/peer.mjs", "src/forwarded.mjs"]);
+      expect(rows.some((row: { source: { identity: string }; predicate: string; status: string }) =>
+        row.source.identity === origin && row.predicate === "unreferenced-source-file" && row.status === "UNAVAILABLE")).toBe(hasCollision);
+      expect(result.issues.some((issue: { id: string }) => issue.id.includes("unreferenced-source-file:src/a/peer.mjs"))).toBe(false);
+      expect(result.issues.some((issue: { id: string }) => issue.id.includes("unreferenced-source-file:src/b/peer.mjs"))).toBe(false);
+      expect(rows.filter((row: { predicate: string }) => row.predicate === "unreferenced-source-file blocked candidate")
+        .map((row: { source: { identity: string } }) => row.source.identity)).toEqual(hasCollision ? ["src/b/peer.mjs"] : []);
+      if (hasCollision) expect(rows).toContainEqual(expect.objectContaining({
+        predicate: "unreferenced-source-file", source: { kind: "file", identity: origin },
+        reason: expect.stringContaining('import "unresolved-alias"'),
+      }));
+      if (hasCollision) expect(code).toBe(2);
+      const lookupIds = fs.readdirSync(run).filter(name => name.endsWith("-import-target-initial.json"))
+        .map(name => JSON.parse(fs.readFileSync(path.join(run, name), "utf8")).evidence.args.at(-2));
+      expect(new Set(lookupIds).size).toBe(2);
+      expect(lookupIds).toHaveLength(2);
+    }
+  }, 60_000,
+);
+
+it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
+  "allows reverse-reference absence only when Kit exhausts the selected ordinary-import candidates",
+  async () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-static-exclusion-"));
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.mkdirSync(path.join(target, "tests"));
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"static-exclusion","type":"module"}\n');
+    fs.writeFileSync(path.join(target, "src/orphan.mjs"), "export const orphan = 1;\n");
+    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), 'import "../src/missing.mjs";\n');
+    await runAuditCommandFromArgs([
+      "--target", target, "--include", "cli,tests", "--format", "text,json", "--fail-on", "none",
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: {
+      installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT,
+    } });
+    const evidence = path.join(workspace, "lab-output", "evidence");
+    const [id] = fs.readdirSync(evidence);
+    const result = JSON.parse(fs.readFileSync(path.join(evidence, id!, "audit-result.json"), "utf8")).evidence;
+    expect(result.issues).toContainEqual(expect.objectContaining({ id: "dead-code-candidate:unreferenced-source-file:src/orphan.mjs" }));
+    expect(result.coverage).toContainEqual(expect.objectContaining({
+      detectorId: "dead-code-candidate", predicate: "selected module exclusion", actualStatus: "proven-missing",
+      proof: expect.objectContaining({ kind: "import-target" }),
+    }));
+    expect(result.coverage).not.toContainEqual(expect.objectContaining({
+      detectorId: "dead-code-candidate", predicate: "unreferenced-source-file", status: "UNAVAILABLE",
+    }));
+  }, 60_000,
 );
