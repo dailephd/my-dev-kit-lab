@@ -458,9 +458,13 @@ selects the qualified local Kit R3 producer from source commit
 B4 Windows requalification recorded 26 installed audits (six exit 0, three
 exit 1 and seventeen exit 2), ten linked import-proof cases, fourteen compiled
 internal fault cases and forty terminal receipts with verified references.
-Lab Linux integration remains unqualified. Cross-platform qualification,
-implementation completeness and exact-package pre-release readiness are
-separate gates.
+That B4 evidence was Windows-only. A subsequent Step 5 run used a fresh
+archive from the docs-only successor `e8ee492c3170902cca3b9fcc2c6bc4e504b89be5`.
+Its native WSL2/ext4 installed cases passed with the authenticated R3
+override, including the exit, report, receipt and fault checks. The default
+production Kit 1.15.0 consumer failed the complete control with incomplete
+selection. The candidate still requires a compatible published producer
+and separate exact-candidate readiness.
 
 Earlier SW-123 stage descriptions in this document are historical. All
 thirteen mandatory obligations remain unresolved, the original provenance

@@ -976,6 +976,10 @@ Run `my-dev-kit-lab --workspace <workspace> audit --target <project>
 Supply both Kit options together. The managed provider validates the
 qualified archive and installed CLI identities and requests Kit artifact
 schema 1.2.0. The production dependency remains Kit 1.15.0.
+Kit 1.15.0 does not provide the opt-in schema, import-domain selector, or
+exact-byte selector used by this route. The explicit R3 qualification covers
+that authenticated producer. Release acceptance also requires qualifying a
+compatible published Kit version through the declared production dependency.
 
 Repeat `--require-source <relative-path>` for required inventory entries.
 `--source-snapshot <git-sha>` declares the intended revision.

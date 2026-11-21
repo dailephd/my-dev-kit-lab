@@ -1781,9 +1781,22 @@ The candidate inherited from `fix/sw119-r2-v010-partial-evidence` includes the b
 
 **Exclusions:** no Lab Kotlin parser or native source fallback; no Gradle, compiler, target-test or network execution; no new audit type, CLI flag, report schema, experiment, automatic risk exception or v0.11.0 feature reassignment. This roadmap authorizes immediate corrective implementation, **not** a version bump, release preparation, merge, tag or publication.
 
-### v0.11.0 — bounded accessibility assurance (LAB-A11Y-01)
+### v0.11.0 — coordinated source-evidence consumer
 
-Status: **planned; not implemented**.
+Status: **planned release; unreleased; production producer compatibility unresolved**.
+
+The local implementation consumes an authenticated Kit producer for source
+identity, exact ESM witnesses, selected-domain proofs and byte evidence.
+Report and receipt contracts preserve independent findings and return a
+mandatory incomplete result when source coverage cannot support a required
+predicate. The explicit R3 route has installed evidence on Windows and native
+Linux. Release acceptance requires the declared production dependency to
+support the new producer contract. See [Commands](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer).
+
+#### Earlier reservation for bounded accessibility assurance (LAB-A11Y-01)
+
+This earlier v0.11.0 reservation remains planned and unimplemented. Its
+release assignment remains a planner decision.
 
 Purpose:
 

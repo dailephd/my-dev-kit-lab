@@ -1,9 +1,10 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveCommand } from "../../src/core/resolveCommand.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 5 — real-subprocess --fail-on integration tests.
@@ -32,6 +33,7 @@ import { resolveCommand } from "../../src/core/resolveCommand.js";
 // ---------------------------------------------------------------------------
 
 const toolRoot = process.cwd();
+const tsx = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
 const cleanupDirs: string[] = [];
 
 afterEach(() => {
@@ -79,20 +81,20 @@ function mediumFixture(): string {
   return root;
 }
 
+function makeReportDir(prefix: string): string {
+  return path.join(makeTempDir(prefix), "reports");
+}
+
 function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
-  const resolved = resolveCommand("npx", { cwd: toolRoot });
-  const needsResolvedPathArg =
-    resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
+  const outIndex = args.indexOf("--out");
+  const out = outIndex === -1 ? makeReportDir("audit-failon-out-") : args[outIndex + 1]!;
   const fullArgs = [
-    ...resolved.argsPrefix,
-    ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
-    "tsx",
-    "scripts/audits/runAudit.ts",
+    "--import", tsx, path.join(toolRoot, "scripts/audits/runAudit.ts"),
     ...args,
-    ...(!args.includes("--out") ? ["--out", makeTempDir("audit-failon-out-")] : []),
+    ...(outIndex === -1 ? ["--out", out] : []),
   ];
   try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
+    const stdout = execFileSync(process.execPath, fullArgs, { cwd: path.dirname(out), encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };
@@ -150,7 +152,7 @@ describe("audit --fail-on integration — real fixtures, real subprocess", () =>
 
   it("JSON file's exit.code matches actual subprocess exit status (blocker scenario)", () => {
     const target = blockerFixture();
-    const outDir = makeTempDir("audit-failon-jsoncheck-blocker-");
+    const outDir = makeReportDir("audit-failon-jsoncheck-blocker-");
     const result = runAuditCli(["--target", target, "--types", "code-rot", "--fail-on", "blocker", "--format", "json", "--out", outDir]);
     const parsed = JSON.parse(fs.readFileSync(path.join(outDir, "code-rot-audit.json"), "utf8")) as { exit: { code: number; breached: boolean } };
     expect(parsed.exit.code).toBe(result.status);
@@ -160,7 +162,7 @@ describe("audit --fail-on integration — real fixtures, real subprocess", () =>
 
   it("JSON file's exit.code matches actual subprocess exit status (below-threshold scenario)", () => {
     const target = highFixture();
-    const outDir = makeTempDir("audit-failon-jsoncheck-high-");
+    const outDir = makeReportDir("audit-failon-jsoncheck-high-");
     const result = runAuditCli(["--target", target, "--types", "code-rot", "--fail-on", "blocker", "--format", "json", "--out", outDir]);
     const parsed = JSON.parse(fs.readFileSync(path.join(outDir, "code-rot-audit.json"), "utf8")) as { exit: { code: number; breached: boolean } };
     expect(parsed.exit.code).toBe(result.status);
@@ -170,7 +172,7 @@ describe("audit --fail-on integration — real fixtures, real subprocess", () =>
 
   it("text report's exit section matches the actual exit status", () => {
     const target = blockerFixture();
-    const outDir = makeTempDir("audit-failon-textcheck-");
+    const outDir = makeReportDir("audit-failon-textcheck-");
     const result = runAuditCli(["--target", target, "--types", "code-rot", "--fail-on", "blocker", "--format", "text", "--out", outDir]);
     const text = fs.readFileSync(path.join(outDir, "code-rot-audit.txt"), "utf8");
     expect(text).toContain(`code=${result.status}`);

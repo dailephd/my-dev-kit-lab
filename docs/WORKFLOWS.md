@@ -1177,6 +1177,18 @@ local environment. CI preserves that command with explicit historical-file
 exclusions matching the public lane; it reports the protected gate as separately
 required, never passed by exclusion.
 
+For a source-archive readiness run, verify archive provenance against the
+exact candidate Git tree and preserve the checkout bytes required by
+`.gitattributes` in the test materialization. Verify converted text against
+its Git blob separately and retain the actual archive file hashes. In
+particular, the warm-index catalog and several staleness fixtures have
+checkout-form CRLF SHA-256 identities. Run the suite with those identities
+intact. Set `TSX_DISABLE_CACHE=1` and point `TEMP`, `TMP`, and `TMPDIR` to
+the task-approved physical test directory before starting Vitest. Provision
+the pinned Playwright Chromium runtime in the approved browser cache before
+running the canonical packed verifier. A complete run also needs its
+authenticated historical test inputs.
+
 `npm run verify:provenance -- --inputs <private-input-map> --public-result <public-result> --out <private-binding>`
 examines the actual historical artifact bytes against the committed size and
 SHA-256 inventory, validates Candidate 05 qualification and all 150 decisions,
