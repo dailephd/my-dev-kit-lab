@@ -664,6 +664,7 @@ export type KitSourceReader = {
   authenticatedContent?: (filePath: string) => Promise<string>;
   // Selected JSON can also come from hash-verified occurrence windows.
   authenticatedFixtureContent?: (filePath: string) => Promise<string>;
+  cachedAuthenticatedFixtureContent?: (filePath: string) => Promise<string | undefined>;
   expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
@@ -883,7 +884,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     return contents.get(filePath)!;
   }
   const reader: KitSourceReader = {
-    snapshotId: evidence.snapshotId, producer: evidence.producer, dispose: () => { closed = true; dispose(); },
+    snapshotId: evidence.snapshotId, producer: evidence.producer, dispose: () => { closed = true; contents.clear(); dispose(); },
     jsTsRelativeImportCandidateProof: IMPORT_PROOF_PROFILES[ctx.pkg.cliSha256],
     jsonRawLiteralContent,
     selectedFile,
@@ -900,6 +901,21 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     },
     authenticatedContent: authenticatedRanges ? readAuthenticatedContent : undefined,
     authenticatedFixtureContent: r3 ? filePath => readAuthenticatedContent(filePath, true) : undefined,
+    cachedAuthenticatedFixtureContent: r3 ? async filePath => {
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      const content = contents.get(filePath);
+      if (!content) return undefined;
+      let text: string;
+      try {
+        text = await content;
+      } catch (error) {
+        if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
+        return undefined;
+      }
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      assertFresh(selectedFile(filePath));
+      return text;
+    } : undefined,
     unsupportedRawContentReason(filePath) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       validateKitRelativePath(filePath, "raw coverage file");

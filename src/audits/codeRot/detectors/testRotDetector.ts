@@ -528,10 +528,15 @@ function findMissingJvmSourceImports(
 async function findRawOnlyNpmRunReferences(ctx: AuditDetectorContext, filePath: string, scriptNames: Set<string>): Promise<AuditIssue[]> {
   const reader = ctx.kitSourceReader;
   if (!reader) throw new KitSourceEvidenceAcquisitionError("invalid-request", `${filePath} requires its validated Kit source reader.`);
-  const result = await reader.occurrences(filePath, "npm run ");
   const qualify = (actualStatus: string, reason: string) => ctx.reportCoverage?.({ detectorId: DETECTOR_ID,
     predicate: "bounded-content predicates", source: { kind: "file", identity: filePath }, capability: "raw-content",
     actualStatus, status: "QUALIFIED", mandatory: true, diagnostic: "", reason });
+  const cached = await reader.cachedAuthenticatedFixtureContent?.(filePath);
+  if (cached !== undefined) {
+    qualify("authenticated-content", "Authenticated whole bytes qualify the raw command predicate independently of literal-inventory completeness.");
+    return findStaleNpmRunReferences(filePath, cached, scriptNames);
+  }
+  const result = await reader.occurrences(filePath, "npm run ");
   if (!result.complete) {
     // Whole authenticated bytes can discharge this predicate independently
     // of a truncated literal inventory, without promoting that inventory.

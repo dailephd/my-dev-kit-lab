@@ -143,10 +143,13 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       await expect(reader?.expressionDomains?.("src/anchor.ts")).rejects.toThrow(/import domain identity/i);
       expect(reader?.ambientClassification?.("src/stub.d.ts")?.outcome).toBe("proven-ambient-only");
       expect(reader?.ambientClassification?.("src/mixed.d.ts")?.outcome).toBe("not-ambient-only");
+      await expect(reader?.cachedAuthenticatedFixtureContent?.("src/anchor.ts")).resolves.toBeUndefined();
       await expect(reader?.authenticatedFixtureContent?.("src/anchor.ts"))
         .resolves.toBe('void import("./peer.mjs");\n');
       await expect(reader?.authenticatedFixtureContent?.("src/range-mixed.ts"))
         .rejects.toMatchObject({ category: "capability-insufficient" });
+      await expect(reader?.cachedAuthenticatedFixtureContent?.("src/anchor.ts")).resolves.toBe('void import("./peer.mjs");\n');
+      await expect(reader?.cachedAuthenticatedFixtureContent?.("src/range-mixed.ts")).resolves.toBeUndefined();
       expect(reader?.selectedFile(rustPath).status).toBe("partial");
       await expect(reader?.authenticatedFixtureContent?.(rustPath)).resolves.toBe(malformed);
       await expect(reader?.authenticatedFixtureContent?.(jsonPath)).resolves.toBe(window);
@@ -159,6 +162,7 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       await expect(reader?.byteOccurrences?.("src/range-mixed.ts", "6578706f7274"))
         .resolves.toMatchObject({ complete: true, matchCount: 1 });
       fs.writeFileSync(path.join(target, "src/anchor.ts"), 'void import("./else.mjs");\n');
+      await expect(reader?.cachedAuthenticatedFixtureContent?.("src/anchor.ts")).rejects.toMatchObject({ category: "stale-evidence" });
       expect(() => reader?.authenticatedFixtureContent?.("src/anchor.ts"))
         .toThrow(/stale-evidence/);
       await expect(reader?.byteOccurrences?.("src/blob.bin", "0000")).resolves.toMatchObject({
@@ -185,6 +189,10 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     fs.writeFileSync(path.join(target, "src", "orphan.mjs"), "export {};\n");
     fs.writeFileSync(path.join(target, "tests", "probe.test.mjs"),
       'test.only("independent", () => {});\nvoid import("../src/peer.mjs");\n');
+    const commandFixture = "tests/fixtures/commands.json";
+    fs.writeFileSync(path.join(target, commandFixture), JSON.stringify({ command: "npm run missing-command café" }) + "\r\n");
+    const mixed = "tests/mixed.test.mjs";
+    fs.writeFileSync(path.join(target, mixed), "// Mixed endings prevent reconstruction.\r\n// Second line.\n");
     const marker = "tests/fixtures/unreferenced-marker.txt";
     // Longer than its basename, so inventory size alone cannot establish absence.
     fs.writeFileSync(path.join(target, marker), "Controlled unsupported text fixture.\n");
@@ -195,6 +203,11 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     ], { evidenceWorkspace: root, kitSourceProviderDependencies: {
       installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT,
       runCommand: async options => {
+        if (options.args?.includes(mixed)) {
+          expect(options.args).not.toContain("unreferenced-marker.txt");
+          expect(options.args).not.toContain("--contains-bytes-hex");
+        }
+        if (options.args?.includes(commandFixture)) expect(options.args).not.toContain("npm run ");
         if (options.commandId.endsWith("-source-range")) {
           const receiptDir = options.cwd!;
           const commands = fs.readdirSync(receiptDir);
@@ -229,6 +242,10 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       source: { kind: "file", identity: marker }, status: "UNAVAILABLE", mandatory: true,
     }));
     expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
+      detectorId: "dead-code-candidate", predicate: "unreferenced-fixture " + marker,
+      source: { kind: "file", identity: mixed }, status: "UNAVAILABLE", mandatory: true,
+    }));
+    expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
       detectorId: "dead-code-candidate", predicate: "unreferenced-source-file",
       capability: "raw-content", status: "UNAVAILABLE", mandatory: true,
     }));
@@ -236,6 +253,9 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     const issueIds = json.issues.map((issue: { id: string }) => issue.id);
     expect(issueIds).toContain("docs-code-mismatch:README.md:current-but-missing:security-validation");
     expect(issueIds).toContain("test-rot:tests/probe.test.mjs:only-usage:1");
+    expect(json.issues).toContainEqual(expect.objectContaining({
+      detectorId: "test-rot", title: expect.stringContaining("npm run missing-command"),
+    }));
     expect(issueIds).not.toContain("dead-code-candidate:unreferenced-fixture:" + marker);
     expect(json.exit).toMatchObject({ code: 2, breached: false });
     expect(receipt("outcome").reports).toHaveLength(2);

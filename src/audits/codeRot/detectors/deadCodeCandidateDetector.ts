@@ -751,6 +751,7 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
     }
   }
   const pending: typeof tests = [];
+  const contentGaps = new Map<string, string>();
   const authenticatedFixtures: typeof tests = [];
   const readContent = reader?.authenticatedFixtureContent ?? reader?.authenticatedContent;
   for (const test of tests) {
@@ -761,6 +762,7 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
       try { content = await readContent(test.relativePath); }
       catch (error) {
         if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
+        if (reader.authenticatedFixtureContent) contentGaps.set(test.relativePath, error.message);
         if (!reader.authenticatedFixtureContent && test.relativePath.endsWith(".json") && reader.jsonRawLiteralContent === "selected-test-json-v1") {
           // Existing Kit windows supply positive observations even when their
           // inventory is truncated. Full raw context still needs the byte hash.
@@ -797,21 +799,9 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
       }
       try {
         if (unsupportedRaw) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
-        // This predicate asks only for an exact, case-sensitive basename.
-        // For a parsed text input an ASCII literal has an identical byte
-        // spelling. Only a complete zero-match is used here; text windows,
-        // decoded content and other predicates retain their own authority.
-        if (reader.byteOccurrences && /^[\x20-\x7e]+$/.test(base) && reader.selectedFile(test.relativePath).status === "parsed") {
-          const bytes = await reader.byteOccurrences(test.relativePath, Buffer.from(base, "ascii").toString("hex"));
-          if (bytes.complete && bytes.matchCount === 0) {
-            ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "fixture literal absence " + base,
-              source: { kind: "file", identity: test.relativePath }, capability: "raw-content",
-              actualStatus: "complete", status: "QUALIFIED", mandatory: true, diagnostic: "",
-              reason: "Complete exact ASCII basename byte scan of this selected test input.",
-              proof: { kind: "exact-literal-byte", snapshotId: reader.snapshotId, references: [test.relativePath, base] },
-            });
-            continue;
-          }
+        if (reader.authenticatedFixtureContent) {
+          throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
+            contentGaps.get(test.relativePath) ?? "No complete authenticated fixture content for this selected test input.");
         }
         const result = await reader.occurrences(test.relativePath, base);
         if (result.matches.length > 0) {
