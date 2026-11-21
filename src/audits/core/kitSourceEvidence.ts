@@ -151,7 +151,9 @@ export function authenticateKitWindowContent(filePath: string, file: Pick<KitFil
   return null;
 }
 
-export function validateKitOccurrence(raw: unknown, expected: { snapshotId: string; file: KitFileRecord; value: string }): KitOccurrence {
+export function validateKitOccurrence(raw: unknown, expected: {
+  snapshotId: string; file: KitFileRecord; value: string; rawOnlyTextUnavailable?: boolean;
+}): KitOccurrence {
   const r = raw as KitOccurrence;
   const integer = (n: unknown, min = 0): n is number => Number.isSafeInteger(n) && (n as number) >= min;
   if (!r || r.mode !== "exact-file-occurrence" || !["1.0.0", "1.1.0"].includes(r.schemaVersion)) fail("schema-mismatch", "Invalid exact-file occurrence envelope.");
@@ -165,7 +167,8 @@ export function validateKitOccurrence(raw: unknown, expected: { snapshotId: stri
     fail("artifact-invalid", "Inconsistent occurrence bounds or completeness.");
   }
   if (!r.complete && (!["CONTENT_HASH_UNAVAILABLE", "FILE_NOT_VALID_UTF8", "FILE_EXCEEDS_SCAN_LIMIT", "MATCHES_TRUNCATED"].includes(r.reasonCode!) ||
-      (r.reasonCode === "CONTENT_HASH_UNAVAILABLE" && (expected.file.contentSha256 !== null || r.scannedBytes !== 0 || r.matchCount !== 0)) ||
+      (r.reasonCode === "CONTENT_HASH_UNAVAILABLE" &&
+        ((!expected.rawOnlyTextUnavailable && expected.file.contentSha256 !== null) || r.scannedBytes !== 0 || r.matchCount !== 0)) ||
       (r.reasonCode === "FILE_EXCEEDS_SCAN_LIMIT" && r.scannedBytes !== 200000) ||
       (r.reasonCode === "MATCHES_TRUNCATED" && (!r.truncated || r.returnedMatches !== 200)))) fail("artifact-invalid", "Inconsistent occurrence limitation.");
   let lastLine = 0, lastColumn = -1;

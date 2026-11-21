@@ -107,10 +107,24 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       expect(legacy?.expressionDomains).toBeUndefined();
       await expect(legacy?.occurrences("src/anchor.ts", "import")).resolves.toMatchObject({ complete: true });
     } finally { legacy?.dispose(); }
+    fs.mkdirSync(path.join(target, "tests"));
+    const jsonPath = "tests/window.json", clippedPath = "tests/clipped.json", binaryPath = "tests/binary.json";
+    const rustPath = "src/malformed.rs";
+    const window = "{\r\n  \"fixture\": \"caf\u00e9.json\"\r\n}\r\n";
+    const clipped = JSON.stringify(Array.from({ length: 180 }, () => "near"), null, 2) + "\n";
+    const malformed = "pub fn broken( {\n    let value = ;\n}\npub fn recovered() {}\n";
+    fs.writeFileSync(path.join(target, jsonPath), window);
+    fs.writeFileSync(path.join(target, clippedPath), clipped);
+    fs.writeFileSync(path.join(target, binaryPath), Buffer.from([255, 0, 34]));
+    fs.writeFileSync(path.join(target, rustPath), malformed);
+    const extendedRequest = {
+      ...request, inventory: scanProjectInventory(target),
+      requiredPaths: [...request.requiredPaths, jsonPath, clippedPath, binaryPath, rustPath],
+    };
     const tamperedArchive = path.join(root, "tampered.tgz");
     fs.writeFileSync(tamperedArchive, Buffer.concat([fs.readFileSync(qualifiedArchivePath!), Buffer.from([0])]));
     await expect(collectKitSourceFacts(request, { ...identity, qualifiedArchivePath: tamperedArchive })).rejects.toThrow(/package-identity/);
-    const facts = await collectKitSourceFacts(request, { ...identity, runCommand: async options => {
+    const facts = await collectKitSourceFacts(extendedRequest, { ...identity, runCommand: async options => {
       const result = await runMeasuredCommand(options);
       if (result.ok && options.args?.includes("--audit-import-domain")) {
         const response = JSON.parse(result.stdout);
@@ -133,6 +147,15 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
         .resolves.toBe('void import("./peer.mjs");\n');
       await expect(reader?.authenticatedFixtureContent?.("src/range-mixed.ts"))
         .rejects.toMatchObject({ category: "capability-insufficient" });
+      expect(reader?.selectedFile(rustPath).status).toBe("partial");
+      await expect(reader?.authenticatedFixtureContent?.(rustPath)).resolves.toBe(malformed);
+      await expect(reader?.authenticatedFixtureContent?.(jsonPath)).resolves.toBe(window);
+      await expect(reader?.authenticatedFixtureContent?.(clippedPath))
+        .rejects.toMatchObject({ category: "capability-insufficient" });
+      await expect(reader?.occurrences(clippedPath, "absent-fixture.json")).resolves.toMatchObject({ complete: true, matchCount: 0 });
+      await expect(reader?.authenticatedFixtureContent?.(binaryPath))
+        .rejects.toMatchObject({ category: "capability-insufficient" });
+      await expect(reader?.byteOccurrences?.(binaryPath, "00")).resolves.toMatchObject({ complete: true, matchCount: 1 });
       await expect(reader?.byteOccurrences?.("src/range-mixed.ts", "6578706f7274"))
         .resolves.toMatchObject({ complete: true, matchCount: 1 });
       fs.writeFileSync(path.join(target, "src/anchor.ts"), 'void import("./else.mjs");\n');

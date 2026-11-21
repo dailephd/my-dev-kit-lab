@@ -662,6 +662,7 @@ export type KitSourceReader = {
   // Private exact-producer profile: contiguous Kit ranges, authenticated
   // against the selected record's byte hash before any whole-text predicate.
   authenticatedContent?: (filePath: string) => Promise<string>;
+  // Selected JSON can also come from hash-verified occurrence windows.
   authenticatedFixtureContent?: (filePath: string) => Promise<string>;
   expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
@@ -779,8 +780,9 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   function readAuthenticatedContent(filePath: string, fixtureOnly = false): Promise<string> {
     if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
     const file = selectedFile(filePath);
-    if (fixtureOnly && (file.status !== "parsed" || filePath.endsWith(".json") ||
-        !SOURCE_LANGUAGES.has(file.language))) {
+    const fixtureJson = fixtureOnly && filePath.endsWith(".json");
+    if (fixtureOnly && !fixtureJson && (!["parsed", "partial"].includes(file.status) ||
+        !SOURCE_LANGUAGES.has(file.language) || file.lineCount === null || !file.contentSha256)) {
       fail("capability-insufficient", `${filePath} lacks qualified fixture source ranges.`);
     }
     if (fixtureOnly) assertFresh(file);
@@ -801,6 +803,22 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       const empty = Promise.resolve("");
       contents.set(filePath, empty);
       return empty;
+    }
+    if (fixtureJson) {
+      // One literal probe can supply whole-file context for selected JSON.
+      // Truncated windows are useful only if the exact byte digest matches.
+      // Keep this optional probe within the existing command output budget.
+      if (file.sizeBytes * 200 * 6 + 131072 > KIT_STDOUT_MAX_BYTES) {
+        fail("capability-insufficient", `${filePath} fixture source windows may exceed the bounded output budget.`);
+      }
+      const content = reader.occurrences(filePath, '"').then(result => {
+        const text = authenticateKitWindowContent(filePath, file, result.matches);
+        assertFresh(file);
+        if (text === null) fail("capability-insufficient", `${filePath} lacks complete hash-identified fixture source windows.`);
+        return text;
+      });
+      contents.set(filePath, content);
+      return content;
     }
     if ((filePath.endsWith(".json") || p6R2 && file.status === "unsupported") && file.contentSha256 && file.sizeBytes <= 200000) return (async () => {
       const matches: KitOccurrence["matches"] = [];
@@ -864,7 +882,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     })());
     return contents.get(filePath)!;
   }
-  return {
+  const reader: KitSourceReader = {
     snapshotId: evidence.snapshotId, producer: evidence.producer, dispose: () => { closed = true; dispose(); },
     jsTsRelativeImportCandidateProof: IMPORT_PROOF_PROFILES[ctx.pkg.cliSha256],
     jsonRawLiteralContent,
@@ -955,7 +973,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
         "--file", filePath, "--contains", value, "--context", "40", "--json"], outputBudget)
         .then((raw) => {
           if ((raw as { schemaVersion?: unknown })?.schemaVersion !== (r3 ? "1.1.0" : evidence.artifactSchemaVersion)) fail("schema-mismatch", "Occurrence schema differs from the validated artifact.");
-          return validateKitOccurrence(raw, { snapshotId: evidence.snapshotId, file, value });
+          return validateKitOccurrence(raw, { snapshotId: evidence.snapshotId, file, value, rawOnlyTextUnavailable: r3 && file.status === "unsupported" });
         }));
       return cache.get(key)!;
     },
@@ -971,6 +989,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       return proofs.get(factId)!;
     },
   };
+  return reader;
 }
 
 export type KitSourceScope = {

@@ -834,7 +834,9 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
       ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "fixture literal absence " + base,
         source: { kind: "file", identity: test.relativePath }, capability: "raw-content",
         actualStatus: "complete", status: "QUALIFIED", mandatory: true, diagnostic: "",
-        reason: "Exact basename is absent from the complete, hash-verified Kit source ranges.",
+        reason: test.relativePath.endsWith(".json")
+          ? "Exact basename is absent from the complete, hash-verified Kit occurrence windows."
+          : "Exact basename is absent from the complete, hash-verified Kit source ranges.",
         proof: { kind: "authenticated-source-ranges", snapshotId: reader.snapshotId, references: [test.relativePath, base] },
       });
     }
