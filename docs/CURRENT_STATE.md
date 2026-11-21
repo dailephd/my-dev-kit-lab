@@ -4,6 +4,16 @@ This document records the repository's operational state. It is the source of tr
 
 - v0.6.3 readiness covered the exact candidate: GitHub Code Scanning recorded JavaScript/TypeScript and Actions analyses with zero results and zero open alerts; six-cell standard CI and three-OS latest-Node readiness completed successfully. Local optional scanner availability is recorded separately in the readiness evidence.
 
+## Source-evidence gap disposition — 2026-11-21 offline ledger
+
+**Evidence status:** reviewed user-supplied R6-R6 gap ledger for a **local, unpublished** Kit/Lab development candidate; this GitHub branch contains planning documentation, not those local implementation commits or a fresh execution of the audit. On the frozen Lab self-audit: **839 selected paths, 6,401 obligations, ten detectors, 155 retained findings, 709 mandatory coverage gaps and audit exit `2`**. The offline replay added no Kit requests, found no further Lab correction supported by existing evidence, and left all 709 gaps open.
+
+- `LEGITIMATE_INCOMPLETE`: **586**, including 540 incomplete selected JS/TS reverse-reference-closure proofs. These cannot be waived or reclassified as complete because a file was parsed.
+- `REQUIRES_KIT_CONTRACT`: **114**: 105 Java/Kotlin declaration/symbol/classpath proof gaps, **six Python relative-import target-enumeration gaps** and **three unsupported fixture-byte predicate gaps**. The latter nine are recorded with exact IDs and acceptance in Kit's planned [v1.19.0 roadmap](https://github.com/dailephd/my-dev-kit/blob/docs/20261121-kit-lab-contract-gap-ledger/docs/ROADMAP.md#version-1190--qualified-relative-import-and-fixture-byte-evidence-kit-facts-02) and Lab's [v0.19.0 consumer plan](ROADMAP.md#v0190--qualified-kit-source-evidence-consumer-follow-up-lab-facts-02). They are not included in qualified Kit v1.16.0 or Lab v0.11.0 behavior.
+- `OUTSIDE_DECLARED_PROFILE`: **nine**, primarily configured/cross-extension resolution, retained explicitly rather than coerced into a definitive reference result.
+
+**Release and provenance boundary:** The frozen response identifiers, per-gap causes, exact fact/response bindings and source hashes live in the external local `coverage-gap-ledger.json` and authenticated audit receipts, not in this tracked document. Local reports of Kit canonical PASS and Lab bounded offline-replay PASS do **not** complete separate exact-package full security/Linux/hosted CI/CodeQL readiness, published Kit dependency qualification, or historical website acceptance. The original thirteen SW-123 website obligations remain a distinct ledger and are not discharged by these 709 self-audit dispositions. No existing older 2026-11-19 status below is rewritten as if it were observed in this GitHub branch.
+
 ## Partial-source-evidence compatibility correction
 
 ### Coordinated local correction and second acceptance target (2026-11-19)

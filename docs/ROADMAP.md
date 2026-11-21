@@ -1990,6 +1990,35 @@ Acceptance:
 * Every implemented adapter has a real consumer, canonical fixture, and explicit claim-strength boundary.
 * No deployment execution, hosted monitoring service, or cloud control plane is introduced.
 
+### v0.19.0 — qualified Kit source-evidence consumer follow-up (LAB-FACTS-02)
+
+**Status: planned; not implemented, not an acceptance or release waiver.** This follow-up consumes the two new Kit capabilities scoped to its planned v1.19.0 workstream (KIT-BYTES-01 and KIT-PYREL-01). It follows the existing v0.12.0–v0.18.0 assignments unchanged. It is **not** a condition retroactively added to current Lab v0.11.0 unless an independently established release contract requires it. Do not update Lab's published Kit dependency pin before exact published upstream compatibility qualification.
+
+**Evidence basis.** The offline 2026-11-21 R6-R6 Lab source-evidence audit classified 709 mandatory gaps on a frozen 839-file, ten-detector/6,401-obligation corpus. Of these, 586 remain legitimate incomplete, 114 require an additional Kit contract (105 JVM, six Python, three fixture-byte), and nine are outside the declared profile. The 155 findings and mandatory exit `2` remain intact. Exact per-run archived responses and gap IDs are held in the retained local `coverage-gap-ledger.json` evidence, not copied into this public roadmap. This page records consumer obligations, not proven gap discharges.
+
+**LAB-BYTES-02 — unsupported fixture-byte consumer qualification (first):**
+
+- Exercise the selected `tests/fixtures/android-retrieval/combined-app/app/src/main/res/mipmap-xxhdpi/icon.png` under dead-code and test-rot predicates using Kit's authenticated raw bytes or exactly equivalent typed bounded occurrence response. Only explicit predicate applicability or complete exact-byte proof can resolve a required gap. No direct Lab target-file read, guessed text conversion, or reduction of selected detector scope.
+- Exact gap IDs:
+  - `gap-899e6e4018fc6a5aec1bb7816e41ddf0e7bb806f7492f9d03dbc38bac9542a86`
+  - `gap-543970eeaf4de124fa01316239b8fa8d3ed34eab26951551db1f87156babd595`
+  - `gap-07c01f6ab018627268d80a289fd755170b4bed95737b7c47cd0b22d761f2bea3`
+- Acceptance: verified producer/archive/installed CLI, selection and raw SHA-256; positive and no-match controls, oversize/truncated/stale/refused cases; exact finding and mandatory coverage/exit preservation; separate compiled and packed/installed Lab validation.
+
+**LAB-PYREL-02 — Python relative-import proof consumer qualification (separate):**
+
+- Exercise `tests/fixtures/v115-source-audit/language-python-all.py` with Kit's qualified candidate-domain and exact target proof, distinguishing positive selected witness, possible candidate, complete missing proof, and unknown. Applicable consumers are dead-code unused declaration/source and test-rot missing-source-import predicates. Python target enumeration belongs to Kit, not a new Lab resolver.
+- Exact gap IDs:
+  - `gap-979e0759f7eddd8842505de1804c92771a75e5a11e54728250525f3f5957c939`
+  - `gap-7083b0018d175b45ffe8ee2464f676067aa5bdeb757b65bd8df9728bb67486e6`
+  - `gap-0c5440a175269e318fb79a08affa136c3ca7d2be79bdf693ac912276a51ff60a`
+  - `gap-b08af881f505ac0a45a74bb3176b3861fbc9ed6e09a099e3dce27077cb56e425`
+  - `gap-d449bbea845e82372471800c30ad5380434f907c97239d866a40b9bbf41bf8cf`
+  - `gap-361120059164ee7cdded73681146af74aa78082a577f0bba87b0da2cf6c55c9f`
+- Acceptance: prove per-fact/fact-ID binding, source snapshot/selection/freshness, package/member ambiguity and namespace/dynamic importer refusals; compare independently derived Python-oracle controls without executing inspected project code; no false unused/missing-file conclusions. Retain independent findings and required coverage if unsupported.
+
+**Coordination:** Freeze the original nine gap IDs and baseline receipts; qualify Kit's byte and Python capabilities separately; then implement only the corresponding Lab predicate adapters and tests in their existing owners. Verify supported/unsupported profiles, report schema `1.0`, typed mandatory-coverage exit `2`, installed-package integrity, Windows/Linux behavior and published dependency alignment. The other 105 JVM gaps need a different classpath/compiler-aware producer plan. Neither this entry nor a later reduction of gap count establishes full SW-123 website acceptance, recovery of historical provenance, or permission to publish.
+
 ## Stable and post-stable releases
 
 ### v1.0.0 — stable framework release
