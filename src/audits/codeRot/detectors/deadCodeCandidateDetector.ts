@@ -751,22 +751,24 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
     }
   }
   const pending: typeof tests = [];
+  const authenticatedFixtures: typeof tests = [];
+  const readContent = reader?.authenticatedFixtureContent ?? reader?.authenticatedContent;
   for (const test of tests) {
     if (referenced.size === basenames.size) break;
     const unsupportedRaw = unsupported.get(test.relativePath);
     let content: string | undefined;
-    if (!unsupportedRaw && reader.authenticatedContent) {
-      try { content = await reader.authenticatedContent(test.relativePath); }
+    if (!unsupportedRaw && readContent) {
+      try { content = await readContent(test.relativePath); }
       catch (error) {
         if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
-        if (test.relativePath.endsWith(".json") && reader.jsonRawLiteralContent === "selected-test-json-v1") {
+        if (!reader.authenticatedFixtureContent && test.relativePath.endsWith(".json") && reader.jsonRawLiteralContent === "selected-test-json-v1") {
           // Existing Kit windows supply positive observations even when their
           // inventory is truncated. Full raw context still needs the byte hash.
           const probe = await reader.occurrences(test.relativePath, '"');
           for (const match of probe.matches) for (const base of basenames) {
             if (match.content.includes(base)) referenced.add(base);
           }
-          try { content = await reader.authenticatedContent(test.relativePath); }
+          try { content = await readContent(test.relativePath); }
           catch (error) {
             if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
           }
@@ -774,7 +776,10 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
       }
     }
     if (content === undefined) pending.push(test);
-    else for (const base of basenames) if (content.includes(base)) referenced.add(base);
+    else {
+      for (const base of basenames) if (content.includes(base)) referenced.add(base);
+      if (reader.authenticatedFixtureContent) authenticatedFixtures.push(test);
+    }
   }
   // Exhaust independent bulk positives before expanding a shared negative
   // premise into candidate-specific missing-source obligations.
@@ -821,6 +826,17 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
         entries.push({ file: test.relativePath, reason: error.message });
         gaps.set(base, entries);
       }
+    }
+  }
+  for (const test of authenticatedFixtures) {
+    for (const base of basenames) {
+      if (referenced.has(base)) continue;
+      ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "fixture literal absence " + base,
+        source: { kind: "file", identity: test.relativePath }, capability: "raw-content",
+        actualStatus: "complete", status: "QUALIFIED", mandatory: true, diagnostic: "",
+        reason: "Exact basename is absent from the complete, hash-verified Kit source ranges.",
+        proof: { kind: "authenticated-source-ranges", snapshotId: reader.snapshotId, references: [test.relativePath, base] },
+      });
     }
   }
   const unavailable = new Set<string>();

@@ -662,6 +662,7 @@ export type KitSourceReader = {
   // Private exact-producer profile: contiguous Kit ranges, authenticated
   // against the selected record's byte hash before any whole-text predicate.
   authenticatedContent?: (filePath: string) => Promise<string>;
+  authenticatedFixtureContent?: (filePath: string) => Promise<string>;
   expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
@@ -775,6 +776,94 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       ? [{ id: fact.id, sourceSpecifier: fact.sourceSpecifier }] : []);
   };
   let closed = false;
+  function readAuthenticatedContent(filePath: string, fixtureOnly = false): Promise<string> {
+    if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+    const file = selectedFile(filePath);
+    if (fixtureOnly && (file.status !== "parsed" || filePath.endsWith(".json") ||
+        !SOURCE_LANGUAGES.has(file.language))) {
+      fail("capability-insufficient", `${filePath} lacks qualified fixture source ranges.`);
+    }
+    if (fixtureOnly) assertFresh(file);
+    if (contents.has(filePath)) return contents.get(filePath)!;
+    // Zero bytes plus their authenticated digest establish the entire
+    // content. Kit has no first source line to return for an empty file.
+    if (file.sizeBytes === 0 && file.contentSha256) {
+      if (file.contentSha256 !== createHash("sha256").update("").digest("hex")) {
+        fail("stale-evidence", `${filePath} has an inconsistent authenticated empty-file digest.`);
+      }
+      if (p6R2 && file.status === "unsupported") return (async () => {
+        for (const [key, query] of cache) {
+          const [snapshot, origin] = JSON.parse(key) as string[];
+          if (snapshot === evidence.snapshotId && origin === filePath && (await query).complete) return "";
+        }
+        fail("capability-insufficient", `${filePath} requires a complete occurrence query to authenticate empty text.`);
+      })();
+      const empty = Promise.resolve("");
+      contents.set(filePath, empty);
+      return empty;
+    }
+    if ((filePath.endsWith(".json") || p6R2 && file.status === "unsupported") && file.contentSha256 && file.sizeBytes <= 200000) return (async () => {
+      const matches: KitOccurrence["matches"] = [];
+      for (const [key, query] of cache) {
+        const [snapshot, origin] = JSON.parse(key) as string[];
+        if (snapshot === evidence.snapshotId && origin === filePath) matches.push(...(await query).matches);
+      }
+      const content = authenticateKitWindowContent(filePath, file, matches);
+      if (content === null) fail("capability-insufficient", `${filePath} lacks complete hash-identified cached source windows.`);
+      contents.set(filePath, Promise.resolve(content));
+      return content;
+    })();
+    if (!file.contentSha256 || file.lineCount === null || file.sizeBytes > 200000 || !SOURCE_LANGUAGES.has(file.language)) {
+      fail("capability-insufficient", `${filePath} lacks bounded hash-identified whole-content evidence.`);
+    }
+    if (!contents.has(filePath)) contents.set(filePath, (async () => {
+      const parts: string[] = [];
+      for (let start = 1; start <= file.lineCount!; start += 160) {
+        const end = Math.min(start + 159, file.lineCount!);
+        const raw = await runKitJson(ctx, "source-range", ["source", "--index", indexDir,
+          "--file", filePath, "--start", String(start), "--end", String(end), "--max-lines", "160", "--json"]);
+        const r = raw as { status?: unknown; mode?: unknown; filePath?: unknown; indexDir?: unknown;
+          absolutePath?: unknown; startLine?: unknown; endLine?: unknown; lineCount?: unknown; content?: unknown;
+          continuationCursor?: { eof?: unknown } };
+        // The pinned generic range renderer omits one terminal empty line.
+        // Any other missing range, wrong identity or inconsistent coordinates
+        // is invalid evidence, not a coverage warning.
+        if (!r || typeof r !== "object" || Array.isArray(r) || r.status !== "ok" || r.mode !== "line-range" || r.filePath !== filePath ||
+            typeof r.indexDir !== "string" || path.resolve(r.indexDir) !== path.resolve(indexDir) ||
+            typeof r.absolutePath !== "string" || path.resolve(r.absolutePath) !== path.resolve(evidence.source.projectRoot, filePath) ||
+            r.startLine !== start || typeof r.endLine !== "number" ||
+            !(r.endLine === end || (end === file.lineCount && r.endLine === end - 1 && r.continuationCursor?.eof === true)) ||
+            r.endLine < start || r.lineCount !== r.endLine - start + 1 || typeof r.content !== "string" ||
+            (!fixtureOnly && r.content.includes("\r")) || r.content.split("\n").length !== r.lineCount ||
+            (!fixtureOnly && Buffer.byteLength(r.content, "utf8") > file.sizeBytes)) {
+          fail("artifact-invalid", `${filePath} has inconsistent authenticated source-range coordinates or identity.`);
+        }
+        parts.push(r.content);
+        if (r.endLine === file.lineCount! - 1 && r.continuationCursor?.eof === true) break;
+      }
+      const normalized = parts.join("\n");
+      // Kit renders ranges with LF and omits the terminal newline. Only an
+      // exact original-byte digest match admits either supported encoding.
+      for (const newline of ["\n", "\r\n"]) {
+        const text = normalized.replace(/\n/g, newline);
+        for (const candidate of [text, text + newline]) {
+          if (Buffer.byteLength(candidate, "utf8") === file.sizeBytes &&
+              createHash("sha256").update(candidate, "utf8").digest("hex") === file.contentSha256) {
+            if (fixtureOnly) assertFresh(file);
+            return candidate;
+          }
+        }
+      }
+      if (fixtureOnly) {
+        // The generic renderer normalizes CRLF. Mixed endings or lossy decoding
+        // may prevent reconstruction; abandon the range and use the exact scans.
+        assertFresh(file);
+        fail("capability-insufficient", `${filePath} source ranges cannot reconstruct the selected bytes.`);
+      }
+      fail("stale-evidence", `${filePath} source ranges do not reproduce the authenticated file bytes.`);
+    })());
+    return contents.get(filePath)!;
+  }
   return {
     snapshotId: evidence.snapshotId, producer: evidence.producer, dispose: () => { closed = true; dispose(); },
     jsTsRelativeImportCandidateProof: IMPORT_PROOF_PROFILES[ctx.pkg.cliSha256],
@@ -791,80 +880,8 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
         typeof fact.value === "string" && typeof fact.name === "string" &&
         path.posix.basename(fact.name.replace(/\\/g, "/")) === fact.value).map(fact => fact.value!) ?? [];
     },
-    authenticatedContent: authenticatedRanges ? (filePath) => {
-      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
-      const file = selectedFile(filePath);
-      if (contents.has(filePath)) return contents.get(filePath)!;
-      // Zero bytes plus their authenticated digest establish the entire
-      // content. Kit has no first source line to return for an empty file.
-      if (file.sizeBytes === 0 && file.contentSha256) {
-        if (file.contentSha256 !== createHash("sha256").update("").digest("hex")) {
-          fail("stale-evidence", `${filePath} has an inconsistent authenticated empty-file digest.`);
-        }
-        if (p6R2 && file.status === "unsupported") return (async () => {
-          for (const [key, query] of cache) {
-            const [snapshot, origin] = JSON.parse(key) as string[];
-            if (snapshot === evidence.snapshotId && origin === filePath && (await query).complete) return "";
-          }
-          fail("capability-insufficient", `${filePath} requires a complete occurrence query to authenticate empty text.`);
-        })();
-        const empty = Promise.resolve("");
-        contents.set(filePath, empty);
-        return empty;
-      }
-      if ((filePath.endsWith(".json") || p6R2 && file.status === "unsupported") && file.contentSha256 && file.sizeBytes <= 200000) return (async () => {
-        const matches: KitOccurrence["matches"] = [];
-        for (const [key, query] of cache) {
-          const [snapshot, origin] = JSON.parse(key) as string[];
-          if (snapshot === evidence.snapshotId && origin === filePath) matches.push(...(await query).matches);
-        }
-        const content = authenticateKitWindowContent(filePath, file, matches);
-        if (content === null) fail("capability-insufficient", `${filePath} lacks complete hash-identified cached source windows.`);
-        contents.set(filePath, Promise.resolve(content));
-        return content;
-      })();
-      if (!file.contentSha256 || file.lineCount === null || file.sizeBytes > 200000 || !SOURCE_LANGUAGES.has(file.language)) {
-        fail("capability-insufficient", `${filePath} lacks bounded hash-identified whole-content evidence.`);
-      }
-      if (!contents.has(filePath)) contents.set(filePath, (async () => {
-        const parts: string[] = [];
-        for (let start = 1; start <= file.lineCount!; start += 160) {
-          const end = Math.min(start + 159, file.lineCount!);
-          const raw = await runKitJson(ctx, "source-range", ["source", "--index", indexDir,
-            "--file", filePath, "--start", String(start), "--end", String(end), "--max-lines", "160", "--json"]);
-          const r = raw as { status?: unknown; mode?: unknown; filePath?: unknown; indexDir?: unknown;
-            absolutePath?: unknown; startLine?: unknown; endLine?: unknown; lineCount?: unknown; content?: unknown;
-            continuationCursor?: { eof?: unknown } };
-          // The pinned generic range renderer omits one terminal empty line.
-          // Any other missing range, wrong identity or inconsistent coordinates
-          // is invalid evidence, not a coverage warning.
-          if (!r || typeof r !== "object" || Array.isArray(r) || r.status !== "ok" || r.mode !== "line-range" || r.filePath !== filePath ||
-              typeof r.indexDir !== "string" || path.resolve(r.indexDir) !== path.resolve(indexDir) ||
-              typeof r.absolutePath !== "string" || path.resolve(r.absolutePath) !== path.resolve(evidence.source.projectRoot, filePath) ||
-              r.startLine !== start || typeof r.endLine !== "number" ||
-              !(r.endLine === end || (end === file.lineCount && r.endLine === end - 1 && r.continuationCursor?.eof === true)) ||
-              r.endLine < start || r.lineCount !== r.endLine - start + 1 || typeof r.content !== "string" ||
-              r.content.includes("\r") || r.content.split("\n").length !== r.lineCount ||
-              Buffer.byteLength(r.content, "utf8") > file.sizeBytes) {
-            fail("artifact-invalid", `${filePath} has inconsistent authenticated source-range coordinates or identity.`);
-          }
-          parts.push(r.content);
-          if (r.endLine === file.lineCount! - 1 && r.continuationCursor?.eof === true) break;
-        }
-        const normalized = parts.join("\n");
-        // Kit renders ranges with LF and omits the terminal newline. Only an
-        // exact original-byte digest match admits either supported encoding.
-        for (const newline of ["\n", "\r\n"]) {
-          const text = normalized.replace(/\n/g, newline);
-          for (const candidate of [text, text + newline]) {
-            if (Buffer.byteLength(candidate, "utf8") === file.sizeBytes &&
-                createHash("sha256").update(candidate, "utf8").digest("hex") === file.contentSha256) return candidate;
-          }
-        }
-        fail("stale-evidence", `${filePath} source ranges do not reproduce the authenticated file bytes.`);
-      })());
-      return contents.get(filePath)!;
-    } : undefined,
+    authenticatedContent: authenticatedRanges ? readAuthenticatedContent : undefined,
+    authenticatedFixtureContent: r3 ? filePath => readAuthenticatedContent(filePath, true) : undefined,
     unsupportedRawContentReason(filePath) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       validateKitRelativePath(filePath, "raw coverage file");

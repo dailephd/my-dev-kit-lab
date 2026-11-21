@@ -83,6 +83,7 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     fs.mkdirSync(path.join(target, "src"), { recursive: true });
     fs.writeFileSync(path.join(target, "src/anchor.ts"), 'void import("./peer.mjs");\n');
     fs.writeFileSync(path.join(target, "src/peer.mjs"), "export {};\n");
+    fs.writeFileSync(path.join(target, "src/range-mixed.ts"), "// mixed\r\nexport {};\n");
     fs.writeFileSync(path.join(target, "src/stub.d.ts"), 'declare module "ambient-only";\n');
     fs.writeFileSync(path.join(target, "src/mixed.d.ts"), 'declare module "ambient-only";\nconst executable = () => 1;\n');
     fs.writeFileSync(path.join(target, "src/blob.bin"), Buffer.from([255, 0, 0, 0, 13, 10]));
@@ -91,7 +92,7 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     const request = {
       targetRoot: target,
       inventory: scanProjectInventory(target),
-      requiredPaths: ["src/anchor.ts", "src/stub.d.ts", "src/mixed.d.ts"],
+      requiredPaths: ["src/anchor.ts", "src/stub.d.ts", "src/mixed.d.ts", "src/range-mixed.ts"],
       requiredCapabilities: [],
       includeScriptsRoot: false,
       onReader: (value: KitSourceReader) => { reader = value; },
@@ -128,6 +129,15 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       await expect(reader?.expressionDomains?.("src/anchor.ts")).rejects.toThrow(/import domain identity/i);
       expect(reader?.ambientClassification?.("src/stub.d.ts")?.outcome).toBe("proven-ambient-only");
       expect(reader?.ambientClassification?.("src/mixed.d.ts")?.outcome).toBe("not-ambient-only");
+      await expect(reader?.authenticatedFixtureContent?.("src/anchor.ts"))
+        .resolves.toBe('void import("./peer.mjs");\n');
+      await expect(reader?.authenticatedFixtureContent?.("src/range-mixed.ts"))
+        .rejects.toMatchObject({ category: "capability-insufficient" });
+      await expect(reader?.byteOccurrences?.("src/range-mixed.ts", "6578706f7274"))
+        .resolves.toMatchObject({ complete: true, matchCount: 1 });
+      fs.writeFileSync(path.join(target, "src/anchor.ts"), 'void import("./else.mjs");\n');
+      expect(() => reader?.authenticatedFixtureContent?.("src/anchor.ts"))
+        .toThrow(/stale-evidence/);
       await expect(reader?.byteOccurrences?.("src/blob.bin", "0000")).resolves.toMatchObject({
         complete: true, matchCount: 2, matches: [{ startByte: 1, endByteExclusive: 3 }, { startByte: 2, endByteExclusive: 4 }],
       });
@@ -161,11 +171,33 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       "--fail-on", "none", "--out", out,
     ], { evidenceWorkspace: root, kitSourceProviderDependencies: {
       installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT,
+      runCommand: async options => {
+        if (options.commandId.endsWith("-source-range")) {
+          const receiptDir = options.cwd!;
+          const commands = fs.readdirSync(receiptDir);
+          expect(commands).toContain(options.commandId + "-initial.json");
+          expect(commands).not.toContain(options.commandId + "-result.json");
+          expect(commands).not.toContain(options.commandId + "-exit.json");
+          expect(commands).not.toContain("outcome.json");
+          const initial = JSON.parse(fs.readFileSync(path.join(receiptDir, "initial.json"), "utf8"));
+          expect(initial.evidence.status).toBe("INCOMPLETE");
+        }
+        return runMeasuredCommand(options);
+      },
     } });
     expect(code).toBe(2);
     const evidence = path.join(root, "lab-output", "evidence");
     const [id] = fs.readdirSync(evidence);
     const receipt = (name: string) => JSON.parse(fs.readFileSync(path.join(evidence, id!, name + ".json"), "utf8")).evidence;
+    expect(receipt("initial").status).toBe("INCOMPLETE");
+    const commands = fs.readdirSync(path.join(evidence, id!));
+    expect(commands.some(name => name.endsWith("-source-range-result.json"))).toBe(true);
+    expect(commands.some(name => name.endsWith("-byte-occurrence-initial.json"))).toBe(false);
+    expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
+      detectorId: "dead-code-candidate", predicate: "fixture literal absence unreferenced-marker.txt",
+      source: { kind: "file", identity: "tests/probe.test.mjs" }, status: "QUALIFIED", mandatory: true,
+      proof: expect.objectContaining({ kind: "authenticated-source-ranges" }),
+    }));
     expect(receipt("kit-selection").inventory).toContainEqual(expect.objectContaining({
       path: marker, status: "unsupported", contentSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     }));

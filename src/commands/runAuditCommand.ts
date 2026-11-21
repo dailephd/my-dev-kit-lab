@@ -128,6 +128,8 @@ export async function runAuditCommandFromArgs(
       const entrypoint = options.launcherArgv && process.argv[1] ? describeAuditFile(process.argv[1]) : null;
       const invocation = observedAuditArguments(argv);
       receipt.write("initial", {
+        // The immutable initial receipt is superseded only by a terminal record.
+        status: "INCOMPLETE",
         createdAt: new Date().toISOString(), retryOf: receipt.retryOf,
         cwd: process.cwd(), target, explicit: invocation,
         launcher: describeAuditFile(process.execPath), entrypoint,
