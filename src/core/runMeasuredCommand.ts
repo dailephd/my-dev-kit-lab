@@ -39,7 +39,15 @@ export type MeasuredCommandResult = {
   processTreeCleanup?: "confirmed" | "failed" | "not-required";
 };
 
+export type MeasuredCommandInteraction = {
+  onStart(pipe: { pid: number; write(bytes: Buffer): Promise<void>; end(): void }): void;
+  onStdout(bytes: Buffer): void;
+  onStderr(bytes: Buffer): void;
+};
+
 type MeasuredCommandBaseOptions = {
+  /** Interactive stdout belongs to the caller’s bounded frame parser. */
+  interaction?: MeasuredCommandInteraction;
   commandId: string;
   /** Optional redacted argv used only for the persisted telemetry. */
   telemetryArgs?: readonly string[];
@@ -97,6 +105,7 @@ export type RunMeasuredCommandOptions =
   | (MeasuredCommandBaseOptions & { executable: string; args?: readonly string[]; commandString?: never });
 
 export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Promise<MeasuredCommandResult> {
+  if (options.interaction && options.stdinText !== undefined) throw new TypeError("Interactive and fixed stdin are mutually exclusive.");
   await mkdir(options.outDir, { recursive: true });
   const named = readCommandName(options);
   const commandString = named.commandString;
@@ -166,7 +175,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         env: childEnv,
         shell: false,
         windowsHide: true,
-        stdio: options.stdinText !== undefined ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
+        stdio: options.interaction || options.stdinText !== undefined ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
         // Own process group so a bounded termination can reach descendants. Windows reaches the tree
         // through `taskkill /T`, and `detached` there would open a new console, so it is not set.
         ...(options.terminateProcessTree === true && process.platform !== "win32" ? { detached: true } : {})
@@ -224,15 +233,37 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         terminate();
       }
     };
-    child.stdout!.on("data", collect(stdoutCollector, "stdout", options.stdoutMaxBytes));
-    child.stderr!.on("data", collect(stderrCollector, "stderr", options.stderrMaxBytes));
+    const interaction = options.interaction;
+    const receive = (callback: (bytes: Buffer) => void) => (bytes: Buffer) => {
+      try { callback(bytes); } catch {
+        spawnError ??= "Command interactive handler failed.";
+        terminate();
+      }
+    };
+    const collectStderr = collect(stderrCollector, "stderr", options.stderrMaxBytes);
+    child.stdout!.on("data", interaction ? receive(bytes => interaction.onStdout(bytes)) :
+      collect(stdoutCollector, "stdout", options.stdoutMaxBytes));
+    child.stderr!.on("data", interaction ? receive(bytes => {
+      collectStderr(bytes);
+      interaction.onStderr(bytes);
+    }) : collectStderr);
     const abort = () => {
       spawnError ??= "Command cancelled.";
       terminate();
     };
     child.once("spawn", () => {
       startedProcess = true;
-      try { options.onSpawn?.(); }
+      try {
+        options.onSpawn?.();
+        if (interaction && !options.signal?.aborted) {
+          const stdin = child.stdin!;
+          interaction.onStart({
+            pid: child.pid!,
+            write: bytes => new Promise((resolve, reject) => stdin.write(bytes, error => error ? reject(error) : resolve())),
+            end: () => { stdin.end(); },
+          });
+        }
+      }
       catch (error) {
         spawnError = error instanceof Error ? error.message : String(error);
         terminate();
@@ -254,11 +285,12 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     // A failed spawn can also make the OS report the never-connected stdout/stderr pipes as errors (Windows:
     // read ENOTCONN). They are stream events of this one failed process: record the first cause once and let
     // the 'close' event settle the result, instead of letting an unhandled 'error' event end the whole process.
-    const recordStreamError = (stream: "stdout" | "stderr") => (error: Error) => {
+    const recordStreamError = (stream: "stdout" | "stderr" | "stdin") => (error: Error) => {
       spawnError = spawnError ?? `Failed to read command ${stream}: ${error.message}`;
     };
     child.stdout!.on("error", recordStreamError("stdout"));
     child.stderr!.on("error", recordStreamError("stderr"));
+    if (interaction) child.stdin!.on("error", recordStreamError("stdin"));
     if (options.stdinText !== undefined) {
       // A child that exits or closes stdin before we write must not crash the process (EPIPE).
       child.stdin?.on("error", (error) => {

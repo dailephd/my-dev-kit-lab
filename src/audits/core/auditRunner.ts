@@ -280,7 +280,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     }
   } finally {
     try { receipt?.write("detector-observations", { issues, skippedDetectors, detectorErrors, coverage }); }
-    finally { kitSourceReader?.dispose(); }
+    finally { await kitSourceReader?.dispose(); }
   }
 
   // v0.3.2 Batch 4 -- security audit adapter. Conditional (see the

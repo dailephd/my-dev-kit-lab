@@ -5,8 +5,9 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { createKitBatchTransport, type KitBatchFamily, type KitBatchFallback, type KitBatchPacket, type KitBatchProcessResult, type KitBatchSelector } from "./kitBatchTransport.js";
 import { createKitLaunchGuard, type KitLaunchEvent, type KitLaunchGuard } from "./kitLaunchGuard.js";
+import { createKitStreamTransport, type KitStreamTransport, type KitStreamEvent } from "./kitStreamTransport.js";
 import { createRequire } from "node:module";
-import { runMeasuredCommand, type MeasuredCommandResult, type RunMeasuredCommandOptions } from "../../core/runMeasuredCommand.js";
+import { runMeasuredCommand, type MeasuredCommandInteraction, type MeasuredCommandResult, type RunMeasuredCommandOptions } from "../../core/runMeasuredCommand.js";
 import { adaptKitEvidenceToSourceFacts } from "./kitSourceAdapter.js";
 import {
   KIT_MAX_FACT_PAGES_PER_FILE,
@@ -133,6 +134,14 @@ export const QUALIFIED_B5_P1_R6_KIT = Object.freeze({
   receiptSha256: "7490a50ff0b7e49c8a1e566304a0cee29eba6b839173ca66948b9f4526512748",
 } satisfies typeof QUALIFIED_B3_P1_KIT);
 
+export const QUALIFIED_B5_P1_R7A_KIT = Object.freeze({
+  ...QUALIFIED_B5_P1_R6_KIT,
+  cliSha256: "08bb696ceddc46533d2bd1f87939ff69460686bcb5e55d9c8bcd532ee1bbbf23",
+  sourceSha: "0d642684600f82ffb3f5eebc42ae73e14a7d7d25",
+  archiveSha256: "37fa4b66f236317c5630a9bd19ca2ddfe3620ff0368c622673884e157e7d9d6c",
+  receiptSha256: "92ce73b9f24b6eba3d5e9bb62fdd050fc5f20123707008816cc7dd6b6341e8b5",
+} satisfies typeof QUALIFIED_B5_P1_R6_KIT);
+
 // Both archives ship the same executable and runtime package members.
 const QUALIFIED_R3_ARCHIVES = [QUALIFIED_B3_P1_KIT, {
   sourceSha: "a24b0a56b003082ad5c39c9fcc693e1bc8ec7bbb",
@@ -162,7 +171,7 @@ export const QUALIFIED_SW123_P6_R7_KIT = {
 const SW123_EXACT_KIT_PROFILES = [QUALIFIED_SW123_P6_R2_KIT, QUALIFIED_SW123_P6_R7_KIT] as const;
 
 function isProofProfile(expectation: KitCandidateExpectation): boolean {
-  return matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) || matchesExactKitExpectation(expectation, QUALIFIED_B5_P1_R6_KIT);
+  return matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) || matchesExactKitExpectation(expectation, QUALIFIED_B5_P1_R6_KIT) || matchesExactKitExpectation(expectation, QUALIFIED_B5_P1_R7A_KIT);
 }
 
 function matchesExactKitExpectation(expectation: KitCandidateExpectation, exact: KitCandidateExpectation): boolean {
@@ -193,6 +202,10 @@ export type KitSourceProviderDependencies = {
   onKitLaunch?: (event: KitLaunchEvent) => void;
   // Exact R6 comparison lane. All other producer profiles remain standalone.
   disableBatch?: boolean;
+  disableStream?: boolean;
+  streamFrameLimit?: number;
+  streamTimeoutMs?: number;
+  onKitStream?: (event: KitStreamEvent) => void;
   // Task-owned working directory for the Kit index and command logs. When
   // omitted a fresh directory is created and removed after acquisition.
   workDir?: string;
@@ -310,12 +323,12 @@ export function resolveInstalledKitPackage(
       `installed Kit CLI SHA-256 ${cliSha256} is not the qualified candidate ${expectation.cliSha256}.`
     );
   }
-  const r6 = cliSha256 === QUALIFIED_B5_P1_R6_KIT.cliSha256;
-  if (r6 && !matchesExactKitExpectation(expectation, QUALIFIED_B5_P1_R6_KIT)) {
-    fail("package-identity", "R6 requires its exact package, CLI, extractor and selection-schema profile.");
+  const managed = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT].find(candidate => candidate.cliSha256 === cliSha256);
+  if (managed && !matchesExactKitExpectation(expectation, managed)) {
+    fail("package-identity", "Managed Kit requires its exact package, CLI, extractor and selection-schema profile.");
   }
   const proofProfile = cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256;
-  if (expectation.artifactSchemaVersion === "1.2.0" && !proofProfile && !r6) {
+  if (expectation.artifactSchemaVersion === "1.2.0" && !proofProfile && !managed) {
     fail("package-identity", "Source-audit schema 1.2.0 requires the exact qualified B3-P1 CLI.");
   }
   if (proofProfile && (expectation.extractorRevision !== QUALIFIED_B3_P1_KIT.extractorRevision ||
@@ -349,7 +362,7 @@ export function resolveInstalledKitPackage(
 // ---------------------------------------------------------------------------
 
 type KitQueryKind = "lookup-audit-files" | "lookup-audit-file" | "source-occurrence" | "source-range" | "import-target" | "import-domain" | "byte-occurrence";
-type KitCommandKind = "lookup-batch" | "source-batch" | "index" | KitQueryKind;
+type KitCommandKind = "lookup-stream" | "source-stream" | "lookup-batch" | "source-batch" | "index" | KitQueryKind;
 
 type KitCommandContext = {
   pkg: InstalledKitPackage;
@@ -361,6 +374,7 @@ type KitCommandContext = {
   guard?: KitLaunchGuard;
   onKitLaunch?: (event: KitLaunchEvent) => void;
   query?: ReturnType<typeof createKitBatchTransport>;
+  stream?: KitStreamTransport;
 };
 
 function classifyStderrCode(stderr: string): KitEvidenceFailureCategory | undefined {
@@ -380,8 +394,8 @@ function classifyStderrCode(stderr: string): KitEvidenceFailureCategory | undefi
   }
 }
 
-async function executeKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitArgs: string[], stdoutMaxBytes: number,
-  batch = false, fallback?: KitBatchFallback): Promise<unknown> {
+async function executeKitCommand(ctx: KitCommandContext, kind: KitCommandKind, kitArgs: string[], stdoutMaxBytes: number,
+  fallback?: KitBatchFallback, interaction?: MeasuredCommandInteraction, signal = ctx.guard?.signal): Promise<MeasuredCommandResult> {
   const commandId = `kit-${String(ctx.sequence.next++).padStart(6, "0")}-${kind}`;
   const attempt = ctx.guard?.attempt(commandId, kind, event => {
     const receiptEvent = fallback ? { ...event, fallback } : event;
@@ -395,11 +409,12 @@ async function executeKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitA
     cwd: ctx.workDir,
     outDir: ctx.logDir,
     resolveCommand: false,
-    timeoutMs: kind === "index" ? KIT_INDEX_TIMEOUT_MS : KIT_LOOKUP_TIMEOUT_MS,
+    timeoutMs: interaction ? 100 * 60_000 : kind === "index" ? KIT_INDEX_TIMEOUT_MS : KIT_LOOKUP_TIMEOUT_MS,
     stdoutMaxBytes,
     stderrMaxBytes: KIT_STDERR_MAX_BYTES,
     terminateProcessTree: true,
-    ...(attempt && { signal: ctx.guard!.signal, beforeSpawn: attempt.beforeSpawn, onSpawn: attempt.started }),
+    interaction,
+    ...(attempt && { signal, beforeSpawn: attempt.beforeSpawn, onSpawn: attempt.started }),
   };
   const receipt = ctx.receipt;
   // Predicate literals can be source-derived. They are not part of the
@@ -414,7 +429,7 @@ async function executeKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitA
   }
   if (receipt || attempt) {
     options.onSettled = result => {
-      attempt?.settled(result.exitCode, ctx.guard?.signal.aborted === true);
+      attempt?.settled(result.exitCode, signal?.aborted === true);
       observedExit = result.exitCode;
       receipt?.write(commandId + "-exit", {
         exitCode: result.exitCode, signal: result.signal ?? null, ok: result.ok,
@@ -422,12 +437,12 @@ async function executeKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitA
         outputLimit: result.outputLimit, processTreeCleanup: result.processTreeCleanup, error: result.error,
       });
     };
-    receipt?.write(commandId + "-initial", { ...options, signal: undefined, args, telemetryArgs: undefined,
+    receipt?.write(commandId + "-initial", { ...options, signal: undefined, interaction: interaction ? "framed" : undefined, args, telemetryArgs: undefined,
       exactArgv: secretIndex < 0, environment: { mode: "inherited", omitted: true, nodeOptionsPresent: process.env.NODE_OPTIONS !== undefined }, launcher: "node:child_process.spawn" });
   }
   let result: MeasuredCommandResult;
   try { result = await ctx.runCommand(options); } catch (error) {
-    attempt?.settled(observedExit, ctx.guard?.signal.aborted === true);
+    attempt?.settled(observedExit, signal?.aborted === true);
     receipt?.write(commandId + "-failure", { exitCode: observedExit, error: String(error) });
     if (error instanceof KitSourceEvidenceAcquisitionError) throw error;
     fail("subprocess-failed", `Kit ${kind} executor failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -439,7 +454,13 @@ async function executeKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitA
     artifacts: [result.stdoutPath, result.stderrPath, result.telemetryPath].map(file =>
       file && fs.existsSync(file) ? describeAuditFile(file) : null),
   });
-  attempt?.settled(result.exitCode, ctx.guard?.signal.aborted === true);
+  attempt?.settled(result.exitCode, signal?.aborted === true);
+  return result;
+}
+
+async function executeKitJson(ctx: KitCommandContext, kind: KitCommandKind, kitArgs: string[], stdoutMaxBytes: number,
+  batch = false, fallback?: KitBatchFallback): Promise<unknown> {
+  const result = await executeKitCommand(ctx, kind, kitArgs, stdoutMaxBytes, fallback);
   ctx.guard?.signal.throwIfAborted();
   if (result.timedOut) {
     fail("subprocess-timeout", `Kit ${kind} command timed out.`);
@@ -503,12 +524,13 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
   }
   const standalone = (fallback?: KitBatchFallback) => executeKitJson(ctx, kind,
     [family, "--index", indexDir, ...args, "--json"], stdoutMaxBytes, false, fallback);
+  if (ctx.stream && stdoutMaxBytes <= KIT_STDOUT_MAX_BYTES) return ctx.stream.query(family, item);
   return ctx.query && stdoutMaxBytes <= KIT_STDOUT_MAX_BYTES ? ctx.query(family, item, standalone) : standalone();
 }
 
 function configureKitBatch(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string): void {
-  if (ctx.pkg.cliSha256 !== QUALIFIED_B5_P1_R6_KIT.cliSha256 || deps.disableBatch || !ctx.guard) return;
+  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
   const batchInput = fs.mkdtempSync(path.join(ctx.workDir, "kb-"));
   let next = 0;
   ctx.query = createKitBatchTransport({
@@ -534,6 +556,29 @@ function configureKitBatch(ctx: KitCommandContext, deps: KitSourceProviderDepend
       ctx.receipt?.write("kit-batch-fallback-" + inputSha256, { family: packet.family, inputSha256, standaloneAttemptsUpperBound: count, reason });
     },
   });
+}
+
+type KitStreamState = { current?: KitStreamTransport };
+
+function configureKitTransport(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
+  identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string, state?: KitStreamState): void {
+  if (!state || !ctx.guard || deps.disableStream || ctx.pkg.cliSha256 !== QUALIFIED_B5_P1_R7A_KIT.cliSha256) {
+    configureKitBatch(ctx, deps, identity, indexDir);
+    return;
+  }
+  let eventId = 0;
+  state.current ??= createKitStreamTransport({
+    identity, signal: ctx.guard.signal, frameLimit: deps.streamFrameLimit, timeoutMs: deps.streamTimeoutMs,
+    launch: (family, interaction, signal) => executeKitCommand(ctx, family === "lookup" ? "lookup-stream" : "source-stream",
+      [family, "--index", path.resolve(indexDir), "--audit-stream", "--json"], KIT_STDOUT_MAX_BYTES, undefined, interaction, signal),
+    itemError: code => new KitSourceEvidenceAcquisitionError(classifyStderrCode(code) ??
+      (code === "AUDIT_BATCH_OUTPUT_LIMIT" ? "output-limit" : "subprocess-failed"), "Kit session item failed.", code),
+    observe: event => {
+      ctx.receipt?.write("kit-stream-" + String(++eventId), event);
+      deps.onKitStream?.(event);
+    },
+  });
+  ctx.stream = state.current;
 }
 
 // ---------------------------------------------------------------------------
@@ -563,7 +608,8 @@ export async function acquireKitSourceEvidence(
   pkg: InstalledKitPackage,
   deps: KitSourceProviderDependencies,
   expectation: KitCandidateExpectation,
-  workDir: string
+  workDir: string,
+  streamState?: KitStreamState,
 ): Promise<KitSourceEvidence> {
   const proofProfile = pkg.cliSha256 === expectation.cliSha256 && isProofProfile(expectation);
   if (request.predicateRequirements && !proofProfile && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
@@ -643,14 +689,14 @@ export async function acquireKitSourceEvidence(
   });
   deps.receipt?.setStage("kit-inventory");
   const snapshotId = header.source.snapshotId;
-  configureKitBatch(ctx, deps, header.source, indexDir);
+  configureKitTransport(ctx, deps, header.source, indexDir, streamState);
   const inventoryPages: KitInventoryPage[] = await collectAllPages(
     async (pageIndex) => {
       const raw = await runKitQuery(ctx, indexDir, { selector: "audit-files", page: pageIndex });
       if ((raw as { schemaVersion?: unknown })?.schemaVersion !== header.schemaVersion) fail("schema-mismatch", "Inventory page schema differs from the validated artifact.");
       return validateInventoryPage(raw, { snapshotId, pageIndex });
     },
-    { maxPages: KIT_MAX_INVENTORY_PAGES, label: "inventory traversal", ...(ctx.query && { window: KIT_LOOKUP_CONCURRENCY }) }
+    { maxPages: KIT_MAX_INVENTORY_PAGES, label: "inventory traversal", ...((ctx.query || ctx.stream) && { window: KIT_LOOKUP_CONCURRENCY }) }
   );
   const inventory = flattenInventoryPages(inventoryPages);
   deps.receipt?.write("kit-selection", { inventory, pageCount: inventoryPages.length });
@@ -788,7 +834,7 @@ export type KitSourceReader = {
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
   importTarget: (factId: string) => Promise<KitImportProof & { exactSelectedPath?: string }>;
-  dispose: () => void;
+  dispose: () => void | Promise<void>;
 };
 
 // Private semantic compatibility profiles, independent of package/schema versions.
@@ -826,6 +872,7 @@ const NON_SEMANTIC_RAW_CONTENT_PROFILES: ReadonlySet<string> = new Set([
   // for selected generated and vendor source without admitting semantic facts.
   QUALIFIED_B3_P1_KIT.cliSha256,
   QUALIFIED_B5_P1_R6_KIT.cliSha256,
+  QUALIFIED_B5_P1_R7A_KIT.cliSha256,
   QUALIFIED_SW123_P6_R2_KIT.cliSha256,
   "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
   "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f",
@@ -840,14 +887,21 @@ function assertKitNonSemanticRawContent(record: KitFileRecord, qualifiedProducer
   }
 }
 
-function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandContext, dispose: () => void,
+function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandContext, dispose: () => void | Promise<void>,
   testFiles: ProjectInventorySnapshot["testFiles"], rawSourceFiles: ProjectInventorySnapshot["sourceFiles"], inventoryFiles: ProjectInventorySnapshot["files"]): KitSourceReader {
   const cache = new Map<string, Promise<KitOccurrence>>();
+  // A fresh stream frame is required for repeated predicates, especially
+  // import absence, which can change while the origin SHA stays identical.
+  function query<T>(store: Map<string, Promise<T>>, key: string, fetch: () => Promise<T>): Promise<T> {
+    if (ctx.stream) return fetch();
+    if (!store.has(key)) store.set(key, fetch());
+    return store.get(key)!;
+  }
   const proofs = new Map<string, Promise<KitImportProof>>();
   const contents = new Map<string, Promise<string>>();
   const rawTestContents = new Map<string, string | undefined>();
   const testFileByPath = new Map(testFiles.map(file => [file.relativePath, file]));
-  const r3 = [QUALIFIED_B3_P1_KIT.cliSha256, QUALIFIED_B5_P1_R6_KIT.cliSha256].some(digest => digest === ctx.pkg.cliSha256) &&
+  const r3 = [QUALIFIED_B3_P1_KIT.cliSha256, QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256].some(digest => digest === ctx.pkg.cliSha256) &&
     evidence.artifactSchemaVersion === "1.2.0";
   const domainPromises = new Map<string, Promise<KitImportDomain>>();
   const inventoryByPath = new Map(evidence.inventory.map(record => [record.path, record]));
@@ -920,6 +974,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       fail("capability-insufficient", `${filePath} lacks qualified fixture source ranges.`);
     }
     if (fixtureOnly) assertFresh(file);
+    if (ctx.stream && fixtureOnly) contents.delete(filePath);
     if (contents.has(filePath)) return contents.get(filePath)!;
     // Zero bytes plus their authenticated digest establish the entire
     // content. Kit has no first source line to return for an empty file.
@@ -1016,7 +1071,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     return contents.get(filePath)!;
   }
   const reader: KitSourceReader = {
-    snapshotId: evidence.snapshotId, producer: evidence.producer, dispose: () => { closed = true; contents.clear(); rawTestContents.clear(); dispose(); },
+    snapshotId: evidence.snapshotId, producer: evidence.producer, dispose: () => { closed = true; contents.clear(); rawTestContents.clear(); return dispose(); },
     jsTsRelativeImportCandidateProof: IMPORT_PROOF_PROFILES[ctx.pkg.cliSha256],
     jsonRawLiteralContent,
     selectedFile,
@@ -1039,7 +1094,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       if (!content) return undefined;
       let text: string;
       try {
-        text = await content;
+        text = await (ctx.stream ? readAuthenticatedContent(filePath, true) : content);
       } catch (error) {
         if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
         return undefined;
@@ -1110,8 +1165,8 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
         assertFresh(entry.record);
         const proofs = [];
         for (const fact of entry.facts.filter(fact => fact.kind === "dynamic-import-expression")) {
-          if (!domainPromises.has(fact.id)) domainPromises.set(fact.id, runKitQuery(ctx, indexDir, { selector: "audit-import-domain", factId: fact.id }).then(raw => validateKitImportDomain(raw, evidence, fact)));
-          const proof = await domainPromises.get(fact.id)!;
+          const proof = await query(domainPromises, fact.id, () => runKitQuery(ctx, indexDir,
+            { selector: "audit-import-domain", factId: fact.id }).then(raw => validateKitImportDomain(raw, evidence, fact)));
           assertFresh(entry.record);
           for (const target of proof.selectedTargetUpperBound ?? proof.positivePaths) {
             assertFresh(inventoryByPath.get(target)!);
@@ -1151,20 +1206,19 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       const outputBudget = authenticatedRanges &&
         filePath.endsWith(".json") && file.sizeBytes <= 200000
         ? Math.max(KIT_STDOUT_MAX_BYTES, file.sizeBytes * 200 * 6 + 131072) : KIT_STDOUT_MAX_BYTES;
-      if (!cache.has(key)) cache.set(key, runKitQuery(ctx, indexDir, { selector: "exact-file-occurrence", path: filePath, literal: value, context: 40 }, outputBudget)
+      return query(cache, key, () => runKitQuery(ctx, indexDir, { selector: "exact-file-occurrence", path: filePath, literal: value, context: 40 }, outputBudget)
         .then((raw) => {
           if ((raw as { schemaVersion?: unknown })?.schemaVersion !== (r3 ? "1.1.0" : evidence.artifactSchemaVersion)) fail("schema-mismatch", "Occurrence schema differs from the validated artifact.");
           return validateKitOccurrence(raw, { snapshotId: evidence.snapshotId, file, value, rawOnlyTextUnavailable: r3 && file.status === "unsupported" });
         }));
-      return cache.get(key)!;
     },
     async importTarget(factId) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       const entry = importsById.get(factId);
       if (!entry) fail("invalid-request", "Import fact ID is not in the validated fact pages.");
       const { fact, record } = entry;
-      if (!proofs.has(factId)) proofs.set(factId, runKitQuery(ctx, indexDir, { selector: "audit-import-target", factId }).then((raw) => validateKitImportProof(raw, { snapshotId: evidence.snapshotId, fact, evidence })));
-      const proof = await proofs.get(factId)!;
+      const proof = await query(proofs, factId, () => runKitQuery(ctx, indexDir,
+        { selector: "audit-import-target", factId }).then(raw => validateKitImportProof(raw, { snapshotId: evidence.snapshotId, fact, evidence })));
       if (r3 && (record.language === "javascript" || record.language === "typescript")) {
         if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
         assertFresh(record);
@@ -1346,13 +1400,13 @@ export async function collectKitSourceFacts(
     archivePath: deps.qualifiedArchivePath ?? null, observedArchive: archive,
   });
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: deps.installedPackageRoot, expectation });
-  const isR6 = pkg.cliSha256 === QUALIFIED_B5_P1_R6_KIT.cliSha256;
-  if (isR6) {
+  const managed = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT].find(candidate => candidate.cliSha256 === pkg.cliSha256);
+  if (managed) {
     if (!deps.installedPackageRoot || !deps.qualifiedArchivePath ||
-        sha256Hex(readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit R6 archive")) !== QUALIFIED_B5_P1_R6_KIT.archiveSha256) {
-      fail("package-identity", "Managed R6 requires the exact qualified local archive and installed package root.");
+        sha256Hex(readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive")) !== managed.archiveSha256) {
+      fail("package-identity", "Managed Kit requires the exact qualified local archive and installed package root.");
     }
-    if (!deps.workDir && !deps.receipt) fail("invalid-request", "Managed R6 requires a task-owned work directory or audit receipt.");
+    if (!deps.workDir && !deps.receipt) fail("invalid-request", "Managed Kit requires a task-owned work directory or audit receipt.");
     deps = { ...deps, launchGuard: deps.launchGuard ?? createKitLaunchGuard() };
   }
   let qualifiedR3Archive: (typeof QUALIFIED_R3_ARCHIVES)[number] | undefined;
@@ -1369,7 +1423,7 @@ export async function collectKitSourceFacts(
   deps.receipt?.write("kit-package", {
     ...pkg, expectation, archive,
     ...(qualifiedR3Archive && { qualifiedR3Archive }),
-    ...(isR6 && { qualifiedBatchArchive: QUALIFIED_B5_P1_R6_KIT }),
+    ...(managed && { qualifiedBatchArchive: managed }),
   });
   const expectedSnapshot = request.expectedWholeProjectSnapshot;
   if (expectedSnapshot !== undefined && !/^[a-f0-9]{64}$/.test(expectedSnapshot))
@@ -1384,6 +1438,11 @@ export async function collectKitSourceFacts(
 
   const ownedWorkDir = deps.workDir === undefined && deps.receipt === undefined;
   const workDir = deps.receipt?.directory ?? deps.workDir ?? fs.mkdtempSync(path.join(os.tmpdir(), "lab-kit-source-"));
+  const streamState: KitStreamState = {};
+  const close = () => {
+    if (streamState.current) return streamState.current.close().finally(() => deps.launchGuard?.close());
+    deps.launchGuard?.close();
+  };
   try {
     const evidence = await acquireKitSourceEvidence(
       {
@@ -1425,7 +1484,8 @@ export async function collectKitSourceFacts(
       pkg,
       deps,
       expectation,
-      workDir
+      workDir,
+      streamState,
     );
     if (expectedSnapshot !== undefined && evidence.snapshotId !== expectedSnapshot)
       fail("stale-evidence", "The acquired whole-project Kit snapshot differs from the frozen replay snapshot.");
@@ -1442,9 +1502,9 @@ export async function collectKitSourceFacts(
       const context: KitCommandContext = { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
         guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch };
-      configureKitBatch(context, deps, evidence.source, path.join(workDir, "index"));
-      const reader = createKitSourceReader(evidence, context, () => {
-        deps.launchGuard?.close();
+      configureKitTransport(context, deps, evidence.source, path.join(workDir, "index"), streamState);
+      const reader = createKitSourceReader(evidence, context, async () => {
+        await close();
         if (ownedWorkDir) fs.rmSync(workDir, { recursive: true, force: true });
       }, request.inventory.testFiles, rawSourceFiles, request.inventory.files);
       request.onReader(reader);
@@ -1452,7 +1512,7 @@ export async function collectKitSourceFacts(
     }
     return snapshot;
   } finally {
-    if (!readerIssued) deps.launchGuard?.close();
+    if (!readerIssued) await close();
     if (ownedWorkDir && !readerIssued) {
       fs.rmSync(workDir, { recursive: true, force: true });
     }
