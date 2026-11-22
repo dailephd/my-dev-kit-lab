@@ -123,6 +123,13 @@ export const QUALIFIED_B3_P1_KIT = Object.freeze({
   receiptSha256: "a7bcc8286939e4f32d60a0715fd63d4b41fb1950b2caf5b11ce78951ce038cf7",
 } satisfies KitCandidateExpectation & { sourceSha: string; archiveSha256: string; receiptSha256: string });
 
+// Both archives ship the same executable and runtime package members.
+const QUALIFIED_R3_ARCHIVES = [QUALIFIED_B3_P1_KIT, {
+  sourceSha: "a24b0a56b003082ad5c39c9fcc693e1bc8ec7bbb",
+  archiveSha256: "25fc1a97401d4e9b0fd22aa6f9d9829fba607265c63be17324960b4c13e0ff34",
+  receiptSha256: "5227a69e4025b22fe421ddcc7f3b568933ace7858c189ee46607c3110207ddca",
+}] as const;
+
 // Historical SW-123 P6-R2 archive.
 export const QUALIFIED_SW123_P6_R2_KIT = {
   packageName: KIT_PACKAGE_NAME,
@@ -1231,14 +1238,21 @@ export async function collectKitSourceFacts(
     archivePath: deps.qualifiedArchivePath ?? null, observedArchive: archive,
   });
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: deps.installedPackageRoot, expectation });
-  if (pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 &&
-      (!deps.installedPackageRoot || !deps.qualifiedArchivePath ||
-      sha256Hex(readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit R3 archive")) !== QUALIFIED_B3_P1_KIT.archiveSha256))
-    fail("package-identity", "Managed R3 requires the exact qualified local archive and an isolated installed package root.");
+  let qualifiedR3Archive: (typeof QUALIFIED_R3_ARCHIVES)[number] | undefined;
+  if (pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256) {
+    if (!deps.installedPackageRoot || !deps.qualifiedArchivePath)
+      fail("package-identity", "Managed R3 requires an exact qualified local archive and an isolated installed package root.");
+    const archiveSha256 = sha256Hex(
+      readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit R3 archive"));
+    qualifiedR3Archive = QUALIFIED_R3_ARCHIVES.find(profile => profile.archiveSha256 === archiveSha256);
+    if (!qualifiedR3Archive)
+      fail("package-identity", "Managed R3 requires an exact qualified local archive and an isolated installed package root.");
+  }
 
-
-  deps.receipt?.write("kit-package", { ...pkg, expectation,
-    archive });
+  deps.receipt?.write("kit-package", {
+    ...pkg, expectation, archive,
+    ...(qualifiedR3Archive && { qualifiedR3Archive }),
+  });
   const sourceRoots = scope.sourceRoots;
   if (sourceRoots.length === 0) {
     fail(
