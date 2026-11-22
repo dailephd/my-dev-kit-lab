@@ -647,6 +647,8 @@ export type KitSourceFactsRequest = {
   // Capabilities required of every Lab source/test file Kit analyzes.
   requiredCapabilities: KitRequiredCapabilities;
   includeScriptsRoot: boolean;
+  // Internal focused replay of an independently frozen whole-project selection.
+  expectedWholeProjectSnapshot?: string;
   requiredPaths?: readonly string[];
   capabilitiesForPath?: (filePath: string) => KitRequiredCapabilities;
   allowPartialDeclarationsForPath?: (filePath: string) => boolean;
@@ -1253,7 +1255,10 @@ export async function collectKitSourceFacts(
     ...pkg, expectation, archive,
     ...(qualifiedR3Archive && { qualifiedR3Archive }),
   });
-  const sourceRoots = scope.sourceRoots;
+  const expectedSnapshot = request.expectedWholeProjectSnapshot;
+  if (expectedSnapshot !== undefined && !/^[a-f0-9]{64}$/.test(expectedSnapshot))
+    fail("invalid-request", "Expected a full whole-project Kit snapshot digest.");
+  const sourceRoots = expectedSnapshot === undefined ? scope.sourceRoots : ["."];
   if (sourceRoots.length === 0) {
     fail(
       "selection-incomplete",
@@ -1306,6 +1311,8 @@ export async function collectKitSourceFacts(
       expectation,
       workDir
     );
+    if (expectedSnapshot !== undefined && evidence.snapshotId !== expectedSnapshot)
+      fail("stale-evidence", "The acquired whole-project Kit snapshot differs from the frozen replay snapshot.");
     const snapshot = adaptKitEvidenceToSourceFacts({
       evidence,
       inventory: request.inventory,

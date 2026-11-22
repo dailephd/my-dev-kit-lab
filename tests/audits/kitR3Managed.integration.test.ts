@@ -123,6 +123,10 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       ...request, inventory: scanProjectInventory(target),
       requiredPaths: [...request.requiredPaths, jsonPath, clippedPath, binaryPath, rustPath, emptyPath],
     };
+    await expect(collectKitSourceFacts({
+      ...request, expectedWholeProjectSnapshot: "0".repeat(64),
+    }, { ...identity, workDir: path.join(root, "kit-frozen-mismatch") }))
+      .rejects.toMatchObject({ category: "stale-evidence" });
     const tamperedArchive = path.join(root, "tampered.tgz");
     fs.writeFileSync(tamperedArchive, Buffer.concat([fs.readFileSync(qualifiedArchivePath!), Buffer.from([0])]));
     await expect(collectKitSourceFacts(request, { ...identity, qualifiedArchivePath: tamperedArchive })).rejects.toThrow(/package-identity/);
