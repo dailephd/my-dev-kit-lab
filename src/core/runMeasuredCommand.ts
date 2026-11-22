@@ -44,6 +44,10 @@ type MeasuredCommandBaseOptions = {
   /** Optional redacted argv used only for the persisted telemetry. */
   telemetryArgs?: readonly string[];
   exclusiveArtifacts?: boolean;
+  /** Synchronous reservation immediately before the OS spawn call. Throwing refuses the launch. */
+  beforeSpawn?: () => void;
+  onSpawn?: () => void;
+  signal?: AbortSignal;
   onSettled?: (result: MeasuredCommandResult) => void;
   cwd: string;
   outDir: string;
@@ -153,6 +157,8 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     let processTreeCleanup: "confirmed" | "failed" | "not-required" = "not-required";
     let settled = false;
 
+    options.beforeSpawn?.();
+    options.signal?.throwIfAborted();
     let child;
     try {
       child = spawn(executable, args, {
@@ -220,7 +226,18 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     };
     child.stdout!.on("data", collect(stdoutCollector, "stdout", options.stdoutMaxBytes));
     child.stderr!.on("data", collect(stderrCollector, "stderr", options.stderrMaxBytes));
-    child.once("spawn", () => { startedProcess = true; });
+    const abort = () => {
+      spawnError ??= "Command cancelled.";
+      terminate();
+    };
+    child.once("spawn", () => {
+      startedProcess = true;
+      try { options.onSpawn?.(); }
+      catch (error) {
+        spawnError = error instanceof Error ? error.message : String(error);
+        terminate();
+      }
+    });
     child.on("error", (error) => {
       if (!startedProcess) spawnFailed = true;
       spawnError = error.message;
@@ -265,6 +282,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       }
       if (settled) return;
       settled = true;
+      options.signal?.removeEventListener("abort", abort);
       if (timeout) clearTimeout(timeout);
       if (killGraceTimeout) clearTimeout(killGraceTimeout);
       // The caller's `scripts/cli.ts` entry point sets `process.exitCode` rather than calling
@@ -310,6 +328,8 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       resolve(measured);
     };
 
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
     if (options.timeoutMs !== undefined) {
       timeout = setTimeout(() => {
         timedOut = true;

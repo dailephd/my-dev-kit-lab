@@ -994,16 +994,21 @@ export function validateFactPage(
 // reports no next page. Never stops at the first page.
 export async function collectAllPages<TPage extends PageEnvelope>(
   fetchPage: (pageIndex: number) => Promise<TPage>,
-  options: { maxPages: number; label: string }
+  options: { maxPages: number; label: string; window?: number }
 ): Promise<TPage[]> {
   const pages: TPage[] = [];
   let pageIndex = 0;
+  let window: TPage[] = [];
   for (;;) {
     if (pages.length >= options.maxPages) {
       fail("traversal-incomplete", `${options.label} exceeded the ${options.maxPages}-page traversal limit.`);
     }
-    const page = await fetchPage(pageIndex);
     const first = pages[0];
+    if (first && window.length === 0 && (options.window ?? 1) > 1) {
+      const count = Math.min(options.window!, first.totalPages - pageIndex, options.maxPages - pageIndex);
+      window = await Promise.all(Array.from({ length: count }, (_, index) => fetchPage(pageIndex + index)));
+    }
+    const page = window.shift() ?? await fetchPage(pageIndex);
     if (first !== undefined) {
       if (page.snapshotId !== first.snapshotId) {
         fail("snapshot-mismatch", `${options.label} mixes snapshot ids across pages.`);
