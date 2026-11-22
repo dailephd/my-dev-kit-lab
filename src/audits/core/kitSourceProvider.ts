@@ -715,6 +715,9 @@ const JSON_RAW_CONTENT_PROFILES: Readonly<Record<string, "selected-test-json-v1"
 // independently qualified selected generated and vendor raw occurrences without changing
 // the public role schema or admitting generated semantic source facts.
 const NON_SEMANTIC_RAW_CONTENT_PROFILES: ReadonlySet<string> = new Set([
+  // The exact R3 CLI also returns complete, hash-bound text occurrences
+  // for selected generated and vendor source without admitting semantic facts.
+  QUALIFIED_B3_P1_KIT.cliSha256,
   QUALIFIED_SW123_P6_R2_KIT.cliSha256,
   "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
   "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f",

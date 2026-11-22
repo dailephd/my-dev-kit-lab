@@ -15,6 +15,10 @@ export function requireCompleteKitOccurrence(result: KitOccurrence): KitOccurren
 export async function kitPredicateContent(reader: KitSourceReader | undefined, filePath: string, anchors: readonly string[], byteNeighborhood = false): Promise<string> {
   if (!reader) throw new KitSourceEvidenceAcquisitionError("invalid-request", `${filePath} requires its validated Kit source reader.`);
   const file = reader.selectedFile(filePath);
+  // R3 exposes bounded source ranges through a reader that verifies the
+  // original byte digest and source freshness before returning text.
+  const readBoundedContent = reader.authenticatedContent ??
+    (byteNeighborhood ? reader.authenticatedFixtureContent : undefined);
   if (filePath.endsWith(".json") && reader.authenticatedContent && file.contentSha256) {
     try { return await reader.authenticatedContent(filePath); }
     catch (error) {
@@ -36,13 +40,13 @@ export async function kitPredicateContent(reader: KitSourceReader | undefined, f
       // byte length nor a hash alone establishes their unavailable content.
       continue;
     }
-    if (!result.complete && reader.authenticatedContent && file.contentSha256) return reader.authenticatedContent(filePath);
+    if (!result.complete && readBoundedContent && file.contentSha256) return readBoundedContent(filePath);
     requireCompleteKitOccurrence(result);
     if (!result.matchCount) continue;
     const whole = result.matches.find((match) => match.windowStart === 1 && file.lineCount !== null &&
       (match.windowEnd === file.lineCount || (match.windowEnd === file.lineCount - 1 && match.windowEnd < match.line + 40)) &&
       (!byteNeighborhood || Buffer.byteLength(match.content, "utf8") === file.sizeBytes || Buffer.byteLength(match.content, "utf8") + 1 === file.sizeBytes));
-    if (!whole && reader.authenticatedContent) return reader.authenticatedContent(filePath);
+    if (!whole && readBoundedContent) return readBoundedContent(filePath);
     if (!whole) throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
       `${filePath} has insufficient contiguous source context for the original predicate (including newline identity).`);
     return whole.content;
