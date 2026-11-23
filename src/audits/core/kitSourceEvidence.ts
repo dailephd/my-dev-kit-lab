@@ -184,6 +184,13 @@ export function validateKitOccurrence(raw: unknown, expected: {
   return r;
 }
 
+// A spelling match can prioritize proof acquisition. The managed reader
+// still requires the authenticated singleton target and physical path checks.
+export function hasImmediateRelativeSpelling(origin: string, specifier: string, target: string): boolean {
+  return /^\.\.?\//.test(specifier) && !/[\\%?#\s]/.test(specifier) && !specifier.endsWith("/") &&
+    path.posix.normalize(path.posix.join(path.posix.dirname(origin), specifier)) === target;
+}
+
 export function validateKitImportProof(raw: unknown, expected: { snapshotId: string; fact: KitFact; evidence?: KitSourceEvidence }): KitImportProof {
   const r = raw as KitImportProof;
   if (!r || r.mode !== "audit-import-target" || !["1.0.0", "1.1.0"].includes(r.schemaVersion)) fail("schema-mismatch", "Invalid import-target envelope.");

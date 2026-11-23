@@ -38,6 +38,7 @@ import {
   validateKitRelativePath,
   validateKitOccurrence,
   validateKitImportProof,
+  hasImmediateRelativeSpelling,
   validateKitImportDomain,
   validateKitByteOccurrence,
   type KitImportDomain,
@@ -1257,9 +1258,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
           // The ordinary lookup can return implementation-extension alternatives
           // or configured candidates. Admit only a literal immediate path shared
           // by ordinary relative ESM and CommonJS resolution.
-          if (proof.candidatePaths.length === 1 && /^\.\.?\//.test(specifier) &&
-              !/[\\%?#\s]/.test(specifier) && !specifier.endsWith("/") &&
-              path.posix.normalize(path.posix.join(path.posix.dirname(record.path), specifier)) === selected &&
+          if (proof.candidatePaths.length === 1 && hasImmediateRelativeSpelling(record.path, specifier, selected) &&
               isCanonical(record.path) && isCanonical(selected)) return { ...proof, exactSelectedPath: selected };
         } else if (proof.status === "proven-missing" &&
             (proof.reasonCode !== "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION" ||

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { isBuiltin } from "node:module";
-import { KitSourceEvidenceAcquisitionError, qualifyKitImportPredicate } from "../../core/kitSourceEvidence.js";
+import { hasImmediateRelativeSpelling, KitSourceEvidenceAcquisitionError, qualifyKitImportPredicate } from "../../core/kitSourceEvidence.js";
 import { kitPredicateContent, requireCompleteKitOccurrence } from "../utils/sourceFactsLookup.js";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
@@ -90,15 +90,12 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       if (ctx.inventory.sourceFiles.some(f => isJvmLanguage(f.language))) declarationPredicates.push(JVM_DECLARATION_PREDICATE);
     }
     const predicates = [...filePredicates.keys(), ...declarationPredicates];
-    // Keep the bounded lookup schedule independent of which returned paths
-    // qualify as references. A filesystem candidate can spend a probe without
-    // discharging any absence predicate.
     const unwitnessedCandidates = new Set([...filePredicates.values()].flatMap(files => files.map(file => file.relativePath)));
     const allFileCandidatePaths = new Set(unwitnessedCandidates);
     const exactReferences = new Set<string>();
-    // Try at most one indexed ordinary-import witness per candidate. Other
-    // possible resolutions stay open if that proof cannot confirm the target.
-    const triedIndexedTargets = new Set<string>();
+    // Keep one diagnostic probe for a substituted candidate. An immediate
+    // spelling is a separate opportunity to obtain an authenticated witness.
+    const triedIndexedFallbacks = new Set<string>();
     const disjointScriptOrigins = new Map<string, Set<string>>();
     const pendingFileGaps: { path: string; predicate: string; reason: string; possibleTargets?: ReadonlySet<string> }[] = [];
     if (predicates.length === 0) {
@@ -192,17 +189,27 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             reExports.length === file.exports.filter(fact => fact.exportOrigin === "re-export").length &&
             staticImports.every(imp => imp.source.startsWith(".") && imp.importResolution === "unresolved") &&
             reExports.every(fact => fact.sourceSpecifier.startsWith("."));
+          const inventoriesComplete = (qualifyKitImportPredicate(file) === "QUALIFIED_NEGATIVE" ||
+            reader.explicitImportsCompleteWithExpressions?.(entry.relativePath, file.imports.length)) &&
+            file.kit?.capabilities.exports === "complete" &&
+            reExports.length === file.exports.filter(fact => fact.exportOrigin === "re-export").length;
+          let canBoundStaticImports = inventoriesComplete &&
+            domains.every(d => d.proof.selectedTargetUpperBound !== undefined) &&
+            reExports.every(fact => fact.sourceSpecifier.startsWith(".") || builtinReference(fact.sourceSpecifier)) &&
+            staticImports.every(imp => qualifyKitImportPredicate(file, imp) === "QUALIFIED_POSITIVE" &&
+              !!imp.provenance?.factId && (builtinReference(imp.source) ||
+                (imp.source.startsWith(".") && imp.importResolution === "unresolved")));
 
           const targetProofs = new Map<string, Awaited<ReturnType<typeof reader.importTarget>>>();
           const recordTarget = async (factId: string, indexedTarget?: string) => {
             const proof = await reader.importTarget(factId);
             targetProofs.set(factId, proof);
             const [target] = proof.candidatePaths;
-            if (proof.status === "present" && proof.candidatePaths.length === 1 && target &&
-                (!indexedTarget || indexedTarget === target)) unwitnessedCandidates.delete(target);
-            if (target && proof.exactSelectedPath === target && (!indexedTarget || indexedTarget === target) &&
+            if (proof.status === "present" && proof.candidatePaths.length === 1 &&
+                target && proof.exactSelectedPath === target && (!indexedTarget || indexedTarget === target) &&
                 !exactReferences.has(target) && allFileCandidatePaths.has(target)) {
               exactReferences.add(target);
+              unwitnessedCandidates.delete(target);
               ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "selected module reference",
                 source: { kind: "file", identity: entry.relativePath }, capability: "imports",
                 actualStatus: "present", status: "QUALIFIED", mandatory: false, diagnostic: "",
@@ -226,11 +233,16 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             }
             const [target] = imp.targetPaths ?? [];
             if (imp.importResolution === "resolved-local" && imp.targetPaths?.length === 1 && target &&
-                unwitnessedCandidates.has(target) && !triedIndexedTargets.has(target)) {
-              triedIndexedTargets.add(target);
-              await recordTarget(imp.provenance.factId, target);
-            } else if (closed && unwitnessedCandidates.size > 0) {
-              closed = await recordTarget(imp.provenance.factId);
+                unwitnessedCandidates.has(target)) {
+              const immediate = hasImmediateRelativeSpelling(entry.relativePath, imp.source, target);
+              if (immediate || !triedIndexedFallbacks.has(target)) {
+                if (!immediate) triedIndexedFallbacks.add(target);
+                await recordTarget(imp.provenance.factId, target);
+              }
+            } else if ((closed || canBoundStaticImports) && unwitnessedCandidates.size > 0 && !builtinReference(imp.source)) {
+              const excludes = await recordTarget(imp.provenance.factId);
+              closed = closed && excludes;
+              canBoundStaticImports = canBoundStaticImports && excludes;
             }
           }
           for (const fact of reExports) {
@@ -256,10 +268,6 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
                 reExports.length !== file.exports.filter(fact => fact.exportOrigin === "re-export").length) {
               blockers.push("incomplete re-export inventory");
             }
-            const inventoriesComplete = (qualifyKitImportPredicate(file) === "QUALIFIED_NEGATIVE" ||
-              reader.explicitImportsCompleteWithExpressions?.(entry.relativePath, file.imports.length)) &&
-              file.kit?.capabilities.exports === "complete" &&
-              reExports.length === file.exports.filter(fact => fact.exportOrigin === "re-export").length;
             const edgeExcluded = (factId: string | undefined, specifier: string) =>
               !!factId && (builtinReference(specifier) || targetProofs.get(factId)?.status === "proven-missing");
             const bounded = inventoriesComplete &&

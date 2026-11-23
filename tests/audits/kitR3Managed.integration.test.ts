@@ -5,10 +5,12 @@ import { expect, it } from "vitest";
 import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
 import { runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
-import { collectKitSourceFacts, type KitSourceReader, QUALIFIED_B3_P1_KIT } from "../../src/audits/core/kitSourceProvider.js";
+import { collectKitSourceFacts, type KitSourceReader, QUALIFIED_B3_P1_KIT, QUALIFIED_B5_P1_R7A_KIT } from "../../src/audits/core/kitSourceProvider.js";
 
 const installedPackageRoot = process.env.LAB_R3_INSTALLED_KIT;
 const qualifiedArchivePath = process.env.LAB_R3_KIT_ARCHIVE;
+const currentInstalledRoot = process.env.LAB_B5_P1_R7B_KIT_ROOT;
+const currentArchive = process.env.LAB_B5_P1_R7B_KIT_ARCHIVE;
 it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
   "runs the managed R3 candidate through the audit command and retains findings at every mandatory-gap threshold",
   async () => {
@@ -32,12 +34,13 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       'void import(process.env.RUNTIME_UNKNOWN);',
     ].join("\n"));
     for (const threshold of ["none", "low", "medium", "high", "blocker"]) {
-      const out = path.join(root, threshold);
-      const workDir = path.join(root, "kit-" + threshold);
+      const workspace = path.join(root, threshold);
+      fs.mkdirSync(workspace);
+      const out = path.join(workspace, "reports");
       const code = await runAuditCommandFromArgs([
         "--target", target, "--types", "code-rot", "--include", "tests",
         "--fail-on", threshold, "--format", "text,json", "--out", out,
-      ], { kitSourceProviderDependencies: { installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT, workDir } });
+      ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: { installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT } });
       expect(code).toBe(2);
       const files = fs.readdirSync(out);
       const json = JSON.parse(fs.readFileSync(path.join(out, files.find(f => f.endsWith(".json"))!), "utf8"));
@@ -51,7 +54,9 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
       const gaps = json.detectorErrors.filter((error: { message: string }) => error.message.includes("Dynamic import evidence"));
       expect(gaps).toHaveLength(5);
       if (threshold === "none") {
-        const dir = path.join(workDir, "logs");
+        const evidence = path.join(workspace, "lab-output", "evidence");
+        const [id] = fs.readdirSync(evidence);
+        const dir = path.join(evidence, id!, "logs");
         const responses = fs.readdirSync(dir).filter(name => name.endsWith("import-domain.stdout.txt"))
           .map(name => JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")));
         const byOperands = new Map(responses.map(response => [
@@ -362,8 +367,52 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
   }, 60_000,
 );
 
-it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
-  "allows reverse-reference absence only when Kit exhausts the selected ordinary-import candidates",
+it.skipIf(!currentInstalledRoot || !currentArchive)(
+  "keeps looking for an immediate import after an extension alternative points to the same candidate",
+  async () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-import-witness-order-"));
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.mkdirSync(path.join(target, "tests"));
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"import-witness-order","type":"module"}\n');
+    fs.writeFileSync(path.join(target, "src/peer.ts"), "export {};\n");
+    fs.writeFileSync(path.join(target, "src/unrelated.ts"), "export {};\n");
+    fs.writeFileSync(path.join(target, "tests/a-alternative.test.mjs"), 'import "../src/peer.js";\n');
+    fs.writeFileSync(path.join(target, "tests/z-immediate.test.mjs"), 'import "../src/peer.ts";\n');
+
+    const exit = await runAuditCommandFromArgs([
+      "--target", target, "--types", "code-rot", "--include", "cli,tests", "--fail-on", "none",
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: {
+      installedPackageRoot: currentInstalledRoot, qualifiedArchivePath: currentArchive, expectation: QUALIFIED_B5_P1_R7A_KIT,
+    } });
+    const evidence = path.join(workspace, "lab-output", "evidence");
+    const [id] = fs.readdirSync(evidence);
+    const rows = JSON.parse(fs.readFileSync(path.join(evidence, id!, "audit-result.json"), "utf8")).evidence.coverage;
+    const detectorId = "dead-code-candidate";
+    const predicate = "unreferenced-source-file";
+    expect(rows).toContainEqual(expect.objectContaining({
+      detectorId, predicate: "selected module reference", source: { kind: "file", identity: "tests/z-immediate.test.mjs" },
+      status: "QUALIFIED", proof: expect.objectContaining({ references: [expect.any(String), "src/peer.ts"] }),
+    }));
+    expect(rows).not.toContainEqual(expect.objectContaining({
+      detectorId, predicate: predicate + " blocked candidate", source: { kind: "file", identity: "src/peer.ts" },
+    }));
+    expect(rows).toContainEqual(expect.objectContaining({
+      detectorId, predicate: predicate + " blocked candidate", source: { kind: "file", identity: "src/unrelated.ts" },
+    }));
+    expect(rows).toContainEqual(expect.objectContaining({
+      detectorId, predicate, source: { kind: "file", identity: "tests/a-alternative.test.mjs" }, mandatory: true,
+      status: "UNAVAILABLE",
+    }));
+    expect(exit).toBe(2);
+  }, 60_000,
+);
+
+for (const { label, root, archive, expectation, extra } of [
+  { label: "ordinary exclusions", root: installedPackageRoot, archive: qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT, extra: "" },
+  { label: "ordinary exclusions alongside built-ins", root: currentInstalledRoot, archive: currentArchive, expectation: QUALIFIED_B5_P1_R7A_KIT, extra: 'import "node:fs";\n' },
+]) it.skipIf(!root || !archive)(
+  "allows reverse-reference absence with " + label,
   async () => {
     const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-static-exclusion-"));
     const target = path.join(workspace, "target");
@@ -371,11 +420,11 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     fs.mkdirSync(path.join(target, "tests"));
     fs.writeFileSync(path.join(target, "package.json"), '{"name":"static-exclusion","type":"module"}\n');
     fs.writeFileSync(path.join(target, "src/orphan.mjs"), "export const orphan = 1;\n");
-    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), 'import "../src/missing.mjs";\n');
+    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), extra + 'import "../src/missing.mjs";\n');
     await runAuditCommandFromArgs([
       "--target", target, "--include", "cli,tests", "--format", "text,json", "--fail-on", "none",
     ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: {
-      installedPackageRoot, qualifiedArchivePath, expectation: QUALIFIED_B3_P1_KIT,
+      installedPackageRoot: root, qualifiedArchivePath: archive, expectation,
     } });
     const evidence = path.join(workspace, "lab-output", "evidence");
     const [id] = fs.readdirSync(evidence);
