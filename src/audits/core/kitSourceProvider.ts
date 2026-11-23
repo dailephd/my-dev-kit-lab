@@ -520,7 +520,10 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
   if (ctx.guard && ctx.receipt) {
     const logical = ctx.sequence.logical ?? ctx.sequence.next;
     ctx.sequence.logical = logical + 1;
-    ctx.receipt.write("kit-logical-" + String(logical), { kind, family });
+    const request = ctx.receipt.journalEnabled
+      ? { selector: item.selector, requestSha256: sha256Hex(Buffer.from(JSON.stringify(item))) }
+      : undefined;
+    ctx.receipt.write("kit-logical-" + String(logical), { kind, family }, request);
   }
   const standalone = (fallback?: KitBatchFallback) => executeKitJson(ctx, kind,
     [family, "--index", indexDir, ...args, "--json"], stdoutMaxBytes, false, fallback);
