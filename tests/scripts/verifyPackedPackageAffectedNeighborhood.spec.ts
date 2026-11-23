@@ -385,6 +385,10 @@ describe("packed verifier v0.6.1 section guards (TST-B4-001, TST-B4-002, TST-B4-
   const start = source.indexOf("// 9c-2. v0.6.1 affected-neighborhood installed-package acceptance.");
   const end = source.indexOf("// 9d. v0.5.2 real-agent campaign acceptance.");
   const section = source.slice(start, end);
+  const installHelper = source.slice(
+    source.indexOf("function installConsumerPackage("),
+    source.indexOf("function resolveConsumerBinCommand(")
+  );
 
   it("locates the affected-neighborhood section between the existing warm-index and campaign sections", () => {
     expect(start).toBeGreaterThan(0);
@@ -392,9 +396,13 @@ describe("packed verifier v0.6.1 section guards (TST-B4-001, TST-B4-002, TST-B4-
   });
 
   it("drives the installed binaries from the exact tarball, never the source checkout, npm link, or tsx", () => {
-    expect(section).toContain("runInstalledCli(\n      cliCommand,");
-    expect(section).toContain("runInstalledCli(\n      sandboxCliCommand,");
-    expect(section).toContain('["install", "--no-audit", "--no-fund", tarballPath]');
+    expect(section).toMatch(/runInstalledCli\(\s*cliCommand,\s*dirs\.consumer,/);
+    expect(section).toMatch(/runInstalledCli\(\s*sandboxCliCommand,\s*dirs\.mutableConsumer,/);
+    expect(source).toMatch(/const installedPackageRoot = installConsumerPackage\(resolveCommand, \{\s*consumer: dirs\.consumer,\s*tarball: tarballPath,\s*packageName: EXPECTED_PACKAGE_NAME,/);
+    expect(section).toMatch(/const sandboxPackageRoot = installConsumerPackage\(resolveCommand, \{\s*consumer: dirs\.mutableConsumer,\s*tarball: tarballPath,\s*packageName: EXPECTED_PACKAGE_NAME,/);
+    expect(installHelper).toContain('["prefix", "--prefix", consumer], { cwd: consumer, gate }');
+    expect(installHelper).toContain('path.relative(consumer, prefix.stdout.trim()) !== ""');
+    expect(installHelper).toContain('["install", "--prefix", consumer, "--no-audit", "--no-fund", tarball], { cwd: consumer, gate }');
     expect(section).not.toMatch(/compiledBinPath|npm link|\btsx\b|dist\/scripts\/cli\.js|REPO_ROOT, "dist"/);
   });
 
@@ -402,7 +410,9 @@ describe("packed verifier v0.6.1 section guards (TST-B4-001, TST-B4-002, TST-B4-
     expect(section).toContain('["view", UPSTREAM_MY_DEV_KIT_SPEC, "version"]');
     expect(section).not.toContain('["view", UPSTREAM_MY_DEV_KIT_PACKAGE, "version"]');
     expect(section).toContain("BLOCKED_UPSTREAM_MY_DEV_KIT_PIN_UNAVAILABLE");
-    expect(section).toContain('["install", "--no-audit", "--no-fund", UPSTREAM_MY_DEV_KIT_SPEC]');
+    expect(section).toContain('["pack", "--json", "--pack-destination", upstreamPackDir, UPSTREAM_MY_DEV_KIT_SPEC], { cwd: dirs.upstream, gate: upstreamGate }');
+    expect(section).toMatch(/expectedName: UPSTREAM_MY_DEV_KIT_PACKAGE,\s*expectedVersion: UPSTREAM_MY_DEV_KIT_VERSION,\s*tarballFilename: upstreamTarball/);
+    expect(section).toMatch(/const upstreamPackageRoot = installConsumerPackage\(resolveCommand, \{\s*consumer: dirs\.upstream,\s*tarball: path\.join\(upstreamPackDir, upstreamTarball\),\s*packageName: UPSTREAM_MY_DEV_KIT_PACKAGE,/);
     expect(section).not.toMatch(/@latest|fakeKitCommand|fake-my-dev-kit|FAKE_MY_DEV_KIT/);
     expect(source).not.toMatch(/my-dev-kit@latest/);
   });
