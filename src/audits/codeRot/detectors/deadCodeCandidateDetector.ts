@@ -924,6 +924,7 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
   const gaps = new Map<string, { file: string; reason: string }[]>();
   const unsupported = new Map(tests.map(test => [test.relativePath, reader.unsupportedRawContentReason?.(test.relativePath)]));
   const cannotContainBasename = new Map<string, InventoryFileEntry[]>();
+  const exactByteAbsences = new Map<string, InventoryFileEntry[]>();
   // Positive references discharge this heuristic without a negative premise
   // about other inputs. Partial reference inventories may supply witnesses.
   for (const test of tests) {
@@ -988,7 +989,22 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
         continue;
       }
       try {
-        if (unsupportedRaw) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
+        if (unsupportedRaw) {
+          // This predicate compares a literal basename. No decoded line,
+          // parser result, or runtime context is needed for this comparison.
+          const proof = await reader.byteOccurrences?.(test.relativePath, Buffer.from(base, "utf8").toString("hex"));
+          if (proof?.matches.length) {
+            referenced.add(base);
+            continue;
+          }
+          if (proof?.complete && proof.matchCount === 0) {
+            const inputs = exactByteAbsences.get(base) ?? [];
+            inputs.push(test);
+            exactByteAbsences.set(base, inputs);
+            continue;
+          }
+          throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
+        }
         if (reader.authenticatedFixtureContent) {
           throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
             contentGaps.get(test.relativePath) ?? "No complete authenticated fixture content for this selected test input.");
@@ -1037,6 +1053,14 @@ async function findUnreferencedFixtures(ctx: AuditDetectorContext): Promise<Audi
     for (const gap of gaps.get(base) ?? []) {
       unavailable.add(fixture.relativePath);
       ctx.reportUnavailable!(DETECTOR_ID, "unreferenced-fixture " + fixture.relativePath, gap.file, gap.reason, "raw-content");
+    }
+    for (const test of exactByteAbsences.get(base) ?? []) {
+      ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "unreferenced-fixture " + fixture.relativePath,
+        source: { kind: "file", identity: test.relativePath }, capability: "raw-content",
+        actualStatus: "complete", status: "QUALIFIED", mandatory: true, diagnostic: "",
+        reason: "The exact UTF-8 basename has zero matches in the complete authenticated byte scan of this selected input.",
+        proof: { kind: "exact-literal-byte", snapshotId: reader.snapshotId, references: [test.relativePath, base] },
+      });
     }
     for (const test of cannotContainBasename.get(base) ?? []) {
       ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "unreferenced-fixture " + fixture.relativePath,

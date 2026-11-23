@@ -1,4 +1,4 @@
-import { registerKitDeclarationPredicateEvidence, type KitFact, type KitFileRecord, type KitSourceEvidence } from "../../../src/audits/core/kitSourceEvidence.js";
+import { KitSourceEvidenceAcquisitionError, registerKitDeclarationPredicateEvidence, type KitFact, type KitFileRecord, type KitSourceEvidence } from "../../../src/audits/core/kitSourceEvidence.js";
 import { createNotCollectedSourceFacts, type KitSourceReader } from "../../../src/audits/core/kitSourceProvider.js";
 import type { SourceFileFacts } from "../../../src/audits/core/sourceFacts.js";
 import { createRequire } from "node:module";
@@ -688,6 +688,55 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — bounded coverage regression guard", (
 
 // Real whole-repository acquisition performs paged CLI queries for every selected file.
 describe("fixture-reference positive and negative premises", () => {
+  it.each(["absent", "present", "incomplete", "stale"] as const)(
+    "uses authenticated byte occurrences for exact fixture basenames: %s", async outcome => {
+      const root = makeTempDir();
+      try {
+        const input = "tests/data.properties";
+        const target = "fixtures/Core.java";
+        const basename = "Core.java";
+        writeFile(root, input, outcome === "present" ? "\0" + "Core.java\0".repeat(201) : "password=\0x");
+        writeFile(root, target);
+        const ctx = buildContext(root);
+        ctx.config.include = ["tests"];
+        const gaps: string[][] = [];
+        const queries: string[][] = [];
+        const coverage: Parameters<NonNullable<AuditDetectorContext["reportCoverage"]>>[0][] = [];
+        ctx.reportUnavailable = (_id, predicate, file) => { gaps.push([predicate, file]); };
+        ctx.reportCoverage = record => { coverage.push(record); };
+        ctx.kitSourceReader = {
+          snapshotId: "qualified-snapshot",
+          unsupportedRawContentReason: () => "selected input lacks authenticated text",
+          occurrences: async () => { throw new Error("Binary text lookup"); },
+          byteOccurrences: async (file: string, hex: string) => {
+            queries.push([file, hex]);
+            if (outcome === "stale") throw new KitSourceEvidenceAcquisitionError("stale-evidence", "changed binary");
+            if (outcome === "present") return {
+              complete: false, matchCount: 201,
+              matches: Array.from({ length: 200 }, (_, index) => ({ startByte: 1 + 10 * index, endByteExclusive: 10 + 10 * index })),
+            };
+            return { complete: outcome === "absent", matchCount: 0, matches: [] };
+          },
+        } as unknown as AuditDetectorContext["kitSourceReader"];
+
+        const run = DEAD_CODE_CANDIDATE_DETECTOR.run(ctx);
+        if (outcome === "stale") {
+          await expect(run).rejects.toMatchObject({ category: "stale-evidence" });
+        } else {
+          const issues = await run;
+          expect(issues.map(issue => issue.affectedFiles)).toEqual(outcome === "absent" ? [[target]] : []);
+          expect(gaps).toEqual(outcome === "incomplete" ? [["unreferenced-fixture " + target, input]] : []);
+          if (outcome === "absent") expect(coverage).toContainEqual(expect.objectContaining({
+            predicate: "unreferenced-fixture " + target,
+            source: { kind: "file", identity: input }, status: "QUALIFIED",
+            proof: { kind: "exact-literal-byte", snapshotId: "qualified-snapshot", references: [input, basename] },
+          }));
+        }
+        expect(queries).toEqual([[input, "436f72652e6a617661"]]);
+      } finally { cleanup(root); }
+    },
+  );
+
   it("uses the selected byte bound for literal feasibility while retaining a possible binary witness gap", async () => {
     const root = makeTempDir();
     try {
