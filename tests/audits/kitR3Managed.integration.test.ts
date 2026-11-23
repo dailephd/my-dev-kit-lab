@@ -195,7 +195,7 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
 );
 
 it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
-  "uses authenticated large and raw test content while retaining unqualified binary and mixed-range gaps",
+  "uses authenticated large and raw test content while retaining binary context and mixed-range gaps",
   async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "lab-r3-fixture-gap-"));
     const target = path.join(root, "target");
@@ -257,7 +257,7 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     expect(receipt("initial").status).toBe("INCOMPLETE");
     const commands = fs.readdirSync(path.join(evidence, id!));
     expect(commands.some(name => name.endsWith("-source-range-result.json"))).toBe(true);
-    expect(commands.some(name => name.endsWith("-byte-occurrence-initial.json"))).toBe(false);
+    expect(commands.some(name => name.endsWith("-byte-occurrence-initial.json"))).toBe(true);
     expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
       detectorId: "dead-code-candidate", predicate: "fixture literal absence unreferenced-marker.txt",
       source: { kind: "file", identity: "tests/probe.test.mjs" }, status: "QUALIFIED", mandatory: true,
@@ -268,6 +268,11 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     }));
     expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
       detectorId: "dead-code-candidate", predicate: "unreferenced-fixture " + marker,
+      source: { kind: "file", identity: marker }, status: "QUALIFIED", mandatory: true,
+      proof: expect.objectContaining({ kind: "exact-literal-byte" }),
+    }));
+    expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
+      detectorId: "test-rot", predicate: "bounded-content predicates",
       source: { kind: "file", identity: marker }, status: "UNAVAILABLE", mandatory: true,
     }));
     expect(receipt("audit-result").coverage).toContainEqual(expect.objectContaining({
