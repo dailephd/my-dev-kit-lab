@@ -57,8 +57,6 @@ export function isTestRotRawOnlyInput(file: Pick<InventoryFileEntry, "role" | "r
 
 const RELATIVE_IMPORT_PATTERN = /(?:from|require\()\s*["'](\.\.?\/[^"']+)["']/g;
 const NPM_RUN_PATTERN = /npm run ([\w:.-]+)/g;
-const SKIP_PATTERN = /\b(describe|it|test)\.skip\s*\(/g;
-const ONLY_PATTERN = /\b(describe|it|test)\.only\s*\(/g;
 const TEST_TITLE_VERSION_PATTERN = /\b(describe|it|test)\s*\(\s*["'`][^"'`]*\bv(\d+\.\d+\.\d+)\b/;
 const HISTORICAL_HEDGE_PATTERN = /\b(regression|historical|legacy)\b/i;
 const VITEST_RUN_ARG_PATTERN = /vitest run ([^\s&|]+)/g;
@@ -214,8 +212,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         issues.push(...findMissingSourceImportsFromSourceFacts(ctx, testFile.relativePath, parsedFacts, kitMissing));
       }
       issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
-      issues.push(...findSkipUsage(testFile.relativePath, content));
-      issues.push(...findOnlyUsage(testFile.relativePath, content));
+      issues.push(...findTestModifierUsage(ctx, testFile, observed, content));
       if (currentVersion) issues.push(...findStaleVersionMentions(testFile.relativePath, content, currentVersion));
       return issues;
     };
@@ -643,88 +640,77 @@ function findStaleNpmRunReferenceLines(testRelativePath: string, lines: readonly
   return issues;
 }
 
-function findSkipUsage(testRelativePath: string, content: string): AuditIssue[] {
-  const issues: AuditIssue[] = [];
-  const lines = splitLines(content);
-  for (let i = 0; i < lines.length; i++) {
-    SKIP_PATTERN.lastIndex = 0;
-    const match = SKIP_PATTERN.exec(lines[i]);
-    if (!match) continue;
 
-    issues.push(
-      makeCodeRotIssue({
-        auditType: "code-rot",
-        detectorId: DETECTOR_ID,
-        idCues: [testRelativePath, "skip-usage", String(i + 1)],
-        title: `Committed "${match[1]}.skip(" in "${testRelativePath}"`,
-        description: `${testRelativePath}:${i + 1} uses "${match[1]}.skip(" -- confirm this is intentional and not accidentally committed.`,
-        severity: "medium",
-        confidence: "high",
-        falsePositiveRisk: "low",
-        category: "test-rot",
-        recommendedAction: "Remove .skip if the test should run, or add a comment explaining why it is skipped.",
-        suggestedFixStrategy: `Remove "${match[1]}.skip(" at ${testRelativePath}:${i + 1} or document why it is intentionally skipped.`,
-        validationCommands: [`npx vitest run ${testRelativePath}`],
-        releaseBlocking: false,
-        implementationBlocking: false,
-        autoFixEligible: false,
-        evidence: [
-          {
-            kind: "file",
-            message: `Found "${match[1]}.skip(" usage.`,
-            filePath: testRelativePath,
-            line: i + 1,
-            excerpt: lines[i].trim().slice(0, 200),
-            source: DETECTOR_ID,
-            confidence: "high",
-          },
-        ],
-        affectedFiles: [testRelativePath],
-      })
-    );
+function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEntry, observed: SourceFileFacts | undefined, content: string): AuditIssue[] {
+  if (file.language !== "typescript" && file.language !== "javascript") return [];
+  const domain = observed?.kitTestObservations;
+  const snapshot = ctx.sourceFacts?.kitEvidence;
+  const bound = domain && ctx.sourceFacts?.provider === "kit" && snapshot?.traversalComplete &&
+    observed?.relativePath === file.relativePath && domain.contentSha256 === observed.kit?.contentSha256 &&
+    domain.snapshotId === snapshot.snapshotId && domain.selectionFingerprint === snapshot.selectionFingerprint &&
+    domain.snapshotId === ctx.kitSourceReader?.snapshotId;
+  const positives = bound && (domain.producerStatus === "parsed" || domain.producerStatus === "partial") &&
+    (domain.capability === "complete" || domain.capability === "partial") ? domain.observations : [];
+  const complete = bound && domain.capability === "complete" && domain.producerStatus === "parsed";
+
+  if (!complete) {
+    // Raw text can keep a previously checked candidate in scope. It cannot
+    // establish an executable call, or qualify the unknown observation domain.
+    const mandatory = /\b(?:describe|it|test)\s*\.\s*(?:skip|only)\s*\(/.test(content);
+    const reason = "Executable modifier observations are unavailable or incomplete for the selected file.";
+    if (mandatory && !ctx.reportCoverage && ctx.reportUnavailable) {
+      ctx.reportUnavailable(DETECTOR_ID, "executable test modifiers", file.relativePath, reason, "test-observations");
+    } else if (mandatory && !ctx.reportCoverage) {
+      throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    } else {
+      ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "executable test modifiers",
+        source: { kind: "file", identity: file.relativePath }, capability: "test-observations",
+        actualStatus: bound ? domain.capability : "unavailable", status: "UNAVAILABLE", mandatory,
+        diagnostic: "", reason });
+    }
   }
-  return issues;
-}
 
-function findOnlyUsage(testRelativePath: string, content: string): AuditIssue[] {
-  const issues: AuditIssue[] = [];
   const lines = splitLines(content);
-  for (let i = 0; i < lines.length; i++) {
-    ONLY_PATTERN.lastIndex = 0;
-    const match = ONLY_PATTERN.exec(lines[i]);
-    if (!match) continue;
+  const issues: AuditIssue[] = [];
+  for (const fact of positives) {
+    const modifier = fact.observationKind === "test-modifier-only" ? "only"
+      : fact.observationKind === "test-modifier-skip" ? "skip" : undefined;
+    if (!modifier || fact.originPath !== file.relativePath) continue;
 
-    issues.push(
-      makeCodeRotIssue({
-        auditType: "code-rot",
-        detectorId: DETECTOR_ID,
-        idCues: [testRelativePath, "only-usage", String(i + 1)],
-        title: `Committed "${match[1]}.only(" in "${testRelativePath}"`,
-        description: `${testRelativePath}:${i + 1} uses "${match[1]}.only(" -- this silently excludes every other test in a CI run and is almost always accidental.`,
-        severity: "high",
+    const line = fact.provenance.startLine;
+    const focus = modifier === "only";
+    const call = `${fact.name}.${modifier}(`;
+    issues.push(makeCodeRotIssue({
+      auditType: "code-rot",
+      detectorId: DETECTOR_ID,
+      idCues: [file.relativePath, modifier + "-usage", String(line)],
+      title: `Committed "${call}" in "${file.relativePath}"`,
+      description: `${file.relativePath}:${line} uses "${call}" -- ` + (focus
+        ? "this silently excludes every other test in a CI run and is almost always accidental."
+        : "confirm this is intentional and not accidentally committed."),
+      severity: focus ? "high" : "medium",
+      confidence: "high",
+      falsePositiveRisk: "low",
+      category: "test-rot",
+      recommendedAction: focus ? "Remove .only before committing/merging."
+        : "Remove .skip if the test should run, or add a comment explaining why it is skipped.",
+      suggestedFixStrategy: `Remove "${call}" at ${file.relativePath}:${line}` +
+        (focus ? "." : " or document why it is intentionally skipped."),
+      validationCommands: [`npx vitest run ${file.relativePath}`],
+      releaseBlocking: focus,
+      implementationBlocking: false,
+      autoFixEligible: false,
+      evidence: [{
+        kind: "file",
+        message: `Found "${call}" usage.`,
+        filePath: file.relativePath,
+        line,
+        excerpt: (lines[line - 1]?.trim() || call).slice(0, 200),
+        source: DETECTOR_ID,
         confidence: "high",
-        falsePositiveRisk: "low",
-        category: "test-rot",
-        recommendedAction: "Remove .only before committing/merging.",
-        suggestedFixStrategy: `Remove "${match[1]}.only(" at ${testRelativePath}:${i + 1}.`,
-        validationCommands: [`npx vitest run ${testRelativePath}`],
-        releaseBlocking: true,
-        implementationBlocking: false,
-        autoFixEligible: false,
-        evidence: [
-          {
-            kind: "file",
-            message: `Found "${match[1]}.only(" usage.`,
-            filePath: testRelativePath,
-            line: i + 1,
-            excerpt: lines[i].trim().slice(0, 200),
-            source: DETECTOR_ID,
-            confidence: "high",
-          },
-        ],
-        affectedFiles: [testRelativePath],
-      })
-    );
+      }],
+      affectedFiles: [file.relativePath],
+    }));
   }
   return issues;
 }

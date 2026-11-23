@@ -307,6 +307,29 @@ describe("snapshot adaptation", () => {
     expect(qualifyKitImportPredicate(unsupported)).toBe("UNAVAILABLE");
   });
 
+
+  it("carries authenticated observation identity, capability, and source spans independently of imports", () => {
+    const input = evidence();
+    const entry = input.inventory[1]!;
+    entry.capabilities["test-observations"] = "partial";
+    const original = fact(entry.path, 2, { kind: "test-observation", observationKind: "test-modifier-only", name: "describe" });
+    input.fileEvidence.set(entry.path, { record: entry, factPages: 1, facts: [original] });
+    const options = { evidence: input, inventory: { files: [labEntry(entry.path, "test")] } as never,
+      targetRoot: "C:/t", requiredCapabilities: [] };
+    expect(adaptKitEvidenceToSourceFacts(options).files[0]?.kitTestObservations).toEqual({
+      snapshotId: input.snapshotId, selectionFingerprint: input.source.selectionFingerprint, contentSha256: HASH,
+      capability: "partial", producerStatus: "parsed",
+      observations: [expect.objectContaining({ kind: "test-observation", observationKind: "test-modifier-only",
+        originPath: entry.path, name: "describe", provenance: { producer: "kit", factId: original.id,
+          extractionMethod: "typescript-ast", startLine: 2, startColumn: 0, endLine: 2, endColumn: 8 } })],
+    });
+    input.traversalComplete = false;
+    expect(adaptKitEvidenceToSourceFacts(options).files[0]?.kitTestObservations).toBeUndefined();
+    input.traversalComplete = true;
+    input.fileEvidence.delete(entry.path);
+    expect(adaptKitEvidenceToSourceFacts(options).files[0]?.kitTestObservations).toBeUndefined();
+  });
+
   function evidence(): KitSourceEvidence {
     const records = [record("src/a.ts"), record("tests/unknownrole.test.ts", { role: "unknown" }), record("fixtures/x.ts", { role: "unknown" })];
     return {

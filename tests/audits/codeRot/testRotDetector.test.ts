@@ -858,3 +858,49 @@ async function executeWithKit(ctx: AuditDetectorContext) {
   if (path.resolve(ctx.target.rootPath) === path.resolve(process.cwd())) return selfRun ??= perform();
   return perform();
 }
+
+describe("authenticated executable test modifiers", () => {
+  it("keeps real modifiers in a fixture test and rejects comments and generated data", async () => {
+    const root = makeTempDir();
+    try {
+      const file = "tests/fixtures/actual.test.ts";
+      writeFile(root, "package.json", JSON.stringify({ name: "modifier-facts", scripts: {} }));
+      writeFile(root, file, [
+        '// test.only("comment", () => {});',
+        'const generated = "test.only(\\"fixture\\", () => {});";',
+        'const example = `describe.skip("template", () => {});`;',
+        'test.only("real", () => {});', 'it.only("real", () => {});', 'describe.only("real", () => {});',
+        'test.skip("real", () => {});', 'it.skip("real", () => {});', 'describe.skip("real", () => {});',
+      ].join("\n"));
+      const issues = (await run(root)).filter(issue => /:(?:skip|only)-usage:/.test(issue.id));
+      expect(issues.map(issue => issue.id)).toEqual([
+        "only-usage:4", "only-usage:5", "only-usage:6", "skip-usage:7", "skip-usage:8", "skip-usage:9",
+      ].map(suffix => "test-rot:" + file + ":" + suffix));
+      expect(issues.find(issue => issue.id.endsWith(":only-usage:4"))).toMatchObject({
+        severity: "high", releaseBlocking: true, evidence: [{ filePath: file, line: 4 }],
+      });
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("retains a proven focus finding while the shadowed modifier domain stays unavailable", async () => {
+    const root = makeTempDir();
+    try {
+      const file = "tests/check.test.ts";
+      writeFile(root, "package.json", "{}");
+      writeFile(root, file, [
+        'const test = { only: (label: string) => label };',
+        'test.only("not a framework call");',
+        'it.only("genuine", () => {});',
+      ].join("\n"));
+      const ctx = buildContext(root);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.issues.filter(issue => issue.severity === "high").map(issue => issue.id))
+        .toEqual(["test-rot:" + file + ":only-usage:3"]);
+      expect(result.coverage).toContainEqual(expect.objectContaining({
+        detectorId: "test-rot", capability: "test-observations", status: "UNAVAILABLE", mandatory: true,
+        source: { kind: "file", identity: file },
+      }));
+      expect(result.exitCode).toBe(2);
+    } finally { cleanup(root); }
+  }, 120000);
+});

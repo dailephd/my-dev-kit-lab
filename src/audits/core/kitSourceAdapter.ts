@@ -6,6 +6,7 @@ import {
   type ExportFact,
   type ExportFactKind,
   type ImportFact,
+  type KitTestObservation,
   type SourceFactDiagnostic,
   type SourceFactParseStatus,
   type SourceFactProvenance,
@@ -266,7 +267,6 @@ export function adaptKitFile(
       if (fact.kind === "import") imports.push(adaptKitImport(fact));
       else if (fact.kind === "export") exports.push(adaptKitExport(fact));
       else if (fact.kind === "declaration") declarations.push(adaptKitDeclaration(fact));
-      // Observation families are kept in Kit evidence; Gate 3 does not map them.
     }
   }
 
@@ -278,6 +278,20 @@ export function adaptKitFile(
     declarations,
     references: [],
     diagnostics: diagnosticsFor(record, analyzerId, extra),
+  };
+}
+
+function adaptTestObservation(fact: KitFact): KitTestObservation | undefined {
+  if (fact.kind !== "test-observation" || !fact.observationKind) return undefined;
+  return {
+    kind: fact.kind,
+    originPath: fact.span.path,
+    observationKind: fact.observationKind,
+    name: fact.name,
+    value: fact.value,
+    valueSha256: fact.valueSha256,
+    valueTruncated: fact.valueTruncated,
+    provenance: provenanceOf(fact),
   };
 }
 
@@ -311,6 +325,22 @@ export function adaptKitEvidenceToSourceFacts(options: AdaptKitEvidenceOptions):
     const required = options.capabilitiesForPath?.(entry.relativePath) ?? requiredCapabilities;
     const file = adaptKitFile(fileEvidence, exact, entry,
       options.deferPartialImports && hasQualifiedPartialImports(exact) ? required.filter(c => c !== "imports") : required);
+    const capability = exact.capabilities["test-observations"];
+    if (fileEvidence && evidence.traversalComplete && evidence.coverage.inventoryComplete &&
+        exact.path === entry.relativePath && exact.contentSha256 && exact.contentSha256 === record.contentSha256 &&
+        /^[a-f0-9]{64}$/.test(evidence.snapshotId) && evidence.snapshotId === evidence.source.snapshotId &&
+        /^[a-f0-9]{64}$/.test(evidence.source.selectionFingerprint)) {
+      const observations = fileEvidence.facts.map(adaptTestObservation)
+        .filter((fact): fact is KitTestObservation => fact !== undefined);
+      file.kitTestObservations = {
+        snapshotId: evidence.snapshotId,
+        selectionFingerprint: evidence.source.selectionFingerprint,
+        contentSha256: exact.contentSha256,
+        capability,
+        producerStatus: exact.status,
+        observations,
+      };
+    }
     registerKitDeclarationPredicateEvidence(file, evidence);
     files.push(file);
   }

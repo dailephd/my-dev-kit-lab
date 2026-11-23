@@ -1,3 +1,6 @@
+import { registerKitDeclarationPredicateEvidence, type KitFact, type KitFileRecord, type KitSourceEvidence } from "../../../src/audits/core/kitSourceEvidence.js";
+import { createNotCollectedSourceFacts, type KitSourceReader } from "../../../src/audits/core/kitSourceProvider.js";
+import type { SourceFileFacts } from "../../../src/audits/core/sourceFacts.js";
 import { createRequire } from "node:module";
 import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
@@ -784,3 +787,118 @@ async function executeWithKit(ctx: AuditDetectorContext) {
   if (path.resolve(ctx.target.rootPath) === path.resolve(process.cwd())) return selfRun ??= perform();
   return perform();
 }
+
+describe("R3 script origin reconciliation", () => {
+  const controls = [
+    ["scripts/check-docs.mjs", "SW123-G0007", "SW123-G0008"],
+    ["scripts/clean-dist.mjs", "SW123-G0009", "SW123-G0010"],
+    ["scripts/externalLocalPrivacyScan.ts", "SW123-G0021", "SW123-G0022"],
+    ["scripts/run-verification-lane.mjs", "SW123-G0039", "SW123-G0040"],
+    ["scripts/security/resolveToolRoot.ts", "SW123-G0043", "SW123-G0044"],
+    ["scripts/verifyPackedPackageAgentSuccess.mjs", "SW123-G0065", "SW123-G0066"],
+    ["scripts/verifyPackedPackageHelpers.ts", "SW123-G0067", "SW123-G0068"],
+  ] as const;
+  const predicates = ["unreferenced-script-file", "unreferenced-source-file"];
+  const snapshotId = "a".repeat(64);
+
+  function context(root: string, domain?: "partial" | "indeterminate" | "different snapshot" | "missing" | "positive") {
+    writeFile(root, "package.json", JSON.stringify({ scripts: { unrelated: "node elsewhere.mjs" } }));
+    writeFile(root, "src/old/dormant.ts", "export {};");
+    writeFile(root, "scripts/referenced.mjs", "export {};");
+    for (const [file] of controls) writeFile(root, file, 'import "node:fs";');
+    const dynamic = "scripts/unknown.mjs";
+    writeFile(root, dynamic, "import(target);");
+    const ctx = buildContext(root);
+    ctx.config.include = ["package", "cli"];
+    const evidence = {
+      snapshotId, traversalComplete: true, coverage: { inventoryComplete: true },
+      fileEvidence: new Map(),
+    } as KitSourceEvidence;
+    const files = [...new Set([...ctx.inventory.scriptFiles, ...ctx.inventory.sourceFiles])].map(entry => {
+      const id = entry.relativePath;
+      const builtin = controls.some(([file]) => file === id);
+      const partial = id === dynamic && !!domain;
+      const capabilities = { imports: partial ? "partial" : "complete", exports: "complete" } as const;
+      const kit = { capabilities, contentSha256: "b".repeat(64), producerStatus: "parsed", producerLanguage: entry.language, producerRole: entry.role };
+      const imports: SourceFileFacts["imports"] = builtin ? [{
+        source: "node:fs", kind: "static",
+        provenance: { producer: "kit", factId: id, startLine: 1, startColumn: 0, endLine: 1, endColumn: 16, extractionMethod: "typescript-ast" },
+      }] : [];
+      const file: SourceFileFacts = {
+        relativePath: id, role: entry.role, language: entry.language, kit, parseStatus: "parsed",
+        analyzerId: "kit:typescript-ast", imports, declarations: [], exports: [], references: [], diagnostics: [],
+      };
+      evidence.fileEvidence.set(id, {
+        record: { path: id, contentSha256: kit.contentSha256, status: "parsed", capabilities } as KitFileRecord,
+        facts: builtin ? [{ id, kind: "import", sourceSpecifier: "node:fs", span: { path: id, startLine: 1 } } as KitFact] : [],
+        factPages: 1,
+      });
+      registerKitDeclarationPredicateEvidence(file, evidence);
+      return file;
+    });
+    ctx.sourceFacts = { ...createNotCollectedSourceFacts(root), provider: "kit", files };
+    ctx.kitSourceReader = {
+      snapshotId,
+      producer: { packageName: "@dailephd/my-dev-kit", packageVersion: "1.15.1" },
+      selectedFile: file => evidence.fileEvidence.get(file)!.record,
+      occurrences: async () => { throw new Error("Unexpected raw occurrence request"); },
+      importTarget: async () => { throw new Error("Unexpected ordinary import proof request"); },
+      dispose: () => undefined,
+      expressionDomains: async file => {
+        if (file !== dynamic || !domain || domain === "missing") return [];
+        return [{ proof: { expressionFactId: "dynamic", snapshotId: domain === "different snapshot" ? "c".repeat(64) : snapshotId,
+          outcome: domain === "positive" ? "finite" : "indeterminate", reasonCode: "INCOMPLETE_REFERENCE_PROFILE",
+          domainComplete: domain === "positive", positivePaths: domain === "positive" ? ["scripts/referenced.mjs"] : [],
+          excludesSelectedDomain: false } }];
+      },
+      reExportTargets: () => [],
+    } as KitSourceReader;
+    const gaps: string[] = [];
+    ctx.reportUnavailable = (_detector, predicate, origin) => { gaps.push(origin + "|" + predicate); };
+    return { ctx, gaps, dynamic };
+  }
+
+  it("reconciles all fourteen retained origin/predicate pairs and keeps unrelated unknown coverage", async () => {
+    const root = makeTempDir();
+    try {
+      const { ctx, gaps, dynamic } = context(root, "indeterminate");
+      const qualified: string[] = [];
+      ctx.reportCoverage = record => {
+        if (record.actualStatus === "disjoint-selected-domain") qualified.push(record.source.identity + "|" + record.predicate);
+      };
+      const issues = await DEAD_CODE_CANDIDATE_DETECTOR.run(ctx);
+      for (const [origin, ...gapIds] of controls) {
+        for (const [i, predicate] of predicates.entries()) {
+          expect(qualified, gapIds[i]).toContain(origin + "|" + predicate);
+          expect(gaps, gapIds[i]).not.toContain(origin + "|" + predicate);
+        }
+      }
+      for (const predicate of predicates) expect(gaps).toContain(dynamic + "|" + predicate);
+      expect(issues.some(issue => issue.affectedFiles.includes("src/old/dormant.ts"))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it.each(["partial", "missing", "positive"] as const)("keeps the unknown %s origin independent of qualified siblings", async domain => {
+    const root = makeTempDir();
+    try {
+      const { ctx, gaps, dynamic } = context(root, domain);
+      const issues = await DEAD_CODE_CANDIDATE_DETECTOR.run(ctx);
+      expect(gaps).toContain(dynamic + "|unreferenced-source-file");
+      expect(issues.some(issue => issue.affectedFiles.includes("scripts/referenced.mjs"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("rejects an expression proof from a different snapshot before reporting any discharge", async () => {
+    const root = makeTempDir();
+    try {
+      const { ctx } = context(root, "different snapshot");
+      await expect(DEAD_CODE_CANDIDATE_DETECTOR.run(ctx)).rejects.toThrow(/different Kit snapshot/);
+    } finally {
+      cleanup(root);
+    }
+  });
+});

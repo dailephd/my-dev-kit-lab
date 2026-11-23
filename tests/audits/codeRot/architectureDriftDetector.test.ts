@@ -196,3 +196,63 @@ describe("ARCHITECTURE_DRIFT_DETECTOR — real self-scan regression guard", () =
     );
   });
 });
+
+describe("architecture claims with qualified context", () => {
+  it("separates the original SW-123 introduction, path example, and later implementation claim", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ scripts: { audit: "tsx scripts/audit.ts" } }));
+      writeFile(root, "src/audits/core/runner.ts", "export {};");
+      const content = [
+        "This document records the repository's operational state. It is the source of truth for what is implemented, planned, blocked, validated, and next.",
+        "The audit framework is implemented.",
+        'An ordinary source file named `src/build` remains eligible under the configured globs.',
+        "## Historical v0.9.7",
+        "The audit framework is planned.",
+        "## Current",
+        "~~~md", "The audit framework is planned.", "~~~",
+        "> The audit framework is planned.",
+        'An example says "the audit framework is planned."',
+        "The audit framework is implemented. The quality audit type is planned.",
+      ].join("\n");
+      writeFile(root, "docs/CURRENT_STATE.md", content);
+      expect(await run(root)).toEqual([]);
+      writeFile(root, "docs/CURRENT_STATE.md", content + "\nThe audit framework is not yet implemented.\n");
+      expect((await run(root)).map(issue => issue.id)).toContain(
+        "architecture-drift:docs/CURRENT_STATE.md:audit-framework-planned-but-implemented",
+      );
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it.each([
+    ["alternate", { "android:validate": "node tooling/mobile-check.mjs" }, "implemented"],
+    ["canonical", { "security:validate": "tsx tooling/validate.ts" }, "implemented"],
+    ["missing entry", { "android:validate": "node tooling/missing.mjs" }, "unknown"],
+    ["unrelated filename", {}, "absent"],
+  ] as const)("qualifies the %s Android registration", async (kind, scripts, expected) => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ scripts }));
+      writeFile(root, "docs/CURRENT_STATE.md", "Android validation is implemented.\n");
+      if (kind === "alternate") writeFile(root, "tooling/mobile-check.mjs",
+        "export function validateAndroid(manifest) { return manifest.includes('manifest'); }\nvalidateAndroid(process.argv[2]);\n");
+      if (kind === "canonical") {
+        writeFile(root, "tooling/validate.ts", "import { runSecurityValidationCommand } from '../src/commands/runSecurityValidationCommand.js';\nrunSecurityValidationCommand();");
+        writeFile(root, "src/commands/runSecurityValidationCommand.ts", 'export function runSecurityValidationCommand() { if (config.profile === "android") return validate(); }');
+        writeFile(root, "src/securityValidation/index.ts", "export {};");
+        writeFile(root, "src/mobile/android/validate/implementation.ts", "export function validate() {}");
+      }
+      if (kind === "unrelated filename") writeFile(root, "src/mobile/android/validate/validateAndroidTarget.ts", "export const sampleLabel = 'Android validation';");
+      const ctx = buildContext(root);
+      const coverage: string[] = [];
+      ctx.reportCoverage = record => coverage.push(record.status);
+      const result = await ARCHITECTURE_DRIFT_DETECTOR.run(ctx);
+      expect(result.filter(issue => issue.id.endsWith(":android-validation"))).toHaveLength(expected === "absent" ? 1 : 0);
+      expect(coverage).toEqual(expected === "absent" ? [] : [expected === "implemented" ? "QUALIFIED" : "UNDETERMINED"]);
+    } finally {
+      cleanup(root);
+    }
+  });
+});

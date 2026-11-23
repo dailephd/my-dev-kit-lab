@@ -12,6 +12,7 @@ import {
   isNegatedNearby,
 } from "../utils/docClaimPatterns.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
+import { androidValidationImplementation, type AndroidImplementation } from "../utils/androidValidationEvidence.js";
 import { splitLines } from "../utils/textLines.js";
 
 // ---------------------------------------------------------------------------
@@ -37,12 +38,13 @@ const MAX_DOC_READ_BYTES = 200_000;
 type FeatureCheckContext = {
   sourceOfTruth: SourceOfTruthSnapshot;
   jvmMetadata: JvmProjectMetadataSnapshot;
+  androidImplementation: AndroidImplementation;
 };
 type FeatureCheck = {
   featureId: string;
   label: string;
   subjectPattern: string;
-  isImplemented: (ctx: FeatureCheckContext) => boolean;
+  isImplemented: (ctx: FeatureCheckContext) => boolean | undefined;
 };
 
 // Deliberately small and conservative -- only features with an unambiguous,
@@ -88,16 +90,8 @@ const FEATURE_CHECKS: readonly FeatureCheck[] = [
     // appearing later in the same sentence about the adapter would
     // falsely match as an Android claim).
     subjectPattern: "(?<!non-)Android(?: validation| support)?",
-    // Android automated validation is not implemented anywhere in this
-    // project (see the v0.3.x/v0.4.x roadmap) -- this is a permanently
-    // false signal, not a metadata lookup, so a claim that it is
-    // implemented/current is always a genuine mismatch until a future
-    // version actually builds it. This does not implement any Android
-    // detection itself (no AndroidManifest.xml/Gradle-Android-plugin/
-    // Compose/AGP/SDK/emulator awareness) -- it only reuses the existing
-    // current-vs-planned claim mechanism for a feature this project
-    // already knows, out of band, does not exist.
-    isImplemented: () => false,
+    isImplemented: ({ androidImplementation }) => androidImplementation === "unknown" ? undefined
+      : androidImplementation === "implemented",
   },
 ];
 
@@ -185,7 +179,8 @@ export const DOCS_CODE_MISMATCH_DETECTOR: AuditDetector = {
     // this codebase (see testRotDetector.ts). Never runs Gradle/Maven/any
     // JVM tooling.
     const jvmMetadata = collectJvmProjectMetadata(ctx.target.rootPath, ctx.inventory);
-    const featureCtx: FeatureCheckContext = { sourceOfTruth: ctx.sourceOfTruth, jvmMetadata };
+    const featureCtx: FeatureCheckContext = { sourceOfTruth: ctx.sourceOfTruth, jvmMetadata,
+      androidImplementation: androidValidationImplementation(ctx) };
     const knownJvmDeclarationNames = collectKnownJvmDeclarationNames(ctx);
 
     for (const docFile of ctx.inventory.docsFiles) {
@@ -202,6 +197,7 @@ export const DOCS_CODE_MISMATCH_DETECTOR: AuditDetector = {
           }
           const currentMatch = currentClaimPatternFor(feature.subjectPattern).test(line);
           const plannedMatch = plannedClaimPatternFor(feature.subjectPattern).test(line);
+          if (!currentMatch && !plannedMatch) continue;
           const implemented = feature.isImplemented(featureCtx);
 
           if (currentMatch && plannedMatch) {
@@ -214,7 +210,12 @@ export const DOCS_CODE_MISMATCH_DETECTOR: AuditDetector = {
             continue;
           }
 
-          if (currentMatch && !implemented) {
+          if (implemented === undefined) {
+            ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "documented Android validation implementation",
+              source: { kind: "file", identity: docFile.relativePath }, capability: "command-registration",
+              actualStatus: "unknown", status: "UNDETERMINED", mandatory: false, diagnostic: "",
+              reason: "The available command registration and source do not settle this claim." });
+          } else if (currentMatch && !implemented) {
             issues.push(
               makeCurrentButMissingIssue(docFile.relativePath, i + 1, line, feature)
             );

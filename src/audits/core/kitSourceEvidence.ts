@@ -753,6 +753,15 @@ export function validateKitFact(value: unknown, label: string, filePath: string,
       validateKitRelativePath(entry, `${label}.targetPaths[${index}]`)
     );
   }
+  if (fact.kind === "test-observation" && !fact.observationKind) {
+    fail("page-invalid", label + " test observation requires an observation kind.");
+  }
+  if (fact.kind === "test-observation" &&
+      (fact.observationKind === "test-modifier-only" || fact.observationKind === "test-modifier-skip") &&
+      (!/^(?:describe|it|test)$/.test(fact.name ?? "") || fact.extractionMethod !== "typescript-ast" ||
+       !validExpressionSpan(fact.span))) {
+    fail("page-invalid", label + " modifier observation has an invalid runner name, method or span.");
+  }
   if (fact.kind === "import" && fact.sourceSpecifier === undefined) {
     fail("page-invalid", `${label} is an import fact without sourceSpecifier.`);
   }

@@ -28,6 +28,7 @@ import { isJvmLifecycleOrConventionalDeclarationName, jvmImportSimpleName, jvmIm
 // ---------------------------------------------------------------------------
 
 const DETECTOR_ID = "dead-code-candidate";
+const SCRIPT_ORIGIN_PROOF_REQUIRED = "Script reference origins require a qualified R3 selected-domain proof.";
 export const MAX_READ_BYTES = 200_000;
 const OLD_DIR_SEGMENT_PATTERN = /^(old|deprecated|legacy|_archive)$/i;
 const ORPHAN_GENERATED_PATTERN = /\.generated\.|\.bak$|\.orig$/;
@@ -98,6 +99,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     // Try at most one indexed ordinary-import witness per candidate. Other
     // possible resolutions stay open if that proof cannot confirm the target.
     const triedIndexedTargets = new Set<string>();
+    const disjointScriptOrigins = new Map<string, Set<string>>();
     const pendingFileGaps: { path: string; predicate: string; reason: string; possibleTargets?: ReadonlySet<string> }[] = [];
     if (predicates.length === 0) {
       // No semantic import inventory is consumed when every absence family
@@ -128,7 +130,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     if (r3 && filePredicates.size) {
       for (const script of ctx.inventory.scriptFiles) {
         if (script.role !== "config") unavailable(script.relativePath,
-          "Script reference origins require a qualified R3 selected-domain proof.", [...filePredicates.keys()]);
+          SCRIPT_ORIGIN_PROOF_REQUIRED, [...filePredicates.keys()]);
       }
     }
     if (predicates.length && ctx.sourceFacts?.provider === "kit") {
@@ -171,6 +173,9 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
           }
           const reader = ctx.kitSourceReader!;
           const domains = await r3(entry.relativePath);
+          if (domains.some(({ proof }) => proof.snapshotId !== reader.snapshotId)) {
+            throw new KitSourceEvidenceAcquisitionError("snapshot-mismatch", "Reverse-reference proof belongs to a different Kit snapshot.");
+          }
           const linked = new Set(domains.map(d => d.linkedImportFactId));
           for (const { proof } of domains) for (const target of proof.positivePaths) {
             exactReferences.add(target);
@@ -264,6 +269,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
               domains.every(d => d.proof.selectedTargetUpperBound !== undefined);
             const possibleTargets = bounded ? new Set(domains.flatMap(d => d.proof.selectedTargetUpperBound!)) : undefined;
             if (possibleTargets?.size === 0) {
+              disjointScriptOrigins.set(entry.relativePath, new Set(affected));
               for (const predicate of affected) ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate,
                 source: { kind: "file", identity: entry.relativePath }, capability: "imports",
                 actualStatus: "disjoint-selected-domain", status: "QUALIFIED", mandatory: false, diagnostic: "",
@@ -335,6 +341,8 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       !exactReferences.has(candidate) && (!gap.possibleTargets || gap.possibleTargets.has(candidate));
     for (const gap of pendingFileGaps) {
       if (!remainingFilePredicates.has(gap.predicate)) continue;
+      if (gap.reason === SCRIPT_ORIGIN_PROOF_REQUIRED &&
+          disjointScriptOrigins.get(gap.path)?.has(gap.predicate)) continue;
       if (filePredicates.get(gap.predicate)!.some(candidate => blocks(gap, candidate.relativePath))) {
         reportGap(gap.path, gap.predicate, gap.reason);
       }

@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
-import { currentClaimPatternFor } from "../utils/docClaimPatterns.js";
+import { currentClaimPatternFor, plannedClaimPatternFor } from "../utils/docClaimPatterns.js";
+import { splitLines } from "../utils/textLines.js";
+import { androidValidationImplementation, type AndroidImplementation } from "../utils/androidValidationEvidence.js";
 import { readBoundedFileText } from "../utils/boundedRead.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
 
@@ -30,7 +32,7 @@ const CURRENT_STATE_DOC_BASENAMES = new Set(["architecture.md", "current_state.m
 const BACKTICK_SRC_PATH_PATTERN = /`(src\/[\w./-]+|scripts\/[\w./-]+)`/g;
 const HISTORICAL_FRAMING_PATTERN = /\b(historical|previously|used to|no longer|removed|deprecated)\b/i;
 const PLANNED_FRAMING_PATTERN = /\b(planned|future|roadmap|not (?:yet )?implemented)\b/i;
-const AUDIT_FRAMEWORK_SUBJECT_PATTERN = /\baudit (?:framework|contracts)\b|\bcode rot detector\b/i;
+const AUDIT_FRAMEWORK_SUBJECT = "(?:audit (?:framework|contracts)|code rot detector)";
 const MIN_SOURCE_FILES_FOR_MAJOR_DIR = 3;
 
 export const ARCHITECTURE_DRIFT_DETECTOR: AuditDetector = {
@@ -48,9 +50,7 @@ export const ARCHITECTURE_DRIFT_DETECTOR: AuditDetector = {
   },
   run: (ctx: AuditDetectorContext): AuditIssue[] => {
     const issues: AuditIssue[] = [];
-    const hasAndroidValidationSource = fs.existsSync(
-      path.join(ctx.target.rootPath, "src", "mobile", "android", "validate", "validateAndroidTarget.ts")
-    );
+    const androidImplementation = androidValidationImplementation(ctx);
     const currentStateDocs = ctx.inventory.docsFiles.filter((f) => CURRENT_STATE_DOC_BASENAMES.has(path.basename(f.relativePath).toLowerCase()));
 
     for (const docFile of currentStateDocs) {
@@ -73,12 +73,54 @@ export const ARCHITECTURE_DRIFT_DETECTOR: AuditDetector = {
     for (const docFile of ctx.inventory.docsFiles) {
       const content = readBoundedFileText(ctx.target.rootPath, docFile.relativePath, docFile.sizeBytes, MAX_READ_BYTES);
       if (content === null) continue;
-      issues.push(...findUnsupportedCurrentClaims(docFile.relativePath, content, hasAndroidValidationSource));
+      issues.push(...findUnsupportedCurrentClaims(ctx, docFile.relativePath, content, androidImplementation));
     }
 
     return deduplicateIssuesById(issues);
   },
 };
+
+
+type ClaimContext = "current" | "planned" | "historical";
+
+function architectureClaimLines(content: string) {
+  const headings: { level: number; context: ClaimContext | undefined }[] = [];
+  let fence: string | undefined;
+  let plannedList = false;
+  const lines: { line: string; prose: string; context: ClaimContext }[] = [];
+  for (const line of splitLines(content)) {
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (marker && (!fence || (marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()))) {
+      fence = fence ? undefined : marker[1];
+      continue;
+    }
+    if (fence || /^\s*>|^ {4}\S/.test(line)) continue;
+    const heading = /^ {0,3}(#{1,6})\s+(.+)$/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      while (headings.length && headings.at(-1)!.level >= level) headings.pop();
+      const title = heading[2];
+      const context = /\b(?:historical|history|archived|previous releases?)\b|^v\d+\.\d+/i.test(title) ? "historical"
+        : PLANNED_FRAMING_PATTERN.test(title) && !/\bversus\b/i.test(title) ? "planned"
+        : /^(?:current|implemented)\b/i.test(title) ? "current" : undefined;
+      headings.push({ level, context });
+      plannedList = false;
+      continue;
+    }
+    const prose = line.replace(/(`+).*?\1|"[^"]*"/g, " ");
+    if (/^\s*(?:the following|features?)\b.*\b(?:planned|not implemented)\b.*:\s*$/i.test(prose)) {
+      plannedList = true;
+      continue;
+    }
+    const listItem = /^\s*[-*]\s+/.test(prose);
+    if (prose.trim() && !listItem) plannedList = false;
+    const enclosing = headings.some(item => item.context === "historical") ? "historical"
+      : [...headings].reverse().find(item => item.context)?.context ?? "current";
+    const context = enclosing === "current" && plannedList && listItem ? "planned" : enclosing;
+    lines.push({ line, prose, context });
+  }
+  return lines;
+}
 
 function pathExistsInInventoryOrDisk(ctx: AuditDetectorContext, claimedPath: string): boolean {
   const trimmed = claimedPath.replace(/\/$/, "");
@@ -95,55 +137,51 @@ function findStaleOrMissingBacktickPaths(ctx: AuditDetectorContext, docRelativeP
   const issues: AuditIssue[] = [];
   const seen = new Set<string>();
 
-  BACKTICK_SRC_PATH_PATTERN.lastIndex = 0;
-  for (const match of content.matchAll(BACKTICK_SRC_PATH_PATTERN)) {
-    const claimedPath = match[1];
-    if (seen.has(claimedPath)) continue;
-    seen.add(claimedPath);
-    if (pathExistsInInventoryOrDisk(ctx, claimedPath)) continue;
+  for (const { line, context } of architectureClaimLines(content)) {
+    if (context !== "current" || /\b(?:if|hypothetical|for example|when present|file named|named)\b/i.test(line)) continue;
+    for (const match of line.matchAll(BACKTICK_SRC_PATH_PATTERN)) {
+      const claimedPath = match[1];
+      if (seen.has(claimedPath) || pathExistsInInventoryOrDisk(ctx, claimedPath)) continue;
+      seen.add(claimedPath);
+      const isHistorical = HISTORICAL_FRAMING_PATTERN.test(line);
 
-    const matchIndex = match.index ?? 0;
-    const windowStart = Math.max(0, matchIndex - 200);
-    const windowEnd = Math.min(content.length, matchIndex + claimedPath.length + 200);
-    const window = content.slice(windowStart, windowEnd);
-    const isHistorical = HISTORICAL_FRAMING_PATTERN.test(window);
-
-    issues.push(
-      makeCodeRotIssue({
-        auditType: "code-rot",
-        detectorId: DETECTOR_ID,
-        idCues: [docRelativePath, isHistorical ? "stale-path-mention" : "claimed-path-missing", claimedPath],
-        title: isHistorical
-          ? `${docRelativePath} mentions a stale (historically-framed) path: "${claimedPath}"`
-          : `${docRelativePath} claims path "${claimedPath}" exists, but it does not`,
-        description: isHistorical
-          ? `${docRelativePath} mentions "${claimedPath}" with historical framing, and the path no longer exists on disk. Low-severity because it is explicitly framed as historical.`
-          : `${docRelativePath} references "${claimedPath}" as a current path (backtick code span), but no such file or directory exists in the project.`,
-        severity: isHistorical ? "low" : "medium",
-        confidence: isHistorical ? "medium" : "medium",
-        falsePositiveRisk: "medium",
-        category: "architecture-drift",
-        recommendedAction: isHistorical
-          ? `Confirm whether the historical reference to "${claimedPath}" is still useful context.`
-          : `Update ${docRelativePath} to reference an existing path, or restore/implement "${claimedPath}".`,
-        suggestedFixStrategy: `Correct or remove the "${claimedPath}" reference in ${docRelativePath}.`,
-        validationCommands: ["npm run audit -- --types code-rot --include architecture,docs"],
-        releaseBlocking: false,
-        implementationBlocking: false,
-        autoFixEligible: false,
-        evidence: [
-          {
-            kind: "file",
-            message: "Backtick-quoted path does not exist on disk.",
-            filePath: docRelativePath,
-            excerpt: claimedPath,
-            source: DETECTOR_ID,
-            confidence: "medium",
-          },
-        ],
-        affectedFiles: [docRelativePath],
-      })
-    );
+      issues.push(
+        makeCodeRotIssue({
+          auditType: "code-rot",
+          detectorId: DETECTOR_ID,
+          idCues: [docRelativePath, isHistorical ? "stale-path-mention" : "claimed-path-missing", claimedPath],
+          title: isHistorical
+            ? `${docRelativePath} mentions a stale (historically-framed) path: "${claimedPath}"`
+            : `${docRelativePath} claims path "${claimedPath}" exists, but it does not`,
+          description: isHistorical
+            ? `${docRelativePath} mentions "${claimedPath}" with historical framing, and the path no longer exists on disk. Low-severity because it is explicitly framed as historical.`
+            : `${docRelativePath} references "${claimedPath}" as a current path (backtick code span), but no such file or directory exists in the project.`,
+          severity: isHistorical ? "low" : "medium",
+          confidence: isHistorical ? "medium" : "medium",
+          falsePositiveRisk: "medium",
+          category: "architecture-drift",
+          recommendedAction: isHistorical
+            ? `Confirm whether the historical reference to "${claimedPath}" is still useful context.`
+            : `Update ${docRelativePath} to reference an existing path, or restore/implement "${claimedPath}".`,
+          suggestedFixStrategy: `Correct or remove the "${claimedPath}" reference in ${docRelativePath}.`,
+          validationCommands: ["npm run audit -- --types code-rot --include architecture,docs"],
+          releaseBlocking: false,
+          implementationBlocking: false,
+          autoFixEligible: false,
+          evidence: [
+            {
+              kind: "file",
+              message: "Backtick-quoted path does not exist on disk.",
+              filePath: docRelativePath,
+              excerpt: claimedPath,
+              source: DETECTOR_ID,
+              confidence: "medium",
+            },
+          ],
+          affectedFiles: [docRelativePath],
+        })
+      );
+    }
   }
   return issues;
 }
@@ -157,15 +195,13 @@ function findAuditFrameworkDescribedAsPlanned(ctx: AuditDetectorContext, current
     const content = readBoundedFileText(ctx.target.rootPath, docFile.relativePath, docFile.sizeBytes, MAX_READ_BYTES);
     if (content === null) continue;
 
-    AUDIT_FRAMEWORK_SUBJECT_PATTERN.lastIndex = 0;
-    const subjectMatch = AUDIT_FRAMEWORK_SUBJECT_PATTERN.exec(content);
+    const explicitClaim = plannedClaimPatternFor(AUDIT_FRAMEWORK_SUBJECT);
+    const subject = new RegExp("\\b" + AUDIT_FRAMEWORK_SUBJECT + "\\b", "i");
+    const match = architectureClaimLines(content).find(({ prose, context }) =>
+      context !== "historical" && !/\b(?:for example|suppose|hypothetical)\b/i.test(prose) &&
+      (explicitClaim.test(prose) || (context === "planned" && /^\s*[-*]\s+(?:generic\s+)?(?:audit (?:framework|contracts)|code rot detector)\b/i.test(prose))));
+    const subjectMatch = match?.prose.match(subject);
     if (!subjectMatch) continue;
-
-    const matchIndex = subjectMatch.index;
-    const windowStart = Math.max(0, matchIndex - 400);
-    const windowEnd = Math.min(content.length, matchIndex + subjectMatch[0].length + 400);
-    const window = content.slice(windowStart, windowEnd);
-    if (!PLANNED_FRAMING_PATTERN.test(window)) continue;
 
     issues.push(
       makeCodeRotIssue({
@@ -249,7 +285,7 @@ function findMajorDirsAbsentFromArchitectureDoc(ctx: AuditDetectorContext, docRe
   return issues;
 }
 
-function findUnsupportedCurrentClaims(docRelativePath: string, content: string, hasAndroidValidationSource: boolean): AuditIssue[] {
+function findUnsupportedCurrentClaims(ctx: AuditDetectorContext, docRelativePath: string, content: string, androidImplementation: AndroidImplementation): AuditIssue[] {
   const issues: AuditIssue[] = [];
   const subjects: { id: string; label: string; pattern: string }[] = [
     { id: "manual-pentest", label: "manual pentest", pattern: "manual pentest" },
@@ -257,10 +293,24 @@ function findUnsupportedCurrentClaims(docRelativePath: string, content: string, 
   ];
 
   for (const subject of subjects) {
-    if (subject.id === "android-validation" && hasAndroidValidationSource) continue;
     const pattern = currentClaimPatternFor(subject.pattern);
-    const match = pattern.exec(content);
+    const match = architectureClaimLines(content)
+      .filter(({ context, prose }) => context === "current" && !/\b(?:for example|suppose|hypothetical)\b/i.test(prose))
+      .map(({ prose }) => pattern.exec(prose))
+      .find(candidate => candidate !== null);
     if (!match) continue;
+    if (subject.id === "android-validation" && androidImplementation !== "absent") {
+      ctx.reportCoverage?.({
+        detectorId: DETECTOR_ID, predicate: "documented Android validation implementation",
+        source: { kind: "file", identity: docRelativePath }, capability: "command-registration",
+        actualStatus: androidImplementation, status: androidImplementation === "implemented" ? "QUALIFIED" : "UNDETERMINED",
+        mandatory: false, diagnostic: "",
+        reason: androidImplementation === "implemented"
+          ? "An inventoried registered command and its bounded Android implementation agree with the claim."
+          : "The available command registration and source do not settle this claim.",
+      });
+      continue;
+    }
 
     issues.push(
       makeCodeRotIssue({

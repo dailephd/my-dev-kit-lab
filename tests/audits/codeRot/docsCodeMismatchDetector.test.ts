@@ -1,3 +1,4 @@
+import type { AuditIssue } from "../../../src/audits/core/auditIssue.js";
 import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
@@ -568,3 +569,25 @@ async function executeWithKit(ctx: AuditDetectorContext) {
   if (result.detectorErrors.length) throw new Error(JSON.stringify(result.detectorErrors));
   return result.issues;
 }
+
+describe("shared qualified Android implementation evidence", () => {
+  it.each(["implemented", "absent", "unknown"] as const)("handles %s evidence in both original docs claim routes", state => {
+    const root = makeTempDir();
+    try {
+      const scripts = state === "absent" ? {} : { "android:validate": "node tooling/mobile-check.mjs" };
+      writeFile(root, "package.json", JSON.stringify({ scripts }));
+      if (state === "implemented") writeFile(root, "tooling/mobile-check.mjs",
+        "export function validateAndroid(manifest) { return manifest.includes('manifest'); }\nvalidateAndroid(process.argv[2]);\n");
+      const docs = ["docs/COMMANDS.md", "docs/PROJECT_OVERVIEW.md"];
+      for (const file of docs) writeFile(root, file, "Android validation is implemented.\n");
+      const ctx = buildContext(root);
+      const statuses: string[] = [];
+      ctx.reportCoverage = record => statuses.push(record.status);
+      const result = DOCS_CODE_MISMATCH_DETECTOR.run(ctx) as AuditIssue[];
+      const android = result.filter(issue => issue.id.endsWith(":current-but-missing:android-validation"));
+      expect(android.map(issue => issue.id)).toEqual(state === "absent"
+        ? docs.map(file => "docs-code-mismatch:" + file + ":current-but-missing:android-validation") : []);
+      expect(statuses).toEqual(state === "unknown" ? ["UNDETERMINED", "UNDETERMINED"] : []);
+    } finally { cleanup(root); }
+  });
+});
