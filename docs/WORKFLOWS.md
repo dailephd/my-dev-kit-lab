@@ -874,7 +874,12 @@ Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json
 
 ### Planned immediate SW-123 repair and whole-source audit replay (v0.10.1)
 
-This is a **future corrective procedure, not current released audit behavior**. Preserve the failed Step 5 SW-123 candidate and qualification records first. Reproduce the original audit using its full selected source/domain and Kit 1.15.0 evidence, with the same required detector set; do not narrow source roots, disable detectors or recast partial evidence as clean to manufacture PASS.
+This section preserves the **historical corrective procedure** and the
+failed Step 5 SW-123 candidate. An original-scope replay uses its full
+selection, required detector set and recorded producer contract. The
+[coordinated acceptance policy](#coordinated-product-acceptance-and-target-certification)
+governs whether target certification is a release prerequisite. Replay
+retains mandatory coverage and the original evidence identity.
 
 Correct Kit v1.15.2 lexical import capability and Lab v0.10.1 applicability/acquisition/adapter/detector/reporting separately at their existing owners. Test capability-specific positive and negative qualifications, real test versus configuration-fixture roles, mixed complete/partial files, dependent cross-file absence, documentation findings alongside unavailable declarations, tampered evidence, source freshness and unchanged complete-evidence outputs. Freeze exact package, source, revision, CLI digest and selection identities for each coordinated run. When Kit's producer is corrected, qualify its exact packed candidate independently before updating Lab's production dependency; no sibling checkout or moving `@latest` substitute.
 
@@ -1235,3 +1240,39 @@ User decision SW-121 adopts **V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0**, cont
 The source-checkout verifier collects finite public/current-protected/platform/packed lanes through existing native process and evidence owners. A separate verification process reopens native outputs, derives the test responsibility list from the current source, rejects missing/filtered/failed assertions, and compares all 150 current finding records and 121 fixture hashes against the unchanged oracle. The packed lane rebuilds, installs and executes the exact package. Native Windows/Linux/macOS evidence is mandatory; live exact-candidate CI run/job/artifact corroboration is required for hosted cells. Caller-authored OS or PASS labels and unsigned receipts alone are insufficient.
 
 The current route remains **BLOCKED_REQUIRED_EVIDENCE** until its complete public, current-protected, package, native platform and independent binding requirements pass. The local original historical gate remains available unchanged. Historical provenance stays **UNVERIFIED**; original private verification and original readiness binding stay **NOT_PASSED**. LAB-EVIDENCE-01 adoption does not substitute for this contract. Current acceptance establishes neither Step 5 readiness nor publication authority.
+
+## Coordinated product acceptance and target certification
+
+The 2026-11-23 decision supersedes the original requirement for both SW-123
+and iworkhere.space to have complete mandatory source coverage before
+Kit v1.16.0 and Lab v0.11.0 qualify for release. The original requirement and
+[historical outcomes](CURRENT_STATE.md#historical-target-audit-results)
+remain part of the governance and audit record.
+
+**Product acceptance** requires correct approved capabilities, authenticated
+positive and negative proofs, conservative treatment of partial or unknown
+evidence, the exact producer-consumer pairing, correct reports and exit codes,
+and passing required regression, security, package, native and hosted
+platform, current-candidate binding and documentation gates. A demonstrated
+supported-capability, evidence-integrity or proof-soundness defect blocks
+release. A disclosed target evidence gap on its own leaves the target
+uncertified and permits product acceptance once the product gates pass.
+
+**Target certification** requires authenticated source selection, qualified
+evidence for every applicable mandatory predicate, complete coverage, actual
+findings and severity review, and a terminal result meeting that target's
+contract. Mandatory incomplete coverage returns exit 2. A complete audit
+still applies its existing exit 0/1 severity threshold. Both historical
+targets remain uncertified.
+
+After documentation reconciliation, freeze the clean committed candidates.
+Use the SW-121 current public collector as the canonical complete Lab public
+execution. Use its protected and packed lanes and independently bind the
+required receipts and hosted native cells. The same authenticated packed
+execution can serve each gate whose exact package and invocation requirements
+it meets. Preserve predecessor receipts under their original identities.
+Observe required Kit regression, security and exact package checks, and
+qualify the exact hosted platform and Lab CodeQL results. Keep Step 5
+readiness and release preparation separate. After authorized Kit v1.16.0
+publication, qualify the actual registry artifact before migrating the Lab
+production dependency and qualifying Lab publication.

@@ -1098,7 +1098,7 @@ The historical accepted development producer is Candidate 05: package metadata `
 
 ### Planned v0.10.1 predicate-scoped source-evidence compatibility correction (SW-123)
 
-**Status: immediate correction planned; not part of released v0.10.0 or the inherited SW-119 partial-import implementation.** A valid Kit Kotlin Gradle script record may contain complete explicit imports but partial declaration/visibility facts once Kit v1.15.2 independently qualifies its scanner. Lab must not conflate integrity, applicability, per-predicate sufficiency and required-audit readiness. The current combined requirement and file-level parse downgrade can make unrelated valid facts inaccessible and can abort independent findings.
+**Historical correction plan.** This scope followed the released v0.10.0 and inherited SW-119 partial-import implementation. A qualified Kit Kotlin Gradle script record can contain complete explicit imports alongside partial declaration and visibility evidence. The historical combined requirement could hide independent valid facts. The coordinated candidate enables predicate-scoped acquisition and qualifications through the owners below.
 
 Keep the managed provider as the only Kit acquisition owner. The authenticated inventory/snapshot, manifest/artifact SHA-256, selected roots, paged facts, producer/package/extractor revision, freshness and file content are mandatory before any consumer qualification. Wrong identity, missing required inventory, malformed records, altered hashes and truncated page streams remain fatal, not ordinary predicate-unavailable warnings. The direct provider remains strict unless the audit runner explicitly delegates evidence adequacy to a policy consumer.
 
@@ -1441,12 +1441,28 @@ route. Ordinary import-target and exact occurrence responses use 1.1.0.
 Expression-domain and exact-byte responses use 1.0.0. The provider checks
 each family against its own schema and provenance.
 
+Kit is the sole source-fact and source-proof producer. Lab owns
+applicability, detector execution, evidence consumption and reporting.
 An observed candidate can support diagnostics. A positive ESM reference
-requires a qualified witness. Negative predicates require appropriate
-profile premises, covered alternatives and all relevant origins. Required
-files are checked against the source inventory. A coverage gap applies to
-its affected predicate, so independent findings can still be reported.
-Mandatory incompleteness controls exit 2 ahead of issue thresholds.
+requires a qualified witness. Lab continues checking separately qualified
+exact witnesses after an extension alternative and can prove an applicable
+relative exclusion alongside a known default-runtime built-in. A
+profile-qualified missing re-export uses the same finding policy as an
+ordinary missing import. Negative predicates require appropriate profile
+premises, covered alternatives and all relevant origins.
+
+The fixture-basename predicate can consume a qualified exact UTF-8 byte
+occurrence from an unsupported text input. An authenticated match suppresses
+the associated unused-fixture finding. A complete and exact zero supports
+absence for that input and basename. Partial, stale or unauthenticated
+negative evidence cannot support absence. The byte result leaves command
+tokens, decoded lines, regex context, and syntax outside its claim. Runtime
+and build-dependent alternatives with no qualified bound remain indeterminate.
+The managed audit has no unqualified native source-analysis fallback.
+
+Required files are checked against the selected inventory. A coverage gap
+applies to its affected predicate, and independent findings can still be
+reported. Mandatory incompleteness controls exit 2 ahead of issue thresholds.
 
 An execution reserves an initial receipt and records checkpoints and
 subprocess invocation, exit and artifact evidence. The terminal outcome or

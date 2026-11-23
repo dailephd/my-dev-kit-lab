@@ -978,8 +978,9 @@ qualified archive and installed CLI identities and requests Kit artifact
 schema 1.2.0. The production dependency remains Kit 1.15.0.
 Kit 1.15.0 does not provide the opt-in schema, import-domain selector, or
 exact-byte selector used by this route. The explicit R3 qualification covers
-that authenticated producer. Release acceptance also requires qualifying a
-compatible published Kit version through the declared production dependency.
+that authenticated producer for local product acceptance. Before publishing
+Lab, qualify published Kit v1.16.0 and bind the migrated production dependency
+to the actual installed package.
 
 Repeat `--require-source <relative-path>` for required inventory entries.
 `--source-snapshot <git-sha>` declares the intended revision.
@@ -987,11 +988,19 @@ Repeat `--require-source <relative-path>` for required inventory entries.
 establish how that export was made or its relationship to the target tree.
 `--retry-of <id>` links an earlier execution in the same evidence workspace.
 
-Managed default reports live under the execution's `reports/` directory in
-`<workspace>/lab-output/evidence/audit-<id>/`. An explicit `--out` uses a
+The installed CLI defaults to `<workspace>/reports/audits/<primary-type>/`
+for reports. Managed receipts use
+`<evidence-workspace>/lab-output/evidence/audit-<id>/`. The installed CLI's
+explicit `--workspace` selects the evidence workspace. Source-checkout
+managed invocations with a reserved receipt and no explicit output can
+write reports to the receipt's `reports/` directory. An explicit `--out` uses a
 physical directory under workspace `lab-output/` or `reports/`, outside
 the inspected external target. JSON reports use schema 1.0. Completed audits
 return exit 0 below the chosen threshold and exit 1 at or above it.
-Thresholds are blocker, high, medium, low and none. Mandatory incomplete
-coverage and fatal execution failures return exit 2, including under
-`--fail-on none`. Independent findings remain in completed partial reports.
+Thresholds are blocker, high, medium, low and none. On complete coverage,
+`none` disables the finding threshold. Mandatory incomplete coverage and
+fatal execution failures return exit 2 under every threshold. Independent
+findings remain in completed partial reports.
+Use the actual terminal result and required coverage when certifying a
+target. The [coordinated acceptance policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification)
+defines which evidence qualifies the product independently.

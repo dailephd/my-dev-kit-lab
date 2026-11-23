@@ -1749,9 +1749,9 @@ Acceptance:
 
 ### v0.10.1 — partial-source-evidence and predicate-coverage correction
 
-Status: **partially implemented; unreleased; SW-123 correction active.**
+Status: **implemented locally and unreleased.** This entry preserves the historical corrective scope. See the coordinated v0.11.0 entry for current acceptance.
 
-The candidate inherited from `fix/sw119-r2-v010-partial-evidence` includes the bounded SW-118/SW-119 partial JavaScript import correction; its historical Step 5 full-source audit was **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture. P3 has implemented Gradle configuration roles, per-predicate applicability, authenticated partial-evidence acquisition and capability-independent adapter qualification, with focused tests, typecheck and build passing. Detector and required-coverage correction (P4), exact Kit package qualification and the production pin transition (P5), and original audit replay (P6) remain pending. The internal predicate-aware acquisition route is not yet enabled in the audit runner, and the complete SW-123 audit is not certified. This entry replaces neither the completed v0.10.0 milestone nor the future v0.11.0 accessibility plan. Current package metadata is 0.10.0; version 0.10.1 is the **target patch release**, not yet published or release-prepared.
+The candidate inherited from `fix/sw119-r2-v010-partial-evidence` included the bounded SW-118/SW-119 partial JavaScript import correction. Its historical Step 5 full-source audit was **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture. P3 implemented Gradle configuration roles, per-predicate applicability, authenticated partial-evidence acquisition and capability-independent adapter qualification, with focused tests, typecheck and build passing. At that point the runner had yet to enable the route. The historical plan assigned detector and required-coverage correction to P4, exact Kit package qualification and the production pin transition to P5, and original audit replay to P6. The record preserves the v0.10.1 target patch scope, the v0.10.0 milestone and the earlier v0.11.0 accessibility reservation.
 
 **Goal:** consume independently qualified Kit capabilities and retain every supported audit finding, while explicitly identifying unavailable required predicates and maintaining exit 2 for incomplete mandatory coverage. The corresponding Kit producer correction is scoped to **v1.15.2**; Kit v1.15.0 is the original SW-123 producer and remains a historical frozen input. Do not silently substitute a differently packaged producer.
 
@@ -1783,15 +1783,26 @@ The candidate inherited from `fix/sw119-r2-v010-partial-evidence` includes the b
 
 ### v0.11.0 — coordinated source-evidence consumer
 
-Status: **planned release; unreleased; production producer compatibility unresolved**.
+Status: **planned release; unreleased; final product acceptance and published producer qualification pending**.
 
 The local implementation consumes an authenticated Kit producer for source
 identity, exact ESM witnesses, selected-domain proofs and byte evidence.
 Report and receipt contracts preserve independent findings and return a
 mandatory incomplete result when source coverage cannot support a required
 predicate. The explicit R3 route has installed evidence on Windows and native
-Linux. Release acceptance requires the declared production dependency to
-support the new producer contract. See [Commands](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer).
+Linux under their recorded execution identities. Follow the
+[adopted product and target policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification).
+Qualifying the published Kit producer and binding the Lab production
+dependency remain required before Lab publication. See
+[Commands](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer)
+and the [historical target outcomes](CURRENT_STATE.md#historical-target-audit-results).
+
+The existing Lab v0.19.0 and Kit v1.19.0 assignments for deferred
+binary/context and Python relative-import capabilities remain in scope for
+those versions. Whole-origin runtime reference closure, build-dependent
+source mapping, and computed imports with unproved runtime alternatives
+remain unallocated future requirements. The current exact-byte basename
+predicate is already implemented and has its own bounded proof contract.
 
 #### Earlier reservation for bounded accessibility assurance (LAB-A11Y-01)
 

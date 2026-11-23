@@ -6,15 +6,19 @@ This document records the repository's operational state. It is the source of tr
 
 ## Partial-source-evidence compatibility correction
 
-The partial-source-evidence compatibility correction is integrated locally and remains unreleased.
+This section records the historical compatibility correction. See the
+[coordinated candidate](#coordinated-kitlab-candidate) for the current
+implementation and next acceptance gate.
 
 **Historical SW-123 blocker for v0.10.1.** The inherited partial-JavaScript-import correction is implemented, but Step 5 pre-release readiness at `57cc8bfeff6499494b5364012b7888b6fa39a726` was **BLOCKED** on a different, valid Kit 1.15.0 Kotlin Gradle fixture record. That whole-source code-rot audit could not certify the required combined declaration/import evidence for `tests/fixtures/android/advanced-security-fixtures/release-configuration/kotlin-release-debuggable-false.gradle.kts`. The record is authenticated yet reports partial declarations/imports, unsupported JVM declarations and partial exports/ranges. This is not evidence corruption or a successful no-finding audit. CI, CodeQL, public regression, security, packaging and candidate binding passed in that SW-123 attempt; those passing gates do not override its blocked audit.
 
 **Implemented, unreleased P3 work:** `664592324228440f9c70dfaf4e1bea8d519c7d18` adds Gradle configuration fixture roles, per-file/per-detector applicability, an explicit internal predicate-aware acquisition route, and capability-independent adapter qualification. Authenticated partial capabilities retain qualified positive facts; incomplete capabilities cannot establish negative conclusions. Direct-provider acquisition remains strict, and the new route is not enabled in the audit runner. P3 passed 311 focused tests, typecheck and build; this does not certify the complete SW-123 audit.
 
-**Remaining SW-123 correction:** P4 must enable the route with detector and required-coverage handling, preserve independent docs/test/dead-code findings, and report every remaining mandatory gap with exit 2. P5 owns exact Kit package qualification and the production pin transition; P6 owns original audit replay. Kit's separate v1.15.2 lexical-capability/cache candidate is committed at `44fb5aa9c22d804ded256c55021e73caef8c7cd4`, remains unpublished with package metadata 1.15.1, and does not replace Lab's Kit 1.15.0 production pin. The documentation-only planning branch `fix/v0.10.1-predicate-coverage-sw123` was based on the blocked candidate; P3 continues on `feature/v0.10.1-sw123-predicate-coverage`. Full correction, exact upstream qualification, replay and readiness remain pending. Exact plan: [ROADMAP.md](ROADMAP.md#v0101--partial-source-evidence-and-predicate-coverage-correction).
+**Historical SW-123 plan after P3:** P4 owned detector and required-coverage handling, including independent findings and exit 2. P5 owned exact Kit package qualification and the production pin transition. P6 owned original audit replay. Kit's separate unreleased lexical-capability/cache candidate at `44fb5aa9c22d804ded256c55021e73caef8c7cd4` used metadata 1.15.1. The planning branch was `fix/v0.10.1-predicate-coverage-sw123` and the P3 implementation branch was `feature/v0.10.1-sw123-predicate-coverage`. See the [v0.10.1 roadmap](ROADMAP.md#v0101--partial-source-evidence-and-predicate-coverage-correction).
 
-**Next stage:** P4 detector and coverage correctness, followed by P5 exact-package qualification and P6 original audit replay, then full documentation reconciliation and a *new* exact-candidate Step 5 readiness. Preserve the original SW-123 failure and unrecovered historical artifacts; do not mutate the old candidate or backdate new evidence. Release preparation and publication remain unauthorized.
+The historical plan required documentation reconciliation and a new exact
+Step 5 readiness assessment. The original failure and unrecovered evidence
+retain their original identities.
 
 Its source baseline is published v0.10.0. Qualified partial imports retain diagnostics; independent qualified checks continue, unsupported absence/dead-code conclusions remain unavailable, and mandatory incomplete coverage returns exit 2 even with `--fail-on none`. Current package metadata remains 0.10.0; a prospective patch version does not authorize release preparation. The original historical Kit gate remains intact; a separately authorized current-candidate route has distinct mandatory verification requirements.
 
@@ -449,12 +453,16 @@ The eight missing historical byte identities covering ten references remain unav
 
 Lab's published baseline and the local candidate's package metadata are both
 0.10.0. The unpublished consumer implementation for the coordinated v0.11.0
-work is `23a03d99e180ef013c39dae3b2e1621bdec94686`. Its production Kit
-dependency remains exactly 1.15.0. The separate managed route explicitly
-selects the qualified local Kit R3 producer from source commit
-`bde00d9c165a6a546170ab72e7a9534d6929697e` and archive SHA-256
+work reached implementation commit `709401f7e8d82e678573d38445ff09b7333b9b15`.
+Its production Kit dependency remains exactly 1.15.0. The separate managed
+route explicitly selects a qualified local Kit archive and installed CLI.
+The B5 producer was reproduced from Kit `c2eb844c0dae8ff061e1d5b65e257bf0551a7a66`
+with identical archive and installed CLI bytes. Earlier R3 qualification
+used Kit `bde00d9c165a6a546170ab72e7a9534d6929697e` and archive SHA-256
 `943b3506c7a3e9708f96d2e40a9fcfc720853c46a4273f31408568942a5599a6`.
 
+The earlier coordinated Lab implementation at
+`23a03d99e180ef013c39dae3b2e1621bdec94686` retains its separate record.
 B4 Windows requalification recorded 26 installed audits (six exit 0, three
 exit 1 and seventeen exit 2), ten linked import-proof cases, fourteen compiled
 internal fault cases and forty terminal receipts with verified references.
@@ -466,7 +474,39 @@ production Kit 1.15.0 consumer failed the complete control with incomplete
 selection. The candidate still requires a compatible published producer
 and separate exact-candidate readiness.
 
-Earlier SW-123 stage descriptions in this document are historical. All
-thirteen mandatory obligations remain unresolved, the original provenance
-remains unrecovered, and original iworkhere.space acceptance remains open.
-The existing later-version roadmap and release procedure still apply.
+The 8,787 passing public tests and 19 authorized skips belong to predecessor
+`6fb8a084bd7e2a927dac2d34de1e24b5e989ceaa`. Final B5 focused evidence includes
+23 affected verifier tests, 18 detector checks, the managed regression,
+typecheck, build and bounded installed package checks. The focused package
+run preceded the final managed test-only commit. Documentation alters
+the formal source inventory, so exact-candidate validation remains pending.
+
+The [adopted policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification)
+separates product acceptance from target certification. Final product
+acceptance, Step 5 readiness, and the published Kit dependency transition
+remain separate pending decisions and executions.
+
+### Historical target audit results
+
+| Target | Frozen source | Selected files | Findings | Mandatory gaps | Natural exit |
+| --- | --- | ---: | ---: | ---: | ---: |
+| SW-123 | `57cc8bfeff6499494b5364012b7888b6fa39a726` | 1,898 of 1,965 | 219 | 2,865 | 2 |
+| iworkhere.space | `94a60ad37dc4e1d2d4a3ad322e468ec7dbeca927` | 827 | 63 | 564 | 2 |
+
+Both targets remain uncertified. B5's 24-obligation, 55-query witness
+established selected edge and expression evidence, with whole-origin
+reference coverage still unproved for those samples. The subsequent 33
+focused producer requests addressed the binary consumer and its controls.
+R6-08 (`Core.java`) and R6-09 (`Cargo.toml`) qualified exact absence on the
+same frozen 11-byte input. A separate positive byte match suppressed its
+unused-fixture finding. These results qualify individual premises and
+leave the historical totals intact.
+
+Eleven inherited obligations still lack proof, including R6-12 command
+context. R6-02 and R6-11 retain only the historical immediate
+`RUNNER_MODULE` origin and target. The website's computed import at
+`script/pdfFixture.ts:73` remains indeterminate. Its three prior ambient
+declaration applicability controls retain their scope. Attribution remains
+unresolved wherever the evidence cannot distinguish unsupported target
+proof from a product defect. Historical provenance remains **UNVERIFIED**,
+and the original private verification and readiness binding remain **NOT_PASSED**.
