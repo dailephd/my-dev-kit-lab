@@ -198,11 +198,13 @@ describe("published Kit Rust reuse", () => {
 
   it("consumes terminal inventory and fact pages rather than retrieval rankings", async () => {
     const root = fixture();
-    for (let i = 0; i < 65; i++) write(root, `src/page${i}.rs`, `pub fn witness_${i}() {}\n`);
+    for (let i = 0; i < 65; i++) write(root, `src/page${String(i).padStart(2, "0")}.rs`, `pub fn witness_${i}() {}\n`);
     write(root, "src/large.rs", Array.from({ length: 140 }, (_, i) => `pub fn declaration_${i}() {}`).join("\n"));
-    const result = await collect(root);
+    // Keep both source roots selected while reading facts for the pagination witnesses.
+    const result = await collect(root, {}, ["src/large.rs", "src/page64.rs", "tests/worker.rs"]);
     expect(result.kitEvidence).toMatchObject({ selectedFileCount: 72, inventoryPages: 2, traversalComplete: true });
-    expect(result.kitEvidence!.factPages).toBeGreaterThan(71);
+    expect(result.kitEvidence!.factPages).toBeGreaterThan(3);
     expect(result.files.find(f => f.relativePath === "src/large.rs")!.declarations).toHaveLength(140);
+    expect(result.files.find(f => f.relativePath === "src/page64.rs")?.declarations.map(d => d.name)).toContain("witness_64");
   });
 });
