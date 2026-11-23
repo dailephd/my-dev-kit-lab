@@ -1,11 +1,14 @@
 import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scanProjectInventory } from "../../../src/audits/core/projectInventory.js";
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
 import { collectKitSourceFacts } from "../../../src/audits/core/kitSourceProvider.js";
+import { registerKitDeclarationPredicateEvidence, type KitSourceEvidence } from "../../../src/audits/core/kitSourceEvidence.js";
+import type { SourceFileFacts } from "../../../src/audits/core/sourceFacts.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { TEST_ROT_DETECTOR } from "../../../src/audits/codeRot/detectors/testRotDetector.js";
@@ -151,6 +154,49 @@ describe("TEST_ROT_DETECTOR — missing source imports", () => {
       expect(result.coverage?.some(record => record.status === "UNAVAILABLE" && record.capability === "exports" && record.reason.includes("export-target proof"))).toBe(true);
     } finally { cleanup(root); }
   }, 120000);
+
+  it.each([
+    { status: "proven-missing", qualified: true, findings: 1, gaps: 0 },
+    { status: "present", qualified: true, findings: 0, gaps: 0 },
+    { status: "indeterminate", qualified: true, findings: 0, gaps: 1 },
+    { status: "proven-missing", qualified: false, findings: 0, gaps: 1 },
+  ])("handles a structured re-export with $status evidence and qualified profile $qualified", async scenario => {
+    const root = makeTempDir();
+    try {
+      const file = "tests/check.test.ts";
+      const specifier = "../src/target.js";
+      const factId = "re-export-fact";
+      const body = `export * from /* qualified fact is the source of truth */ "${specifier}";\n`;
+      writeFile(root, file, body);
+      const ctx = buildContext(root);
+      ctx.config.include = ["tests"];
+      const gaps: string[] = [];
+      ctx.reportUnavailable = (_id, _predicate, _file, _reason, capability) => { gaps.push(capability ?? "imports"); };
+      const capabilities = { imports: "complete", exports: "complete" };
+      const contentSha256 = createHash("sha256").update(body).digest("hex");
+      const observed = { relativePath: file, language: "typescript", parseStatus: "parsed",
+        kit: { capabilities, contentSha256 }, imports: [], declarations: [],
+        exports: [{ exportOrigin: "re-export" }], diagnostics: [] } as unknown as SourceFileFacts;
+      ctx.sourceFacts = { provider: "kit", files: [observed] } as unknown as AuditDetectorContext["sourceFacts"];
+      registerKitDeclarationPredicateEvidence(observed, {
+        snapshotId: "e".repeat(64), traversalComplete: true, coverage: { inventoryComplete: true },
+        fileEvidence: new Map([[file, { record: { status: "parsed", contentSha256, capabilities }, facts: [] }]]),
+      } as unknown as KitSourceEvidence);
+      ctx.kitSourceReader = {
+        cachedAuthenticatedFixtureContent: async () => body,
+        reExportSpecifiers: () => [specifier],
+        reExportTargets: () => [{ id: factId, sourceSpecifier: specifier }],
+        importTarget: async (id: string) => {
+          expect(id).toBe(factId);
+          return { status: scenario.status };
+        },
+        jsTsRelativeImportCandidateProof: scenario.qualified ? "mjs-extensionless-complete-v1" : undefined,
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.map(issue => issue.id)).toEqual(scenario.findings ? [`test-rot:${file}:missing-source-import:${specifier}`] : []);
+      expect(gaps).toEqual(scenario.gaps ? ["exports"] : []);
+    } finally { cleanup(root); }
+  });
 
   it("uses complete semantic imports without treating an embedded fixture string as another import", async () => {
     const root = makeTempDir();

@@ -183,7 +183,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       }
       issues.push(...findMissingSourceImports(ctx, testFile.relativePath, content, kitMissing));
       // v0.3.1 Batch 4 -- when the TypeScript/JavaScript analyzer actually
-      // parsed this test file, also check its structured import facts.
+      // parsed this test file, also check its structured reference proofs.
       // This catches import forms the regex above misses (e.g. multi-line
       // import statements) without duplicate-reporting a specifier both
       // checks already found: idCues use the same shape
@@ -209,7 +209,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         // guard immediately above.
         issues.push(...findMissingJvmSourceImports(ctx, testFile.relativePath, parsedFacts, jvmMetadata, kitMissing));
       } else if (parsedFacts) {
-        issues.push(...findMissingSourceImportsFromSourceFacts(ctx, testFile.relativePath, parsedFacts, kitMissing));
+        issues.push(...findMissingSourceImportsFromSourceFacts(testFile.relativePath, parsedFacts, kitMissing));
       }
       issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
       issues.push(...findTestModifierUsage(ctx, testFile, observed, content));
@@ -358,30 +358,32 @@ function findMissingSourceImports(ctx: AuditDetectorContext, testRelativePath: s
 // file-level-only/parse-error facts carry an empty imports array that
 // would otherwise silently look like "no imports" rather than "unknown".
 function findMissingSourceImportsFromSourceFacts(
-  ctx: AuditDetectorContext,
   testRelativePath: string,
   facts: SourceFileFacts,
-  kitMissing: Set<string>
+  kitMissing: ReadonlySet<string>
 ): AuditIssue[] {
   const issues: AuditIssue[] = [];
 
-  for (const imp of facts.imports) {
-    if (!imp.source.startsWith(".")) continue;
-    if (!kitMissing.has(imp.source)) continue;
+  const specifiers = new Set(facts.imports.map(imp => imp.source));
+  // A qualified missing re-export target is not an ordinary import fact.
+  for (const specifier of kitMissing) specifiers.add(specifier);
+
+  for (const specifier of specifiers) {
+    if (!specifier.startsWith(".") || !kitMissing.has(specifier)) continue;
 
     issues.push(
       makeCodeRotIssue({
         auditType: "code-rot",
         detectorId: DETECTOR_ID,
-        idCues: [testRelativePath, "missing-source-import", imp.source],
-        title: `Test "${testRelativePath}" imports a missing source file: "${imp.source}"`,
-        description: `${testRelativePath} imports "${imp.source}" (source-facts-derived via the TypeScript/JavaScript analyzer), which does not resolve to an existing file on disk (checked common TS/JS extensions relative to the test file).`,
+        idCues: [testRelativePath, "missing-source-import", specifier],
+        title: `Test "${testRelativePath}" imports a missing source file: "${specifier}"`,
+        description: `${testRelativePath} imports "${specifier}" (source-facts-derived via the TypeScript/JavaScript analyzer), which does not resolve to an existing file on disk (checked common TS/JS extensions relative to the test file).`,
         severity: "medium",
         confidence: "high",
         falsePositiveRisk: "low",
         category: "test-rot",
         recommendedAction: "Fix or remove the stale import.",
-        suggestedFixStrategy: `Update the import specifier "${imp.source}" in ${testRelativePath} to point to an existing file.`,
+        suggestedFixStrategy: `Update the import specifier "${specifier}" in ${testRelativePath} to point to an existing file.`,
         validationCommands: [`npx vitest run ${testRelativePath}`],
         releaseBlocking: false,
         implementationBlocking: false,
@@ -391,7 +393,7 @@ function findMissingSourceImportsFromSourceFacts(
             kind: "file",
             message: "Analyzer-recorded relative import specifier does not resolve to an existing file.",
             filePath: testRelativePath,
-            excerpt: imp.source,
+            excerpt: specifier,
             source: DETECTOR_ID,
             confidence: "high",
           },
