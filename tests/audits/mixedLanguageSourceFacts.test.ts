@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
-import { collectKitSourceFacts } from "../../src/audits/core/kitSourceProvider.js";
+import { collectKitSourceFacts, type KitSourceReader } from "../../src/audits/core/kitSourceProvider.js";
+import { adaptKitFile } from "../../src/audits/core/kitSourceAdapter.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import type { AuditTarget } from "../../src/audits/core/auditTarget.js";
@@ -188,8 +189,8 @@ describe("mixed-language source facts — T6 fallback behavior remains stable", 
   });
 });
 
-describe("mixed-language source facts — T7 SourceFacts schema remains unchanged", () => {
-  it("conforms to the existing SourceFileFacts shape with no Java/Kotlin-only required fields", async () => {
+describe("mixed-language source facts — T7 SourceFileFacts compatibility", () => {
+  it("adds only the authenticated observation handoff to the existing file shape", async () => {
     const root = fixturePath("mixed-ts-python-jvm");
     const inventory = scanProjectInventory(root);
     const snapshot = await collectSourceFacts(root, inventory);
@@ -209,10 +210,35 @@ describe("mixed-language source facts — T7 SourceFacts schema remains unchange
 
     for (const file of snapshot.files) {
       const actualKeys = Object.keys(file)
-        .filter((k) => k !== "lineCount" && k !== "kit")
+        .filter((k) => k !== "lineCount" && k !== "kit" && k !== "kitTestObservations")
         .sort();
       expect(actualKeys).toEqual(expectedKeys);
       expect(file.kit?.contentSha256).toMatch(/^[0-9a-f]{64}$/);
+    }
+    const source = snapshot.files.find(file => file.relativePath === "src/index.ts")!;
+    expect(source.kitTestObservations).toEqual({
+      contentSha256: source.kit!.contentSha256,
+      snapshotId: snapshot.kitEvidence!.snapshotId,
+      selectionFingerprint: snapshot.kitEvidence!.selectionFingerprint,
+      producerStatus: source.kit!.producerStatus,
+      capability: source.kit!.capabilities["test-observations"],
+      observations: [],
+    });
+  });
+
+  it("omits the observation handoff when exact-file evidence is absent", async () => {
+    const root = fixturePath("mixed-ts-python-jvm");
+    const inventory = scanProjectInventory(root);
+    const entry = inventory.files.find(file => file.relativePath === "src/index.ts")!;
+    let reader: KitSourceReader | undefined;
+    try {
+      await collectKitSourceFacts({ targetRoot: root, inventory, requiredCapabilities: [],
+        requiredPaths: [entry.relativePath], includeScriptsRoot: false, onReader: value => { reader = value; } });
+      const legacy = adaptKitFile(undefined, reader!.selectedFile(entry.relativePath), entry, []);
+      expect(legacy).not.toHaveProperty("kitTestObservations");
+      expect(legacy.diagnostics).toContainEqual(expect.objectContaining({ code: "kit:facts-not-retrieved" }));
+    } finally {
+      reader?.dispose();
     }
   });
 });
@@ -229,6 +255,8 @@ describe("mixed-language source facts — T8 report source-facts summary compati
     const parsed = JSON.parse(json);
 
     expect(parsed.sourceFacts).toBeDefined();
+    expect(parsed.schemaVersion).toBe("1.0");
+    expect(json).not.toContain('"kitTestObservations"');
     expect(parsed.sourceFacts.filesByLanguage.typescript).toBeGreaterThan(0);
     expect(parsed.sourceFacts.filesByLanguage.python).toBeGreaterThan(0);
     expect(parsed.sourceFacts.filesByLanguage.java).toBeGreaterThan(0);

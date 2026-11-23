@@ -165,7 +165,23 @@ describe("Gate5 committed accepted oracle", () => {
       expectation: provider === "historical" ? expectation : provider === "p5-candidate" ? p5Expectation : QUALIFIED_PUBLISHED_KIT, workDir,
     } });
     if (provider === "p5-candidate") fs.writeFileSync(path.join(p5Output!, path.basename(fixtureRoot) + ".json"), JSON.stringify({ fixtureRoot, workDir, result }, null, 2), { flag: "wx" });
-    expect(result.detectorErrors).toEqual([]);
+    const publishedModifierFile = provider === "published" && {
+      javascript: "tests/check.sample.js",
+      typescript: "tests/check.sample.ts",
+    }[path.basename(fixtureRoot) as "javascript" | "typescript"];
+    if (publishedModifierFile) {
+      expect(result.exitCode).toBe(2);
+      expect(result.coverage?.filter(row => row.mandatory && ["UNAVAILABLE", "UNDETERMINED"].includes(row.status))).toEqual([
+        expect.objectContaining({ detectorId: "test-rot", predicate: "executable test modifiers",
+          source: { kind: "file", identity: publishedModifierFile }, capability: "test-observations",
+          actualStatus: "partial", status: "UNAVAILABLE" }),
+      ]);
+      expect(result.detectorErrors).toEqual([
+        { id: "test-rot", message: expect.stringContaining(`executable test modifiers; file=${publishedModifierFile}`) },
+      ]);
+    } else {
+      expect(result.detectorErrors).toEqual([]);
+    }
     if (provider === "published") currentCoverage.push({ fixtureRoot, detectors: DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort(),
       detectorErrors: result.detectorErrors, skippedDetectors: result.skippedDetectors, exitCode: result.exitCode });
     const findings = result.issues.map(issue => normalize(issue, target)).sort((a, b) => a.id.localeCompare(b.id));
@@ -192,7 +208,15 @@ describe("Gate5 committed accepted oracle", () => {
     expect(DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort()).toEqual(decisions.map((d: Decision) => d.detectorId).sort());
     for (const decision of decisions) {
       const actual = findings.filter(f => f.detectorId === decision.detectorId);
-      const expected = structuredClone(decision.normalizedKitFindings);
+      let expected = structuredClone(decision.normalizedKitFindings);
+      if (publishedModifierFile && decision.detectorId === "test-rot") {
+        // The frozen historical detector matched comment text. The current
+        // detector retains the two authenticated executable modifier findings.
+        const commentLine = publishedModifierFile.endsWith(".js") ? 4 : 5;
+        const commentId = `test-rot:${publishedModifierFile}:skip-usage:${commentLine}`;
+        expect(expected.map((finding: { id: string }) => finding.id)).toContain(commentId);
+        expected = expected.filter((finding: { id: string }) => finding.id !== commentId);
+      }
       if (identityProjection) for (const finding of expected) for (const evidence of finding.evidence) {
         if (!evidence.message.startsWith("Qualified Kit declaration-domain evidence found no matching declaration")) continue;
         const oldToken = `snapshot: ${identityProjection.historicalSnapshot}.`;

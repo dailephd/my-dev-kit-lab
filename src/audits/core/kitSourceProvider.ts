@@ -148,6 +148,19 @@ const QUALIFIED_R3_ARCHIVES = [QUALIFIED_B3_P1_KIT, {
   archiveSha256: "25fc1a97401d4e9b0fd22aa6f9d9829fba607265c63be17324960b4c13e0ff34",
   receiptSha256: "5227a69e4025b22fe421ddcc7f3b568933ace7858c189ee46607c3110207ddca",
 }] as const;
+const QUALIFIED_BATCH_ARCHIVES = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT] as const;
+
+export function resolveQualifiedKitArchive(
+  qualifiedArchivePath: string,
+  installedPackageRoot: string,
+): KitSourceProviderDependencies {
+  const digest = sha256Hex(readBoundedFile(qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive"));
+  const expectation = QUALIFIED_BATCH_ARCHIVES.find(profile => profile.archiveSha256 === digest) ??
+    (QUALIFIED_R3_ARCHIVES.some(profile => profile.archiveSha256 === digest) ? QUALIFIED_B3_P1_KIT : undefined);
+  if (!expectation) fail("package-identity", "Kit archive SHA-256 does not match a qualified local archive.");
+  resolveInstalledKitPackage({ installedPackageRoot, expectation });
+  return { expectation, qualifiedArchivePath, installedPackageRoot };
+}
 
 // Historical SW-123 P6-R2 archive.
 export const QUALIFIED_SW123_P6_R2_KIT = {
@@ -323,7 +336,7 @@ export function resolveInstalledKitPackage(
       `installed Kit CLI SHA-256 ${cliSha256} is not the qualified candidate ${expectation.cliSha256}.`
     );
   }
-  const managed = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT].find(candidate => candidate.cliSha256 === cliSha256);
+  const managed = QUALIFIED_BATCH_ARCHIVES.find(candidate => candidate.cliSha256 === cliSha256);
   if (managed && !matchesExactKitExpectation(expectation, managed)) {
     fail("package-identity", "Managed Kit requires its exact package, CLI, extractor and selection-schema profile.");
   }
@@ -1403,7 +1416,7 @@ export async function collectKitSourceFacts(
     archivePath: deps.qualifiedArchivePath ?? null, observedArchive: archive,
   });
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: deps.installedPackageRoot, expectation });
-  const managed = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT].find(candidate => candidate.cliSha256 === pkg.cliSha256);
+  const managed = QUALIFIED_BATCH_ARCHIVES.find(candidate => candidate.cliSha256 === pkg.cliSha256);
   if (managed) {
     if (!deps.installedPackageRoot || !deps.qualifiedArchivePath ||
         sha256Hex(readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive")) !== managed.archiveSha256) {

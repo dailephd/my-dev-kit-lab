@@ -74,7 +74,11 @@ describe("published Kit Rust reuse", () => {
     expect(result.issues.some(i => i.detectorId === ids[0] && i.title.includes("calibrate_sensor") && i.severity === "info")).toBe(true);
     expect(result.issues.some(i => i.detectorId === ids[1] && i.title.includes("unused.json"))).toBe(true);
     expect(result.issues.filter(i => i.id.includes("unreferenced-source-file"))).toEqual([]);
-    expect(result.issues.some(i => i.detectorId === ids[2] && i.title.includes("test.skip("))).toBe(true);
+    // The Rust fixture contains a string literal, and the published producer
+    // does not provide Rust executable modifier observations.
+    const rustTest = result.sourceFacts.files.find(file => file.relativePath === "tests/worker.rs");
+    expect(rustTest?.kit?.capabilities["test-observations"]).toBe("unsupported");
+    expect(result.issues.filter(i => i.detectorId === ids[2] && /(?:only|skip)-usage/.test(i.id))).toEqual([]);
     expect(result.issues.some(i => i.detectorId === ids[3] && i.affectedFiles.includes("src/audits/lines.rs"))).toBe(true);
     expect(result.issues.some(i => /private_helper|operate|inspect/.test(i.title))).toBe(false);
     expect((await audit(root, ids)).issues).toEqual(result.issues);
