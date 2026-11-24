@@ -45,7 +45,7 @@ describe("published Kit Rust reuse", () => {
     const installedKit = path.resolve("node_modules/@dailephd/my-dev-kit"), kitBefore = hashTree(installedKit);
     const facts = await collect(root);
     expect(facts.provider).toBe("kit");
-    expect(facts.kitEvidence).toMatchObject({ packageVersion: "1.15.0", artifactSchemaVersion: "1.1.0", traversalComplete: true, selectedFileCount: 6 });
+    expect(facts.kitEvidence).toMatchObject({ packageVersion: "1.16.0", artifactSchemaVersion: "1.2.0", traversalComplete: true, selectedFileCount: 6 });
     expect(facts.files).toHaveLength(6);
     expect(facts.files.filter(file => file.language === "rust")).toHaveLength(5);
     for (const file of facts.files.filter(file => file.language === "rust")) {
@@ -160,7 +160,7 @@ describe("published Kit Rust reuse", () => {
   it.each(["snapshot", "omission", "inventory truncation", "fact truncation", "hash", "process", "stale", "missing artifact", "digest", "registration"])("rejects %s evidence from the real Rust producer", async mode => {
     const root = fixture();
     let altered = false;
-    const deps: KitSourceProviderDependencies = { runCommand: async options => {
+    const deps: KitSourceProviderDependencies = { disableBatch: true, disableStream: true, runCommand: async options => {
       const result = await runMeasuredCommand(options);
       const args = options.args ?? [];
       if (args.includes("index")) {

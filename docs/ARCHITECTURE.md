@@ -1090,7 +1090,16 @@ Qualified partial imports from the pinned producer are retained with their diagn
 
 Partial declaration evidence has one narrow positive route: qualified Java/Kotlin declaration evidence for `docs-code-mismatch` with an explicitly qualified producer profile. It cannot establish declaration absence; unmatched claims requiring unavailable evidence stay unavailable. Without an applicable qualified positive claim, insufficient required evidence remains fatal. Python dynamic exports remain unknown for declaration candidacy, while independent qualified file-level signals remain possible. Kotlin object/companion matching uses qualified owner identity rather than simple-name substitution. These are Lab policy qualifications, not compiler binding or runtime reachability.
 
-Production source auditing now resolves the exact runtime dependency `@dailephd/my-dev-kit@1.15.0`, with source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, and CLI SHA-256 `ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f`. Its file evidence and coverage matched Candidate 05 across the 15 retained fixtures; its findings matched all 150 accepted Kit oracle decisions. Required artifact, pagination, capability, freshness, and source proof validation still apply. Installed-consumer qualification is recorded separately from this comparison.
+The historical v0.10.0 release resolves the exact runtime dependency `@dailephd/my-dev-kit@1.15.0`, with source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, and CLI SHA-256 `ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f`. Its file evidence and coverage matched Candidate 05 across the 15 retained fixtures; its findings matched all 150 accepted Kit oracle decisions. Required artifact, pagination, capability, freshness, and source proof validation still apply. Installed-consumer qualification is recorded separately from this comparison.
+
+The unpublished Lab v0.11.0 candidate resolves exact published Kit 1.16.0
+from its own dependencies. Source-audit qualification binds the release archive
+integrity and the installed CLI digest. Lab requests opt-in schema 1.2.0 with
+extractor `source-audit-v1.6.0` and qualified batch and stream transport. Kit's
+default schema remains 1.1.0. Older strict 1.2.0 readers can reject the optional
+direct modifier proof. Lab requires that proof for predicate-specific
+completeness when broader observations are partial. Historical and explicit
+local archive qualifications retain their separate identities.
 
 The historical accepted development producer is Candidate 05: package metadata `1.14.0`, source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, upstream cache schema `1.4.0`, and the exact CLI SHA-256 pinned by `QUALIFIED_KIT_CANDIDATE`. Package version alone does not establish compatibility. Public Kit 1.14.0 is a different build. At that historical acceptance, qualified Kit v1.15.0 publication was still required before Lab published-dependency qualification; Candidate 05 did not automatically qualify a future package.
 
@@ -1110,7 +1119,7 @@ A corrected Kit v1.15.2 **candidate** is qualified against these consumers befor
 
 ### Rust source-evidence reuse
 
-Rust `.rs` files use the same managed Kit 1.15.0 bridge and normalized Lab evidence model, with Kit extraction method `rust-tree-sitter`. Ordinary declarations, imports and source ranges can be complete; exports remain partial. Identifier-literal, test-observation, fixture-reference and process-observation capabilities are unsupported. Capability status is checked per file, not inferred from the schema. Qualified trait, impl and method identities remain distinct.
+Rust `.rs` files use the same managed Kit bridge and normalized Lab evidence model, with Kit extraction method `rust-tree-sitter`. Ordinary declarations, imports and source ranges can be complete; exports remain partial. Identifier-literal, test-observation, fixture-reference and process-observation capabilities are unsupported. Capability status is checked per file, not inferred from the schema. Qualified trait, impl and method identities remain distinct.
 
 Four existing source-policy families have accepted Rust examples: duplicate exported declarations, dead-code fixture-basename references, test-rot lexical strings such as `test.skip(`, and cross-platform raw newline-splitting predicates. These are the existing detector policies, not Rust test-ignore semantics or runtime claims. The other six detector families retain their conditional generic metadata/inventory policies; this does not make all ten Rust semantic analyzers.
 

@@ -8,6 +8,7 @@ import { kitPredicateContent } from "../../src/audits/codeRot/utils/sourceFactsL
 import {
   QUALIFIED_KIT_CANDIDATE,
   QUALIFIED_PUBLISHED_KIT,
+  QUALIFIED_CURRENT_PUBLISHED_KIT,
   QUALIFIED_SW123_P6_R2_KIT,
   QUALIFIED_SW123_P6_R7_KIT,
   collectKitSourceFacts,
@@ -32,7 +33,7 @@ const CANDIDATE_ROOT = path.resolve(
     (process.env.LAB_VERIFICATION_LANE === "private" ? path.join(".my-dev-kit-workflow", "tools", "v010-lab-kit-gate4", "kit-candidate-05", "node_modules", "@dailephd", "my-dev-kit") : path.join("node_modules", "@dailephd", "my-dev-kit"))
 );
 if (!fs.existsSync(path.join(CANDIDATE_ROOT, "package.json"))) throw new Error("Required Kit provider missing");
-const installedExpectation = process.env.LAB_VERIFICATION_LANE === "private" ? QUALIFIED_KIT_CANDIDATE : QUALIFIED_PUBLISHED_KIT;
+const installedExpectation = process.env.LAB_VERIFICATION_LANE === "private" ? QUALIFIED_KIT_CANDIDATE : QUALIFIED_CURRENT_PUBLISHED_KIT;
 
 const roots: string[] = [];
 function tempDir(prefix: string): string {
@@ -793,8 +794,8 @@ describe("exact installed Kit candidate", () => {
     expect(evidence).toMatchObject({
       packageName: "@dailephd/my-dev-kit",
       packageVersion: installedExpectation.packageVersion,
-      artifactSchemaVersion: "1.1.0",
-      extractorRevision: "source-audit-v1.5.0",
+      artifactSchemaVersion: installedExpectation.artifactSchemaVersion,
+      extractorRevision: installedExpectation.extractorRevision,
       sourceRoots: ["src", "tests"],
       selectedFileCount: 6,
       traversalComplete: true,
@@ -873,11 +874,12 @@ describe("exact installed Kit candidate", () => {
   }, 120000);
 });
 
-it("accepts the exact published 1.15.0 provider and authenticates its selected source", async () => {
+it("accepts the exact published 1.16.0 provider and authenticates its selected source", async () => {
   const published = path.join(process.cwd(), "node_modules/@dailephd/my-dev-kit");
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: published });
-  expect(pkg.packageVersion).toBe("1.15.0");
-  expect(pkg.cliSha256).toBe("ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f");
+  expect(pkg.packageVersion).toBe(QUALIFIED_CURRENT_PUBLISHED_KIT.packageVersion);
+  expect(pkg.cliSha256).toBe(QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256);
+  expect(() => resolveInstalledKitPackage({ installedPackageRoot: published, expectation: QUALIFIED_PUBLISHED_KIT })).toThrow(/package-identity/);
   const project = tempDir("published-source");
   writeFiles(project, { "src/main.ts": "export const answer = 42;\n" });
   for (let i = 0; i < 66; i++) writeFiles(project, { [`src/g${i}.ts`]: `export const g${i} = ${i};\n` });
@@ -890,7 +892,7 @@ it("accepts the exact published 1.15.0 provider and authenticates its selected s
   expect(snapshot.kitEvidence?.inventoryPages).toBe(2);
   expect(snapshot.files.find(f => f.relativePath === "src/big.ts")!.declarations).toHaveLength(130);
   expect(snapshot.kitEvidence!.factPages).toBeGreaterThan(snapshot.files.length);
-  expect(snapshot.kitEvidence?.packageVersion).toBe("1.15.0");
+  expect(snapshot.kitEvidence).toMatchObject({ packageVersion: "1.16.0", artifactSchemaVersion: "1.2.0" });
 }, 120000);
 describe("partial-import deferral never relaxes evidence integrity", () => {
   it.each<[string, Mutators, string]>([
@@ -1173,7 +1175,7 @@ if (p5Root || p5Package) {
       expect(() => reader!.reExportSpecifiers!("src/reexport.ts")).toThrow(/closed/);
     }, 120000);
 
-    it("keeps freshly generated historical 1.15.0 Kotlin evidence partial under its separate original producer profile", async () => {
+    it.runIf(Boolean(process.env.LAB_HISTORICAL_PUBLISHED_KIT_ROOT))("keeps freshly generated historical 1.15.0 Kotlin evidence partial under its separate original producer profile", async () => {
       const relative = "tests/fixtures/config.gradle.kts", root = target("historical-contract", {
         "tests/reference.test.ts": "const fixture='config.gradle.kts'; test('fixture reference',()=>void fixture);\n",
       });
@@ -1182,7 +1184,7 @@ if (p5Root || p5Package) {
       fs.writeFileSync(path.join(root, relative), fs.readFileSync(source), { flag: "wx" });
       const bridge = dependencies("historical-contract");
       const result = await runAudit({ config: config(root, "tests"), toolRoot: root, kitSourceProviderDependencies: {
-        ...bridge.deps, installedPackageRoot: path.resolve("node_modules/@dailephd/my-dev-kit"), expectation: QUALIFIED_PUBLISHED_KIT,
+        ...bridge.deps, installedPackageRoot: path.resolve(process.env.LAB_HISTORICAL_PUBLISHED_KIT_ROOT!), expectation: QUALIFIED_PUBLISHED_KIT,
       } });
       const file = result.sourceFacts.files.find(f => f.relativePath === relative)!;
       expect(file.kit!.capabilities).toMatchObject({ declarations: "partial", imports: "partial", jvmDeclarations: "unsupported" });

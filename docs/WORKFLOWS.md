@@ -1173,7 +1173,8 @@ npm run audit -- --target /path/to/android/project --types security --android --
 
 ## v0.10.0 public and protected verification lanes
 
-`npm run test:public` runs the public lane against published Kit 1.15.0, public schemas,
+`npm run test:public` runs the public lane against the pinned published Kit
+provider (1.16.0 for the v0.11.0 candidate), public schemas,
 and the committed 150-decision oracle. Historical producer differential and
 reader-replacement suites are assigned to the separate mandatory protected
 lane; they are not reported as passed or optional skips by public CI.
@@ -1242,10 +1243,17 @@ The source-checkout verifier collects finite public/current-protected/platform/p
 An exact qualified Kit profile can supply the optional schema 1.2.0 direct
 modifier completeness claim. Lab uses that claim for the direct executable
 `.skip` and `.only` predicate after exact-file identity and fact-page validation.
-The broader observation family can remain partial. Published Kit 1.15.0 retains
-its existing behavior. Focused qualification of a local producer does not
-change the current route, qualify a registry artifact, or clear unrelated
-protected import and reverse-reference requirements.
+The broader observation family can remain partial. The prospective provider
+migration binds current acceptance to exact published Kit 1.16.0 while retaining
+the original authorization and historical Kit 1.15.0 evidence. The verifier
+requires the six qualified incomplete fixtures to retain their exact mandatory
+gaps and natural exit 2. The other fixtures require complete coverage. It
+independently replays the affected fixtures and authenticates the JVM proofs
+and direct modifier controls.
+
+Collect and independently verify the protected lane before starting the
+canonical public lane. A protected failure pauses dependent expensive work.
+Reuse canonical public and packed executions for readiness and final binding.
 
 The current route remains **BLOCKED_REQUIRED_EVIDENCE** until its complete public, current-protected, package, native platform and independent binding requirements pass. The local original historical gate remains available unchanged. Historical provenance stays **UNVERIFIED**; original private verification and original readiness binding stay **NOT_PASSED**. LAB-EVIDENCE-01 adoption does not substitute for this contract. Current acceptance establishes neither Step 5 readiness nor publication authority.
 

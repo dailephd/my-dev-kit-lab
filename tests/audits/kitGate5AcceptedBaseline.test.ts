@@ -6,12 +6,12 @@ import { afterAll, describe, expect, it } from "vitest";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
-import { resolveQualifiedKitArchive, QUALIFIED_PUBLISHED_KIT, QUALIFIED_SW123_P6_R2_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
+import { resolveQualifiedKitArchive, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_SW123_P6_R2_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error Source-checkout verification is an existing plain ESM owner.
 import { verificationOutputDirectory } from "../../scripts/run-verification-lane.mjs";
 // @ts-expect-error Source-checkout verification is an existing plain ESM owner.
-import { projectJvmSnapshot } from "../../scripts/verifyCurrentKitAcceptance.mjs";
+import { CURRENT_CONTRACT, currentProspectiveFixtureRoots, projectJvmSnapshot, prospectiveCurrentFindings, verifyCurrentFixtureCoverage } from "../../scripts/verifyCurrentKitAcceptance.mjs";
 
 const root = process.cwd();
 const privateLane = process.env.LAB_VERIFICATION_LANE === "private";
@@ -29,6 +29,9 @@ const expectation: KitCandidateExpectation = {
   cliSha256: "35dbc49fc91f8c47f1e7cdaf86223414a54517ff25a1a29f87231b2bae3807b8",
 };
 type Decision = (typeof oracle.decisions)[number];
+const currentPolicy = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/audits/currentKitAcceptance.v010.json"), "utf8"));
+const expectedCurrent = new Map<string, unknown>(prospectiveCurrentFindings(oracle, currentPolicy, root)
+  .map((row: Decision) => [row.decisionId, row.normalizedKitFindings]));
 const fixtureRoots: string[] = [...new Set<string>(oracle.decisions.map((d: Decision) => d.fixtureRoot))].sort();
 const completed: { decisionId: string; normalizedKitFindings: unknown }[] = [];
 const currentCompleted: { decisionId: string; normalizedKitFindings: unknown }[] = [];
@@ -51,7 +54,7 @@ if (modifierReplayOnly && (privateLane || p5Root || !process.env.LAB_CURRENT_ORA
   throw new Error("Current modifier replay requires its published profile and native decision destination.");
 }
 const executionFixtureRoots = modifierReplayOnly
-  ? fixtureRoots.filter(fixture => /\/kit-differential-v010\/(java|javascript|kotlin|typescript)$/.test(fixture))
+  ? fixtureRoots.filter(fixture => currentProspectiveFixtureRoots(currentPolicy).has(fixture))
   : fixtureRoots;
 const matrixArchive = process.env.LAB_SW121_MATRIX_ARCHIVE;
 const matrixPackage = process.env.LAB_SW121_MATRIX_PACKAGE;
@@ -72,6 +75,8 @@ if (p5Root) assertContainedDirectory(p5Root, p5Authority);
 const p5Output = p5Root ? fs.mkdtempSync(path.join(p5Root, p6Root ? "qualification/accepted-oracle-" : "candidate-results/accepted-oracle-")) : undefined;
 
 // Identical to the accepted differential normalization: arrays keep their order.
+const jvmFixture = (fixture: string) => /\/kit-differential-v010\/(java|kotlin)$/.test(fixture);
+
 function normalize(value: unknown, target: string): any {
   if (typeof value === "string") return value.split(target).join("<TARGET>").split(target.replace(/\\/g, "/")).join("<TARGET>");
   if (Array.isArray(value)) return value.map((v) => normalize(v, target));
@@ -136,7 +141,7 @@ describe("Gate5 committed accepted oracle", () => {
     validateOracle(oracle);
     for (const [relative, hash] of Object.entries(oracle.fixtureFileHashes)) expect(sha(fs.readFileSync(path.join(root, relative)))).toBe(hash);
     if (privateLane) expect(sha(fs.readFileSync(path.join(candidate, "dist/cli.js")))).toBe(expectation.cliSha256);
-    else expect(sha(fs.readFileSync(path.join(root, "node_modules/@dailephd/my-dev-kit/dist/cli.js")))).toBe(QUALIFIED_PUBLISHED_KIT.cliSha256);
+    else expect(sha(fs.readFileSync(path.join(root, "node_modules/@dailephd/my-dev-kit/dist/cli.js")))).toBe(QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256);
   });
 
   if (privateLane) it("reproduces the accepted Kit findings and exact ledger domain from original evidence", () => {
@@ -185,11 +190,13 @@ describe("Gate5 committed accepted oracle", () => {
     const workDir = provider === "p5-candidate" ? fs.mkdtempSync(path.join(p5Root!, p6Root ? "qualification/oracle-" : "integration-index/oracle-")) : path.join(workspace, "kit");
     const result = await runAudit({ config, toolRoot: root, kitSourceProviderDependencies: {
       installedPackageRoot: provider === "historical" ? candidate : provider === "p5-candidate" ? p5Package : path.join(root, "node_modules/@dailephd/my-dev-kit"),
-      expectation: provider === "historical" ? expectation : provider === "p5-candidate" ? p5Expectation : QUALIFIED_PUBLISHED_KIT, ...matrix, workDir,
+      expectation: provider === "historical" ? expectation : provider === "p5-candidate" ? p5Expectation : QUALIFIED_CURRENT_PUBLISHED_KIT, ...matrix, workDir,
+      // Retain independently inspectable proof bodies for the JVM token verifier.
+      ...(jvmFixture(fixtureRoot) && { disableStream: true, disableBatch: true }),
     } });
     if (provider === "p5-candidate") fs.writeFileSync(path.join(p5Output!, path.basename(fixtureRoot) + ".json"), JSON.stringify({ fixtureRoot, workDir, result }, null, 2), { flag: "wx" });
     const findings = result.issues.map(issue => normalize(issue, target)).sort((a, b) => a.id.localeCompare(b.id));
-    const jvmDecision = /\/kit-differential-v010\/(java|kotlin)$/.test(fixtureRoot) && fixtureRoot + "::test-rot";
+    const jvmDecision = jvmFixture(fixtureRoot) && fixtureRoot + "::test-rot";
     let jvmProofs: typeof currentJvmProofs[string] | undefined;
     if (jvmDecision && (provider === "published" || matrix)) {
       // runAudit authenticated the installed profile, selected source, pages,
@@ -221,25 +228,15 @@ describe("Gate5 committed accepted oracle", () => {
       fs.writeFileSync(destination, JSON.stringify({ fixtureRoot, workspace, workDir, producer: matrix.expectation, exit: result.exitCode, coverage: result.coverage, errors: result.detectorErrors, skipped: result.skippedDetectors, findings, jvmProofs }, null, 2), { flag: "wx" });
       return;
     }
-    const publishedModifierFile = provider === "published" && {
-      javascript: "tests/check.sample.js",
-      typescript: "tests/check.sample.ts",
-    }[path.basename(fixtureRoot) as "javascript" | "typescript"];
-    if (publishedModifierFile) {
-      expect(result.exitCode).toBe(2);
-      expect(result.coverage?.filter(row => row.mandatory && ["UNAVAILABLE", "UNDETERMINED"].includes(row.status))).toEqual([
-        expect.objectContaining({ detectorId: "test-rot", predicate: "executable test modifiers",
-          source: { kind: "file", identity: publishedModifierFile }, capability: "test-observations",
-          actualStatus: "partial", status: "UNAVAILABLE" }),
-      ]);
-      expect(result.detectorErrors).toEqual([
-        { id: "test-rot", message: expect.stringContaining(`executable test modifiers; file=${publishedModifierFile}`) },
-      ]);
+    if (provider === "published") {
+      const coverage = { fixtureRoot, detectors: DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort(),
+        detectorErrors: result.detectorErrors, skippedDetectors: result.skippedDetectors, exitCode: result.exitCode,
+        mandatoryGaps: result.coverage?.filter(row => row.mandatory && ["UNAVAILABLE", "UNDETERMINED"].includes(row.status)) ?? [] };
+      verifyCurrentFixtureCoverage(coverage, currentPolicy, fixtureRoot, coverage.detectors);
+      currentCoverage.push(coverage);
     } else {
       expect(result.detectorErrors).toEqual([]);
     }
-    if (provider === "published") currentCoverage.push({ fixtureRoot, detectors: DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort(),
-      detectorErrors: result.detectorErrors, skippedDetectors: result.skippedDetectors, exitCode: result.exitCode });
     // The extractor revision intentionally changes snapshots. Authenticate the
     // new identity independently, then project only the exact snapshot token
     // in the existing JVM proof message. The frozen oracle stays untouched.
@@ -263,15 +260,7 @@ describe("Gate5 committed accepted oracle", () => {
     expect(DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort()).toEqual(decisions.map((d: Decision) => d.detectorId).sort());
     for (const decision of decisions) {
       const actual = findings.filter(f => f.detectorId === decision.detectorId);
-      let expected = structuredClone(decision.normalizedKitFindings);
-      if (publishedModifierFile && decision.detectorId === "test-rot") {
-        // The frozen historical detector matched comment text. The current
-        // detector retains the two authenticated executable modifier findings.
-        const commentLine = publishedModifierFile.endsWith(".js") ? 4 : 5;
-        const commentId = `test-rot:${publishedModifierFile}:skip-usage:${commentLine}`;
-        expect(expected.map((finding: { id: string }) => finding.id)).toContain(commentId);
-        expected = expected.filter((finding: { id: string }) => finding.id !== commentId);
-      }
+      let expected = structuredClone(provider === "published" ? expectedCurrent.get(decision.decisionId) : decision.normalizedKitFindings) as typeof decision.normalizedKitFindings;
       if (identityProjection) for (const finding of expected) for (const evidence of finding.evidence) {
         if (!evidence.message.startsWith("Qualified Kit declaration-domain evidence found no matching declaration")) continue;
         const oldToken = `snapshot: ${identityProjection.historicalSnapshot}.`;
@@ -299,7 +288,7 @@ afterAll(() => {
   const common = path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim());
   if (path.basename(common) !== ".git") throw new Error("Unknown current evidence authority");
   verificationOutputDirectory(path.dirname(common), output);
-  fs.writeFileSync(output, JSON.stringify({ contractId: "LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0", provider: "published-1.15.0",
+  fs.writeFileSync(output, JSON.stringify({ contractId: CURRENT_CONTRACT, provider: "published-" + QUALIFIED_CURRENT_PUBLISHED_KIT.packageVersion,
     decisions: currentCompleted.sort((a, b) => a.decisionId.localeCompare(b.decisionId)), coverage: currentCoverage, jvmProofs: currentJvmProofs }, null, 2) + "\n", { flag: "wx" });
 });
 

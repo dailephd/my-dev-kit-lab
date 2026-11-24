@@ -64,9 +64,21 @@ describe('authorized current Kit native semantic verification', () => {
     expect(verifyNativeTests(f.native, f.listing, f.root, 'win32', 'protected')).toMatchObject({ passed: 1, skipped: 1 });
     expect(() => verifyNativeTests(f.native, f.listing, f.root, 'linux', 'protected')).toThrow('Required responsibility');
   });
-  it('requires all150 complete findings and keeps incomplete import coverage blocking', () => {
-    const result = { contractId: CURRENT_CONTRACT, provider: 'published-1.15.0', decisions: prospectiveCurrentFindings(oracle, policy),
-      coverage: [...new Set<string>(oracle.decisions.map((d: any) => d.fixtureRoot))].sort().map(fixtureRoot => ({ fixtureRoot, detectors: oracle.decisions.filter((d: any) => d.fixtureRoot === fixtureRoot).map((d: any) => d.detectorId).sort(), detectorErrors: [] as unknown[], skippedDetectors: [], exitCode: 0 })) };
+  function expectedCoverage() {
+    return [...new Set<string>(oracle.decisions.map((d: any) => d.fixtureRoot))].sort().map(fixtureRoot => {
+      const contract = policy.prospectivePublishedProvider.fixtures.find((row: any) => row.fixtureRoot === fixtureRoot);
+      const gaps = (contract?.gaps ?? []).map((gap: any) => gap.record);
+      return { fixtureRoot, detectors: oracle.decisions.filter((d: any) => d.fixtureRoot === fixtureRoot).map((d: any) => d.detectorId).sort(),
+        detectorErrors: gaps.map((record: any) => ({ id: record.detectorId,
+          message: "PARTIAL_COVERAGE UNAVAILABLE: " + record.predicate + "; " + record.source.kind + "=" + record.source.identity +
+            "; capability=" + record.capability + "; status=" + record.actualStatus + "; " + record.reason + "; " + record.diagnostic,
+        })) as unknown[],
+        skippedDetectors: [], exitCode: contract?.expectedExit ?? 0, mandatoryGaps: gaps };
+    });
+  }
+  it('requires all 150 findings and authorizes only exact incomplete coverage', () => {
+    const result = { contractId: CURRENT_CONTRACT, provider: policy.prospectivePublishedProvider.provider, decisions: prospectiveCurrentFindings(oracle, policy),
+      coverage: expectedCoverage() };
     expect(verifyCurrentDecisions(result, oracle, policy)).toEqual({ decisions: 150, dispositions: 16, incomparableProfiles: 3 });
     const amended = policy.prospectiveCommentDispositions;
     expect(amended).toHaveLength(2);
@@ -88,6 +100,17 @@ describe('authorized current Kit native semantic verification', () => {
     expect(() => verifyCurrentDecisions(lostPositive, oracle, policy)).toThrow('findings');
     const changed = structuredClone(result); changed.decisions[0].normalizedKitFindings = [{ severity: 'low', id: 'forged' }]; expect(() => verifyCurrentDecisions(changed, oracle, policy)).toThrow('findings');
     const unavailable = structuredClone(result); unavailable.coverage[0].detectorErrors.push({ message: 'PARTIAL_COVERAGE UNAVAILABLE' }); expect(() => verifyCurrentDecisions(unavailable, oracle, policy)).toThrow('Unavailable mandatory');
+    const wrongProvider = { ...result, provider: 'published-1.15.0' };
+    expect(() => verifyCurrentDecisions(wrongProvider, oracle, policy)).toThrow('findings');
+    const unauthorized = structuredClone(policy);
+    unauthorized.prospectivePublishedProvider.fixtures.pop();
+    expect(() => verifyCurrentDecisions(result, oracle, unauthorized)).toThrow('Unauthorized prospective');
+    const wrongExit = structuredClone(result);
+    wrongExit.coverage.find(cell => cell.exitCode === 2)!.exitCode = 0;
+    expect(() => verifyCurrentDecisions(wrongExit, oracle, policy)).toThrow('Unavailable mandatory');
+    const changedGap = structuredClone(result);
+    changedGap.coverage.find(cell => cell.exitCode === 2)!.mandatoryGaps[0].status = 'COMPLETE';
+    expect(() => verifyCurrentDecisions(changedGap, oracle, policy)).toThrow('Unavailable mandatory');
     result.decisions.pop(); expect(() => verifyCurrentDecisions(result, oracle, policy)).toThrow('coverage');
   });
   it('compares only authenticated JVM snapshot provenance while retaining exact finding semantics', () => {
@@ -96,11 +119,8 @@ describe('authorized current Kit native semantic verification', () => {
     const finding = java.normalizedKitFindings.find((row: any) => row.id.includes(':missing-java-source-import:'));
     const proof = { importFactId: finding.evidence[0].message.match(/Import fact: ([^;]+);/)[1], snapshotId: 'ab'.repeat(32) };
     const independent = { [java.decisionId]: { [finding.id]: proof } };
-    const result = { contractId: CURRENT_CONTRACT, provider: 'published-1.15.0', decisions: structuredClone(decisions),
-      coverage: [...new Set<string>(oracle.decisions.map((row: any) => row.fixtureRoot))].sort().map(fixtureRoot => ({
-        fixtureRoot, detectors: oracle.decisions.filter((row: any) => row.fixtureRoot === fixtureRoot)
-          .map((row: any) => row.detectorId).sort(), detectorErrors: [], skippedDetectors: [], exitCode: 0,
-      })) };
+    const result = { contractId: CURRENT_CONTRACT, provider: policy.prospectivePublishedProvider.provider, decisions: structuredClone(decisions),
+      coverage: expectedCoverage() };
     const actual = result.decisions.find((row: any) => row.decisionId === java.decisionId).normalizedKitFindings.find((row: any) => row.id === finding.id);
     actual.evidence[0].message = actual.evidence[0].message.replace(/[0-9a-f]{64}\.$/, proof.snapshotId + '.');
     const verify = (candidate = result, witnesses = independent) => verifyCurrentDecisions(candidate, oracle, policy, process.cwd(), witnesses);
@@ -136,17 +156,21 @@ describe('authorized current Kit native semantic verification', () => {
     expect(HISTORICAL_STATE).toEqual({ provenance: 'UNVERIFIED', privateVerification: 'NOT_PASSED', readinessBinding: 'NOT_PASSED' });
     expect(CURRENT_PROTECTED_TESTS).not.toContain('tests/audits/kitSourceDifferential.test.ts');
   });
-  it.each(['candidateSha', 'sourceIdentity', 'packageMetadataSha256', 'kitCliSha256'])('refuses changed %s binding', async key => {
+  it.each(['candidateSha', 'sourceIdentity', 'packageMetadataSha256', 'kitCliSha256', 'kitProvider', 'kitArchiveIntegrity'])('refuses changed %s binding', async key => {
     const f = repository(), identity = await currentIdentity(f.root);
     const input = path.join(f.root, '.my-dev-kit-workflow/input'); fs.mkdirSync(input, { recursive: true });
     fs.writeFileSync(path.join(input, 'manifest.json'), JSON.stringify({ contractId: CURRENT_CONTRACT, routeId: CURRENT_ROUTE, historical: HISTORICAL_STATE, identity: { ...identity, [key]: '0'.repeat(64) } }));
     await expect(verifyCurrentLane(f.root, path.join(input, 'manifest.json'), path.join(f.root, '.my-dev-kit-workflow/verify'))).rejects.toThrow('Changed candidate');
   });
-  it.each(['package.json', 'node_modules/@dailephd/my-dev-kit/package.json', 'tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json', Object.keys(oracle.fixtureFileHashes)[0]])('refuses invalid runtime/oracle/fixture identity: %s', async file => {
+  it.each(['package.json', 'package-lock.json', 'node_modules/@dailephd/my-dev-kit/package.json', 'tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json', Object.keys(oracle.fixtureFileHashes)[0]])('refuses invalid runtime/oracle/fixture identity: %s', async file => {
     const f = repository();
     if (file.includes('my-dev-kit/package.json')) f.put(file, JSON.stringify({ name: '@dailephd/my-dev-kit', version: '9.0.0' }));
     else if (file === 'package.json') { const p = JSON.parse(fs.readFileSync(path.join(f.root, file), 'utf8')); p.dependencies['@dailephd/my-dev-kit'] = '9.0.0'; f.put(file, JSON.stringify(p)); }
-    else fs.appendFileSync(path.join(f.root, file), 'tampered');
+    else if (file === 'package-lock.json') {
+      const lock = JSON.parse(fs.readFileSync(path.join(f.root, file), 'utf8'));
+      lock.packages['node_modules/@dailephd/my-dev-kit'].integrity = 'sha512-forged';
+      f.put(file, JSON.stringify(lock));
+    } else fs.appendFileSync(path.join(f.root, file), 'tampered');
     await expect(currentIdentity(f.root)).rejects.toThrow();
   });
   it('reopens native bytes and denies missing or tampered payloads before semantic qualification', async () => {

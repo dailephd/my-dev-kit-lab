@@ -31,7 +31,7 @@ import {
 } from "../../src/audits/core/auditRegistry.js";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { KitSourceEvidenceAcquisitionError } from "../../src/audits/core/kitSourceEvidence.js";
-import { QUALIFIED_PUBLISHED_KIT, type KitCommandRunner } from "../../src/audits/core/kitSourceProvider.js";
+import { QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_PUBLISHED_KIT, type KitCommandRunner } from "../../src/audits/core/kitSourceProvider.js";
 import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
 import { runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
 
@@ -118,7 +118,7 @@ it("propagates a required query failure inside detector.run to CLI exit 2 under 
   const out = path.join(root, "audit-out");
   forceProvider.mode = "kit";
   forceProvider.override = { registry: DEFAULT_AUDIT_REGISTRY.filter((entry) => entry.id === "test-rot"),
-    kitSourceProviderDependencies: { expectation: QUALIFIED_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT, runCommand: async (options) => {
+    kitSourceProviderDependencies: { expectation: QUALIFIED_CURRENT_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT, disableStream: true, disableBatch: true, runCommand: async (options) => {
       if (options.args?.includes("--contains")) return { ...(await runMeasuredCommand({ commandId: options.commandId, cwd: options.cwd, outDir: options.outDir, executable: process.execPath, args: ["-e", "process.exit(2)"], resolveCommand: false })), ok: false };
       return runMeasuredCommand(options);
     } } };
@@ -169,7 +169,7 @@ describe("Kit default and retired provider boundary", () => {
 
   it("default and explicit Kit produce identical findings and exit codes", async () => {
     const root = fixture({ "src/a.ts": "export const a=1;", "tests/a.test.ts": "export {};" });
-    const options = { config: configFor(root), toolRoot: root, registry: [detector("test-rot")], kitSourceProviderDependencies: { expectation: QUALIFIED_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT } };
+    const options = { config: configFor(root), toolRoot: root, registry: [detector("test-rot")], kitSourceProviderDependencies: { expectation: QUALIFIED_CURRENT_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT } };
     const byDefault = await runAudit(options), explicit = await runAudit({ ...options, sourceProviderMode: "kit" });
     expect(byDefault.sourceFacts.provider).toBe("kit");
     expect(byDefault.issues).toEqual(explicit.issues); expect(byDefault.exitCode).toBe(explicit.exitCode);
@@ -187,7 +187,7 @@ describe("Kit default and retired provider boundary", () => {
     const root = fixture({ "src/a.ts": "export const a = 1;\n", "tests/a.test.ts": "export {};\n" });
     const pkg = tempDir("wrongpkg");
     writeFiles(pkg, {
-      "package.json": JSON.stringify({ name: QUALIFIED_PUBLISHED_KIT.packageName, version: "9.9.9", bin: { "my-dev-kit": "dist/cli.js" } }),
+      "package.json": JSON.stringify({ name: QUALIFIED_CURRENT_PUBLISHED_KIT.packageName, version: "9.9.9", bin: { "my-dev-kit": "dist/cli.js" } }),
       "dist/cli.js": "// x\n",
     });
     await expect(
@@ -388,7 +388,7 @@ describe("runAudit with the exact installed Kit candidate", () => {
         })
       ),
       sourceProviderMode: "kit",
-      kitSourceProviderDependencies: { expectation: QUALIFIED_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT },
+      kitSourceProviderDependencies: { expectation: QUALIFIED_CURRENT_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT },
     });
     collected.seen = seen;
     return result;
@@ -450,7 +450,7 @@ describe("runAudit with the exact installed Kit candidate", () => {
       toolRoot: root,
       registry: [detector("test-rot")],
       sourceProviderMode: "kit",
-      kitSourceProviderDependencies: { expectation: QUALIFIED_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT, runCommand: withKit.runCommand },
+      kitSourceProviderDependencies: { expectation: QUALIFIED_CURRENT_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT, disableStream: true, disableBatch: true, runCommand: withKit.runCommand },
     });
     expect(withKit.calls.some((args) => args[1] === "index")).toBe(true);
     expect(withKit.calls.some((args) => args.includes("--audit-files"))).toBe(true);
@@ -462,7 +462,7 @@ describe("runAudit with the exact installed Kit candidate", () => {
       toolRoot: root,
       registry: NON_SOURCE_DETECTOR_IDS.map((id) => detector(id)),
       sourceProviderMode: "kit",
-      kitSourceProviderDependencies: { expectation: QUALIFIED_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT, runCommand: withoutKit.runCommand },
+      kitSourceProviderDependencies: { expectation: QUALIFIED_CURRENT_PUBLISHED_KIT, installedPackageRoot: CANDIDATE_ROOT, disableStream: true, disableBatch: true, runCommand: withoutKit.runCommand },
     });
     expect(withoutKit.calls).toEqual([]);
   }, 180000);

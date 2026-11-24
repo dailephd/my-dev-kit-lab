@@ -1219,7 +1219,9 @@ async function main() {
     const rustOutIncomplete = path.join(dirs.workspace, "reports", "rust-reuse-incomplete");
     const rustProviderModule = await import(pathToFileURL(path.join(installedPackageRoot, "dist", "src", "audits", "core", "kitSourceProvider.js")).href);
     const rustProvider = rustProviderModule.resolveInstalledKitPackage();
-    if (rustProvider.packageVersion !== "1.15.0" || rustProvider.cliSha256 !== "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f") fail("RUST_REUSE", "Installed managed Rust provider identity mismatch.");
+    const { QUALIFIED_CURRENT_PUBLISHED_KIT: rustProfile } = rustProviderModule;
+    if (rustProvider.packageName !== rustProfile.packageName || rustProvider.packageVersion !== rustProfile.packageVersion ||
+        rustProvider.cliSha256 !== rustProfile.cliSha256) fail("RUST_REUSE", "Installed managed Rust provider identity mismatch.");
     const rustProviderBefore = await snapshotDirectory(rustProvider.packageRoot);
     cpSync(path.join(REPO_ROOT, "tests", "fixtures", "audits", "rust-reuse"), rustTarget, { recursive: true });
     const rustBefore = await snapshotDirectory(rustTarget);

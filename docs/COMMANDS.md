@@ -891,7 +891,7 @@ Current options:
 | `--retry-of <execution-id>` | Link the new run to an earlier receipt in the same workspace |
 | `--android` | Optional; requires `--types` to include `security` |
 
-Source-audit prerequisite (LAB-KIT-01, v0.10.0): source-dependent selections use the exact qualified runtime dependency `@dailephd/my-dev-kit@1.15.0` described in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development). Lab and installed-consumer qualification against that published producer passed. Candidate 05 remains historical and is distinct from public Kit 1.14.0. The provider resolves Kit through Lab module resolution and never installs it automatically. A separately installed retrieval CLI or an experiment `--kit-command` does not configure this audit provider. Non-source-only selections and selections with no applicable source paths do not require Kit. An include area can select both source-dependent and non-source detectors; `--include package` can require source declarations for duplicate-implementation checks. Rust `.rs` selection uses the same command and generic bridge, with no language flag or Rust runner; [capability and applicability limits](ARCHITECTURE.md#rust-source-evidence-reuse) remain explicit.
+Source-audit prerequisite for v0.11.0 development: source-dependent selections resolve exact Kit 1.16.0 from Lab's dependencies. Under the historical LAB-KIT-01 v0.10.0 contract, source-dependent selections used the exact qualified runtime dependency `@dailephd/my-dev-kit@1.15.0` described in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development). Lab and installed-consumer qualification against that published producer passed. Candidate 05 remains historical and is distinct from public Kit 1.14.0. The provider resolves Kit through Lab module resolution and never installs it automatically. A separately installed retrieval CLI or an experiment `--kit-command` does not configure this audit provider. Non-source-only selections and selections with no applicable source paths do not require Kit. An include area can select both source-dependent and non-source detectors; `--include package` can require source declarations for duplicate-implementation checks. Rust `.rs` selection uses the same command and generic bridge, with no language flag or Rust runner; [capability and applicability limits](ARCHITECTURE.md#rust-source-evidence-reuse) remain explicit.
 
 The programmatic `runAudit` option `sourceProviderMode` defaults to `kit` and accepts only `kit`; `legacy-comparison` is retired and unsupported values fail explicitly. The provider dependency injection seam is internal, not a public configuration option. There is no audit `--source-provider` flag.
 
@@ -975,12 +975,10 @@ Run `my-dev-kit-lab --workspace <workspace> audit --target <project>
 --kit-archive <qualified-tarball> --kit-package-root <isolated-package-root>`.
 Supply both Kit options together. The managed provider validates the
 qualified archive and installed CLI identities and requests Kit artifact
-schema 1.2.0. The production dependency remains Kit 1.15.0.
-Kit 1.15.0 does not provide the opt-in schema, import-domain selector, or
-exact-byte selector used by this route. The explicit R3 qualification covers
-that authenticated producer for local product acceptance. Before publishing
-Lab, qualify published Kit v1.16.0 and bind the migrated production dependency
-to the actual installed package.
+schema 1.2.0. The Lab v0.11.0 candidate pins Kit 1.16.0.
+That published Kit release supplies this schema and the qualified import-domain
+and exact-byte selectors through the default installed provider. The archive options remain available for the
+explicitly qualified local producers, including R3.
 
 Repeat `--require-source <relative-path>` for required inventory entries.
 `--source-snapshot <git-sha>` declares the intended revision.

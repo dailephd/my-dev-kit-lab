@@ -454,8 +454,10 @@ The eight missing historical byte identities covering ten references remain unav
 Lab's published baseline and the local candidate's package metadata are both
 0.10.0. The unpublished consumer implementation for the coordinated v0.11.0
 work reached implementation commit `709401f7e8d82e678573d38445ff09b7333b9b15`.
-Its production Kit dependency remains exactly 1.15.0. The separate managed
-route explicitly selects a qualified local Kit archive and installed CLI.
+That earlier candidate pinned Kit 1.15.0. The current unpublished v0.11.0
+candidate pins exact published Kit 1.16.0 and uses its qualified installed
+CLI by default. The explicit managed archive route retains its separate
+local producer identities.
 The B5 producer was reproduced from Kit `c2eb844c0dae8ff061e1d5b65e257bf0551a7a66`
 with identical archive and installed CLI bytes. Earlier R3 qualification
 used Kit `bde00d9c165a6a546170ab72e7a9534d6929697e` and archive SHA-256
@@ -471,8 +473,8 @@ archive from the docs-only successor `e8ee492c3170902cca3b9fcc2c6bc4e504b89be5`.
 Its native WSL2/ext4 installed cases passed with the authenticated R3
 override, including the exit, report, receipt and fault checks. The default
 production Kit 1.15.0 consumer failed the complete control with incomplete
-selection. The candidate still requires a compatible published producer
-and separate exact-candidate readiness.
+selection. The published-provider migration supersedes that earlier blocked pairing.
+Exact-candidate Lab readiness remains pending.
 
 The 8,787 passing public tests and 19 authorized skips belong to predecessor
 `6fb8a084bd7e2a927dac2d34de1e24b5e989ceaa`. Final B5 focused evidence includes
@@ -483,8 +485,11 @@ the formal source inventory, so exact-candidate validation remains pending.
 
 The [adopted policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification)
 separates product acceptance from target certification. Final product
-acceptance, Step 5 readiness, and the published Kit dependency transition
-remain separate pending decisions and executions.
+acceptance and Step 5 readiness remain pending on the migrated candidate.
+The focused merged development ledger accounts for all 150 decisions. Its six
+qualified incomplete fixtures preserve fifteen mandatory gaps and natural exit
+2, including the unavailable TypeScript runtime-to-source mapping. The ledger
+remains development evidence. Canonical current acceptance runs separately.
 
 ### Historical target audit results
 

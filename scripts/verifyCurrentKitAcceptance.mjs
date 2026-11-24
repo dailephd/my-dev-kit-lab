@@ -27,7 +27,8 @@ export const CURRENT_PROTECTED_TESTS = Object.freeze([
 const ORACLE = 'tests/fixtures/audits/kitGate4AcceptedBaseline.v010.json';
 const POLICY = 'tests/fixtures/audits/currentKitAcceptance.v010.json';
 const ORACLE_SHA = 'a30cad80f5de3975cc17d6b804d7aeedccdb3a3d7f412b5950c098a3176f3457';
-const KIT_CLI_SHA = 'ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f';
+// Exact prospective scope from the qualified reference-closure dispositions.
+const PUBLISHED_SCOPE_SHA = 'adc278ddc90b672293fb9b068259de1b7560b98a5951397b23271ec676008992';
 const SOURCE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const hash = b => createHash('sha256').update(b).digest('hex');
 const stable = v => JSON.stringify(v, (_k, x) => x && !Array.isArray(x) && typeof x === 'object' ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
@@ -74,14 +75,23 @@ export async function currentIdentity(root) {
     policy.authorization.proposalSha256 === 'f4595f2b0f9ac0a56d96a8c22b6f78f2cec24b8d6c4f6030e11dd8b3a166a36e' &&
     policy.authorization.decisionId === 'SW-121-USER-AUTHORIZATION' && policy.authorization.scope === 'ALL_A_L_WITH_REAL_THREE_PLATFORM_EVIDENCE', 'Unapproved current contract');
   assert(stable(policy.historical) === stable(HISTORICAL_STATE), 'Historical PASS substitution');
-  const kit = JSON.parse(await read(root, 'node_modules/@dailephd/my-dev-kit/package.json'));
-  const kitCli = await read(root, 'node_modules/@dailephd/my-dev-kit/dist/cli.js');
-  assert(kit.name === '@dailephd/my-dev-kit' && kit.version === '1.15.0' && hash(kitCli) === KIT_CLI_SHA, 'Invalid Kit runtime');
+
+  const providerModule = await import(pathToFileURL(path.join(SOURCE_ROOT, 'dist/src/audits/core/kitSourceProvider.js')).href);
+  const profile = providerModule.QUALIFIED_CURRENT_PUBLISHED_KIT;
+  const provider = publishedScope(policy).provider;
+  assert(provider === 'published-' + profile.packageVersion, 'Wrong prospective provider');
+  const kitRoot = path.join(root, 'node_modules', profile.packageName);
+  const kit = providerModule.resolveInstalledKitPackage({ installedPackageRoot: kitRoot });
+  assert(path.relative(kitRoot, kit.packageRoot) === '', 'Foreign Kit runtime path');
   const pkg = JSON.parse(await read(root, 'package.json')), lock = JSON.parse(await read(root, 'package-lock.json'));
-  assert(pkg.dependencies['@dailephd/my-dev-kit'] === '1.15.0' && lock.packages['node_modules/@dailephd/my-dev-kit'].version === '1.15.0', 'Invalid Kit lock identity');
+  const entry = lock.packages['node_modules/' + profile.packageName];
+  assert(pkg.dependencies[profile.packageName] === profile.packageVersion &&
+    lock.packages[''].dependencies[profile.packageName] === profile.packageVersion &&
+    entry?.version === profile.packageVersion && entry?.resolved === profile.archiveUrl &&
+    entry?.integrity === profile.archiveIntegrity, 'Invalid Kit lock identity');
   return { candidateSha: git(root, ['rev-parse', 'HEAD']), sourceIdentity: source, portableSourceIdentity: portableIdentity(root),
     lockSha256: hash(await read(root, 'package-lock.json')), packageMetadataSha256: hash(await read(root, 'package.json')),
-    oracleSha256: ORACLE_SHA, policySha256: hash(await read(root, POLICY)), kitCliSha256: KIT_CLI_SHA,
+    oracleSha256: ORACLE_SHA, policySha256: hash(await read(root, POLICY)), kitCliSha256: kit.cliSha256, kitProvider: provider, kitArchiveIntegrity: profile.archiveIntegrity,
     kitPackageIdentity: tree(path.join(root, 'node_modules/@dailephd/my-dev-kit')),
     nodeSha256: hash(fs.readFileSync(process.execPath)), nodeVersion: process.version,
     vitestSha256: hash(await read(root, 'node_modules/vitest/dist/cli.js')),
@@ -132,6 +142,32 @@ export function verifyNativeTests(native, listing, root, platform, lane) {
     native.numTodoTests === 0 && native.numFailedTests === 0 && native.success === true, 'Forged native summary');
   return { total: actual.length + skipped.length, passed: actual.length, skipped: skipped.length, responsibilityDigest: hash(stable(expected)) };
 }
+function publishedScope(policy) {
+  const scope = policy.prospectivePublishedProvider;
+  assert(scope && hash(stable(scope)) === PUBLISHED_SCOPE_SHA, 'Unauthorized prospective published-provider scope');
+  return scope;
+}
+
+export function verifyCurrentFixtureCoverage(cell, policy, fixtureRoot, detectors) {
+  const contract = publishedScope(policy).fixtures.find(row => row.fixtureRoot === fixtureRoot);
+  const expected = contract?.gaps.map(gap => gap.record) ?? [];
+  const errors = expected.map(record => ({
+    id: record.detectorId,
+    message: 'PARTIAL_COVERAGE UNAVAILABLE: ' + record.predicate + '; ' + record.source.kind + '=' + record.source.identity +
+      '; capability=' + record.capability + '; status=' + record.actualStatus + '; ' + record.reason + '; ' + record.diagnostic,
+  }));
+  const sorted = rows => rows.map(stable).sort();
+  assert(cell && stable(cell.detectors) === stable(detectors) && cell.skippedDetectors?.length === 0 &&
+    cell.exitCode === (contract?.expectedExit ?? 0) && Array.isArray(cell.mandatoryGaps) && Array.isArray(cell.detectorErrors) &&
+    stable(sorted(cell.mandatoryGaps)) === stable(sorted(expected)) &&
+    stable(sorted(cell.detectorErrors)) === stable(sorted(errors)), 'Unavailable mandatory import/detector coverage: ' + fixtureRoot);
+}
+
+export function currentProspectiveFixtureRoots(policy) {
+  return new Set([...publishedScope(policy).fixtures.map(row => row.fixtureRoot),
+    ...[...policy.prospectiveCommentDispositions.map(row => row.decisionId), ...JVM_DECISIONS].map(id => id.split('::')[0])]);
+}
+
 // This narrowly authorized projection is separate from the immutable historical reviews.
 export function prospectiveCurrentFindings(oracle, policy, root = SOURCE_ROOT) {
   const expected = [['javascript', 'js', 4], ['typescript', 'ts', 5]].map(([language, ext, line]) => {
@@ -160,8 +196,13 @@ export function prospectiveCurrentFindings(oracle, policy, root = SOURCE_ROOT) {
       findings.some(f => f.id === 'test-rot:' + source + ':skip-usage:' + (line + 2)), 'Invalid prospective comment witness');
     excluded.set(amendment.decisionId, amendment.findingId);
   }
-  return oracle.decisions.map(d => ({ decisionId: d.decisionId,
-    normalizedKitFindings: d.normalizedKitFindings.filter(f => f.id !== excluded.get(d.decisionId)) }));
+  const dispositions = new Map(publishedScope(policy).findingDispositions.map(row => [row.decisionId, row.withheldFindingIds]));
+  return oracle.decisions.map(d => {
+    const withheld = dispositions.get(d.decisionId) ?? [];
+    assert(withheld.every(id => d.normalizedKitFindings.some(f => f.id === id)), 'Unknown historical finding disposition');
+    return { decisionId: d.decisionId,
+      normalizedKitFindings: d.normalizedKitFindings.filter(f => f.id !== excluded.get(d.decisionId) && !withheld.includes(f.id)) };
+  });
 }
 
 const JVM_DECISIONS = new Set(['java', 'kotlin'].map(language =>
@@ -188,13 +229,13 @@ export function verifyCurrentDecisions(result, oracle, policy, root = SOURCE_ROO
   const expected = prospectiveCurrentFindings(oracle, policy, root);
   for (const row of expected) row.normalizedKitFindings = projectJvmSnapshot(row.decisionId, row.normalizedKitFindings,
     independentJvmProofs?.[row.decisionId]);
-  assert(result.contractId === CURRENT_CONTRACT && result.provider === 'published-1.15.0' && result.decisions?.length === 150 &&
+  assert(result.contractId === CURRENT_CONTRACT && result.provider === publishedScope(policy).provider && result.decisions?.length === 150 &&
     stable(result.decisions) === stable(expected), 'Incomplete/changed findings or mandatory coverage');
   const roots = [...new Set(oracle.decisions.map(d => d.fixtureRoot))].sort();
   assert(Array.isArray(result.coverage) && result.coverage.length === roots.length && new Set(result.coverage.map(c => c.fixtureRoot)).size === roots.length, 'Incomplete mandatory coverage');
   for (const fixtureRoot of roots) {
     const cell = result.coverage.find(c => c.fixtureRoot === fixtureRoot), detectors = oracle.decisions.filter(d => d.fixtureRoot === fixtureRoot).map(d => d.detectorId).sort();
-    assert(cell && stable(cell.detectors) === stable(detectors) && cell.detectorErrors?.length === 0 && cell.skippedDetectors?.length === 0 && cell.exitCode === 0, 'Unavailable mandatory import/detector coverage');
+    verifyCurrentFixtureCoverage(cell, policy, fixtureRoot, detectors);
   }
   const differences = oracle.decisions.filter(d => d.acceptedDifferenceDisposition);
   assert(policy.reviews.length === 16 && new Set(policy.reviews.map(r => r.decisionId)).size === 16, 'Incomplete disposition review');
@@ -210,22 +251,21 @@ export function verifyCurrentDecisions(result, oracle, policy, root = SOURCE_ROO
 async function verifyProspectiveObservationReplay(root, output, env, decisions, policy) {
   // Reopen the relevant producer behavior independently. A collector-authored
   // exit 0 or digest alone cannot qualify the amended observation domains.
-  const filename = 'independent-modifier-decisions.json';
+  const filename = 'independent-prospective-decisions.json';
   const replayEnv = { ...env, LAB_CURRENT_ORACLE_OUTPUT: path.join(output, filename), LAB_CURRENT_MODIFIER_REPLAY: '1' };
   for (const name of ['LAB_SW123_P6_R3_ROOT', 'LAB_SW123_P6_R3_PACKAGE_ROOT', 'LAB_SW123_P5_ROOT', 'LAB_SW123_P5_PACKAGE_ROOT']) delete replayEnv[name];
-  await invoke(root, output, 'independent-modifier-replay', [
+  await invoke(root, output, 'independent-prospective-replay', [
     'node_modules/vitest/vitest.mjs', 'run', 'tests/audits/kitGate5AcceptedBaseline.test.ts',
     '--testNamePattern', 'executes ten canonical', '--maxWorkers=1',
   ], replayEnv, 7_200_000);
   const replay = JSON.parse(await read(output, filename));
-  const ids = new Set([...policy.prospectiveCommentDispositions.map(row => row.decisionId), ...JVM_DECISIONS]);
-  const fixtureRoots = new Set([...ids].map(id => id.split('::')[0]));
-  const selectDecisions = rows => rows.filter(row => ids.has(row.decisionId));
-  const selectCoverage = rows => rows.filter(row => fixtureRoots.has(row.fixtureRoot));
+  const fixtureRoots = currentProspectiveFixtureRoots(policy);
+  const selectDecisions = rows => rows.filter(row => fixtureRoots.has(row.decisionId.split('::')[0]));
+  const selectCoverage = rows => rows.filter(row => fixtureRoots.has(row.fixtureRoot)).sort((a, b) => a.fixtureRoot.localeCompare(b.fixtureRoot));
   assert(replay.contractId === CURRENT_CONTRACT && replay.provider === decisions.provider &&
     stable(selectDecisions(replay.decisions)) === stable(selectDecisions(decisions.decisions)) &&
     stable(selectCoverage(replay.coverage)) === stable(selectCoverage(decisions.coverage)),
-  'Independent modifier or JVM declaration evidence mismatch');
+  'Independent prospective fixture evidence mismatch');
   assert(Object.keys(replay.jvmProofs ?? {}).length === JVM_DECISIONS.size &&
     [...JVM_DECISIONS].every(id => Object.hasOwn(replay.jvmProofs, id)), 'Missing independent JVM proof domains');
   return replay.jvmProofs;
@@ -425,7 +465,8 @@ async function qualifyHostedCurrent(root, runId, output) {
     assert(manifest.contractId === CURRENT_CONTRACT && manifest.routeId === CURRENT_ROUTE && manifest.lane === 'platform' &&
       manifest.environment.platform === cell.platform && /^v24\./.test(manifest.environment.node) &&
       manifest.identity.candidateSha === identity.candidateSha && manifest.identity.portableSourceIdentity === identity.portableSourceIdentity &&
-      manifest.identity.kitCliSha256 === KIT_CLI_SHA && manifest.identity.oracleSha256 === ORACLE_SHA &&
+      manifest.identity.kitCliSha256 === identity.kitCliSha256 && manifest.identity.kitProvider === identity.kitProvider &&
+      manifest.identity.kitArchiveIntegrity === identity.kitArchiveIntegrity && manifest.identity.oracleSha256 === ORACLE_SHA &&
       stable(manifest.historical) === stable(HISTORICAL_STATE) && stable(manifest.command) === stable(PLATFORM_TESTS), 'Foreign/stale native platform evidence');
     await nativeBytes(root, directory, manifest.invocation.stdout, manifest.invocation.stdoutSha256);
     await nativeBytes(root, directory, manifest.invocation.stderr, manifest.invocation.stderrSha256);
