@@ -291,7 +291,7 @@ export type KitFileRecord = {
   status: KitFileStatus;
   lineCount: number | null;
   analyzerId: string | null;
-  capabilities: Record<KitCapabilityName, KitCapabilityStatus> & { jvmDeclarations?: KitCapabilityStatus; "dynamic-import-expressions"?: KitCapabilityStatus };
+  capabilities: Record<KitCapabilityName, KitCapabilityStatus> & { jvmDeclarations?: KitCapabilityStatus; "dynamic-import-expressions"?: KitCapabilityStatus; "direct-test-modifiers"?: "complete" | "partial" };
   ambientClassification?: KitAmbientClassification;
   warnings: string[];
   // Present on exact-file lookups only.
@@ -569,8 +569,16 @@ export function validateKitFileRecord(value: unknown, label: string, schema?: un
          record.analyzerId !== "typescript-ast" || record.status !== "parsed")) {
       fail("page-invalid", "Complete expression coverage requires authenticated parsed JS/TS.");
     }
+    if (capabilitiesRaw["direct-test-modifiers"] !== undefined) {
+      record.capabilities["direct-test-modifiers"] = oneOf(capabilitiesRaw["direct-test-modifiers"], ["complete", "partial"] as const, "direct-test-modifiers", "page-invalid");
+      if (!["typescript", "javascript"].includes(record.language) || record.analyzerId !== "typescript-ast" ||
+          (record.capabilities["direct-test-modifiers"] === "complete" && (!record.contentSha256 || record.status !== "parsed" ||
+            !["complete", "partial"].includes(record.capabilities["test-observations"])))) {
+        fail("page-invalid", "Invalid direct test-modifier proof.");
+      }
+    }
     if (obj.ambientClassification !== undefined) record.ambientClassification = validateAmbientClassification(obj.ambientClassification, record);
-  } else if (obj.ambientClassification !== undefined || capabilitiesRaw["dynamic-import-expressions"] !== undefined) {
+  } else if (obj.ambientClassification !== undefined || capabilitiesRaw["dynamic-import-expressions"] !== undefined || capabilitiesRaw["direct-test-modifiers"] !== undefined) {
     fail("schema-mismatch", "Proof-only fields require source-audit schema 1.2.0.");
   }
   if (obj.jvmPackageName !== undefined) {

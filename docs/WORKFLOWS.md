@@ -1239,6 +1239,14 @@ User decision SW-121 adopts **V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0**, cont
 
 The source-checkout verifier collects finite public/current-protected/platform/packed lanes through existing native process and evidence owners. A separate verification process reopens native outputs, derives the test responsibility list from the current source, rejects missing/filtered/failed assertions, and compares all 150 current finding records and 121 fixture hashes against the unchanged oracle. The packed lane rebuilds, installs and executes the exact package. Native Windows/Linux/macOS evidence is mandatory; live exact-candidate CI run/job/artifact corroboration is required for hosted cells. Caller-authored OS or PASS labels and unsigned receipts alone are insufficient.
 
+An exact qualified Kit profile can supply the optional schema 1.2.0 direct
+modifier completeness claim. Lab uses that claim for the direct executable
+`.skip` and `.only` predicate after exact-file identity and fact-page validation.
+The broader observation family can remain partial. Published Kit 1.15.0 retains
+its existing behavior. Focused qualification of a local producer does not
+change the current route, qualify a registry artifact, or clear unrelated
+protected import and reverse-reference requirements.
+
 The current route remains **BLOCKED_REQUIRED_EVIDENCE** until its complete public, current-protected, package, native platform and independent binding requirements pass. The local original historical gate remains available unchanged. Historical provenance stays **UNVERIFIED**; original private verification and original readiness binding stay **NOT_PASSED**. LAB-EVIDENCE-01 adoption does not substitute for this contract. Current acceptance establishes neither Step 5 readiness nor publication authority.
 
 ## Coordinated product acceptance and target certification

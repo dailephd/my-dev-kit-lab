@@ -466,3 +466,22 @@ describe("qualified bounded literal values", () => {
     expectFailure(() => validateKitFact({...observation(),...override}, "fact", "tests/a.ts"), "page-invalid");
   });
 });
+
+describe("versioned direct modifier coverage", () => {
+  const expected = { snapshotId: SNAPSHOT, pageIndex: 0 };
+  const page = (status: string, schemaVersion = "1.2.0") => inventoryJson(0, 1, [fileJson("tests/a.ts", {
+    status,
+    capabilities: { ...capabilities({ "test-observations": "partial" }),
+      "dynamic-import-expressions": "partial", "direct-test-modifiers": "complete" },
+  })], { schemaVersion });
+  it("retains an exact typed claim without upgrading the observation family", () => {
+    const record = validateInventoryPage(page("parsed"), expected).files[0];
+    expect(record.capabilities).toMatchObject({ "test-observations": "partial", "direct-test-modifiers": "complete" });
+    expectFailure(() => crossValidateFileRecord(record, { ...record,
+      capabilities: { ...record.capabilities, "direct-test-modifiers": "partial" } }), "stale-evidence");
+  });
+  it("rejects forged completeness on recovered files and at the legacy boundary", () => {
+    expectFailure(() => validateInventoryPage(page("partial"), expected), "page-invalid");
+    expectFailure(() => validateInventoryPage(page("parsed", "1.0.0"), expected), "schema-mismatch");
+  });
+})

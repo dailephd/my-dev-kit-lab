@@ -296,6 +296,7 @@ function adaptTestObservation(fact: KitFact): KitTestObservation | undefined {
 }
 
 export type AdaptKitEvidenceOptions = {
+  qualifiedDirectModifiers?: boolean;
   deferPartialImports?: boolean;
   evidence: KitSourceEvidence;
   inventory: ProjectInventorySnapshot;
@@ -338,6 +339,8 @@ export function adaptKitEvidenceToSourceFacts(options: AdaptKitEvidenceOptions):
         contentSha256: exact.contentSha256,
         capability,
         producerStatus: exact.status,
+        ...(options.qualifiedDirectModifiers && exact.capabilities["direct-test-modifiers"] !== undefined
+          ? { directModifierCapability: exact.capabilities["direct-test-modifiers"] } : {}),
         observations,
       };
     }

@@ -150,6 +150,7 @@ export type KitTestObservationDomain = {
   readonly contentSha256: string;
   readonly capability: string;
   readonly producerStatus: string;
+  readonly directModifierCapability?: "complete" | "partial";
   readonly observations: readonly KitTestObservation[];
 };
 

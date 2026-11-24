@@ -149,7 +149,15 @@ const QUALIFIED_R3_ARCHIVES = [QUALIFIED_B3_P1_KIT, {
   archiveSha256: "25fc1a97401d4e9b0fd22aa6f9d9829fba607265c63be17324960b4c13e0ff34",
   receiptSha256: "5227a69e4025b22fe421ddcc7f3b568933ace7858c189ee46607c3110207ddca",
 }] as const;
-const QUALIFIED_BATCH_ARCHIVES = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT] as const;
+// Qualified for the opt-in direct modifier predicate using the focused installed receipt.
+const QUALIFIED_DIRECT_MODIFIER_KIT = Object.freeze({
+  ...QUALIFIED_B5_P1_R7A_KIT,
+  sourceSha: "5b4e6a783691f6b5e434ac1de6e83df8d9e43f85",
+  cliSha256: "b93d72b0f030cc3f8175ecc490589b781ce7dcadf93e4180677faf72899f7697",
+  archiveSha256: "f532f2e0bb6be9272e022927a87a77fc3032a1303c212cda21a0a0383e5e4026",
+  receiptSha256: "853193f4cf862f85d33d6396c96b40fb41da2e71a82836baf57aebdb2578b893",
+} satisfies typeof QUALIFIED_B5_P1_R7A_KIT);
+const QUALIFIED_BATCH_ARCHIVES = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT, QUALIFIED_DIRECT_MODIFIER_KIT] as const;
 
 export function resolveQualifiedKitArchive(
   qualifiedArchivePath: string,
@@ -185,7 +193,7 @@ export const QUALIFIED_SW123_P6_R7_KIT = {
 const SW123_EXACT_KIT_PROFILES = [QUALIFIED_SW123_P6_R2_KIT, QUALIFIED_SW123_P6_R7_KIT] as const;
 
 function isProofProfile(expectation: KitCandidateExpectation): boolean {
-  return matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) || matchesExactKitExpectation(expectation, QUALIFIED_B5_P1_R6_KIT) || matchesExactKitExpectation(expectation, QUALIFIED_B5_P1_R7A_KIT);
+  return matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) || QUALIFIED_BATCH_ARCHIVES.some(profile => matchesExactKitExpectation(expectation, profile));
 }
 
 function matchesExactKitExpectation(expectation: KitCandidateExpectation, exact: KitCandidateExpectation): boolean {
@@ -918,7 +926,8 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   const contents = new Map<string, Promise<string>>();
   const rawTestContents = new Map<string, string | undefined>();
   const testFileByPath = new Map(testFiles.map(file => [file.relativePath, file]));
-  const r3 = [QUALIFIED_B3_P1_KIT.cliSha256, QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256].some(digest => digest === ctx.pkg.cliSha256) &&
+  const r3 = (ctx.pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 ||
+    QUALIFIED_BATCH_ARCHIVES.some(profile => profile.cliSha256 === ctx.pkg.cliSha256)) &&
     evidence.artifactSchemaVersion === "1.2.0";
   const domainPromises = new Map<string, Promise<KitImportDomain>>();
   const inventoryByPath = new Map(evidence.inventory.map(record => [record.path, record]));
@@ -1505,6 +1514,8 @@ export async function collectKitSourceFacts(
     if (expectedSnapshot !== undefined && evidence.snapshotId !== expectedSnapshot)
       fail("stale-evidence", "The acquired whole-project Kit snapshot differs from the frozen replay snapshot.");
     const snapshot = adaptKitEvidenceToSourceFacts({
+      qualifiedDirectModifiers: pkg.cliSha256 === QUALIFIED_DIRECT_MODIFIER_KIT.cliSha256 &&
+        matchesExactKitExpectation(expectation, QUALIFIED_DIRECT_MODIFIER_KIT),
       evidence,
       inventory: request.inventory,
       targetRoot,

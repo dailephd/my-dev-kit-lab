@@ -653,7 +653,8 @@ function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEnt
     domain.snapshotId === ctx.kitSourceReader?.snapshotId;
   const positives = bound && (domain.producerStatus === "parsed" || domain.producerStatus === "partial") &&
     (domain.capability === "complete" || domain.capability === "partial") ? domain.observations : [];
-  const complete = bound && domain.capability === "complete" && domain.producerStatus === "parsed";
+  const modifierCapability = domain?.directModifierCapability ?? domain?.capability;
+  const complete = bound && modifierCapability === "complete" && domain.producerStatus === "parsed";
 
   if (!complete) {
     // Raw text can keep a previously checked candidate in scope. It cannot
@@ -667,7 +668,7 @@ function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEnt
     } else {
       ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "executable test modifiers",
         source: { kind: "file", identity: file.relativePath }, capability: "test-observations",
-        actualStatus: bound ? domain.capability : "unavailable", status: "UNAVAILABLE", mandatory,
+        actualStatus: bound ? (modifierCapability ?? "unavailable") : "unavailable", status: "UNAVAILABLE", mandatory,
         diagnostic: "", reason });
     }
   }
