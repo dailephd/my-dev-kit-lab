@@ -164,8 +164,30 @@ export function prospectiveCurrentFindings(oracle, policy, root = SOURCE_ROOT) {
     normalizedKitFindings: d.normalizedKitFindings.filter(f => f.id !== excluded.get(d.decisionId)) }));
 }
 
-export function verifyCurrentDecisions(result, oracle, policy, root = SOURCE_ROOT) {
+const JVM_DECISIONS = new Set(['java', 'kotlin'].map(language =>
+  'tests/fixtures/audits/kit-differential-v010/' + language + '::test-rot'));
+const JVM_PROOF_MESSAGE = /^Qualified Kit declaration-domain evidence found no matching declaration .* Import fact: (audit-fact:[^;]+); snapshot: ([0-9a-f]{64})\.$/;
+
+// Authentication is supplied only by an independent execution of the
+// qualified fixture audit. Native comparison results never supply this map.
+export function projectJvmSnapshot(decisionId, findings, authenticatedProofs) {
+  if (!JVM_DECISIONS.has(decisionId) || !authenticatedProofs) return findings;
+  return findings.map(finding => ({
+    ...finding,
+    evidence: finding.evidence.map(evidence => {
+      const message = JVM_PROOF_MESSAGE.exec(evidence.message);
+      if (!message) return evidence;
+      const proof = authenticatedProofs[finding.id];
+      assert(proof?.importFactId === message[1] && /^[0-9a-f]{64}$/.test(proof.snapshotId), 'Missing authenticated JVM declaration proof');
+      return { ...evidence, message: evidence.message.slice(0, -65) + proof.snapshotId + '.' };
+    }),
+  }));
+}
+
+export function verifyCurrentDecisions(result, oracle, policy, root = SOURCE_ROOT, independentJvmProofs) {
   const expected = prospectiveCurrentFindings(oracle, policy, root);
+  for (const row of expected) row.normalizedKitFindings = projectJvmSnapshot(row.decisionId, row.normalizedKitFindings,
+    independentJvmProofs?.[row.decisionId]);
   assert(result.contractId === CURRENT_CONTRACT && result.provider === 'published-1.15.0' && result.decisions?.length === 150 &&
     stable(result.decisions) === stable(expected), 'Incomplete/changed findings or mandatory coverage');
   const roots = [...new Set(oracle.decisions.map(d => d.fixtureRoot))].sort();
@@ -196,14 +218,17 @@ async function verifyProspectiveObservationReplay(root, output, env, decisions, 
     '--testNamePattern', 'executes ten canonical', '--maxWorkers=1',
   ], replayEnv, 7_200_000);
   const replay = JSON.parse(await read(output, filename));
-  const ids = new Set(policy.prospectiveCommentDispositions.map(row => row.decisionId));
+  const ids = new Set([...policy.prospectiveCommentDispositions.map(row => row.decisionId), ...JVM_DECISIONS]);
   const fixtureRoots = new Set([...ids].map(id => id.split('::')[0]));
   const selectDecisions = rows => rows.filter(row => ids.has(row.decisionId));
   const selectCoverage = rows => rows.filter(row => fixtureRoots.has(row.fixtureRoot));
   assert(replay.contractId === CURRENT_CONTRACT && replay.provider === decisions.provider &&
     stable(selectDecisions(replay.decisions)) === stable(selectDecisions(decisions.decisions)) &&
     stable(selectCoverage(replay.coverage)) === stable(selectCoverage(decisions.coverage)),
-  'Independent modifier observation evidence mismatch');
+  'Independent modifier or JVM declaration evidence mismatch');
+  assert(Object.keys(replay.jvmProofs ?? {}).length === JVM_DECISIONS.size &&
+    [...JVM_DECISIONS].every(id => Object.hasOwn(replay.jvmProofs, id)), 'Missing independent JVM proof domains');
+  return replay.jvmProofs;
 }
 
 function authorityDirectory(root, output) {
@@ -326,8 +351,8 @@ export async function verifyCurrentLane(root, manifestFile, verifyOutput) {
     if (manifest.lane === 'protected') {
       const decisions = JSON.parse(await nativeBytes(root, directory, manifest.decisions.file, manifest.decisions.sha256));
       const policy = JSON.parse(await read(root, POLICY)), oracle = JSON.parse(await read(root, ORACLE));
-      observation = { ...observation, ...verifyCurrentDecisions(decisions, oracle, policy, root) };
-      await verifyProspectiveObservationReplay(root, verifyOutput, env, decisions, policy);
+      const jvmProofs = await verifyProspectiveObservationReplay(root, verifyOutput, env, decisions, policy);
+      observation = { ...observation, ...verifyCurrentDecisions(decisions, oracle, policy, root, jvmProofs) };
       for (const review of policy.reviews) for (const witness of review.sourceWitnesses) assert(hash(await read(root, witness.path)) === witness.sha256 && oracle.fixtureFileHashes[witness.path] === witness.sha256, 'Changed review witness');
     }
   }

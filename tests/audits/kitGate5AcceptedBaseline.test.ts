@@ -10,6 +10,8 @@ import { resolveQualifiedKitArchive, QUALIFIED_PUBLISHED_KIT, QUALIFIED_SW123_P6
 import { execFileSync } from "node:child_process";
 // @ts-expect-error Source-checkout verification is an existing plain ESM owner.
 import { verificationOutputDirectory } from "../../scripts/run-verification-lane.mjs";
+// @ts-expect-error Source-checkout verification is an existing plain ESM owner.
+import { projectJvmSnapshot } from "../../scripts/verifyCurrentKitAcceptance.mjs";
 
 const root = process.cwd();
 const privateLane = process.env.LAB_VERIFICATION_LANE === "private";
@@ -31,6 +33,7 @@ const fixtureRoots: string[] = [...new Set<string>(oracle.decisions.map((d: Deci
 const completed: { decisionId: string; normalizedKitFindings: unknown }[] = [];
 const currentCompleted: { decisionId: string; normalizedKitFindings: unknown }[] = [];
 const currentCoverage: unknown[] = [];
+const currentJvmProofs: Record<string, Record<string, { importFactId: string; snapshotId: string }>> = {};
 const p6Root = process.env.LAB_SW123_P6_R3_ROOT;
 const p6Package = process.env.LAB_SW123_P6_R3_PACKAGE_ROOT;
 if (Boolean(p6Root) !== Boolean(p6Package) || (p6Root && (process.env.LAB_SW123_P5_ROOT || process.env.LAB_SW123_P5_PACKAGE_ROOT))) {
@@ -48,7 +51,7 @@ if (modifierReplayOnly && (privateLane || p5Root || !process.env.LAB_CURRENT_ORA
   throw new Error("Current modifier replay requires its published profile and native decision destination.");
 }
 const executionFixtureRoots = modifierReplayOnly
-  ? fixtureRoots.filter(fixture => /\/kit-differential-v010\/(javascript|typescript)$/.test(fixture))
+  ? fixtureRoots.filter(fixture => /\/kit-differential-v010\/(java|javascript|kotlin|typescript)$/.test(fixture))
   : fixtureRoots;
 const matrixArchive = process.env.LAB_SW121_MATRIX_ARCHIVE;
 const matrixPackage = process.env.LAB_SW121_MATRIX_PACKAGE;
@@ -177,12 +180,37 @@ describe("Gate5 committed accepted oracle", () => {
       expectation: provider === "historical" ? expectation : provider === "p5-candidate" ? p5Expectation : QUALIFIED_PUBLISHED_KIT, ...matrix, workDir,
     } });
     if (provider === "p5-candidate") fs.writeFileSync(path.join(p5Output!, path.basename(fixtureRoot) + ".json"), JSON.stringify({ fixtureRoot, workDir, result }, null, 2), { flag: "wx" });
+    const findings = result.issues.map(issue => normalize(issue, target)).sort((a, b) => a.id.localeCompare(b.id));
+    const jvmDecision = /\/kit-differential-v010\/(java|kotlin)$/.test(fixtureRoot) && fixtureRoot + "::test-rot";
+    let jvmProofs: typeof currentJvmProofs[string] | undefined;
+    if (jvmDecision && (provider === "published" || matrix)) {
+      // runAudit authenticated the installed profile, selected source, pages,
+      // and each declaration proof against canonical facts. Reopen the exact
+      // response backing each finding and bind it to this run's snapshot.
+      const snapshotId = result.sourceFacts.kitEvidence!.snapshotId;
+      const logDir = path.join(workDir, "logs");
+      const responses = fs.readdirSync(logDir).filter(file => file.endsWith("-import-target.stdout.txt"))
+        .map(file => JSON.parse(fs.readFileSync(path.join(logDir, file), "utf8")));
+      jvmProofs = {};
+      for (const finding of findings.filter(finding => finding.detectorId === "test-rot")) {
+        const evidence = finding.evidence.find((row: { message: string }) =>
+          row.message.startsWith("Qualified Kit declaration-domain evidence found no matching declaration "));
+        if (!evidence) continue;
+        const matching = responses.filter(proof => proof.mode === "audit-import-target" &&
+          proof.snapshotId === snapshotId && proof.originFile === evidence.filePath && proof.sourceSpecifier === evidence.excerpt &&
+          proof.status === "proven-missing" && proof.reasonCode === "ABSENT_IN_COMPLETE_JVM_DECLARATION_DOMAIN" &&
+          proof.declarationProof?.scope === "selected-ordinary-jvm-sources" && proof.declarationProof.domainComplete &&
+          evidence.message.endsWith("Import fact: " + proof.importFactId + "; snapshot: " + snapshotId + "."));
+        expect(matching).toHaveLength(1);
+        jvmProofs[finding.id] = { importFactId: matching[0].importFactId, snapshotId };
+      }
+      if (provider === "published") currentJvmProofs[jvmDecision] = jvmProofs;
+    }
     if (matrix && matrixOutput) {
       const common = path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim());
       const destination = path.join(matrixOutput, Buffer.from(fixtureRoot).toString("hex") + ".json");
       verificationOutputDirectory(path.dirname(common), destination);
-      const findings = result.issues.map(issue => normalize(issue, target)).sort((a, b) => a.id.localeCompare(b.id));
-      fs.writeFileSync(destination, JSON.stringify({ fixtureRoot, workspace, workDir, producer: matrix.expectation, exit: result.exitCode, coverage: result.coverage, errors: result.detectorErrors, skipped: result.skippedDetectors, findings }, null, 2), { flag: "wx" });
+      fs.writeFileSync(destination, JSON.stringify({ fixtureRoot, workspace, workDir, producer: matrix.expectation, exit: result.exitCode, coverage: result.coverage, errors: result.detectorErrors, skipped: result.skippedDetectors, findings, jvmProofs }, null, 2), { flag: "wx" });
       return;
     }
     const publishedModifierFile = provider === "published" && {
@@ -204,7 +232,6 @@ describe("Gate5 committed accepted oracle", () => {
     }
     if (provider === "published") currentCoverage.push({ fixtureRoot, detectors: DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort(),
       detectorErrors: result.detectorErrors, skippedDetectors: result.skippedDetectors, exitCode: result.exitCode });
-    const findings = result.issues.map(issue => normalize(issue, target)).sort((a, b) => a.id.localeCompare(b.id));
     // The extractor revision intentionally changes snapshots. Authenticate the
     // new identity independently, then project only the exact snapshot token
     // in the existing JVM proof message. The frozen oracle stays untouched.
@@ -243,6 +270,7 @@ describe("Gate5 committed accepted oracle", () => {
         expect(evidence.message).toContain(oldToken);
         evidence.message = evidence.message.replace(oldToken, `snapshot: ${identityProjection.candidateSnapshot}.`);
       }
+      expected = projectJvmSnapshot(decision.decisionId, expected, jvmProofs);
       expect(actual, decision.decisionId).toEqual(expected);
       if (provider === "historical") completed.push({ decisionId: decision.decisionId, normalizedKitFindings: actual });
       else if (provider === "p5-candidate") p5Completed.push({ decisionId: decision.decisionId, normalizedKitFindings: actual, identityProjection });
@@ -264,7 +292,7 @@ afterAll(() => {
   if (path.basename(common) !== ".git") throw new Error("Unknown current evidence authority");
   verificationOutputDirectory(path.dirname(common), output);
   fs.writeFileSync(output, JSON.stringify({ contractId: "LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0", provider: "published-1.15.0",
-    decisions: currentCompleted.sort((a, b) => a.decisionId.localeCompare(b.decisionId)), coverage: currentCoverage }, null, 2) + "\n", { flag: "wx" });
+    decisions: currentCompleted.sort((a, b) => a.decisionId.localeCompare(b.decisionId)), coverage: currentCoverage, jvmProofs: currentJvmProofs }, null, 2) + "\n", { flag: "wx" });
 });
 
 afterAll(() => {

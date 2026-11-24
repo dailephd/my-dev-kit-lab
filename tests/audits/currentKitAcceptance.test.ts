@@ -90,6 +90,32 @@ describe('authorized current Kit native semantic verification', () => {
     const unavailable = structuredClone(result); unavailable.coverage[0].detectorErrors.push({ message: 'PARTIAL_COVERAGE UNAVAILABLE' }); expect(() => verifyCurrentDecisions(unavailable, oracle, policy)).toThrow('Unavailable mandatory');
     result.decisions.pop(); expect(() => verifyCurrentDecisions(result, oracle, policy)).toThrow('coverage');
   });
+  it('compares only authenticated JVM snapshot provenance while retaining exact finding semantics', () => {
+    const decisions = prospectiveCurrentFindings(oracle, policy);
+    const java = decisions.find((row: any) => row.decisionId.endsWith('/java::test-rot'));
+    const finding = java.normalizedKitFindings.find((row: any) => row.id.includes(':missing-java-source-import:'));
+    const proof = { importFactId: finding.evidence[0].message.match(/Import fact: ([^;]+);/)[1], snapshotId: 'ab'.repeat(32) };
+    const independent = { [java.decisionId]: { [finding.id]: proof } };
+    const result = { contractId: CURRENT_CONTRACT, provider: 'published-1.15.0', decisions: structuredClone(decisions),
+      coverage: [...new Set<string>(oracle.decisions.map((row: any) => row.fixtureRoot))].sort().map(fixtureRoot => ({
+        fixtureRoot, detectors: oracle.decisions.filter((row: any) => row.fixtureRoot === fixtureRoot)
+          .map((row: any) => row.detectorId).sort(), detectorErrors: [], skippedDetectors: [], exitCode: 0,
+      })) };
+    const actual = result.decisions.find((row: any) => row.decisionId === java.decisionId).normalizedKitFindings.find((row: any) => row.id === finding.id);
+    actual.evidence[0].message = actual.evidence[0].message.replace(/[0-9a-f]{64}\.$/, proof.snapshotId + '.');
+    const verify = (candidate = result, witnesses = independent) => verifyCurrentDecisions(candidate, oracle, policy, process.cwd(), witnesses);
+    expect(verify()).toEqual({ decisions: 150, dispositions: 16, incomparableProfiles: 3 });
+    expect(() => verify(result, {})).toThrow('changed findings');
+    const differentFact = { ...proof, importFactId: proof.importFactId + 'other' };
+    expect(() => verify(result, { [java.decisionId]: { [finding.id]: differentFact } })).toThrow('authenticated JVM');
+    for (const field of ['severity', 'confidence', 'id']) {
+      const changed = structuredClone(result);
+      changed.decisions.find((row: any) => row.decisionId === java.decisionId).normalizedKitFindings.find((row: any) => row.id === finding.id)[field] = 'forged';
+      expect(() => verify(changed)).toThrow('changed findings');
+    }
+    actual.evidence[0].message = actual.evidence[0].message.replace(proof.snapshotId, 'cd'.repeat(32));
+    expect(() => verify()).toThrow('changed findings');
+  });
   it.each(policy.reviews as Array<Record<string, any>>)('independently preserves bounded source witnesses for $decisionId', review => {
     expect(review.historicalProvenance).toBe('UNVERIFIED');
     for (const w of review.sourceWitnesses) { expect(sha(fs.readFileSync(w.path))).toBe(w.sha256); expect(oracle.fixtureFileHashes[w.path]).toBe(w.sha256); }
