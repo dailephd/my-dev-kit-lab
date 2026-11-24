@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { sourceIdentity, publicTemporaryRoot, verificationOutputDirectory, ownedDirectory, PRIVATE_TEST_FILES } from './run-verification-lane.mjs';
+import { sourceIdentity, publicTemporaryRoot, verificationOutputDirectory, ownedDirectory, requireCurrentPublicPrerequisites, PRIVATE_TEST_FILES } from './run-verification-lane.mjs';
 
 export const CURRENT_CONTRACT = 'LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0';
 export const CURRENT_ROUTE = 'V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0';
@@ -288,6 +288,10 @@ async function invoke(root, output, id, args, env, timeoutMs = 7_200_000, execut
   return summary;
 }
 async function deriveListing(root, output, lane, env, id) {
+  if (lane === 'public') {
+    const common = path.resolve(root, git(root, ['rev-parse', '--git-common-dir']));
+    requireCurrentPublicPrerequisites(path.dirname(common), env);
+  }
   const filename = id + '-listing.json';
   await invoke(root, output, id + '-list', ['node_modules/vitest/vitest.mjs', 'list', ...currentCommand(lane), '--json=' + path.join(output, filename)], env, 300_000);
   return { file: filename, value: JSON.parse(await read(output, filename)) };

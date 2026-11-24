@@ -84,11 +84,19 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — unreferenced scripts/ files", () => {
   it("does not flag a scripts/ helper file imported by another script", async () => {
     const root = makeTempDir();
     try {
-      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: { thing: "tsx scripts/thing.ts" } }));
-      writeFile(root, "scripts/thing.ts", 'import { helper } from "./helper.js";\nhelper();\n');
-      writeFile(root, "scripts/helper.ts", "export function helper() {}\n");
-      const issues = await run(root);
-      expect(issues.some((i) => i.title.includes('scripts/helper.ts" is not referenced'))).toBe(false);
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: { thing: "node scripts/thing.mjs" } }));
+      writeFile(root, "scripts/thing.mjs", 'import { helper } from "./helper.mjs";\nhelper();\n');
+      writeFile(root, "scripts/helper.mjs", "export function helper() {}\n");
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      expect(result.sourceFacts.files.find(file => file.relativePath === "scripts/thing.mjs")?.imports)
+        .toContainEqual(expect.objectContaining({ source: "./helper.mjs", importResolution: "resolved-local",
+          targetPaths: ["scripts/helper.mjs"] }));
+      expect(result.exitCode, JSON.stringify(result.detectorErrors)).toBe(0);
+      expect(result.coverage).toContainEqual(expect.objectContaining({
+        predicate: "unreferenced-script-file", actualStatus: "positive-witness", status: "NOT_APPLICABLE",
+      }));
+      const issues = result.issues;
+      expect(issues.some((i) => i.title.includes('scripts/helper.mjs" is not referenced'))).toBe(false);
     } finally {
       cleanup(root);
     }
@@ -111,11 +119,18 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — unreferenced source files", () => {
   it("does not flag a source file imported by another source file", async () => {
     const root = makeTempDir();
     try {
-      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
-      writeFile(root, "src/main.ts", 'import { helper } from "./helper.js";\nhelper();\n');
-      writeFile(root, "src/helper.ts", "export function helper() {}\n");
-      const issues = await run(root);
-      expect(issues.some((i) => i.title.includes("helper.ts"))).toBe(false);
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: { start: "node src/main.mjs" } }));
+      writeFile(root, "src/main.mjs", 'import { helper } from "./helper.mjs";\nhelper();\n');
+      writeFile(root, "src/helper.mjs", "export function helper() {}\n");
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      expect(result.exitCode, JSON.stringify(result.detectorErrors)).toBe(0);
+      expect(result.issues.some(issue => issue.affectedFiles.includes("src/helper.mjs"))).toBe(false);
+      expect(result.coverage).toContainEqual(expect.objectContaining({
+        predicate: "unreferenced-source-file",
+        source: { kind: "domain", identity: "eligible selected file candidates" },
+        status: "NOT_APPLICABLE", actualStatus: "positive-witness",
+        reason: "Every eligible candidate has an authenticated positive path witness.",
+      }));
     } finally {
       cleanup(root);
     }
@@ -191,17 +206,21 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — source-facts-derived reference eviden
   it("suppresses a flag for a file only referenced via a dynamic import, when sourceFacts is available", async () => {
     const root = makeTempDir();
     try {
-      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: { start: "node src/main.mjs" } }));
       // Kit supplies the dynamic import proof for both default and explicit
       // source-facts execution.
-      writeFile(root, "src/main.ts", 'export async function load() { return import("./helper.js"); }\n');
-      writeFile(root, "src/helper.ts", "export function helper() {}\n");
+      writeFile(root, "src/main.mjs", 'export async function load() { return import("./helper.mjs"); }\n');
+      writeFile(root, "src/helper.mjs", "export function helper() {}\n");
 
-      const defaultKit = await run(root);
-      expect(defaultKit.some((i) => i.title.includes("helper.ts"))).toBe(false);
-
-      const withFacts = await runWithSourceFacts(root);
-      expect(withFacts.some((i) => i.title.includes("helper.ts"))).toBe(false);
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
+      expect(result.exitCode, JSON.stringify(result.detectorErrors)).toBe(0);
+      expect(result.issues.some(issue => issue.affectedFiles.includes("src/helper.mjs"))).toBe(false);
+      expect(result.coverage).toContainEqual(expect.objectContaining({
+        predicate: "unreferenced-source-file",
+        source: { kind: "domain", identity: "eligible selected file candidates" },
+        status: "NOT_APPLICABLE", actualStatus: "positive-witness",
+        reason: "Every eligible candidate has an authenticated positive path witness.",
+      }));
     } finally {
       cleanup(root);
     }
@@ -644,8 +663,9 @@ describe("DEAD_CODE_CANDIDATE_DETECTOR — bounded coverage regression guard", (
       expect(records.filter(c => c.mandatory).map(c => [c.predicate, c.status])).toEqual([
         ["unreferenced-source-file", "UNAVAILABLE"],
       ]);
-      expect(records).toContainEqual(expect.objectContaining({
-        predicate: "possibly-unreferenced-python-declaration", actualStatus: "partial",
+      expect(records, JSON.stringify(records)).toContainEqual(expect.objectContaining({
+        predicate: "declarations evidence", capability: "declarations", actualStatus: "complete",
+        reason: "dead-code-candidate has no declarations predicate for this file role and selected include areas.",
         status: "NOT_APPLICABLE", mandatory: false,
       }));
       expect(result.issues.map(i => i.title)).toEqual([expect.stringContaining('"unused_task"')]);
@@ -765,18 +785,25 @@ describe("fixture-reference positive and negative premises", () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "positive-domain", version: "1.0.0",
-        scripts: kind === "script" ? { check: "node scripts/thing.mjs" } : {} }));
-      writeFile(root, kind === "script" ? "scripts/thing.mjs" : "src/thing.ts", "export const thing = 1;\n");
-      if (kind === "re-export") writeFile(root, "src/index.ts", 'export { thing } from "./thing.js";\n');
-      writeFile(root, "tests/check.test.ts", (kind === "source" ? 'import { thing } from "../src/thing.js";\n' : "") +
-        "declare const unknown: string;\nvoid import(unknown);\n");
+        scripts: kind === "script" ? { check: "node scripts/thing.mjs" } : kind === "re-export" ? { start: "node src/index.mjs" } : {} }));
+      writeFile(root, kind === "script" ? "scripts/thing.mjs" : "src/thing.mjs", "export const thing = 1;\n");
+      if (kind === "re-export") writeFile(root, "src/index.mjs", 'export { thing } from "./thing.mjs";\n');
+      writeFile(root, "tests/check.test.ts", (kind === "source" ? 'import { thing } from "../src/thing.mjs";\n' : "") +
+        (kind === "script" ? "declare const unknown: string;\nvoid import(unknown);\n"
+          : 'import "unresolved-package";\n'));
       const ctx = buildContext(root);
       ctx.config.include = kind === "script" ? ["package", "tests"] : ["cli", "tests"];
       const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [DEAD_CODE_CANDIDATE_DETECTOR] });
-      expect(result.sourceFacts.files.find(file => file.relativePath === "tests/check.test.ts")!.kit!.capabilities.imports).toBe("partial");
-      expect(result.exitCode).toBe(0);
+      expect(result.sourceFacts.files.find(file => file.relativePath === "tests/check.test.ts")!.kit!.capabilities.imports).toBe(kind === "script" ? "partial" : "complete");
+      expect(result.exitCode, JSON.stringify(result.detectorErrors)).toBe(0);
       expect(result.issues).toEqual([]);
-      expect(result.coverage?.some(record => record.status === "NOT_APPLICABLE" && record.predicate === `unreferenced-${kind === "script" ? "script" : "source"}-file`)).toBe(true);
+      expect(result.coverage).toContainEqual(expect.objectContaining(kind === "script" ? {
+        predicate: "imports evidence", status: "NOT_APPLICABLE",
+        reason: expect.stringContaining("no remaining candidate"),
+      } : {
+        predicate: "unreferenced-source-file", status: "NOT_APPLICABLE", actualStatus: "positive-witness",
+        reason: "Every eligible candidate has an authenticated positive path witness.",
+      }));
     } finally { cleanup(root); }
   }, 120000);
 

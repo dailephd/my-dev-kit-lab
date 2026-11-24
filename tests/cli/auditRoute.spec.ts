@@ -357,20 +357,53 @@ describe("audit route -- workspace/target/output separation", () => {
     tempDirs.push(workspaceRoot);
     const target = noIssuesFixture();
     mkdirSync(path.join(target, "tests"));
-    writeFileSync(path.join(target, "tests", "sample.test.mjs"),
+    mkdirSync(path.join(target, "src"));
+    writeFileSync(path.join(target, "src", "real.ts"), "export const real = 1;\n");
+    writeFileSync(path.join(target, "tests", "sample.test.ts"),
       'const title = String(1);\nit.skip(title, () => {});\n');
 
-    const code = await runLabCli(["--workspace", workspaceRoot, "audit", "--target", target,
-      "--types", "code-rot", "--include", "tests", "--fail-on", "none"]);
-    expect(code).toBe(2);
+    const tempHome = mkdtempSync(path.join(os.tmpdir(), "audit-route-explicit-home-"));
+    tempDirs.push(tempHome);
+    const auditArgs = ["audit", "--target", target,
+      "--types", "code-rot", "--include", "tests", "--fail-on", "none"];
+    const snapshot = () => ({
+      entries: readdirSync(target).sort(),
+      packageJson: readFileSync(path.join(target, "package.json"), "utf8"),
+      tests: snapshotDir(path.join(target, "tests")),
+      source: snapshotDir(path.join(target, "src")),
+    });
+    const completeTarget = snapshot();
     const reportRoot = path.join(workspaceRoot, "reports", "audits", "code-rot");
-    const report = JSON.parse(readFileSync(path.join(reportRoot, CODE_ROT_JSON_REPORT), "utf8"));
+    const readReport = () => JSON.parse(readFileSync(path.join(reportRoot, CODE_ROT_JSON_REPORT), "utf8"));
+    const completeWorkspace = mkdtempSync(path.join(os.tmpdir(), "audit-route-complete-"));
+    tempDirs.push(completeWorkspace);
+    const completeOut = path.join(completeWorkspace, "explicit-out");
+    expect(await withHomeOverride(tempHome, () => runLabCli([
+      "--workspace", completeWorkspace, ...auditArgs, "--out", completeOut,
+    ]))).toBe(0);
+    const completeReport = JSON.parse(readFileSync(path.join(completeOut, CODE_ROT_JSON_REPORT), "utf8"));
+    expect(completeReport.detectorErrors).toEqual([]);
+    expect(completeReport.issues).toContainEqual(expect.objectContaining({
+      id: "test-rot:tests/sample.test.ts:skip-usage:2",
+    }));
+    expect(snapshot()).toEqual(completeTarget);
+
+    writeFileSync(path.join(target, "tests", "unresolved.test.ts"),
+      'const specifier = "./unknown.js";\nawait import(String(specifier));\n');
+    const incompleteTarget = snapshot();
+    const code = await withHomeOverride(tempHome, () => runLabCli(["--workspace", workspaceRoot, ...auditArgs]));
+    const report = readReport();
+    expect(code, JSON.stringify({ exit: report.exit, detectorErrors: report.detectorErrors })).toBe(2);
     expect(report.schemaVersion).toBe("1.0");
     expect(report.exit.code).toBe(2);
     expect(report.detectorErrors).toContainEqual(expect.objectContaining({ id: "test-rot",
-      message: expect.stringContaining("executable test modifiers; file=tests/sample.test.mjs") }));
-    expect(report.issues).toContainEqual(expect.objectContaining({ id: "test-rot:tests/sample.test.mjs:skip-usage:2" }));
+      message: expect.stringContaining("missing-source-import; file=tests/unresolved.test.ts; capability=imports") }));
+    expect(report.issues).toContainEqual(expect.objectContaining({ id: "test-rot:tests/sample.test.ts:skip-usage:2" }));
     expect(readFileSync(path.join(reportRoot, "code-rot-audit.txt"), "utf8")).toContain("INCOMPLETE");
+    expect(readdirSync(path.join(workspaceRoot, "lab-output", "evidence"))).toHaveLength(1);
+    expect(readdirSync(path.join(completeWorkspace, "lab-output", "evidence"))).toHaveLength(1);
+    expect(snapshot()).toEqual(incompleteTarget);
+    expect(existsSync(path.join(tempHome, ".my-dev-kit-lab"))).toBe(false);
   });
 
   it("leaves the audit target byte-for-byte unmodified (target immutability)", async () => {

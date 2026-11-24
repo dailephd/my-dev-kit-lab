@@ -503,8 +503,33 @@ describe("DUPLICATE_IMPLEMENTATION_DETECTOR — Java/Kotlin duplicate declaratio
 });
 
 describe("DUPLICATE_IMPLEMENTATION_DETECTOR — real self-scan regression guard", () => {
-  it("fails closed when protected historical repository inputs contain partial required declarations", async () => {
-    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
+  it("verifies the real repository with the current published provider", async () => {
+    const fixtureRoot = makeTempDir();
+    try {
+      writeFile(fixtureRoot, "src/first/Sample.kt", "package first\nclass Sample {\n");
+      writeFile(fixtureRoot, "src/second/Sample.kt", "package second\nclass Sample\n");
+      const result = await runAudit({ config: buildContext(fixtureRoot).config, toolRoot: fixtureRoot, registry: [DUPLICATE_IMPLEMENTATION_DETECTOR] });
+      expect(result.coverage).toContainEqual(expect.objectContaining({
+        capability: "declarations", source: { kind: "file", identity: "src/first/Sample.kt" },
+        mandatory: true, status: "UNAVAILABLE",
+      }));
+      expect(result.exitCode).toBe(2);
+      expect(result.issues.some(issue => issue.evidence.some(e => e.message.startsWith("Source facts:")))).toBe(false);
+    } finally { cleanup(fixtureRoot); }
+
+    const root = process.cwd();
+    const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [DUPLICATE_IMPLEMENTATION_DETECTOR] });
+    expect(result.sourceFacts.provider).toBe("kit");
+    expect(result.sourceFacts.files.length).toBeGreaterThan(0);
+    expect(result.detectorErrors).toEqual([]);
+    expect(result.coverage?.filter(record => record.mandatory &&
+      (record.status === "UNAVAILABLE" || record.status === "UNDETERMINED"))).toEqual([]);
+    expect(result.exitCode).toBe(0);
+    const declarationCandidates = result.issues.filter(issue => issue.evidence.some(e => e.message.startsWith("Source facts:")));
+    expect(declarationCandidates.length).toBeGreaterThan(0);
+    for (const issue of declarationCandidates) expect(issue).toMatchObject({
+      severity: "info", confidence: "low", falsePositiveRisk: "high", releaseBlocking: false,
+    });
   }, 1800000);
 
   // Qualified bounded cases preserve conservative duplicate policy assertions.

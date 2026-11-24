@@ -148,10 +148,22 @@ describe("TEST_ROT_DETECTOR — missing source imports", () => {
       writeFile(root, "src/real.ts", "export const real = 1;\n");
       writeFile(root, "tests/check.test.ts", 'export { real } from "../src/real.js";\n');
       const ctx = buildContext(root);
-      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
-      expect(result.exitCode).toBe(2);
-      expect(result.issues).toEqual([]);
-      expect(result.coverage?.some(record => record.status === "UNAVAILABLE" && record.capability === "exports" && record.reason.includes("export-target proof"))).toBe(true);
+      const audit = () => runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      const present = await audit();
+      expect(present.sourceFacts.files.find(file => file.relativePath === "tests/check.test.ts")?.exports)
+        .toContainEqual(expect.objectContaining({ exportOrigin: "re-export", name: "real" }));
+      expect(present.exitCode).toBe(0);
+      expect(present.detectorErrors).toEqual([]);
+      expect(present.issues).toEqual([]);
+
+      writeFile(root, "tests/check.test.ts", 'export { real } from "../unselected/real.js";\n');
+      const unavailable = await audit();
+      expect(unavailable.exitCode).toBe(2);
+      expect(unavailable.issues).toEqual([]);
+      expect(unavailable.coverage).toContainEqual(expect.objectContaining({
+        detectorId: "test-rot", predicate: "missing-source-import", capability: "exports",
+        mandatory: true, status: "UNAVAILABLE", reason: expect.stringContaining("export-target proof"),
+      }));
     } finally { cleanup(root); }
   }, 120000);
 
@@ -846,15 +858,19 @@ describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
-      writeFile(root, "src/thing.ts", "export const thing = () => {};\n");
+      writeFile(root, "src/thing.mjs", "export const thing = () => {};\n");
       writeFile(
         root,
         "tests/example.test.ts",
-        'it("loads", async () => { const mod = await import("../src/thing.js"); expect(mod).toBeDefined(); });\n'
+        'it("loads", async () => { const mod = await import("../src/thing.mjs"); expect(mod).toBeDefined(); });\n'
       );
-      const ctx = await buildContextWithSourceFacts(root);
-      const issues = await executeWithKit(ctx);
-      expect(issues.some((i) => i.title.includes("missing source file"))).toBe(false);
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.exitCode, JSON.stringify(result.detectorErrors)).toBe(0);
+      expect(result.issues.some(i => i.title.includes("missing source file"))).toBe(false);
+      expect(result.coverage).toContainEqual(expect.objectContaining({
+        predicate: "missing-source-import", capability: "imports", status: "QUALIFIED",
+        proof: expect.objectContaining({ kind: "import-domain", references: expect.arrayContaining(["src/thing.mjs"]) }),
+      }));
     } finally {
       cleanup(root);
     }
