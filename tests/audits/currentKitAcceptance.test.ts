@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error Existing source-checkout verifier is plain ESM.
-import { verifyNativeTests, verifyResponsibilityInventory, verifyCurrentDecisions, verifyHostedMetadata, currentIdentity, verifyCurrentLane, bindCurrent, CURRENT_CONTRACT, CURRENT_ROUTE, HISTORICAL_STATE, CURRENT_PROTECTED_TESTS } from '../../scripts/verifyCurrentKitAcceptance.mjs';
+import { verifyNativeTests, verifyResponsibilityInventory, prospectiveCurrentFindings, verifyCurrentDecisions, verifyHostedMetadata, currentIdentity, verifyCurrentLane, bindCurrent, CURRENT_CONTRACT, CURRENT_ROUTE, HISTORICAL_STATE, CURRENT_PROTECTED_TESTS } from '../../scripts/verifyCurrentKitAcceptance.mjs';
 // @ts-expect-error Existing source-checkout path authority is plain ESM.
 import { publicTemporaryRoot } from '../../scripts/run-verification-lane.mjs';
 
@@ -65,9 +65,27 @@ describe('authorized current Kit native semantic verification', () => {
     expect(() => verifyNativeTests(f.native, f.listing, f.root, 'linux', 'protected')).toThrow('Required responsibility');
   });
   it('requires all150 complete findings and keeps incomplete import coverage blocking', () => {
-    const result = { contractId: CURRENT_CONTRACT, provider: 'published-1.15.0', decisions: oracle.decisions.map((d: any) => ({ decisionId: d.decisionId, normalizedKitFindings: d.normalizedKitFindings })),
+    const result = { contractId: CURRENT_CONTRACT, provider: 'published-1.15.0', decisions: prospectiveCurrentFindings(oracle, policy),
       coverage: [...new Set<string>(oracle.decisions.map((d: any) => d.fixtureRoot))].sort().map(fixtureRoot => ({ fixtureRoot, detectors: oracle.decisions.filter((d: any) => d.fixtureRoot === fixtureRoot).map((d: any) => d.detectorId).sort(), detectorErrors: [] as unknown[], skippedDetectors: [], exitCode: 0 })) };
     expect(verifyCurrentDecisions(result, oracle, policy)).toEqual({ decisions: 150, dispositions: 16, incomparableProfiles: 3 });
+    const amended = policy.prospectiveCommentDispositions;
+    expect(amended).toHaveLength(2);
+    for (const row of amended) {
+      const original = oracle.decisions.find((d: any) => d.decisionId === row.decisionId).normalizedKitFindings;
+      const current = result.decisions.find((d: any) => d.decisionId === row.decisionId).normalizedKitFindings;
+      expect(original.filter((f: any) => !current.some((c: any) => c.id === f.id)).map((f: any) => f.id)).toEqual([row.findingId]);
+      expect(current.filter((f: any) => /:(only|skip)-usage:/.test(f.id))).toHaveLength(2);
+    }
+    const historical = structuredClone(result);
+    historical.decisions = oracle.decisions.map((d: any) => ({ decisionId: d.decisionId, normalizedKitFindings: d.normalizedKitFindings }));
+    expect(() => verifyCurrentDecisions(historical, oracle, policy)).toThrow('findings');
+    const tampered = structuredClone(policy);
+    tampered.prospectiveCommentDispositions[0].findingId = 'unexpected';
+    expect(() => verifyCurrentDecisions(result, oracle, tampered)).toThrow('Unauthorized prospective');
+    const lostPositive = structuredClone(result);
+    const cell = lostPositive.decisions.find((d: any) => d.decisionId === amended[0].decisionId);
+    cell.normalizedKitFindings = cell.normalizedKitFindings.filter((f: any) => !f.id.includes(':only-usage:'));
+    expect(() => verifyCurrentDecisions(lostPositive, oracle, policy)).toThrow('findings');
     const changed = structuredClone(result); changed.decisions[0].normalizedKitFindings = [{ severity: 'low', id: 'forged' }]; expect(() => verifyCurrentDecisions(changed, oracle, policy)).toThrow('findings');
     const unavailable = structuredClone(result); unavailable.coverage[0].detectorErrors.push({ message: 'PARTIAL_COVERAGE UNAVAILABLE' }); expect(() => verifyCurrentDecisions(unavailable, oracle, policy)).toThrow('Unavailable mandatory');
     result.decisions.pop(); expect(() => verifyCurrentDecisions(result, oracle, policy)).toThrow('coverage');

@@ -132,8 +132,40 @@ export function verifyNativeTests(native, listing, root, platform, lane) {
     native.numTodoTests === 0 && native.numFailedTests === 0 && native.success === true, 'Forged native summary');
   return { total: actual.length + skipped.length, passed: actual.length, skipped: skipped.length, responsibilityDigest: hash(stable(expected)) };
 }
-export function verifyCurrentDecisions(result, oracle, policy) {
-  const expected = oracle.decisions.map(d => ({ decisionId: d.decisionId, normalizedKitFindings: d.normalizedKitFindings }));
+// This narrowly authorized projection is separate from the immutable historical reviews.
+export function prospectiveCurrentFindings(oracle, policy, root = SOURCE_ROOT) {
+  const expected = [['javascript', 'js', 4], ['typescript', 'ts', 5]].map(([language, ext, line]) => {
+    const fixtureRoot = 'tests/fixtures/audits/kit-differential-v010/' + language;
+    const source = 'tests/check.sample.' + ext, fixture = fixtureRoot + '/' + source + '.input';
+    return { decisionId: fixtureRoot + '::test-rot', fixture, sha256: oracle.fixtureFileHashes[fixture],
+      findingId: 'test-rot:' + source + ':skip-usage:' + line };
+  });
+  assert(stable(policy.prospectiveCommentDispositions) === stable(expected), 'Unauthorized prospective comment disposition');
+  const excluded = new Map();
+  for (const amendment of expected) {
+    const bytes = fs.readFileSync(path.join(root, amendment.fixture));
+    assert(hash(bytes) === amendment.sha256, 'Changed prospective source witness');
+    const text = JSON.parse(bytes.toString('utf8'));
+    const decision = oracle.decisions.find(d => d.decisionId === amendment.decisionId);
+    const findings = decision.normalizedKitFindings;
+    const comments = findings.filter(f => f.id === amendment.findingId);
+    const witness = comments[0]?.evidence?.[0];
+    const line = Number(amendment.findingId.split(':').at(-1));
+    const source = amendment.fixture.slice(decision.fixtureRoot.length + 1, -'.input'.length);
+    // The whole frozen fixture is authenticated. Check the exact historical comment
+    // and require both adjacent executable controls in the immutable projection.
+    assert(typeof text === 'string' && comments.length === 1 && witness?.filePath === source && witness.line === line &&
+      text.split('\n')[line - 1]?.trim() === witness.excerpt && witness.excerpt.startsWith('// it.skip(') &&
+      findings.some(f => f.id === 'test-rot:' + source + ':only-usage:' + (line + 1)) &&
+      findings.some(f => f.id === 'test-rot:' + source + ':skip-usage:' + (line + 2)), 'Invalid prospective comment witness');
+    excluded.set(amendment.decisionId, amendment.findingId);
+  }
+  return oracle.decisions.map(d => ({ decisionId: d.decisionId,
+    normalizedKitFindings: d.normalizedKitFindings.filter(f => f.id !== excluded.get(d.decisionId)) }));
+}
+
+export function verifyCurrentDecisions(result, oracle, policy, root = SOURCE_ROOT) {
+  const expected = prospectiveCurrentFindings(oracle, policy, root);
   assert(result.contractId === CURRENT_CONTRACT && result.provider === 'published-1.15.0' && result.decisions?.length === 150 &&
     stable(result.decisions) === stable(expected), 'Incomplete/changed findings or mandatory coverage');
   const roots = [...new Set(oracle.decisions.map(d => d.fixtureRoot))].sort();
@@ -153,6 +185,27 @@ export function verifyCurrentDecisions(result, oracle, policy) {
   }
   return { decisions: 150, dispositions: 16, incomparableProfiles: 3 };
 }
+async function verifyProspectiveObservationReplay(root, output, env, decisions, policy) {
+  // Reopen the relevant producer behavior independently. A collector-authored
+  // exit 0 or digest alone cannot qualify the amended observation domains.
+  const filename = 'independent-modifier-decisions.json';
+  const replayEnv = { ...env, LAB_CURRENT_ORACLE_OUTPUT: path.join(output, filename), LAB_CURRENT_MODIFIER_REPLAY: '1' };
+  for (const name of ['LAB_SW123_P6_R3_ROOT', 'LAB_SW123_P6_R3_PACKAGE_ROOT', 'LAB_SW123_P5_ROOT', 'LAB_SW123_P5_PACKAGE_ROOT']) delete replayEnv[name];
+  await invoke(root, output, 'independent-modifier-replay', [
+    'node_modules/vitest/vitest.mjs', 'run', 'tests/audits/kitGate5AcceptedBaseline.test.ts',
+    '--testNamePattern', 'executes ten canonical', '--maxWorkers=1',
+  ], replayEnv, 7_200_000);
+  const replay = JSON.parse(await read(output, filename));
+  const ids = new Set(policy.prospectiveCommentDispositions.map(row => row.decisionId));
+  const fixtureRoots = new Set([...ids].map(id => id.split('::')[0]));
+  const selectDecisions = rows => rows.filter(row => ids.has(row.decisionId));
+  const selectCoverage = rows => rows.filter(row => fixtureRoots.has(row.fixtureRoot));
+  assert(replay.contractId === CURRENT_CONTRACT && replay.provider === decisions.provider &&
+    stable(selectDecisions(replay.decisions)) === stable(selectDecisions(decisions.decisions)) &&
+    stable(selectCoverage(replay.coverage)) === stable(selectCoverage(decisions.coverage)),
+  'Independent modifier observation evidence mismatch');
+}
+
 function authorityDirectory(root, output) {
   const common = path.resolve(root, git(root, ['rev-parse', '--git-common-dir']));
   assert(path.basename(common) === '.git', 'Unknown Git authority');
@@ -182,7 +235,7 @@ export async function collectCurrent(root, output, lane) {
     npm_config_cache: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/npm-cache')),
     npm_config_logs_dir: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/npm-logs')),
     PLAYWRIGHT_BROWSERS_PATH: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/browser-cache')) };
-  delete env.LAB_KIT_GATE5_COMPARISON_FILE; delete env.LAB_CURRENT_ORACLE_OUTPUT; delete env.LAB_PUBLIC_VERIFICATION_RESULT;
+  delete env.LAB_CURRENT_MODIFIER_REPLAY; delete env.LAB_KIT_GATE5_COMPARISON_FILE; delete env.LAB_CURRENT_ORACLE_OUTPUT; delete env.LAB_PUBLIC_VERIFICATION_RESULT;
   if (lane === 'packed') {
     const common = path.resolve(root, git(root, ['rev-parse', '--git-common-dir']));
     const compact = ownedDirectory(path.dirname(common), path.join(path.dirname(common), '.my-dev-kit-workflow/tmp/current-kit-packed-temp'));
@@ -266,13 +319,15 @@ export async function verifyCurrentLane(root, manifestFile, verifyOutput) {
     assert(Number.isFinite(native.startTime) && native.startTime >= Date.parse(manifest.startedAt) && native.startTime <= Date.parse(manifest.endedAt), 'Stale native execution time');
     const original = JSON.parse(await nativeBytes(root, directory, manifest.listing.file, manifest.listing.sha256));
     const env = { ...process.env, TEMP: publicTemporaryRoot(root), TMP: publicTemporaryRoot(root), TMPDIR: publicTemporaryRoot(root), TSX_DISABLE_CACHE: '1', LAB_VERIFICATION_LANE: 'public' };
+    delete env.LAB_CURRENT_MODIFIER_REPLAY;
     const independent = await deriveListing(root, verifyOutput, manifest.lane, env, 'independent');
     verifyResponsibilityInventory(original, independent.value, root);
     observation = verifyNativeTests(native, independent.value, root, manifest.environment.platform, manifest.lane);
     if (manifest.lane === 'protected') {
       const decisions = JSON.parse(await nativeBytes(root, directory, manifest.decisions.file, manifest.decisions.sha256));
       const policy = JSON.parse(await read(root, POLICY)), oracle = JSON.parse(await read(root, ORACLE));
-      observation = { ...observation, ...verifyCurrentDecisions(decisions, oracle, policy) };
+      observation = { ...observation, ...verifyCurrentDecisions(decisions, oracle, policy, root) };
+      await verifyProspectiveObservationReplay(root, verifyOutput, env, decisions, policy);
       for (const review of policy.reviews) for (const witness of review.sourceWitnesses) assert(hash(await read(root, witness.path)) === witness.sha256 && oracle.fixtureFileHashes[witness.path] === witness.sha256, 'Changed review witness');
     }
   }

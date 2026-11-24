@@ -43,6 +43,13 @@ const p5Expectation: KitCandidateExpectation = p6Root ? QUALIFIED_SW123_P6_R2_KI
   packageName: "@dailephd/my-dev-kit", packageVersion: "1.15.1", artifactSchemaVersion: "1.1.0",
   extractorRevision: "source-audit-v1.5.1", cliSha256: "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
 };
+const modifierReplayOnly = process.env.LAB_CURRENT_MODIFIER_REPLAY === "1";
+if (modifierReplayOnly && (privateLane || p5Root || !process.env.LAB_CURRENT_ORACLE_OUTPUT)) {
+  throw new Error("Current modifier replay requires its published profile and native decision destination.");
+}
+const executionFixtureRoots = modifierReplayOnly
+  ? fixtureRoots.filter(fixture => /\/kit-differential-v010\/(javascript|typescript)$/.test(fixture))
+  : fixtureRoots;
 const p5Completed: unknown[] = [];
 const p5Authority = p5Root ? path.dirname(path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim())) : root;
 if (p5Root) assertContainedDirectory(p5Root, p5Authority);
@@ -144,7 +151,7 @@ describe("Gate5 committed accepted oracle", () => {
     expect(() => validateOracle(copy)).toThrow("Accepted oracle integrity mismatch");
   });
 
-  it.each(fixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : p5Root ? ["published", "p5-candidate"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
+  it.each(executionFixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : p5Root ? ["published", "p5-candidate"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
     const base = provider === "p5-candidate" ? path.join(p5Root!, p6Root ? "raw-reader" : "integration-target") : os.tmpdir();
     assertContainedDirectory(base, p5Root ? p5Authority : root);
     const workspace = fs.mkdtempSync(path.join(base, "gate5-oracle-"));

@@ -756,5 +756,19 @@
       ],
       "findingsSha256": "720ce59dc84a5664802a782cf65bf1868efa15cb8637a421c53df66672aa4613"
     }
+  ],
+  "prospectiveCommentDispositions": [
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/javascript::test-rot",
+      "fixture": "tests/fixtures/audits/kit-differential-v010/javascript/tests/check.sample.js.input",
+      "sha256": "57fd6dd669f918ecf460773297f1ce1c0aae9c3c1c2aa723224d6f8643d3f23d",
+      "findingId": "test-rot:tests/check.sample.js:skip-usage:4"
+    },
+    {
+      "decisionId": "tests/fixtures/audits/kit-differential-v010/typescript::test-rot",
+      "fixture": "tests/fixtures/audits/kit-differential-v010/typescript/tests/check.sample.ts.input",
+      "sha256": "a5eed4ad962692975b07b636ad7ba581763ad9cb3ad6c01bf4f3d47ee0796f4f",
+      "findingId": "test-rot:tests/check.sample.ts:skip-usage:5"
+    }
   ]
 }
