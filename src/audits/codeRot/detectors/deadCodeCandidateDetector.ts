@@ -96,7 +96,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     // Keep one diagnostic probe for a substituted candidate. An immediate
     // spelling is a separate opportunity to obtain an authenticated witness.
     const triedIndexedFallbacks = new Set<string>();
-    const disjointScriptOrigins = new Map<string, Set<string>>();
+    const boundedScriptOrigins = new Map<string, Set<string>>();
     const pendingFileGaps: { path: string; predicate: string; reason: string; possibleTargets?: ReadonlySet<string> }[] = [];
     if (predicates.length === 0) {
       // No semantic import inventory is consumed when every absence family
@@ -111,9 +111,9 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
         }
       }
     }
-    const reportGap = (filePath: string, predicate: string, reason: string) => {
+    const reportGap = (filePath: string, predicate: string, reason: string, targetScoped = false) => {
       if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
-      unavailablePredicates.add(predicate);
+      if (!targetScoped) unavailablePredicates.add(predicate);
       ctx.reportUnavailable(DETECTOR_ID, predicate, filePath, reason);
     };
     const unavailable = (filePath: string, reason: string, affectedPredicates: readonly string[], possibleTargets?: ReadonlySet<string>) => {
@@ -183,9 +183,11 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
           const reExports = reader.reExportTargets?.(entry.relativePath) ?? [];
           // A present target is a positive witness for that path. The
           // import-target envelope does not certify complete enumeration for it.
+          const closedExpression = ({ proof }: (typeof domains)[number]) => proof.excludesSelectedDomain ||
+            (proof.selectedTargetUpperBound?.every(target => proof.positivePaths.includes(target)) ?? false);
           let closed = qualifyKitImportPredicate(file) === "QUALIFIED_NEGATIVE" &&
             file.kit?.capabilities.exports === "complete" &&
-            domains.every(d => d.proof.excludesSelectedDomain || d.proof.positivePaths.length === 1) &&
+            domains.every(closedExpression) &&
             reExports.length === file.exports.filter(fact => fact.exportOrigin === "re-export").length &&
             staticImports.every(imp => imp.source.startsWith(".") && imp.importResolution === "unresolved") &&
             reExports.every(fact => fact.sourceSpecifier.startsWith("."));
@@ -260,7 +262,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             const blockers = [
               ...staticImports.flatMap(imp => describe("import", imp.source, imp.provenance?.factId)),
               ...reExports.flatMap(fact => describe("re-export", fact.sourceSpecifier, fact.id)),
-              ...domains.filter(({ proof }) => !proof.excludesSelectedDomain && proof.positivePaths.length !== 1)
+              ...domains.filter(domain => !closedExpression(domain))
                 .map(({ proof }) => "dynamic import [" + proof.expressionFactId + "]: " + (proof.reasonCode ?? proof.outcome)),
             ];
             if (qualifyKitImportPredicate(file) !== "QUALIFIED_NEGATIVE") blockers.push("incomplete import inventory");
@@ -276,8 +278,8 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
               reExports.every(fact => edgeExcluded(fact.id, fact.sourceSpecifier)) &&
               domains.every(d => d.proof.selectedTargetUpperBound !== undefined);
             const possibleTargets = bounded ? new Set(domains.flatMap(d => d.proof.selectedTargetUpperBound!)) : undefined;
+            if (possibleTargets) boundedScriptOrigins.set(entry.relativePath, new Set(affected));
             if (possibleTargets?.size === 0) {
-              disjointScriptOrigins.set(entry.relativePath, new Set(affected));
               for (const predicate of affected) ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate,
                 source: { kind: "file", identity: entry.relativePath }, capability: "imports",
                 actualStatus: "disjoint-selected-domain", status: "QUALIFIED", mandatory: false, diagnostic: "",
@@ -286,6 +288,8 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             }
             unavailable(entry.relativePath, "Selected JS/TS reverse-reference domain lacks exact reference or complete exclusion evidence."
               + (blockers.length ? " Unresolved references: " + blockers.join(" | ") + "." : ""), affected, possibleTargets);
+          } else {
+            boundedScriptOrigins.set(entry.relativePath, new Set(affected));
           }
           continue;
         }
@@ -347,16 +351,21 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     }
     const blocks = (gap: typeof pendingFileGaps[number], candidate: string) =>
       !exactReferences.has(candidate) && (!gap.possibleTargets || gap.possibleTargets.has(candidate));
-    for (const gap of pendingFileGaps) {
-      if (!remainingFilePredicates.has(gap.predicate)) continue;
-      if (gap.reason === SCRIPT_ORIGIN_PROOF_REQUIRED &&
-          disjointScriptOrigins.get(gap.path)?.has(gap.predicate)) continue;
-      if (filePredicates.get(gap.predicate)!.some(candidate => blocks(gap, candidate.relativePath))) {
-        reportGap(gap.path, gap.predicate, gap.reason);
-      }
+    const applicableGaps = pendingFileGaps.filter(gap => remainingFilePredicates.has(gap.predicate) &&
+      (gap.reason !== SCRIPT_ORIGIN_PROOF_REQUIRED || !boundedScriptOrigins.get(gap.path)?.has(gap.predicate)));
+    const blockedPaths = new Map<string, Set<string>>();
+    for (const gap of applicableGaps) {
+      const affected = filePredicates.get(gap.predicate)!.filter(candidate => blocks(gap, candidate.relativePath));
+      if (!affected.length) continue;
+      const paths = blockedPaths.get(gap.predicate) ?? new Set<string>();
+      for (const candidate of affected) paths.add(candidate.relativePath);
+      blockedPaths.set(gap.predicate, paths);
+      reportGap(gap.path, gap.predicate, gap.reason, true);
     }
     let references = new Set(positiveReferences);
-    const availableFilePredicates = [...remainingFilePredicates].filter(predicate => !unavailablePredicates.has(predicate));
+    const availableFilePredicates = [...remainingFilePredicates].filter(predicate =>
+      !unavailablePredicates.has(predicate) && filePredicates.get(predicate)!.some(candidate =>
+        !exactReferences.has(candidate.relativePath) && !blockedPaths.get(predicate)?.has(candidate.relativePath)));
     if (availableFilePredicates.length) {
       try { references = await buildReverseReferenceIndex(ctx, r3 ? positiveReferences : undefined); }
       catch (error) {
@@ -371,16 +380,16 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
     }
 
     if (r3) for (const predicate of remainingFilePredicates) {
-      if (!unavailablePredicates.has(predicate)) continue;
+      if (!blockedPaths.has(predicate)) continue;
       for (const candidate of filePredicates.get(predicate)!) {
         const file = candidate.relativePath;
         if (exactReferences.has(file) || references.has(baseNameNoExt(file).toLowerCase())) continue;
-        const blockers = pendingFileGaps.filter(gap => gap.predicate === predicate && blocks(gap, file));
-        if (!blockers.length && pendingFileGaps.some(gap => gap.predicate === predicate)) {
+        const blockers = applicableGaps.filter(gap => gap.predicate === predicate && blocks(gap, file));
+        if (!blockers.length) {
           ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: predicate + " candidate exclusion",
             source: { kind: "file", identity: file }, capability: "imports", actualStatus: "disjoint-selected-domain",
             status: "QUALIFIED", mandatory: false, diagnostic: "",
-            reason: "The remaining bounded JS/TS import domains for this check exclude this candidate. Other reference roles still require qualification." });
+            reason: "The remaining bounded JS/TS import domains for this check exclude this candidate." });
           continue;
         }
         ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: predicate + " blocked candidate",
@@ -390,12 +399,14 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
       }
     }
 
-    if (remainingFilePredicates.has("unreferenced-script-file") && !unavailablePredicates.has("unreferenced-script-file") && pkg) {
-      issues.push(...(await findUnreferencedScriptFiles(ctx, pkg, references, exactReferences)));
+    if (availableFilePredicates.includes("unreferenced-script-file") && !unavailablePredicates.has("unreferenced-script-file") && pkg) {
+      const excluded = new Set([...exactReferences, ...(blockedPaths.get("unreferenced-script-file") ?? [])]);
+      issues.push(...(await findUnreferencedScriptFiles(ctx, pkg, references, excluded)));
     }
 
-    if (remainingFilePredicates.has("unreferenced-source-file") && !unavailablePredicates.has("unreferenced-source-file")) {
-      issues.push(...(await findUnreferencedSourceFiles(ctx, pkg, docsConcat, references, exactReferences)));
+    if (availableFilePredicates.includes("unreferenced-source-file") && !unavailablePredicates.has("unreferenced-source-file")) {
+      const excluded = new Set([...exactReferences, ...(blockedPaths.get("unreferenced-source-file") ?? [])]);
+      issues.push(...(await findUnreferencedSourceFiles(ctx, pkg, docsConcat, references, excluded)));
     }
 
     issues.push(...findOldOrDeprecatedFilesNotInDocs(ctx, docsConcat));

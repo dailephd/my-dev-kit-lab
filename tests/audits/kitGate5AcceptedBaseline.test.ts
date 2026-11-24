@@ -58,6 +58,14 @@ const matrixPackage = process.env.LAB_SW121_MATRIX_PACKAGE;
 const matrixOutput = process.env.LAB_SW121_MATRIX_OUTPUT;
 if ([matrixArchive, matrixPackage, matrixOutput].some(Boolean) && (!matrixArchive || !matrixPackage || !matrixOutput || privateLane || p5Root || modifierReplayOnly || process.env.LAB_CURRENT_ORACLE_OUTPUT)) throw new Error("Invalid development matrix inputs");
 const matrix = matrixArchive && matrixPackage ? resolveQualifiedKitArchive(matrixArchive, matrixPackage) : undefined;
+const matrixFixtureFilter = matrix && process.env.LAB_SW121_MATRIX_FIXTURES?.split(",");
+if (matrixFixtureFilter && (new Set(matrixFixtureFilter).size !== matrixFixtureFilter.length ||
+    matrixFixtureFilter.some(fixture => !fixtureRoots.includes(fixture)))) {
+  throw new Error("Invalid qualified development fixture subset");
+}
+const selectedFixtureRoots = matrixFixtureFilter
+  ? executionFixtureRoots.filter(fixture => matrixFixtureFilter.includes(fixture))
+  : executionFixtureRoots;
 const p5Completed: unknown[] = [];
 const p5Authority = p5Root ? path.dirname(path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim())) : root;
 if (p5Root) assertContainedDirectory(p5Root, p5Authority);
@@ -159,7 +167,7 @@ describe("Gate5 committed accepted oracle", () => {
     expect(() => validateOracle(copy)).toThrow("Accepted oracle integrity mismatch");
   });
 
-  it.each(executionFixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : p5Root ? ["published", "p5-candidate"] : matrix ? ["qualified-local-matrix"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
+  it.each(selectedFixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : p5Root ? ["published", "p5-candidate"] : matrix ? ["qualified-local-matrix"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
     const base = provider === "p5-candidate" ? path.join(p5Root!, p6Root ? "raw-reader" : "integration-target") : os.tmpdir();
     assertContainedDirectory(base, p5Root ? p5Authority : root);
     const workspace = fs.mkdtempSync(path.join(base, "gate5-oracle-"));

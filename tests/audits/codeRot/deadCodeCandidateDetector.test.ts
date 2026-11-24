@@ -850,7 +850,7 @@ describe("R3 script origin reconciliation", () => {
   const predicates = ["unreferenced-script-file", "unreferenced-source-file"];
   const snapshotId = "a".repeat(64);
 
-  function context(root: string, domain?: "partial" | "indeterminate" | "different snapshot" | "missing" | "positive") {
+  function context(root: string, domain?: "partial" | "indeterminate" | "different snapshot" | "missing" | "positive" | "bounded") {
     writeFile(root, "package.json", JSON.stringify({ scripts: { unrelated: "node elsewhere.mjs" } }));
     writeFile(root, "src/old/dormant.ts", "export {};");
     writeFile(root, "scripts/referenced.mjs", "export {};");
@@ -896,10 +896,12 @@ describe("R3 script origin reconciliation", () => {
       expressionDomains: async file => {
         if (file !== dynamic || !domain || domain === "missing") return [];
         return [{ proof: { expressionFactId: "dynamic", snapshotId: domain === "different snapshot" ? "c".repeat(64) : snapshotId,
-          outcome: domain === "positive" ? "finite" : "indeterminate", reasonCode: "INCOMPLETE_REFERENCE_PROFILE",
-          domainComplete: domain === "positive", positivePaths: domain === "positive" ? ["scripts/referenced.mjs"] : [],
+          outcome: domain === "positive" || domain === "bounded" ? "finite" : "indeterminate", reasonCode: "INCOMPLETE_REFERENCE_PROFILE",
+          domainComplete: domain === "positive" || domain === "bounded", positivePaths: domain === "positive" ? ["scripts/referenced.mjs"] : [],
+          selectedTargetUpperBound: domain === "bounded" ? ["scripts/referenced.mjs"] : undefined,
           excludesSelectedDomain: false } }];
       },
+      explicitImportsCompleteWithExpressions: file => domain === "bounded" && file === dynamic,
       reExportTargets: () => [],
     } as KitSourceReader;
     const gaps: string[] = [];
@@ -936,6 +938,21 @@ describe("R3 script origin reconciliation", () => {
       const issues = await DEAD_CODE_CANDIDATE_DETECTOR.run(ctx);
       expect(gaps).toContain(dynamic + "|unreferenced-source-file");
       expect(issues.some(issue => issue.affectedFiles.includes("scripts/referenced.mjs"))).toBe(false);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("keeps a bounded origin gap from suppressing disjoint candidates", async () => {
+    const root = makeTempDir();
+    try {
+      const { ctx, gaps, dynamic } = context(root, "bounded");
+      const issues = await DEAD_CODE_CANDIDATE_DETECTOR.run(ctx);
+      expect(gaps).toContain(dynamic + "|unreferenced-script-file");
+      expect(gaps).not.toContain(dynamic + "|unreferenced-source-file");
+      expect(issues.map(issue => issue.id)).toContain("dead-code-candidate:unreferenced-source-file:src/old/dormant.ts");
+      expect(issues.map(issue => issue.id)).not.toContain("dead-code-candidate:unreferenced-script-file:scripts/referenced.mjs");
+      expect(issues.map(issue => issue.id)).toContain("dead-code-candidate:unreferenced-script-file:scripts/check-docs.mjs");
     } finally {
       cleanup(root);
     }
