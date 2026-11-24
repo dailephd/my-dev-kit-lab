@@ -865,6 +865,7 @@ export type KitSourceReader = {
 // Private semantic compatibility profiles, independent of package/schema versions.
 // Add future producer identities only after qualifying the same proof contract.
 const IMPORT_PROOF_PROFILES: Readonly<Record<string, "mjs-extensionless-complete-v1">> = Object.freeze({
+  [QUALIFIED_DIRECT_MODIFIER_KIT.cliSha256]: "mjs-extensionless-complete-v1",
   [QUALIFIED_SW123_P6_R2_KIT.cliSha256]: "mjs-extensionless-complete-v1",
   // SW-123 P5: exact unpublished P2 archive, metadata 1.15.1. Installed
   // proof/occurrence tests qualify this digest; it does not advance the pin.
@@ -893,6 +894,7 @@ const JSON_RAW_CONTENT_PROFILES: Readonly<Record<string, "selected-test-json-v1"
 // independently qualified selected generated and vendor raw occurrences without changing
 // the public role schema or admitting generated semantic source facts.
 const NON_SEMANTIC_RAW_CONTENT_PROFILES: ReadonlySet<string> = new Set([
+  QUALIFIED_DIRECT_MODIFIER_KIT.cliSha256,
   // The exact R3 CLI also returns complete, hash-bound text occurrences
   // for selected generated and vendor source without admitting semantic facts.
   QUALIFIED_B3_P1_KIT.cliSha256,

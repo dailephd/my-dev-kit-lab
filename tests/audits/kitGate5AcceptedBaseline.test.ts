@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
-import { QUALIFIED_PUBLISHED_KIT, QUALIFIED_SW123_P6_R2_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
+import { resolveQualifiedKitArchive, QUALIFIED_PUBLISHED_KIT, QUALIFIED_SW123_P6_R2_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error Source-checkout verification is an existing plain ESM owner.
 import { verificationOutputDirectory } from "../../scripts/run-verification-lane.mjs";
@@ -50,6 +50,11 @@ if (modifierReplayOnly && (privateLane || p5Root || !process.env.LAB_CURRENT_ORA
 const executionFixtureRoots = modifierReplayOnly
   ? fixtureRoots.filter(fixture => /\/kit-differential-v010\/(javascript|typescript)$/.test(fixture))
   : fixtureRoots;
+const matrixArchive = process.env.LAB_SW121_MATRIX_ARCHIVE;
+const matrixPackage = process.env.LAB_SW121_MATRIX_PACKAGE;
+const matrixOutput = process.env.LAB_SW121_MATRIX_OUTPUT;
+if ([matrixArchive, matrixPackage, matrixOutput].some(Boolean) && (!matrixArchive || !matrixPackage || !matrixOutput || privateLane || p5Root || modifierReplayOnly || process.env.LAB_CURRENT_ORACLE_OUTPUT)) throw new Error("Invalid development matrix inputs");
+const matrix = matrixArchive && matrixPackage ? resolveQualifiedKitArchive(matrixArchive, matrixPackage) : undefined;
 const p5Completed: unknown[] = [];
 const p5Authority = p5Root ? path.dirname(path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim())) : root;
 if (p5Root) assertContainedDirectory(p5Root, p5Authority);
@@ -151,7 +156,7 @@ describe("Gate5 committed accepted oracle", () => {
     expect(() => validateOracle(copy)).toThrow("Accepted oracle integrity mismatch");
   });
 
-  it.each(executionFixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : p5Root ? ["published", "p5-candidate"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
+  it.each(executionFixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : p5Root ? ["published", "p5-candidate"] : matrix ? ["qualified-local-matrix"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
     const base = provider === "p5-candidate" ? path.join(p5Root!, p6Root ? "raw-reader" : "integration-target") : os.tmpdir();
     assertContainedDirectory(base, p5Root ? p5Authority : root);
     const workspace = fs.mkdtempSync(path.join(base, "gate5-oracle-"));
@@ -169,9 +174,17 @@ describe("Gate5 committed accepted oracle", () => {
     const workDir = provider === "p5-candidate" ? fs.mkdtempSync(path.join(p5Root!, p6Root ? "qualification/oracle-" : "integration-index/oracle-")) : path.join(workspace, "kit");
     const result = await runAudit({ config, toolRoot: root, kitSourceProviderDependencies: {
       installedPackageRoot: provider === "historical" ? candidate : provider === "p5-candidate" ? p5Package : path.join(root, "node_modules/@dailephd/my-dev-kit"),
-      expectation: provider === "historical" ? expectation : provider === "p5-candidate" ? p5Expectation : QUALIFIED_PUBLISHED_KIT, workDir,
+      expectation: provider === "historical" ? expectation : provider === "p5-candidate" ? p5Expectation : QUALIFIED_PUBLISHED_KIT, ...matrix, workDir,
     } });
     if (provider === "p5-candidate") fs.writeFileSync(path.join(p5Output!, path.basename(fixtureRoot) + ".json"), JSON.stringify({ fixtureRoot, workDir, result }, null, 2), { flag: "wx" });
+    if (matrix && matrixOutput) {
+      const common = path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim());
+      const destination = path.join(matrixOutput, Buffer.from(fixtureRoot).toString("hex") + ".json");
+      verificationOutputDirectory(path.dirname(common), destination);
+      const findings = result.issues.map(issue => normalize(issue, target)).sort((a, b) => a.id.localeCompare(b.id));
+      fs.writeFileSync(destination, JSON.stringify({ fixtureRoot, workspace, workDir, producer: matrix.expectation, exit: result.exitCode, coverage: result.coverage, errors: result.detectorErrors, skipped: result.skippedDetectors, findings }, null, 2), { flag: "wx" });
+      return;
+    }
     const publishedModifierFile = provider === "published" && {
       javascript: "tests/check.sample.js",
       typescript: "tests/check.sample.ts",

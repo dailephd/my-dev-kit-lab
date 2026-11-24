@@ -235,7 +235,7 @@ export async function collectCurrent(root, output, lane) {
     npm_config_cache: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/npm-cache')),
     npm_config_logs_dir: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/npm-logs')),
     PLAYWRIGHT_BROWSERS_PATH: ownedDirectory(root, path.join(root, '.my-dev-kit-workflow/browser-cache')) };
-  delete env.LAB_CURRENT_MODIFIER_REPLAY; delete env.LAB_KIT_GATE5_COMPARISON_FILE; delete env.LAB_CURRENT_ORACLE_OUTPUT; delete env.LAB_PUBLIC_VERIFICATION_RESULT;
+  delete env.LAB_CURRENT_MODIFIER_REPLAY; delete env.LAB_SW121_MATRIX_ARCHIVE; delete env.LAB_SW121_MATRIX_PACKAGE; delete env.LAB_SW121_MATRIX_OUTPUT; delete env.LAB_KIT_GATE5_COMPARISON_FILE; delete env.LAB_CURRENT_ORACLE_OUTPUT; delete env.LAB_PUBLIC_VERIFICATION_RESULT;
   if (lane === 'packed') {
     const common = path.resolve(root, git(root, ['rev-parse', '--git-common-dir']));
     const compact = ownedDirectory(path.dirname(common), path.join(path.dirname(common), '.my-dev-kit-workflow/tmp/current-kit-packed-temp'));
@@ -319,7 +319,7 @@ export async function verifyCurrentLane(root, manifestFile, verifyOutput) {
     assert(Number.isFinite(native.startTime) && native.startTime >= Date.parse(manifest.startedAt) && native.startTime <= Date.parse(manifest.endedAt), 'Stale native execution time');
     const original = JSON.parse(await nativeBytes(root, directory, manifest.listing.file, manifest.listing.sha256));
     const env = { ...process.env, TEMP: publicTemporaryRoot(root), TMP: publicTemporaryRoot(root), TMPDIR: publicTemporaryRoot(root), TSX_DISABLE_CACHE: '1', LAB_VERIFICATION_LANE: 'public' };
-    delete env.LAB_CURRENT_MODIFIER_REPLAY;
+    delete env.LAB_CURRENT_MODIFIER_REPLAY; delete env.LAB_SW121_MATRIX_ARCHIVE; delete env.LAB_SW121_MATRIX_PACKAGE; delete env.LAB_SW121_MATRIX_OUTPUT;
     const independent = await deriveListing(root, verifyOutput, manifest.lane, env, 'independent');
     verifyResponsibilityInventory(original, independent.value, root);
     observation = verifyNativeTests(native, independent.value, root, manifest.environment.platform, manifest.lane);
