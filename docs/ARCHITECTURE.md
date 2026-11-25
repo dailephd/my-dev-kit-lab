@@ -1480,3 +1480,7 @@ after reservation can have a terminal failure and zero reports. Retry
 links preserve the earlier execution. The digest of an externally supplied
 export identifies those bytes, while export-to-target provenance can remain
 unknown.
+
+## Planned LAB-FACTS-02 extension boundary
+
+The [v0.11.1 corrective reservation](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) is planned, not implemented. The current managed R3 reader already distinguishes qualified expression observations and selected-domain proof from unresolved target references. Preserve existing `kitSourceProvider.ts` acquisition, `kitSourceEvidence.ts` validation, `kitSourceAdapter.ts` projection, `auditRegistry.ts` applicability and existing detector/result/report ownership. Extend only demonstrated residual gaps: independently qualify supported declaration/export facts and import-expression enumeration, and require target/exclusion evidence for conclusions that depend on it. Independently supported findings survive other unavailable predicates; mandatory unknowns block completeness. Kit remains the source parser and proof producer. No fallback parser, blanket file exclusion, second audit engine or altered historical oracle.

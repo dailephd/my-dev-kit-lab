@@ -1292,3 +1292,14 @@ qualify the exact hosted platform and Lab CodeQL results. Keep Step 5
 readiness and release preparation separate. After authorized Kit v1.16.0
 publication, qualify the actual registry artifact before migrating the Lab
 production dependency and qualifying Lab publication.
+
+## Coordinated binding and computed-import correction (planned)
+
+Follow the [v0.11.1 roadmap](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) and the current [managed audit command](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer). The November 25, 2026 reservation is conditional, not an implemented command or authorization to publish.
+
+1. Authenticate original local receipts, actual producer and source selection, then reproduce against the current qualified pair and independent synthetic oracle. Private target evidence stays local. Distinguish unsupported proof from a demonstrated defect; if existing behavior suffices, avoid redundant patch work.
+2. Freeze affected detector/predicate responsibilities, owner/test paths, prerequisites, acceptance matrix, compatibility and resource budgets. Use targeted Kit retrieval and direct implementation by default; full stage context only for an actual unresolved architecture conflict or prior failure requiring it.
+3. Qualify exact local packed candidates through paired archive and isolated producer installation options. Check normal/destructured declarations, literal/computed imports, complete and expected-incomplete controls. Retain original raw outcomes; no target rewrite, narrowed audit or forged evidence.
+4. Run focused affected gates, individual product readiness, then coordinated readiness. Reuse a prior receipt only when its identity, relevant dependency closure, scope and governing contract permit. Parallelize independent checks within aggregate resources; correct and rerun only failed/invalidated lanes where permitted. Preserve mandatory exact-candidate gates, independent oracle and historical provenance distinctions.
+5. Publish separately only under explicit release authorization and compatible rollout order. Verify the supported pair and authorized unchanged external target; product acceptance does not certify an incomplete target.
+6. Assign resource owner, function, consumer, retention and retirement rule at creation; reuse qualified tools, installations and indexes, use short project-contained paths, preserve essential raw failures and sealed evidence, and retire qualified obsolete scratch. Follow separate post-release closeout/cleanup after publication, which retains npm-last. Do not repeat unaffected target builds, browser tests or hosted checks merely because the validator changed.

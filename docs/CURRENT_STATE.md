@@ -507,3 +507,7 @@ declaration applicability controls retain their scope. Attribution remains
 unresolved wherever the evidence cannot distinguish unsupported target
 proof from a product defect. Historical provenance remains **UNVERIFIED**,
 and the original private verification and readiness binding remain **NOT_PASSED**.
+
+## Next corrective planning reservation (2026-11-25)
+
+The v0.11.0 release-document state, qualified Kit 1.16.0 production pin and recorded formal current-product acceptance remain unchanged. [LAB-FACTS-02 / v0.11.1](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) is planned and not implemented. Next action: authenticate the historical external audit failure, reproduce with the current qualified pair, and isolate residual producer/consumer defects before implementation. No new audit PASS, recovered historical provenance, target certification or release authorization is established. The v0.12.0 local web-security scope and later reservations remain intact.

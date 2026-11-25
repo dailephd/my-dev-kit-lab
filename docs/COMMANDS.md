@@ -1002,3 +1002,7 @@ findings remain in completed partial reports.
 Use the actual terminal result and required coverage when certifying a
 target. The [coordinated acceptance policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification)
 defines which evidence qualifies the product independently.
+
+## Planned LAB-FACTS-02 compatibility note
+
+The [v0.11.1 roadmap](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) does not introduce implemented syntax. Use the current managed audit command and paired `--kit-archive` / `--kit-package-root` options to qualify an authorized exact local producer. Existing `--workspace`, `--target`, `--types code-rot`, `--include`, `--format` and `--fail-on` behavior remains in force. A qualified observation does not resolve every computed import. Mandatory incomplete coverage or invalid acquisition returns exit 2 even with `--fail-on none`; complete results use the existing 0/1 threshold policy. Do not supply unqualified artifacts or change scope to obtain success. Planned behavior is not a new CLI flag.

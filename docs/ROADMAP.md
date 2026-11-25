@@ -16,7 +16,7 @@ flowchart LR
   V063 --> V070[v0.7.0] --> V071[v0.7.1] --> V072[v0.7.2]
   V072 --> V080[v0.8.0] --> V081[v0.8.1] --> V082[v0.8.2]
   V082 --> V090[v0.9.0] --> V091[v0.9.1] --> V092[v0.9.2] --> V093[v0.9.3]
-  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V096[v0.9.6] --> V097[v0.9.7] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0120[v0.12.0] --> V0130[v0.13.0]
+  V093 --> V094[v0.9.4] --> V095[v0.9.5] --> V096[v0.9.6] --> V097[v0.9.7] --> V0100[v0.10.0] --> V0110[v0.11.0] --> V0111[v0.11.1 conditional patch] --> V0120[v0.12.0] --> V0130[v0.13.0]
   V0130 --> V0140[v0.14.0] --> V0150[v0.15.0] --> V0160[v0.16.0] --> V0170[v0.17.0]
   V0170 --> V100[v1.0.0] --> V110[v1.1.0] --> V120[v1.2.0] --> V130[v1.3.0] --> V140[v1.4.0]
   V100 -. deferred .-> PT[Post-v1 / version TBD manual pentest]
@@ -1825,6 +1825,38 @@ Acceptance:
 * Deterministic fixtures exercise pass, fail, unavailable, and manual-review outcomes.
 * Reports identify the rule/profile and evidence source for each automated finding.
 * The Lab does not claim to replace a complete accessibility review.
+
+### v0.11.1 — predicate-scoped audit qualification correction (LAB-FACTS-02)
+
+Status: **planned; not implemented**. Adopted planning reservation, 2026-11-25.
+
+Purpose:
+
+* Correct demonstrated residual audit qualification defects for supported JavaScript/TypeScript destructured declarations and computed dynamic imports, without weakening the fail-closed incomplete-evidence contract. The historical external audit was blocked; current Lab already has predicate-scoped acquisition, expression-domain proof consumption, independent findings and explicit mandatory coverage gaps. A historical block does not establish a current product defect.
+
+First authenticate historical local receipts and actual executable/archive/integrity/schema/source-selection identities; a dependency declaration is not proof of the executed producer. Reproduce with a minimized synthetic fixture and the current qualified Kit 1.16.0 / Lab 0.11.0 pair. Freeze the remaining obligations and an independent oracle before editing. Keep private target identities, source and raw reports local; publish only synthetic fixtures and redacted diagnostics. If current behavior suffices, avoid redundant implementation or release. If public compatibility cannot be preserved, obtain a separate migration/version decision.
+
+Features and ordered work:
+
+1. L01 — Freeze historical and current managed audit receipts and map selected files, detectors and predicates separately. Determine actual residual producer/consumer defects versus unsupported proof.
+2. L02 — Consume corrected binding and export facts through existing `src/audits/core/kitSourceEvidence.ts`, `kitSourceProvider.ts` and `kitSourceAdapter.ts`. Separate acquisition integrity from semantic sufficiency; no Lab JavaScript parser, replacement extractor, raw semantic fallback or blanket acceptance of partial declarations.
+3. L03 — Reuse authenticated computed-expression inventory and explicit-import/selected-domain qualification in the managed provider. A complete observation inventory is not a resolved destination. Require exact witnesses or complete qualified exclusion for affected negative conclusions; genuinely unresolved mandatory predicates remain unavailable.
+4. L04 — Refine only demonstrated detector obligations in `auditRegistry.ts`, existing code-rot detectors and audit result/report owners. Declaration-dependent documentation/duplicate-implementation checks use qualified declaration facts; dead-code and missing-import claims require their own reference/exclusion premises; test-rot requires target resolution only for predicates depending on it. Preserve applicable raw-content checks and independent findings. No blanket script/file exclusions, severity reduction or waiving one obligation because another passed.
+5. L05 — Qualify the exact local Kit corrective archive and isolated installation through the existing managed audit options. Update the production dependency and lockfile only after candidate qualification and authorized migration. Preserve historical pins and oracle identities. Verify old/new reader-writer compatibility, default installed producer and explicit qualified override. No new public CLI option, audit type or report schema is planned.
+6. L06 — Extend existing source-evidence/provider/adapter/differential, audit registry, integration, code-rot detector and security tests. Run complete and expected-incomplete controlled audits and authorized unchanged external-target replay. Record actual selected coverage, residual blockers and natural exits.
+
+Acceptance:
+
+* Independently annotated fixtures verify exact supported binding names and spans, declaration/export evidence and literal/computed import observations. Complete controlled cases satisfy all applicable mandatory predicates. Deliberately unresolvable cases retain explicit mandatory gaps; independent supported findings survive.
+* Stale, missing, malformed, tampered, truncated, incompatible, unselected and genuinely insufficient evidence cannot support an unjustified complete result. No false missing-import, unreferenced/dead-code or duplicate declaration conclusion; no manufactured evidence.
+* Preserve report contracts and current audit flags. Exit 0 means complete and below finding threshold, exit 1 complete with threshold breach, and exit 2 mandatory unavailable coverage or invalid acquisition, including with `--fail-on none`. Natural exit 2 on a deliberately incomplete control is evidence of correct fail-closed behavior, not a product failure or target PASS.
+* Preserve the SW-121 oracle and accepted evidence contracts. Qualify exact packed producer/consumer identities, existing public/protected and security regressions, docs, required native/hosted platforms, independent product readiness and coordinated readiness. Reuse only contract-authorized matching evidence; do not repeat unaffected validation.
+* Replay the full applicable code-rot audit against the original unchanged external candidate when authorized. Preserve historical dispositions and report remaining mandatory gaps honestly. Product acceptance and target certification are distinct; valid target source need not be rewritten to accommodate the validator.
+
+Dependencies and exclusions:
+
+* Conditional producer reservation: Kit v1.16.1 / KIT-FACTS-02. If Kit alone needs correction, qualify consumer dependency migration rather than invent consumer changes. If only Lab needs correction, retain the already qualified producer. If current behavior is sufficient, close the obligation with evidence rather than force a patch. Producer-first publication requires old-reader compatibility; otherwise qualify a dual reader before enabling the new writer. See [coordinated roadmap](https://github.com/dailephd/my-dev-kit/blob/main/docs/ECOSYSTEM_COORDINATED_ROADMAP.md#714-coordinated-source-evidence-corrective-patch--2026-11-25).
+* Preserve v0.12.0 LAB-WEBSEC-01 and later assurance milestones, the v0.19.0 binary/context and Python relative-import allocation, and release-unallocated LAB-A11Y-01. General runtime/build-dependent resolution remains deferred. No target execution or source rewrite, parallel evidence pipeline, version bump, release preparation, merge, tag or publication is authorized by this planning entry.
 
 ### v0.12.0 — local web-application security assurance (LAB-WEBSEC-01)
 
