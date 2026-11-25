@@ -38,6 +38,8 @@ import {
   validateKitRelativePath,
   validateKitOccurrence,
   validateKitImportProof,
+  validateKitOrdinarySourceReference,
+  type KitSourceReferencePremise,
   hasImmediateRelativeSpelling,
   validateKitImportDomain,
   validateKitByteOccurrence,
@@ -235,6 +237,9 @@ export type KitSourceProviderDependencies = {
   installedPackageRoot?: string;
   expectation?: KitCandidateExpectation;
   runCommand?: KitCommandRunner;
+  // Only the explicit installed-package and command-fixture seam can admit
+  // this profile until an exact packed producer is qualified.
+  testOnlyOrdinarySourceReference?: true;
   launchGuard?: KitLaunchGuard;
   onKitLaunch?: (event: KitLaunchEvent) => void;
   // Exact R6 comparison lane. All other producer profiles remain standalone.
@@ -421,6 +426,7 @@ type KitCommandContext = {
   onKitLaunch?: (event: KitLaunchEvent) => void;
   query?: ReturnType<typeof createKitBatchTransport>;
   stream?: KitStreamTransport;
+  ordinarySourceReference?: true;
 };
 
 function classifyStderrCode(stderr: string): KitEvidenceFailureCategory | undefined {
@@ -882,7 +888,13 @@ export type KitSourceReader = {
   expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
-  importTarget: (factId: string) => Promise<KitImportProof & { exactSelectedPath?: string }>;
+  ordinarySourceReference?: true;
+  importTarget: (factId: string) => Promise<KitImportProof & {
+    exactSelectedPath?: string;
+    qualifiedSourceReferencePath?: string;
+    selectedTargetUpperBound?: readonly string[];
+    ordinarySourceReferenceReason?: string | null;
+  }>;
   dispose: () => void | Promise<void>;
 };
 
@@ -940,6 +952,46 @@ function assertKitNonSemanticRawContent(record: KitFileRecord, qualifiedProducer
   }
 }
 
+function assertSourceReferencePremises(
+  root: string, premises: readonly KitSourceReferencePremise[], inventory: ReadonlyMap<string, KitFileRecord>,
+): void {
+  for (const premise of premises) {
+    let state: KitSourceReferencePremise["state"] = "directory";
+    const segments = premise.path.split("/");
+    let current = root;
+    for (const segment of segments) {
+      if (state !== "directory") {
+        state = "absent";
+        break;
+      }
+      current = path.join(current, segment);
+      try {
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink() || fs.realpathSync.native(current) !== current) {
+          fail("stale-evidence", "Source reference premise no longer has a canonical contained path.");
+        }
+        if (stat.isFile()) state = "file";
+        else if (!stat.isDirectory()) fail("stale-evidence", "Source reference premise has an unsupported file type.");
+      } catch (error) {
+        if (error instanceof KitSourceEvidenceAcquisitionError) throw error;
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+          fail("stale-evidence", "Source reference premise cannot be inspected.");
+        }
+        state = "absent";
+        break;
+      }
+    }
+    if (state !== premise.state) fail("stale-evidence", "Source reference premise state changed: " + premise.path);
+    if (state === "file") {
+      const size = Math.min(inventory.get(premise.path)?.sizeBytes ?? KIT_MANIFEST_MAX_BYTES, KIT_MANIFEST_MAX_BYTES);
+      const bytes = readBoundedFile(current, size, "stale-evidence", "Source reference premise");
+      if (sha256Hex(bytes) !== premise.contentSha256) {
+        fail("stale-evidence", "Source reference premise content changed: " + premise.path);
+      }
+    }
+  }
+}
+
 function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandContext, dispose: () => void | Promise<void>,
   testFiles: ProjectInventorySnapshot["testFiles"], rawSourceFiles: ProjectInventorySnapshot["sourceFiles"], inventoryFiles: ProjectInventorySnapshot["files"]): KitSourceReader {
   const cache = new Map<string, Promise<KitOccurrence>>();
@@ -950,7 +1002,10 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     if (!store.has(key)) store.set(key, fetch());
     return store.get(key)!;
   }
-  const proofs = new Map<string, Promise<KitImportProof>>();
+  const proofs = new Map<string, Promise<{
+    proof: KitImportProof;
+    reference?: ReturnType<typeof validateKitOrdinarySourceReference>;
+  }>>();
   const contents = new Map<string, Promise<string>>();
   const rawTestContents = new Map<string, string | undefined>();
   const testFileByPath = new Map(testFiles.map(file => [file.relativePath, file]));
@@ -1131,6 +1186,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     jsonRawLiteralContent,
     selectedFile,
     reExportSpecifiers: filePath => reExportTargets(filePath).map(fact => fact.sourceSpecifier),
+    ordinarySourceReference: ctx.ordinarySourceReference,
     reExportTargets: r3 || p6R2 ? reExportTargets : undefined,
     fixtureReferenceBasenames(filePath) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
@@ -1272,8 +1328,31 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       const entry = importsById.get(factId);
       if (!entry) fail("invalid-request", "Import fact ID is not in the validated fact pages.");
       const { fact, record } = entry;
-      const proof = await query(proofs, factId, () => runKitQuery(ctx, indexDir,
-        { selector: "audit-import-target", factId }).then(raw => validateKitImportProof(raw, { snapshotId: evidence.snapshotId, fact, evidence })));
+      const fetchProof = async () => {
+        const raw = await runKitQuery(ctx, indexDir, { selector: "audit-import-target", factId });
+        const proof = validateKitImportProof(raw, { snapshotId: evidence.snapshotId, fact, evidence });
+        const extension = (raw as { sourceReferenceProof?: unknown }).sourceReferenceProof;
+        const reference = ctx.ordinarySourceReference && extension !== undefined
+          ? validateKitOrdinarySourceReference(extension, proof, evidence, fact) : undefined;
+        return { proof, reference };
+      };
+      // Extension premises are rechecked on every use of the memoized response.
+      // The legacy stream continues to refresh its independent absence claims.
+      const { proof, reference } = await query(proofs, factId, fetchProof);
+      if (reference) {
+        if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+        const root = fs.realpathSync.native(evidence.source.projectRoot);
+        const origin = path.resolve(root, record.path);
+        if (fs.realpathSync.native(origin) !== origin) fail("stale-evidence", "Source reference origin identity changed.");
+        assertFresh(record);
+        assertSourceReferencePremises(root, reference.premiseRefs, inventoryByPath);
+      }
+      const projection = {
+        qualifiedSourceReferencePath: reference?.qualifiedSourceReferencePath,
+        selectedTargetUpperBound: reference?.selectedTargetUpperBound,
+        ordinarySourceReferenceReason: reference?.reasonCode,
+        exactSelectedPath: undefined,
+      };
       if (r3 && (record.language === "javascript" || record.language === "typescript")) {
         if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
         assertFresh(record);
@@ -1297,14 +1376,19 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
           // or configured candidates. Admit only a literal immediate path shared
           // by ordinary relative ESM and CommonJS resolution.
           if (proof.candidatePaths.length === 1 && hasImmediateRelativeSpelling(record.path, specifier, selected) &&
-              isCanonical(record.path) && isCanonical(selected)) return { ...proof, exactSelectedPath: selected };
+              isCanonical(record.path) && isCanonical(selected)) {
+            if (reference?.selectedTargetUpperBound && !reference.selectedTargetUpperBound.includes(selected)) {
+              fail("artifact-invalid", "Qualified exact path contradicts the ordinary source reference domain.");
+            }
+            return { ...proof, ...projection, exactSelectedPath: selected };
+          }
         } else if (proof.status === "proven-missing" &&
             (proof.reasonCode !== "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION" ||
             proof.candidatePaths.some(candidate => inventoryByPath.has(candidate)))) {
           fail("artifact-invalid", "Import-target exclusion contradicts the selected inventory.");
         }
       }
-      return proof;
+      return { ...proof, ...projection };
     },
   };
   return reader;
@@ -1559,7 +1643,10 @@ export async function collectKitSourceFacts(
     if (request.onReader) {
       const context: KitCommandContext = { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
-        guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch };
+        guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch,
+        ordinarySourceReference: deps.testOnlyOrdinarySourceReference && deps.disableStream && deps.runCommand &&
+          deps.installedPackageRoot && deps.expectation && !deps.qualifiedArchivePath &&
+          evidence.artifactSchemaVersion === "1.2.0" ? true : undefined };
       configureKitTransport(context, deps, evidence.source, path.join(workDir, "index"), streamState);
       const reader = createKitSourceReader(evidence, context, async () => {
         await close();

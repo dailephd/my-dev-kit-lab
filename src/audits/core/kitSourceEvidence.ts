@@ -261,6 +261,165 @@ export function validateKitImportProof(raw: unknown, expected: { snapshotId: str
   return r;
 }
 
+export type KitSourceReferencePremise = {
+  role: "config" | "package-metadata" | "candidate" | "path";
+  path: string;
+  state: "absent" | "file" | "directory";
+  contentSha256: string | null;
+};
+
+export type KitOrdinarySourceReference = {
+  premiseRefs: readonly KitSourceReferencePremise[];
+  reasonCode: string | null;
+  selectedTargetUpperBound?: readonly string[];
+  qualifiedSourceReferencePath?: string;
+};
+
+const SOURCE_REFERENCE_KEYS = [
+  "schemaVersion", "profile", "pathIdentityProfile", "snapshotId", "selectionFingerprint",
+  "selectedDomainDigest", "originFile", "originContentSha256", "importFactId", "sourceSpecifier",
+  "resolutionPlatform", "candidateEnumerationComplete", "candidateDomain", "qualifiedReference",
+  "premiseRefs", "reasonCode",
+] as const;
+
+function closedReferenceObject(raw: unknown, keys: readonly string[], label: string): JsonObject {
+  const object = asObject(raw, label, "artifact-invalid");
+  if (Object.keys(object).length !== keys.length || keys.some(key => !Object.hasOwn(object, key))) {
+    fail("artifact-invalid", `${label} has unexpected or missing fields.`);
+  }
+  return object;
+}
+
+function referencePath(raw: unknown): string {
+  const value = validateKitRelativePath(raw, "source reference path");
+  if (Buffer.byteLength(value, "utf8") > 4096 || Buffer.from(value).toString("utf8") !== value || /[\x00-\x1f]/.test(value) ||
+      (process.platform === "win32" && value.split("/").some(segment =>
+        /[<>:"|?*]|[ .]$/.test(segment) ||
+        /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(segment)))) {
+    fail("path-invalid", "Invalid source reference path identity.");
+  }
+  return value;
+}
+
+export function validateKitOrdinarySourceReference(
+  raw: unknown, proof: KitImportProof, evidence: KitSourceEvidence, fact: KitFact,
+): KitOrdinarySourceReference {
+  const r = closedReferenceObject(raw, SOURCE_REFERENCE_KEYS, "source reference proof");
+  const origin = evidence.fileEvidence.get(fact.span.path);
+  const selected = new Map(evidence.inventory.map(file => [file.path, file]));
+  const originPath = referencePath(r.originFile);
+  if (evidence.artifactSchemaVersion !== "1.2.0" || proof.schemaVersion !== "1.1.0" ||
+      r.schemaVersion !== "1.0.0" || r.profile !== "js-ts-selected-source-reference-v1" ||
+      r.pathIdentityProfile !== "selected-source-path-v1" ||
+      r.resolutionPlatform !== (process.platform === "win32" ? "win32" : "posix")) {
+    fail("schema-mismatch", "Unqualified ordinary source reference protocol.");
+  }
+  if (!origin || !["typescript", "javascript"].includes(origin.record.language) ||
+      !(fact.kind === "import" || fact.kind === "export" && fact.exportOrigin === "re-export") ||
+      !fact.sourceSpecifier || Buffer.byteLength(fact.sourceSpecifier, "utf8") > 4096 ||
+      r.snapshotId !== proof.snapshotId || r.snapshotId !== evidence.snapshotId ||
+      originPath !== fact.span.path || originPath !== proof.originFile ||
+      r.importFactId !== fact.id || r.importFactId !== proof.importFactId ||
+      r.sourceSpecifier !== fact.sourceSpecifier || r.sourceSpecifier !== proof.sourceSpecifier ||
+      typeof r.originContentSha256 !== "string" || !SHA256_PATTERN.test(r.originContentSha256) ||
+      r.originContentSha256 !== origin.record.contentSha256 ||
+      r.originContentSha256 !== selected.get(originPath)?.contentSha256 ||
+      typeof r.selectionFingerprint !== "string" || !SHA256_PATTERN.test(r.selectionFingerprint) ||
+      r.selectionFingerprint !== evidence.source.selectionFingerprint ||
+      r.selectedDomainDigest !== sha256Hex(JSON.stringify([...selected.keys()].sort()))) {
+    fail("artifact-invalid", "Source reference proof differs from validated origin or selection.");
+  }
+  if (!Array.isArray(r.premiseRefs) || r.premiseRefs.length > 1024 ||
+      typeof r.candidateEnumerationComplete !== "boolean" ||
+      (Array.isArray(r.candidateDomain) && r.candidateDomain.length > 256)) {
+    fail("artifact-invalid", "Invalid source reference proof shape or budget.");
+  }
+  if (Buffer.byteLength(JSON.stringify(r), "utf8") > 1048576) {
+    fail("artifact-invalid", "Source reference proof exceeds the serialized byte budget.");
+  }
+
+  const byPhysicalPath = new Map<string, KitSourceReferencePremise>();
+  const candidates = new Map<string, KitSourceReferencePremise>();
+  const fold = (name: string) => process.platform === "win32" ? name.toLowerCase() : name;
+  const selectedIdentities = new Map(evidence.inventory.map(file => [fold(file.path), file.path]));
+  let previous = "";
+  const premiseRefs = r.premiseRefs.map((rawPremise): KitSourceReferencePremise => {
+    const p = closedReferenceObject(rawPremise, ["role", "path", "state", "contentSha256"], "source reference premise");
+    const role = oneOf(p.role, ["config", "package-metadata", "candidate", "path"] as const, "premise role", "artifact-invalid");
+    const state = oneOf(p.state, ["absent", "file", "directory"] as const, "premise state", "artifact-invalid");
+    const filePath = referencePath(p.path);
+    const contentSha256 = p.contentSha256;
+    if (state === "file" ? typeof contentSha256 !== "string" || !SHA256_PATTERN.test(contentSha256) : contentSha256 !== null) {
+      fail("artifact-invalid", "Invalid source reference premise hash.");
+    }
+    const key = role + "\0" + filePath;
+    const physicalKey = fold(filePath);
+    const prior = byPhysicalPath.get(physicalKey);
+    const selectedPath = selectedIdentities.get(physicalKey);
+    const record = selected.get(filePath);
+    if (key <= previous || (prior && (prior.path !== filePath || prior.state !== state || prior.contentSha256 !== contentSha256)) ||
+        (selectedPath !== undefined && selectedPath !== filePath) ||
+        (record && (state !== "file" || record.contentSha256 !== null && record.contentSha256 !== contentSha256))) {
+      fail("artifact-invalid", "Duplicate, noncanonical or contradictory source reference premise.");
+    }
+    previous = key;
+    const premise = { role, path: filePath, state, contentSha256: contentSha256 as string | null };
+    byPhysicalPath.set(physicalKey, premise);
+    if (role === "candidate") candidates.set(filePath, premise);
+    return premise;
+  });
+
+  if (!r.candidateEnumerationComplete) {
+    if (r.candidateDomain !== null || r.qualifiedReference !== null || typeof r.reasonCode !== "string" || !r.reasonCode.trim()) {
+      fail("artifact-invalid", "Inconsistent incomplete ordinary source reference proof.");
+    }
+    return { premiseRefs, reasonCode: r.reasonCode };
+  }
+  if (!Array.isArray(r.candidateDomain) || !r.candidateDomain.length || r.reasonCode !== null ||
+      !proof.selectionComplete || !evidence.traversalComplete || !evidence.coverage.inventoryComplete ||
+      !evidence.coverage.exclusionsAreExplicit || selected.size !== evidence.coverage.selectedFileCount ||
+      selected.size !== evidence.coverage.recordedFileCount) {
+    fail("artifact-invalid", "Invalid complete ordinary source reference domain.");
+  }
+  const selectedTargetUpperBound: string[] = [];
+  previous = "";
+  for (const item of r.candidateDomain) {
+    const filePath = referencePath(item);
+    const premise = candidates.get(filePath);
+    const record = selected.get(filePath);
+    if (filePath <= previous || !premise || (record
+      ? premise.state !== "file" || !record.contentSha256 || !/\.(?:tsx?|jsx?|mts|cts|mjs|cjs)$/i.test(filePath)
+      : premise.state !== "absent")) {
+      fail("artifact-invalid", "Unqualified ordinary source reference candidate.");
+    }
+    previous = filePath;
+    if (record) selectedTargetUpperBound.push(filePath);
+  }
+  if (proof.status === "proven-missing" && selectedTargetUpperBound.length) {
+    fail("artifact-invalid", "Legacy absence contradicts the selected source reference domain.");
+  }
+  // Probe-only candidate premises may include other absent paths, but a
+  // competing physical candidate cannot be passed off as mere probe evidence.
+  for (const premise of candidates.values()) {
+    if (premise.state !== "absent" && !selectedTargetUpperBound.includes(premise.path)) {
+      fail("artifact-invalid", "Existing candidate is outside the qualified selected domain.");
+    }
+  }
+  if (fact.targetPaths?.some(target => !selectedTargetUpperBound.includes(target))) {
+    fail("artifact-invalid", "Ordinary source reference domain contradicts indexed targets.");
+  }
+
+  if (r.qualifiedReference === null) return { premiseRefs, reasonCode: null, selectedTargetUpperBound };
+  const positive = closedReferenceObject(r.qualifiedReference, ["targetPath", "targetContentSha256", "referenceKind"], "qualified source reference");
+  const target = referencePath(positive.targetPath);
+  if (positive.referenceKind !== "selected-source-reference" ||
+      selectedTargetUpperBound.length !== 1 || selectedTargetUpperBound[0] !== target ||
+      positive.targetContentSha256 !== selected.get(target)?.contentSha256) {
+    fail("artifact-invalid", "Invalid qualified selected source reference.");
+  }
+  return { premiseRefs, reasonCode: null, selectedTargetUpperBound, qualifiedSourceReferencePath: target };
+}
+
 export type KitSourceSelection = {
   projectRoot: string;
   sourceRoots: string[];

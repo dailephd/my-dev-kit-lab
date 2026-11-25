@@ -14,6 +14,10 @@ import {
   sha256Hex,
   validateFactPage,
   validateKitFact,
+  validateKitFileRecord,
+  validateKitImportProof,
+  validateKitOrdinarySourceReference,
+  type KitSourceEvidence,
   validateInventoryPage,
   validateKitArtifact,
   validateKitManifestReference,
@@ -485,3 +489,95 @@ describe("versioned direct modifier coverage", () => {
     expectFailure(() => validateInventoryPage(page("parsed", "1.0.0"), expected), "schema-mismatch");
   });
 })
+
+describe("FACTS02-ORDINARY-SOURCE-REFERENCE/1.0.0", () => {
+  const origin = "src/entry.ts";
+  const peer = "src/peer.ts";
+  const alternate = "src/peer.tsx";
+  const absent = "src/peer.js";
+  const selectionFingerprint = "c".repeat(64);
+  const file = (filePath: string) => validateKitFileRecord(fileJson(filePath), filePath);
+  const fact = validateKitFact({
+    id: "audit-fact:src%2Fentry.ts#import#1#0#0", kind: "import", extractionMethod: "typescript-ast",
+    span: { path: origin, startLine: 1, startColumn: 0, endLine: 1, endColumn: 19 },
+    sourceSpecifier: "./peer.js", importedNames: [], importResolution: "observed",
+  }, "ordinary import", origin);
+  const extension = (targets: string[], qualified = false) => {
+    const inventory = [origin, ...targets].map(file);
+    const evidence: KitSourceEvidence = {
+      producer: { packageName: "@dailephd/my-dev-kit", packageVersion: "1.16.0" },
+      artifactSchemaVersion: "1.2.0", extractorRevision: "source-audit-v1.6.0",
+      source: { projectRoot: "/fixture", sourceRoots: ["src"], excludes: [], symbolIndexSchemaVersion: "3",
+        codeGraphSchemaVersion: "1.1.0", selectionFingerprint, snapshotId: SNAPSHOT },
+      inventory, snapshotId: SNAPSHOT, coverage: { ...COVERAGE, selectedFileCount: inventory.length, recordedFileCount: inventory.length },
+      fileEvidence: new Map([[origin, { record: inventory[0]!, facts: [fact], factPages: 1 }]]),
+      inventoryPages: 1, factPages: 1, traversalComplete: true,
+    };
+    const parent = validateKitImportProof({
+      schemaVersion: "1.1.0", mode: "audit-import-target", snapshotId: SNAPSHOT,
+      importFactId: fact.id, originFile: origin, sourceSpecifier: fact.sourceSpecifier,
+      status: targets.length ? "present" : "indeterminate", candidatePaths: targets,
+      selectionComplete: true, reasonCode: targets.length === 1 ? "TARGET_IN_SELECTED_INVENTORY" : "FIXTURE",
+    }, { snapshotId: SNAPSHOT, fact, evidence });
+    const candidateDomain = [absent, ...targets].sort();
+    const payload = {
+      schemaVersion: "1.0.0", profile: "js-ts-selected-source-reference-v1",
+      pathIdentityProfile: "selected-source-path-v1", snapshotId: SNAPSHOT, selectionFingerprint,
+      selectedDomainDigest: sha256Hex(JSON.stringify(inventory.map(record => record.path).sort())),
+      originFile: origin, originContentSha256: HASH, importFactId: fact.id, sourceSpecifier: fact.sourceSpecifier,
+      resolutionPlatform: process.platform === "win32" ? "win32" : "posix",
+      candidateEnumerationComplete: true, candidateDomain,
+      qualifiedReference: qualified ? { targetPath: peer, targetContentSha256: HASH, referenceKind: "selected-source-reference" } : null,
+      premiseRefs: candidateDomain.map(filePath => ({ role: "candidate", path: filePath,
+        state: filePath === absent ? "absent" : "file", contentSha256: filePath === absent ? null : HASH })),
+      reasonCode: null,
+    };
+    return { payload, parse: (raw: unknown) => validateKitOrdinarySourceReference(raw, parent, evidence, fact), parent };
+  };
+
+  it("keeps legacy envelopes readable and derives singleton, multiple, empty and unknown bounds independently", () => {
+    const single = extension([peer], true);
+    expect(single.parse(single.payload)).toMatchObject({ selectedTargetUpperBound: [peer], qualifiedSourceReferencePath: peer });
+    expect(validateKitImportProof({ ...single.parent, sourceReferenceProof: { ignored: false } }, { snapshotId: SNAPSHOT, fact }))
+      .toMatchObject({ candidatePaths: [peer], status: "present" });
+    const multiple = extension([peer, alternate]);
+    expect(multiple.parse(multiple.payload).selectedTargetUpperBound).toEqual([peer, alternate]);
+    expect(multiple.parse(multiple.payload).qualifiedSourceReferencePath).toBeUndefined();
+    const missing = extension([]);
+    expect(missing.parse(missing.payload).selectedTargetUpperBound).toEqual([]);
+    expect(single.parse({ ...single.payload, candidateEnumerationComplete: false, candidateDomain: null,
+      qualifiedReference: null, reasonCode: "UNSUPPORTED_PROFILE" }).selectedTargetUpperBound).toBeUndefined();
+  });
+
+  it.each([
+    ["schemaVersion", "2.0.0"], ["profile", "unknown"], ["pathIdentityProfile", "unknown"],
+    ["snapshotId", "wrong"], ["selectionFingerprint", "wrong"], ["selectedDomainDigest", "wrong"],
+    ["originFile", "src/other.ts"], ["originContentSha256", "d".repeat(64)],
+    ["importFactId", "different-fact"], ["sourceSpecifier", "./other.js"],
+    ["resolutionPlatform", process.platform === "win32" ? "posix" : "win32"],
+    ["candidateDomain", ["../outside.ts"]], ["candidateDomain", Array(257).fill(peer)],
+    ["candidateDomain", ["src/" + "x".repeat(4096) + ".ts"]],
+    ["candidateDomain", [peer, peer]], ["candidateDomain", [peer, absent]], ["candidateDomain", []],
+    ["qualifiedReference", { targetPath: peer, targetContentSha256: "d".repeat(64), referenceKind: "selected-source-reference" }],
+    ["premiseRefs", Array(1025).fill({})], ["premiseRefs", []],
+    ["reasonCode", "CONTRADICTORY"], ["extra", true],
+  ])("rejects invalid closed proof data in %s", (key, value) => {
+    const one = extension([peer], true);
+    expect(() => one.parse({ ...one.payload, [key as string]: value })).toThrow(KitSourceEvidenceAcquisitionError);
+  });
+
+  it("rejects conflicting, noncanonical and non-closed premise records", () => {
+    const one = extension([peer]);
+    const first = one.payload.premiseRefs[0]!;
+    for (const premise of [
+      { ...first }, { ...first, extra: true }, { ...first, role: "path", state: "directory" },
+      { role: "path", path: peer, state: "absent", contentSha256: null },
+      ...(process.platform === "win32" ? [{ role: "path", path: "src/Peer.ts", state: "file", contentSha256: HASH }] : []),
+    ]) {
+      expect(() => one.parse({ ...one.payload, premiseRefs: [...one.payload.premiseRefs, premise] }))
+        .toThrow(KitSourceEvidenceAcquisitionError);
+    }
+    expect(() => one.parse({ ...one.payload, candidateEnumerationComplete: false, candidateDomain: null,
+      reasonCode: "x".repeat(1048576) })).toThrow(/serialized byte budget/);
+  });
+});

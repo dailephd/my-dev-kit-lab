@@ -1,11 +1,12 @@
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { expect, it } from "vitest";
 import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
 import { runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
-import { collectKitSourceFacts, type KitSourceReader, QUALIFIED_B3_P1_KIT, QUALIFIED_B5_P1_R7A_KIT } from "../../src/audits/core/kitSourceProvider.js";
+import { collectKitSourceFacts, type KitSourceReader, type KitSourceProviderDependencies, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_B3_P1_KIT, QUALIFIED_B5_P1_R7A_KIT } from "../../src/audits/core/kitSourceProvider.js";
 
 const installedPackageRoot = process.env.LAB_R3_INSTALLED_KIT;
 const qualifiedArchivePath = process.env.LAB_R3_KIT_ARCHIVE;
@@ -530,3 +531,179 @@ it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
     }));
   }, 60_000,
 );
+
+const ordinaryProfile = "js-ts-selected-source-reference-v1";
+
+function ordinaryContractFixture(
+  target: string, workDir: string,
+  contracts: Record<string, { domain: string[]; reference?: string }>,
+  qualified: boolean,
+) {
+  const calls: string[] = [];
+  const digest = (value: Buffer | string) => createHash("sha256").update(value).digest("hex");
+  const deps: KitSourceProviderDependencies = {
+    installedPackageRoot: path.resolve("node_modules/@dailephd/my-dev-kit"),
+    expectation: QUALIFIED_CURRENT_PUBLISHED_KIT,
+    workDir, disableStream: true,
+    testOnlyOrdinarySourceReference: qualified ? true : undefined,
+    runCommand: async options => {
+      const result = await runMeasuredCommand(options);
+      const args = options.args ?? [];
+      const selector = args.indexOf("--audit-import-target");
+      if (!result.ok || selector < 0) return result;
+      const parent = JSON.parse(result.stdout);
+      calls.push(parent.importFactId);
+      const rule = contracts[parent.sourceSpecifier];
+      if (!rule) return result;
+      const artifact = JSON.parse(fs.readFileSync(path.join(args[args.indexOf("--index") + 1]!, "source-audit-evidence.json"), "utf8"));
+      const selected = new Map<string, string | null>(artifact.files.map((file: { path: string; contentSha256: string | null }) =>
+        [file.path, file.contentSha256]));
+      const refs = rule.domain.map(file => ({
+        role: "candidate", path: file, state: selected.has(file) ? "file" : "absent",
+        contentSha256: selected.get(file) ?? null,
+      }));
+      refs.push({ role: "config", path: "tsconfig.json", state: "file", contentSha256: digest(fs.readFileSync(path.join(target, "tsconfig.json"))) });
+      refs.push({ role: "package-metadata", path: "package.json", state: "file", contentSha256: digest(fs.readFileSync(path.join(target, "package.json"))) });
+      refs.push({ role: "path", path: "alternate-config", state: "absent", contentSha256: null });
+      const sourceReferenceProof = {
+        schemaVersion: "1.0.0", profile: ordinaryProfile, pathIdentityProfile: "selected-source-path-v1",
+        snapshotId: parent.snapshotId, selectionFingerprint: artifact.source.selectionFingerprint,
+        selectedDomainDigest: digest(JSON.stringify([...selected.keys()].sort())),
+        originFile: parent.originFile, originContentSha256: selected.get(parent.originFile),
+        importFactId: parent.importFactId, sourceSpecifier: parent.sourceSpecifier,
+        resolutionPlatform: process.platform === "win32" ? "win32" : "posix",
+        candidateEnumerationComplete: true, candidateDomain: rule.domain,
+        qualifiedReference: rule.reference ? { targetPath: rule.reference, targetContentSha256: selected.get(rule.reference),
+          referenceKind: "selected-source-reference" } : null,
+        premiseRefs: refs,
+        reasonCode: null,
+      };
+      return { ...result, stdout: JSON.stringify({ ...parent, sourceReferenceProof, exactSelectedPath: "src/decoy.ts",
+        selectedTargetUpperBound: ["src/decoy.ts"], qualifiedSourceReferencePath: "src/decoy.ts" }) };
+    },
+  };
+  return { deps, calls };
+}
+
+it.each([true, false])("gates ordinary source-reference semantics on fixture qualification (%s)", async qualified => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-ordinary-reader-"));
+  try {
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"ordinary-reader"}');
+    fs.writeFileSync(path.join(target, "tsconfig.json"), '{"compilerOptions":{}}');
+    fs.writeFileSync(path.join(target, "src/entry.ts"), 'export { peer } from "./peer.js";\n');
+    fs.writeFileSync(path.join(target, "src/peer.ts"), "export const peer = 1;\n");
+    const workDir = path.join(workspace, "kit");
+    const fixture = ordinaryContractFixture(target, workDir, {
+      "./peer.js": { domain: ["src/peer.js", "src/peer.ts", "src/peer.tsx"], reference: "src/peer.ts" },
+    }, qualified);
+    let reader: KitSourceReader | undefined;
+    await collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: ["src/entry.ts", "src/peer.ts"],
+      requiredCapabilities: [], includeScriptsRoot: false, onReader: value => { reader = value; },
+    }, fixture.deps);
+    try {
+      const [edge] = reader!.reExportTargets?.("src/entry.ts") ?? [];
+      expect(edge).toMatchObject({ sourceSpecifier: "./peer.js" });
+      const read = () => reader!.importTarget(edge!.id);
+      const first = await read();
+      expect(first.exactSelectedPath).toBeUndefined();
+      expect(first.qualifiedSourceReferencePath).toBe(qualified ? "src/peer.ts" : undefined);
+      expect(first.selectedTargetUpperBound).toEqual(qualified ? ["src/peer.ts"] : undefined);
+      if (!qualified) return;
+      for (const [name, change] of [
+        ["tsconfig.json", '{"compilerOptions":{"rootDirs":["src"]}}'],
+        ["package.json", '{"name":"changed"}'],
+        ["src/peer.tsx", "export {};"],
+        ["src/peer.ts", "export const peer = 0;\n"],
+      ]) {
+        const file = path.join(target, name!);
+        const original = fs.existsSync(file) ? fs.readFileSync(file) : null;
+        fs.writeFileSync(file, change!);
+        try { await expect(read()).rejects.toMatchObject({ category: "stale-evidence" }); }
+        finally { if (original) fs.writeFileSync(file, original); else fs.unlinkSync(file); }
+      }
+      const outside = path.join(workspace, "outside");
+      fs.mkdirSync(outside);
+      fs.symlinkSync(outside, path.join(target, "alternate-config"), "junction");
+      await expect(read()).rejects.toMatchObject({ category: "stale-evidence" });
+      expect(fixture.calls).toEqual([edge!.id]);
+    } finally { await reader?.dispose(); }
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
+
+it.each([
+  { unknown: false, threshold: "none" },
+  { unknown: true, threshold: "none" },
+  { unknown: true, threshold: "blocker" },
+  { unknown: "other-origin", threshold: "none" },
+])("combines ordinary, re-export and computed bounds while retaining positives (%j)", async ({ unknown, threshold }) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-ordinary-audit-"));
+  try {
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.mkdirSync(path.join(target, "tests"));
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"ordinary-union","type":"module"}');
+    fs.writeFileSync(path.join(target, "tsconfig.json"), '{"compilerOptions":{}}');
+    for (const name of ["peer.ts", "choice.ts", "choice.tsx", "float.mjs", "other.ts"]) {
+      fs.writeFileSync(path.join(target, "src", name), "export const witness = 1;\n");
+    }
+    fs.writeFileSync(path.join(target, "src/main.ts"), [
+      ...(unknown === true ? ['import "unresolved-alias";'] : []),
+      'import "./peer.js";',
+      'export * from "./choice.js";',
+      'void import(process.env.PROFILE ? "./float.mjs" : "./nowhere.mjs");',
+    ].join("\n"));
+    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), 'test.only("independent", () => {});\n');
+    if (unknown === "other-origin") fs.writeFileSync(path.join(target, "tests/unknown.test.mjs"), 'export * from "unresolved-alias";');
+    // Unlike the configured ordinary edge, this independent ESM operand is
+    // intentionally finite but lacks a complete destination profile with tsconfig present.
+    // Supply an independent computed wire control below for the unchanged domain reader.
+    const workDir = path.join(workspace, "kit");
+    const fixture = ordinaryContractFixture(target, workDir, {
+      "./peer.js": { domain: ["src/peer.js", "src/peer.ts", "src/peer.tsx"], reference: "src/peer.ts" },
+      "./choice.js": { domain: ["src/choice.js", "src/choice.ts", "src/choice.tsx"] },
+    }, true);
+    const runFixture = fixture.deps.runCommand!;
+    fixture.deps.runCommand = async options => {
+      const result = await runFixture(options);
+      if (!result.ok || !options.args?.includes("--audit-import-domain")) return result;
+      const raw = JSON.parse(result.stdout);
+      if (raw.originFile !== "src/main.ts") return result;
+      for (const alternative of raw.operandAlternatives) {
+        const selected = alternative.specifier === "./float.mjs";
+        alternative.resolution = {
+          status: selected ? "present" : "proven-missing",
+          reasonCode: selected ? "TARGET_IN_SELECTED_INVENTORY" : "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION",
+          selectionComplete: true, candidateEnumerationComplete: true,
+          candidatePaths: selected ? ["src/float.mjs", "src/float.mts"] : ["src/nowhere.mjs", "src/nowhere.mts"],
+        };
+      }
+      return { ...result, stdout: JSON.stringify(raw) };
+    };
+    const code = await runAuditCommandFromArgs([
+      "--target", target, "--types", "code-rot", "--include", "architecture,tests", "--fail-on", threshold,
+      "--format", "json", "--out", path.join(workspace, "reports"),
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: fixture.deps });
+    const evidence = path.join(workspace, "lab-output/evidence");
+    const [id] = fs.readdirSync(evidence);
+    const result = JSON.parse(fs.readFileSync(path.join(evidence, id!, "audit-result.json"), "utf8")).evidence;
+    const blocked = result.coverage.filter((entry: { predicate: string }) => entry.predicate === "unreferenced-source-file blocked candidate")
+      .map((entry: { source: { identity: string } }) => entry.source.identity);
+    expect(code).toBe(2);
+    expect(result.issues.some((issue: { id: string }) => issue.id.includes("only"))).toBe(true);
+    expect(result.coverage).toContainEqual(expect.objectContaining({
+      predicate: "selected module reference", proof: expect.objectContaining({ references: [expect.any(String), "src/peer.ts"] }),
+    }));
+    expect(blocked).toEqual(expect.arrayContaining(["src/choice.ts", "src/choice.tsx", "src/float.mjs"]));
+    expect(blocked).not.toContain("src/peer.ts");
+    if (unknown) expect(blocked).toContain("src/other.ts");
+    else {
+      expect(blocked).not.toContain("src/other.ts");
+      expect(result.issues).toContainEqual(expect.objectContaining({ id: "dead-code-candidate:unreferenced-source-file:src/other.ts" }));
+    }
+    expect(new Set(fixture.calls).size).toBe(fixture.calls.length);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 90_000);
