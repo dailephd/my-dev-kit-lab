@@ -4,12 +4,16 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-25
+
+- Pin the qualified published Kit 1.16.0 provider for source-evidence audits. Preserve bounded qualified evidence and report mandatory coverage gaps with exit 2.
+
 - Add the separately user-authorized current LAB-KIT-01 acceptance route, finite native evidence collection, independent semantic verification and exact-candidate binding. Preserve the original historical verifier, missing-evidence identities and NOT_PASSED states; current acceptance requires complete platform evidence and is not release readiness.
 
 ### Partial-source-evidence compatibility correction
 
 - Retain qualified partial imports and independent findings; withhold unsupported missing-import and dead-code conclusions. Mandatory incomplete coverage remains exit 2 with findings preserved.
-- Preserve strict evidence integrity, existing flags/report schemas, and all published v0.10.0 filesystem/security fixes. This correction is local and unreleased.
+- Preserve strict evidence integrity, existing flags/report schemas, and all published v0.10.0 filesystem/security fixes.
 
 ## [0.10.0] - 2026-11-14
 

@@ -1783,7 +1783,7 @@ The candidate inherited from `fix/sw119-r2-v010-partial-evidence` included the b
 
 ### v0.11.0 — coordinated source-evidence consumer
 
-Status: **planned release; unreleased; final product acceptance and published producer qualification pending**.
+Status: **final release-document state; formal current-product acceptance passed**.
 
 The local implementation consumes an authenticated Kit producer for source
 identity, exact ESM witnesses, selected-domain proofs and byte evidence.
@@ -1792,8 +1792,8 @@ mandatory incomplete result when source coverage cannot support a required
 predicate. The explicit R3 route has installed evidence on Windows and native
 Linux under their recorded execution identities. Follow the
 [adopted product and target policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification).
-Qualifying the published Kit producer and binding the Lab production
-dependency remain required before Lab publication. See
+The qualified Kit 1.16.0 provider is the pinned production
+dependency. See
 [Commands](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer)
 and the [historical target outcomes](CURRENT_STATE.md#historical-target-audit-results).
 

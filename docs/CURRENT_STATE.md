@@ -29,10 +29,10 @@ Original full SW-118 audit/timeout artifacts and mandatory historical Kit reconc
 ## Version and publication state
 
 - Package: `@dailephd/my-dev-kit-lab`
-- Latest release: v0.10.0 (2026-11-14); source tag c4b72e1e22c0babddcba752dfd605a41a21a45af. The following dated registry observations remain historical.
+- Historical record (Latest release as of 2026-11-14): v0.10.0 (2026-11-14); source tag c4b72e1e22c0babddcba752dfd605a41a21a45af. The following dated registry observations remain historical.
 - Historical verified registry package: **0.9.7**; registry version/latest tag checked 2026-11-14 (publication date 2026-11-09). The 2026-11-05 v0.9.6 npm/GitHub Release observation and 2026-10-28 v0.9.5 pre-preparation registry snapshot remain historical evidence.
 - Exact implementation candidate `50d1960f4406b5a0f986fe8a9cbdc09e3a8ee05e` passed local and hosted standardized readiness on 2026-10-26. Release preparation is recorded separately; npm reported baseline `0.9.4` and an explicit not-found result for `0.9.5` before the versioned release artifact was prepared.
-- Current release-document and package metadata version: `v0.10.0`; final release-document state. Historical registry snapshot on 2026-11-14: 0.9.7.
+- Current release documentation and package metadata describe v0.11.0. Historical registry snapshot on 2026-11-14: 0.9.7.
 - Previous release: `v0.9.7`; v0.9.6 preceded it; v0.9.5 preceded it; historical `v0.9.3` added prompt, report, metric, gallery, and comparison improvements.
 - Historical pre-publication registry check on `2026-10-16`: npm reported `0.9.2` as latest before v0.9.3 publication. This dated result is not current publication status; registry publication is established separately through external npm evidence.
 - Historical v0.9.6 release-document metadata is superseded by the current v0.10.0 final release-document state.
@@ -46,10 +46,9 @@ Original full SW-118 audit/timeout artifacts and mandatory historical Kit reconc
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Historical v0.9.2 validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
 - Package version: `0.10.0`, in final release-document state.
-- Historical registry snapshot on 2026-11-14: package 0.9.7. Current release-document and package version: 0.10.0; LAB-KIT-01 Gates 1 through 6 complete; LAB-EVIDENCE-01 prospective functional/native acceptance passed.
+- Historical registry snapshot on 2026-11-14: package 0.9.7. For v0.10.0, LAB-KIT-01 Gates 1 through 6 complete; LAB-EVIDENCE-01 prospective functional/native acceptance passed.
 - Active corrective target: `v0.10.1` — partially implemented and unreleased; P3 source work is implemented, P4–P6 remain pending, and release preparation has not begun.
-- Latest published version and current package metadata: `v0.10.0`. The historical v0.10.0 implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed its own standardized readiness; that does not qualify the complete current corrective candidate.
-- Next planned feature version: v0.11.0; all future assignments remain unchanged.
+- Latest published version at the SW-123 review: `v0.10.0`. The historical v0.10.0 implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed its own standardized readiness; that does not qualify the complete current corrective candidate.
 - The 2026-10-26 release-preparation report retains its historical registry snapshot. Current npm publication status is determined from live registry evidence, not that snapshot.
 - v0.6.2 release blockers: none; pre-release readiness passed.
 - v0.6.3 extends the v0.6.2 `stale-index` and `full-refresh` treatments with `changed-files-refresh` and `affected-neighborhood-refresh` in the same plugin.
@@ -432,7 +431,11 @@ For released `v0.6.3`: release blockers: none. R6 passed local security, package
 
 ## Next step
 
-The v0.10.0 release documentation and package metadata are prepared from validated implementation commit b0c06bc3ca933d8bda2db34ba0480da741af60f5. Package metadata and final release-document state are v0.10.0; the historical registry snapshot on 2026-11-14 records package 0.9.7. Original RSP-011 remains unsatisfied and its payload unrecovered; prospective 14/14 acceptance does not repair that historical loss. The next planned feature version is v0.11.0.
+The release workflow verifies the prepared package and its publication evidence separately.
+
+### Historical v0.10.0 release preparation
+
+The v0.10.0 release documentation and package metadata were prepared from validated implementation commit b0c06bc3ca933d8bda2db34ba0480da741af60f5. Package metadata and final release-document state are v0.10.0; the historical registry snapshot on 2026-11-14 records package 0.9.7. Original RSP-011 remains unsatisfied and its payload unrecovered; prospective 14/14 acceptance does not repair that historical loss.
 
 Historical v0.9.5 readiness and release-preparation evidence remains attached to its own source and package identities.
 
@@ -449,15 +452,20 @@ SW-121 authorizes `V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0` under `LAB-KIT-01
 
 The eight missing historical byte identities covering ten references remain unavailable. Historical provenance is **UNVERIFIED**; original private verification and original readiness binding are **NOT_PASSED**. Their inventories, tests, hashes and failure records are unchanged. A fresh current acceptance never claims historical recovery. The original Python M13 qualification warning is preserved and disclosed in the current bounded-candidacy review. No release, version bump or Step 5 audit is established by this work.
 
-## Coordinated Kit/Lab candidate
+## v0.11.0 source evidence and current-product acceptance
 
-Lab's published baseline and the local candidate's package metadata are both
-0.10.0. The unpublished consumer implementation for the coordinated v0.11.0
-work reached implementation commit `709401f7e8d82e678573d38445ff09b7333b9b15`.
-That earlier candidate pinned Kit 1.15.0. The current unpublished v0.11.0
-candidate pins exact published Kit 1.16.0 and uses its qualified installed
-CLI by default. The explicit managed archive route retains its separate
-local producer identities.
+Lab v0.11.0 pins @dailephd/my-dev-kit@1.16.0 and uses its qualified installed CLI by default. The explicit managed archive route retains its separate producer identities.
+
+Kit 1.16.0 is published.
+
+Formal SW-121 current-product acceptance passed at implementation commit f2bfc17501d69f1e4b1ab46705a94b9c285a2f92. Independent verification covered all 150 controlled decisions and Windows, Linux, and macOS evidence. Six expected-incomplete fixtures retained 15 mandatory gaps and natural exit 2. Historical private provenance remains UNVERIFIED, historical private verification remains NOT_PASSED, and historical readiness binding remains NOT_PASSED.
+
+The candidate code-rot audit retained 215 findings, 2,870 mandatory coverage gaps, and natural exit 2 (INCOMPLETE). The [adopted policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification) treats complete target certification as a separate result.
+
+### Earlier producer and consumer qualification
+
+The earlier consumer implementation at 709401f7e8d82e678573d38445ff09b7333b9b15 pinned Kit 1.15.0. The predecessor 6fb8a084bd7e2a927dac2d34de1e24b5e989ceaa recorded 8,787 public passes and 19 authorized skips.
+
 The B5 producer was reproduced from Kit `c2eb844c0dae8ff061e1d5b65e257bf0551a7a66`
 with identical archive and installed CLI bytes. Earlier R3 qualification
 used Kit `bde00d9c165a6a546170ab72e7a9534d6929697e` and archive SHA-256
@@ -474,22 +482,6 @@ Its native WSL2/ext4 installed cases passed with the authenticated R3
 override, including the exit, report, receipt and fault checks. The default
 production Kit 1.15.0 consumer failed the complete control with incomplete
 selection. The published-provider migration supersedes that earlier blocked pairing.
-Exact-candidate Lab readiness remains pending.
-
-The 8,787 passing public tests and 19 authorized skips belong to predecessor
-`6fb8a084bd7e2a927dac2d34de1e24b5e989ceaa`. Final B5 focused evidence includes
-23 affected verifier tests, 18 detector checks, the managed regression,
-typecheck, build and bounded installed package checks. The focused package
-run preceded the final managed test-only commit. Documentation alters
-the formal source inventory, so exact-candidate validation remains pending.
-
-The [adopted policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification)
-separates product acceptance from target certification. Final product
-acceptance and Step 5 readiness remain pending on the migrated candidate.
-The focused merged development ledger accounts for all 150 decisions. Its six
-qualified incomplete fixtures preserve fifteen mandatory gaps and natural exit
-2, including the unavailable TypeScript runtime-to-source mapping. The ledger
-remains development evidence. Canonical current acceptance runs separately.
 
 ### Historical target audit results
 

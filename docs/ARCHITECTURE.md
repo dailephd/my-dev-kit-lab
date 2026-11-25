@@ -1092,7 +1092,7 @@ Partial declaration evidence has one narrow positive route: qualified Java/Kotli
 
 The historical v0.10.0 release resolves the exact runtime dependency `@dailephd/my-dev-kit@1.15.0`, with source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, and CLI SHA-256 `ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f`. Its file evidence and coverage matched Candidate 05 across the 15 retained fixtures; its findings matched all 150 accepted Kit oracle decisions. Required artifact, pagination, capability, freshness, and source proof validation still apply. Installed-consumer qualification is recorded separately from this comparison.
 
-The unpublished Lab v0.11.0 candidate resolves exact published Kit 1.16.0
+Lab v0.11.0 resolves exact published Kit 1.16.0
 from its own dependencies. Source-audit qualification binds the release archive
 integrity and the installed CLI digest. Lab requests opt-in schema 1.2.0 with
 extractor `source-audit-v1.6.0` and qualified batch and stream transport. Kit's
