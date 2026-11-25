@@ -51,27 +51,45 @@ export const STALE_COMMAND_REFERENCE_DETECTOR: AuditDetector = {
   run: (ctx: AuditDetectorContext): AuditIssue[] => {
     const scriptNames = new Set(Object.keys(ctx.sourceOfTruth.package?.scripts ?? {}));
     const issues: AuditIssue[] = [];
+    const contextWarnings = new Set<string>();
 
     for (const docFile of ctx.inventory.docsFiles) {
       const content = readBoundedText(ctx.target.rootPath, docFile.relativePath, docFile.sizeBytes);
       if (content === null) continue;
 
-      for (const ref of extractDocCommandReferences(content)) {
-        if (scriptNames.has(ref.command) || ref.isLabeledPlanned) continue;
+      for (const ref of extractDocCommandReferences(content, docFile.relativePath)) {
+        if (ref.isLabeledPlanned) continue;
+
+        const directory = ref.packageDirectory;
+        const manifestPath = directory ? `${directory}/package.json` : "package.json";
+        if (directory === "") {
+          if (scriptNames.has(ref.command)) continue;
+        } else {
+          const metadata = directory === null ? undefined : ctx.sourceOfTruth.nestedPackageScripts.get(directory);
+          if (metadata?.state === "valid") {
+            if (metadata.scripts.has(ref.command)) continue;
+          } else if (metadata?.state !== "no-scripts") {
+            const reason = directory === null
+              ? "unsupported or ambiguous command context"
+              : `${manifestPath}: ${metadata?.state ?? "no eligible inventory entry"}`;
+            contextWarnings.add(`${DETECTOR_ID}: ${docFile.relativePath}:${ref.lineNumber}: unresolved package context for npm run ${ref.command} (${reason}).`);
+            continue;
+          }
+        }
 
         issues.push(
           makeCodeRotIssue({
             auditType: "code-rot",
             detectorId: DETECTOR_ID,
-            idCues: [docFile.relativePath, "missing-script", ref.command],
-            title: `Documented command "npm run ${ref.command}" is not a current package.json script`,
-            description: `${docFile.relativePath}:${ref.lineNumber} references "npm run ${ref.command}" as a current command, but no such script exists in package.json.`,
+            idCues: [docFile.relativePath, "missing-script", ref.command, ...(directory ? [manifestPath] : [])],
+            title: `Documented command "npm run ${ref.command}" is not a current ${manifestPath} script`,
+            description: `${docFile.relativePath}:${ref.lineNumber} references "npm run ${ref.command}" as a current command, but no such script exists in ${manifestPath}.`,
             severity: "high",
             confidence: "high",
             falsePositiveRisk: "low",
             category: "stale-command-reference",
             recommendedAction:
-              "Either add the missing script to package.json, remove the stale example, or label it clearly as planned/future.",
+              `Either add the missing script to ${manifestPath}, remove the stale example, or label it clearly as planned/future.`,
             suggestedFixStrategy: `Update ${docFile.relativePath} to remove or relabel the "npm run ${ref.command}" example.`,
             validationCommands: ["npm run audit -- --types code-rot --include docs"],
             releaseBlocking: false,
@@ -80,13 +98,20 @@ export const STALE_COMMAND_REFERENCE_DETECTOR: AuditDetector = {
             evidence: [
               {
                 kind: "file",
-                message: `Referenced command not found in package.json scripts.`,
+                message: `Referenced command not found in ${manifestPath} scripts.`,
                 filePath: docFile.relativePath,
                 line: ref.lineNumber,
                 excerpt: ref.excerpt,
                 source: DETECTOR_ID,
                 confidence: "high",
               },
+              ...(directory ? [{
+                kind: "file" as const,
+                message: "Selected package manifest checked for the documented script.",
+                filePath: manifestPath,
+                source: DETECTOR_ID,
+                confidence: "high" as const,
+              }] : []),
             ],
             affectedFiles: [docFile.relativePath],
           })
@@ -136,6 +161,9 @@ export const STALE_COMMAND_REFERENCE_DETECTOR: AuditDetector = {
       }
     }
 
+    for (const warning of contextWarnings) {
+      if (!ctx.sourceOfTruth.warnings.includes(warning)) ctx.sourceOfTruth.warnings.push(warning);
+    }
     return deduplicateIssuesById(issues);
   },
 };

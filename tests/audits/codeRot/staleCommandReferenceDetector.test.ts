@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -156,6 +157,164 @@ describe("STALE_COMMAND_REFERENCE_DETECTOR", () => {
       expect(skip?.skip).toBe(false);
     } finally {
       cleanup(root);
+    }
+  });
+});
+
+
+describe("qualified documented package commands", () => {
+  it.each([
+    { name: "setup cd with a later smoke reference", packageDir: "console", setup: ["cd console", "npm ci"], heading: "", script: "smoke:local" },
+    { name: "setup cd with a later validation subsection", packageDir: "client", setup: ["cd client", "npm run prepare:demo"], heading: "## Rendering checks", script: "check:render" },
+    { name: "root prefix setup with a later integration reference", packageDir: "service", setup: ["npm --prefix service ci", "npm --prefix service run prepare:demo"], heading: "## Integration gates", script: "smoke:process" },
+    { name: "root prefix setup with a later permissions reference", packageDir: "worker", setup: ["npm --prefix worker run prepare:demo"], heading: "## Deployment checks", script: "check:roles" },
+  ])("qualifies $name", async ({ packageDir, setup, heading, script }) => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ scripts: {} }));
+      writeFile(root, `${packageDir}/package.json`, JSON.stringify({
+        scripts: { [script]: "node check.js", "prepare:demo": "node setup.js" },
+      }));
+      writeFile(root, `${packageDir}/README.md`, [
+        "# Component operator guide", "", "From the repository root:", "", "```powershell",
+        ...setup, "```", "", heading, "", `The \`npm run ${script}\` command checks this component.`,
+      ].join("\n"));
+      const ctx = buildContext(root);
+      expect(await STALE_COMMAND_REFERENCE_DETECTOR.run(ctx)).toEqual([]);
+      expect(ctx.sourceOfTruth.warnings).toEqual([]);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("tests the exact manifest and retains root finding identity and nested provenance", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", '{"scripts":{"root-ok":"node check.js"}}');
+      writeFile(root, "units/one/package.json", '{"scripts":{"shared":"node check.js","only-one":"node local.js"}}');
+      writeFile(root, "units/two/package.json", '{"scripts":{"shared":"node other.js"}}');
+      writeFile(root, "units/empty/package.json", '{"name":"empty"}');
+      writeFile(root, "README.md", [
+        "`npm run root-ok`", "`npm run only-one`",
+        "`npm --prefix units/one run shared`", "`npm --prefix units/two run shared`",
+        "`npm --prefix units/one run only-one`", "`npm --prefix units/two run only-one`",
+        "`npm --prefix units/empty run only-one`",
+      ].join("\n"));
+      const issues = await run(root);
+      expect(await run(root)).toEqual(issues);
+      expect(issues.map((issue) => issue.id)).toEqual([
+        "stale-command-reference:README.md:missing-script:only-one",
+        "stale-command-reference:README.md:missing-script:only-one:units/two/package.json",
+        "stale-command-reference:README.md:missing-script:only-one:units/empty/package.json",
+      ]);
+      expect(issues[1].evidence).toEqual([
+        expect.objectContaining({ filePath: "README.md", line: 6, excerpt: "`npm --prefix units/two run only-one`" }),
+        expect.objectContaining({ filePath: "units/two/package.json" }),
+      ]);
+      expect(issues[1]).toMatchObject({ severity: "high", confidence: "high" });
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("bounds cd to its sequence and prefix to its invocation", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", '{"scripts":{"root-ok":"node check.js"}}');
+      writeFile(root, "area/package.json", '{"scripts":{"area-ok":"node area.js"}}');
+      writeFile(root, "area/leaf/package.json", '{"scripts":{"leaf-ok":"node leaf.js"}}');
+      writeFile(root, "README.md", [
+        "# Commands", "```sh", "cd area", "npm --prefix leaf run leaf-ok", "npm run area-ok",
+        "npm run ghost", "```", "## Independent root sequence", "```sh",
+        "npm run root-ok", "npm run area-ok", "```",
+      ].join("\n"));
+      const issues = await run(root);
+      expect(issues.map((issue) => issue.id)).toEqual([
+        "stale-command-reference:README.md:missing-script:ghost:area/package.json",
+        "stale-command-reference:README.md:missing-script:area-ok",
+      ]);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("preserves unresolved context as review warnings and leaves planned examples out", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", '{"scripts":{"root-only":"node run.js"}}');
+      writeFile(root, "bad/package.json", '{"scripts":{"root-only":24}}');
+      writeFile(root, "broken/package.json", '{');
+      writeFile(root, "area/package.json", '{"scripts":{"root-only":"node check.js"}}');
+      writeFile(root, "README.md", [
+        "`npm --prefix bad run root-only`", "`npm --prefix broken run missing`",
+        "`npm --prefix unavailable run missing`", "`npm --prefix $PKG run root-only`",
+        "`npm --prefix \"two words\" run root-only`", "`npm --prefix ../area run root-only`", "`npm --workspace area run missing`",
+        "`cd area && npm run missing`", "```sh", "cd $PKG", "npm run root-only", "```",
+        "## Future commands", "`npm --prefix unavailable run future`",
+      ].join("\n"));
+      const ctx = buildContext(root);
+      expect(await STALE_COMMAND_REFERENCE_DETECTOR.run(ctx)).toEqual([]);
+      const warnings = ctx.sourceOfTruth.warnings;
+      expect(warnings).toHaveLength(9);
+      expect(warnings[0]).toContain("malformed-scripts");
+      expect(warnings[1]).toContain("malformed-manifest");
+      expect(warnings[2]).toContain("no eligible inventory entry");
+      expect(warnings.slice(3).every((warning) => warning.includes("unsupported or ambiguous"))).toBe(true);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+
+  it("uses explicit repository-root guidance inside a package-local document", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", '{"scripts":{"root-ok":"node root.js"}}');
+      writeFile(root, "unit/package.json", '{"scripts":{"unit-ok":"node check.js"}}');
+      writeFile(root, "other/package.json", '{"scripts":{"other-ok":"node other.js"}}');
+      writeFile(root, "unit/README.md", [
+        "# Unit guide", "```sh", "cd unit", "npm ci", "```", "Use `npm run unit-ok` here.",
+        "Also use `npm --prefix other run other-ok` from the repository root.",
+        "## Repository root commands", "Use `npm run root-ok` for the repository.",
+        "Use `npm run unit-ok` for a missing root command.",
+        "## Unit checks", "Use `npm run unit-ok` for this unit.",
+      ].join("\n"));
+      const issues = await run(root);
+      expect(issues.map((issue) => issue.id)).toEqual([
+        "stale-command-reference:unit/README.md:missing-script:unit-ok",
+      ]);
+      expect(issues[0].evidence[0].line).toBe(10);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("isolates a standalone snapshot from enclosing Git and keeps selected manifests", async () => {
+    const parent = makeTempDir();
+    try {
+      const root = path.join(parent, "snapshot");
+      writeFile(root, ".gitignore", "/module/\n");
+      writeFile(root, "package.json", "{}");
+      writeFile(root, "module/package.json", '{"scripts":{"check":"node check.js"}}');
+      writeFile(root, "README.md", "`npm --prefix module run check`\n");
+      const standalone = buildContext(root);
+      expect(await STALE_COMMAND_REFERENCE_DETECTOR.run(standalone)).toEqual([]);
+      expect(standalone.sourceOfTruth.warnings).toEqual([]);
+
+      execFileSync("git", ["init", "--quiet"], { cwd: parent, windowsHide: true });
+      writeFile(parent, ".gitignore", "/snapshot/\n");
+      expect(execFileSync("git", ["check-ignore", "snapshot/module/package.json"], {
+        cwd: parent, windowsHide: true, encoding: "utf8",
+      }).trim()).toBe("snapshot/module/package.json");
+      const enclosed = buildContext(root);
+      expect(await STALE_COMMAND_REFERENCE_DETECTOR.run(enclosed)).toEqual([]);
+      expect(enclosed.sourceOfTruth.warnings).toEqual([]);
+      expect(enclosed.sourceOfTruth.nestedPackageScripts.get("module")).toEqual(
+        standalone.sourceOfTruth.nestedPackageScripts.get("module")
+      );
+      expect(fs.existsSync(path.join(root, ".git"))).toBe(false);
+    } finally {
+      cleanup(parent);
     }
   });
 });
