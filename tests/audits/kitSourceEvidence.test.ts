@@ -16,6 +16,8 @@ import {
   validateKitFact,
   validateKitFileRecord,
   validateKitImportProof,
+  validateKitImportDomain,
+  type KitFact,
   validateKitOrdinarySourceReference,
   type KitSourceEvidence,
   validateInventoryPage,
@@ -579,5 +581,163 @@ describe("FACTS02-ORDINARY-SOURCE-REFERENCE/1.0.0", () => {
     }
     expect(() => one.parse({ ...one.payload, candidateEnumerationComplete: false, candidateDomain: null,
       reasonCode: "x".repeat(1048576) })).toThrow(/serialized byte budget/);
+  });
+});
+
+describe("FACTS02-COMPUTED-POSITIVE-REFERENCE/1.0.0", () => {
+  const origin = "src/entry.mjs";
+  const peer = "src/peer.mjs";
+  const alternate = "src/peer.mts";
+  const selectionFingerprint = "c".repeat(64);
+  const span = { path: origin, startLine: 2, startColumn: 5, endLine: 2, endColumn: 18 };
+  const operandSpan = { ...span, startColumn: 12, endColumn: 17 };
+  const fact: KitFact = {
+    id: "audit-fact:src%2Fentry.mjs#dynamic-import-expression#2#5#0",
+    kind: "dynamic-import-expression", extractionMethod: "typescript-ast", span,
+    dynamicImport: { operandForm: "computed", operandSpan },
+  };
+  const fixture = (targets = [peer]) => {
+    const inventory = [origin, ...targets].map(filePath => validateKitFileRecord(fileJson(filePath, {
+      language: filePath.endsWith(".mts") ? "typescript" : "javascript", lineCount: 2,
+      capabilities: { ...capabilities(), "dynamic-import-expressions": "complete" },
+    }), filePath, "1.2.0"));
+    const evidence: KitSourceEvidence = {
+      producer: { packageName: "@dailephd/my-dev-kit", packageVersion: "1.16.0" },
+      artifactSchemaVersion: "1.2.0", extractorRevision: "source-audit-v1.6.0",
+      source: { projectRoot: process.cwd(), sourceRoots: ["src"], excludes: [], symbolIndexSchemaVersion: "3",
+        codeGraphSchemaVersion: "1.1.0", selectionFingerprint, snapshotId: SNAPSHOT },
+      inventory, snapshotId: SNAPSHOT, coverage: { ...COVERAGE, selectedFileCount: inventory.length, recordedFileCount: inventory.length },
+      fileEvidence: new Map([[origin, { record: inventory[0]!, facts: [fact], factPages: 1 }]]),
+      inventoryPages: 1, factPages: 1, traversalComplete: true,
+    };
+    const source = { type: "source-span", filePath: origin, contentSha256: HASH };
+    const alternative = {
+      alternativeIndex: 0, specifier: "./peer.mjs", premiseIndexes: [0, 1],
+      resolution: { status: "present", candidatePaths: [peer, alternate], reasonCode: "TARGET_IN_SELECTED_INVENTORY",
+        candidateEnumerationComplete: true, selectionComplete: true },
+    };
+    const payload = {
+      schemaVersion: "1.0.0", mode: "audit-import-domain", snapshotId: SNAPSHOT, selectionFingerprint,
+      originFile: origin, originContentSha256: HASH, importExpressionFactId: fact.id, resolverProfile: "js-ts-dynamic-import-v1",
+      pathIdentityProfile: "selected-source-path-v1", resolutionPlatform: process.platform === "win32" ? "win32" : "posix",
+      selectedDomainDigest: sha256Hex(JSON.stringify(inventory.map(record => record.path).sort())),
+      outcome: "finite", operandAlternatives: [alternative], domainComplete: true,
+      premiseRefs: [
+        { ...source, role: "operand", span: operandSpan },
+        { ...source, role: "binding", span: { ...span, startLine: 1, endLine: 1 } },
+        { ...source, role: "operation", span },
+      ],
+      qualifiedPositiveWitnesses: [],
+      disjointProof: null, reasonCode: null,
+    };
+    const witness = {
+      schemaVersion: "1.0.0", profile: "js-ts-computed-exact-source-reference-v1",
+      expressionFactId: fact.id, alternativeIndex: 0, specifier: "./peer.mjs",
+      targetPath: peer, targetContentSha256: HASH, premiseIndexes: [0, 1],
+      resolutionPremiseRefs: [
+        { role: "candidate", path: peer, state: "file", contentSha256: HASH },
+        { role: "candidate", path: alternate, state: "absent", contentSha256: null },
+        ...["jsconfig.json", "src/jsconfig.json", "src/tsconfig.json", "tsconfig.json"].map(filePath =>
+          ({ role: "config", path: filePath, state: "absent", contentSha256: null })),
+      ],
+    };
+    const parse = (raw: unknown, qualified: boolean = true) => validateKitImportDomain(raw, evidence, fact, qualified ? true : undefined);
+    return { evidence, payload, witness, alternative, parse };
+  };
+
+  it("adds an expression-only positive without changing the finite bound or fabricating ordinary facts", () => {
+    const f = fixture();
+    const response = { ...f.payload, expressionReferenceProof: f.witness };
+    expect(f.parse(response)).toMatchObject({ expressionFactId: fact.id, positivePaths: [peer], selectedTargetUpperBound: [peer] });
+    for (const result of [f.parse(response, false), f.parse(f.payload)]) {
+      expect(result.positivePaths).toEqual([]);
+      expect(result.selectedTargetUpperBound).toEqual([peer]);
+    }
+    expect(f.evidence.fileEvidence.get(origin)?.facts).toEqual([fact]);
+    expect(fact.dynamicImport?.literalImportFactId).toBeUndefined();
+  });
+
+  it.each([
+    { alternativeIndex: 1 }, { expressionFactId: "other" }, { specifier: "./different.mjs" },
+    { targetPath: alternate }, { targetContentSha256: "" }, { targetContentSha256: "d".repeat(64) },
+    { premiseIndexes: [1, 0] }, { premiseIndexes: [0, 0] }, { premiseIndexes: [0, 2] },
+    { premiseIndexes: [0, 256] }, { premiseIndexes: [0] }, { schemaVersion: "1.1.0" },
+    { profile: "unqualified" }, { unexpected: true }, { resolutionPremiseRefs: [] },
+    { resolutionPremiseRefs: Array(1025).fill({}) }, { targetPath: "../outside.js" },
+  ])("rejects invalid extension fields %j", patch => {
+    const f = fixture();
+    expect(() => f.parse({ ...f.payload, expressionReferenceProof: { ...f.witness, ...patch } }))
+      .toThrow(KitSourceEvidenceAcquisitionError);
+  });
+
+  it.each(["./peer", "./peer.mts", "@/peer.mjs", "./p%65er.mjs", "./peer.mjs?q", "./peer.mjs#x",
+    "file:///src/peer.mjs", "/src/peer.mjs", "./peer/index.mjs"])("rejects nonexact operand %s", specifier => {
+    const f = fixture();
+    expect(() => f.parse({ ...f.payload, operandAlternatives: [{ ...f.alternative, specifier }],
+      expressionReferenceProof: { ...f.witness, specifier } })).toThrow(KitSourceEvidenceAcquisitionError);
+  });
+
+  it("requires complete singleton destination and authenticated parent identity", () => {
+    const f = fixture();
+    for (const patch of [{ snapshotId: "other" }, { selectionFingerprint: "other" }, { originContentSha256: "other" },
+      { originFile: "src/other.mjs" }, { resolutionPlatform: f.payload.resolutionPlatform === "win32" ? "posix" : "win32" },
+      { extraBytes: "x".repeat(1048576) },
+      { operandAlternatives: [{ ...f.alternative, resolution: { ...f.alternative.resolution, candidateEnumerationComplete: false } }] },
+      { operandAlternatives: [{ ...f.alternative, resolution: { ...f.alternative.resolution, candidatePaths: [alternate] } }] },
+      { operandAlternatives: [f.alternative, { ...f.alternative, alternativeIndex: 1, specifier: "./other.mjs" }] }]) {
+      expect(() => f.parse({ ...f.payload, ...patch, expressionReferenceProof: f.witness })).toThrow(KitSourceEvidenceAcquisitionError);
+    }
+    const multiple = fixture([peer, alternate]);
+    expect(() => multiple.parse({ ...multiple.payload, expressionReferenceProof: multiple.witness })).toThrow(KitSourceEvidenceAcquisitionError);
+    expect(multiple.parse(multiple.payload).selectedTargetUpperBound).toEqual([peer, alternate]);
+    const multiOperands = { ...f.payload, operandAlternatives: [f.alternative,
+      { ...f.alternative, alternativeIndex: 1, specifier: "./other.mjs" }] };
+    expect(f.parse(multiOperands).selectedTargetUpperBound).toEqual([peer]);
+  });
+
+  it("requires absent applicable configs and consistent candidate states", () => {
+    const f = fixture();
+    const refs = f.witness.resolutionPremiseRefs;
+    const config = refs.find(p => p.path === "tsconfig.json")!;
+    for (const resolutionPremiseRefs of [
+      refs.filter(p => p !== config), refs.filter(p => p.path !== alternate),
+      refs.map(p => p === config ? { ...p, state: "file", contentSha256: HASH } : p),
+      refs.map(p => p.path === alternate ? { ...p, state: "file", contentSha256: HASH } : p),
+      [...refs, { role: "path", path: peer, state: "absent", contentSha256: null }],
+      [...refs, { role: "path", path: "../escape", state: "absent", contentSha256: null }],
+      [...refs, { role: "path", path: "src", state: "directory", contentSha256: null, extra: true }],
+    ]) {
+      expect(() => f.parse({ ...f.payload, expressionReferenceProof: { ...f.witness, resolutionPremiseRefs } }))
+        .toThrow(KitSourceEvidenceAcquisitionError);
+    }
+  });
+
+  it("preserves separate literal-linked, unknown and disjoint behavior", () => {
+    const f = fixture();
+    const link: KitFact = { id: "audit-fact:src%2Fentry.mjs#import#2#5#0", kind: "import",
+      extractionMethod: "typescript-ast", span, sourceSpecifier: "./peer.mjs" };
+    const linked: KitFact = { ...fact, dynamicImport: { operandForm: "string-literal", operandSpan, literalImportFactId: link.id } };
+    f.evidence.fileEvidence.get(origin)!.facts.push(link);
+    const literal = { ...f.payload, qualifiedPositiveWitnesses: [{
+      importFactId: link.id, targetPath: peer, targetContentSha256: HASH, targetProof: {
+        schemaVersion: "1.1.0", mode: "audit-import-target", snapshotId: SNAPSHOT, importFactId: link.id,
+        originFile: origin, sourceSpecifier: "./peer.mjs", status: "present", candidatePaths: [peer],
+        selectionComplete: true, reasonCode: "TARGET_IN_SELECTED_INVENTORY",
+      },
+    }] };
+    expect(validateKitImportDomain(literal, f.evidence, linked, true).positivePaths).toEqual([peer]);
+    expect(() => validateKitImportDomain({ ...literal, expressionReferenceProof: f.witness }, f.evidence, linked, true))
+      .toThrow(KitSourceEvidenceAcquisitionError);
+    const unknown = { ...f.payload, outcome: "indeterminate", domainComplete: false,
+      premiseRefs: [], operandAlternatives: [], reasonCode: "UNSUPPORTED_EXPRESSION" };
+    expect(f.parse(unknown)).toMatchObject({ positivePaths: [], outcome: "indeterminate" });
+    expect(f.parse(unknown).selectedTargetUpperBound).toBeUndefined();
+    const missing = ["src/missing.mjs", "src/missing.mts"];
+    const disjoint = { ...f.payload, outcome: "disjoint-selected-domain",
+      operandAlternatives: [{ ...f.alternative, specifier: "./missing.mjs",
+        resolution: { ...f.alternative.resolution, status: "proven-missing", candidatePaths: missing,
+          reasonCode: "ALL_CANDIDATES_ABSENT_IN_COMPLETE_SELECTION" } }],
+      disjointProof: { rule: "fixed-normalized-path-v1", values: missing, premiseIndexes: [0, 1] } };
+    expect(f.parse(disjoint)).toMatchObject({ excludesSelectedDomain: true, positivePaths: [], selectedTargetUpperBound: [] });
   });
 });

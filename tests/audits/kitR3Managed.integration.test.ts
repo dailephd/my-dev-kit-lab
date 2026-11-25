@@ -707,3 +707,110 @@ it.each([
     expect(new Set(fixture.calls).size).toBe(fixture.calls.length);
   } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
 }, 90_000);
+
+function computedReferenceFixture(target: string, workDir: string, expression: boolean, ordinary = false) {
+  const fixture = ordinaryContractFixture(target, workDir, {}, ordinary);
+  const runLegacy = fixture.deps.runCommand!;
+  const queries: string[] = [];
+  fixture.deps.testOnlyExpressionReference = expression ? true : undefined;
+  fixture.deps.runCommand = async options => {
+    const result = await runLegacy(options);
+    if (!result.ok || !options.args?.includes("--audit-import-domain")) return result;
+    const parent = JSON.parse(result.stdout);
+    if (parent.originFile !== "src/entry.mjs") return result;
+    queries.push(parent.importExpressionFactId);
+    const targetPath = "src/peer.mjs";
+    const targetContentSha256 = createHash("sha256").update(fs.readFileSync(path.join(target, targetPath))).digest("hex");
+    const expressionReferenceProof = {
+      schemaVersion: "1.0.0", profile: "js-ts-computed-exact-source-reference-v1",
+      expressionFactId: parent.importExpressionFactId, alternativeIndex: 0,
+      specifier: "./peer.mjs", targetPath, targetContentSha256, premiseIndexes: [0, 1],
+      resolutionPremiseRefs: [
+        { role: "candidate", path: targetPath, state: "file", contentSha256: targetContentSha256 },
+        { role: "candidate", path: "src/peer.mts", state: "absent", contentSha256: null },
+        ...["jsconfig.json", "src/jsconfig.json", "src/tsconfig.json", "tsconfig.json"].map(filePath =>
+          ({ role: "config", path: filePath, state: "absent", contentSha256: null })),
+      ],
+    };
+    return { ...result, stdout: JSON.stringify({ ...parent, expressionReferenceProof }) };
+  };
+  return { deps: fixture.deps, queries };
+}
+
+it.each([true, false])("qualifies only the separate expression capability and rechecks cached premises (%s)", async expression => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-expression-reader-"));
+  let reader: KitSourceReader | undefined;
+  try {
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    const entry = 'const exact = "./peer.mjs";\nvoid import(exact);\n';
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"expression-reader","type":"module"}');
+    fs.writeFileSync(path.join(target, "src/entry.mjs"), entry);
+    fs.writeFileSync(path.join(target, "src/peer.mjs"), "export {};\n");
+    const fixture = computedReferenceFixture(target, path.join(workspace, "kit"), expression, true);
+    await collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: ["src/entry.mjs", "src/peer.mjs"],
+      requiredCapabilities: [], includeScriptsRoot: false, onReader: value => { reader = value; },
+    }, fixture.deps);
+    expect(reader!.ordinarySourceReference).toBe(true);
+    const read = () => reader!.expressionDomains!("src/entry.mjs");
+    const [domain] = await read();
+    expect(domain!.linkedImportFactId).toBeUndefined();
+    expect(domain!.proof.expressionFactId).toBe("audit-fact:src%2Fentry.mjs#dynamic-import-expression#2#5#0");
+    expect(domain!.proof.positivePaths).toEqual(expression ? ["src/peer.mjs"] : []);
+    expect(domain!.proof.selectedTargetUpperBound).toEqual(["src/peer.mjs"]);
+    expect(domain!.proof).not.toHaveProperty("expressionReferencePremises");
+    if (!expression) return;
+    for (const [name, change] of [
+      ["tsconfig.json", '{"compilerOptions":{}}'],
+      ["src/jsconfig.json", '{"compilerOptions":{}}'],
+      ["src/peer.mts", "export {};"],
+      ["src/peer.mjs", "export const changed = 1;\n"],
+      ["src/entry.mjs", entry + "// changed\n"],
+    ]) {
+      const file = path.join(target, name!);
+      const original = fs.existsSync(file) ? fs.readFileSync(file) : null;
+      fs.writeFileSync(file, change!);
+      try { await expect(read()).rejects.toMatchObject({ category: "stale-evidence" }); }
+      finally { if (original) fs.writeFileSync(file, original); else fs.unlinkSync(file); }
+    }
+    expect(fixture.queries).toEqual([domain!.proof.expressionFactId]);
+  } finally {
+    await reader?.dispose();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+}, 60_000);
+
+it.each(["none", "blocker"])("discharges an expression target while an unknown origin keeps a mandatory gap (%s)", async threshold => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-expression-audit-"));
+  try {
+    const target = path.join(workspace, "target");
+    fs.mkdirSync(path.join(target, "src"), { recursive: true });
+    fs.mkdirSync(path.join(target, "tests"));
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"expression-discharge","type":"module"}');
+    fs.writeFileSync(path.join(target, "src/entry.mjs"), 'const exact = "./peer.mjs";\nvoid import(exact);\n');
+    fs.writeFileSync(path.join(target, "src/peer.mjs"), "export const peer = 1;\n");
+    fs.writeFileSync(path.join(target, "src/unrelated.mjs"), "export const unrelated = 1;\n");
+    fs.writeFileSync(path.join(target, "src/unknown.mjs"), "void import(process.env.DESTINATION);\n");
+    fs.writeFileSync(path.join(target, "tests/probe.test.mjs"), 'test.only("independent", () => {});\n');
+    const fixture = computedReferenceFixture(target, path.join(workspace, "kit"), true);
+    const code = await runAuditCommandFromArgs([
+      "--target", target, "--types", "code-rot", "--include", "architecture,tests", "--fail-on", threshold,
+      "--format", "json", "--out", path.join(workspace, "reports"),
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: fixture.deps });
+    const receipts = path.join(workspace, "lab-output/evidence");
+    const [id] = fs.readdirSync(receipts);
+    const result = JSON.parse(fs.readFileSync(path.join(receipts, id!, "audit-result.json"), "utf8")).evidence;
+    expect(code).toBe(2);
+    expect(result.issues.some((issue: { id: string }) => issue.id.includes("only"))).toBe(true);
+    const blocked = result.coverage.filter((row: { predicate: string }) => row.predicate === "unreferenced-source-file blocked candidate")
+      .map((row: { source: { identity: string } }) => row.source.identity);
+    expect(blocked).toContain("src/unrelated.mjs");
+    expect(blocked).not.toContain("src/peer.mjs");
+    expect(result.coverage).toContainEqual(expect.objectContaining({
+      predicate: "unreferenced-source-file", source: { kind: "file", identity: "src/unknown.mjs" }, mandatory: true,
+    }));
+    expect(result.issues).not.toContainEqual(expect.objectContaining({ id: "dead-code-candidate:unreferenced-source-file:src/peer.mjs" }));
+    expect(fixture.queries).toEqual(["audit-fact:src%2Fentry.mjs#dynamic-import-expression#2#5#0"]);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 90_000);

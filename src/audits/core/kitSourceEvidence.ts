@@ -301,6 +301,41 @@ function referencePath(raw: unknown): string {
   return value;
 }
 
+function validateSourceReferencePremises(raw: unknown, selected: ReadonlyMap<string, KitFileRecord>) {
+  if (!Array.isArray(raw) || raw.length > 1024) fail("artifact-invalid", "Invalid source reference premise budget.");
+  const byPhysicalPath = new Map<string, KitSourceReferencePremise>();
+  const candidates = new Map<string, KitSourceReferencePremise>();
+  const fold = (name: string) => process.platform === "win32" ? name.toLowerCase() : name;
+  const selectedIdentities = new Map([...selected.keys()].map(filePath => [fold(filePath), filePath]));
+  let previous = "";
+  const premiseRefs = raw.map((rawPremise): KitSourceReferencePremise => {
+    const p = closedReferenceObject(rawPremise, ["role", "path", "state", "contentSha256"], "source reference premise");
+    const role = oneOf(p.role, ["config", "package-metadata", "candidate", "path"] as const, "premise role", "artifact-invalid");
+    const state = oneOf(p.state, ["absent", "file", "directory"] as const, "premise state", "artifact-invalid");
+    const filePath = referencePath(p.path);
+    const contentSha256 = p.contentSha256;
+    if (state === "file" ? typeof contentSha256 !== "string" || !SHA256_PATTERN.test(contentSha256) : contentSha256 !== null) {
+      fail("artifact-invalid", "Invalid source reference premise hash.");
+    }
+    const key = role + "\0" + filePath;
+    const physicalKey = fold(filePath);
+    const prior = byPhysicalPath.get(physicalKey);
+    const selectedPath = selectedIdentities.get(physicalKey);
+    const record = selected.get(filePath);
+    if (key <= previous || (prior && (prior.path !== filePath || prior.state !== state || prior.contentSha256 !== contentSha256)) ||
+        (selectedPath !== undefined && selectedPath !== filePath) ||
+        (record && (state !== "file" || record.contentSha256 !== null && record.contentSha256 !== contentSha256))) {
+      fail("artifact-invalid", "Duplicate, noncanonical or contradictory source reference premise.");
+    }
+    previous = key;
+    const premise = { role, path: filePath, state, contentSha256: contentSha256 as string | null };
+    byPhysicalPath.set(physicalKey, premise);
+    if (role === "candidate") candidates.set(filePath, premise);
+    return premise;
+  });
+  return { premiseRefs, candidates };
+}
+
 export function validateKitOrdinarySourceReference(
   raw: unknown, proof: KitImportProof, evidence: KitSourceEvidence, fact: KitFact,
 ): KitOrdinarySourceReference {
@@ -338,36 +373,7 @@ export function validateKitOrdinarySourceReference(
     fail("artifact-invalid", "Source reference proof exceeds the serialized byte budget.");
   }
 
-  const byPhysicalPath = new Map<string, KitSourceReferencePremise>();
-  const candidates = new Map<string, KitSourceReferencePremise>();
-  const fold = (name: string) => process.platform === "win32" ? name.toLowerCase() : name;
-  const selectedIdentities = new Map(evidence.inventory.map(file => [fold(file.path), file.path]));
-  let previous = "";
-  const premiseRefs = r.premiseRefs.map((rawPremise): KitSourceReferencePremise => {
-    const p = closedReferenceObject(rawPremise, ["role", "path", "state", "contentSha256"], "source reference premise");
-    const role = oneOf(p.role, ["config", "package-metadata", "candidate", "path"] as const, "premise role", "artifact-invalid");
-    const state = oneOf(p.state, ["absent", "file", "directory"] as const, "premise state", "artifact-invalid");
-    const filePath = referencePath(p.path);
-    const contentSha256 = p.contentSha256;
-    if (state === "file" ? typeof contentSha256 !== "string" || !SHA256_PATTERN.test(contentSha256) : contentSha256 !== null) {
-      fail("artifact-invalid", "Invalid source reference premise hash.");
-    }
-    const key = role + "\0" + filePath;
-    const physicalKey = fold(filePath);
-    const prior = byPhysicalPath.get(physicalKey);
-    const selectedPath = selectedIdentities.get(physicalKey);
-    const record = selected.get(filePath);
-    if (key <= previous || (prior && (prior.path !== filePath || prior.state !== state || prior.contentSha256 !== contentSha256)) ||
-        (selectedPath !== undefined && selectedPath !== filePath) ||
-        (record && (state !== "file" || record.contentSha256 !== null && record.contentSha256 !== contentSha256))) {
-      fail("artifact-invalid", "Duplicate, noncanonical or contradictory source reference premise.");
-    }
-    previous = key;
-    const premise = { role, path: filePath, state, contentSha256: contentSha256 as string | null };
-    byPhysicalPath.set(physicalKey, premise);
-    if (role === "candidate") candidates.set(filePath, premise);
-    return premise;
-  });
+  const { premiseRefs, candidates } = validateSourceReferencePremises(r.premiseRefs, selected);
 
   if (!r.candidateEnumerationComplete) {
     if (r.candidateDomain !== null || r.qualifiedReference !== null || typeof r.reasonCode !== "string" || !r.reasonCode.trim()) {
@@ -382,7 +388,7 @@ export function validateKitOrdinarySourceReference(
     fail("artifact-invalid", "Invalid complete ordinary source reference domain.");
   }
   const selectedTargetUpperBound: string[] = [];
-  previous = "";
+  let previous = "";
   for (const item of r.candidateDomain) {
     const filePath = referencePath(item);
     const premise = candidates.get(filePath);
@@ -1531,7 +1537,9 @@ export type KitImportDomain = {
   selectedTargetUpperBound?: readonly string[];
 };
 
-export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidence, fact: KitFact): KitImportDomain {
+export function validateKitImportDomain(
+  raw: unknown, evidence: KitSourceEvidence, fact: KitFact, qualifyExpressionReference?: true,
+): KitImportDomain & { expressionReferencePremises?: readonly KitSourceReferencePremise[] } {
   const r = asObject(raw, "import domain", "artifact-invalid");
   const origin = evidence.fileEvidence.get(fact.span.path);
   const sameSpan = (a: unknown, b: KitSourceSpan | undefined) => {
@@ -1553,6 +1561,10 @@ export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidenc
   const outcome = oneOf(r.outcome, ["finite", "indeterminate", "disjoint-selected-domain"] as const, "domain outcome", "artifact-invalid");
   const refs = r.premiseRefs, alternatives = r.operandAlternatives, witnesses = r.qualifiedPositiveWitnesses;
   const finite = outcome !== "indeterminate";
+  if (qualifyExpressionReference && (finite || r.expressionReferenceProof !== undefined) &&
+      Buffer.byteLength(JSON.stringify(r), "utf8") > 1048576) {
+    fail("artifact-invalid", "Computed import proof exceeds the serialized byte budget.");
+  }
   if (!Array.isArray(refs) || refs.length > 256 || !Array.isArray(alternatives) || alternatives.length > 64 ||
       !Array.isArray(witnesses) || witnesses.length > 1 || r.domainComplete !== finite ||
       (finite ? !alternatives.length || !refs.length || r.reasonCode !== null :
@@ -1594,7 +1606,7 @@ export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidenc
     if (q.candidateEnumerationComplete && q.status !== "present" && q.status !== "proven-missing")
       fail("artifact-invalid", "An indeterminate alternative cannot close its candidate domain.");
     paths.push(...pp);
-    return { status: q.status, complete: q.candidateEnumerationComplete, specifier: a.specifier, paths: pp };
+    return { status: q.status, complete: q.candidateEnumerationComplete, specifier: a.specifier, paths: pp, premiseIndexes: a.premiseIndexes };
   });
   if (paths.length > 256) fail("artifact-invalid", "Domain candidate path budget exceeded.");
   if (outcome === "disjoint-selected-domain") {
@@ -1639,9 +1651,74 @@ export function validateKitImportDomain(raw: unknown, evidence: KitSourceEvidenc
         alternative.paths.every(candidate => selected.has(candidate) || !caseFoldedSelection?.has(candidate.toLowerCase()))))
     ? [...new Set(selectedTargets.flat())].sort()
     : undefined;
+  let expressionReferencePremises: readonly KitSourceReferencePremise[] | undefined;
+  if (qualifyExpressionReference && r.expressionReferenceProof !== undefined) {
+    const witness = closedReferenceObject(r.expressionReferenceProof, [
+      "schemaVersion", "profile", "expressionFactId", "alternativeIndex", "specifier", "targetPath",
+      "targetContentSha256", "premiseIndexes", "resolutionPremiseRefs",
+    ], "expression reference proof");
+    if (witness.schemaVersion !== "1.0.0" || witness.profile !== "js-ts-computed-exact-source-reference-v1") {
+      fail("schema-mismatch", "Unqualified expression reference protocol.");
+    }
+    const target = referencePath(witness.targetPath);
+    const targetRecord = selected.get(target);
+    const alternative = candidates[0];
+    const originPath = referencePath(fact.span.path);
+    if (fact.kind !== "dynamic-import-expression" || fact.extractionMethod !== "typescript-ast" ||
+        fact.dynamicImport.operandForm !== "computed" || fact.dynamicImport.literalImportFactId !== undefined ||
+        !["javascript", "typescript"].includes(origin.record.language) || origin.record.status !== "parsed" ||
+        origin.record.capabilities["dynamic-import-expressions"] !== "complete" ||
+        selected.get(originPath)?.contentSha256 !== origin.record.contentSha256 ||
+        witnesses.length !== 0 || outcome !== "finite" || candidates.length !== 1 ||
+        alternative?.status !== "present" || !alternative.complete ||
+        selectedTargetUpperBound?.length !== 1 || selectedTargetUpperBound[0] !== target ||
+        !targetRecord?.contentSha256 || !["javascript", "typescript"].includes(targetRecord.language) ||
+        witness.targetContentSha256 !== targetRecord.contentSha256 || witness.expressionFactId !== fact.id ||
+        witness.alternativeIndex !== 0 || witness.specifier !== alternative.specifier ||
+        /[\x00-\x1f]/.test(alternative.specifier) ||
+        !hasImmediateRelativeSpelling(originPath, alternative.specifier, target)) {
+      fail("artifact-invalid", "Unqualified expression reference identity or destination.");
+    }
+    const indexes = witness.premiseIndexes;
+    if (!validIndexes(indexes) || indexes.length > 256 || indexes.length !== alternative.premiseIndexes.length ||
+        indexes.some((index, i) => (i > 0 && index <= indexes[i - 1]!) ||
+          !alternative.premiseIndexes.includes(index))) {
+      fail("artifact-invalid", "Expression reference premises differ from the authenticated alternative.");
+    }
+    const premises = validateSourceReferencePremises(witness.resolutionPremiseRefs, selected);
+    const domain = new Set(alternative.paths.map(referencePath));
+    for (const candidate of domain) {
+      if (premises.candidates.get(candidate)?.state !== (candidate === target ? "file" : "absent")) {
+        fail("artifact-invalid", "Expression reference lacks authenticated candidate states.");
+      }
+    }
+    for (const premise of premises.candidates.values()) {
+      if (premise.state !== "absent" && premise.path !== target) {
+        fail("artifact-invalid", "Expression reference has a competing physical candidate.");
+      }
+    }
+
+    // Default source mapping requires both configuration names to be absent
+    // at every applicable level. Kit attests the candidate and blocker scope.
+    const absentConfigs = new Set(premises.premiseRefs.filter(premise => premise.role === "config").map(premise => {
+      if (premise.state !== "absent") fail("artifact-invalid", "Configured expression resolution is outside the exact profile.");
+      return premise.path;
+    }));
+    for (let directory = path.posix.dirname(originPath);; directory = path.posix.dirname(directory)) {
+      for (const name of ["tsconfig.json", "jsconfig.json"]) {
+        if (!absentConfigs.has(path.posix.join(directory, name))) {
+          fail("artifact-invalid", "Expression reference lacks default configuration premises.");
+        }
+      }
+      if (directory === ".") break;
+    }
+    expressionReferencePremises = premises.premiseRefs;
+    positivePaths.push(target);
+  }
   return { expressionFactId: fact.id, snapshotId: evidence.snapshotId,
     reasonCode: typeof r.reasonCode === "string" ? r.reasonCode : null, outcome, domainComplete: finite, positivePaths,
-    excludesSelectedDomain: outcome === "disjoint-selected-domain", selectedTargetUpperBound };
+    excludesSelectedDomain: outcome === "disjoint-selected-domain", selectedTargetUpperBound,
+    ...(expressionReferencePremises ? { expressionReferencePremises } : {}) };
 }
 
 export type KitByteOccurrence = { complete: boolean; matchCount: number; matches: { startByte: number; endByteExclusive: number }[] };
