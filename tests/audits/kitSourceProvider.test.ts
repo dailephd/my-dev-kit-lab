@@ -4,9 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
+import { kitPredicateContent } from "../../src/audits/codeRot/utils/sourceFactsLookup.js";
 import {
   QUALIFIED_KIT_CANDIDATE,
   QUALIFIED_PUBLISHED_KIT,
+  QUALIFIED_CURRENT_PUBLISHED_KIT,
+  QUALIFIED_SW123_P6_R2_KIT,
+  QUALIFIED_SW123_P6_R7_KIT,
   collectKitSourceFacts,
   resolveInstalledKitPackage,
   selectKitSourceRoots,
@@ -14,6 +18,14 @@ import {
   type KitCommandRunner,
 } from "../../src/audits/core/kitSourceProvider.js";
 import { KitSourceEvidenceAcquisitionError } from "../../src/audits/core/kitSourceEvidence.js";
+import { resolveApplicableKitRequirements, requiredKitCapabilitiesForPath } from "../../src/audits/core/auditRegistry.js";
+import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
+import { runAudit } from "../../src/audits/core/auditRunner.js";
+import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
+import { qualifyKitDeclarationPredicate, qualifyKitImportPredicate } from "../../src/audits/core/kitSourceEvidence.js";
+import { buildAuditReportModel } from "../../src/audits/report/auditReportModel.js";
+import { renderAuditJsonReport } from "../../src/audits/report/renderAuditJsonReport.js";
+import { resolveAuditTarget } from "../../src/audits/core/auditTarget.js";
 import { runMeasuredCommand, type MeasuredCommandResult } from "../../src/core/runMeasuredCommand.js";
 
 const CANDIDATE_ROOT = path.resolve(
@@ -21,7 +33,7 @@ const CANDIDATE_ROOT = path.resolve(
     (process.env.LAB_VERIFICATION_LANE === "private" ? path.join(".my-dev-kit-workflow", "tools", "v010-lab-kit-gate4", "kit-candidate-05", "node_modules", "@dailephd", "my-dev-kit") : path.join("node_modules", "@dailephd", "my-dev-kit"))
 );
 if (!fs.existsSync(path.join(CANDIDATE_ROOT, "package.json"))) throw new Error("Required Kit provider missing");
-const installedExpectation = process.env.LAB_VERIFICATION_LANE === "private" ? QUALIFIED_KIT_CANDIDATE : QUALIFIED_PUBLISHED_KIT;
+const installedExpectation = process.env.LAB_VERIFICATION_LANE === "private" ? QUALIFIED_KIT_CANDIDATE : QUALIFIED_CURRENT_PUBLISHED_KIT;
 
 const roots: string[] = [];
 function tempDir(prefix: string): string {
@@ -173,6 +185,7 @@ describe("Kit source root selection", () => {
 type FakeFile = { path: string; sizeBytes: number; contentSha256: string; lineCount: number; language: string; role: string };
 
 type Mutators = {
+  status?: string;
   artifact?: (artifact: Record<string, any>) => void;
   manifest?: (manifest: Record<string, any>) => void;
   skipArtifact?: boolean;
@@ -182,7 +195,7 @@ type Mutators = {
   rawResult?: (kind: "index" | "audit-files" | "audit-file", result: MeasuredCommandResult) => MeasuredCommandResult;
   rootsAreOverridden?: string[];
   extraInventory?: FakeFile[];
-  droppedFromInventory?: string[];
+  droppedFromInventory?: readonly string[];
   declarationsPerFile?: number;
 };
 
@@ -242,7 +255,7 @@ function fakeWorld(targetRoot: string, mutators: Mutators = {}) {
     contentSha256: file.contentSha256,
     language: file.language,
     role: file.role,
-    status: "parsed",
+    status: mutators.status ?? "parsed",
     lineCount: file.lineCount,
     analyzerId: file.language === "python" ? "python-ast" : "typescript-ast",
     capabilities: {
@@ -376,6 +389,85 @@ function labProject(): string {
   });
   return root;
 }
+
+describe("explicit predicate acquisition", () => {
+  it.each(["declarations", "imports"])("runner enables predicate acquisition for partial %s without erasing the other capability", async capability => {
+    const project = labProject(), pkgRoot = fakePackage();
+    const expectation = { ...FAKE_EXPECTATION, cliSha256: createHash("sha256").update(fs.readFileSync(path.join(pkgRoot, "dist/cli.js"))).digest("hex") };
+    const { runAudit } = await import("../../src/audits/core/auditRunner.js");
+    const { normalizeAuditConfig } = await import("../../src/audits/core/auditConfig.js");
+    const { qualifyKitImportPredicate, qualifyKitDeclarationPredicate } = await import("../../src/audits/core/kitSourceEvidence.js");
+    let executed = false;
+    const result = await runAudit({ config: normalizeAuditConfig({ target: project, include: "package,cli,architecture,tests", failOn: "none" }, project),
+      toolRoot: project, kitSourceProviderDependencies: { installedPackageRoot: pkgRoot, expectation, runCommand: fakeWorld(project, { capabilities: { [capability]: "partial" } }).runCommand },
+      registry: [{ id: "dead-code-candidate", auditType: "code-rot", title: "bridge", description: "bridge", supportedIncludeAreas: ["package"], run: ctx => {
+        executed = true;
+        const file = ctx.sourceFacts!.files.find(f => f.relativePath === "src/a.ts")!;
+        expect(file.kit?.capabilities[capability]).toBe("partial");
+        expect(qualifyKitDeclarationPredicate(file, file.declarations[0])).toBe("QUALIFIED_POSITIVE");
+        expect(qualifyKitImportPredicate(file)).toBe(capability === "imports" ? "UNAVAILABLE" : "QUALIFIED_NEGATIVE");
+        return [];
+      } }] });
+    expect(executed).toBe(true);
+    expect(result.exitCode).toBe(capability === "imports" ? 2 : 0);
+    expect(result.coverage!.some(c => c.capability === "imports" && c.mandatory && c.status === (capability === "imports" ? "UNAVAILABLE" : "QUALIFIED"))).toBe(true);
+  });
+
+  async function scoped(mutators: Mutators = {}, optIn = true, identity: Partial<KitCandidateExpectation> = {}) {
+    const project = labProject(), pkgRoot = fakePackage();
+    const expectation = { ...FAKE_EXPECTATION, cliSha256: createHash("sha256").update(fs.readFileSync(path.join(pkgRoot, "dist/cli.js"))).digest("hex"), ...identity };
+    const inventory = scanProjectInventory(project);
+    const selection = resolveApplicableKitRequirements([{ id: "dead-code-candidate" }, { id: "duplicate-implementation-candidate" }], inventory, ["package", "cli", "architecture", "tests"]);
+    return collectKitSourceFacts({ targetRoot: project, inventory, requiredPaths: selection.paths,
+      requiredCapabilities: ["declarations", "imports"], includeScriptsRoot: true,
+      capabilitiesForPath: file => requiredKitCapabilitiesForPath(selection.requirements, file),
+      ...(optIn ? { predicateRequirements: selection.requirements } : {}),
+    }, { installedPackageRoot: pkgRoot, expectation, runCommand: fakeWorld(project, mutators).runCommand });
+  }
+
+  it.each(["declarations", "imports"])("retains authenticated partial %s only through the explicit route", async capability => {
+    const snapshot = await scoped({ capabilities: { [capability]: "partial" } });
+    const source = snapshot.files.find(f => f.relativePath === "src/a.ts")!;
+    expect(source.kit?.capabilities[capability]).toBe("partial");
+    expect(source.parseStatus).toBe("file-level-only");
+    expect(source.declarations).toHaveLength(1);
+    await expectAcquisitionFailure(scoped({ capabilities: { [capability]: "partial" } }, false), "capability-insufficient");
+  });
+
+  it("retains a valid partial file status while keeping unsupported requirements unavailable", async () => {
+    const snapshot = await scoped({ status: "partial", capabilities: { declarations: "partial" } });
+    expect(snapshot.files.every(file => file.parseStatus === "file-level-only")).toBe(true);
+    await expectAcquisitionFailure(scoped({ capabilities: { declarations: "unsupported" } }), "capability-insufficient");
+  });
+
+  it.each(["absent", "unknown"] as const)(
+    "rejects %s predicate obligations before package resolution", async mode => {
+      const predicateRequirements = mode === "absent" ? [] : [{ path: "src/a.ts", detectorId: "unknown-detector", capability: "declarations" as const, applicability: "APPLICABLE_REQUIRED" as const }];
+      const project = labProject();
+      await expectAcquisitionFailure(collectKitSourceFacts({ targetRoot: project, inventory: scanProjectInventory(project),
+        requiredPaths: ["src/a.ts"], requiredCapabilities: ["declarations"], capabilitiesForPath: () => ["declarations"],
+        includeScriptsRoot: false, predicateRequirements }, { installedPackageRoot: path.join(project, "absent-kit") }), "invalid-request");
+    });
+
+  it.each([
+    ["altered bytes", { manifest: (value: any) => { value.sourceAuditEvidence.sha256 = "0".repeat(64); } }, "artifact-invalid"],
+    ["missing path", { droppedFromInventory: ["src/a.ts"] }, "selection-incomplete"],
+    ["mismatched snapshot", { factPage: (_file: string, _page: number, value: any) => ({ ...value, snapshotId: "0".repeat(64) }) }, "snapshot-mismatch"],
+    ["stale exact-file identity", { factPage: (_file: string, _page: number, value: any) => ({ ...value, file: { ...value.file, contentSha256: "0".repeat(64) } }) }, "stale-evidence"],
+    ["incomplete pages", { inventoryPage: (_page: number, value: any) => ({ ...value, totalPages: 2, nextPageIndex: null }) }, "page-invalid"],
+  ] as const)("keeps %s fatal in the partial route", async (_label, mutators, category) => {
+    await expectAcquisitionFailure(scoped({ ...mutators, capabilities: { declarations: "partial" } }), category);
+  });
+
+  it.each([
+    [{ packageVersion: "0.0.0" }, "package-identity"],
+    [{ cliSha256: "0".repeat(64) }, "package-identity"],
+    [{ extractorRevision: "source-audit-v0.0.0" }, "extractor-mismatch"],
+    [{ cliSha256: null }, "invalid-request"],
+  ])("does not bypass producer qualification: %j", async (identity, category) => {
+    await expectAcquisitionFailure(scoped({ capabilities: { declarations: "partial" } }, true, identity), category as string);
+  });
+});
 
 it("does not qualify an unknown future producer from shared metadata or extractor revision", async () => {
   const targetRoot = labProject();
@@ -702,8 +794,8 @@ describe("exact installed Kit candidate", () => {
     expect(evidence).toMatchObject({
       packageName: "@dailephd/my-dev-kit",
       packageVersion: installedExpectation.packageVersion,
-      artifactSchemaVersion: "1.1.0",
-      extractorRevision: "source-audit-v1.5.0",
+      artifactSchemaVersion: installedExpectation.artifactSchemaVersion,
+      extractorRevision: installedExpectation.extractorRevision,
       sourceRoots: ["src", "tests"],
       selectedFileCount: 6,
       traversalComplete: true,
@@ -782,11 +874,12 @@ describe("exact installed Kit candidate", () => {
   }, 120000);
 });
 
-it("accepts the exact published 1.15.0 provider and authenticates its selected source", async () => {
+it("accepts the exact published 1.16.0 provider and authenticates its selected source", async () => {
   const published = path.join(process.cwd(), "node_modules/@dailephd/my-dev-kit");
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: published });
-  expect(pkg.packageVersion).toBe("1.15.0");
-  expect(pkg.cliSha256).toBe("ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f");
+  expect(pkg.packageVersion).toBe(QUALIFIED_CURRENT_PUBLISHED_KIT.packageVersion);
+  expect(pkg.cliSha256).toBe(QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256);
+  expect(() => resolveInstalledKitPackage({ installedPackageRoot: published, expectation: QUALIFIED_PUBLISHED_KIT })).toThrow(/package-identity/);
   const project = tempDir("published-source");
   writeFiles(project, { "src/main.ts": "export const answer = 42;\n" });
   for (let i = 0; i < 66; i++) writeFiles(project, { [`src/g${i}.ts`]: `export const g${i} = ${i};\n` });
@@ -799,5 +892,629 @@ it("accepts the exact published 1.15.0 provider and authenticates its selected s
   expect(snapshot.kitEvidence?.inventoryPages).toBe(2);
   expect(snapshot.files.find(f => f.relativePath === "src/big.ts")!.declarations).toHaveLength(130);
   expect(snapshot.kitEvidence!.factPages).toBeGreaterThan(snapshot.files.length);
-  expect(snapshot.kitEvidence?.packageVersion).toBe("1.15.0");
+  expect(snapshot.kitEvidence).toMatchObject({ packageVersion: "1.16.0", artifactSchemaVersion: "1.2.0" });
 }, 120000);
+describe("partial-import deferral never relaxes evidence integrity", () => {
+  it.each<[string, Mutators, string]>([
+    ["schema", {artifact: a => {a.schemaVersion = "invalid";}}, "schema-mismatch"],
+    ["artifact hash", {manifest: m => {m.sourceAuditEvidence.sha256 = "0".repeat(64);}}, "artifact-invalid"],
+    ["producer", {artifact: a => {a.producer.packageVersion = "9.9.9";}}, "package-identity"],
+    ["selection", {droppedFromInventory: ["src/b.ts"]}, "selection-incomplete"],
+    ["source hash", {factPage: (_p,_i,page) => ({...page,file:{...page.file,contentSha256:"7".repeat(64)}})}, "stale-evidence"],
+    ["snapshot", {factPage: (_p,_i,page) => ({...page,snapshotId:"9".repeat(64)})}, "snapshot-mismatch"],
+    ["truncated stream", {rawResult: (kind,raw) => kind === "audit-files" ? result('{"schemaVersion":', {ok:false,outputLimit:{stream:"stdout",limitBytes:8388608}}) : raw}, "output-limit"],
+    ["corrupt facts", {factPage: (_p,_i,page) => ({...page,facts:page.facts.map((f:any)=>({...f,span:{...f.span,path:"../escape.ts"}}))})}, "path-invalid"],
+  ])("refuses %s with its established category", async (_name,mutators,category) => {
+    const project=labProject(), world=fakeWorld(project,mutators);
+    await expectAcquisitionFailure(collectKitSourceFacts({targetRoot:project,inventory:scanProjectInventory(project),requiredCapabilities:["declarations","imports"],includeScriptsRoot:false,deferPartialImports:true},
+      {installedPackageRoot:fakePackage(),expectation:FAKE_EXPECTATION,runCommand:world.runCommand}), category);
+  });
+});
+
+const p6R8Package = process.env.LAB_SW123_P6_R8_PACKAGE_ROOT;
+it.skipIf(!p6R8Package)("qualifies the P6-R7 import and bounded ranges without admitting unrelated proof profiles", async () => {
+  const expectation = QUALIFIED_SW123_P6_R7_KIT;
+  const installedPackageRoot = p6R8Package!;
+  expect(resolveInstalledKitPackage({ installedPackageRoot, expectation })).toMatchObject({
+    packageVersion: "1.15.1", cliSha256: expectation.cliSha256,
+  });
+  for (const [override, category] of [
+    [{ cliSha256: "0".repeat(64) }, "package-identity"],
+    [{ cliSha256: null }, "package-identity"],
+    [{ extractorRevision: "source-audit-v1.5.2" }, "extractor-mismatch"],
+    [{ packageVersion: "1.15.2" }, "package-identity"],
+    [{ artifactSchemaVersion: "1.0.0" }, "schema-mismatch"],
+  ] as const) {
+    expect(() => resolveInstalledKitPackage({
+      installedPackageRoot, expectation: { ...expectation, ...override },
+    })).toThrowError(new RegExp(category));
+  }
+
+  const root = tempDir("p6-r8");
+  const origin = "tests/check.test.ts";
+  const source = 'const target = "../src/peer.js";\nexport const load = () => import(target);\n';
+  writeFiles(root, { "package.json": '{"name":"p6-r8","version":"0.0.0"}', [origin]: source,
+    "src/peer.ts": "export const value = 1;\n" });
+  const detector = DEFAULT_AUDIT_REGISTRY.find(entry => entry.id === "test-rot")!;
+  const result = await runAudit({
+    config: normalizeAuditConfig({ target: root, include: "tests", failOn: "none" }, root),
+    toolRoot: root,
+    registry: [{ ...detector, async run(ctx) {
+      const reader = ctx.kitSourceReader!;
+      expect(reader.jsTsRelativeImportCandidateProof).toBeUndefined();
+      expect(reader.jsonRawLiteralContent).toBeUndefined();
+      expect(reader.reExportTargets).toBeUndefined();
+      expect(await reader.authenticatedContent!(origin)).toBe(source);
+      const facts = ctx.sourceFacts!.files.find(file => file.relativePath === origin)!;
+      expect(qualifyKitImportPredicate(facts)).toBe("QUALIFIED_NEGATIVE");
+      const fact = facts.imports.find(f => f.source === "../src/peer.js")!;
+      expect(qualifyKitImportPredicate(facts, fact)).toBe("QUALIFIED_POSITIVE");
+      expect(await reader.importTarget(fact.provenance!.factId)).toMatchObject({
+        status: "present", originFile: origin, candidatePaths: ["src/peer.ts"],
+      });
+      return detector.run(ctx);
+    } }],
+    kitSourceProviderDependencies: { installedPackageRoot, expectation },
+  });
+  expect(result.exitCode).toBe(0);
+  expect(result.detectorErrors).toEqual([]);
+  expect(result.issues).toEqual([]);
+  expect(result.coverage?.some(record => record.mandatory && record.status === "UNAVAILABLE")).toBe(false);
+}, 120000);
+
+// Opt-in installed artifact qualification. The unpublished subject is never
+// substituted for the production dependency or the default provider identity.
+const p6Root = process.env.LAB_SW123_P6_R3_ROOT;
+const p6Package = process.env.LAB_SW123_P6_R3_PACKAGE_ROOT;
+if (Boolean(p6Root) !== Boolean(p6Package) || (p6Root && (process.env.LAB_SW123_P5_ROOT || process.env.LAB_SW123_P5_PACKAGE_ROOT))) {
+  throw new Error("Select one complete SW123 qualification lane.");
+}
+const p5Root = p6Root ?? process.env.LAB_SW123_P5_ROOT;
+const p5Package = p6Package ?? process.env.LAB_SW123_P5_PACKAGE_ROOT;
+if (p5Root || p5Package) {
+  if (!p5Root || !p5Package) throw new Error("P5 requires both its owned workspace and installed package root.");
+  const workspace = fs.realpathSync(p5Root);
+  const installed = fs.realpathSync(p5Package);
+  const expectation: KitCandidateExpectation = p6Root ? QUALIFIED_SW123_P6_R2_KIT : {
+    packageName: "@dailephd/my-dev-kit", packageVersion: "1.15.1",
+    artifactSchemaVersion: "1.1.0", extractorRevision: "source-audit-v1.5.1",
+    cliSha256: "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
+  };
+  const ownedDirectory = (area: string, label: string) => {
+    const parent = fs.realpathSync(path.join(workspace, area));
+    const relative = path.relative(workspace, parent);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Uncontained P5 output.");
+    return fs.mkdtempSync(path.join(parent, label + "-"));
+  };
+  const evidenceDirectory = ownedDirectory(p6Root ? "qualification" : "candidate-results", "native-tests");
+  const save = (label: string, value: unknown) => fs.writeFileSync(path.join(evidenceDirectory, label + ".json"), JSON.stringify(value, null, 2) + "\n", { flag: "wx" });
+  const target = (label: string, files: Record<string, string>) => {
+    const root = ownedDirectory(p6Root ? "raw-reader" : "integration-target", label);
+    writeFiles(root, { "package.json": JSON.stringify({ name: label, version: "1.0.0", scripts: { test: "vitest run" } }), ...files });
+    return root;
+  };
+  const dependencies = (label: string, mutate?: (args: string[], index: string) => void) => {
+    const workDir = ownedDirectory(p6Root ? "negative-cases" : "integration-index", label), calls: unknown[] = [];
+    const runCommand: KitCommandRunner = async options => {
+      const result = await runMeasuredCommand(options);
+      const args = [...(options.args ?? [])];
+      calls.push({ executable: options.executable, args, ok: result.ok, exitCode: result.exitCode,
+        stdoutSha256: createHash("sha256").update(result.stdout).digest("hex"), stderr: result.stderr });
+      if (result.ok && args[1] === "index") mutate?.(args, path.join(workDir, "index"));
+      return result;
+    };
+    return { deps: { installedPackageRoot: installed, expectation, workDir, runCommand }, calls, workDir };
+  };
+  const config = (root: string, include = "docs,tests,package,architecture,cli", failOn = "none") =>
+    normalizeAuditConfig({ target: root, include, failOn, out: path.join(evidenceDirectory, "reports") }, process.cwd());
+
+  describe(p6Root ? "SW123 P6-R3 installed candidate" : "SW123 P5 installed candidate", () => {
+    if (p6Root) it("qualifies P6-R2 selected unsupported text and static re-export facts through the installed reader", async () => {
+      const root = target("selected-raw-and-reexport", {
+        "src/main.ts": "import './peer.js';\nexport { value as alias } from './peer.js';\nexport const direct = 1;\n",
+        "src/peer.ts": "export const value = 1;\n",
+        "src/cycle.ts": "export { alias } from './main.js';\nexport * from './cycle.js';\nexport * from 'external';\n",
+        "src/raw.xml": "<raw>witness</raw>\n",
+        "src/empty.xml": "",
+        "src/many.xml": "witness ".repeat(201),
+        "src/large.xml": "x".repeat(200001),
+        "src/binary.properties": "abc\0defghij",
+        "src/invalid.xml": "invalid",
+        "scripts/unselected.xml": "witness",
+      });
+      fs.writeFileSync(path.join(root, "src/invalid.xml"), Buffer.from([0xc3, 0x28]));
+      const bridge = dependencies("selected-raw-and-reexport");
+      let reader: import("../../src/audits/core/kitSourceProvider.js").KitSourceReader | undefined;
+      try {
+        const result = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root),
+          requiredCapabilities: ["imports", "exports"], requiredPaths: ["src/main.ts", "src/peer.ts", "src/cycle.ts"],
+          includeScriptsRoot: false, onReader: value => { reader = value; } }, bridge.deps);
+        const r = reader!;
+        expect(result.files.map(file => file.relativePath)).not.toContain("src/raw.xml");
+        expect(r.selectedFile("src/raw.xml")).toMatchObject({ status: "unsupported",
+          capabilities: { imports: "unsupported", exports: "unsupported", declarations: "unsupported" } });
+        const raw = await r.occurrences("src/raw.xml", "witness");
+        expect(raw).toMatchObject({ complete: true, matchCount: 1 });
+        expect(await r.authenticatedContent!("src/raw.xml")).toBe("<raw>witness</raw>\n");
+        await expect(r.authenticatedContent!("src/empty.xml")).rejects.toMatchObject({ category: "capability-insufficient" });
+        expect(await r.occurrences("src/empty.xml", "witness")).toMatchObject({ complete: true, matchCount: 0 });
+        expect(await r.authenticatedContent!("src/empty.xml")).toBe("");
+        expect(await r.occurrences("src/many.xml", "witness")).toMatchObject({ complete: false, truncated: true, matchCount: 201 });
+        for (const file of ["src/large.xml", "src/binary.properties", "src/invalid.xml"]) {
+          expect(() => r.selectedFile(file)).toThrow(/capability-insufficient/);
+        }
+        expect(() => r.occurrences("scripts/unselected.xml", "witness")).toThrow(/selection-incomplete/);
+        expect(() => r.occurrences("../outside.xml", "witness")).toThrow(/path-invalid/);
+        const main = result.files.find(file => file.relativePath === "src/main.ts")!;
+        const imp = await r.importTarget(main.imports[0]!.provenance!.factId);
+        const staticExport = r.reExportTargets!("src/main.ts")[0]!;
+        const proof = await r.importTarget(staticExport.id);
+        expect(proof).toMatchObject({ importFactId: staticExport.id, originFile: "src/main.ts",
+          sourceSpecifier: "./peer.js", status: "present", candidatePaths: ["src/peer.ts"],
+          selectionComplete: true, reasonCode: "TARGET_IN_SELECTED_INVENTORY" });
+        expect(imp).toMatchObject({ status: "present", candidatePaths: ["src/peer.ts"] });
+        const direct = main.exports.find(fact => fact.name === "direct")!;
+        expect(() => r.importTarget(direct.provenance!.factId)).toThrow(/invalid-request/);
+        expect(() => r.importTarget(staticExport.id + "-fabricated")).toThrow(/invalid-request/);
+        const cycle = r.reExportTargets!("src/cycle.ts");
+        const external = cycle.find(fact => fact.sourceSpecifier === "external")!;
+        expect(await r.importTarget(external.id)).toMatchObject({ status: "indeterminate" });
+        const self = cycle.find(fact => fact.sourceSpecifier === "./cycle.js")!;
+        expect(await r.importTarget(self.id)).toMatchObject({ status: "present", candidatePaths: ["src/cycle.ts"] });
+        fs.writeFileSync(path.join(root, "src/raw.xml"), "<raw>changed</raw>\n");
+        await expect(r.occurrences("src/raw.xml", "changed")).rejects.toMatchObject({ category: "stale-evidence" });
+        save("selected-raw-and-reexport", { raw, imp, proof, calls: bridge.calls, workDir: bridge.workDir });
+      } finally { reader?.dispose(); }
+    }, 120000);
+
+    if (p6Root) it("uses immediate re-export proofs in test-rot and rejects a mismatched returned origin", async () => {
+      const root = target("reexport-predicate", {
+        "tests/reexport.test.ts": "export { value } from '../src/peer.js';\nexport * from './gone.js';\n",
+        "src/peer.ts": "export const value = 1;\n",
+      });
+      const run = (bridge: ReturnType<typeof dependencies>) => runAudit({
+        config: config(root, "tests", "medium"), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(detector => detector.id === "test-rot"),
+        kitSourceProviderDependencies: bridge.deps,
+      });
+      const bridge = dependencies("reexport-predicate");
+      const result = await run(bridge);
+      expect(result.issues.map(issue => issue.id)).toEqual(["test-rot:tests/reexport.test.ts:missing-source-import:./gone.js"]);
+      expect(result.exitCode).toBe(1);
+      expect(result.coverage?.some(gap => gap.predicate === "missing-source-import" && gap.status === "UNAVAILABLE")).toBe(false);
+      const corrupt = dependencies("reexport-origin-mismatch");
+      const native = corrupt.deps.runCommand;
+      corrupt.deps.runCommand = async options => {
+        const response = await native(options);
+        if (!response.ok || !options.args?.includes("--audit-import-target")) return response;
+        return { ...response, stdout: JSON.stringify({ ...JSON.parse(response.stdout), originFile: "src/peer.ts" }) };
+      };
+      await expect(run(corrupt)).rejects.toMatchObject({ category: "artifact-invalid" });
+      save("reexport-predicate", { result, calls: bridge.calls, mismatchedCalls: corrupt.calls });
+    }, 120000);
+
+    it.each(["complete", "partial"])("qualifies command-only JSON from %s literal evidence without demanding unrelated whole content", async mode => {
+      const file = "tests/packet.json";
+      const body = JSON.stringify({ before: Array.from({ length: 180 }, (_, i) => `before ${i}`),
+        commands: Array.from({ length: mode === "partial" ? 201 : 1 }, () => "npm run removed"),
+        after: Array.from({ length: 180 }, (_, i) => `after ${i}`) }, null, 2) + "\n";
+      const root = target("raw-command-" + mode, { [file]: body });
+      const bridge = dependencies("raw-command-" + mode);
+      const result = await runAudit({ config: config(root, "tests", "none"), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(detector => detector.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(result.sourceFacts.files.find(entry => entry.relativePath === file)!.kit!.capabilities.imports).toBe("unsupported");
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0]!.id).toBe("test-rot:tests/packet.json:stale-npm-run-reference:removed");
+      expect(result.issues[0]!.severity).toBe("medium");
+      expect(result.exitCode).toBe(mode === "partial" ? 2 : 0);
+      expect(result.coverage?.some(record => record.predicate === "bounded-content predicates" && record.status === "UNAVAILABLE")).toBe(mode === "partial");
+      expect(result.coverage?.some(record => record.predicate === "bounded-content predicates" && record.status === "QUALIFIED")).toBe(mode === "complete");
+      save("raw-command-" + mode, { result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("authenticates empty selected source bytes without requesting a nonexistent first line", async () => {
+      const root = target("empty-raw-content", {
+        "tests/check.test.ts": "export {};\n",
+        "tests/fixtures/python/src/__init__.py": "",
+      });
+      const bridge = dependencies("empty-raw-content");
+      let reader: import("../../src/audits/core/kitSourceProvider.js").KitSourceReader | undefined;
+      try {
+        await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root),
+          requiredCapabilities: [], requiredPaths: ["tests/check.test.ts", "tests/fixtures/python/src/__init__.py"],
+          includeScriptsRoot: false, onReader: value => { reader = value; } }, bridge.deps);
+        const file = reader!.selectedFile("tests/fixtures/python/src/__init__.py");
+        expect(file.sizeBytes).toBe(0);
+        expect(file.contentSha256).toBe(createHash("sha256").update("").digest("hex"));
+        expect(await reader!.authenticatedContent!(file.path)).toBe("");
+        expect(bridge.calls.some(call => (call as { args: string[] }).args.includes("--start"))).toBe(false);
+        save("empty-raw-content", { file, calls: bridge.calls, workDir: bridge.workDir });
+      } finally { reader?.dispose(); }
+    }, 120000);
+
+    it("qualifies raw JSON bytes independently of a truncated literal-match inventory", async () => {
+      const root = target("partial-literal-complete-bytes", {
+        "tests/payload.json": JSON.stringify({ text: "it ".repeat(201) }) + "\n",
+        "tests/long.test.ts": "// it\n".repeat(201) + "export {};\n",
+      });
+      const bridge = dependencies("partial-literal-complete-bytes");
+      const result = await runAudit({ config: config(root, "tests"), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(detector => detector.id === "test-rot").map(detector => ({ ...detector, run: async ctx => {
+          expect(await kitPredicateContent(ctx.kitSourceReader, "tests/payload.json", ["it"])).toBe(JSON.stringify({ text: "it ".repeat(201) }) + "\n");
+          expect(await kitPredicateContent(ctx.kitSourceReader, "tests/long.test.ts", ["it"])).toBe("// it\n".repeat(201) + "export {};\n");
+          return detector.run(ctx);
+        } })), kitSourceProviderDependencies: bridge.deps });
+      expect(result.exitCode).toBe(0);
+      expect(result.issues).toEqual([]);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.sourceFacts.files.find(file => file.relativePath === "tests/payload.json")!.kit!.capabilities.imports).toBe("unsupported");
+      save("partial-literal-complete-bytes", { result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("retains authenticated positive fixture and re-export identities without claiming their domains complete", async () => {
+      const root = target("positive-references", {
+        "tests/check.test.ts": 'const fixture = path.resolve(process.cwd(), "tests/fixtures/payload.json");\n',
+        "tests/fixtures/payload.json": '{"value":"payload"}\n',
+        "src/thing.ts": "export const thing = 1;\n",
+        "src/reexport.ts": 'export { thing } from "./thing.js";\n',
+      });
+      const bridge = dependencies("positive-references");
+      let reader: import("../../src/audits/core/kitSourceProvider.js").KitSourceReader | undefined;
+      try {
+        const facts = await collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root),
+          requiredCapabilities: [], requiredPaths: ["tests/check.test.ts", "src/reexport.ts", "src/thing.ts"],
+          includeScriptsRoot: false, onReader: value => { reader = value; } }, bridge.deps);
+        expect(reader!.fixtureReferenceBasenames!("tests/check.test.ts")).toContain("payload.json");
+        expect(reader!.reExportSpecifiers!("src/reexport.ts")).toEqual(["./thing.js"]);
+        await reader!.occurrences("tests/fixtures/payload.json", '"');
+        expect(await reader!.authenticatedContent!("tests/fixtures/payload.json")).toBe('{"value":"payload"}\n');
+        expect(facts.files.find(file => file.relativePath === "tests/check.test.ts")!.kit!.capabilities["fixture-references"]).toBe("partial");
+        expect(() => reader!.fixtureReferenceBasenames!("../escape.ts")).toThrow();
+        save("positive-references", { facts, calls: bridge.calls, workDir: bridge.workDir });
+      } finally { reader?.dispose(); }
+      expect(() => reader!.reExportSpecifiers!("src/reexport.ts")).toThrow(/closed/);
+    }, 120000);
+
+    it.runIf(Boolean(process.env.LAB_HISTORICAL_PUBLISHED_KIT_ROOT))("keeps freshly generated historical 1.15.0 Kotlin evidence partial under its separate original producer profile", async () => {
+      const relative = "tests/fixtures/config.gradle.kts", root = target("historical-contract", {
+        "tests/reference.test.ts": "const fixture='config.gradle.kts'; test('fixture reference',()=>void fixture);\n",
+      });
+      const source = "tests/fixtures/android/advanced-security-fixtures/release-configuration/kotlin-release-debuggable-false.gradle.kts";
+      fs.mkdirSync(path.dirname(path.join(root, relative)), { recursive: true });
+      fs.writeFileSync(path.join(root, relative), fs.readFileSync(source), { flag: "wx" });
+      const bridge = dependencies("historical-contract");
+      const result = await runAudit({ config: config(root, "tests"), toolRoot: root, kitSourceProviderDependencies: {
+        ...bridge.deps, installedPackageRoot: path.resolve(process.env.LAB_HISTORICAL_PUBLISHED_KIT_ROOT!), expectation: QUALIFIED_PUBLISHED_KIT,
+      } });
+      const file = result.sourceFacts.files.find(f => f.relativePath === relative)!;
+      expect(file.kit!.capabilities).toMatchObject({ declarations: "partial", imports: "partial", jvmDeclarations: "unsupported" });
+      expect(qualifyKitImportPredicate(file)).toBe("UNAVAILABLE");
+      expect(file.diagnostics.some(d => d.code === "kit:kotlin-script-statement")).toBe(true);
+      expect(result.exitCode).toBe(0); // Current configuration applicability, not the old whole-source audit.
+      save("historical-contract", { evidenceKind: "fresh historical-producer contract regression; not original incident artifact", result, workDir: bridge.workDir, calls: bridge.calls });
+    }, 120000);
+
+    if (!p6Root) it("binds the installed archive identity and exact current Gradle fixture without executable-test obligations", async () => {
+      expect(resolveInstalledKitPackage({ installedPackageRoot: installed, expectation })).toMatchObject({
+        packageName: expectation.packageName, packageVersion: "1.15.1", cliSha256: expectation.cliSha256,
+      });
+      expect(QUALIFIED_PUBLISHED_KIT.packageVersion).toBe("1.15.0");
+      expect(() => resolveInstalledKitPackage({ installedPackageRoot: installed })).toThrowError(/package-identity/);
+      const relative = "tests/fixtures/android/advanced-security-fixtures/release-configuration/kotlin-release-debuggable-false.gradle.kts";
+      const bytes = fs.readFileSync(relative), root = target("exact-gradle", {
+        "tests/reference.test.ts": "const fixture = 'kotlin-release-debuggable-false.gradle.kts'; test('fixture reference',()=>void fixture);\n",
+      });
+      fs.mkdirSync(path.dirname(path.join(root, relative)), { recursive: true });
+      fs.writeFileSync(path.join(root, relative), bytes, { flag: "wx" });
+      const bridge = dependencies("exact-gradle");
+      const result = await runAudit({ config: config(root, "tests"), toolRoot: root, kitSourceProviderDependencies: bridge.deps });
+      const artifact = JSON.parse(fs.readFileSync(path.join(bridge.workDir, "index/source-audit-evidence.json"), "utf8"));
+      const record = artifact.files.find((f: {path: string}) => f.path === relative);
+      expect(record.contentSha256).toBe(createHash("sha256").update(bytes).digest("hex"));
+      expect(record.capabilities).toMatchObject({ declarations: "partial", imports: "complete", jvmDeclarations: "unsupported", exports: "partial", "source-ranges": "partial" });
+      const file = result.sourceFacts.files.find(f => f.relativePath === relative)!;
+      expect(file.role).toBe("config");
+      expect(file.imports).toEqual([]);
+      expect(file.diagnostics.some(d => d.code === "kit:kotlin-script-statement")).toBe(true);
+      expect(qualifyKitImportPredicate(file)).toBe("QUALIFIED_NEGATIVE");
+      expect(qualifyKitDeclarationPredicate(file)).toBe("UNAVAILABLE");
+      expect(result.exitCode).toBe(0);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues).toEqual([]);
+      expect(result.coverage!.filter(c => c.source.identity === relative && c.capability === "imports").every(c => c.status === "NOT_APPLICABLE")).toBe(true);
+      expect(bridge.calls.length).toBeGreaterThan(2);
+      save("exact-gradle", { fixtureSha256: record.contentSha256, record, artifactSource: artifact.source, result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it.each(["\n", "\r\n"])("authenticates contiguous large-file Kit ranges with %j newlines before registry predicates", async newline => {
+      const text = ['const DETECTOR_ID = "shared";', 'export const detector = { id: DETECTOR_ID };',
+        ...Array.from({ length: 300 }, (_, i) => `// padding ${i}`), ''].join(newline);
+      const root = target("whole-context", { "src/detectors/a.ts": text, "src/detectors/b.ts": text });
+      const bridge = dependencies("whole-context");
+      const result = await runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "duplicate-implementation-candidate"),
+        kitSourceProviderDependencies: bridge.deps });
+      const duplicates = result.issues.filter(i => i.id.includes("duplicate-detector-id"));
+      expect(duplicates).toHaveLength(1);
+      expect(duplicates[0]).toMatchObject({ severity: "medium", confidence: "medium" });
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.exitCode).toBe(0);
+      expect((bridge.calls as { args: string[] }[]).some(c => c.args.includes("--start"))).toBe(true);
+      save("whole-context-" + (newline === "\n" ? "lf" : "crlf"), { result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it.each(["\n", "\r\n"])("authenticates bounded large selected JSON occurrence windows (%j)", async newline => {
+      const relative = "tests/fixtures/repeated.json";
+      const json = JSON.stringify({ title: "it ".repeat(200), padding: "x".repeat(38000), command: "npm run vanished" }) + newline;
+      const root = target("json-context", { [relative]: json });
+      const bridge = dependencies("json-context");
+      const result = await runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(result.issues.some(i => i.affectedFiles.includes(relative) && i.title.includes("npm run vanished"))).toBe(true);
+      expect(result.detectorErrors).toEqual([]);
+      const calls = bridge.calls as { args: string[] }[];
+      expect(calls.some(c => c.args.includes(relative) && c.args.includes("--contains"))).toBe(true);
+      save("json-context-" + (newline === "\n" ? "lf" : "crlf"), { result, calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("retains generated/vendor test-fixture raw checks without semantic import obligations", async () => {
+      const root = target("generated-test-inputs", {
+        "tests/fixtures/generated/schema.ts": "// npm run vanished-generated\nexport type Schema = { id: string };\n",
+        "tests/fixtures/vendor/lib.py": "# npm run vanished-vendor\ndef helper():\n    return 1\n",
+      });
+      const bridge = dependencies("generated-test-inputs");
+      const result = await runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(result.issues.map(i => i.title)).toEqual([
+        expect.stringContaining("vanished-generated"), expect.stringContaining("vanished-vendor"),
+      ]);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.coverage!.some(c => c.mandatory && c.capability === "imports")).toBe(false);
+      expect(result.coverage!.filter(c => c.capability === "raw-content").every(c => c.status === "QUALIFIED")).toBe(true);
+      expect(result.exitCode).toBe(0);
+      save("generated-test-inputs", { result, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it("bounds concurrent test-file reads and preserves finding and unavailable-predicate order", async () => {
+      const paths = ["tests/a.test.ts", "tests/b.test.ts", "tests/c.test.ts", "tests/d.test.ts"];
+      const root = target("ordered-test-reads", Object.fromEntries(paths.map(file => [file,
+        "const target='./unknown.js'; void import(target); test.only('qualified positive',()=>{});\n"])));
+      const bridge = dependencies("ordered-test-reads");
+      const original = bridge.deps.runCommand;
+      let active = 0, peak = 0;
+      bridge.deps.runCommand = async options => {
+        if (options.args?.[1] !== "source") return original(options);
+        active++; peak = Math.max(peak, active);
+        try { return await original(options); } finally { active--; }
+      };
+      const result = await runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(peak).toBe(4);
+      expect(result.issues.map(i => i.affectedFiles[0])).toEqual(paths);
+      expect(result.coverage!.filter(c => c.mandatory && c.status === "UNAVAILABLE").map(c => c.source.identity)).toEqual(paths);
+      expect(result.exitCode).toBe(2);
+      save("ordered-test-reads", { result, peak, calls: bridge.calls, workDir: bridge.workDir });
+    }, 120000);
+
+    it.each(["content", "coordinates", "path", "null"])("rejects synthetic whole-context range %s corruption without native fallback", async corruption => {
+      const text = 'const DETECTOR_ID = "shared";\nexport const detector = { id: DETECTOR_ID };\n' + '// padding\n'.repeat(300);
+      const root = target("invalid-context", { "src/detectors/a.ts": text });
+      const bridge = dependencies("invalid-context");
+      let changed = false;
+      const original = bridge.deps.runCommand;
+      const runCommand: KitCommandRunner = async options => {
+        const result = await original(options);
+        if (options.args?.includes("--start") && result.ok) {
+          if (corruption === "null") { changed = true; return { ...result, stdout: "null" }; }
+          const raw = JSON.parse(result.stdout);
+          if (corruption === "content") raw.content = raw.content.replace("shared", "forged");
+          if (corruption === "coordinates") raw.startLine++;
+          if (corruption === "path") raw.filePath = "src/other.ts";
+          changed = true;
+          return { ...result, stdout: JSON.stringify(raw) };
+        }
+        return result;
+      };
+      await expect(runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "duplicate-implementation-candidate"),
+        kitSourceProviderDependencies: { ...bridge.deps, runCommand } })).rejects.toMatchObject({
+          category: corruption === "content" ? "stale-evidence" : "artifact-invalid",
+        });
+      expect(changed).toBe(true);
+      save("invalid-context-" + corruption, { syntheticCorruption: corruption, calls: bridge.calls });
+    }, 120000);
+
+    it("keeps a corrupt concurrently requested import proof fatal", async () => {
+      const root = target("invalid-parallel-proof", {
+        "src/a.ts": "import './target.js';\n",
+        "src/b.ts": "import './target.js';\n",
+        "src/target.ts": "export const target = 1;\n",
+      });
+      const bridge = dependencies("invalid-parallel-proof");
+      const original = bridge.deps.runCommand;
+      let corrupted = false;
+      const runCommand: KitCommandRunner = async options => {
+        const result = await original(options);
+        if (options.args?.includes("--audit-import-target") && result.ok) {
+          corrupted = true;
+          return { ...result, stdout: JSON.stringify({ ...JSON.parse(result.stdout), snapshotId: "0".repeat(64) }) };
+        }
+        return result;
+      };
+      await expect(runAudit({ config: config(root), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "dead-code-candidate"),
+        kitSourceProviderDependencies: { ...bridge.deps, runCommand } })).rejects.toMatchObject({ category: "snapshot-mismatch" });
+      expect(corrupted).toBe(true);
+      save("invalid-parallel-proof", { syntheticProofCorruption: "snapshot", calls: bridge.calls });
+    }, 120000);
+
+    it("retains mixed-capability positives, independent findings and separate mandatory gaps deterministically", async () => {
+      const root = target("mixed", {
+        "src/NoImports.kts": 'class ScriptPresent {}\nprintln("statement")\n',
+        "src/Explicit.kts": 'import java.io.File\nprintln("statement")\n',
+        "src/Ambiguous.kts": 'import java.io.File as\nclass Observed {}\n',
+        "src/main/kotlin/com/example/Present.kt": 'package com.example\nclass Present {}\n',
+        "src/main/java/com/example/Stable.java": 'package com.example;\npublic class Stable {}\n',
+        "src/helper.py": 'def python_present():\n    return 1\n',
+        "src/lib.rs": 'pub fn rust_present() -> u32 { 1 }\n',
+        "src/plain.js": 'export const jsPresent = 1;\n',
+        "src/dynamic.js": "import './plain.js'; export const retainedJS=1; const target='./unknown.js'; void import(target);\n",
+        "src/partial.ts": 'export function retained() { return 1; } const target="./unknown.js"; void import(target);\n',
+        "src/importer.ts": "import '../unselected/hidden.js';\n",
+        "src/candidate.ts": 'export const candidate = 1;\n',
+        "src/old/retired.ts": '// independent deprecated candidate\n',
+        "src/orphan.generated.ts": '// independent generated candidate\n',
+        "tests/real.test.ts": "import '../src/candidate.js';\nimport '../src/plain.js';\ntest.only('independent finding',()=>{});\n",
+        "tests/fixtures/config.gradle.kts": '// npm run vanished\nandroid { buildTypes { release { isDebuggable = false } } }\n',
+        "README.md": 'Security validation is implemented.\nUse `com.example.Present`, `ScriptPresent`, `com.example.Missing`, and `com.example.Other`.\n',
+      });
+      const registry = DEFAULT_AUDIT_REGISTRY.filter(d => ["docs-code-mismatch", "test-rot", "dead-code-candidate"].includes(d.id));
+      const firstBridge = dependencies("mixed-first"), secondBridge = dependencies("mixed-second");
+      let activeProofs = 0, peakProofs = 0;
+      const measured = firstBridge.deps.runCommand;
+      firstBridge.deps.runCommand = async options => {
+        if (!options.args?.includes("--audit-import-target")) return measured(options);
+        activeProofs++; peakProofs = Math.max(peakProofs, activeProofs);
+        try { return await measured(options); } finally { activeProofs--; }
+      };
+      const first = await runAudit({ config: config(root), toolRoot: root, registry, kitSourceProviderDependencies: firstBridge.deps });
+      const second = await runAudit({ config: config(root), toolRoot: root, registry, kitSourceProviderDependencies: secondBridge.deps });
+      save("mixed-observed", { first, second, workDirs: [firstBridge.workDir, secondBridge.workDir], calls: [firstBridge.calls, secondBridge.calls] });
+      expect(peakProofs).toBeGreaterThan(1);
+      expect(peakProofs).toBeLessThanOrEqual(4);
+      const byPath = new Map(first.sourceFacts.files.map(f => [f.relativePath, f]));
+      for (const file of ["src/NoImports.kts", "src/Explicit.kts"]) {
+        expect(byPath.get(file)!.kit!.capabilities).toMatchObject({ declarations: "partial", imports: "complete" });
+        expect(qualifyKitImportPredicate(byPath.get(file)!)).toBe("QUALIFIED_NEGATIVE");
+        expect(qualifyKitDeclarationPredicate(byPath.get(file)!)).toBe("UNAVAILABLE");
+      }
+      expect(byPath.get("src/Explicit.kts")!.imports[0]).toMatchObject({ source: "java.io.File", provenance: { extractionMethod: "kotlin-lexical" } });
+      expect(byPath.get("src/Ambiguous.kts")!.kit!.capabilities.imports).toBe("partial");
+      expect(qualifyKitImportPredicate(byPath.get("src/Ambiguous.kts")!)).toBe("UNAVAILABLE");
+      expect(byPath.get("src/partial.ts")!.declarations.length).toBeGreaterThan(0);
+      expect(byPath.get("src/partial.ts")!.kit!.capabilities.imports).toBe("partial");
+      expect(qualifyKitImportPredicate(byPath.get("src/partial.ts")!)).toBe("UNAVAILABLE");
+      expect(qualifyKitDeclarationPredicate(byPath.get("src/partial.ts")!, byPath.get("src/partial.ts")!.declarations[0])).toBe("QUALIFIED_POSITIVE");
+      expect(byPath.get("src/main/kotlin/com/example/Present.kt")!.kit!.capabilities).toMatchObject({ declarations: "complete", imports: "complete" });
+      for (const [file, language] of [["src/main/java/com/example/Stable.java", "java"], ["src/helper.py", "python"], ["src/lib.rs", "rust"], ["src/plain.js", "javascript"]]) {
+        expect(byPath.get(file)!.language).toBe(language);
+        expect(byPath.get(file)!.declarations.length).toBeGreaterThan(0);
+        expect(byPath.get(file)!.declarations[0].provenance!.factId).toMatch(/^audit-fact:/);
+      }
+      const dynamicJS = byPath.get("src/dynamic.js")!;
+      expect(dynamicJS.kit!.capabilities.imports).toBe("partial");
+      expect(qualifyKitImportPredicate(dynamicJS)).toBe("UNAVAILABLE");
+      expect(qualifyKitImportPredicate(dynamicJS, dynamicJS.imports[0])).toBe("QUALIFIED_POSITIVE");
+      expect(first.exitCode).toBe(2);
+      for (const cue of ["security validation", ".only", "old/deprecated", "orphaned", "vanished"]) expect(first.issues.some(i => i.title.toLowerCase().includes(cue)), cue).toBe(true);
+      expect(first.issues.some(i => /symbol not found|no detected in-repo importer|imports a missing source/.test(i.title))).toBe(false);
+      expect(first.coverage!.filter(c => c.predicate.startsWith("jvm-symbol-claim")).map(c => c.predicate)).toEqual([
+        "jvm-symbol-claim README.md:2 com.example.Missing", "jvm-symbol-claim README.md:2 com.example.Other",
+      ]);
+      expect(first.coverage).toEqual(second.coverage);
+      expect(first.sourceFacts.kitEvidence!.snapshotId).toBe(second.sourceFacts.kitEvidence!.snapshotId);
+      expect(first.issues).toEqual(second.issues);
+      expect(new Set(first.detectorErrors.map(e => JSON.stringify(e))).size).toBe(first.detectorErrors.length);
+      const report = JSON.parse(renderAuditJsonReport(buildAuditReportModel(first, { target: resolveAuditTarget(root, root), registry })));
+      expect(report.schemaVersion).toBe("1.0");
+      expect(report.coverage).toBeUndefined();
+      expect(report.summary.finalExitCode).toBe(2);
+      save("mixed", { first, second, report, workDirs: [firstBridge.workDir, secondBridge.workDir], calls: [firstBridge.calls, secondBridge.calls] });
+      const strict = dependencies("strict-partial");
+      await expect(collectKitSourceFacts({ targetRoot: root, inventory: scanProjectInventory(root), requiredCapabilities: ["declarations", "imports"], includeScriptsRoot: true }, strict.deps)).rejects.toMatchObject({ category: "capability-insufficient" });
+    }, 180000);
+
+    it.each([["none", 0], ["medium", 1]] as const)("preserves complete installed-candidate coverage and fail-on %s exit %s", async (failOn, exitCode) => {
+      const root = target("threshold-" + failOn, { "tests/threshold.test.ts": "test.only('threshold breach',()=>{});\n" });
+      const bridge = dependencies("threshold-" + failOn);
+      const result = await runAudit({ config: config(root, "tests", failOn), toolRoot: root,
+        registry: DEFAULT_AUDIT_REGISTRY.filter(d => d.id === "test-rot"), kitSourceProviderDependencies: bridge.deps });
+      expect(result.exitCode).toBe(exitCode);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues.some(i => i.title.includes(".only"))).toBe(true);
+      save("threshold-" + failOn, { result, workDir: bridge.workDir, calls: bridge.calls });
+    }, 120000);
+
+    it("independently qualifies exact CLI raw JSON/generated and mjs/extensionless proof profiles before consuming them", async () => {
+      const root = target("proof-profiles", {
+        "src/present.ts": "export const present = 1;\n",
+        "generated/schema.ts": "export type Schema = { id: string };\n",
+        "tests/data.json": '{"marker":"raw fixture"}\n',
+        "tests/profile.test.ts": "import '../src/absent.mjs';\nimport '../src/extensionless';\ntest.skip('independent',()=>{});\n",
+      });
+      const direct = dependencies("profile-independent"), cli = path.join(installed, "dist/cli.js"), index = path.join(direct.workDir, "index");
+      const command = async (label: string, args: string[], commandCli = cli) => {
+        const result = await direct.deps.runCommand({ commandId: label, cwd: root, outDir: direct.workDir,
+          executable: process.execPath, args: [commandCli, ...args], resolveCommand: false });
+        expect(result.ok, result.stderr).toBe(true);
+        return JSON.parse(result.stdout);
+      };
+      await command("independent-index", ["index", "--root", root, "--src", "src", "--src", "tests", "--src", "generated", "--out", index, "--json"]);
+      const artifact = JSON.parse(fs.readFileSync(path.join(index, "source-audit-evidence.json"), "utf8"));
+      const observations: unknown[] = [];
+      for (const [file, marker] of [["tests/data.json", "marker"], ["generated/schema.ts", "Schema"]]) {
+        const record = artifact.files.find((f: {path: string}) => f.path === file);
+        expect(record.contentSha256).toBe(createHash("sha256").update(fs.readFileSync(path.join(root, file))).digest("hex"));
+        const raw = await command("raw-occurrence", ["source", "--index", index, "--file", file, "--contains", marker, "--json"]);
+        expect(raw).toMatchObject({ complete: true, matchCount: 1 });
+        observations.push({ file, record, raw });
+      }
+      const facts = artifact.files.find((f: {path: string}) => f.path === "tests/profile.test.ts").facts;
+      for (const specifier of ["../src/absent.mjs", "../src/extensionless"]) {
+        const fact = facts.find((f: {kind: string;sourceSpecifier: string}) => f.kind === "import" && f.sourceSpecifier === specifier);
+        const proof = await command("import-proof", ["lookup", "--index", index, "--audit-import-target", fact.id, "--json"]);
+        expect(proof).toMatchObject({ status: "proven-missing" });
+        expect(proof.candidatePaths).toContain(specifier.slice(3) + (specifier.endsWith(".mjs") ? "" : ".ts"));
+        const publishedProof = await command("historical-import-proof", ["lookup", "--index", index, "--audit-import-target", fact.id, "--json"],
+          path.resolve("node_modules/@dailephd/my-dev-kit/dist/cli.js"));
+        expect(proof).toEqual(publishedProof);
+        observations.push({ fact, proof, publishedProof });
+      }
+      save("independent-profiles", { observations, artifactSource: artifact.source, workDir: direct.workDir, calls: direct.calls });
+      const bridge = dependencies("profile-consumer");
+      let result: Awaited<ReturnType<typeof runAudit>> | undefined, failure: unknown;
+      try { result = await runAudit({ config: config(root), toolRoot: root, kitSourceProviderDependencies: bridge.deps }); }
+      catch (error) { failure = error; }
+      save("profile-consumer", { result, failure: failure instanceof Error ? failure.message : failure, workDir: bridge.workDir, calls: bridge.calls });
+      expect(failure).toBeUndefined();
+      expect(result!.detectorErrors).toEqual([]);
+      expect(result!.exitCode).toBe(0);
+      expect(result!.issues.filter(i => i.detectorId === "test-rot" && i.title.includes("missing source")).length).toBe(2);
+    }, 120000);
+
+    it.each([
+      ["package-name", { packageName: "@dailephd/incorrect" }, "package-identity"],
+      ["package-version", { packageVersion: "1.15.2" }, "package-identity"],
+      ["cli-digest", { cliSha256: "0".repeat(64) }, "package-identity"],
+      ["extractor-revision", { extractorRevision: "source-audit-v0.0.0" }, "extractor-mismatch"],
+    ] as const)("refuses incorrect installed %s without weakening package resolution", (label, changed, category) => {
+      expect(() => resolveInstalledKitPackage({ installedPackageRoot: installed, expectation: { ...expectation, ...changed } })).toThrowError(new RegExp(category));
+      save(label, { syntheticExpectationCorruption: changed, expectedCategory: category });
+    });
+
+    it.each(["schema", "artifact-bytes", "manifest-hash", "snapshot", "source-bytes", "record-shape"])("keeps synthetic %s corruption fatal through real installed acquisition", async label => {
+      const root = target("negative-" + label, { "src/a.ts": "export const a = 1;\n" });
+      const bridge = dependencies("negative-" + label, (_args, index) => {
+        const artifactPath = path.join(index, "source-audit-evidence.json"), manifestPath = path.join(index, "manifest.json");
+        const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8")), manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        if (label === "artifact-bytes") { fs.appendFileSync(artifactPath, " "); return; }
+        if (label === "manifest-hash") manifest.sourceAuditEvidence.sha256 = "0".repeat(64);
+        if (label === "source-bytes") { fs.appendFileSync(path.join(root, "src/a.ts"), "// synthetic post-index mutation\n"); return; }
+        if (label === "schema") artifact.schemaVersion = "9.0.0";
+        if (label === "snapshot") artifact.source.snapshotId = "0".repeat(64);
+        if (label === "record-shape") artifact.files[0].status = "invalid-record-status";
+        if (label !== "manifest-hash") {
+          const bytes = Buffer.from(JSON.stringify(artifact)); fs.writeFileSync(artifactPath, bytes);
+          manifest.sourceAuditEvidence.sha256 = createHash("sha256").update(bytes).digest("hex");
+        }
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      });
+      let caught: unknown;
+      try { await runAudit({ config: config(root, "package"), toolRoot: root, kitSourceProviderDependencies: bridge.deps }); }
+      catch (error) { caught = error; }
+      expect(caught).toBeInstanceOf(KitSourceEvidenceAcquisitionError);
+      save("negative-" + label, { syntheticCorruption: label, category: (caught as KitSourceEvidenceAcquisitionError).category,
+        message: (caught as Error).message, workDir: bridge.workDir, calls: bridge.calls });
+    }, 120000);
+  });
+}

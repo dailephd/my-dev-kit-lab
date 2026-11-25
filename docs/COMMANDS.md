@@ -221,7 +221,7 @@ Same command owner and options as `npm run security:validate` (see "Security-val
 
 ### `my-dev-kit-lab audit`
 
-Same command owner and options as `npm run audit` (see "Audit commands" below). `--out` defaults to `<workspace>/reports/audits/<type>` when omitted.
+Same command owner and options as `npm run audit` (see "Audit commands" below). Run from the Lab project or set `--workspace` to an existing Lab project workspace outside the inspected target.
 
 ### `my-dev-kit-lab experiment list`
 
@@ -883,10 +883,15 @@ Current options:
 | `--include <ids>` | `docs`, `tests`, `package`, `architecture`, `cli`; defaults to all |
 | `--format <ids>` | `text`, `json`, or both; defaults to both |
 | `--fail-on <level>` | `blocker`, `high`, `medium`, `low`, `none`; defaults to `blocker` |
-| `--out <path>` | Optional report output directory |
+| `--out <path>` | Optional output directory under the workspace's ignored `reports/` or `lab-output/` |
+| `--kit-archive <file>`, `--kit-package-root <dir>` | Select the exact qualified local Kit archive and isolated installation together |
+| `--source-export <file>` | Record the supplied export's bytes and SHA-256 |
+| `--source-snapshot <git-sha>` | Declare a full source Git object ID |
+| `--require-source <relative-path>` | Require an export path in Lab's readable inventory. Repeat for each path |
+| `--retry-of <execution-id>` | Link the new run to an earlier receipt in the same workspace |
 | `--android` | Optional; requires `--types` to include `security` |
 
-Source-audit prerequisite (LAB-KIT-01, v0.10.0): source-dependent selections use the exact qualified runtime dependency `@dailephd/my-dev-kit@1.15.0` described in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development). Lab and installed-consumer qualification against that published producer passed. Candidate 05 remains historical and is distinct from public Kit 1.14.0. The provider resolves Kit through Lab module resolution and never installs it automatically. A separately installed retrieval CLI or an experiment `--kit-command` does not configure this audit provider. Non-source-only selections and selections with no applicable source paths do not require Kit. An include area can select both source-dependent and non-source detectors; `--include package` can require source declarations for duplicate-implementation checks. Rust `.rs` selection uses the same command and generic bridge, with no language flag or Rust runner; [capability and applicability limits](ARCHITECTURE.md#rust-source-evidence-reuse) remain explicit.
+Source-audit prerequisite for v0.11.0 development: source-dependent selections resolve exact Kit 1.16.0 from Lab's dependencies. Under the historical LAB-KIT-01 v0.10.0 contract, source-dependent selections used the exact qualified runtime dependency `@dailephd/my-dev-kit@1.15.0` described in [ARCHITECTURE.md](ARCHITECTURE.md#kit-source-authority-v0100-development). Lab and installed-consumer qualification against that published producer passed. Candidate 05 remains historical and is distinct from public Kit 1.14.0. The provider resolves Kit through Lab module resolution and never installs it automatically. A separately installed retrieval CLI or an experiment `--kit-command` does not configure this audit provider. Non-source-only selections and selections with no applicable source paths do not require Kit. An include area can select both source-dependent and non-source detectors; `--include package` can require source declarations for duplicate-implementation checks. Rust `.rs` selection uses the same command and generic bridge, with no language flag or Rust runner; [capability and applicability limits](ARCHITECTURE.md#rust-source-evidence-reuse) remain explicit.
 
 The programmatic `runAudit` option `sourceProviderMode` defaults to `kit` and accepts only `kit`; `legacy-comparison` is retired and unsupported values fail explicitly. The provider dependency injection seam is internal, not a public configuration option. There is no audit `--source-provider` flag.
 
@@ -927,10 +932,16 @@ Current behavior:
 - the default, no-flag `npm run audit` run is unchanged — it still runs `code-rot` only; `security` must be explicitly requested via `--types`
 - audit findings are heuristic candidates, not proof of defects
 - target files are not modified
+- valid partial import evidence does not abort independent checks: reports retain findings and explicit `PARTIAL_COVERAGE UNAVAILABLE` detector errors; incomplete required coverage returns exit 2 even with `--fail-on none`
 - audit does not auto-fix issues
 - `--android` runs the same nineteen static Android checks through the existing adapter; confirmed findings can map to audit issues, while `CandidateEvidence` remains review-only
 - omitting `--android` starts no Android validation
-- reports are written under `reports/audits/<type>/code-rot-audit.txt` and/or `code-rot-audit.json` by default (the report filename is fixed regardless of `--types`; only the containing directory changes, e.g. `reports/audits/security/` for `--types security`)
+- Lab writes CLI audit receipts under `lab-output/evidence/audit-<uuid>/`. The run's `reports/` directory holds reports by default. An explicit report destination is exclusive and a filename collision returns exit 2 with an intact receipt.
+
+The initial receipt records Lab and Node identity, working directory, arguments, and options. Later records preserve Lab's inventory, Kit's selected inventory and completeness, Kit command receipts and bounded output, and report digests. A partial audit can retain findings and reports with exit 2. A pre-report failure leaves the original receipt, the observations already acquired, and a separate failure record. Final records list the size and SHA-256 of each earlier checkpoint. Verify those checkpoints and the referenced artifacts before using them as evidence.
+
+Lab records supplied exports by hash and declares their relationship to the target and the externally executed export command unknown. An observed Git HEAD and cleanliness describe the worktree at inventory time. Keep receipt directories local and private because raw Kit responses can contain source-derived content. Sources of redacted arguments are marked in the receipt.
+
 Current report details:
 
 - JSON reports include source-facts, Python project metadata, and security-summary fields where applicable; JVM metadata remains detector input rather than a separate top-level field.
@@ -940,3 +951,54 @@ Current report details:
 - The audit command has no `--checks`, `--profile`, `--languages`, or `--frameworks` option. Android audit integration uses only `--android`.
 
 Unsupported command/profile names such as `android-compose`, `security:pentest`, `security:android`, `mobile:detect`, and `mobile:validate` are not current syntax. See [ROADMAP.md](ROADMAP.md) for approved future scope.
+
+## Current Kit acceptance (source checkout only)
+
+The authorized current route uses the existing source-checkout verifier; these are not installed `my-dev-kit-lab` CLI flags. Build first. Choose a fresh output under the Git authority's private `.my-dev-kit-workflow` or `.my-dev-kit-context` roots. Existing destinations are refused; raw evidence is retained.
+
+`node scripts/verify-private-provenance.mjs --current collect --lane public --out <new-run-directory>`
+
+Finite lane choices are `public`, `protected`, `platform`, and `packed`. Public executes the canonical public script; protected/platform execute exact finite `npm test` selections. The unchanged original historical files remain assigned to their original mandatory contract. Packed rebuilds and runs genuine installed-consumer verification.
+
+`node scripts/verify-private-provenance.mjs --current verify --inputs <manifest.json> --out <new-verification-directory>`
+
+`node scripts/verify-private-provenance.mjs --current bind --inputs <binding-plan.json> --out <new-binding-directory>`
+
+A binding plan contains the exact current `contractId`, a `manifests` array of native collection-manifest paths, and, for required hosted corroboration, `hostedRunId`. Binding reopens inputs; it does not trust prior receipt PASS fields. Hosted checks use the existing authenticated GitHub CLI read interface against the fixed Lab repository, never a caller-supplied network URL. Completed exact-SHA CI and one unexpired native artifact from each required OS job are mandatory.
+
+Exit 0 means the selected collection/verification completed, or every required binding gate passed. Binding exit 2 means `BLOCKED_REQUIRED_EVIDENCE` with explicit missing gates. Invalid, failed, conflicting or tampered evidence exits 1. A completed collection or scoped verification is not whole-candidate acceptance. All receipts disclose historical provenance `UNVERIFIED`, original private verification `NOT_PASSED`, and original readiness binding `NOT_PASSED`. No command pushes, publishes or starts Step 5.
+
+## Managed audit with the qualified local Kit producer
+
+Run `my-dev-kit-lab --workspace <workspace> audit --target <project>
+--types code-rot --include tests --format json,text --fail-on none
+--kit-archive <qualified-tarball> --kit-package-root <isolated-package-root>`.
+Supply both Kit options together. The managed provider validates the
+qualified archive and installed CLI identities and requests Kit artifact
+schema 1.2.0. The Lab v0.11.0 candidate pins Kit 1.16.0.
+That published Kit release supplies this schema and the qualified import-domain
+and exact-byte selectors through the default installed provider. The archive options remain available for the
+explicitly qualified local producers, including R3.
+
+Repeat `--require-source <relative-path>` for required inventory entries.
+`--source-snapshot <git-sha>` declares the intended revision.
+`--source-export <file>` records the supplied file's digest. It does not
+establish how that export was made or its relationship to the target tree.
+`--retry-of <id>` links an earlier execution in the same evidence workspace.
+
+The installed CLI defaults to `<workspace>/reports/audits/<primary-type>/`
+for reports. Managed receipts use
+`<evidence-workspace>/lab-output/evidence/audit-<id>/`. The installed CLI's
+explicit `--workspace` selects the evidence workspace. Source-checkout
+managed invocations with a reserved receipt and no explicit output can
+write reports to the receipt's `reports/` directory. An explicit `--out` uses a
+physical directory under workspace `lab-output/` or `reports/`, outside
+the inspected external target. JSON reports use schema 1.0. Completed audits
+return exit 0 below the chosen threshold and exit 1 at or above it.
+Thresholds are blocker, high, medium, low and none. On complete coverage,
+`none` disables the finding threshold. Mandatory incomplete coverage and
+fatal execution failures return exit 2 under every threshold. Independent
+findings remain in completed partial reports.
+Use the actual terminal result and required coverage when certifying a
+target. The [coordinated acceptance policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification)
+defines which evidence qualifies the product independently.

@@ -6,6 +6,7 @@ import {
   type ExportFact,
   type ExportFactKind,
   type ImportFact,
+  type KitTestObservation,
   type SourceFactDiagnostic,
   type SourceFactParseStatus,
   type SourceFactProvenance,
@@ -20,7 +21,7 @@ import type {
   KitRequiredCapabilities,
   KitSourceEvidence,
 } from "./kitSourceEvidence.js";
-import { assertSelectionCoversRequired, registerKitDeclarationPredicateEvidence } from "./kitSourceEvidence.js";
+import { assertSelectionCoversRequired, hasQualifiedPartialImports, registerKitDeclarationPredicateEvidence } from "./kitSourceEvidence.js";
 
 // ---------------------------------------------------------------------------
 // v0.10.0 Gate 3 -- Kit evidence -> Lab SourceFactsSnapshot adapter.
@@ -261,10 +262,11 @@ export function adaptKitFile(
     });
   } else {
     for (const fact of evidence.facts) {
+      const capability = fact.kind === "import" ? "imports" : fact.kind === "declaration" ? "declarations" : fact.kind === "export" ? "exports" : undefined;
+      if (capability && (!["parsed", "partial"].includes(record.status) || !["complete", "partial"].includes(record.capabilities[capability]))) continue;
       if (fact.kind === "import") imports.push(adaptKitImport(fact));
       else if (fact.kind === "export") exports.push(adaptKitExport(fact));
       else if (fact.kind === "declaration") declarations.push(adaptKitDeclaration(fact));
-      // Observation families are kept in Kit evidence; Gate 3 does not map them.
     }
   }
 
@@ -279,7 +281,23 @@ export function adaptKitFile(
   };
 }
 
+function adaptTestObservation(fact: KitFact): KitTestObservation | undefined {
+  if (fact.kind !== "test-observation" || !fact.observationKind) return undefined;
+  return {
+    kind: fact.kind,
+    originPath: fact.span.path,
+    observationKind: fact.observationKind,
+    name: fact.name,
+    value: fact.value,
+    valueSha256: fact.valueSha256,
+    valueTruncated: fact.valueTruncated,
+    provenance: provenanceOf(fact),
+  };
+}
+
 export type AdaptKitEvidenceOptions = {
+  qualifiedDirectModifiers?: boolean;
+  deferPartialImports?: boolean;
   evidence: KitSourceEvidence;
   inventory: ProjectInventorySnapshot;
   targetRoot: string;
@@ -298,14 +316,34 @@ export function adaptKitEvidenceToSourceFacts(options: AdaptKitEvidenceOptions):
 
   // inventory.files is sorted by relativePath, so output order is deterministic.
   for (const entry of inventory.files) {
-    if (entry.role !== "source" && entry.role !== "test") continue;
+    if (entry.role !== "source" && entry.role !== "test" && !(entry.role === "config" && entry.relativePath.endsWith(".gradle.kts"))) continue;
     const record = kitByPath.get(entry.relativePath);
     if (record === undefined) continue; // Not selected by Kit; required paths were verified earlier.
     consumed.add(entry.relativePath);
     const fileEvidence = evidence.fileEvidence.get(entry.relativePath);
     // The exact-file record carries producer diagnostics; the inventory record does not.
-    const file = adaptKitFile(fileEvidence, fileEvidence?.record ?? record, entry,
-      options.capabilitiesForPath?.(entry.relativePath) ?? requiredCapabilities);
+    const exact = fileEvidence?.record ?? record;
+    const required = options.capabilitiesForPath?.(entry.relativePath) ?? requiredCapabilities;
+    const file = adaptKitFile(fileEvidence, exact, entry,
+      options.deferPartialImports && hasQualifiedPartialImports(exact) ? required.filter(c => c !== "imports") : required);
+    const capability = exact.capabilities["test-observations"];
+    if (fileEvidence && evidence.traversalComplete && evidence.coverage.inventoryComplete &&
+        exact.path === entry.relativePath && exact.contentSha256 && exact.contentSha256 === record.contentSha256 &&
+        /^[a-f0-9]{64}$/.test(evidence.snapshotId) && evidence.snapshotId === evidence.source.snapshotId &&
+        /^[a-f0-9]{64}$/.test(evidence.source.selectionFingerprint)) {
+      const observations = fileEvidence.facts.map(adaptTestObservation)
+        .filter((fact): fact is KitTestObservation => fact !== undefined);
+      file.kitTestObservations = {
+        snapshotId: evidence.snapshotId,
+        selectionFingerprint: evidence.source.selectionFingerprint,
+        contentSha256: exact.contentSha256,
+        capability,
+        producerStatus: exact.status,
+        ...(options.qualifiedDirectModifiers && exact.capabilities["direct-test-modifiers"] !== undefined
+          ? { directModifierCapability: exact.capabilities["direct-test-modifiers"] } : {}),
+        observations,
+      };
+    }
     registerKitDeclarationPredicateEvidence(file, evidence);
     files.push(file);
   }

@@ -74,6 +74,28 @@ function setReleaseDocumentState(root: string, finalReleaseDocument: boolean) {
   });
 }
 
+// Model a future prepared artifact without rewriting an already published release.
+// These edits affect disposable documentation fixtures only, never package metadata.
+function prepareNextPatchFixture(root: string): string {
+  const metadata = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  const [major, minor, patch] = metadata.version.split(".").map(Number);
+  const version = [major, minor, patch + 1].join(".");
+  metadata.version = version;
+  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify(metadata, null, 2) + "\n");
+  edit(root, "docs/documentation-preservation-manifest.json", body => {
+    const value = JSON.parse(body) as DocumentationManifest;
+    value.currentFacts.releaseDocumentState = "final-release-state";
+    value.currentFacts.currentReleaseDocumentVersion = version;
+    if (value.currentFacts.currentImplementedUnreleasedVersion === version) value.currentFacts.currentImplementedUnreleasedVersion = null;
+    if (!value.roadmap.requiredVersions.includes("v" + version)) value.roadmap.requiredVersions.push("v" + version);
+    return JSON.stringify(value, null, 2) + "\n";
+  });
+  edit(root, "docs/ROADMAP.md", body => body.split(/\r?\n/).some(line => line === "### v" + version || line.startsWith("### v" + version + " "))
+    ? replaceRoadmapVersionStatus(body, "v" + version, "Status: **release candidate prepared**.")
+    : body + "\n### v" + version + "\n\nStatus: **release candidate prepared**.\n");
+  return version;
+}
+
 function expectFailure(change: (root: string) => void, message: string) {
   withDocs(change, (run) => expect(run).toThrow(message));
 }
@@ -233,11 +255,12 @@ describe("release and current/planned state", () => {
   it.each([false, true] as const)("LIFECYCLE-003 classifies unpublished wording for final-document=%s", (finalReleaseDocument) => {
     const testedVersion = finalReleaseDocument ? lifecycle.latestPublishedVersion : lifecycle.activeReleaseDocumentVersion;
     const check = (root: string) => {
-      setReleaseDocumentState(root, finalReleaseDocument);
+      const targetVersion = finalReleaseDocument ? prepareNextPatchFixture(root) : testedVersion;
       if (!finalReleaseDocument) {
+        setReleaseDocumentState(root, false);
         edit(root, "docs/ROADMAP.md", (body) => replaceRoadmapVersionStatus(body, lifecycle.activeReleaseDocumentRoadmapVersion, "Status: **published**."));
       }
-      edit(root, "README.md", (body) => `${body}\nv${testedVersion} has not yet been published to npm.\n`);
+      edit(root, "README.md", (body) => `${body}\nv${targetVersion} has not yet been published to npm.\n`);
     };
     if (finalReleaseDocument) {
       withDocs(check, (run) => expect(run()).toContain("passed"));
@@ -245,6 +268,17 @@ describe("release and current/planned state", () => {
       expectFailure(check, `v${testedVersion} publication claim`);
     }
   });
+  it("LIFECYCLE-007 rejects publication claims for a distinct prepared target", () => {
+    const target = packageMetadata.version.split(".").map(Number); target[2] += 1;
+    expectFailure(root => {
+      const version = prepareNextPatchFixture(root);
+      edit(root, "README.md", body => body + "\nv" + version + " is published.\n");
+    }, "v" + target.join(".") + " publication claim");
+  });
+  it("LIFECYCLE-008 rejects negating the published predecessor during preparation", () => expectFailure(root => {
+    prepareNextPatchFixture(root);
+    edit(root, "README.md", body => body + "\nv" + lifecycle.latestPublishedVersion + " has not yet been published.\n");
+  }, "v" + lifecycle.latestPublishedVersion + " publication claim"));
   it("LIFECYCLE-004 rejects a positive publication claim for the next planned version", () => expectFailure(
     (root) => edit(root, "README.md", (body) => `${body}\nv${lifecycle.nextPlannedVersion} is published.\n`),
     `v${lifecycle.nextPlannedVersion} publication claim`,

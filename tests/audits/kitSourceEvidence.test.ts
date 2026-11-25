@@ -13,6 +13,7 @@ import {
   flattenInventoryPages,
   sha256Hex,
   validateFactPage,
+  validateKitFact,
   validateInventoryPage,
   validateKitArtifact,
   validateKitManifestReference,
@@ -446,3 +447,41 @@ describe("JSON raw evidence is independent of semantic support", () => {
     expectFailure(() => assertKitJsonRawContent({ ...record, path: "tests/file.txt" }, true), "capability-insufficient");
   });
 });
+
+describe("qualified bounded literal values", () => {
+  const observation = () => factJson("tests/a.ts", "audit-fact:tests%2Fa.ts#test-observation#1#0#0", {
+    kind: "test-observation", observationKind: "test-title", value: null,
+    valueTruncated: true, valueSha256: HASH,
+  });
+  it("retains producer-redacted scalar values as unknown with their hash, never as absence", () => {
+    const fact = validateKitFact(observation(), "fact", "tests/a.ts");
+    expect(fact.value).toBeNull();
+    expect(fact.valueTruncated).toBe(true);
+    expect(fact.valueSha256).toBe(HASH);
+  });
+  it.each([
+    {value: 42}, {value: "prefix", valueTruncated: true}, {valueSha256: undefined},
+    {valueSha256: "bad"}, {valueTruncated: "true"}, {value: undefined},
+  ])("refuses malformed or contradictory bounded literal metadata %j", override => {
+    expectFailure(() => validateKitFact({...observation(),...override}, "fact", "tests/a.ts"), "page-invalid");
+  });
+});
+
+describe("versioned direct modifier coverage", () => {
+  const expected = { snapshotId: SNAPSHOT, pageIndex: 0 };
+  const page = (status: string, schemaVersion = "1.2.0") => inventoryJson(0, 1, [fileJson("tests/a.ts", {
+    status,
+    capabilities: { ...capabilities({ "test-observations": "partial" }),
+      "dynamic-import-expressions": "partial", "direct-test-modifiers": "complete" },
+  })], { schemaVersion });
+  it("retains an exact typed claim without upgrading the observation family", () => {
+    const record = validateInventoryPage(page("parsed"), expected).files[0];
+    expect(record.capabilities).toMatchObject({ "test-observations": "partial", "direct-test-modifiers": "complete" });
+    expectFailure(() => crossValidateFileRecord(record, { ...record,
+      capabilities: { ...record.capabilities, "direct-test-modifiers": "partial" } }), "stale-evidence");
+  });
+  it("rejects forged completeness on recovered files and at the legacy boundary", () => {
+    expectFailure(() => validateInventoryPage(page("partial"), expected), "page-invalid");
+    expectFailure(() => validateInventoryPage(page("parsed", "1.0.0"), expected), "schema-mismatch");
+  });
+})

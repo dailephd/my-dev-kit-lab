@@ -45,7 +45,7 @@ describe("published Kit Rust reuse", () => {
     const installedKit = path.resolve("node_modules/@dailephd/my-dev-kit"), kitBefore = hashTree(installedKit);
     const facts = await collect(root);
     expect(facts.provider).toBe("kit");
-    expect(facts.kitEvidence).toMatchObject({ packageVersion: "1.15.0", artifactSchemaVersion: "1.1.0", traversalComplete: true, selectedFileCount: 6 });
+    expect(facts.kitEvidence).toMatchObject({ packageVersion: "1.16.0", artifactSchemaVersion: "1.2.0", traversalComplete: true, selectedFileCount: 6 });
     expect(facts.files).toHaveLength(6);
     expect(facts.files.filter(file => file.language === "rust")).toHaveLength(5);
     for (const file of facts.files.filter(file => file.language === "rust")) {
@@ -74,7 +74,11 @@ describe("published Kit Rust reuse", () => {
     expect(result.issues.some(i => i.detectorId === ids[0] && i.title.includes("calibrate_sensor") && i.severity === "info")).toBe(true);
     expect(result.issues.some(i => i.detectorId === ids[1] && i.title.includes("unused.json"))).toBe(true);
     expect(result.issues.filter(i => i.id.includes("unreferenced-source-file"))).toEqual([]);
-    expect(result.issues.some(i => i.detectorId === ids[2] && i.title.includes("test.skip("))).toBe(true);
+    // The Rust fixture contains a string literal, and the published producer
+    // does not provide Rust executable modifier observations.
+    const rustTest = result.sourceFacts.files.find(file => file.relativePath === "tests/worker.rs");
+    expect(rustTest?.kit?.capabilities["test-observations"]).toBe("unsupported");
+    expect(result.issues.filter(i => i.detectorId === ids[2] && /(?:only|skip)-usage/.test(i.id))).toEqual([]);
     expect(result.issues.some(i => i.detectorId === ids[3] && i.affectedFiles.includes("src/audits/lines.rs"))).toBe(true);
     expect(result.issues.some(i => /private_helper|operate|inspect/.test(i.title))).toBe(false);
     expect((await audit(root, ids)).issues).toEqual(result.issues);
@@ -156,7 +160,7 @@ describe("published Kit Rust reuse", () => {
   it.each(["snapshot", "omission", "inventory truncation", "fact truncation", "hash", "process", "stale", "missing artifact", "digest", "registration"])("rejects %s evidence from the real Rust producer", async mode => {
     const root = fixture();
     let altered = false;
-    const deps: KitSourceProviderDependencies = { runCommand: async options => {
+    const deps: KitSourceProviderDependencies = { disableBatch: true, disableStream: true, runCommand: async options => {
       const result = await runMeasuredCommand(options);
       const args = options.args ?? [];
       if (args.includes("index")) {
@@ -194,11 +198,13 @@ describe("published Kit Rust reuse", () => {
 
   it("consumes terminal inventory and fact pages rather than retrieval rankings", async () => {
     const root = fixture();
-    for (let i = 0; i < 65; i++) write(root, `src/page${i}.rs`, `pub fn witness_${i}() {}\n`);
+    for (let i = 0; i < 65; i++) write(root, `src/page${String(i).padStart(2, "0")}.rs`, `pub fn witness_${i}() {}\n`);
     write(root, "src/large.rs", Array.from({ length: 140 }, (_, i) => `pub fn declaration_${i}() {}`).join("\n"));
-    const result = await collect(root);
+    // Keep both source roots selected while reading facts for the pagination witnesses.
+    const result = await collect(root, {}, ["src/large.rs", "src/page64.rs", "tests/worker.rs"]);
     expect(result.kitEvidence).toMatchObject({ selectedFileCount: 72, inventoryPages: 2, traversalComplete: true });
-    expect(result.kitEvidence!.factPages).toBeGreaterThan(71);
+    expect(result.kitEvidence!.factPages).toBeGreaterThan(3);
     expect(result.files.find(f => f.relativePath === "src/large.rs")!.declarations).toHaveLength(140);
+    expect(result.files.find(f => f.relativePath === "src/page64.rs")?.declarations.map(d => d.name)).toContain("witness_64");
   });
 });

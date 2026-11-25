@@ -1,3 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { describeAuditFile, observedAuditArguments, reserveAuditExecution, type AuditExecutionReceipt } from "../audits/core/auditExecutionReceipt.js";
+import { resolveQualifiedKitArchive } from "../audits/core/kitSourceProvider.js";
 import { parseAuditArgs, normalizeAuditConfig, type AuditConfig } from "../audits/core/auditConfig.js";
 import { resolveAuditTarget, type AuditTarget } from "../audits/core/auditTarget.js";
 import { runAudit } from "../audits/core/auditRunner.js";
@@ -23,6 +28,9 @@ export const AUDIT_USAGE =
   "Usage: my-dev-kit-lab audit [--target <path>] [--types code-rot,security] " +
   "[--include docs,tests,package,architecture,cli] [--format text,json] " +
   "[--fail-on blocker|high|medium|low|none] [--out <path>] [--android]\n" +
+  "  --kit-archive <file> and --kit-package-root <dir> select the qualified local Kit package.\n" +
+  "  --source-export <file> records the supplied export file's digest. --retry-of <id> links a previous run.\n" +
+  "  --source-snapshot <git-sha> declares the source revision. Repeat --require-source <relative-path> to require export files.\n" +
   "\n" +
   "  --android opts into Batch 2's programmatic Android security integration.\n" +
   "  Requires --types to include \"security\" (e.g. --types security or --types\n" +
@@ -42,12 +50,19 @@ export type RunAuditCommandOptions = {
   // discovered LabExecutionContext's packageRoot, matching the previous
   // script's resolveToolRoot(import.meta.url) behavior.
   context?: LabExecutionContext;
+  /** Existing project workspace root for durable audit evidence. */
+  evidenceWorkspace?: string;
+  /** Explicit CLI workspace for managed audit evidence, when supplied. */
+  explicitEvidenceWorkspace?: string;
+  /** Global options and command name, before audit options. */
+  launcherArgv?: readonly string[];
   // Root used only when --out was not supplied. Defaults to the target
   // toolRoot (context.packageRoot) -- the contributor npm script's exact
   // current behavior. The installed CLI router passes context.workspaceRoot
   // here so installed execution never defaults report output under the
   // package root.
   defaultOutRoot?: string;
+  kitSourceProviderDependencies?: import("../audits/core/kitSourceProvider.js").KitSourceProviderDependencies;
 };
 
 export async function runAuditCommandFromArgs(
@@ -67,9 +82,14 @@ export async function runAuditCommandFromArgs(
   }
 
   let config: AuditConfig;
+  let args: ReturnType<typeof parseAuditArgs>;
   try {
-    const args = parseAuditArgs(argv);
-    config = normalizeAuditConfig(args, defaultOutRoot);
+    args = parseAuditArgs(argv);
+    const out = args.out?.trim();
+    config = normalizeAuditConfig({
+      ...args,
+      out: out ? path.resolve(context.invocationCwd, out) : args.out,
+    }, defaultOutRoot);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`\nERROR: ${msg}`);
@@ -79,7 +99,10 @@ export async function runAuditCommandFromArgs(
 
   let target: AuditTarget;
   try {
-    target = resolveAuditTarget(config.targetPathArg, toolRoot);
+    target = resolveAuditTarget(
+      config.targetPathArg ? path.resolve(context.invocationCwd, config.targetPathArg) : config.targetPathArg,
+      toolRoot,
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`\nERROR: ${msg}`);
@@ -100,17 +123,124 @@ export async function runAuditCommandFromArgs(
   console.log(`Include    : ${config.include.join(", ")}`);
   console.log("");
 
-  let result;
+  let receipt: AuditExecutionReceipt | undefined;
+  let model: ReturnType<typeof buildAuditReportModel>;
+  const writtenPaths: string[] = [];
+  const reportArtifacts: ReturnType<typeof describeAuditFile>[] = [];
   try {
-    result = await runAudit({ config, toolRoot, target });
+    const managed = Boolean(args.kitArchive || args.kitPackageRoot || args.retryOf || args.sourceExport ||
+      args.sourceSnapshot || args.requiredSourcePaths || options.kitSourceProviderDependencies?.qualifiedArchivePath);
+    const installedDefault = config.outWasDefault && options.defaultOutRoot !== undefined;
+    const targetRoot = fs.realpathSync(target.rootPath);
+    const packageRoot = fs.realpathSync(toolRoot);
+    if (installedDefault) {
+      assertReportDirectory(config.out);
+      if (containsPath(targetRoot, config.out) || containsPath(packageRoot, config.out)) {
+        throw new Error("Default audit reports cannot be written into the inspected target or installed package.");
+      }
+    }
+    const callerWorkspace = options.evidenceWorkspace ??
+      (managed ? context.invocationCwd : undefined);
+    // The implicit receipt location is usually the caller. A caller inside
+    // the package or target must use the Lab workspace for receipts instead.
+    const useLabEvidenceWorkspace = options.defaultOutRoot !== undefined && callerWorkspace !== undefined &&
+      (containsPath(targetRoot, fs.realpathSync(callerWorkspace)) || containsPath(packageRoot, fs.realpathSync(callerWorkspace)));
+    const workspace = options.explicitEvidenceWorkspace ??
+      (useLabEvidenceWorkspace ? context.workspaceRoot : callerWorkspace);
+    if (workspace) {
+      if (options.explicitEvidenceWorkspace || useLabEvidenceWorkspace) {
+        assertReportDirectory(workspace);
+        if (containsPath(targetRoot, workspace) || containsPath(packageRoot, workspace)) {
+          throw new Error("Audit evidence destination is inside the inspected target or installed package.");
+        }
+        fs.mkdirSync(workspace, { recursive: true });
+      }
+      receipt = reserveAuditExecution(workspace, target.rootPath, args.retryOf, target.isSelf);
+      console.log(`Execution receipt: ${receipt.directory}`);
+      const entrypoint = options.launcherArgv && process.argv[1] ? describeAuditFile(process.argv[1]) : null;
+      const invocation = observedAuditArguments(argv);
+      receipt.write("initial", {
+        // The immutable initial receipt is superseded only by a terminal record.
+        status: "INCOMPLETE",
+        createdAt: new Date().toISOString(), retryOf: receipt.retryOf,
+        cwd: process.cwd(), target, explicit: invocation,
+        launcher: describeAuditFile(process.execPath), entrypoint,
+        launcherArgv: options.launcherArgv ? {
+          args: [...options.launcherArgv, ...invocation.args],
+          exact: invocation.exact && process.execArgv.length === 0,
+          nodeOptionsRedacted: process.execArgv.length > 0,
+        } : null,
+        nodeVersion: process.version, platform: process.platform, arch: process.arch,
+        labVersion: JSON.parse(fs.readFileSync(path.join(toolRoot, "package.json"), "utf8")).version,
+        labCommandModule: describeAuditFile(fileURLToPath(import.meta.url)),
+        effective: config, sourceProvider: "kit",
+        declaredSnapshot: args.sourceSnapshot ?? null, requiredSourcePaths: args.requiredSourcePaths ?? [],
+        sourceExport: args.sourceExport ? path.resolve(args.sourceExport) : null,
+      });
+    }
+    if (Boolean(args.kitArchive) !== Boolean(args.kitPackageRoot)) {
+      throw new Error("The qualified Kit archive and installed package root must be supplied together.");
+    }
+    receipt?.setStage("kit-package-qualification");
+    const deps = args.kitArchive ? resolveQualifiedKitArchive(
+      path.resolve(context.invocationCwd, args.kitArchive),
+      path.resolve(context.invocationCwd, args.kitPackageRoot!),
+    )
+      : options.kitSourceProviderDependencies;
+    receipt?.setStage("source-export");
+    if (args.sourceExport) receipt?.write("source-export", {
+      file: describeAuditFile(path.resolve(args.sourceExport)),
+      relationshipToTarget: null, archiveCommand: null,
+    });
+    receipt?.setStage("report-destination");
+    if (config.outWasDefault && receipt && options.defaultOutRoot === undefined) {
+      // Internal and contributor callers still own per-execution artifacts.
+      config = { ...config, out: path.join(receipt.directory, "reports") };
+    }
+    if (!installedDefault) assertReportDirectory(config.out);
+    if (managed && receipt && !config.outWasDefault) {
+      const workspaceRoot = fs.realpathSync(workspace!);
+      const relative = path.relative(workspaceRoot, config.out);
+      if (!containsPath(workspaceRoot, config.out) || !["lab-output", "reports"].includes(relative.split(path.sep)[0]!)) {
+        throw new Error("Managed audit reports require a destination under the workspace lab-output or reports directory.");
+      }
+    }
+    if (managed && !target.isSelf && containsPath(targetRoot, config.out)) {
+      throw new Error("Audit reports cannot be written into the inspected target.");
+    }
+    receipt?.write("effective-config", config);
+    const result = await runAudit({ config, toolRoot, target, declaredSnapshot: args.sourceSnapshot,
+      requiredSourcePaths: args.requiredSourcePaths, kitSourceProviderDependencies: { ...deps, receipt } });
+    if (receipt) receipt.write("audit-result", {
+      exitCode: result.exitCode, exitReason: result.exitReason, coverage: result.coverage,
+      issues: result.issues, skippedDetectors: result.skippedDetectors, detectorErrors: result.detectorErrors,
+    });
+    receipt?.setStage("report-generation");
+    model = buildAuditReportModel(result, { target });
+    for (const report of [...Object.values(model.securitySummary.reportPaths), ...Object.values(model.androidSecurity.summary.reportPaths)]) {
+      if (receipt && report && fs.existsSync(report)) reportArtifacts.push(describeAuditFile(report));
+    }
+    writeAuditReports({ model, config, outDir: config.out, exclusive: Boolean(receipt),
+      onWritten: (filename) => {
+        writtenPaths.push(filename);
+        if (receipt) {
+          const artifact = describeAuditFile(filename);
+          reportArtifacts.push(artifact);
+          receipt.write("audit-report-" + path.extname(filename).slice(1), artifact);
+        }
+      } });
+    receipt?.write("outcome", { exitCode: model.exit.code, exitReason: model.exit.reason, reports: reportArtifacts });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (receipt) {
+      try { receipt.write("failure", { stage: receipt.stage, error: msg,
+        category: err instanceof Error && "category" in err ? err.category : null,
+        exitCode: AUDIT_EXIT_CODES.FATAL_ERROR, reports: reportArtifacts }); }
+      catch (receiptError) { console.error(`ERROR: could not finalize audit receipt: ${String(receiptError)}`); }
+    }
     console.error(`\nERROR: audit runtime failure: ${msg}`);
     return AUDIT_EXIT_CODES.FATAL_ERROR;
   }
-
-  const model = buildAuditReportModel(result, { target });
-  const { writtenPaths } = writeAuditReports({ model, config, outDir: config.out });
 
   console.log(`Issues found        : ${model.summary.totalIssues}`);
   console.log(
@@ -170,8 +300,30 @@ export async function runAuditCommandFromArgs(
   console.log(
     model.exit.code === AUDIT_EXIT_CODES.SUCCESS
       ? `Exit 0 -- audit completed.`
-      : `Exit 1 -- fail-on threshold breached.`
+      : model.exit.code === AUDIT_EXIT_CODES.FATAL_ERROR
+        ? `Exit 2 -- required audit coverage incomplete.`
+        : `Exit 1 -- fail-on threshold breached.`
   );
 
   return model.exit.code;
+}
+
+function containsPath(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return !path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(".." + path.sep);
+}
+
+function assertReportDirectory(destination: string): void {
+  let current = destination;
+  while (current !== path.dirname(current)) {
+    try {
+      if (!fs.lstatSync(current).isDirectory() || path.relative(current, fs.realpathSync(current)) !== "") {
+        throw new Error("Audit report destination is not a physical directory.");
+      }
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    current = path.dirname(current);
+  }
 }

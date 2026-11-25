@@ -93,7 +93,7 @@ describe("npm run audit — defaults", () => {
     expect(result.status, result.stderr).toBe(0);
     expect(existsSync(path.join(outDir, "code-rot-audit.json"))).toBe(true);
     const report = JSON.parse(readFileSync(path.join(outDir, "code-rot-audit.json"), "utf8"));
-    expect(resolveInstalledKitPackage().packageVersion).toBe("1.15.0");
+    expect(resolveInstalledKitPackage().packageVersion).toBe("1.16.0");
     expect(report.sourceFacts.totalFilesAnalyzed).toBeGreaterThan(0);
     expect(report.sourceFacts.filesByParseStatus.parsed).toBeGreaterThan(0);
     expect(readFileSync(path.join(target, "src/index.ts"), "utf8")).toBe("export const value = 1;\n");

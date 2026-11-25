@@ -7,11 +7,39 @@ import { pathToFileURL } from 'node:url';
 export const PRIVATE_TEST_FILES = ['tests/audits/kitSourceDifferential.test.ts', 'tests/audits/kitSourceReaderReplacement.test.ts'];
 export function publicExecutionScope(args) {
   for (let index = 0; index < args.length; index++) {
-    if (['--reporter', '--maxWorkers', '--minWorkers'].includes(args[index]) && args[index + 1]) { index++; continue; }
-    if (/^--(?:reporter|maxWorkers|minWorkers)=.+/.test(args[index]) || ['--no-cache', '--no-file-parallelism'].includes(args[index])) continue;
+    if (['--reporter', '--outputFile', '--maxWorkers', '--minWorkers'].includes(args[index]) && args[index + 1]) { index++; continue; }
+    if (/^--(?:reporter|outputFile|maxWorkers|minWorkers)=.+/.test(args[index]) || ['--no-cache', '--no-file-parallelism'].includes(args[index])) continue;
     return 'focused'; // Unknown options can filter or shard tests; fail closed.
   }
   return 'full';
+}
+// The ordinary public test script can run focused controls without private
+// producer artifacts. Formal current collection requires every one of these
+// inputs before the native listing can silently omit a conditional control.
+export function requireCurrentPublicPrerequisites(authority, env) {
+  const required = [
+    ['LAB_R3_KIT_ARCHIVE', 'LAB_R3_INSTALLED_KIT'],
+    ['LAB_B5_P1_R7B_KIT_ARCHIVE', 'LAB_B5_P1_R7B_KIT_ROOT'],
+    ['LAB_R8_R6_R2_KIT_ARCHIVE', 'LAB_R8_R6_R2_KIT_PACKAGE'],
+    ['LAB_SW123_P6_R8_PACKAGE_ROOT'],
+  ];
+  const missing = required.filter(group => group.some(name => !env[name]?.trim()));
+  if (missing.length) throw new Error('Missing current public prerequisites: ' + missing.map(group => group.join(' + ')).join('; '));
+  const root = fs.realpathSync(authority);
+  for (const name of required.flat()) {
+    const input = env[name];
+    if (!path.isAbsolute(input)) throw new Error(name + ' must identify an absolute project-owned path');
+    const resolved = fs.realpathSync(input);
+    const relative = path.relative(root, resolved);
+    if (!relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+      throw new Error(name + ' is outside the physical project root');
+    }
+    const stat = fs.statSync(resolved);
+    if (name.endsWith('_ARCHIVE') ? !stat.isFile() :
+      !stat.isDirectory() || !fs.statSync(path.join(resolved, 'package.json'), { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(name + ' has the wrong archive or installed-package layout');
+    }
+  }
 }
 function inventoryError(reason, file = '') {
   const error = new Error('SOURCE_INVENTORY_ERROR: ' + reason + (file ? ' ' + JSON.stringify(file) : ''));

@@ -77,6 +77,24 @@ async function isFixtureProbeReachable(port: number, token: string): Promise<boo
   });
 }
 
+it("records no child exit in callbacks and telemetry when the executable is missing", async () => {
+  const outDir = temp();
+  const observed: Array<number | null> = [];
+  const result = await run(outDir, "", {
+    executable: path.join(outDir, "missing-executable.exe"),
+    cwd: outDir,
+    args: [],
+    exclusiveArtifacts: true,
+    onSettled: (receipt) => observed.push(receipt.exitCode),
+  });
+  expect(result).toMatchObject({ ok: false, exitCode: null, signal: null, stdout: "", stderr: "" });
+  expect(result.error).toContain("ENOENT");
+  expect(observed).toEqual([null]);
+  expect(JSON.parse(readFileSync(result.telemetryPath, "utf8"))).toMatchObject({
+    ok: false, exitCode: null, signal: null, error: result.error,
+  });
+});
+
 describe("runMeasuredCommand default behavior is unchanged", () => {
   it("RSP-041 adds no bounded-mode fields or telemetry keys when no new option is used", async () => {
     const outDir = temp();

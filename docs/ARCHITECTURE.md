@@ -1084,19 +1084,42 @@ LAB-KIT-01 Gates 1 through 6 are complete in v0.10.0. Kit owns source discovery,
 
 Detector selection and per-file applicability precede Kit acquisition. Only applicable source-dependent selections acquire Kit; non-source-only audits and selections with no applicable source paths do not resolve its package or build an index. Lab still owns filesystem inventory/classification, line/size metadata, package/configuration/documentation reads, and Python/JVM project metadata. Those reads are not replacement source parsers.
 
-The managed provider resolves the installed package through Lab module resolution, verifies package and CLI identity/containment plus extractor revision, indexes outside the target, traverses complete inventory/fact pages, and authenticates artifact, snapshot, source selection, file hashes, capabilities, freshness, and required proofs. It never invokes an automatic install, a PATH Kit executable, a sibling checkout, or registry download. Required unavailable, malformed, stale, truncated, or insufficient evidence raises `KitSourceEvidenceAcquisitionError`; the command returns 2 even with `--fail-on none`, before writing a success report.
+The managed provider resolves the installed package through Lab module resolution, verifies package and CLI identity/containment plus extractor revision, indexes outside the target, traverses complete inventory/fact pages, and authenticates artifact, snapshot, source selection, file hashes, capabilities, freshness, and required proofs. It never invokes an automatic install, a PATH Kit executable, a sibling checkout, or registry download. Acquisition failures (including malformed, stale, truncated, or unqualified insufficient evidence) raise `KitSourceEvidenceAcquisitionError`; the command returns 2 even with `--fail-on none`, before writing a success report.
 
-Partial evidence has one narrow positive route: qualified Java/Kotlin declaration evidence for `docs-code-mismatch` with an explicitly qualified producer profile. It cannot establish declaration absence; unmatched claims requiring unavailable evidence stay unavailable. Without an applicable qualified positive claim, insufficient required evidence remains fatal. Python dynamic exports remain unknown for declaration candidacy, while independent qualified file-level signals remain possible. Kotlin object/companion matching uses qualified owner identity rather than simple-name substitution. These are Lab policy qualifications, not compiler binding or runtime reachability.
+Qualified partial imports from the pinned producer are retained with their diagnostics when unsupported dynamic import/require constructs prevent complete target evidence. Acquisition still verifies identities, selection, hashes, pages and freshness. Import-dependent missing-source and reverse-reference/dead-code predicates report `PARTIAL_COVERAGE UNAVAILABLE` through existing detector errors; independent qualified checks continue. Required incomplete coverage returns exit 2 even with `--fail-on none`, with findings and a report retained. Direct provider calls remain strict unless explicitly delegating partial-import qualification to consumers. No partial capability is promoted to complete. Kit bounded literal values (`value: null`, `valueTruncated: true`, validated `valueSha256`) remain explicitly unknown; the existing detectors use independently authenticated source queries rather than interpreting redacted observation values. In a partial-import run, authenticated inventory records that explicitly declare unsupported raw content with no content hash produce raw-content coverage gaps for affected test/fixture predicates; no unauthenticated content is read and no absence is inferred. Missing required inventory entries still abort. Malformed metadata, truncated pages/streams and failed integrity checks still fail closed.
 
-Production source auditing now resolves the exact runtime dependency `@dailephd/my-dev-kit@1.15.0`, with source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, and CLI SHA-256 `ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f`. Its file evidence and coverage matched Candidate 05 across the 15 retained fixtures; its findings matched all 150 accepted Kit oracle decisions. Required artifact, pagination, capability, freshness, and source proof validation still apply. Installed-consumer qualification is recorded separately from this comparison.
+Partial declaration evidence has one narrow positive route: qualified Java/Kotlin declaration evidence for `docs-code-mismatch` with an explicitly qualified producer profile. It cannot establish declaration absence; unmatched claims requiring unavailable evidence stay unavailable. Without an applicable qualified positive claim, insufficient required evidence remains fatal. Python dynamic exports remain unknown for declaration candidacy, while independent qualified file-level signals remain possible. Kotlin object/companion matching uses qualified owner identity rather than simple-name substitution. These are Lab policy qualifications, not compiler binding or runtime reachability.
+
+The historical v0.10.0 release resolves the exact runtime dependency `@dailephd/my-dev-kit@1.15.0`, with source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, and CLI SHA-256 `ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f`. Its file evidence and coverage matched Candidate 05 across the 15 retained fixtures; its findings matched all 150 accepted Kit oracle decisions. Required artifact, pagination, capability, freshness, and source proof validation still apply. Installed-consumer qualification is recorded separately from this comparison.
+
+Lab v0.11.0 resolves exact published Kit 1.16.0
+from its own dependencies. Source-audit qualification binds the release archive
+integrity and the installed CLI digest. Lab requests opt-in schema 1.2.0 with
+extractor `source-audit-v1.6.0` and qualified batch and stream transport. Kit's
+default schema remains 1.1.0. Older strict 1.2.0 readers can reject the optional
+direct modifier proof. Lab requires that proof for predicate-specific
+completeness when broader observations are partial. Historical and explicit
+local archive qualifications retain their separate identities.
 
 The historical accepted development producer is Candidate 05: package metadata `1.14.0`, source-audit schema `1.1.0`, extractor `source-audit-v1.5.0`, upstream cache schema `1.4.0`, and the exact CLI SHA-256 pinned by `QUALIFIED_KIT_CANDIDATE`. Package version alone does not establish compatibility. Public Kit 1.14.0 is a different build. At that historical acceptance, qualified Kit v1.15.0 publication was still required before Lab published-dependency qualification; Candidate 05 did not automatically qualify a future package.
 
 `runAudit().sourceFacts` retains `provider`, optional `kitEvidence` producer/selection/snapshot/traversal provenance, and per-file evidence. The public audit report remains schema `1.0`: its `sourceFacts` section contains aggregate counts, diagnostics and warnings, not the complete internal provenance envelope. A complete selected inventory never implies complete parsing or global absence. See [COMMANDS.md](COMMANDS.md#npm-run-audit) for command and error behavior.
 
+### Planned v0.10.1 predicate-scoped source-evidence compatibility correction (SW-123)
+
+**Historical correction plan.** This scope followed the released v0.10.0 and inherited SW-119 partial-import implementation. A qualified Kit Kotlin Gradle script record can contain complete explicit imports alongside partial declaration and visibility evidence. The historical combined requirement could hide independent valid facts. The coordinated candidate enables predicate-scoped acquisition and qualifications through the owners below.
+
+Keep the managed provider as the only Kit acquisition owner. The authenticated inventory/snapshot, manifest/artifact SHA-256, selected roots, paged facts, producer/package/extractor revision, freshness and file content are mandatory before any consumer qualification. Wrong identity, missing required inventory, malformed records, altered hashes and truncated page streams remain fatal, not ordinary predicate-unavailable warnings. The direct provider remains strict unless the audit runner explicitly delegates evidence adequacy to a policy consumer.
+
+The audit registry owns **per-file and per-predicate** applicability; a file in `tests/fixtures/` is not automatically executable test code. Configuration role may remove only predicates whose semantic domain demonstrably excludes it; actual raw content, fixture and configuration checks remain applicable. The adapter preserves authenticated capability/fact data even when a general file parse status must remain `file-level-only`; no missing fact array is interpreted as absence. Detectors individually qualify positives and negatives, using complete relevant premises for missing-file, dead-code and declaration-absence claims. Partial declarations allow only specifically qualified positive observations, never global absence; one positive docs claim does not discharge another missing claim. Unresolved imports block cross-file negative reasoning where the selected reference domain could still target another file.
+
+The existing runner preserves independent qualified findings and records required unavailable checks through the public schema-`1.0` `detectorErrors` / `PARTIAL_COVERAGE UNAVAILABLE` representation. Internally the required-coverage outcome, not a formatted message prefix alone, governs readiness: complete under-threshold=0, complete threshold breach=1, mandatory incomplete or acquisition failure=2, including `--fail-on none`. Deterministic coverage reasons identify file/domain, detector, predicate, required capability, actual status, Kit diagnostic and unsupported conclusion. The existing report and command contract remains unchanged.
+
+A corrected Kit v1.15.2 **candidate** is qualified against these consumers before any production dependency/pin migration; the historical qualified Kit 1.15.0 and Candidate 05 identities are retained as history, not overwritten. Production Kit changes require an exact installed package, extractor-revision and CLI-hash qualification, full/incremental/freshness proof and installed-consumer integration. This policy does not create a Lab parser, second index, new audit type, runtime semantic proof, or successful audit verdict without sufficient evidence. See [v0.10.1 roadmap](ROADMAP.md#v0101--partial-source-evidence-and-predicate-coverage-correction).
+
 ### Rust source-evidence reuse
 
-Rust `.rs` files use the same managed Kit 1.15.0 bridge and normalized Lab evidence model, with Kit extraction method `rust-tree-sitter`. Ordinary declarations, imports and source ranges can be complete; exports remain partial. Identifier-literal, test-observation, fixture-reference and process-observation capabilities are unsupported. Capability status is checked per file, not inferred from the schema. Qualified trait, impl and method identities remain distinct.
+Rust `.rs` files use the same managed Kit bridge and normalized Lab evidence model, with Kit extraction method `rust-tree-sitter`. Ordinary declarations, imports and source ranges can be complete; exports remain partial. Identifier-literal, test-observation, fixture-reference and process-observation capabilities are unsupported. Capability status is checked per file, not inferred from the schema. Qualified trait, impl and method identities remain distinct.
 
 Four existing source-policy families have accepted Rust examples: duplicate exported declarations, dead-code fixture-basename references, test-rot lexical strings such as `test.skip(`, and cross-platform raw newline-splitting predicates. These are the existing detector policies, not Rust test-ignore semantics or runtime claims. The other six detector families retain their conditional generic metadata/inventory policies; this does not make all ten Rust semantic analyzers.
 
@@ -1411,3 +1434,49 @@ The generic report family uses `src/report/experiments/reportSectionRegistry.ts`
 `src/gallery/readGallerySources.ts` recognizes eight artifact families: plugin experiment report, warm-index campaign, controlled experiment, audit, security validation, Android validation, tutorial manifest, and prompt-template comparison. `galleryPathSafety.ts` validates contained relative artifact references and supported media. `buildGalleryCommand.ts` routes repeatable `--source` inputs through the existing gallery writer. Tutorial execution has no dependency on gallery generation. Security and Android producers remain JSON/text sources without an HTML report to link.
 
 `report compare-prompts` is routed through the report command owner. `promptTemplateComparisonEvidence.ts` performs bounded, contained, change-detected read-only artifact reads and delegates checkpoint verification to the campaign store's complete read validation against authenticated trusted tasks; `promptTemplateComparisonModel.ts` projects matched persisted evidence; the renderer emits deterministic JSON/text/HTML. It invokes no provider and does not recompute task checks. V1 campaign identity does not bind a prompt template: a sidecar or prompt-artifact hash alone cannot prove historical template identity, so V1 evidence without independent run-bound proof is `UNVERIFIED` and `INCOMPARABLE`. V2 prompt-contract integrity is retained. Only persisted proof of a completed response with a contract violation counts as invalid output; when trusted corpus or required evidence is unavailable the comparison is `INCOMPARABLE`.
+
+### Current Kit acceptance verification composition
+
+`scripts/verify-private-provenance.mjs --current` delegates only the explicitly selected current route to its private companion `scripts/verifyCurrentKitAcceptance.mjs`. Historical verification and binding functions remain authoritative for the original contract. No alternate audit engine or source provider is introduced. The companion reuses `runMeasuredCommand`, executable-evidence `readEvidenceBytes`, source identities, the qualified Kit runtime, existing finite tests and packed-package verification. The Gate 5 test can emit a separate fresh current-decision artifact without changing its historical artifact channel.
+
+Independent verification reopens original native bytes, checks selected responsibilities against a separately derived source test inventory, examines all assertion outcomes and all 150 complete findings, and retains coverage denials. The existing raw source identity controls local immutability; explicitly declared UTF-8 CRLF/LF normalization permits source-content comparison across actual OS cells while retaining each raw identity. Hosted qualification checks live exact-SHA CI metadata and retrieves the corresponding three native artifacts. Unsigned local observations are not authorship attestations. Current and historical verdicts remain separate; no historical failure is converted to current or historical PASS.
+
+## Managed R3 evidence and durable audit execution
+
+The managed provider authenticates the producer package and CLI, source
+snapshot, selected inventory, page families, and origin/target content
+identities. Artifact, inventory and file fact pages use 1.2.0 in the R3
+route. Ordinary import-target and exact occurrence responses use 1.1.0.
+Expression-domain and exact-byte responses use 1.0.0. The provider checks
+each family against its own schema and provenance.
+
+Kit is the sole source-fact and source-proof producer. Lab owns
+applicability, detector execution, evidence consumption and reporting.
+An observed candidate can support diagnostics. A positive ESM reference
+requires a qualified witness. Lab continues checking separately qualified
+exact witnesses after an extension alternative and can prove an applicable
+relative exclusion alongside a known default-runtime built-in. A
+profile-qualified missing re-export uses the same finding policy as an
+ordinary missing import. Negative predicates require appropriate profile
+premises, covered alternatives and all relevant origins.
+
+The fixture-basename predicate can consume a qualified exact UTF-8 byte
+occurrence from an unsupported text input. An authenticated match suppresses
+the associated unused-fixture finding. A complete and exact zero supports
+absence for that input and basename. Partial, stale or unauthenticated
+negative evidence cannot support absence. The byte result leaves command
+tokens, decoded lines, regex context, and syntax outside its claim. Runtime
+and build-dependent alternatives with no qualified bound remain indeterminate.
+The managed audit has no unqualified native source-analysis fallback.
+
+Required files are checked against the selected inventory. A coverage gap
+applies to its affected predicate, and independent findings can still be
+reported. Mandatory incompleteness controls exit 2 ahead of issue thresholds.
+
+An execution reserves an initial receipt and records checkpoints and
+subprocess invocation, exit and artifact evidence. The terminal outcome or
+failure refers to available checkpoint and report digests. Early failures
+after reservation can have a terminal failure and zero reports. Retry
+links preserve the earlier execution. The digest of an externally supplied
+export identifies those bytes, while export-to-target provenance can remain
+unknown.

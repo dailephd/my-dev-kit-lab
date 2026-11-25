@@ -2,8 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runLabCli } from "../../src/cli/index.js";
 import type { LabCliWriters } from "../../src/cli/index.js";
 
@@ -16,10 +15,23 @@ import type { LabCliWriters } from "../../src/cli/index.js";
 // no subprocess needed since we call the router in-process here).
 // ---------------------------------------------------------------------------
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const CODE_ROT_JSON_REPORT = "code-rot-audit.json";
 
 const tempDirs: string[] = [];
+const installedPackage = vi.hoisted(() => ({ root: "" }));
+
+// The public test lane puts TEMP inside the source checkout. Give the
+// in-process router a sibling package fixture to model an installation.
+vi.mock("../../src/runtime/packageRoot.js", () => ({
+  discoverPackageRoot: () => installedPackage.root,
+}));
+
+beforeEach(() => {
+  installedPackage.root = mkdtempSync(path.join(os.tmpdir(), "audit-route-package-"));
+  tempDirs.push(installedPackage.root);
+  writeFileSync(path.join(installedPackage.root, "package.json"),
+    JSON.stringify({ name: "@dailephd/my-dev-kit-lab", version: "0.10.0" }));
+});
 
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
@@ -95,16 +107,27 @@ function snapshotDir(root: string): Record<string, string> {
 describe("global --workspace option", () => {
   it("A: defaults workspaceRoot to <home>/.my-dev-kit-lab when --workspace is omitted", async () => {
     const tempHome = mkdtempSync(path.join(os.tmpdir(), "cli-workspace-home-"));
-    tempDirs.push(tempHome);
+    const caller = mkdtempSync(path.join(os.tmpdir(), "cli-workspace-caller-"));
+    tempDirs.push(tempHome, caller);
     const target = noIssuesFixture();
 
-    const code = await withHomeOverride(tempHome, () =>
-      runLabCli(["audit", "--target", target, "--types", "code-rot", "--fail-on", "none"])
-    );
+    const originalCwd = process.cwd();
+    let code: number;
+    try {
+      process.chdir(caller);
+      code = await withHomeOverride(tempHome, () =>
+        runLabCli(["audit", "--target", target, "--types", "code-rot", "--fail-on", "none"])
+      );
+    } finally {
+      process.chdir(originalCwd);
+    }
     expect(code).toBe(0);
 
     const expectedOut = path.join(tempHome, ".my-dev-kit-lab", "reports", "audits", "code-rot");
     expect(existsSync(path.join(expectedOut, CODE_ROT_JSON_REPORT))).toBe(true);
+    const evidence = path.join(caller, "lab-output", "evidence");
+    const [receipt] = readdirSync(evidence);
+    expect(existsSync(path.join(evidence, receipt!, "reports"))).toBe(false);
   });
 
   it("B: an absolute --workspace is used directly", async () => {
@@ -178,10 +201,10 @@ describe("audit route -- workspace/target/output separation", () => {
     const workspaceRoot = mkdtempSync(path.join(os.tmpdir(), "audit-route-workspace-"));
     tempDirs.push(workspaceRoot);
     const target = noIssuesFixture();
-    expect(workspaceRoot).not.toBe(REPO_ROOT);
+    expect(workspaceRoot).not.toBe(installedPackage.root);
     expect(workspaceRoot).not.toBe(target);
 
-    const packageRootReport = path.join(REPO_ROOT, "reports", "audits", "code-rot", CODE_ROT_JSON_REPORT);
+    const packageRootReport = path.join(installedPackage.root, "reports", "audits", "code-rot", CODE_ROT_JSON_REPORT);
     const beforeMtime = existsSync(packageRootReport) ? statSync(packageRootReport).mtimeMs : undefined;
 
     const code = await runLabCli([
@@ -217,7 +240,7 @@ describe("audit route -- workspace/target/output separation", () => {
     tempDirs.push(explicitOut);
     const target = noIssuesFixture();
 
-    const code = await runLabCli([
+    const args = [
       "--workspace",
       workspaceRoot,
       "audit",
@@ -229,9 +252,12 @@ describe("audit route -- workspace/target/output separation", () => {
       "none",
       "--out",
       explicitOut
-    ]);
-    expect(code).toBe(0);
-    expect(existsSync(path.join(explicitOut, CODE_ROT_JSON_REPORT))).toBe(true);
+    ];
+    expect(await runLabCli(args)).toBe(0);
+    const report = path.join(explicitOut, CODE_ROT_JSON_REPORT);
+    const original = readFileSync(report, "utf8");
+    expect(await runLabCli(args)).toBe(2);
+    expect(readFileSync(report, "utf8")).toBe(original);
     expect(existsSync(path.join(workspaceRoot, "reports"))).toBe(false);
   });
 
@@ -282,7 +308,26 @@ describe("audit route -- workspace/target/output separation", () => {
     expect(parsed.sourceOfTruth.packageName).toBe("relative-target-fixture");
   });
 
-  it("preserves existing --fail-on exit-code behavior", async () => {
+  it("keeps reports and receipts outside the target when invoked from it", async () => {
+    const tempHome = mkdtempSync(path.join(os.tmpdir(), "audit-route-target-home-"));
+    tempDirs.push(tempHome);
+    const target = noIssuesFixture();
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(target);
+      expect(await withHomeOverride(tempHome, () => runLabCli([
+        "audit", "--target", ".", "--types", "code-rot", "--fail-on", "none",
+      ]))).toBe(0);
+    } finally {
+      process.chdir(originalCwd);
+    }
+    expect(readdirSync(target)).toEqual(["package.json"]);
+    const workspaceRoot = path.join(tempHome, ".my-dev-kit-lab");
+    expect(existsSync(path.join(workspaceRoot, "reports", "audits", "code-rot", CODE_ROT_JSON_REPORT))).toBe(true);
+    expect(readdirSync(path.join(workspaceRoot, "lab-output", "evidence"))).toHaveLength(1);
+  });
+
+  it.each([false, true])("writes exit 1 reports with explicit output set to %s", async (explicit) => {
     const workspaceRoot = mkdtempSync(path.join(os.tmpdir(), "audit-route-workspace-failon-"));
     tempDirs.push(workspaceRoot);
     const outDir = mkdtempSync(path.join(os.tmpdir(), "audit-route-failon-out-"));
@@ -299,10 +344,66 @@ describe("audit route -- workspace/target/output separation", () => {
       "code-rot",
       "--fail-on",
       "blocker",
-      "--out",
-      outDir
+      ...(explicit ? ["--out", outDir] : []),
     ]);
     expect(code).toBe(1);
+    const reportRoot = explicit ? outDir : path.join(workspaceRoot, "reports", "audits", "code-rot");
+    const report = JSON.parse(readFileSync(path.join(reportRoot, CODE_ROT_JSON_REPORT), "utf8"));
+    expect(report.exit.code).toBe(1);
+  });
+
+  it("writes an incomplete audit with its retained finding at the default report location", async () => {
+    const workspaceRoot = mkdtempSync(path.join(os.tmpdir(), "audit-route-partial-"));
+    tempDirs.push(workspaceRoot);
+    const target = noIssuesFixture();
+    mkdirSync(path.join(target, "tests"));
+    mkdirSync(path.join(target, "src"));
+    writeFileSync(path.join(target, "src", "real.ts"), "export const real = 1;\n");
+    writeFileSync(path.join(target, "tests", "sample.test.ts"),
+      'const title = String(1);\nit.skip(title, () => {});\n');
+
+    const tempHome = mkdtempSync(path.join(os.tmpdir(), "audit-route-explicit-home-"));
+    tempDirs.push(tempHome);
+    const auditArgs = ["audit", "--target", target,
+      "--types", "code-rot", "--include", "tests", "--fail-on", "none"];
+    const snapshot = () => ({
+      entries: readdirSync(target).sort(),
+      packageJson: readFileSync(path.join(target, "package.json"), "utf8"),
+      tests: snapshotDir(path.join(target, "tests")),
+      source: snapshotDir(path.join(target, "src")),
+    });
+    const completeTarget = snapshot();
+    const reportRoot = path.join(workspaceRoot, "reports", "audits", "code-rot");
+    const readReport = () => JSON.parse(readFileSync(path.join(reportRoot, CODE_ROT_JSON_REPORT), "utf8"));
+    const completeWorkspace = mkdtempSync(path.join(os.tmpdir(), "audit-route-complete-"));
+    tempDirs.push(completeWorkspace);
+    const completeOut = path.join(completeWorkspace, "explicit-out");
+    expect(await withHomeOverride(tempHome, () => runLabCli([
+      "--workspace", completeWorkspace, ...auditArgs, "--out", completeOut,
+    ]))).toBe(0);
+    const completeReport = JSON.parse(readFileSync(path.join(completeOut, CODE_ROT_JSON_REPORT), "utf8"));
+    expect(completeReport.detectorErrors).toEqual([]);
+    expect(completeReport.issues).toContainEqual(expect.objectContaining({
+      id: "test-rot:tests/sample.test.ts:skip-usage:2",
+    }));
+    expect(snapshot()).toEqual(completeTarget);
+
+    writeFileSync(path.join(target, "tests", "unresolved.test.ts"),
+      'const specifier = "./unknown.js";\nawait import(String(specifier));\n');
+    const incompleteTarget = snapshot();
+    const code = await withHomeOverride(tempHome, () => runLabCli(["--workspace", workspaceRoot, ...auditArgs]));
+    const report = readReport();
+    expect(code, JSON.stringify({ exit: report.exit, detectorErrors: report.detectorErrors })).toBe(2);
+    expect(report.schemaVersion).toBe("1.0");
+    expect(report.exit.code).toBe(2);
+    expect(report.detectorErrors).toContainEqual(expect.objectContaining({ id: "test-rot",
+      message: expect.stringContaining("missing-source-import; file=tests/unresolved.test.ts; capability=imports") }));
+    expect(report.issues).toContainEqual(expect.objectContaining({ id: "test-rot:tests/sample.test.ts:skip-usage:2" }));
+    expect(readFileSync(path.join(reportRoot, "code-rot-audit.txt"), "utf8")).toContain("INCOMPLETE");
+    expect(readdirSync(path.join(workspaceRoot, "lab-output", "evidence"))).toHaveLength(1);
+    expect(readdirSync(path.join(completeWorkspace, "lab-output", "evidence"))).toHaveLength(1);
+    expect(snapshot()).toEqual(incompleteTarget);
+    expect(existsSync(path.join(tempHome, ".my-dev-kit-lab"))).toBe(false);
   });
 
   it("leaves the audit target byte-for-byte unmodified (target immutability)", async () => {

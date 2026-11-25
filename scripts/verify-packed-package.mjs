@@ -617,6 +617,26 @@ function runNpm(resolveCommand, args, options) {
   });
 }
 
+function installConsumerPackage(resolveCommand, { consumer, tarball, packageName, gate }) {
+  const prefix = runNpm(resolveCommand, ["prefix", "--prefix", consumer], { cwd: consumer, gate });
+  if (prefix.status !== 0 || path.relative(consumer, prefix.stdout.trim()) !== "") {
+    fail(gate, "npm prefix did not resolve to the disposable consumer.", describeChildResult(prefix));
+  }
+
+  const install = runNpm(resolveCommand, ["install", "--prefix", consumer, "--no-audit", "--no-fund", tarball], { cwd: consumer, gate });
+  if (install.status !== 0) {
+    fail(gate, "npm install of the exact tarball failed in the disposable consumer.", describeChildResult(install));
+  }
+
+  const packageRoot = path.join(consumer, "node_modules", packageName);
+  const manifest = path.join(packageRoot, "package.json");
+  if (!existsSync(manifest) || path.relative(path.join(realpathSync(consumer), "node_modules", packageName), realpathSync(packageRoot)) !== "") {
+    fail(gate, `Installed package did not resolve to the disposable consumer: ${packageRoot}`);
+  }
+  console.log(`PACKED_CONSUMER_INSTALL: PASS (prefix=${prefix.stdout.trim()}; package=${packageRoot}; archive=${tarball})`);
+  return packageRoot;
+}
+
 function resolveConsumerBinCommand(resolveCommand, consumerDir) {
   const binDir = path.join(consumerDir, "node_modules", ".bin");
   const pathKey = process.platform === "win32" ? "Path" : "PATH";
@@ -863,22 +883,17 @@ async function main() {
       `${JSON.stringify({ name: "my-dev-kit-lab-packed-consumer", version: "0.0.0", private: true }, null, 2)}\n`,
       "utf8"
     );
-    const installResult = runNpm(resolveCommand, ["install", "--no-audit", "--no-fund", tarballPath], {
-      cwd: dirs.consumer,
+    const installedPackageRoot = installConsumerPackage(resolveCommand, {
+      consumer: dirs.consumer,
+      tarball: tarballPath,
+      packageName: EXPECTED_PACKAGE_NAME,
       gate: "CONSUMER_INSTALL"
     });
-    if (installResult.status !== 0) {
-      fail("CONSUMER_INSTALL", "npm install of the exact tarball failed in the clean consumer project.", describeChildResult(installResult));
-    }
 
     // -----------------------------------------------------------------
     // 4. Verify installed package identity.
     // -----------------------------------------------------------------
-    const installedPackageRoot = path.join(dirs.consumer, "node_modules", EXPECTED_PACKAGE_NAME);
     const installedPackageJsonPath = path.join(installedPackageRoot, "package.json");
-    if (!existsSync(installedPackageJsonPath)) {
-      fail("CONSUMER_INSTALL", `Installed package.json not found: ${installedPackageJsonPath}`);
-    }
     const installedPackageJson = JSON.parse(await readFile(installedPackageJsonPath, "utf8"));
     const identityProblems = validateInstalledPackageIdentity(installedPackageJson, {
       name: EXPECTED_PACKAGE_NAME,
@@ -1199,40 +1214,67 @@ async function main() {
     // Gate 6: the ordinary installed audit route must use its managed published
     // Kit dependency for Rust, with independent immutable target and output roots.
     const rustTarget = path.join(tempRoot, "rust-target");
-    const rustOut = path.join(dirs.workspace, "reports", "rust-reuse");
+    const rustOutNone = path.join(dirs.workspace, "reports", "rust-reuse-none");
+    const rustOutMedium = path.join(dirs.workspace, "reports", "rust-reuse-medium");
+    const rustOutIncomplete = path.join(dirs.workspace, "reports", "rust-reuse-incomplete");
     const rustProviderModule = await import(pathToFileURL(path.join(installedPackageRoot, "dist", "src", "audits", "core", "kitSourceProvider.js")).href);
     const rustProvider = rustProviderModule.resolveInstalledKitPackage();
-    if (rustProvider.packageVersion !== "1.15.0" || rustProvider.cliSha256 !== "ac66e5a4a06b48f7a7bbbf03734002bd6686cc6aa2343d097ff374f52fcb486f") fail("RUST_REUSE", "Installed managed Rust provider identity mismatch.");
+    const { QUALIFIED_CURRENT_PUBLISHED_KIT: rustProfile } = rustProviderModule;
+    if (rustProvider.packageName !== rustProfile.packageName || rustProvider.packageVersion !== rustProfile.packageVersion ||
+        rustProvider.cliSha256 !== rustProfile.cliSha256) fail("RUST_REUSE", "Installed managed Rust provider identity mismatch.");
     const rustProviderBefore = await snapshotDirectory(rustProvider.packageRoot);
     cpSync(path.join(REPO_ROOT, "tests", "fixtures", "audits", "rust-reuse"), rustTarget, { recursive: true });
     const rustBefore = await snapshotDirectory(rustTarget);
-    const rustArgs = ["--workspace", dirs.workspace, "audit", "--target", rustTarget, "--types", "code-rot", "--fail-on", "none", "--format", "json", "--out", rustOut];
-    const rustRun = runInstalledCli(cliCommand, dirs.consumer, rustArgs, envWithBin);
-    if (rustRun.status !== 0) fail("RUST_REUSE", "Installed Rust audit failed.", describeChildResult(rustRun));
-    const rustReportName = readdirSync(rustOut).find(name => name.endsWith(".json"));
-    const rustReport = JSON.parse(readFileSync(path.join(rustOut, rustReportName), "utf8"));
+    async function runRustAudit({ output, failOn, expectedExit, targetBefore, gate }) {
+      if (existsSync(output)) fail(gate, `Rust report destination already exists: ${output}`);
+      const result = runInstalledCli(
+        cliCommand, dirs.consumer,
+        ["--workspace", dirs.workspace, "audit", "--target", rustTarget, "--types", "code-rot", "--fail-on", failOn, "--format", "json", "--out", output],
+        envWithBin
+      );
+      if (!isDeepStrictEqual(await snapshotDirectory(rustTarget), targetBefore)) fail(gate, "Rust target changed during auditing.");
+      if (result.status !== expectedExit) fail(gate, `Expected Rust audit exit ${expectedExit}.`, describeChildResult(result));
+      const reportPath = path.join(output, "code-rot-audit.json");
+      if (!existsSync(reportPath)) fail(gate, "Rust audit did not write its JSON report.", describeChildResult(result));
+      const report = JSON.parse(readFileSync(reportPath, "utf8"));
+      if (report.exit?.code !== expectedExit || report.exit.failOnThreshold !== failOn) {
+        fail(gate, "Rust report did not record the expected exit code and severity threshold.");
+      }
+      return report;
+    }
+
+    const rustReport = await runRustAudit({ output: rustOutNone, failOn: "none", expectedExit: 0, targetBefore: rustBefore, gate: "RUST_REUSE" });
     if (rustReport.sourceFacts?.filesByLanguage?.rust !== 5 || !(rustReport.sourceFacts.filesWithDiagnosticsCount >= 5) ||
         rustReport.issues.some(issue => issue.id.includes("unreferenced-source-file")) ||
         !rustReport.issues.some(issue => issue.detectorId === "duplicate-implementation-candidate" && issue.title.includes("calibrate_sensor") && issue.severity === "info") ||
         !rustReport.issues.some(issue => issue.detectorId === "dead-code-candidate" && issue.title.includes("unused.json")) ||
-        !rustReport.issues.some(issue => issue.detectorId === "test-rot" && issue.title.includes("test.skip(")) ||
         !rustReport.issues.some(issue => issue.detectorId === "cross-platform-rot" && issue.affectedFiles.includes("src/audits/lines.rs"))) {
       fail("RUST_REUSE", "Installed Rust source facts or existing policy findings were absent.");
     }
-    if (!isDeepStrictEqual(await snapshotDirectory(rustTarget), rustBefore)) fail("RUST_REUSE", "Rust target changed.");
-    const rustThresholdArgs = [...rustArgs];
-    rustThresholdArgs[rustThresholdArgs.indexOf("--fail-on") + 1] = "medium";
-    const rustThreshold = runInstalledCli(cliCommand, dirs.consumer, rustThresholdArgs, envWithBin);
-    if (rustThreshold.status !== 1) fail("RUST_REUSE", "Rust findings did not preserve the existing severity-threshold exit 1.", describeChildResult(rustThreshold));
-    if (!isDeepStrictEqual(await snapshotDirectory(rustTarget), rustBefore)) fail("RUST_REUSE", "Threshold Rust audit changed target.");
+    // The Rust fixture contains test.skip( as string data. Kit does not provide
+    // executable test-modifier observations for Rust.
+    if (rustReport.issues.some(issue => issue.detectorId === "test-rot" && issue.title.includes("test.skip("))) {
+      fail("RUST_REUSE", "Rust string data was reported as an executable test modifier.");
+    }
+
+    const thresholdReport = await runRustAudit({ output: rustOutMedium, failOn: "medium", expectedExit: 1, targetBefore: rustBefore, gate: "RUST_REUSE" });
+    if (thresholdReport.exit.breached !== true ||
+        !thresholdReport.issues.some(issue => issue.detectorId === "cross-platform-rot" && issue.severity === "medium" && issue.affectedFiles.includes("src/audits/lines.rs"))) {
+      fail("RUST_REUSE", "Rust threshold exit was not supported by the expected medium cross-platform finding.");
+    }
+
     // Deliberately incomplete required declarations, produced by Kit itself.
-    // --fail-on none must still return the established runtime failure code.
     writeFileSync(path.join(rustTarget, "src", "primary.rs"), '#[cfg(feature = "optional")]\npub fn conditional() {}\n');
     const incompleteBefore = await snapshotDirectory(rustTarget);
-    const rustIncomplete = runInstalledCli(cliCommand, dirs.consumer, rustArgs, envWithBin);
-    if (rustIncomplete.status !== 2) fail("RUST_REQUIRED_EVIDENCE", "Incomplete Rust evidence did not exit 2 with --fail-on none.", describeChildResult(rustIncomplete));
-    if (!rustIncomplete.stderr.includes("capability-insufficient")) fail("RUST_REQUIRED_EVIDENCE", "Rust exit 2 did not identify its required capability failure.", describeChildResult(rustIncomplete));
-    if (!isDeepStrictEqual(await snapshotDirectory(rustTarget), incompleteBefore)) fail("RUST_REQUIRED_EVIDENCE", "Incomplete Rust audit changed target.");
+    if (!isDeepStrictEqual(diffSnapshots(rustBefore, incompleteBefore), ["modified: src/primary.rs"])) {
+      fail("RUST_REQUIRED_EVIDENCE", "The incomplete-evidence transition changed an unexpected Rust target path.");
+    }
+    const incompleteReport = await runRustAudit({ output: rustOutIncomplete, failOn: "none", expectedExit: 2, targetBefore: incompleteBefore, gate: "RUST_REQUIRED_EVIDENCE" });
+    if (!incompleteReport.exit.reason.includes("Required audit coverage is INCOMPLETE") ||
+        !incompleteReport.detectorErrors.some(error => error.id === "duplicate-implementation-candidate" &&
+          error.message.includes("UNAVAILABLE: declarations evidence; file=src/primary.rs; capability=declarations; status=partial;"))) {
+      fail("RUST_REQUIRED_EVIDENCE", "Rust exit 2 did not identify unavailable required declarations for src/primary.rs.");
+    }
     if (!isDeepStrictEqual(await snapshotDirectory(installedPackageRoot), installedPackageBefore)) fail("RUST_REUSE", "Installed package changed during Rust auditing.");
     if (!isDeepStrictEqual(await snapshotDirectory(rustProvider.packageRoot), rustProviderBefore)) fail("RUST_REUSE", "Installed Kit provider changed during Rust auditing.");
     console.log("RUST_REUSE: PASS (published managed Kit; existing findings; separate output; target/package immutable; fail-on none exits 0; medium exits 1; required cfg evidence exits 2)");
@@ -1562,11 +1604,25 @@ async function main() {
       );
     }
     writeFileSync(path.join(dirs.upstream, "package.json"), `${JSON.stringify({ name: "my-dev-kit-lab-packed-upstream", version: "0.0.0", private: true }, null, 2)}\n`, "utf8");
-    const upstreamInstall = runNpm(resolveCommand, ["install", "--no-audit", "--no-fund", UPSTREAM_MY_DEV_KIT_SPEC], { cwd: dirs.upstream, gate: "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT" });
-    if (upstreamInstall.status !== 0) {
-      fail("AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT", `npm install of ${UPSTREAM_MY_DEV_KIT_SPEC} failed.`, describeChildResult(upstreamInstall));
+    const upstreamGate = "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT";
+    const upstreamPackDir = path.join(dirs.upstream, "pack");
+    await mkdir(upstreamPackDir);
+    const upstreamPack = runNpm(resolveCommand, ["pack", "--json", "--pack-destination", upstreamPackDir, UPSTREAM_MY_DEV_KIT_SPEC], { cwd: dirs.upstream, gate: upstreamGate });
+    if (upstreamPack.status !== 0) {
+      fail(upstreamGate, `npm pack of ${UPSTREAM_MY_DEV_KIT_SPEC} failed.`, describeChildResult(upstreamPack));
     }
-    const upstreamPackageRoot = path.join(dirs.upstream, "node_modules", ...UPSTREAM_MY_DEV_KIT_PACKAGE.split("/"));
+    const upstreamTarball = findExactlyOneTarball(readdirSync(upstreamPackDir));
+    resolvePackEntry(await loadPackJsonEntryParser(), upstreamPack.stdout, {
+      expectedName: UPSTREAM_MY_DEV_KIT_PACKAGE,
+      expectedVersion: UPSTREAM_MY_DEV_KIT_VERSION,
+      tarballFilename: upstreamTarball
+    });
+    const upstreamPackageRoot = installConsumerPackage(resolveCommand, {
+      consumer: dirs.upstream,
+      tarball: path.join(upstreamPackDir, upstreamTarball),
+      packageName: UPSTREAM_MY_DEV_KIT_PACKAGE,
+      gate: upstreamGate
+    });
     const upstreamPackageJson = readJsonFile(path.join(upstreamPackageRoot, "package.json"), "AFFECTED_NEIGHBORHOOD_REAL_MY_DEV_KIT");
     const upstreamIdentityProblems = validateUpstreamMyDevKitIdentity(upstreamPackageJson);
     const upstreamBinRelative = resolveUpstreamBinRelativePath(upstreamPackageJson);
@@ -1649,11 +1705,12 @@ async function main() {
 
     // ---- Case B: controlled changed file in a disposable second install ----
     writeFileSync(path.join(dirs.mutableConsumer, "package.json"), `${JSON.stringify({ name: "my-dev-kit-lab-packed-mutable-consumer", version: "0.0.0", private: true }, null, 2)}\n`, "utf8");
-    const sandboxInstall = runNpm(resolveCommand, ["install", "--no-audit", "--no-fund", tarballPath], { cwd: dirs.mutableConsumer, gate: "AFFECTED_NEIGHBORHOOD_CHANGED_FILE" });
-    if (sandboxInstall.status !== 0) {
-      fail("AFFECTED_NEIGHBORHOOD_CHANGED_FILE", "npm install of the exact tarball into the disposable mutable consumer failed.", describeChildResult(sandboxInstall));
-    }
-    const sandboxPackageRoot = path.join(dirs.mutableConsumer, "node_modules", EXPECTED_PACKAGE_NAME);
+    const sandboxPackageRoot = installConsumerPackage(resolveCommand, {
+      consumer: dirs.mutableConsumer,
+      tarball: tarballPath,
+      packageName: EXPECTED_PACKAGE_NAME,
+      gate: "AFFECTED_NEIGHBORHOOD_CHANGED_FILE"
+    });
     const { resolved: sandboxCliCommand, envWithBin: sandboxEnv } = resolveConsumerBinCommand(resolveCommand, dirs.mutableConsumer);
     const sandboxBenchmarkRoot = path.join(sandboxPackageRoot, "benchmarks", "projects", AFFECTED_BENCHMARK_PROJECT);
     const sandboxMutatedFile = path.join(sandboxBenchmarkRoot, ...AFFECTED_MUTATED_FILE.split("/"));

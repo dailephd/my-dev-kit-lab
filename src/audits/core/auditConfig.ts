@@ -32,6 +32,12 @@ export type RawAuditArgs = {
   format?: string;
   failOn?: string;
   out?: string;
+  retryOf?: string;
+  kitArchive?: string;
+  kitPackageRoot?: string;
+  sourceExport?: string;
+  sourceSnapshot?: string;
+  requiredSourcePaths?: string[];
   // v0.4.2 Batch 3 -- one closed boolean opt-in for programmatic Android
   // integration (Batch 2's AndroidAuditRequest). No value, no profile
   // string, no Gradle/external-tool/network passthrough -- see
@@ -39,13 +45,18 @@ export type RawAuditArgs = {
   android?: boolean;
 };
 
-const FLAGS_WITH_VALUE: Record<string, Exclude<keyof RawAuditArgs, "android">> = {
+const FLAGS_WITH_VALUE: Record<string, Exclude<keyof RawAuditArgs, "android" | "requiredSourcePaths">> = {
   "--target": "target",
   "--types": "types",
   "--include": "include",
   "--format": "format",
   "--fail-on": "failOn",
   "--out": "out",
+  "--retry-of": "retryOf",
+  "--kit-archive": "kitArchive",
+  "--kit-package-root": "kitPackageRoot",
+  "--source-export": "sourceExport",
+  "--source-snapshot": "sourceSnapshot",
 };
 
 // v0.4.2 Batch 3 -- presence-only flags (no following value consumed).
@@ -57,6 +68,11 @@ export function parseAuditArgs(argv: string[]): RawAuditArgs {
   const result: RawAuditArgs = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+    if (arg === "--require-source") {
+      if (i + 1 >= argv.length) throw new Error("Missing value for --require-source.");
+      (result.requiredSourcePaths ??= []).push(argv[++i]!);
+      continue;
+    }
     const booleanKey = BOOLEAN_FLAGS[arg];
     if (booleanKey) {
       result[booleanKey] = true;

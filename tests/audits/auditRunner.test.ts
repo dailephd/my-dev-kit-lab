@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as registryModule from "../../src/audits/core/auditRegistry.js";
 import path from "node:path";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import type { AuditDetector } from "../../src/audits/core/auditRegistry.js";
 import type { AuditIssue } from "../../src/audits/core/auditIssue.js";
 import type { AuditTarget } from "../../src/audits/core/auditTarget.js";
+import fs from "node:fs";
+import os from "node:os";
 
 const toolRoot = process.cwd();
 
@@ -55,6 +58,77 @@ function fakeTarget(): AuditTarget {
     safeReportOutputRoot: path.join(toolRoot, "reports", "audits"),
   };
 }
+
+describe("structured predicate coverage disposition", () => {
+  it("does not waive undetermined registry applicability with a consumer not-applicable disposition", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "r1-undetermined-"));
+    const original = registryModule.resolveApplicableKitRequirements;
+    const spy = vi.spyOn(registryModule, "resolveApplicableKitRequirements").mockImplementation((...args) => {
+      const applicable = original(...args);
+      return { ...applicable, requirements: applicable.requirements.map(requirement => requirement.capability === "imports"
+        ? { ...requirement, applicability: "UNDETERMINED" as const, reason: "Synthetic unresolved applicability for the registry-disposition test." }
+        : requirement) };
+    });
+    let consumerRan = false;
+    try {
+      fs.mkdirSync(path.join(root, "src"));
+      fs.writeFileSync(path.join(root, "src/main.ts"), "export const main = 1;\n");
+      const registry = [makeDetector({ id: "dead-code-candidate", supportedIncludeAreas: ["cli", "tests"], run: ctx => {
+        consumerRan = true;
+        for (const file of ctx.sourceFacts?.files ?? []) ctx.reportCoverage!({ detectorId: "dead-code-candidate", predicate: "imports evidence",
+          source: { kind: "file", identity: file.relativePath }, capability: "imports", actualStatus: "complete",
+          status: "NOT_APPLICABLE", mandatory: false, diagnostic: "", reason: "Synthetic consumer disposition." });
+        return [];
+      } })];
+      await expect(runAudit({ config: normalizeAuditConfig({ include: "cli,tests", failOn: "none" }, root), toolRoot: root, registry }))
+        .rejects.toMatchObject({ category: "capability-insufficient", message: expect.stringContaining("undetermined") });
+      expect(consumerRan).toBe(false);
+    } finally { spy.mockRestore(); fs.rmSync(root, { recursive: true, force: true }); }
+  }, 120000);
+
+  it.each([
+    ["QUALIFIED", true, "none", 0],
+    ["NOT_APPLICABLE", true, "none", 0],
+    ["UNAVAILABLE", false, "none", 0],
+    ["UNDETERMINED", false, "none", 0],
+    ["UNAVAILABLE", true, "none", 2],
+    ["UNAVAILABLE", true, "medium", 2],
+    ["UNDETERMINED", true, "none", 2],
+    ["QUALIFIED", true, "medium", 1],
+  ] as const)("%s mandatory=%s failOn=%s returns %s", async (status, mandatory, failOn, exitCode) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "p4-coverage-"));
+    try {
+      const config = normalizeAuditConfig({ include: "docs", failOn }, root);
+      const registry = [makeDetector({ run: ctx => {
+        const record = { detectorId: "test-detector", predicate: "claim A", source: { kind: "domain" as const, identity: "selected sources" },
+          capability: "declarations", actualStatus: "partial", status, mandatory, diagnostic: "producer diagnostic", reason: "bounded predicate" };
+        ctx.reportCoverage!(record);
+        ctx.reportCoverage!({ ...record });
+        ctx.reportCoverage!({ ...record, predicate: "claim B" });
+        ctx.reportCoverage!({ ...record, reason: "a distinct producer limitation" });
+        return [makeIssue({ id: "first" }), makeIssue({ id: "second" })];
+      } })];
+      const first = await runAudit({ config, toolRoot: root, registry });
+      const second = await runAudit({ config, toolRoot: root, registry });
+      expect(first.exitCode).toBe(exitCode);
+      expect(first.coverage).toHaveLength(3);
+      expect(first.coverage).toEqual(second.coverage);
+      expect(first.detectorErrors).toHaveLength(exitCode === 2 ? 3 : 0);
+      expect(first.issues.map(i => i.id)).toEqual(["first", "second"]);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("does not derive coverage disposition from an ordinary error's English prefix", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "p4-message-"));
+    try {
+      const result = await runAudit({ config: normalizeAuditConfig({}, root), toolRoot: root,
+        registry: [makeDetector({ run: () => { throw new Error("PARTIAL_COVERAGE UNAVAILABLE: arbitrary detector failure"); } })] });
+      expect(result.coverage).toEqual([]);
+      expect(result.exitCode).toBe(0);
+      expect(result.detectorErrors).toHaveLength(1);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+});
 
 describe("runAudit — zero detectors", () => {
   it("handles an empty registry without overclaiming (no issues, no false confidence)", async () => {

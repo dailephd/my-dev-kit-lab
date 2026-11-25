@@ -4,7 +4,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveCommand } from "../../src/core/resolveCommand.js";
 const providerOverride = vi.hoisted(() => ({ root: undefined as string | undefined }));
 vi.mock("../../src/audits/core/auditRunner.js", async () => {
   const actual = await vi.importActual<typeof import("../../src/audits/core/auditRunner.js")>("../../src/audits/core/auditRunner.js");
@@ -29,7 +28,7 @@ async function runAuditWithoutProvider(args: string[], missingRoot: string) {
 //
 // Runs the real CLI against a temp "external" fixture project (distinct from
 // this tool's own repo) and confirms: it runs successfully, reports land
-// under the tool's own output root (or an explicit --out), the external
+// under the current audit workspace's explicit --out, the external
 // target's files are byte-for-byte unmodified, inventory/sourceOfTruth
 // populate correctly, a deliberately-seeded real finding shows up, and a
 // variant with a space in the external target's directory name also works.
@@ -84,11 +83,10 @@ function hashAllFiles(root: string): Map<string, string> {
   return hashes;
 }
 
-function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
-  if (args.includes("--out")) args = ["--include", "docs", ...args];
-  const fullArgs = [path.join(toolRoot, "node_modules/tsx/dist/cli.mjs"), path.join(toolRoot, "scripts/audits/runAudit.ts"), ...args];
+function runAuditCli(workspace: string, args: string[]): { stdout: string; stderr: string; status: number } {
+  const fullArgs = [path.join(toolRoot, "node_modules/tsx/dist/cli.mjs"), path.join(toolRoot, "scripts/audits/runAudit.ts"), "--include", "docs", ...args];
   try {
-    const stdout = execFileSync(process.execPath, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
+    const stdout = execFileSync(process.execPath, fullArgs, { cwd: workspace, encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };
@@ -102,8 +100,9 @@ describe("audit --target <external-dir> — end-to-end regression guard", () => 
     makeExternalFixture(externalRoot);
     const beforeHashes = hashAllFiles(externalRoot);
 
-    const outDir = makeTempDir("audit-external-out-");
-    const result = runAuditCli([
+    const workspace = makeTempDir("audit-external-workspace-");
+    const outDir = path.join(workspace, "reports");
+    const result = runAuditCli(workspace, [
       "--target",
       externalRoot,
       "--types",
@@ -155,8 +154,9 @@ describe("audit --target <external-dir> — end-to-end regression guard", () => 
     fs.mkdirSync(externalRoot, { recursive: true });
     makeExternalFixture(externalRoot);
 
-    const outDir = makeTempDir("audit-external-space-out-");
-    const result = runAuditCli([
+    const workspace = makeTempDir("audit-external-space-workspace-");
+    const outDir = path.join(workspace, "reports");
+    const result = runAuditCli(workspace, [
       "--target",
       externalRoot,
       "--types",

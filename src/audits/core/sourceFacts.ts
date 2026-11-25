@@ -131,6 +131,29 @@ export type SourceFileKitEvidence = {
   capabilities: Record<string, string>;
 };
 
+// Internal Kit observation handoff. The audit report exposes only the
+// existing source-facts summary.
+export type KitTestObservation = {
+  readonly kind: "test-observation";
+  readonly originPath: string;
+  readonly observationKind: string;
+  readonly name?: string;
+  readonly value?: string | null;
+  readonly valueSha256?: string;
+  readonly valueTruncated?: boolean;
+  readonly provenance: Readonly<SourceFactProvenance>;
+};
+
+export type KitTestObservationDomain = {
+  readonly snapshotId: string;
+  readonly selectionFingerprint: string;
+  readonly contentSha256: string;
+  readonly capability: string;
+  readonly producerStatus: string;
+  readonly directModifierCapability?: "complete" | "partial";
+  readonly observations: readonly KitTestObservation[];
+};
+
 export type SourceFileFacts = {
   relativePath: string;
   language: NormalizedLanguage;
@@ -145,6 +168,7 @@ export type SourceFileFacts = {
   lineCount?: number;
   // v0.10.0 Gate 3 -- additive. Absent on legacy-analyzer records.
   kit?: SourceFileKitEvidence;
+  kitTestObservations?: KitTestObservationDomain;
   imports: ImportFact[];
   exports: ExportFact[];
   declarations: DeclarationFact[];

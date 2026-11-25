@@ -1,3 +1,4 @@
+import { observeAuditSource } from "./auditExecutionReceipt.js";
 import type { AuditConfig } from "./auditConfig.js";
 import { calculateAuditExitCode } from "./auditExitCode.js";
 import type { AuditIssue } from "./auditIssue.js";
@@ -9,6 +10,7 @@ import {
   allowsKitPartialPositiveDeclarations,
   selectDetectors,
   type AuditDetector,
+  type AuditPredicateCoverage,
 } from "./auditRegistry.js";
 import { resolveAuditTarget, type AuditTarget } from "./auditTarget.js";
 import type { AuditSeverity } from "./auditTypes.js";
@@ -21,7 +23,7 @@ import {
   type KitSourceProviderDependencies,
   type KitSourceReader,
 } from "./kitSourceProvider.js";
-import { KitSourceEvidenceAcquisitionError } from "./kitSourceEvidence.js";
+import { KitSourceEvidenceAcquisitionError, validateKitRelativePath } from "./kitSourceEvidence.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "./pythonProjectMetadata.js";
 import { runSecurityAuditAdapter } from "../security/securityAuditAdapter.js";
 import {
@@ -71,10 +73,12 @@ export type AuditResult = {
   issues: AuditIssue[];
   skippedDetectors: AuditSkippedDetector[];
   detectorErrors: AuditDetectorError[];
+  // Always populated by runAudit; optional for historical in-memory fixtures.
+  coverage?: AuditPredicateCoverage[];
   issueCounts: Record<AuditSeverity, number>;
   exitCode: number;
   exitReason: string;
-  // v0.3.0 Batch 2 — data collected before detectors run. With
+  // v0.3.0 Batch 2 â€” data collected before detectors run. With
   // DEFAULT_AUDIT_REGISTRY still empty, these are the only substantive
   // output of a run; issues/detector fields above stay at their Batch 1
   // zero-value shape until a later batch registers real detectors.
@@ -114,6 +118,8 @@ export type AuditSourceProviderMode = "kit";
 export type RunAuditOptions = {
   config: AuditConfig;
   toolRoot: string;
+  declaredSnapshot?: string;
+  requiredSourcePaths?: readonly string[];
   sourceProviderMode?: AuditSourceProviderMode;
   // Internal test/consumer seam for the verified installed Kit package,
   // command runner and working directory. Not a public option.
@@ -159,7 +165,12 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   const registry = options.registry ?? DEFAULT_AUDIT_REGISTRY;
   const target = options.target ?? resolveAuditTarget(config.targetPathArg, toolRoot);
 
+  const receipt = options.kitSourceProviderDependencies?.receipt;
+  receipt?.setStage("lab-inventory");
   const inventory = scanProjectInventory(target.rootPath);
+  const observedSource = receipt ? await observeAuditSource(inventory) : undefined;
+  if (receipt && observedSource) receipt.write("source-inventory", { ...observedSource,
+    declaredSnapshot: options.declaredSnapshot ?? null });
   const sourceOfTruth = collectSourceOfTruth(target.rootPath, inventory);
   const pythonProjectMetadata = collectPythonProjectMetadata(target.rootPath, inventory);
 
@@ -169,9 +180,32 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   const selected = selectDetectors(registry, config.types, config.include);
   let sourceFacts: SourceFactsSnapshot;
   let kitSourceReader: KitSourceReader | undefined;
+  const applicable = resolveApplicableKitRequirements(selected, inventory, config.include);
+  receipt?.write("lab-selection", { detectors: selected.map(detector => detector.id),
+    required: applicable.paths.map(file => ({ file, present: inventory.files.some(entry => entry.relativePath === file) })),
+    requirements: applicable.requirements });
+  receipt?.setStage("source-snapshot");
+  if (options.declaredSnapshot !== undefined && !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(options.declaredSnapshot)) {
+    throw new Error("The declared source snapshot must be a full Git object ID.");
+  }
+  if (observedSource?.candidateGitSha && options.declaredSnapshot &&
+      observedSource.candidateGitSha !== options.declaredSnapshot.toLowerCase()) {
+    throw new Error("The observed source Git HEAD differs from the declared snapshot.");
+  }
+  receipt?.setStage("declared-required-files");
+  const requiredExport = [...new Set(options.requiredSourcePaths)].sort().map(file => {
+    validateKitRelativePath(file, "declared required source path");
+    const observed = observedSource?.inventory.find(entry => entry.path === file);
+    return { path: file, present: observed ? observed.sha256 !== null :
+      inventory.files.some(entry => entry.relativePath === file) };
+  });
+  receipt?.write("declared-required-files", requiredExport);
+  const absent = requiredExport.filter(file => !file.present).map(file => file.path);
+  if (absent.length) {
+    throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Declared required files absent from readable Lab inventory: ${absent.join(", ")}.`);
+  }
   try {
     const kitRequirement = resolveKitSourceEvidenceRequirement(selected);
-    const applicable = resolveApplicableKitRequirements(selected, inventory, config.include);
     if (kitRequirement.required && applicable.paths.length > 0) {
       // Any acquisition failure propagates as KitSourceEvidenceAcquisitionError
       // (exit 2 via the command boundary, independent of --fail-on). There is
@@ -181,8 +215,10 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
           targetRoot: target.rootPath,
           inventory,
           requiredCapabilities: kitRequirement.capabilities,
+          deferPartialImports: true,
           includeScriptsRoot: kitRequirement.includeScriptsRoot,
           requiredPaths: applicable.paths,
+          predicateRequirements: applicable.requirements,
           capabilitiesForPath: (filePath) => requiredKitCapabilitiesForPath(applicable.requirements, filePath),
           allowPartialDeclarationsForPath: (filePath) => allowsKitPartialPositiveDeclarations(applicable.requirements, filePath),
           onReader: (reader) => { kitSourceReader = reader; },
@@ -195,14 +231,33 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   } catch (error) {
     rethrowWithKitRequirementContext(error, selected);
   }
-  const ctx = { target, config, inventory, sourceOfTruth, sourceFacts, kitSourceReader };
 
   const issues: AuditIssue[] = [];
   const skippedDetectors: AuditSkippedDetector[] = [];
   const detectorErrors: AuditDetectorError[] = [];
+  const coverage: AuditPredicateCoverage[] = [];
+  const coverageKeys = new Set<string>();
+  const reportCoverage = (record: AuditPredicateCoverage) => {
+    if (!record.source.identity.trim()) throw new KitSourceEvidenceAcquisitionError("invalid-request", "Predicate coverage requires a file or domain identity.");
+    const key = JSON.stringify([record.detectorId, record.predicate, record.source.kind, record.source.identity,
+      record.capability, record.actualStatus, record.status, record.mandatory, record.diagnostic, record.reason, record.proof]);
+    if (!coverageKeys.has(key)) { coverageKeys.add(key); coverage.push({ ...record, source: { ...record.source } }); }
+  };
+  const ctx = { target, config, inventory, sourceOfTruth, sourceFacts, kitSourceReader,
+    reportCoverage,
+    reportUnavailable: (id: string, predicate: string, filePath: string, reason: string, capability = "imports") => {
+      const file = sourceFacts.files.find(f => f.relativePath === filePath);
+      reportCoverage({ detectorId: id, predicate, source: { kind: "file", identity: filePath }, capability,
+        actualStatus: file?.kit?.capabilities[capability] ?? "unavailable",
+        status: "UNAVAILABLE", mandatory: true,
+        diagnostic: file?.diagnostics.map(d => d.code + ": " + d.message).join("; ") ?? "",
+        reason });
+    } };
+
 
   // Sequential, in registry order -- keeps issue ordering deterministic
   // without needing a secondary sort step.
+  receipt?.setStage("detectors");
   try {
     for (const detector of selected) {
     try {
@@ -224,7 +279,8 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     }
     }
   } finally {
-    kitSourceReader?.dispose();
+    try { receipt?.write("detector-observations", { issues, skippedDetectors, detectorErrors, coverage }); }
+    finally { await kitSourceReader?.dispose(); }
   }
 
   // v0.3.2 Batch 4 -- security audit adapter. Conditional (see the
@@ -237,8 +293,9 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   let securitySummary: SecurityAuditReportSummary = SECURITY_AUDIT_NOT_RUN_SUMMARY;
   let androidSummary: AndroidAuditSummary = ANDROID_AUDIT_NOT_REQUESTED_SUMMARY;
   if (config.types.includes("security")) {
+    receipt?.setStage("security-validation");
     const securityAudit = await runSecurityAuditAdapter(
-      { toolRoot, config, android: config.android ? { enabled: true } : undefined },
+      { toolRoot, config, receipt, android: config.android ? { enabled: true } : undefined },
       options.securityDependencies
     );
     issues.push(...securityAudit.issues);
@@ -247,7 +304,35 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
   }
 
   const issueCounts = countIssuesBySeverity(issues);
-  const { exitCode, reason } = calculateAuditExitCode(issues, config.failOn);
+  // Reconcile every registry obligation after consumers have named their
+  // specific predicates. This safety net does not duplicate a consumer gap.
+  for (const requirement of applicable.requirements) {
+    const file = sourceFacts.files.find(f => f.relativePath === requirement.path);
+    const actualStatus = file?.kit?.capabilities[requirement.capability] ?? "unavailable";
+    const mandatory = requirement.applicability === "APPLICABLE_REQUIRED" || requirement.applicability === "UNDETERMINED";
+    const status = requirement.applicability === "NOT_APPLICABLE" ? "NOT_APPLICABLE"
+      : requirement.applicability === "UNDETERMINED" ? "UNDETERMINED"
+      : actualStatus === "complete" ? "QUALIFIED" : "UNAVAILABLE";
+    // Consumers can discharge this exact registry dependency after applying
+    // their actual predicate premises. An undetermined applicability remains
+    // undetermined; one unrelated positive predicate cannot waive it.
+    if (requirement.applicability !== "UNDETERMINED" && coverage.some(c => c.detectorId === requirement.detectorId &&
+        c.predicate === `${requirement.capability} evidence` && c.capability === requirement.capability &&
+        c.source.kind === "file" && c.source.identity === requirement.path && c.status === "NOT_APPLICABLE")) continue;
+    if (mandatory && coverage.some(c => c.detectorId === requirement.detectorId && c.capability === requirement.capability &&
+        c.source.identity === requirement.path && c.mandatory && c.status === "UNAVAILABLE")) continue;
+    reportCoverage({ detectorId: requirement.detectorId, predicate: `${requirement.capability} evidence`,
+      source: { kind: "file", identity: requirement.path }, capability: requirement.capability, actualStatus, status, mandatory,
+      diagnostic: file?.diagnostics.map(d => d.code + ": " + d.message).join("; ") ?? "",
+      reason: requirement.reason ?? "Registry source-evidence obligation." });
+  }
+  for (const record of coverage.filter(c => c.mandatory && (c.status === "UNAVAILABLE" || c.status === "UNDETERMINED"))) {
+    detectorErrors.push({ id: record.detectorId, message: `PARTIAL_COVERAGE UNAVAILABLE: ${record.predicate}; ${record.source.kind}=${record.source.identity}; capability=${record.capability}; status=${record.actualStatus}; ${record.reason}; ${record.diagnostic}` });
+  }
+  const decision = calculateAuditExitCode(issues, config.failOn);
+  const incomplete = coverage.some(c => c.mandatory && (c.status === "UNAVAILABLE" || c.status === "UNDETERMINED"));
+  const exitCode = incomplete ? 2 : decision.exitCode;
+  const reason = incomplete ? "Required audit coverage is INCOMPLETE; see detectorErrors. Findings retained; --fail-on cannot waive unavailable evidence." : decision.reason;
 
   return {
     configSummary: {
@@ -267,6 +352,7 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     issues,
     skippedDetectors,
     detectorErrors,
+    coverage,
     issueCounts,
     exitCode,
     exitReason: reason,

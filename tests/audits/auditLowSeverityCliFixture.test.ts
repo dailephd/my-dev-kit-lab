@@ -1,9 +1,10 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveCommand } from "../../src/core/resolveCommand.js";
 
 // ---------------------------------------------------------------------------
 // v0.3.0 Batch 6 — real CLI, real fixture, low-severity-only --fail-on
@@ -26,6 +27,7 @@ import { resolveCommand } from "../../src/core/resolveCommand.js";
 // ---------------------------------------------------------------------------
 
 const toolRoot = process.cwd();
+const tsx = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
 const cleanupDirs: string[] = [];
 
 afterEach(() => {
@@ -81,20 +83,20 @@ function lowSeverityOnlyFixture(): string {
   return root;
 }
 
+function makeReportDir(prefix: string): string {
+  return path.join(makeTempDir(prefix), "reports");
+}
+
 function runAuditCli(args: string[]): { stdout: string; stderr: string; status: number } {
-  const outputArgs = args.includes("--out") ? args : [...args, "--out", makeTempDir("audit-lowseverity-out-")];
-  const resolved = resolveCommand("npx", { cwd: toolRoot });
-  const needsResolvedPathArg =
-    resolved.resolutionKind === "windows-cmd-shim" || resolved.resolutionKind === "windows-powershell-shim";
+  const outIndex = args.indexOf("--out");
+  const out = outIndex === -1 ? makeReportDir("audit-lowseverity-out-") : args[outIndex + 1]!;
   const fullArgs = [
-    ...resolved.argsPrefix,
-    ...(needsResolvedPathArg && resolved.resolvedPath ? [resolved.resolvedPath] : []),
-    "tsx",
-    "scripts/audits/runAudit.ts",
-    ...outputArgs,
+    "--import", tsx, path.join(toolRoot, "scripts/audits/runAudit.ts"),
+    ...args,
+    ...(outIndex === -1 ? ["--out", out] : []),
   ];
   try {
-    const stdout = execFileSync(resolved.command, fullArgs, { cwd: toolRoot, encoding: "utf8", windowsHide: true });
+    const stdout = execFileSync(process.execPath, fullArgs, { cwd: path.dirname(out), encoding: "utf8", windowsHide: true });
     return { stdout, stderr: "", status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; stderr?: string; status?: number };
@@ -107,7 +109,7 @@ const BASE_ARGS = ["--types", "code-rot", "--include", "package,docs"];
 describe("audit --fail-on integration — real low-severity-only fixture", () => {
   it("fixture produces exactly one low-severity issue and nothing at higher severity", () => {
     const target = lowSeverityOnlyFixture();
-    const outDir = makeTempDir("audit-lowseverity-shape-");
+    const outDir = makeReportDir("audit-lowseverity-shape-");
     const result = runAuditCli([...BASE_ARGS, "--target", target, "--fail-on", "none", "--format", "json", "--out", outDir]);
     expect(result.status).toBe(0);
     const parsed = JSON.parse(fs.readFileSync(path.join(outDir, "code-rot-audit.json"), "utf8")) as {
@@ -152,7 +154,7 @@ describe("audit --fail-on integration — real low-severity-only fixture", () =>
 
   it("JSON exit.code matches the actual process exit status at the low/medium boundary", () => {
     const target = lowSeverityOnlyFixture();
-    const outDir = makeTempDir("audit-lowseverity-jsoncheck-");
+    const outDir = makeReportDir("audit-lowseverity-jsoncheck-");
     const lowResult = runAuditCli([...BASE_ARGS, "--target", target, "--fail-on", "low", "--format", "json", "--out", outDir]);
     const parsed = JSON.parse(fs.readFileSync(path.join(outDir, "code-rot-audit.json"), "utf8")) as {
       exit: { code: number; breached: boolean };
@@ -164,7 +166,7 @@ describe("audit --fail-on integration — real low-severity-only fixture", () =>
 
   it("text report's exit section matches the actual exit status at the low/medium boundary", () => {
     const target = lowSeverityOnlyFixture();
-    const outDir = makeTempDir("audit-lowseverity-textcheck-");
+    const outDir = makeReportDir("audit-lowseverity-textcheck-");
     const result = runAuditCli([...BASE_ARGS, "--target", target, "--fail-on", "low", "--format", "text", "--out", outDir]);
     const text = fs.readFileSync(path.join(outDir, "code-rot-audit.txt"), "utf8");
     expect(text).toContain(`code=${result.status}`);

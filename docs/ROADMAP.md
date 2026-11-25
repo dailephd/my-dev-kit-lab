@@ -744,7 +744,7 @@ Explicit exclusions:
 
 ### Post-v1 / version TBD — manual pentest
 
-Status: **deferred**.
+Manual-pentest disposition: **deferred**.
 
 * Manual pentest is no longer assigned to v0.4.0 and is not assigned to v0.4.1 or v0.4.2.
 * It remains a human-led post-v1 / version-TBD workflow.
@@ -1708,7 +1708,7 @@ Dependencies and exclusions:
 
 ### v0.10.0 — ecosystem executable-evidence foundation (LAB-EVIDENCE-01)
 
-Status: **v0.10.0 final release-document state; prospective acceptance passed**. LAB-KIT-01 Gates 1 through 6 and LAB-EVIDENCE-01 are complete under the adopted current-candidate route. Registry publication is established separately from this document state.
+Status: **published v0.10.0** (2026-11-14). The accepted release scope and historical validation below remain intact.
 
 Prospective acceptance route **V010-EVIDENCE-ACCEPTANCE-ROUTE-01/1.0.0 is adopted and completed** under contract `LAB-EVIDENCE-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0`. Independent native test run `20261111T132003-v010-lab-evidence-prospective-acceptance` completed 9/9 artifacts and 14/14 current critical responsibilities, verification and accepted judge PASS; complete repository validation passed. This changes only the version-level acceptance basis. The original RSP-011 remains unsatisfied and its run unchanged and unaccepted; no historical supersession, recovered payload or uninterrupted preservation is claimed. The [canonical historical disposition](CURRENT_STATE.md#v0100-development-lab-evidence-01) remains mandatory.
 
@@ -1747,9 +1747,67 @@ Acceptance:
 * Malformed, stale, unsupported, or unauthorized evidence fails closed or remains explicitly unevaluated.
 * No unrestricted task runner or second audit/runtime framework is introduced.
 
-### v0.11.0 — bounded accessibility assurance (LAB-A11Y-01)
+### v0.10.1 — partial-source-evidence and predicate-coverage correction
 
-Status: **planned; not implemented**.
+Status: **implemented locally and unreleased.** This entry preserves the historical corrective scope. See the coordinated v0.11.0 entry for current acceptance.
+
+The candidate inherited from `fix/sw119-r2-v010-partial-evidence` included the bounded SW-118/SW-119 partial JavaScript import correction. Its historical Step 5 full-source audit was **BLOCKED** by qualified partial Kotlin evidence for a Gradle configuration fixture. P3 implemented Gradle configuration roles, per-predicate applicability, authenticated partial-evidence acquisition and capability-independent adapter qualification, with focused tests, typecheck and build passing. At that point the runner had yet to enable the route. The historical plan assigned detector and required-coverage correction to P4, exact Kit package qualification and the production pin transition to P5, and original audit replay to P6. The record preserves the v0.10.1 target patch scope, the v0.10.0 milestone and the earlier v0.11.0 accessibility reservation.
+
+**Goal:** consume independently qualified Kit capabilities and retain every supported audit finding, while explicitly identifying unavailable required predicates and maintaining exit 2 for incomplete mandatory coverage. The corresponding Kit producer correction is scoped to **v1.15.2**; Kit v1.15.0 is the original SW-123 producer and remains a historical frozen input. Do not silently substitute a differently packaged producer.
+
+**Preserved implemented baseline:**
+
+- Qualified partial JavaScript imports and source-independent findings continue; unsupported missing-import, reverse-reference, dead-code and fixture-absence conclusions remain unavailable where required coverage is incomplete.
+- Preserve existing detector IDs, finding IDs/severity, schema-`1.0` text/JSON reports, current audit flags, strict acquisition integrity checks, and released v0.10.0 source compatibility.
+- SW-118/SW-119 authentic recovery and fresh timeout/cross-application evidence remain distinct from unrecovered original provenance; the historical loss is not cured by this patch.
+
+**SW-123 correction scope and owners:**
+
+- **Applicability:** in `src/audits/core/auditRegistry.ts`, `projectInventory.ts`, and JVM metadata interpretation, distinguish a Gradle DSL configuration fixture from an executable test module without blanket `.kts`/fixture exclusions. Resolve each detector/file/predicate obligation as required, optional, explicitly inapplicable, or undetermined, recording the reason. Retain configuration and raw-fixture checks that actually apply.
+- **Acquisition and qualification:** in `kitSourceProvider.ts` and `kitSourceEvidence.ts`, separate authenticated evidence acquisition from semantic sufficiency. Preserve verified partial records, then qualify the precise predicate using the producer capability and provenance. Wrong producer, stale/missing/altered source, hash/selection/page failure and malformed records still fail closed. Keep strict direct-provider semantics unless a consumer explicitly qualifies partial facts.
+- **Adapter:** in `kitSourceAdapter.ts`, retain usable complete import evidence even if declarations are partial. The general file parse status remains conservative; downstream consumers must not interpret `file-level-only` or a missing fact array as complete absence.
+- **Detectors:** in `docsCodeMismatchDetector.ts`, `testRotDetector.ts` and `deadCodeCandidateDetector.ts`, preserve independent findings, require complete relevant premises for absence, and record separate mandatory coverage gaps. A docs positive match must neither be needed to retain unrelated findings nor waive a different unresolved claim. Cross-file unresolved imports must not induce a false unreferenced/dead-code finding.
+- **Reporting:** in the existing `auditRunner.ts`/result owners, derive incomplete-readiness disposition from explicit required coverage, not only the text prefix of an error. Reuse public `detectorErrors` and `PARTIAL_COVERAGE UNAVAILABLE` messages with path/domain, detector, predicate, capability, actual status, diagnostic and reason. Preserve exit **0** for complete/under threshold, **1** for complete/threshold breach, and **2** for mandatory unavailable coverage or invalid acquisition, including with `--fail-on none`. Continue independent checks; retain qualified findings and incomplete reports where safe.
+
+**Ordered correction and verification:**
+
+1. **L0 — Reproduce and freeze SW-123:** retain the exact fixture, Kit 1.15.0 package/record, diagnostic and file hashes, candidate SHA and original failed whole-source audit; map each applicable predicate without editing historical evidence.
+2. **L1 — Integrity, applicability and adapter:** preserve verified partial acquisition, refine test/config roles and independent capability access; retain strict integrity and negative-inference boundaries.
+3. **L2 — Consumer and result semantics:** repair docs/test/dead-code predicate handling, deterministic gap reporting and exit calculation; verify existing JavaScript and complete-evidence results remain unchanged.
+4. **L3 — Qualified Kit producer integration:** test the corrected Kit v1.15.2 exact candidate with Lab, including producer schema, extractor revision, CLI identity, package/lockfile qualification, fresh snapshot proofs, installed consumer and old retained inputs. Only update the production Kit pin after exact qualification; do not rewrite historical pins.
+5. **L4 — Original audit replay and independent readiness:** rerun the original full selected-source audit, not a narrowed scope; run complete tests, docs, packed-package, security, cross-platform CI/CodeQL and required current-candidate gates as separate readiness work after implementation/documentation reconciliation.
+
+**Acceptance:** Complete import enumeration may coexist with partial Kotlin declarations; no false missing import/declaration, unreferenced script or fixture-negative claim is emitted. Real test modules remain tested, configuration fixtures remain eligible for applicable checks, independent documentation findings survive partial declaration evidence, and one positive claim never waives a different mandatory gap. Invalid, stale, tampered, mismatched or unselected producer evidence remains fatal. All mandatory requirements are either qualified, explicitly inapplicable, or reported unavailable with a non-success exit; no fabricated PASS. Existing complete-evidence oracle, 150 accepted Kit decisions, schemas, command surface and producer/consumer ownership are preserved.
+
+**Exclusions:** no Lab Kotlin parser or native source fallback; no Gradle, compiler, target-test or network execution; no new audit type, CLI flag, report schema, experiment, automatic risk exception or v0.11.0 feature reassignment. This roadmap authorizes immediate corrective implementation, **not** a version bump, release preparation, merge, tag or publication.
+
+### v0.11.0 — coordinated source-evidence consumer
+
+Status: **final release-document state; formal current-product acceptance passed**.
+
+The local implementation consumes an authenticated Kit producer for source
+identity, exact ESM witnesses, selected-domain proofs and byte evidence.
+Report and receipt contracts preserve independent findings and return a
+mandatory incomplete result when source coverage cannot support a required
+predicate. The explicit R3 route has installed evidence on Windows and native
+Linux under their recorded execution identities. Follow the
+[adopted product and target policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification).
+The qualified Kit 1.16.0 provider is the pinned production
+dependency. See
+[Commands](COMMANDS.md#managed-audit-with-the-qualified-local-kit-producer)
+and the [historical target outcomes](CURRENT_STATE.md#historical-target-audit-results).
+
+The existing Lab v0.19.0 and Kit v1.19.0 assignments for deferred
+binary/context and Python relative-import capabilities remain in scope for
+those versions. Whole-origin runtime reference closure, build-dependent
+source mapping, and computed imports with unproved runtime alternatives
+remain unallocated future requirements. The current exact-byte basename
+predicate is already implemented and has its own bounded proof contract.
+
+#### Earlier reservation for bounded accessibility assurance (LAB-A11Y-01)
+
+This earlier v0.11.0 reservation remains planned and unimplemented. Its
+release assignment remains a planner decision.
 
 Purpose:
 

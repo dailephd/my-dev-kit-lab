@@ -22,6 +22,7 @@ export type MeasuredCommandResult = {
   endedAt: string;
   durationMs: number;
   exitCode: number | null;
+  signal?: NodeJS.Signals | null;
   stdout: string;
   stderr: string;
   stdoutPath: string;
@@ -38,8 +39,24 @@ export type MeasuredCommandResult = {
   processTreeCleanup?: "confirmed" | "failed" | "not-required";
 };
 
+export type MeasuredCommandInteraction = {
+  onStart(pipe: { pid: number; write(bytes: Buffer): Promise<void>; end(): void }): void;
+  onStdout(bytes: Buffer): void;
+  onStderr(bytes: Buffer): void;
+};
+
 type MeasuredCommandBaseOptions = {
+  /** Interactive stdout belongs to the caller’s bounded frame parser. */
+  interaction?: MeasuredCommandInteraction;
   commandId: string;
+  /** Optional redacted argv used only for the persisted telemetry. */
+  telemetryArgs?: readonly string[];
+  exclusiveArtifacts?: boolean;
+  /** Synchronous reservation immediately before the OS spawn call. Throwing refuses the launch. */
+  beforeSpawn?: () => void;
+  onSpawn?: () => void;
+  signal?: AbortSignal;
+  onSettled?: (result: MeasuredCommandResult) => void;
   cwd: string;
   outDir: string;
   extraArgs?: string[];
@@ -88,6 +105,7 @@ export type RunMeasuredCommandOptions =
   | (MeasuredCommandBaseOptions & { executable: string; args?: readonly string[]; commandString?: never });
 
 export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Promise<MeasuredCommandResult> {
+  if (options.interaction && options.stdinText !== undefined) throw new TypeError("Interactive and fixed stdin are mutually exclusive.");
   await mkdir(options.outDir, { recursive: true });
   const named = readCommandName(options);
   const commandString = named.commandString;
@@ -129,11 +147,18 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
   const startedAt = new Date().toISOString();
   const started = Date.now();
 
-  const result = await new Promise<MeasuredCommandResult>((resolve) => {
+  const write = (filename: string, value: string | Buffer) =>
+    writeArtifact(filename, value, options.exclusiveArtifacts);
+  const telemetry = (result: MeasuredCommandResult) => JSON.stringify(
+    options.telemetryArgs ? { ...result, args: options.telemetryArgs,
+      commandString: serializeCommand([executable, ...options.telemetryArgs]) } : result, null, 2);
+  const result = await new Promise<MeasuredCommandResult>((resolve, reject) => {
     const stdoutCollector = new OutputCollector(options.stdoutMaxBytes);
     const stderrCollector = new OutputCollector(options.stderrMaxBytes);
     let outputLimit: MeasuredCommandResult["outputLimit"];
     let spawnError: string | undefined;
+    let startedProcess = false;
+    let spawnFailed = false;
     let timedOut = false;
     let timeout: NodeJS.Timeout | undefined;
     let killGraceTimeout: NodeJS.Timeout | undefined;
@@ -141,6 +166,8 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     let processTreeCleanup: "confirmed" | "failed" | "not-required" = "not-required";
     let settled = false;
 
+    options.beforeSpawn?.();
+    options.signal?.throwIfAborted();
     let child;
     try {
       child = spawn(executable, args, {
@@ -148,7 +175,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         env: childEnv,
         shell: false,
         windowsHide: true,
-        stdio: options.stdinText !== undefined ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
+        stdio: options.interaction || options.stdinText !== undefined ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
         // Own process group so a bounded termination can reach descendants. Windows reaches the tree
         // through `taskkill /T`, and `detached` there would open a new console, so it is not set.
         ...(options.terminateProcessTree === true && process.platform !== "win32" ? { detached: true } : {})
@@ -176,11 +203,12 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         error: message,
         resolvedCommand: resolution
       };
+      options.onSettled?.(measured);
       void Promise.all([
-        writeArtifact(stdoutPath, ""),
-        writeArtifact(stderrPath, ""),
-        writeArtifact(telemetryPath, JSON.stringify(measured, null, 2))
-      ]).then(() => resolve(measured));
+        write(stdoutPath, ""),
+        write(stderrPath, ""),
+        write(telemetryPath, telemetry(measured))
+      ]).then(() => resolve(measured), reject);
       return;
     }
 
@@ -195,7 +223,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         forceTerminateProcess(child.pid);
       }
       killGraceTimeout ??= setTimeout(() => {
-        void settle(null);
+        void settle(null).catch(reject);
       }, KILL_GRACE_MS);
     };
     const collect = (collector: OutputCollector, stream: "stdout" | "stderr", limit: number | undefined) => (chunk: Buffer | string) => {
@@ -205,9 +233,44 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         terminate();
       }
     };
-    child.stdout!.on("data", collect(stdoutCollector, "stdout", options.stdoutMaxBytes));
-    child.stderr!.on("data", collect(stderrCollector, "stderr", options.stderrMaxBytes));
+    const interaction = options.interaction;
+    const receive = (callback: (bytes: Buffer) => void) => (bytes: Buffer) => {
+      try { callback(bytes); } catch {
+        spawnError ??= "Command interactive handler failed.";
+        terminate();
+      }
+    };
+    const collectStderr = collect(stderrCollector, "stderr", options.stderrMaxBytes);
+    child.stdout!.on("data", interaction ? receive(bytes => interaction.onStdout(bytes)) :
+      collect(stdoutCollector, "stdout", options.stdoutMaxBytes));
+    child.stderr!.on("data", interaction ? receive(bytes => {
+      collectStderr(bytes);
+      interaction.onStderr(bytes);
+    }) : collectStderr);
+    const abort = () => {
+      spawnError ??= "Command cancelled.";
+      terminate();
+    };
+    child.once("spawn", () => {
+      startedProcess = true;
+      try {
+        options.onSpawn?.();
+        if (interaction && !options.signal?.aborted) {
+          const stdin = child.stdin!;
+          interaction.onStart({
+            pid: child.pid!,
+            write: bytes => new Promise((resolve, reject) => stdin.write(bytes, error => error ? reject(error) : resolve())),
+            end: () => { stdin.end(); },
+          });
+        }
+      }
+      catch (error) {
+        spawnError = error instanceof Error ? error.message : String(error);
+        terminate();
+      }
+    });
     child.on("error", (error) => {
+      if (!startedProcess) spawnFailed = true;
       spawnError = error.message;
       // A failed spawn in a working directory that exists is not a missing executable; the OS may be refusing the path (for
       // example a very long cwd on Windows). Report the measured length
@@ -222,11 +285,12 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     // A failed spawn can also make the OS report the never-connected stdout/stderr pipes as errors (Windows:
     // read ENOTCONN). They are stream events of this one failed process: record the first cause once and let
     // the 'close' event settle the result, instead of letting an unhandled 'error' event end the whole process.
-    const recordStreamError = (stream: "stdout" | "stderr") => (error: Error) => {
+    const recordStreamError = (stream: "stdout" | "stderr" | "stdin") => (error: Error) => {
       spawnError = spawnError ?? `Failed to read command ${stream}: ${error.message}`;
     };
     child.stdout!.on("error", recordStreamError("stdout"));
     child.stderr!.on("error", recordStreamError("stderr"));
+    if (interaction) child.stdin!.on("error", recordStreamError("stdin"));
     if (options.stdinText !== undefined) {
       // A child that exits or closes stdin before we write must not crash the process (EPIPE).
       child.stdin?.on("error", (error) => {
@@ -238,7 +302,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
     // Tree termination is awaited before a bounded result is returned. The helper has its own
     // platform-specific time bound; a failed or timed-out tree kill remains visible in `error`.
     // Non-tree callers retain the legacy kill-grace fallback below.
-    const settle = async (exitCode: number | null) => {
+    const settle = async (exitCode: number | null, signal: NodeJS.Signals | null = null) => {
       if (settled) return;
       if (terminationPromise) {
         const terminated = await terminationPromise;
@@ -250,6 +314,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       }
       if (settled) return;
       settled = true;
+      options.signal?.removeEventListener("abort", abort);
       if (timeout) clearTimeout(timeout);
       if (killGraceTimeout) clearTimeout(killGraceTimeout);
       // The caller's `scripts/cli.ts` entry point sets `process.exitCode` rather than calling
@@ -267,8 +332,6 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
       const durationMs = Date.now() - started;
       const stdout = stdoutCollector.toString();
       const stderr = stderrCollector.toString();
-      await writeArtifact(stdoutPath, bounded ? stdoutCollector.toBuffer() : stdout);
-      await writeArtifact(stderrPath, bounded ? stderrCollector.toBuffer() : stderr);
       const measured: MeasuredCommandResult = {
         commandId: options.commandId,
         commandString,
@@ -279,6 +342,7 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         endedAt,
         durationMs,
         exitCode,
+        ...(options.exclusiveArtifacts ? { signal } : {}),
         stdout,
         stderr,
         stdoutPath,
@@ -289,10 +353,15 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         resolvedCommand: resolution,
         ...(bounded ? { timedOut, ...(outputLimit ? { outputLimit } : {}), ...(options.terminateProcessTree === true ? { processTreeCleanup } : {}) } : {})
       };
-      await writeArtifact(telemetryPath, JSON.stringify(measured, null, 2));
+      options.onSettled?.(measured);
+      await write(stdoutPath, bounded ? stdoutCollector.toBuffer() : stdout);
+      await write(stderrPath, bounded ? stderrCollector.toBuffer() : stderr);
+      await write(telemetryPath, telemetry(measured));
       resolve(measured);
     };
 
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
     if (options.timeoutMs !== undefined) {
       timeout = setTimeout(() => {
         timedOut = true;
@@ -300,8 +369,10 @@ export async function runMeasuredCommand(options: RunMeasuredCommandOptions): Pr
         terminate();
       }, options.timeoutMs);
     }
-    child.on("close", (exitCode) => {
-      void settle(exitCode);
+    child.on("close", (exitCode, signal) => {
+      // A failed spawn can emit a libuv error number as the close code.
+      // There is no child exit status unless the process actually started.
+      void settle(spawnFailed ? null : exitCode, spawnFailed ? null : signal).catch(reject);
     });
   });
 
@@ -352,9 +423,9 @@ class OutputCollector {
   toBuffer(): Buffer { return this.limit === undefined ? Buffer.from(this.text, "utf8") : Buffer.concat(this.chunks); }
 }
 
-async function writeArtifact(filePath: string, value: string | Buffer): Promise<void> {
+async function writeArtifact(filePath: string, value: string | Buffer, exclusive?: boolean): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, value, "utf8");
+  await writeFile(filePath, value, exclusive ? { flag: "wx", mode: 0o600, flush: true } : "utf8");
 }
 
 /**

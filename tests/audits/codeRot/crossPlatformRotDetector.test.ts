@@ -132,9 +132,34 @@ describe("CROSS_PLATFORM_ROT_DETECTOR — real self-scan regression guard", () =
   // detector no longer has any real finding against this repo's own source
   // -- verified via a real self-audit run (see the Batch 6 final report),
   // not just this unit-level check.
-  it("fails closed when whole-repository source exceeds authenticated contiguous content bounds", async () => {
-    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
+  it("verifies the real repository with the current published provider", async () => {
+    const fixtureRoot = makeTempDir();
+    try {
+      const file = "src/audits/core/lineReader.ts";
+      writeFile(fixtureRoot, file, 'export const lines = (text: string) => text.split("\\n");\n');
+      const ctx = buildContext(fixtureRoot);
+      ctx.kitSourceReader = {
+        selectedFile: () => ({ lineCount: 200, sizeBytes: 512 }),
+        occurrences: async () => ({ filePath: file, value: ".split(", complete: false, matchCount: 1,
+          matches: [], reasonCode: "source-bound" }),
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      await expect(CROSS_PLATFORM_ROT_DETECTOR.run(ctx)).rejects.toMatchObject({
+        category: "capability-insufficient", message: expect.stringContaining("source-bound"),
+      });
+    } finally { cleanup(fixtureRoot); }
+
+    const root = process.cwd();
+    const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [CROSS_PLATFORM_ROT_DETECTOR] });
+    expect(result.sourceFacts.provider).toBe("kit");
+    expect(result.sourceFacts.files.length).toBeGreaterThan(0);
+    expect(result.detectorErrors).toEqual([]);
+    expect(result.coverage?.filter(record => record.mandatory &&
+      (record.status === "UNAVAILABLE" || record.status === "UNDETERMINED"))).toEqual([]);
+    expect(result.exitCode).toBe(0);
+    expect(result.issues.some(issue => issue.id === "cross-platform-rot:src/audits/core/sourceOfTruth.ts:raw-split-newline")).toBe(false);
+    expect(result.issues.every(issue => issue.detectorId === CROSS_PLATFORM_ROT_DETECTOR.id)).toBe(true);
   }, 1800000);
+
   it("retains the splitLines regression guard over qualified bounded source", async () => {
     const root = makeTempDir();
     try {

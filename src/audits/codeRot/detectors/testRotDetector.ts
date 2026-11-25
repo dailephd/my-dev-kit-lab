@@ -5,10 +5,11 @@ import path from "node:path";
 import type { AuditDetector, AuditDetectorContext } from "../../core/auditRegistry.js";
 import type { AuditIssue } from "../../core/auditIssue.js";
 import type { SourceFileFacts } from "../../core/sourceFacts.js";
+import type { InventoryFileEntry } from "../../core/projectInventory.js";
 import { collectPythonProjectMetadata, type PythonProjectMetadataSnapshot } from "../../core/pythonProjectMetadata.js";
 import { collectJvmProjectMetadata, type JvmProjectMetadataSnapshot } from "../../core/jvmProjectMetadata.js";
 import { deduplicateIssuesById, makeCodeRotIssue } from "../utils/issueFactories.js";
-import { getParsedSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
+import { getImportSourceFacts, indexSourceFactsByPath } from "../utils/sourceFactsLookup.js";
 import { splitLines } from "../utils/textLines.js";
 import {
   jvmImportLooksPossiblyLocal,
@@ -30,10 +31,32 @@ import {
 
 const DETECTOR_ID = "test-rot";
 export const MAX_READ_BYTES = 200_000;
+
+// Shared with acquisition applicability: fixture production-source areas do
+// not acquire executable-test obligations from the outer tests/ directory.
+// Their raw command checks remain selected. Unknown source types stay unknown.
+export function isTestRotRawOnlyInput(file: Pick<InventoryFileEntry, "role" | "relativePath" | "language">): boolean {
+  if (file.language === "json" || ["config", "generated", "vendor", "report-output"].includes(file.role) ||
+      file.relativePath.endsWith(".gradle") || file.relativePath.endsWith(".gradle.kts")) return true;
+  if (!/(?:^|\/)fixtures\//.test(file.relativePath)) return false;
+  // These fixture formats are data or recorded output. The enclosing tests
+  // directory still makes their bounded command text applicable.
+  if (["markdown", "xml", "toml"].includes(file.language) ||
+      /(?:^|\/)\.gitattributes$|\.(?:properties|jks|tap|[jt]s\.input)$/.test(file.relativePath) ||
+      /(?:^|\/)(?:PROVENANCE|malformed-json)\.txt$/.test(file.relativePath) ||
+      /(?:^|\/)fixtures\/ecosystem\/context-integrity\/[^/]+\/[^/]+\/(?:00-request|(?:artifacts|tool-versions)\/[^/]+)\.txt$/.test(file.relativePath)) return true;
+  if (!["typescript", "javascript", "python", "java", "kotlin", "rust"].includes(file.language)) return false;
+  const sourceIndex = file.relativePath.lastIndexOf("/src/");
+  if (sourceIndex < 0) return false;
+  const tail = file.relativePath.slice(sourceIndex + 5).split("/");
+  if ((file.language === "java" || file.language === "kotlin") && tail[0] === "main") return true;
+  if (tail.slice(0, -1).some(segment => /^(?:__tests__|tests?|specs?|.*Test)$/i.test(segment))) return false;
+  const basename = tail.at(-1)!;
+  return !/^(?:test|spec)|[._-](?:test|spec)(?:[._-]|$)|(?:Test|Tests|Spec)\.[^.]+$/i.test(basename);
+}
+
 const RELATIVE_IMPORT_PATTERN = /(?:from|require\()\s*["'](\.\.?\/[^"']+)["']/g;
 const NPM_RUN_PATTERN = /npm run ([\w:.-]+)/g;
-const SKIP_PATTERN = /\b(describe|it|test)\.skip\s*\(/g;
-const ONLY_PATTERN = /\b(describe|it|test)\.only\s*\(/g;
 const TEST_TITLE_VERSION_PATTERN = /\b(describe|it|test)\s*\(\s*["'`][^"'`]*\bv(\d+\.\d+\.\d+)\b/;
 const HISTORICAL_HEDGE_PATTERN = /\b(regression|historical|legacy)\b/i;
 const VITEST_RUN_ARG_PATTERN = /vitest run ([^\s&|]+)/g;
@@ -67,13 +90,44 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
     // treatment as pythonMetadata above.
     const jvmMetadata = collectJvmProjectMetadata(ctx.target.rootPath, ctx.inventory);
 
-    for (const testFile of ctx.inventory.testFiles) {
+    const inspectTest = async (testFile: AuditDetectorContext["inventory"]["testFiles"][number], ctx: AuditDetectorContext): Promise<AuditIssue[]> => {
+      const issues: AuditIssue[] = [];
       // Preserve Lab's bounded lexical-policy scope; no occurrence query applies.
-      if (testFile.sizeBytes > MAX_READ_BYTES) continue;
-      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
+      if (testFile.sizeBytes > MAX_READ_BYTES) return issues;
+      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) return issues;
       if (ctx.sourceFacts?.provider === "not-collected") throw new KitSourceEvidenceAcquisitionError("selection-incomplete", `Required test ${testFile.relativePath} is unselected.`);
-      const content = await kitPredicateContent(ctx.kitSourceReader, testFile.relativePath, ["npm run ", "describe", "it", "test", "from", "require("]);
-      if (content === null) continue;
+      const observed = sourceFactsIndex.get(testFile.relativePath);
+      const rawOnly = isTestRotRawOnlyInput(testFile);
+      if (rawOnly) ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "imports evidence",
+        source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
+        actualStatus: observed?.kit?.capabilities.imports ?? "unavailable", status: "NOT_APPLICABLE", mandatory: false, diagnostic: "",
+        reason: "Configuration, report, or data/production-source fixture has no executable-test import predicate; raw command checks remain selected." });
+      const unsupportedRaw = ctx.kitSourceReader?.unsupportedRawContentReason?.(testFile.relativePath);
+      const rawContent = unsupportedRaw ? ctx.kitSourceReader?.authenticatedRawTestContent?.(testFile.relativePath) : undefined;
+      if (unsupportedRaw && rawContent === undefined) {
+        if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", unsupportedRaw);
+        ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, unsupportedRaw, "raw-content");
+        return issues;
+      }
+      let content: string;
+      try {
+        if (rawOnly) {
+          issues.push(...await findRawOnlyNpmRunReferences(ctx, testFile.relativePath, scriptNames, rawContent));
+          return issues;
+        }
+        // Every lexical predicate can run on the complete validated text.
+        // Import resolution below still requires independent Kit facts/proofs.
+        content = rawContent ?? await ctx.kitSourceReader?.cachedAuthenticatedFixtureContent?.(testFile.relativePath)
+          ?? await kitPredicateContent(ctx.kitSourceReader, testFile.relativePath, ["npm run ", "describe", "it", "test", "from", "require("]);
+      } catch (error) {
+        if (ctx.reportUnavailable &&
+            error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
+          ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", testFile.relativePath, error.message, "raw-content");
+          return issues;
+        }
+        throw error;
+      }
+      if (content === null) return issues;
 
       // tests/audits/codeRot/ is this project's own audit-detector test
       // suite. Its whole purpose is to construct FIXTURE content (via
@@ -87,18 +141,57 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
       // below). This whole subdirectory is therefore excluded from this
       // detector's per-file checks -- a project without an audit-detector
       // test suite of its own would never hit this exclusion.
-      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) continue;
+      if (testFile.relativePath.startsWith("tests/audits/codeRot/")) return issues;
 
-      const kitMissing = await kitMissingImports(ctx, testFile.relativePath, content, sourceFactsIndex.get(testFile.relativePath));
+      const reader = ctx.kitSourceReader;
+      const scopedDomains = (observed?.language === "typescript" || observed?.language === "javascript") && reader?.expressionDomains
+        ? await reader.expressionDomains(testFile.relativePath) : undefined;
+      const domainMissing = new Set<string>();
+      const linked = new Set<string>();
+      for (const { linkedImportFactId, proof } of scopedDomains ?? []) {
+        if (linkedImportFactId) linked.add(linkedImportFactId);
+        const imp = observed?.imports.find(i => i.provenance?.factId === linkedImportFactId);
+        const missingRelative = !!imp?.source.startsWith(".") && proof.excludesSelectedDomain;
+        if (missingRelative && imp) domainMissing.add(imp.source);
+        const qualified = proof.excludesSelectedDomain || proof.positivePaths.length > 0;
+        ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "missing-source-import",
+          source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
+          actualStatus: proof.outcome, status: missingRelative ? "FINDING_SUPPORTED"
+            : qualified ? "QUALIFIED" : "UNDETERMINED", mandatory: true, diagnostic: proof.reasonCode ?? "",
+          reason: qualified ? "Validated R3 expression reference or selected-domain exclusion."
+            : "Dynamic import evidence has no exact witness or complete selected-domain exclusion.",
+          proof: { kind: "import-domain", snapshotId: proof.snapshotId,
+            references: [proof.expressionFactId, ...(linkedImportFactId ? [linkedImportFactId] : []), ...proof.positivePaths] },
+        });
+      }
+      const partialImports = observed?.kit?.capabilities.imports === "partial";
+      if (partialImports) {
+        const reason = observed.diagnostics.map(d => d.code + ": " + d.message).join("; ");
+        if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", testFile.relativePath + " requires complete imports. " + reason);
+        ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", testFile.relativePath, reason);
+      }
+      let kitMissing = domainMissing;
+      if (!partialImports) {
+        try {
+          kitMissing = new Set([...domainMissing, ...await kitMissingImports(ctx, testFile.relativePath, content, observed, linked)]);
+        } catch (error) {
+          if (ctx.reportUnavailable &&
+              error instanceof KitSourceEvidenceAcquisitionError && error.category === "capability-insufficient") {
+            ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", testFile.relativePath, error.message);
+          } else throw error;
+        }
+      }
       issues.push(...findMissingSourceImports(ctx, testFile.relativePath, content, kitMissing));
       // v0.3.1 Batch 4 -- when the TypeScript/JavaScript analyzer actually
-      // parsed this test file, also check its structured import facts.
+      // parsed this test file, also check its structured reference proofs.
       // This catches import forms the regex above misses (e.g. multi-line
       // import statements) without duplicate-reporting a specifier both
       // checks already found: idCues use the same shape
       // (testRelativePath, "missing-source-import", specifier), so an
       // identical id is deduplicated by deduplicateIssuesById() below.
-      const parsedFacts = getParsedSourceFacts(sourceFactsIndex, testFile.relativePath);
+      // Domain-backed linked imports retain their own authenticated inference
+      // even when a separate expression leaves the file inventory partial.
+      const parsedFacts = domainMissing.size ? observed : getImportSourceFacts(sourceFactsIndex, testFile.relativePath);
       if (parsedFacts?.language === "python") {
         // v0.3.2 Batch 2 -- Python relative imports use dotted-module
         // notation (".module", "..pkg.module"), not TS/JS's path-like
@@ -116,14 +209,32 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         // guard immediately above.
         issues.push(...findMissingJvmSourceImports(ctx, testFile.relativePath, parsedFacts, jvmMetadata, kitMissing));
       } else if (parsedFacts) {
-        issues.push(...findMissingSourceImportsFromSourceFacts(ctx, testFile.relativePath, parsedFacts, kitMissing));
+        issues.push(...findMissingSourceImportsFromSourceFacts(testFile.relativePath, parsedFacts, kitMissing));
       }
       issues.push(...findStaleNpmRunReferences(testFile.relativePath, content, scriptNames));
-      issues.push(...findSkipUsage(testFile.relativePath, content));
-      issues.push(...findOnlyUsage(testFile.relativePath, content));
+      issues.push(...findTestModifierUsage(ctx, testFile, observed, content));
       if (currentVersion) issues.push(...findStaleVersionMentions(testFile.relativePath, content, currentVersion));
-    }
+      return issues;
+    };
 
+    // Bound native Kit processes while committing findings and coverage in
+    // inventory order, independently of asynchronous completion order.
+    for (let offset = 0; offset < ctx.inventory.testFiles.length; offset += 4) {
+      const jobs = ctx.inventory.testFiles.slice(offset, offset + 4).map(testFile => {
+        const events: (() => void)[] = [];
+        const perFile: AuditDetectorContext = { ...ctx,
+          reportUnavailable: ctx.reportUnavailable ? (...args) => { events.push(() => ctx.reportUnavailable!(...args)); } : undefined,
+          reportCoverage: ctx.reportCoverage ? coverage => { events.push(() => ctx.reportCoverage!(coverage)); } : undefined,
+        };
+        return { events, run: () => inspectTest(testFile, perFile) };
+      });
+      const outcomes = await Promise.allSettled(jobs.map(job => job.run()));
+      for (const [index, outcome] of outcomes.entries()) {
+        if (outcome.status === "rejected") throw outcome.reason;
+        for (const event of jobs[index]!.events) event();
+        issues.push(...outcome.value);
+      }
+    }
     if (ctx.config.include.includes("package") && ctx.sourceOfTruth.package) {
       issues.push(...findScriptsReferencingMissingTestPaths(ctx));
     }
@@ -132,7 +243,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
   },
 };
 
-async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, content: string, facts?: SourceFileFacts): Promise<Set<string>> {
+async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, content: string, facts?: SourceFileFacts, linked = new Set<string>()): Promise<Set<string>> {
   const reader = ctx.kitSourceReader!;
   const missing = new Set<string>();
   const raw = [...content.matchAll(new RegExp(RELATIVE_IMPORT_PATTERN.source, "g"))].map((match) => match[1]);
@@ -142,25 +253,57 @@ async function kitMissingImports(ctx: AuditDetectorContext, filePath: string, co
   if (reader.jsonRawLiteralContent === "selected-test-json-v1" && filePath.endsWith(".json") &&
       facts?.parseStatus === "unsupported" && reader.selectedFile(filePath).status === "unsupported" && raw.length === 0) return missing;
   if (!facts || facts.kit?.capabilities.imports !== "complete") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " requires complete imports.");
-  for (const specifier of raw) if (!facts.imports.some((fact) => fact.source === specifier)) {
-    throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " has a lexical relative-import candidate without a Kit import fact; semantic absence is not lexical absence.");
+  // A complete semantic inventory determines actual imports. Text inside a
+  // fixture string/comment is not another import requiring target proof.
+  // Every real import below still requires its authenticated fact and proof.
+  if (raw.some(specifier => !facts.imports.some(fact => fact.source === specifier)) && facts.kit.capabilities.exports !== "complete") {
+    const reason = "Relative lexical candidates require complete export evidence to rule out an unrecorded re-export; incomplete exports do not establish absence.";
+    if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");
+  }
+  const reExports = reader.reExportSpecifiers?.(filePath);
+  if (!reExports && facts.exports.some(fact => fact.exportOrigin === "re-export")) {
+    throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " lacks authenticated re-export source identities.");
+  }
+  const reExportTargets = reader.reExportTargets?.(filePath);
+  for (const specifier of new Set(reExports ?? [])) {
+    if (!specifier.startsWith(".")) continue;
+    const targets = reExportTargets?.filter(fact => fact.sourceSpecifier === specifier) ?? [];
+    if (targets.length > 0 && (facts.language === "typescript" || facts.language === "javascript")) {
+      const proofs = await Promise.all(targets.map(fact => reader.importTarget(fact.id)));
+      if (proofs.every(proof => proof.status === "present")) continue;
+      if (reader.jsTsRelativeImportCandidateProof === "mjs-extensionless-complete-v1" &&
+          proofs.every(proof => proof.status === "proven-missing")) {
+        missing.add(specifier);
+        continue;
+      }
+    }
+    const reason = `Re-export ${specifier} lacks qualified export-target proof; a complete import inventory does not establish export-target presence or absence.`;
+    if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, reason, "exports");
   }
   for (const imp of facts.imports) {
+    if (imp.provenance?.factId && linked.has(imp.provenance.factId)) continue;
     const applicable = facts.language === "java" || facts.language === "kotlin" ? jvmImportLooksPossiblyLocal(imp) : imp.source.startsWith(".");
     if (!applicable) continue;
     if (!imp.provenance?.factId) throw new KitSourceEvidenceAcquisitionError("artifact-invalid", filePath + " import has no validated fact identity.");
-    const proof = await reader.importTarget(imp.provenance.factId);
-    if ((facts.language === "java" || facts.language === "kotlin") && !proof.declarationProof) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " JVM import requires qualified declaration-domain evidence.");
-    if (proof.status === "outside-selected-roots" || proof.status === "indeterminate") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " remains " + proof.status + " (" + proof.reasonCode + ").");
-    if (facts.language === "typescript" || facts.language === "javascript") {
-      if (proof.status === "proven-missing" && reader.jsTsRelativeImportCandidateProof !== "mjs-extensionless-complete-v1") {
-        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " lacks qualified legacy .mjs/extensionless candidate proof semantics.");
+    try {
+      const proof = await reader.importTarget(imp.provenance.factId);
+      if ((facts.language === "java" || facts.language === "kotlin") && !proof.declarationProof) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " JVM import requires qualified declaration-domain evidence.");
+      if (proof.status === "outside-selected-roots" || proof.status === "indeterminate") throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " remains " + proof.status + " (" + proof.reasonCode + ").");
+      if (facts.language === "typescript" || facts.language === "javascript") {
+        if (proof.status === "proven-missing" && reader.jsTsRelativeImportCandidateProof !== "mjs-extensionless-complete-v1") {
+          throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import " + imp.source + " lacks qualified legacy .mjs/extensionless candidate proof semantics.");
+        }
+        if (proof.status === "present" && !imp.targetPaths?.some((target) => proof.candidatePaths.includes(target) && /\.(ts|tsx|js|mjs|cjs)$/.test(target))) {
+          throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import target presence is outside the verified legacy candidate policy.");
+        }
       }
-      if (proof.status === "present" && !imp.targetPaths?.some((target) => proof.candidatePaths.includes(target) && /\.(ts|tsx|js|mjs|cjs)$/.test(target))) {
-        throw new KitSourceEvidenceAcquisitionError("capability-insufficient", filePath + " import target presence is outside the verified legacy candidate policy.");
-      }
+      if (proof.status === "proven-missing") missing.add(imp.source);
+    } catch (error) {
+      if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient" || !ctx.reportUnavailable) throw error;
+      ctx.reportUnavailable(DETECTOR_ID, "missing-source-import", filePath, `Import ${imp.source}: ${error.message}`);
     }
-    if (proof.status === "proven-missing") missing.add(imp.source);
   }
   return missing;
 }
@@ -215,30 +358,32 @@ function findMissingSourceImports(ctx: AuditDetectorContext, testRelativePath: s
 // file-level-only/parse-error facts carry an empty imports array that
 // would otherwise silently look like "no imports" rather than "unknown".
 function findMissingSourceImportsFromSourceFacts(
-  ctx: AuditDetectorContext,
   testRelativePath: string,
   facts: SourceFileFacts,
-  kitMissing: Set<string>
+  kitMissing: ReadonlySet<string>
 ): AuditIssue[] {
   const issues: AuditIssue[] = [];
 
-  for (const imp of facts.imports) {
-    if (!imp.source.startsWith(".")) continue;
-    if (!kitMissing.has(imp.source)) continue;
+  const specifiers = new Set(facts.imports.map(imp => imp.source));
+  // A qualified missing re-export target is not an ordinary import fact.
+  for (const specifier of kitMissing) specifiers.add(specifier);
+
+  for (const specifier of specifiers) {
+    if (!specifier.startsWith(".") || !kitMissing.has(specifier)) continue;
 
     issues.push(
       makeCodeRotIssue({
         auditType: "code-rot",
         detectorId: DETECTOR_ID,
-        idCues: [testRelativePath, "missing-source-import", imp.source],
-        title: `Test "${testRelativePath}" imports a missing source file: "${imp.source}"`,
-        description: `${testRelativePath} imports "${imp.source}" (source-facts-derived via the TypeScript/JavaScript analyzer), which does not resolve to an existing file on disk (checked common TS/JS extensions relative to the test file).`,
+        idCues: [testRelativePath, "missing-source-import", specifier],
+        title: `Test "${testRelativePath}" imports a missing source file: "${specifier}"`,
+        description: `${testRelativePath} imports "${specifier}" (source-facts-derived via the TypeScript/JavaScript analyzer), which does not resolve to an existing file on disk (checked common TS/JS extensions relative to the test file).`,
         severity: "medium",
         confidence: "high",
         falsePositiveRisk: "low",
         category: "test-rot",
         recommendedAction: "Fix or remove the stale import.",
-        suggestedFixStrategy: `Update the import specifier "${imp.source}" in ${testRelativePath} to point to an existing file.`,
+        suggestedFixStrategy: `Update the import specifier "${specifier}" in ${testRelativePath} to point to an existing file.`,
         validationCommands: [`npx vitest run ${testRelativePath}`],
         releaseBlocking: false,
         implementationBlocking: false,
@@ -248,7 +393,7 @@ function findMissingSourceImportsFromSourceFacts(
             kind: "file",
             message: "Analyzer-recorded relative import specifier does not resolve to an existing file.",
             filePath: testRelativePath,
-            excerpt: imp.source,
+            excerpt: specifier,
             source: DETECTOR_ID,
             confidence: "high",
           },
@@ -383,7 +528,65 @@ function findMissingJvmSourceImports(
   return issues;
 }
 
+function reportAuthenticatedCommandCoverage(ctx: AuditDetectorContext, filePath: string): void {
+  ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "bounded-content predicates",
+    source: { kind: "file", identity: filePath }, capability: "raw-content",
+    actualStatus: "authenticated-content", status: "QUALIFIED", mandatory: true, diagnostic: "",
+    reason: "Authenticated whole bytes qualify the raw command predicate independently of literal-inventory completeness." });
+}
+
+async function findRawOnlyNpmRunReferences(
+  ctx: AuditDetectorContext, filePath: string, scriptNames: Set<string>, rawContent?: string,
+): Promise<AuditIssue[]> {
+  const reader = ctx.kitSourceReader;
+  if (!reader) throw new KitSourceEvidenceAcquisitionError("invalid-request", `${filePath} requires its validated Kit source reader.`);
+  const qualify = (actualStatus: string, reason: string) => ctx.reportCoverage?.({ detectorId: DETECTOR_ID,
+    predicate: "bounded-content predicates", source: { kind: "file", identity: filePath }, capability: "raw-content",
+    actualStatus, status: "QUALIFIED", mandatory: true, diagnostic: "", reason });
+  const content = rawContent ?? await reader.cachedAuthenticatedFixtureContent?.(filePath) ?? reader.authenticatedRawTestContent?.(filePath);
+  if (content !== undefined) {
+    reportAuthenticatedCommandCoverage(ctx, filePath);
+    return findStaleNpmRunReferences(filePath, content, scriptNames);
+  }
+  const result = await reader.occurrences(filePath, "npm run ");
+  if (!result.complete) {
+    // Whole authenticated bytes can discharge this predicate independently
+    // of a truncated literal inventory, without promoting that inventory.
+    if (reader.authenticatedContent) {
+      try {
+        const content = await reader.authenticatedContent(filePath);
+        qualify("authenticated-content", "Authenticated whole bytes qualify the raw command predicate independently of literal-inventory completeness.");
+        return findStaleNpmRunReferences(filePath, content, scriptNames);
+      } catch (error) {
+        if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
+      }
+    }
+    const reason = `Raw command coverage requires a complete authenticated npm-run literal inventory or whole content; inventory is incomplete (${result.reasonCode}).`;
+    if (!ctx.reportUnavailable) throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    ctx.reportUnavailable(DETECTOR_ID, "bounded-content predicates", filePath, reason, "raw-content");
+  } else {
+    qualify("complete-literal-inventory", "Complete authenticated npm-run occurrences and their matched lines qualify the command-only predicate; unrelated source lines and semantic imports are not premises.");
+  }
+  // The original predicate is per-line, including its writeFile exclusion.
+  // These are authenticated line observations, never fabricated whole content.
+  const lines = new Map<number, string>();
+  for (const match of result.matches) {
+    for (const [offset, line] of splitLines(match.content).entries()) {
+      const number = match.windowStart + offset;
+      if (lines.has(number) && lines.get(number) !== line) {
+        throw new KitSourceEvidenceAcquisitionError("artifact-invalid", `${filePath} has conflicting authenticated command lines.`);
+      }
+      lines.set(number, line);
+    }
+  }
+  return findStaleNpmRunReferenceLines(filePath, [...lines].sort(([a], [b]) => a - b).map(([, line]) => line), scriptNames);
+}
+
 function findStaleNpmRunReferences(testRelativePath: string, content: string, scriptNames: Set<string>): AuditIssue[] {
+  return findStaleNpmRunReferenceLines(testRelativePath, splitLines(content), scriptNames);
+}
+
+function findStaleNpmRunReferenceLines(testRelativePath: string, lines: readonly string[], scriptNames: Set<string>): AuditIssue[] {
   const issues: AuditIssue[] = [];
   const seen = new Set<string>();
 
@@ -396,7 +599,6 @@ function findStaleNpmRunReferences(testRelativePath: string, content: string, sc
   // detector flags this repo's own accurate test suite as if its
   // synthetic fixture strings were real stale command references, a false
   // positive confirmed via self-testing.
-  const lines = splitLines(content);
   for (const line of lines) {
     if (/\bwriteFile\s*\(/.test(line)) continue;
 
@@ -440,88 +642,78 @@ function findStaleNpmRunReferences(testRelativePath: string, content: string, sc
   return issues;
 }
 
-function findSkipUsage(testRelativePath: string, content: string): AuditIssue[] {
-  const issues: AuditIssue[] = [];
-  const lines = splitLines(content);
-  for (let i = 0; i < lines.length; i++) {
-    SKIP_PATTERN.lastIndex = 0;
-    const match = SKIP_PATTERN.exec(lines[i]);
-    if (!match) continue;
 
-    issues.push(
-      makeCodeRotIssue({
-        auditType: "code-rot",
-        detectorId: DETECTOR_ID,
-        idCues: [testRelativePath, "skip-usage", String(i + 1)],
-        title: `Committed "${match[1]}.skip(" in "${testRelativePath}"`,
-        description: `${testRelativePath}:${i + 1} uses "${match[1]}.skip(" -- confirm this is intentional and not accidentally committed.`,
-        severity: "medium",
-        confidence: "high",
-        falsePositiveRisk: "low",
-        category: "test-rot",
-        recommendedAction: "Remove .skip if the test should run, or add a comment explaining why it is skipped.",
-        suggestedFixStrategy: `Remove "${match[1]}.skip(" at ${testRelativePath}:${i + 1} or document why it is intentionally skipped.`,
-        validationCommands: [`npx vitest run ${testRelativePath}`],
-        releaseBlocking: false,
-        implementationBlocking: false,
-        autoFixEligible: false,
-        evidence: [
-          {
-            kind: "file",
-            message: `Found "${match[1]}.skip(" usage.`,
-            filePath: testRelativePath,
-            line: i + 1,
-            excerpt: lines[i].trim().slice(0, 200),
-            source: DETECTOR_ID,
-            confidence: "high",
-          },
-        ],
-        affectedFiles: [testRelativePath],
-      })
-    );
+function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEntry, observed: SourceFileFacts | undefined, content: string): AuditIssue[] {
+  if (file.language !== "typescript" && file.language !== "javascript") return [];
+  const domain = observed?.kitTestObservations;
+  const snapshot = ctx.sourceFacts?.kitEvidence;
+  const bound = domain && ctx.sourceFacts?.provider === "kit" && snapshot?.traversalComplete &&
+    observed?.relativePath === file.relativePath && domain.contentSha256 === observed.kit?.contentSha256 &&
+    domain.snapshotId === snapshot.snapshotId && domain.selectionFingerprint === snapshot.selectionFingerprint &&
+    domain.snapshotId === ctx.kitSourceReader?.snapshotId;
+  const positives = bound && (domain.producerStatus === "parsed" || domain.producerStatus === "partial") &&
+    (domain.capability === "complete" || domain.capability === "partial") ? domain.observations : [];
+  const modifierCapability = domain?.directModifierCapability ?? domain?.capability;
+  const complete = bound && modifierCapability === "complete" && domain.producerStatus === "parsed";
+
+  if (!complete) {
+    // Raw text can keep a previously checked candidate in scope. It cannot
+    // establish an executable call, or qualify the unknown observation domain.
+    const mandatory = /\b(?:describe|it|test)\s*\.\s*(?:skip|only)\s*\(/.test(content);
+    const reason = "Executable modifier observations are unavailable or incomplete for the selected file.";
+    if (mandatory && !ctx.reportCoverage && ctx.reportUnavailable) {
+      ctx.reportUnavailable(DETECTOR_ID, "executable test modifiers", file.relativePath, reason, "test-observations");
+    } else if (mandatory && !ctx.reportCoverage) {
+      throw new KitSourceEvidenceAcquisitionError("capability-insufficient", reason);
+    } else {
+      ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "executable test modifiers",
+        source: { kind: "file", identity: file.relativePath }, capability: "test-observations",
+        actualStatus: bound ? (modifierCapability ?? "unavailable") : "unavailable", status: "UNAVAILABLE", mandatory,
+        diagnostic: "", reason });
+    }
   }
-  return issues;
-}
 
-function findOnlyUsage(testRelativePath: string, content: string): AuditIssue[] {
-  const issues: AuditIssue[] = [];
   const lines = splitLines(content);
-  for (let i = 0; i < lines.length; i++) {
-    ONLY_PATTERN.lastIndex = 0;
-    const match = ONLY_PATTERN.exec(lines[i]);
-    if (!match) continue;
+  const issues: AuditIssue[] = [];
+  for (const fact of positives) {
+    const modifier = fact.observationKind === "test-modifier-only" ? "only"
+      : fact.observationKind === "test-modifier-skip" ? "skip" : undefined;
+    if (!modifier || fact.originPath !== file.relativePath) continue;
 
-    issues.push(
-      makeCodeRotIssue({
-        auditType: "code-rot",
-        detectorId: DETECTOR_ID,
-        idCues: [testRelativePath, "only-usage", String(i + 1)],
-        title: `Committed "${match[1]}.only(" in "${testRelativePath}"`,
-        description: `${testRelativePath}:${i + 1} uses "${match[1]}.only(" -- this silently excludes every other test in a CI run and is almost always accidental.`,
-        severity: "high",
+    const line = fact.provenance.startLine;
+    const focus = modifier === "only";
+    const call = `${fact.name}.${modifier}(`;
+    issues.push(makeCodeRotIssue({
+      auditType: "code-rot",
+      detectorId: DETECTOR_ID,
+      idCues: [file.relativePath, modifier + "-usage", String(line)],
+      title: `Committed "${call}" in "${file.relativePath}"`,
+      description: `${file.relativePath}:${line} uses "${call}" -- ` + (focus
+        ? "this silently excludes every other test in a CI run and is almost always accidental."
+        : "confirm this is intentional and not accidentally committed."),
+      severity: focus ? "high" : "medium",
+      confidence: "high",
+      falsePositiveRisk: "low",
+      category: "test-rot",
+      recommendedAction: focus ? "Remove .only before committing/merging."
+        : "Remove .skip if the test should run, or add a comment explaining why it is skipped.",
+      suggestedFixStrategy: `Remove "${call}" at ${file.relativePath}:${line}` +
+        (focus ? "." : " or document why it is intentionally skipped."),
+      validationCommands: [`npx vitest run ${file.relativePath}`],
+      releaseBlocking: focus,
+      implementationBlocking: false,
+      autoFixEligible: false,
+      evidence: [{
+        kind: "file",
+        message: `Found "${call}" usage.`,
+        filePath: file.relativePath,
+        line,
+        excerpt: (lines[line - 1]?.trim() || call).slice(0, 200),
+        source: DETECTOR_ID,
         confidence: "high",
-        falsePositiveRisk: "low",
-        category: "test-rot",
-        recommendedAction: "Remove .only before committing/merging.",
-        suggestedFixStrategy: `Remove "${match[1]}.only(" at ${testRelativePath}:${i + 1}.`,
-        validationCommands: [`npx vitest run ${testRelativePath}`],
-        releaseBlocking: true,
-        implementationBlocking: false,
-        autoFixEligible: false,
-        evidence: [
-          {
-            kind: "file",
-            message: `Found "${match[1]}.only(" usage.`,
-            filePath: testRelativePath,
-            line: i + 1,
-            excerpt: lines[i].trim().slice(0, 200),
-            source: DETECTOR_ID,
-            confidence: "high",
-          },
-        ],
-        affectedFiles: [testRelativePath],
-      })
-    );
+      }],
+      affectedFiles: [file.relativePath],
+    }));
   }
   return issues;
 }

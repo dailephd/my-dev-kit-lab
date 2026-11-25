@@ -1,3 +1,4 @@
+import type { AuditIssue } from "../../../src/audits/core/auditIssue.js";
 import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
@@ -49,6 +50,25 @@ async function runWithSourceFacts(root: string) {
 }
 
 describe("documentation symbol token boundaries", () => {
+  it.each([false, true])("retains independent findings and every unavailable claim with positive match=%s", async positive => {
+    const root = makeTempDir();
+    try {
+      writeFixturePackage(root);
+      writeFile(root, "src/Script.kts", 'class Present {}\nprintln("opaque script statement")\n');
+      writeFile(root, "README.md", `Security validation is implemented.\n${positive ? 'Use `Present`.\n' : ''}Use \`com.example.Missing\` and \`com.example.Other\`.\n`);
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [DOCS_CODE_MISMATCH_DETECTOR] });
+      expect(result.exitCode).toBe(2);
+      expect(result.issues.some(i => i.title.includes("security validation"))).toBe(true);
+      expect(result.issues.some(i => i.title.includes("symbol not found"))).toBe(false);
+      const claims = result.coverage!.filter(c => c.predicate.startsWith("jvm-symbol-claim"));
+      expect(claims.map(c => c.predicate)).toEqual([
+        "jvm-symbol-claim README.md:3 com.example.Missing", "jvm-symbol-claim README.md:3 com.example.Other"
+      ].map(p => positive ? p : p.replace(":3 ", ":2 ")));
+      expect(claims.every(c => c.status === "UNAVAILABLE" && c.mandatory && c.source.kind === "domain")).toBe(true);
+      expect(result.detectorErrors).toHaveLength(result.coverage!.filter(c => c.mandatory && c.status === "UNAVAILABLE").length);
+    } finally { cleanup(root); }
+  }, 120000);
+
   it("retains simple claims and recognizes nested owner tokens without treating arbitrary dotted text as a type", async () => {
     const root = makeTempDir();
     try {
@@ -549,3 +569,25 @@ async function executeWithKit(ctx: AuditDetectorContext) {
   if (result.detectorErrors.length) throw new Error(JSON.stringify(result.detectorErrors));
   return result.issues;
 }
+
+describe("shared qualified Android implementation evidence", () => {
+  it.each(["implemented", "absent", "unknown"] as const)("handles %s evidence in both original docs claim routes", state => {
+    const root = makeTempDir();
+    try {
+      const scripts = state === "absent" ? {} : { "android:validate": "node tooling/mobile-check.mjs" };
+      writeFile(root, "package.json", JSON.stringify({ scripts }));
+      if (state === "implemented") writeFile(root, "tooling/mobile-check.mjs",
+        "export function validateAndroid(manifest) { return manifest.includes('manifest'); }\nvalidateAndroid(process.argv[2]);\n");
+      const docs = ["docs/COMMANDS.md", "docs/PROJECT_OVERVIEW.md"];
+      for (const file of docs) writeFile(root, file, "Android validation is implemented.\n");
+      const ctx = buildContext(root);
+      const statuses: string[] = [];
+      ctx.reportCoverage = record => statuses.push(record.status);
+      const result = DOCS_CODE_MISMATCH_DETECTOR.run(ctx) as AuditIssue[];
+      const android = result.filter(issue => issue.id.endsWith(":current-but-missing:android-validation"));
+      expect(android.map(issue => issue.id)).toEqual(state === "absent"
+        ? docs.map(file => "docs-code-mismatch:" + file + ":current-but-missing:android-validation") : []);
+      expect(statuses).toEqual(state === "unknown" ? ["UNDETERMINED", "UNDETERMINED"] : []);
+    } finally { cleanup(root); }
+  });
+});

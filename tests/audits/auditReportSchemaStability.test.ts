@@ -89,6 +89,23 @@ function fakeTarget(): AuditTarget {
 }
 
 describe("audit JSON report schema stability", () => {
+  it("projects mandatory gaps through existing schema 1.0 errors while retaining findings", async () => {
+    const config = normalizeAuditConfig({ failOn: "none" }, toolRoot);
+    const detector = makeDetector({ run: ctx => {
+      ctx.reportCoverage!({ detectorId: "test-detector", predicate: "claim", source: { kind: "domain", identity: "selected sources" },
+        capability: "declarations", actualStatus: "partial", status: "UNAVAILABLE", mandatory: true, diagnostic: "producer limitation", reason: "absence unavailable" });
+      return [makeIssue()];
+    } });
+    const result = await runAudit({ config, toolRoot, target: fakeTarget(), registry: [detector] });
+    const parsed = JSON.parse(renderAuditJsonReport(buildAuditReportModel(result, { target: fakeTarget(), registry: [detector] })));
+    expect(Object.keys(parsed).sort()).toEqual(REQUIRED_TOP_LEVEL_KEYS);
+    expect(parsed.schemaVersion).toBe("1.0");
+    expect(parsed.detectorErrors).toHaveLength(1);
+    expect(parsed.detectorErrors[0].message).toContain("PARTIAL_COVERAGE UNAVAILABLE");
+    expect(parsed.issues[0].id).toBe("issue-1");
+    expect(parsed.summary.finalExitCode).toBe(2);
+  });
+
   it("locks the exact top-level key set", async () => {
     const config = normalizeAuditConfig({}, toolRoot);
     const detector = makeDetector();

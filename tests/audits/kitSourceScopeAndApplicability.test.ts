@@ -8,6 +8,7 @@ import { resolveApplicableKitRequirements, requiredKitCapabilitiesForPath, DEFAU
 import { assertRequiredCapabilities, assertSelectionCoversRequired, type KitFileRecord } from "../../src/audits/core/kitSourceEvidence.js";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
+import { collectJvmProjectMetadata } from "../../src/audits/core/jvmProjectMetadata.js";
 
 const dirs: string[] = [];
 function fixture(paths: string[]) {
@@ -55,6 +56,18 @@ describe("required JSON raw selection", () => {
       expect(selectKitSourceRoots(root, inventory, [file]).complete).toBe(false);
     }
     expect(() => selectKitSourceRoots(root, inventory, ["../outside.json"])).toThrow(/path-invalid/);
+  });
+
+  it("admits required tsconfig bytes only through the qualified producer route", () => {
+    const file = "tests/fixtures/path-alias/tsconfig.json";
+    const root = fixture([file]);
+    const inventory = scanProjectInventory(root);
+    expect(selectKitSourceRoots(root, inventory, [file])).toMatchObject({
+      complete: false, excludedPaths: [file],
+    });
+    expect(selectKitSourceRoots(root, inventory, [file], [], true)).toMatchObject({
+      complete: true, requiredPaths: [file], sourceRoots: ["tests/fixtures/path-alias"],
+    });
   });
 
   it("keeps source-only applicability free of JSON", () => {
@@ -184,13 +197,52 @@ describe("selected detector applicability", () => {
     expect(actual.requirements.find((r) => r.path === "src/A.java" && r.capability === "declarations")?.applicability).toBe("APPLICABLE_REQUIRED");
   });
 
-  it("does not turn JVM configuration metadata into complete empty source evidence", async () => {
+  it("does not invent declaration obligations from a configuration-only JVM language count", async () => {
     const root = fixture(["README.md", "build.gradle.kts"]);
     const runCommand = vi.fn();
-    await expect(runAudit({ config: normalizeAuditConfig({ target: root, types: "code-rot", include: "docs", failOn: "none" }, root),
+    const result = await runAudit({ config: normalizeAuditConfig({ target: root, types: "code-rot", include: "docs", failOn: "none" }, root),
       toolRoot: root, registry: DEFAULT_AUDIT_REGISTRY.filter((d) => d.id === "docs-code-mismatch"), sourceProviderMode: "kit",
-      kitSourceProviderDependencies: { installedPackageRoot: path.join(root, "absent-kit"), runCommand } })).rejects.toMatchObject({ category: "selection-incomplete" });
+      kitSourceProviderDependencies: { installedPackageRoot: path.join(root, "absent-kit"), runCommand } });
+    expect(result.sourceFacts.provider).toBe("not-collected");
+    expect(collectJvmProjectMetadata(root, scanProjectInventory(root)).hasKotlinSource).toBe(false);
     expect(runCommand).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes the exact Gradle configuration fixture from real Kotlin tests and script source", () => {
+    const gradle = "tests/fixtures/android/advanced-security-fixtures/release-configuration/kotlin-release-debuggable-false.gradle.kts";
+    const root = fixture([gradle, "README.md", "tests/AppTest.kt", "src/test/kotlin/OtherTest.kt", "src/App.kt", "scripts/input.kts", "tests/fixtures/input.kts", "tests/fixtures/data.json"]);
+    const inventory = scanProjectInventory(root);
+    expect(inventory.files.find(f => f.relativePath === gradle)).toMatchObject({ role: "config", language: "kotlin" });
+    // The coarse category preserves existing raw fixture loops, not test semantics.
+    expect(inventory.testFiles.map(f => f.relativePath)).toContain(gradle);
+    expect(inventory.files.find(f => f.relativePath === "tests/AppTest.kt")?.role).toBe("test");
+    expect(inventory.files.find(f => f.relativePath === "src/test/kotlin/OtherTest.kt")?.role).toBe("test");
+    expect(inventory.files.find(f => f.relativePath === "src/App.kt")?.role).toBe("source");
+    expect(inventory.files.find(f => f.relativePath === "scripts/input.kts")?.role).toBe("source");
+    expect(inventory.files.find(f => f.relativePath === "tests/fixtures/input.kts")?.role).toBe("test");
+    for (const id of ["docs-code-mismatch", "duplicate-implementation-candidate", "dead-code-candidate", "test-rot"]) {
+      const actual = requirements(root, id);
+      expect(requiredKitCapabilitiesForPath(actual.requirements, gradle)).toEqual([]);
+      expect(actual.requirements.filter(r => r.path === gradle && r.applicability === "NOT_APPLICABLE").every(r => r.reason?.includes("Configuration"))).toBe(true);
+      expect(actual.paths.includes(gradle)).toBe(id === "test-rot" || id === "dead-code-candidate");
+    }
+    const tests = requirements(root, "test-rot");
+    expect(requiredKitCapabilitiesForPath(tests.requirements, "tests/AppTest.kt")).toEqual(["imports"]);
+    expect(requiredKitCapabilitiesForPath(tests.requirements, "src/App.kt")).toEqual([]);
+    expect(tests.paths).toContain("tests/fixtures/data.json");
+    expect(selectKitSourceRoots(root, inventory, [gradle], [gradle])).toMatchObject({ complete: true });
+    expect(selectKitSourceRoots(root, inventory, [gradle]).complete).toBe(false);
+    expect(collectJvmProjectMetadata(root, inventory).hasKotlinSource).toBe(true);
+  });
+
+  it("keeps configuration-only projects out of semantic scopes without excluding script source in unusual layouts", () => {
+    const root = fixture(["build.gradle.kts", "settings.gradle.kts", "tests/fixtures/sample.gradle.kts", "README.md"]);
+    expect(collectJvmProjectMetadata(root, scanProjectInventory(root)).hasKotlinSource).toBe(false);
+    expect(requirements(root, "docs-code-mismatch").paths).toEqual([]);
+    expect(requirements(root, "test-rot").paths).toEqual(["tests/fixtures/sample.gradle.kts"]);
+    const other = fixture(["custom/input.kts", "custom/Application.kt"]);
+    expect(collectJvmProjectMetadata(other, scanProjectInventory(other)).hasKotlinSource).toBe(true);
+    expect(requirements(other, "duplicate-implementation-candidate").paths).toEqual(["custom/Application.kt", "custom/input.kts"]);
   });
 
   it("selects source import targets without demanding their imports for test-rot", () => {

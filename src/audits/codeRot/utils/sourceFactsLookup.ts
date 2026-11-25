@@ -1,7 +1,7 @@
 import type { SourceFactsSnapshot, SourceFileFacts } from "../../core/sourceFacts.js";
 import { baseNameNoExt } from "./filePatternUtils.js";
 import type { KitSourceReader } from "../../core/kitSourceProvider.js";
-import { KitSourceEvidenceAcquisitionError, type KitOccurrence } from "../../core/kitSourceEvidence.js";
+import { authenticateKitWindowContent, KitSourceEvidenceAcquisitionError, qualifyKitImportPredicate, type KitOccurrence } from "../../core/kitSourceEvidence.js";
 
 export function requireCompleteKitOccurrence(result: KitOccurrence): KitOccurrence {
   if (!result.complete) throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
@@ -10,22 +10,48 @@ export function requireCompleteKitOccurrence(result: KitOccurrence): KitOccurren
 }
 
 // A conservative bridge for the existing whole-content regex predicates.
-// No windows are stitched: a nonzero anchor needs one authenticated window
-// covering the whole file. Otherwise the existing unbounded regex/150-char
-// neighborhood cannot be reproduced safely from the bounded interface.
+// A nonzero anchor needs whole-file text. The separately qualified range
+// reader verifies original bytes; occurrence windows are never enlarged.
 export async function kitPredicateContent(reader: KitSourceReader | undefined, filePath: string, anchors: readonly string[], byteNeighborhood = false): Promise<string> {
   if (!reader) throw new KitSourceEvidenceAcquisitionError("invalid-request", `${filePath} requires its validated Kit source reader.`);
   const file = reader.selectedFile(filePath);
+  // R3 exposes bounded source ranges through a reader that verifies the
+  // original byte digest and source freshness before returning text.
+  const readBoundedContent = reader.authenticatedContent ??
+    (byteNeighborhood ? reader.authenticatedFixtureContent : undefined);
+  if (filePath.endsWith(".json") && reader.authenticatedContent && file.contentSha256) {
+    try { return await reader.authenticatedContent(filePath); }
+    catch (error) {
+      if (!(error instanceof KitSourceEvidenceAcquisitionError) || error.category !== "capability-insufficient") throw error;
+    }
+  }
+  const jsonWindows: KitOccurrence["matches"] = [];
+  let jsonMatched = false;
   for (const anchor of anchors) {
-    const result = requireCompleteKitOccurrence(await reader.occurrences(filePath, anchor));
+    const result = await reader.occurrences(filePath, anchor);
+    // Qualified selected JSON may have no semantic line count. Whole-byte
+    // identity establishes raw context without creating semantic capabilities.
+    if (filePath.endsWith(".json") && reader.authenticatedContent && file.contentSha256) {
+      jsonMatched ||= result.matchCount > 0 || !result.complete;
+      jsonWindows.push(...result.matches);
+      const content = authenticateKitWindowContent(filePath, file, jsonWindows);
+      if (content !== null) return content;
+      // Other anchors may supply the missing overlapping ranges. Neither a
+      // byte length nor a hash alone establishes their unavailable content.
+      continue;
+    }
+    if (!result.complete && readBoundedContent && file.contentSha256) return readBoundedContent(filePath);
+    requireCompleteKitOccurrence(result);
     if (!result.matchCount) continue;
     const whole = result.matches.find((match) => match.windowStart === 1 && file.lineCount !== null &&
       (match.windowEnd === file.lineCount || (match.windowEnd === file.lineCount - 1 && match.windowEnd < match.line + 40)) &&
       (!byteNeighborhood || Buffer.byteLength(match.content, "utf8") === file.sizeBytes || Buffer.byteLength(match.content, "utf8") + 1 === file.sizeBytes));
+    if (!whole && readBoundedContent) return readBoundedContent(filePath);
     if (!whole) throw new KitSourceEvidenceAcquisitionError("capability-insufficient",
       `${filePath} has insufficient contiguous source context for the original predicate (including newline identity).`);
     return whole.content;
   }
+  if (jsonMatched) return reader.authenticatedContent!(filePath);
   return "";
 }
 
@@ -62,6 +88,13 @@ export function getParsedSourceFacts(
   return facts && facts.parseStatus === "parsed" ? facts : null;
 }
 
+// Import consumers must not discard authenticated complete imports merely
+// because an unrelated declaration capability downgraded the file status.
+export function getImportSourceFacts(index: Map<string, SourceFileFacts>, relativePath: string): SourceFileFacts | null {
+  const facts = index.get(relativePath);
+  return facts && (facts.kit ? qualifyKitImportPredicate(facts) === "QUALIFIED_NEGATIVE" : facts.parseStatus === "parsed") ? facts : null;
+}
+
 // Basenames referenced by any parsed file's relative import/re-export
 // specifier, lowercased. Mirrors deadCodeCandidateDetector.ts's regex-based
 // buildReverseReferenceIndex() basename matching, but sourced from
@@ -73,8 +106,8 @@ export function collectRelativeImportBasenames(sourceFacts?: SourceFactsSnapshot
   const basenames = new Set<string>();
   if (!sourceFacts) return basenames;
   for (const file of sourceFacts.files) {
-    if (file.parseStatus !== "parsed") continue;
     for (const imp of file.imports) {
+      if (file.kit ? qualifyKitImportPredicate(file, imp) !== "QUALIFIED_POSITIVE" : file.parseStatus !== "parsed") continue;
       if (!imp.source.startsWith(".")) continue;
       const base = baseNameNoExt(imp.source.split("?")[0]);
       basenames.add(base.toLowerCase());

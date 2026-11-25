@@ -13,6 +13,53 @@ import { validateKitOccurrence, validateKitImportProof, qualifyKitDeclarationPre
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
 import { runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
 import { kitPredicateContent, requireCompleteKitOccurrence } from "../../src/audits/codeRot/utils/sourceFactsLookup.js";
+
+describe("authenticated JSON window assembly", () => {
+  it("qualifies full bytes from a truncated literal inventory without promoting that inventory", async () => {
+    const text = JSON.stringify({ text: "it ".repeat(201) }) + "\n";
+    const result = { complete: false, reasonCode: "MATCHES_TRUNCATED", matchCount: 201,
+      matches: Array.from({ length: 200 }, () => ({ windowStart: 1, content: text })) };
+    const reader = {
+      selectedFile: () => ({ contentSha256: createHash("sha256").update(text).digest("hex"), sizeBytes: Buffer.byteLength(text) }),
+      authenticatedContent: async () => { throw new KitSourceEvidenceAcquisitionError("capability-insufficient", "no prior cached context"); },
+      occurrences: async () => result,
+    } as unknown as KitSourceReader;
+    expect(await kitPredicateContent(reader, "tests/data.json", ["it"])).toBe(text);
+    expect(result.complete).toBe(false);
+    expect(() => requireCompleteKitOccurrence(result as unknown as KitOccurrence)).toThrow(/incomplete/);
+  });
+
+  it("uses independently authenticated complete bytes without requiring another literal inventory", async () => {
+    const text = '{"test":"complete bytes"}\n';
+    const reader = {
+      selectedFile: () => ({ contentSha256: createHash("sha256").update(text).digest("hex"), sizeBytes: Buffer.byteLength(text) }),
+      authenticatedContent: async () => text,
+      occurrences: async () => { throw new Error("Unrelated literal inventory is not needed for authenticated whole bytes"); },
+    } as unknown as KitSourceReader;
+    expect(await kitPredicateContent(reader, "tests/data.json", ["test"])).toBe(text);
+  });
+
+  it.each(["\n", "\r\n"])("qualifies overlapping windows only after reproducing original %j bytes", async newline => {
+    const text = ["{", '"first": "describe",', '"second": "test"', "}"].join(newline) + newline;
+    const reader = {
+      selectedFile: () => ({ contentSha256: createHash("sha256").update(text).digest("hex"), sizeBytes: Buffer.byteLength(text), lineCount: null }),
+      authenticatedContent: async () => { throw new KitSourceEvidenceAcquisitionError("capability-insufficient", "no complete raw range"); },
+      occurrences: async (_file: string, value: string) => ({ complete: true, matchCount: 1, matches: [value === "describe"
+        ? { windowStart: 1, content: '{\n"first": "describe",' }
+        : { windowStart: 2, content: '"first": "describe",\n"second": "test"\n}' }] }),
+    } as unknown as KitSourceReader;
+    expect(await kitPredicateContent(reader, "tests/data.json", ["describe", "test"])).toBe(text);
+  });
+  it.each(["gap", "hash-only", "conflict"])("never derives a negative conclusion from %s evidence", async kind => {
+    const reader = {
+      selectedFile: () => ({ contentSha256: "a".repeat(64), sizeBytes: 100, lineCount: null }),
+      authenticatedContent: async () => { throw new KitSourceEvidenceAcquisitionError("capability-insufficient", "unavailable complete content"); },
+      occurrences: async (_file: string, value: string) => ({ complete: true, matchCount: 1, matches: kind === "hash-only" ? [] :
+        [{ windowStart: value === "a" || kind === "conflict" ? 1 : 3, content: value }] }),
+    } as unknown as KitSourceReader;
+    await expect(kitPredicateContent(reader, "tests/data.json", ["a", "b"])).rejects.toMatchObject({ category: kind === "conflict" ? "artifact-invalid" : "capability-insufficient" });
+  });
+});
 import { runAudit, type AuditResult } from "../../src/audits/core/auditRunner.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { resolveAuditTarget } from "../../src/audits/core/auditTarget.js";

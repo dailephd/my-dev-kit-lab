@@ -7,7 +7,7 @@ import type { SourceOfTruthSnapshot } from "./sourceOfTruth.js";
 import type { SourceFactsSnapshot } from "./sourceFacts.js";
 import type { KitSourceReader } from "./kitSourceProvider.js";
 import { MAX_READ_BYTES as DEAD_CODE_MAX_READ_BYTES } from "../codeRot/detectors/deadCodeCandidateDetector.js";
-import { MAX_READ_BYTES as TEST_ROT_MAX_READ_BYTES } from "../codeRot/detectors/testRotDetector.js";
+import { isTestRotRawOnlyInput, MAX_READ_BYTES as TEST_ROT_MAX_READ_BYTES } from "../codeRot/detectors/testRotDetector.js";
 import { KitSourceEvidenceAcquisitionError, type KitCapabilityName } from "./kitSourceEvidence.js";
 import {
   STALE_COMMAND_REFERENCE_DETECTOR,
@@ -35,6 +35,21 @@ import {
 // to the registry without changing this runner/registry contract.
 // ---------------------------------------------------------------------------
 
+// Internal disposition only; the report projects unavailable mandatory records
+// through its existing detectorErrors field rather than changing schema 1.0.
+export type AuditPredicateCoverage = {
+  detectorId: string;
+  predicate: string;
+  source: { kind: "file" | "domain"; identity: string };
+  capability: string;
+  actualStatus: string;
+  status: "QUALIFIED" | "FINDING_SUPPORTED" | "NOT_APPLICABLE" | "UNAVAILABLE" | "UNDETERMINED";
+  proof?: { kind: "import-domain" | "import-target" | "exact-literal-byte" | "authenticated-source-ranges"; snapshotId: string; references: readonly string[] };
+  mandatory: boolean;
+  diagnostic: string;
+  reason: string;
+};
+
 export type AuditDetectorContext = {
   target: AuditTarget;
   config: AuditConfig;
@@ -49,6 +64,9 @@ export type AuditDetectorContext = {
   // type-checking unchanged. No current detector reads this field yet.
   sourceFacts?: SourceFactsSnapshot;
   kitSourceReader?: KitSourceReader;
+  // Non-fatal mandatory predicate coverage; the runner retains it as a detector error.
+  reportUnavailable?: (detectorId: string, predicate: string, filePath: string, reason: string, capability?: string) => void;
+  reportCoverage?: (coverage: AuditPredicateCoverage) => void;
 };
 
 export type AuditDetectorSkip = { skip: true; reason: string } | { skip: false };
@@ -160,6 +178,7 @@ export type ApplicableKitFileRequirement = {
   detectorId: string;
   capability: KitCapabilityName;
   applicability: KitRequirementApplicability;
+  reason?: string;
 };
 
 // Gate 1 structured-fact scopes. Raw-reader dependencies remain Gate 4 bypasses;
@@ -171,6 +190,11 @@ export function resolveApplicableKitRequirements(
 ): { paths: string[]; requirements: ApplicableKitFileRequirement[] } {
   const paths = new Set<string>();
   const requirements: ApplicableKitFileRequirement[] = [];
+  const selectRawPath = (filePath: string, detectorId: string) => {
+    paths.add(filePath);
+    requirements.push({ path: filePath, detectorId, capability: "source-ranges", applicability: "APPLICABLE_OPTIONAL",
+      reason: "Selected authenticated raw input; semantic declarations/imports are not required for this raw predicate." });
+  };
   const languages = new Set(["typescript", "javascript", "python", "java", "kotlin", "rust"]);
   // The existing JVM docs policy also uses language counts from metadata.
   // A build/config file can activate that gate without supplying any eligible
@@ -183,7 +207,9 @@ export function resolveApplicableKitRequirements(
   // qualified raw content without requiring semantic imports/declarations.
   if (selected.some(({ id }) => id === "test-rot") && include.includes("tests")) {
     for (const entry of inventory.testFiles) {
-      if (entry.relativePath.endsWith(".json") && entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) paths.add(entry.relativePath);
+      if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts")) ||
+          (isTestRotRawOnlyInput(entry) && languages.has(entry.language))) &&
+          entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) selectRawPath(entry.relativePath, "test-rot");
     }
   }
   // Dead-code's reverse-reference and fixture-basename predicates read every
@@ -195,23 +221,37 @@ export function resolveApplicableKitRequirements(
         (include.includes("package") && inventory.scriptFiles.length > 0) ||
         (include.includes("tests") && hasFixtureInputs))) {
     for (const entry of inventory.testFiles) {
-      if (entry.relativePath.endsWith(".json") && entry.sizeBytes <= DEAD_CODE_MAX_READ_BYTES) paths.add(entry.relativePath);
+      if ((entry.relativePath.endsWith(".json") || (entry.role === "config" && entry.relativePath.endsWith(".gradle.kts")) ||
+          ((entry.role === "generated" || entry.role === "vendor") && languages.has(entry.language))) &&
+          entry.sizeBytes <= DEAD_CODE_MAX_READ_BYTES) selectRawPath(entry.relativePath, "dead-code-candidate");
     }
     // Reverse-reference predicates also read generated/vendor entries in the existing
     // source category. Request raw evidence without making semantic facts apply.
     if (include.includes("cli") || include.includes("architecture") ||
         (include.includes("package") && inventory.scriptFiles.length > 0)) {
       for (const entry of inventory.sourceFiles) {
-        if ((entry.role === "generated" || entry.role === "vendor") && languages.has(entry.language) && entry.sizeBytes <= DEAD_CODE_MAX_READ_BYTES) paths.add(entry.relativePath);
+        if ((entry.role === "generated" || entry.role === "vendor") && languages.has(entry.language) && entry.sizeBytes <= DEAD_CODE_MAX_READ_BYTES) selectRawPath(entry.relativePath, "dead-code-candidate");
       }
     }
   }
-  if (docsSelected && !hasJvmInput && (inventory.filesByLanguage.java > 0 || inventory.filesByLanguage.kotlin > 0)) {
+  if (docsSelected && !hasJvmInput && inventory.files.some(entry =>
+      (entry.language === "java" || entry.language === "kotlin") && entry.role === "unknown")) {
     throw new KitSourceEvidenceAcquisitionError("selection-incomplete",
       "docs-code-mismatch JVM applicability is undetermined: language metadata exists but no eligible source/test declaration paths can be established.");
   }
   for (const entry of inventory.files) {
-    if (!languages.has(entry.language) || (entry.role !== "source" && entry.role !== "test")) continue;
+    if (!languages.has(entry.language) || (entry.role !== "source" && entry.role !== "test" && entry.role !== "config")) continue;
+    if (entry.role === "config") {
+      for (const { id } of selected) {
+        for (const capability of KIT_SOURCE_EVIDENCE_REQUIREMENTS[id]?.capabilities ?? []) {
+          requirements.push({ path: entry.relativePath, detectorId: id, capability, applicability: "NOT_APPLICABLE",
+            reason: "Configuration role is outside application/test declaration and import predicates; raw configuration checks remain selected independently." });
+        }
+        if ((id === "test-rot" || id === "dead-code-candidate") && paths.has(entry.relativePath)) requirements.push({ path: entry.relativePath, detectorId: id,
+          capability: "source-ranges", applicability: "APPLICABLE_OPTIONAL", reason: "Selected configuration fixture supplies authenticated raw content, not semantic completeness." });
+      }
+      continue;
+    }
     const jvm = entry.language === "java" || entry.language === "kotlin";
     for (const { id } of selected) {
       const capabilities: KitCapabilityName[] = [];
@@ -233,7 +273,7 @@ export function resolveApplicableKitRequirements(
         // Source files are selected as import-target inventory, not required
         // import observations. Test-rot reads imports only from test files.
         select = true;
-        if (entry.role === "test" && entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) capabilities.push("imports");
+        if (entry.role === "test" && !isTestRotRawOnlyInput(entry) && entry.sizeBytes <= TEST_ROT_MAX_READ_BYTES && !entry.relativePath.startsWith("tests/audits/codeRot/")) capabilities.push("imports");
       } else if (id === "cross-platform-rot" && include.includes("cli") && entry.role === "source" &&
         entry.relativePath.startsWith("src/audits/") && !entry.relativePath.endsWith("/textLines.ts")) {
         select = true;
@@ -242,11 +282,13 @@ export function resolveApplicableKitRequirements(
         paths.add(entry.relativePath);
         // Full range coverage enriches provenance; Gate 1 requires only
         // start-line locations for the current structural consumers.
-        requirements.push({ path: entry.relativePath, detectorId: id, capability: "source-ranges", applicability: "APPLICABLE_OPTIONAL" });
+        requirements.push({ path: entry.relativePath, detectorId: id, capability: "source-ranges", applicability: "APPLICABLE_OPTIONAL",
+          reason: "Selected detector uses this path; start-line provenance is sufficient." });
       }
       for (const capability of KIT_SOURCE_EVIDENCE_REQUIREMENTS[id]?.capabilities ?? []) {
         requirements.push({ path: entry.relativePath, detectorId: id, capability,
-          applicability: capabilities.includes(capability) ? "APPLICABLE_REQUIRED" : "NOT_APPLICABLE" });
+          applicability: capabilities.includes(capability) ? "APPLICABLE_REQUIRED" : "NOT_APPLICABLE",
+          reason: capabilities.includes(capability) ? `${id} requires ${capability} for this ${entry.role} file and selected include areas.` : `${id} has no ${capability} predicate for this file role and selected include areas.` });
       }
     }
   }

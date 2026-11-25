@@ -6,7 +6,12 @@ import { afterAll, describe, expect, it } from "vitest";
 import { runAudit } from "../../src/audits/core/auditRunner.js";
 import { normalizeAuditConfig } from "../../src/audits/core/auditConfig.js";
 import { DEFAULT_AUDIT_REGISTRY } from "../../src/audits/core/auditRegistry.js";
-import { QUALIFIED_PUBLISHED_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
+import { resolveQualifiedKitArchive, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_SW123_P6_R2_KIT, type KitCandidateExpectation } from "../../src/audits/core/kitSourceProvider.js";
+import { execFileSync } from "node:child_process";
+// @ts-expect-error Source-checkout verification is an existing plain ESM owner.
+import { verificationOutputDirectory } from "../../scripts/run-verification-lane.mjs";
+// @ts-expect-error Source-checkout verification is an existing plain ESM owner.
+import { CURRENT_CONTRACT, currentProspectiveFixtureRoots, projectJvmSnapshot, prospectiveCurrentFindings, verifyCurrentFixtureCoverage } from "../../scripts/verifyCurrentKitAcceptance.mjs";
 
 const root = process.cwd();
 const privateLane = process.env.LAB_VERIFICATION_LANE === "private";
@@ -24,10 +29,54 @@ const expectation: KitCandidateExpectation = {
   cliSha256: "35dbc49fc91f8c47f1e7cdaf86223414a54517ff25a1a29f87231b2bae3807b8",
 };
 type Decision = (typeof oracle.decisions)[number];
+const currentPolicy = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/audits/currentKitAcceptance.v010.json"), "utf8"));
+const expectedCurrent = new Map<string, unknown>(prospectiveCurrentFindings(oracle, currentPolicy, root)
+  .map((row: Decision) => [row.decisionId, row.normalizedKitFindings]));
 const fixtureRoots: string[] = [...new Set<string>(oracle.decisions.map((d: Decision) => d.fixtureRoot))].sort();
 const completed: { decisionId: string; normalizedKitFindings: unknown }[] = [];
+const currentCompleted: { decisionId: string; normalizedKitFindings: unknown }[] = [];
+const currentCoverage: unknown[] = [];
+const currentJvmProofs: Record<string, Record<string, { importFactId: string; snapshotId: string }>> = {};
+const p6Root = process.env.LAB_SW123_P6_R3_ROOT;
+const p6Package = process.env.LAB_SW123_P6_R3_PACKAGE_ROOT;
+if (Boolean(p6Root) !== Boolean(p6Package) || (p6Root && (process.env.LAB_SW123_P5_ROOT || process.env.LAB_SW123_P5_PACKAGE_ROOT))) {
+  throw new Error("Select one complete SW123 qualification lane.");
+}
+const p5Root = p6Root ?? process.env.LAB_SW123_P5_ROOT;
+const p5Package = p6Package ?? process.env.LAB_SW123_P5_PACKAGE_ROOT;
+if (Boolean(p5Root) !== Boolean(p5Package)) throw new Error("P5 requires both workspace and installed producer.");
+const p5Expectation: KitCandidateExpectation = p6Root ? QUALIFIED_SW123_P6_R2_KIT : {
+  packageName: "@dailephd/my-dev-kit", packageVersion: "1.15.1", artifactSchemaVersion: "1.1.0",
+  extractorRevision: "source-audit-v1.5.1", cliSha256: "591109bd72d4f423865e65eac28e216a754c7abdb470d1df21066c6edc8522eb",
+};
+const modifierReplayOnly = process.env.LAB_CURRENT_MODIFIER_REPLAY === "1";
+if (modifierReplayOnly && (privateLane || p5Root || !process.env.LAB_CURRENT_ORACLE_OUTPUT)) {
+  throw new Error("Current modifier replay requires its published profile and native decision destination.");
+}
+const executionFixtureRoots = modifierReplayOnly
+  ? fixtureRoots.filter(fixture => currentProspectiveFixtureRoots(currentPolicy).has(fixture))
+  : fixtureRoots;
+const matrixArchive = process.env.LAB_SW121_MATRIX_ARCHIVE;
+const matrixPackage = process.env.LAB_SW121_MATRIX_PACKAGE;
+const matrixOutput = process.env.LAB_SW121_MATRIX_OUTPUT;
+if ([matrixArchive, matrixPackage, matrixOutput].some(Boolean) && (!matrixArchive || !matrixPackage || !matrixOutput || privateLane || p5Root || modifierReplayOnly || process.env.LAB_CURRENT_ORACLE_OUTPUT)) throw new Error("Invalid development matrix inputs");
+const matrix = matrixArchive && matrixPackage ? resolveQualifiedKitArchive(matrixArchive, matrixPackage) : undefined;
+const matrixFixtureFilter = matrix && process.env.LAB_SW121_MATRIX_FIXTURES?.split(",");
+if (matrixFixtureFilter && (new Set(matrixFixtureFilter).size !== matrixFixtureFilter.length ||
+    matrixFixtureFilter.some(fixture => !fixtureRoots.includes(fixture)))) {
+  throw new Error("Invalid qualified development fixture subset");
+}
+const selectedFixtureRoots = matrixFixtureFilter
+  ? executionFixtureRoots.filter(fixture => matrixFixtureFilter.includes(fixture))
+  : executionFixtureRoots;
+const p5Completed: unknown[] = [];
+const p5Authority = p5Root ? path.dirname(path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim())) : root;
+if (p5Root) assertContainedDirectory(p5Root, p5Authority);
+const p5Output = p5Root ? fs.mkdtempSync(path.join(p5Root, p6Root ? "qualification/accepted-oracle-" : "candidate-results/accepted-oracle-")) : undefined;
 
 // Identical to the accepted differential normalization: arrays keep their order.
+const jvmFixture = (fixture: string) => /\/kit-differential-v010\/(java|kotlin)$/.test(fixture);
+
 function normalize(value: unknown, target: string): any {
   if (typeof value === "string") return value.split(target).join("<TARGET>").split(target.replace(/\\/g, "/")).join("<TARGET>");
   if (Array.isArray(value)) return value.map((v) => normalize(v, target));
@@ -53,12 +102,12 @@ function validateOracle(value: typeof oracle): void {
   }
 }
 
-function assertContainedDirectory(directory: string): void {
-  const relative = path.relative(root, directory);
+function assertContainedDirectory(directory: string, authority = root): void {
+  const relative = path.relative(authority, directory);
   if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Uncontained Gate5 directory");
-  for (let current = directory; path.relative(root, current) !== ""; current = path.dirname(current)) {
+  for (let current = directory; path.relative(authority, current) !== ""; current = path.dirname(current)) {
     if (fs.lstatSync(current).isSymbolicLink()) throw new Error("Linked Gate5 directory");
-    if (path.relative(root, fs.realpathSync(current)).startsWith("..")) throw new Error("Escaped Gate5 directory");
+    if (path.relative(authority, fs.realpathSync(current)).startsWith("..")) throw new Error("Escaped Gate5 directory");
   }
 }
 
@@ -92,7 +141,7 @@ describe("Gate5 committed accepted oracle", () => {
     validateOracle(oracle);
     for (const [relative, hash] of Object.entries(oracle.fixtureFileHashes)) expect(sha(fs.readFileSync(path.join(root, relative)))).toBe(hash);
     if (privateLane) expect(sha(fs.readFileSync(path.join(candidate, "dist/cli.js")))).toBe(expectation.cliSha256);
-    else expect(sha(fs.readFileSync(path.join(root, "node_modules/@dailephd/my-dev-kit/dist/cli.js")))).toBe(QUALIFIED_PUBLISHED_KIT.cliSha256);
+    else expect(sha(fs.readFileSync(path.join(root, "node_modules/@dailephd/my-dev-kit/dist/cli.js")))).toBe(QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256);
   });
 
   if (privateLane) it("reproduces the accepted Kit findings and exact ledger domain from original evidence", () => {
@@ -123,9 +172,10 @@ describe("Gate5 committed accepted oracle", () => {
     expect(() => validateOracle(copy)).toThrow("Accepted oracle integrity mismatch");
   });
 
-  it.each(fixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
-    assertContainedDirectory(os.tmpdir());
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "gate5-oracle-"));
+  it.each(selectedFixtureRoots.flatMap(fixtureRoot => (privateLane ? ["historical"] : p5Root ? ["published", "p5-candidate"] : matrix ? ["qualified-local-matrix"] : ["published"]).map(provider => ({ fixtureRoot, provider }))))("executes ten canonical $provider Kit decisions for $fixtureRoot", async ({ fixtureRoot, provider }) => {
+    const base = provider === "p5-candidate" ? path.join(p5Root!, p6Root ? "raw-reader" : "integration-target") : os.tmpdir();
+    assertContainedDirectory(base, p5Root ? p5Authority : root);
+    const workspace = fs.mkdtempSync(path.join(base, "gate5-oracle-"));
     const target = path.join(workspace, "target");
     fs.mkdirSync(target);
     for (const [relative, hash] of Object.entries(oracle.fixtureFileHashes)) {
@@ -137,18 +187,109 @@ describe("Gate5 committed accepted oracle", () => {
       fs.writeFileSync(output, relative.endsWith(".input") ? JSON.parse(bytes.toString("utf8")) : bytes, { flag: "wx" });
     }
     const config = normalizeAuditConfig({ target, types: "code-rot", include: "docs,tests,package,architecture,cli", failOn: "none", out: path.join(workspace, "reports") }, root);
-    const result = await runAudit({ config, toolRoot: root, kitSourceProviderDependencies: { installedPackageRoot: provider === "historical" ? candidate : path.join(root, "node_modules/@dailephd/my-dev-kit"), expectation: provider === "historical" ? expectation : QUALIFIED_PUBLISHED_KIT, workDir: path.join(workspace, "kit") } });
-    expect(result.detectorErrors).toEqual([]);
+    const workDir = provider === "p5-candidate" ? fs.mkdtempSync(path.join(p5Root!, p6Root ? "qualification/oracle-" : "integration-index/oracle-")) : path.join(workspace, "kit");
+    const result = await runAudit({ config, toolRoot: root, kitSourceProviderDependencies: {
+      installedPackageRoot: provider === "historical" ? candidate : provider === "p5-candidate" ? p5Package : path.join(root, "node_modules/@dailephd/my-dev-kit"),
+      expectation: provider === "historical" ? expectation : provider === "p5-candidate" ? p5Expectation : QUALIFIED_CURRENT_PUBLISHED_KIT, ...matrix, workDir,
+      // Retain independently inspectable proof bodies for the JVM token verifier.
+      ...(jvmFixture(fixtureRoot) && { disableStream: true, disableBatch: true }),
+    } });
+    if (provider === "p5-candidate") fs.writeFileSync(path.join(p5Output!, path.basename(fixtureRoot) + ".json"), JSON.stringify({ fixtureRoot, workDir, result }, null, 2), { flag: "wx" });
     const findings = result.issues.map(issue => normalize(issue, target)).sort((a, b) => a.id.localeCompare(b.id));
+    const jvmDecision = jvmFixture(fixtureRoot) && fixtureRoot + "::test-rot";
+    let jvmProofs: typeof currentJvmProofs[string] | undefined;
+    if (jvmDecision && (provider === "published" || matrix)) {
+      // runAudit authenticated the installed profile, selected source, pages,
+      // and each declaration proof against canonical facts. Reopen the exact
+      // response backing each finding and bind it to this run's snapshot.
+      const snapshotId = result.sourceFacts.kitEvidence!.snapshotId;
+      const logDir = path.join(workDir, "logs");
+      const responses = fs.readdirSync(logDir).filter(file => file.endsWith("-import-target.stdout.txt"))
+        .map(file => JSON.parse(fs.readFileSync(path.join(logDir, file), "utf8")));
+      jvmProofs = {};
+      for (const finding of findings.filter(finding => finding.detectorId === "test-rot")) {
+        const evidence = finding.evidence.find((row: { message: string }) =>
+          row.message.startsWith("Qualified Kit declaration-domain evidence found no matching declaration "));
+        if (!evidence) continue;
+        const matching = responses.filter(proof => proof.mode === "audit-import-target" &&
+          proof.snapshotId === snapshotId && proof.originFile === evidence.filePath && proof.sourceSpecifier === evidence.excerpt &&
+          proof.status === "proven-missing" && proof.reasonCode === "ABSENT_IN_COMPLETE_JVM_DECLARATION_DOMAIN" &&
+          proof.declarationProof?.scope === "selected-ordinary-jvm-sources" && proof.declarationProof.domainComplete &&
+          evidence.message.endsWith("Import fact: " + proof.importFactId + "; snapshot: " + snapshotId + "."));
+        expect(matching).toHaveLength(1);
+        jvmProofs[finding.id] = { importFactId: matching[0].importFactId, snapshotId };
+      }
+      if (provider === "published") currentJvmProofs[jvmDecision] = jvmProofs;
+    }
+    if (matrix && matrixOutput) {
+      const common = path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim());
+      const destination = path.join(matrixOutput, Buffer.from(fixtureRoot).toString("hex") + ".json");
+      verificationOutputDirectory(path.dirname(common), destination);
+      fs.writeFileSync(destination, JSON.stringify({ fixtureRoot, workspace, workDir, producer: matrix.expectation, exit: result.exitCode, coverage: result.coverage, errors: result.detectorErrors, skipped: result.skippedDetectors, findings, jvmProofs }, null, 2), { flag: "wx" });
+      return;
+    }
+    if (provider === "published") {
+      const coverage = { fixtureRoot, detectors: DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort(),
+        detectorErrors: result.detectorErrors, skippedDetectors: result.skippedDetectors, exitCode: result.exitCode,
+        mandatoryGaps: result.coverage?.filter(row => row.mandatory && ["UNAVAILABLE", "UNDETERMINED"].includes(row.status)) ?? [] };
+      verifyCurrentFixtureCoverage(coverage, currentPolicy, fixtureRoot, coverage.detectors);
+      currentCoverage.push(coverage);
+    } else {
+      expect(result.detectorErrors).toEqual([]);
+    }
+    // The extractor revision intentionally changes snapshots. Authenticate the
+    // new identity independently, then project only the exact snapshot token
+    // in the existing JVM proof message. The frozen oracle stays untouched.
+    let identityProjection: { historicalSnapshot: string; candidateSnapshot: string } | undefined;
+    if (provider === "p5-candidate") {
+      const bytes = fs.readFileSync(path.join(workDir, "index/source-audit-evidence.json"));
+      const artifact = JSON.parse(bytes.toString("utf8"));
+      const manifest = JSON.parse(fs.readFileSync(path.join(workDir, "index/manifest.json"), "utf8"));
+      expect(sha(bytes)).toBe(manifest.sourceAuditEvidence.sha256);
+      const snapshot = (revision: string) => sha(JSON.stringify({ schemaVersion: artifact.schemaVersion,
+        selectionFingerprint: artifact.source.selectionFingerprint, extractorContractRevision: revision,
+        files: artifact.files.map((f: any) => ({ path: f.path, contentSha256: f.contentSha256,
+          selectionStatus: f.status === "unsupported" ? "unsupported" : "supported", language: f.language, role: f.role, status: f.status })),
+      }));
+      expect(snapshot(p5Expectation.extractorRevision)).toBe(artifact.source.snapshotId);
+      expect(result.sourceFacts.kitEvidence!.snapshotId).toBe(artifact.source.snapshotId);
+      identityProjection = { historicalSnapshot: snapshot("source-audit-v1.5.0"), candidateSnapshot: artifact.source.snapshotId };
+    }
     const decisions = oracle.decisions.filter((d: Decision) => d.fixtureRoot === fixtureRoot);
     expect(decisions).toHaveLength(10);
     expect(DEFAULT_AUDIT_REGISTRY.map(d => d.id).sort()).toEqual(decisions.map((d: Decision) => d.detectorId).sort());
     for (const decision of decisions) {
       const actual = findings.filter(f => f.detectorId === decision.detectorId);
-      expect(actual, decision.decisionId).toEqual(decision.normalizedKitFindings);
+      let expected = structuredClone(provider === "published" ? expectedCurrent.get(decision.decisionId) : decision.normalizedKitFindings) as typeof decision.normalizedKitFindings;
+      if (identityProjection) for (const finding of expected) for (const evidence of finding.evidence) {
+        if (!evidence.message.startsWith("Qualified Kit declaration-domain evidence found no matching declaration")) continue;
+        const oldToken = `snapshot: ${identityProjection.historicalSnapshot}.`;
+        expect(evidence.message).toContain(oldToken);
+        evidence.message = evidence.message.replace(oldToken, `snapshot: ${identityProjection.candidateSnapshot}.`);
+      }
+      expected = projectJvmSnapshot(decision.decisionId, expected, jvmProofs);
+      expect(actual, decision.decisionId).toEqual(expected);
       if (provider === "historical") completed.push({ decisionId: decision.decisionId, normalizedKitFindings: actual });
+      else if (provider === "p5-candidate") p5Completed.push({ decisionId: decision.decisionId, normalizedKitFindings: actual, identityProjection });
+      else currentCompleted.push({ decisionId: decision.decisionId, normalizedKitFindings: actual });
     }
   }, 180_000);
+});
+
+afterAll(() => {
+  if (p5Output) fs.writeFileSync(path.join(p5Output, "decisions.json"), JSON.stringify({ expectation: p5Expectation, oracleSha256: acceptedOracleSha256,
+    count: p5Completed.length, decisions: p5Completed }, null, 2) + "\n", { flag: "wx" });
+});
+
+afterAll(() => {
+  const output = process.env.LAB_CURRENT_ORACLE_OUTPUT;
+  if (!output) return;
+  if (privateLane) throw new Error("Current results cannot use the historical provider");
+  const common = path.resolve(root, execFileSync("git", ["rev-parse", "--git-common-dir"], { encoding: "utf8", windowsHide: true }).trim());
+  if (path.basename(common) !== ".git") throw new Error("Unknown current evidence authority");
+  verificationOutputDirectory(path.dirname(common), output);
+  fs.writeFileSync(output, JSON.stringify({ contractId: CURRENT_CONTRACT, provider: "published-" + QUALIFIED_CURRENT_PUBLISHED_KIT.packageVersion,
+    decisions: currentCompleted.sort((a, b) => a.decisionId.localeCompare(b.decisionId)), coverage: currentCoverage, jvmProofs: currentJvmProofs }, null, 2) + "\n", { flag: "wx" });
 });
 
 afterAll(() => {

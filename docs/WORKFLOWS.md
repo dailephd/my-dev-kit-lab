@@ -465,7 +465,7 @@ The run proceeds in this order:
 
 **Interpretation and limits:** the measures are set-based, not ranked. They are evidence about the executed cases only. The lifecycle expands only the top search candidate. No retrieval-strategy comparison, ranking, winner, or composite score exists in v0.8.0. In external-local output, `<redacted file N>`, `<redacted symbol N>`, and `<redacted fact N>` mean an identity existed and was withheld, not that the list is empty. The console summary of a successful run can still show the physical output directory even though durable files redact it. Very long platform paths can fail cleanly instead of running.
 
-**Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precision-recall-evidence-v080) for exact definitions.
+**Completion:** review the available, unavailable, and not-applicable counts, the per-case missed files, symbols, and facts, and the irrelevant context ratio in the report. See [METRICS.md](METRICS.md#retrieval-precisionrecall-evidence-v080) for exact definitions.
 
 ## Retrieval query strategy comparison experiment (v0.8.1)
 
@@ -872,6 +872,27 @@ Generated report location: `reports/audits/code-rot/code-rot-audit.txt` / `.json
 
 **Completion:** reports are written, target files remain unchanged, and every issue is interpreted as evidence rather than proof.
 
+### Planned immediate SW-123 repair and whole-source audit replay (v0.10.1)
+
+This section preserves the **historical corrective procedure** and the
+failed Step 5 SW-123 candidate. An original-scope replay uses its full
+selection, required detector set and recorded producer contract. The
+[coordinated acceptance policy](#coordinated-product-acceptance-and-target-certification)
+governs whether target certification is a release prerequisite. Replay
+retains mandatory coverage and the original evidence identity.
+
+Correct Kit v1.15.2 lexical import capability and Lab v0.10.1 applicability/acquisition/adapter/detector/reporting separately at their existing owners. Test capability-specific positive and negative qualifications, real test versus configuration-fixture roles, mixed complete/partial files, dependent cross-file absence, documentation findings alongside unavailable declarations, tampered evidence, source freshness and unchanged complete-evidence outputs. Freeze exact package, source, revision, CLI digest and selection identities for each coordinated run. When Kit's producer is corrected, qualify its exact packed candidate independently before updating Lab's production dependency; no sibling checkout or moving `@latest` substitute.
+
+A valid partial file may yield independently qualified findings and `PARTIAL_COVERAGE UNAVAILABLE` records together. Required unavailable coverage returns exit 2 even with `--fail-on none`. Integrity/acquisition defects remain fatal; applicable incomplete predicates never become PASS or automatically NOT_APPLICABLE. Replay the unchanged whole-source audit after correction, retaining original failure evidence and the separate new validation identity. Perform full documentation reconciliation and a new exact-candidate pre-release readiness; no release, tag, package bump or publication occurs in this repair workflow. See [v0.10.1 scope](ROADMAP.md#v0101--partial-source-evidence-and-predicate-coverage-correction) and [planned architecture](ARCHITECTURE.md#planned-v0101-predicate-scoped-source-evidence-compatibility-correction-sw-123).
+
+### Unreleased partial-import coverage correction
+
+After an audit, inspect coverage as well as findings/severity. Qualified partial import records remain partial. Independent checks continue only with sufficient evidence; affected missing-import, dead-code and fixture-absence predicates retain file, capability, diagnostic and detector reasons in `PARTIAL_COVERAGE UNAVAILABLE` errors. Mandatory incomplete coverage returns exit 2 even with `--fail-on none`; retain findings and JSON/text reports. Complete inventory is not complete semantic coverage.
+
+Malformed, stale, corrupted, untrusted or unselected evidence still fails closed. A missing report after acquisition failure is not an empty successful audit. A retained report may expose both exit 2 and a severity breach. Missing qualified evidence must be recovered or handled by an explicitly applicable policy disposition; unavailable conclusions never become PASS. Schema 1.0 and existing flags are unchanged.
+
+Preserve failed attempts and retry logs. The reported SW-118 timeouts and unchanged retries are historical observations, not a clean full-suite result. Step 5 separately applies standardized flake adjudication. Missing originals remain evidence gaps. Surviving transcript excerpts may authenticate an observation without reconstructing a complete original file. Keep transcript record hashes/timestamps separate from newly generated validation identities; never backdate regenerated evidence or manufacture a historical ownership/qualification marker.
+
 ## Security-validation audit adapter
 
 **Goal:** include standalone security-validation results in the shared audit report.
@@ -1152,7 +1173,8 @@ npm run audit -- --target /path/to/android/project --types security --android --
 
 ## v0.10.0 public and protected verification lanes
 
-`npm run test:public` runs the public lane against published Kit 1.15.0, public schemas,
+`npm run test:public` runs the public lane against the pinned published Kit
+provider (1.16.0 for the v0.11.0 candidate), public schemas,
 and the committed 150-decision oracle. Historical producer differential and
 reader-replacement suites are assigned to the separate mandatory protected
 lane; they are not reported as passed or optional skips by public CI.
@@ -1160,6 +1182,18 @@ The canonical `npm test` remains complete Vitest discovery for the qualified
 local environment. CI preserves that command with explicit historical-file
 exclusions matching the public lane; it reports the protected gate as separately
 required, never passed by exclusion.
+
+For a source-archive readiness run, verify archive provenance against the
+exact candidate Git tree and preserve the checkout bytes required by
+`.gitattributes` in the test materialization. Verify converted text against
+its Git blob separately and retain the actual archive file hashes. In
+particular, the warm-index catalog and several staleness fixtures have
+checkout-form CRLF SHA-256 identities. Run the suite with those identities
+intact. Set `TSX_DISABLE_CACHE=1` and point `TEMP`, `TMP`, and `TMPDIR` to
+the task-approved physical test directory before starting Vitest. Provision
+the pinned Playwright Chromium runtime in the approved browser cache before
+running the canonical packed verifier. A complete run also needs its
+authenticated historical test inputs.
 
 `npm run verify:provenance -- --inputs <private-input-map> --public-result <public-result> --out <private-binding>`
 examines the actual historical artifact bytes against the committed size and
@@ -1177,7 +1211,7 @@ After committing unchanged tested source bytes, `--rebind <prior-binding>` can
 bind the final SHA only after reexamining all private bytes and proving the
 complete public source inventory and verifier are unchanged.
 
-Release readiness requires three separate results: PUBLIC_LANE PASS,
+The original historical acceptance route requires three separate results: PUBLIC_LANE PASS,
 PRIVATE_LANE PASS, and BINDING_VERIFICATION PASS. Run
 `npm run verify:readiness-binding -- --inputs <private-input-map> --out <private-binding>`
 against the exact candidate. This reexamines private bytes and rejects a stale
@@ -1199,3 +1233,62 @@ Manual pentest is deferred until after `v1.0.0`.
 It is a human-led workflow and is not required for automated Android security validation.
 
 The reader performs bounded, read-only evidence validation and delegates complete checkpoint-store validation to the campaign owners against trusted task definitions authenticated by persisted task digests. If required historical corpus or artifact evidence is unavailable, that side is unverifiable and the comparison is `INCOMPARABLE`; checkpoint hashes alone do not establish semantic validity. V2 prompt-contract integrity is validated. V1 identity does not bind a prompt template: sidecar self-consistency or an intact prompt-artifact hash alone cannot prove historical template identity, so unsupported V1 evidence remains `UNVERIFIED`/`INCOMPARABLE`, without a winner or improvement rate. Only a completed provider response with persisted evidence of a response-contract violation enters the invalid-output numerator; bare `invalid-output` status and infrastructure outcomes are excluded from both numerator and denominator. Task-success and repair outcomes remain separate. Real-provider improvement remains `NOT_VERIFIED` pending authorized smoke evidence.
+
+### Authorized current LAB-KIT-01 acceptance
+
+User decision SW-121 adopts **V010-KIT-CURRENT-ACCEPTANCE-ROUTE-01/1.0.0**, contract **LAB-KIT-01-CURRENT-CANDIDATE-ACCEPTANCE/1.0.0**, against proposal SHA-256 `f4595f2b0f9ac0a56d96a8c22b6f78f2cec24b8d6c4f6030e11dd8b3a166a36e`. This is a separate current-product acceptance basis; adoption is not verification PASS. Its governance record and sixteen current disposition reviews are retained in `tests/fixtures/audits/currentKitAcceptance.v010.json`. The three incomparable profiles remain incomparable. The Python review preserves the historical broad-M13 warning while distinguishing bounded file-level candidates from unknown-export declaration claims; it does not retroactively resolve that historical warning.
+
+The source-checkout verifier collects finite public/current-protected/platform/packed lanes through existing native process and evidence owners. A separate verification process reopens native outputs, derives the test responsibility list from the current source, rejects missing/filtered/failed assertions, and compares all 150 current finding records and 121 fixture hashes against the unchanged oracle. The packed lane rebuilds, installs and executes the exact package. Native Windows/Linux/macOS evidence is mandatory; live exact-candidate CI run/job/artifact corroboration is required for hosted cells. Caller-authored OS or PASS labels and unsigned receipts alone are insufficient.
+
+An exact qualified Kit profile can supply the optional schema 1.2.0 direct
+modifier completeness claim. Lab uses that claim for the direct executable
+`.skip` and `.only` predicate after exact-file identity and fact-page validation.
+The broader observation family can remain partial. The prospective provider
+migration binds current acceptance to exact published Kit 1.16.0 while retaining
+the original authorization and historical Kit 1.15.0 evidence. The verifier
+requires the six qualified incomplete fixtures to retain their exact mandatory
+gaps and natural exit 2. The other fixtures require complete coverage. It
+independently replays the affected fixtures and authenticates the JVM proofs
+and direct modifier controls.
+
+Collect and independently verify the protected lane before starting the
+canonical public lane. A protected failure pauses dependent expensive work.
+Reuse canonical public and packed executions for readiness and final binding.
+
+The current route remains **BLOCKED_REQUIRED_EVIDENCE** until its complete public, current-protected, package, native platform and independent binding requirements pass. The local original historical gate remains available unchanged. Historical provenance stays **UNVERIFIED**; original private verification and original readiness binding stay **NOT_PASSED**. LAB-EVIDENCE-01 adoption does not substitute for this contract. Current acceptance establishes neither Step 5 readiness nor publication authority.
+
+## Coordinated product acceptance and target certification
+
+The 2026-11-23 decision supersedes the original requirement for both SW-123
+and iworkhere.space to have complete mandatory source coverage before
+Kit v1.16.0 and Lab v0.11.0 qualify for release. The original requirement and
+[historical outcomes](CURRENT_STATE.md#historical-target-audit-results)
+remain part of the governance and audit record.
+
+**Product acceptance** requires correct approved capabilities, authenticated
+positive and negative proofs, conservative treatment of partial or unknown
+evidence, the exact producer-consumer pairing, correct reports and exit codes,
+and passing required regression, security, package, native and hosted
+platform, current-candidate binding and documentation gates. A demonstrated
+supported-capability, evidence-integrity or proof-soundness defect blocks
+release. A disclosed target evidence gap on its own leaves the target
+uncertified and permits product acceptance once the product gates pass.
+
+**Target certification** requires authenticated source selection, qualified
+evidence for every applicable mandatory predicate, complete coverage, actual
+findings and severity review, and a terminal result meeting that target's
+contract. Mandatory incomplete coverage returns exit 2. A complete audit
+still applies its existing exit 0/1 severity threshold. Both historical
+targets remain uncertified.
+
+After documentation reconciliation, freeze the clean committed candidates.
+Use the SW-121 current public collector as the canonical complete Lab public
+execution. Use its protected and packed lanes and independently bind the
+required receipts and hosted native cells. The same authenticated packed
+execution can serve each gate whose exact package and invocation requirements
+it meets. Preserve predecessor receipts under their original identities.
+Observe required Kit regression, security and exact package checks, and
+qualify the exact hosted platform and Lab CodeQL results. Keep Step 5
+readiness and release preparation separate. After authorized Kit v1.16.0
+publication, qualify the actual registry artifact before migrating the Lab
+production dependency and qualifying Lab publication.

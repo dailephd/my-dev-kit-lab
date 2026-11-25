@@ -1,6 +1,6 @@
 {
   "name": "@dailephd/my-dev-kit-lab",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "type": "module",
   "description": "Evidence, benchmark, and evaluation companion for my-dev-kit.",
   "bin": {
@@ -90,7 +90,7 @@
     "verify:readiness-binding": "node scripts/verify-private-provenance.mjs --check-binding"
   },
   "dependencies": {
-    "@dailephd/my-dev-kit": "1.15.0",
+    "@dailephd/my-dev-kit": "1.16.0",
     "playwright": "1.60.0"
   },
   "devDependencies": {

@@ -1,15 +1,18 @@
 import { runAudit } from "../../../src/audits/core/auditRunner.js";
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { scanProjectInventory } from "../../../src/audits/core/projectInventory.js";
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
 import { collectKitSourceFacts } from "../../../src/audits/core/kitSourceProvider.js";
+import { registerKitDeclarationPredicateEvidence, type KitSourceEvidence } from "../../../src/audits/core/kitSourceEvidence.js";
+import type { SourceFileFacts } from "../../../src/audits/core/sourceFacts.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
 import { TEST_ROT_DETECTOR } from "../../../src/audits/codeRot/detectors/testRotDetector.js";
-import type { AuditDetectorContext } from "../../../src/audits/core/auditRegistry.js";
+import { resolveApplicableKitRequirements, type AuditDetectorContext } from "../../../src/audits/core/auditRegistry.js";
 
 function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "test-rot-test-"));
@@ -50,6 +53,213 @@ async function buildContextWithSourceFacts(root: string): Promise<AuditDetectorC
 }
 
 describe("TEST_ROT_DETECTOR — missing source imports", () => {
+  it.each(["kotlin-main", "typescript-source"])("retains raw checks without executable-test obligations on a %s fixture", async kind => {
+    const root = makeTempDir();
+    try {
+      const file = kind === "kotlin-main" ? "tests/fixtures/app/src/main/kotlin/MainActivity.kt" : "tests/fixtures/app/src/reexport.ts";
+      writeFile(root, "package.json", JSON.stringify({ name: "source-fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, file, (kind === "kotlin-main" ? "package com.example\nimport androidx.compose.runtime.Composable\nclass MainActivity {}\n" :
+        'export { missing } from "./missing.js";\n') + "// npm run removed\n");
+      const ctx = buildContext(root);
+      const applicable = resolveApplicableKitRequirements([TEST_ROT_DETECTOR], ctx.inventory, ["tests"]);
+      expect(applicable.paths).toContain(file);
+      expect(applicable.requirements.filter(requirement => requirement.path === file && requirement.capability === "imports")
+        .every(requirement => requirement.applicability === "NOT_APPLICABLE")).toBe(true);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.exitCode).toBe(0);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0]!.title).toContain("removed");
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it.each(["typescript-colocated", "java-test-source"])("retains genuine executable %s fixture checks", async kind => {
+    const root = makeTempDir();
+    try {
+      const file = kind === "java-test-source" ? "tests/fixtures/app/src/test/java/com/example/RealTest.java" : "tests/fixtures/app/src/real.test.ts";
+      writeFile(root, "package.json", JSON.stringify({ name: "test-source-fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, file, kind === "java-test-source" ? "package com.example;\nimport com.example.Missing;\npublic class RealTest {}\n" :
+        'import { missing } from "./missing.js";\n');
+      const ctx = buildContext(root);
+      const applicable = resolveApplicableKitRequirements([TEST_ROT_DETECTOR], ctx.inventory, ["tests"]);
+      expect(applicable.requirements.some(requirement => requirement.path === file && requirement.capability === "imports" &&
+        requirement.applicability === "APPLICABLE_REQUIRED")).toBe(true);
+      ctx.config.failOn = "low";
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.exitCode).toBe(1);
+      expect(result.detectorErrors).toEqual([]);
+      expect(result.issues.some(issue => /missing source|has no selected Java declaration/i.test(issue.title))).toBe(true);
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("retains raw command checks on report fixtures without executable-test obligations", async () => {
+    const root = makeTempDir();
+    try {
+      const body = '{"sample":"it.only(","command":"npm run removed"}';
+      writeFile(root, "package.json", JSON.stringify({ name: "report-fixture", version: "1.0.0", scripts: {} }));
+      writeFile(root, "tests/implementation-audit.json", body);
+      const ctx = buildContext(root);
+      expect(ctx.inventory.testFiles[0]!.role).toBe("report-output");
+      ctx.kitSourceReader = {
+        selectedFile: () => ({ lineCount: 1, sizeBytes: Buffer.byteLength(body) }),
+        occurrences: async () => ({ complete: true, matchCount: 1, matches: [{ windowStart: 1, windowEnd: 1, line: 1, content: body }] }),
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues).toHaveLength(1);
+      expect(issues[0]!.title).toContain("removed");
+    } finally { cleanup(root); }
+  });
+
+  it.each([
+    "tests/fixtures/app/src/main/res/xml/backup_rules.xml",
+    "tests/fixtures/example/README.md",
+    "tests/fixtures/gradle/libs.versions.toml",
+    "tests/fixtures/executable-evidence/node-tap-pass.tap",
+    "tests/fixtures/differential/check.sample.ts.input",
+    "tests/fixtures/ecosystem/context-integrity/v0.4.5/failed-run/artifacts/test-context-packet.txt",
+  ])("retains raw command checks and skips executable imports for data fixture %s", async file => {
+    const root = makeTempDir();
+    try {
+      const body = '<sample>from "./missing.js" and npm run removed</sample>';
+      writeFile(root, file, body);
+      const ctx = buildContext(root);
+      const dispositions: string[] = [];
+      const literals: string[] = [];
+      ctx.reportCoverage = record => { dispositions.push(record.capability + ":" + record.status); };
+      ctx.reportUnavailable = (_id, predicate) => { throw new Error(predicate); };
+      ctx.kitSourceReader = {
+        selectedFile: () => ({ lineCount: null, sizeBytes: Buffer.byteLength(body) }),
+        occurrences: async (_path: string, value: string) => {
+          literals.push(value);
+          return { complete: true, matchCount: 1, matches: [{ windowStart: 1, windowEnd: 1, line: 1, content: body }] };
+        },
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(literals).toEqual(["npm run "]);
+      expect(dispositions).toContain("imports:NOT_APPLICABLE");
+      expect(issues.map(issue => issue.id)).toEqual([`test-rot:${file}:stale-npm-run-reference:removed`]);
+    } finally { cleanup(root); }
+  });
+
+  it("retains a real re-export target obligation separately from complete imports", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "re-export", version: "1.0.0" }));
+      writeFile(root, "src/real.ts", "export const real = 1;\n");
+      writeFile(root, "tests/check.test.ts", 'export { real } from "../src/real.js";\n');
+      const ctx = buildContext(root);
+      const audit = () => runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      const present = await audit();
+      expect(present.sourceFacts.files.find(file => file.relativePath === "tests/check.test.ts")?.exports)
+        .toContainEqual(expect.objectContaining({ exportOrigin: "re-export", name: "real" }));
+      expect(present.exitCode).toBe(0);
+      expect(present.detectorErrors).toEqual([]);
+      expect(present.issues).toEqual([]);
+
+      writeFile(root, "tests/check.test.ts", 'export { real } from "../unselected/real.js";\n');
+      const unavailable = await audit();
+      expect(unavailable.exitCode).toBe(2);
+      expect(unavailable.issues).toEqual([]);
+      expect(unavailable.coverage).toContainEqual(expect.objectContaining({
+        detectorId: "test-rot", predicate: "missing-source-import", capability: "exports",
+        mandatory: true, status: "UNAVAILABLE", reason: expect.stringContaining("export-target proof"),
+      }));
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it.each([
+    { status: "proven-missing", qualified: true, findings: 1, gaps: 0 },
+    { status: "present", qualified: true, findings: 0, gaps: 0 },
+    { status: "indeterminate", qualified: true, findings: 0, gaps: 1 },
+    { status: "proven-missing", qualified: false, findings: 0, gaps: 1 },
+  ])("handles a structured re-export with $status evidence and qualified profile $qualified", async scenario => {
+    const root = makeTempDir();
+    try {
+      const file = "tests/check.test.ts";
+      const specifier = "../src/target.js";
+      const factId = "re-export-fact";
+      const body = `export * from /* qualified fact is the source of truth */ "${specifier}";\n`;
+      writeFile(root, file, body);
+      const ctx = buildContext(root);
+      ctx.config.include = ["tests"];
+      const gaps: string[] = [];
+      ctx.reportUnavailable = (_id, _predicate, _file, _reason, capability) => { gaps.push(capability ?? "imports"); };
+      const capabilities = { imports: "complete", exports: "complete" };
+      const contentSha256 = createHash("sha256").update(body).digest("hex");
+      const observed = { relativePath: file, language: "typescript", parseStatus: "parsed",
+        kit: { capabilities, contentSha256 }, imports: [], declarations: [],
+        exports: [{ exportOrigin: "re-export" }], diagnostics: [] } as unknown as SourceFileFacts;
+      ctx.sourceFacts = { provider: "kit", files: [observed] } as unknown as AuditDetectorContext["sourceFacts"];
+      registerKitDeclarationPredicateEvidence(observed, {
+        snapshotId: "e".repeat(64), traversalComplete: true, coverage: { inventoryComplete: true },
+        fileEvidence: new Map([[file, { record: { status: "parsed", contentSha256, capabilities }, facts: [] }]]),
+      } as unknown as KitSourceEvidence);
+      ctx.kitSourceReader = {
+        cachedAuthenticatedFixtureContent: async () => body,
+        reExportSpecifiers: () => [specifier],
+        reExportTargets: () => [{ id: factId, sourceSpecifier: specifier }],
+        importTarget: async (id: string) => {
+          expect(id).toBe(factId);
+          return { status: scenario.status };
+        },
+        jsTsRelativeImportCandidateProof: scenario.qualified ? "mjs-extensionless-complete-v1" : undefined,
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      const issues = await TEST_ROT_DETECTOR.run(ctx);
+      expect(issues.map(issue => issue.id)).toEqual(scenario.findings ? [`test-rot:${file}:missing-source-import:${specifier}`] : []);
+      expect(gaps).toEqual(scenario.gaps ? ["exports"] : []);
+    } finally { cleanup(root); }
+  });
+
+  it("uses complete semantic imports without treating an embedded fixture string as another import", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "import-string", version: "1.0.0" }));
+      writeFile(root, "tests/check.test.ts", 'const fixture = `import "../src/synthetic.js"`;\nexport {};\n');
+      expect(await run(root)).toEqual([]);
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("records unsupported binary command coverage without reading the input as text", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "tests/fixtures/input.properties", "npm run x\0\n");
+      const ctx = buildContext(root);
+      const gaps: string[] = [];
+      ctx.reportUnavailable = (_id, predicate) => { gaps.push(predicate); };
+      ctx.kitSourceReader = {
+        unsupportedRawContentReason: () => "authenticated inventory lacks raw content",
+        occurrences: async () => { throw new Error("Binary text lookup"); },
+        authenticatedContent: async () => { throw new Error("Binary text read"); },
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      expect(await TEST_ROT_DETECTOR.run(ctx)).toEqual([]);
+      expect(gaps).toEqual(["bounded-content predicates"]);
+      ctx.reportUnavailable = undefined;
+      await expect(TEST_ROT_DETECTOR.run(ctx)).rejects.toThrow("authenticated inventory lacks raw content");
+    } finally { cleanup(root); }
+  });
+
+  it("does not use complete imports to waive unknown re-exports when export evidence is partial", async () => {
+    const root = makeTempDir();
+    try {
+      const body = 'const fixture = `from "../src/missing.js"`;';
+      writeFile(root, "tests/check.test.ts", body);
+      const ctx = buildContext(root);
+      ctx.config.include = ["tests"];
+      const gaps: string[] = [];
+      ctx.reportUnavailable = (_id, _predicate, _file, _reason, capability) => { gaps.push(capability ?? "imports"); };
+      ctx.sourceFacts = { provider: "kit", files: [{ relativePath: "tests/check.test.ts", language: "typescript", parseStatus: "parsed",
+        kit: { capabilities: { imports: "complete", exports: "partial" } }, imports: [], exports: [], diagnostics: [] }] } as unknown as AuditDetectorContext["sourceFacts"];
+      ctx.kitSourceReader = {
+        selectedFile: () => ({ lineCount: 1, sizeBytes: Buffer.byteLength(body) }),
+        reExportSpecifiers: () => [],
+        occurrences: async (_file: string, value: string) => ({ complete: true, matchCount: body.includes(value) ? 1 : 0,
+          matches: body.includes(value) ? [{ windowStart: 1, windowEnd: 1, line: 1, content: body }] : [] }),
+      } as unknown as AuditDetectorContext["kitSourceReader"];
+      expect(await TEST_ROT_DETECTOR.run(ctx)).toEqual([]);
+      expect(gaps).toEqual(["exports"]);
+    } finally { cleanup(root); }
+  });
+
   it("flags a test importing a missing source file", async () => {
     const root = makeTempDir();
     try {
@@ -555,7 +765,7 @@ describe("TEST_ROT_DETECTOR — JVM standard-library/third-party import suppress
   });
 });
 
-describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
+describe("TEST_ROT_DETECTOR — bounded coverage regression guard", () => {
   it.each(["tmp", ".my-dev-kit-workflow"])("excludes generated %s inputs while retaining current tests and source facts", async (generated) => {
     const root = makeTempDir();
     try {
@@ -587,12 +797,25 @@ describe("TEST_ROT_DETECTOR — real self-scan regression guard", () => {
     }
   }, 90000);
 
-  it("fails closed when a whole-repository test import lacks a qualified proof", async () => {
-    await expect(run(process.cwd())).rejects.toMatchObject({ category: "capability-insufficient" });
-  }, 1800000);
+  it("retains independent test findings when a complete import inventory has an indeterminate target", async () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "test-domain-gap", version: "1.0.0" }));
+      writeFile(root, "tests/check.test.ts", "import './before.js';\nimport '../unselected/hidden.js';\nimport './after.js';\ntest.only('independent finding',()=>{});\n");
+      const ctx = buildContext(root);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.sourceFacts.files.every(f => f.kit?.capabilities.imports === "complete")).toBe(true);
+      expect(result.exitCode).toBe(2);
+      expect(result.coverage!.some(c => c.predicate === "missing-source-import" && c.status === "UNAVAILABLE")).toBe(true);
+      expect(result.issues.some(i => i.title.includes(".only"))).toBe(true);
+      expect(result.issues.filter(i => i.title.includes("missing source")).map(i => i.title)).toEqual([
+        'Test "tests/check.test.ts" imports a missing source file: "./before.js"',
+        'Test "tests/check.test.ts" imports a missing source file: "./after.js"',
+      ]);
+    } finally { cleanup(root); }
+  }, 120000);
 
-  // Qualified bounded cases retain the finding-policy assertions independently
-  // of the real repository acquisition failure above.
+  // Complete bounded cases retain the existing finding-policy assertions.
   it("preserves no-only and conservative Python severity policies over qualified source evidence", async () => {
     const root = makeTempDir();
     try {
@@ -635,15 +858,19 @@ describe("TEST_ROT_DETECTOR — source-facts-derived missing imports", () => {
     const root = makeTempDir();
     try {
       writeFile(root, "package.json", JSON.stringify({ name: "fixture", version: "1.0.0", scripts: {} }));
-      writeFile(root, "src/thing.ts", "export const thing = () => {};\n");
+      writeFile(root, "src/thing.mjs", "export const thing = () => {};\n");
       writeFile(
         root,
         "tests/example.test.ts",
-        'it("loads", async () => { const mod = await import("../src/thing.js"); expect(mod).toBeDefined(); });\n'
+        'it("loads", async () => { const mod = await import("../src/thing.mjs"); expect(mod).toBeDefined(); });\n'
       );
-      const ctx = await buildContextWithSourceFacts(root);
-      const issues = await executeWithKit(ctx);
-      expect(issues.some((i) => i.title.includes("missing source file"))).toBe(false);
+      const result = await runAudit({ config: buildContext(root).config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.exitCode, JSON.stringify(result.detectorErrors)).toBe(0);
+      expect(result.issues.some(i => i.title.includes("missing source file"))).toBe(false);
+      expect(result.coverage).toContainEqual(expect.objectContaining({
+        predicate: "missing-source-import", capability: "imports", status: "QUALIFIED",
+        proof: expect.objectContaining({ kind: "import-domain", references: expect.arrayContaining(["src/thing.mjs"]) }),
+      }));
     } finally {
       cleanup(root);
     }
@@ -693,3 +920,49 @@ async function executeWithKit(ctx: AuditDetectorContext) {
   if (path.resolve(ctx.target.rootPath) === path.resolve(process.cwd())) return selfRun ??= perform();
   return perform();
 }
+
+describe("authenticated executable test modifiers", () => {
+  it("keeps real modifiers in a fixture test and rejects comments and generated data", async () => {
+    const root = makeTempDir();
+    try {
+      const file = "tests/fixtures/actual.test.ts";
+      writeFile(root, "package.json", JSON.stringify({ name: "modifier-facts", scripts: {} }));
+      writeFile(root, file, [
+        '// test.only("comment", () => {});',
+        'const generated = "test.only(\\"fixture\\", () => {});";',
+        'const example = `describe.skip("template", () => {});`;',
+        'test.only("real", () => {});', 'it.only("real", () => {});', 'describe.only("real", () => {});',
+        'test.skip("real", () => {});', 'it.skip("real", () => {});', 'describe.skip("real", () => {});',
+      ].join("\n"));
+      const issues = (await run(root)).filter(issue => /:(?:skip|only)-usage:/.test(issue.id));
+      expect(issues.map(issue => issue.id)).toEqual([
+        "only-usage:4", "only-usage:5", "only-usage:6", "skip-usage:7", "skip-usage:8", "skip-usage:9",
+      ].map(suffix => "test-rot:" + file + ":" + suffix));
+      expect(issues.find(issue => issue.id.endsWith(":only-usage:4"))).toMatchObject({
+        severity: "high", releaseBlocking: true, evidence: [{ filePath: file, line: 4 }],
+      });
+    } finally { cleanup(root); }
+  }, 120000);
+
+  it("retains a proven focus finding while the shadowed modifier domain stays unavailable", async () => {
+    const root = makeTempDir();
+    try {
+      const file = "tests/check.test.ts";
+      writeFile(root, "package.json", "{}");
+      writeFile(root, file, [
+        'const test = { only: (label: string) => label };',
+        'test.only("not a framework call");',
+        'it.only("genuine", () => {});',
+      ].join("\n"));
+      const ctx = buildContext(root);
+      const result = await runAudit({ config: ctx.config, toolRoot: root, registry: [TEST_ROT_DETECTOR] });
+      expect(result.issues.filter(issue => issue.severity === "high").map(issue => issue.id))
+        .toEqual(["test-rot:" + file + ":only-usage:3"]);
+      expect(result.coverage).toContainEqual(expect.objectContaining({
+        detectorId: "test-rot", capability: "test-observations", status: "UNAVAILABLE", mandatory: true,
+        source: { kind: "file", identity: file },
+      }));
+      expect(result.exitCode).toBe(2);
+    } finally { cleanup(root); }
+  }, 120000);
+});

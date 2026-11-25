@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { qualifyKitDeclarationPredicate, qualifyKitImportPredicate } from "../../src/audits/core/kitSourceEvidence.js";
+import { getImportSourceFacts, indexSourceFactsByPath } from "../../src/audits/codeRot/utils/sourceFactsLookup.js";
 import {
   adaptKitDeclaration,
   adaptKitEvidenceToSourceFacts,
@@ -255,6 +257,79 @@ describe("file adaptation", () => {
 });
 
 describe("snapshot adaptation", () => {
+  it.each([
+    ["partial", "complete", "UNAVAILABLE", "QUALIFIED_NEGATIVE"],
+    ["complete", "partial", "QUALIFIED_NEGATIVE", "UNAVAILABLE"],
+  ] as const)("qualifies declarations %s and imports %s independently of general parse status", (declarations, imports, declarationNegative, importNegative) => {
+    const input = evidence(), rec = input.inventory[0]!;
+    rec.language = "kotlin";
+    rec.capabilities = capabilities({ declarations, imports });
+    rec.diagnostics = [{ code: "kotlin-script-statement", message: "Declaration scope is partial." }];
+    const facts = [
+      fact(rec.path, 1, { kind: "declaration", name: "App", declarationKind: "class", extractionMethod: "kotlin-lexical" }),
+      fact(rec.path, 2, { kind: "import", sourceSpecifier: "java.io.File", importResolution: "observed", extractionMethod: "kotlin-lexical" }),
+    ];
+    input.fileEvidence.set(rec.path, { record: rec, factPages: 1, facts });
+    const options = { evidence: input, inventory: { files: [labEntry(rec.path, "source", "kotlin")] } as never,
+      targetRoot: "C:/t", requiredCapabilities: ["declarations", "imports"] as const };
+    const snapshot = adaptKitEvidenceToSourceFacts(options), file = snapshot.files[0]!;
+    expect(file.parseStatus).toBe("file-level-only");
+    expect(file.kit?.capabilities).toEqual(rec.capabilities);
+    expect(file.diagnostics.some(d => d.code === "kit:kotlin-script-statement")).toBe(true);
+    expect(qualifyKitDeclarationPredicate(file, file.declarations[0])).toBe("QUALIFIED_POSITIVE");
+    expect(qualifyKitImportPredicate(file, file.imports[0])).toBe("QUALIFIED_POSITIVE");
+    expect(qualifyKitDeclarationPredicate(file)).toBe(declarationNegative);
+    expect(qualifyKitImportPredicate(file)).toBe(importNegative);
+    expect(getImportSourceFacts(indexSourceFactsByPath(snapshot), file.relativePath)).toBe(imports === "complete" ? file : null);
+    expect(file.imports[0]!.provenance?.factId).toBe(facts[1]!.id);
+    expect(adaptKitEvidenceToSourceFacts(options)).toEqual(snapshot);
+    const cloned = { ...file.imports[0]! };
+    expect(qualifyKitImportPredicate(file, cloned)).toBe("UNAVAILABLE");
+    file.imports[0]!.source = "fabricated";
+    expect(qualifyKitImportPredicate(file, file.imports[0])).toBe("UNAVAILABLE");
+    expect(qualifyKitImportPredicate(file)).toBe("UNAVAILABLE");
+    expect(getImportSourceFacts(indexSourceFactsByPath(snapshot), file.relativePath)).toBeNull();
+  });
+
+  it("never qualifies missing exact facts or unsupported fact families as negative evidence", () => {
+    const input = evidence(), rec = input.inventory[0]!;
+    input.fileEvidence.delete(rec.path);
+    const options = { evidence: input, inventory: { files: [labEntry(rec.path)] } as never,
+      targetRoot: "C:/t", requiredCapabilities: ["declarations", "imports"] as const };
+    const missing = adaptKitEvidenceToSourceFacts(options).files[0]!;
+    expect(missing.parseStatus).toBe("file-level-only");
+    expect(qualifyKitImportPredicate(missing)).toBe("UNAVAILABLE");
+    expect(qualifyKitDeclarationPredicate(missing)).toBe("UNAVAILABLE");
+    rec.capabilities.imports = "unsupported";
+    input.fileEvidence.set(rec.path, { record: rec, factPages: 1, facts: [fact(rec.path, 1, { kind: "import", sourceSpecifier: "unqualified" })] });
+    const unsupported = adaptKitEvidenceToSourceFacts(options).files[0]!;
+    expect(unsupported.imports).toEqual([]);
+    expect(qualifyKitImportPredicate(unsupported)).toBe("UNAVAILABLE");
+  });
+
+
+  it("carries authenticated observation identity, capability, and source spans independently of imports", () => {
+    const input = evidence();
+    const entry = input.inventory[1]!;
+    entry.capabilities["test-observations"] = "partial";
+    const original = fact(entry.path, 2, { kind: "test-observation", observationKind: "test-modifier-only", name: "describe" });
+    input.fileEvidence.set(entry.path, { record: entry, factPages: 1, facts: [original] });
+    const options = { evidence: input, inventory: { files: [labEntry(entry.path, "test")] } as never,
+      targetRoot: "C:/t", requiredCapabilities: [] };
+    expect(adaptKitEvidenceToSourceFacts(options).files[0]?.kitTestObservations).toEqual({
+      snapshotId: input.snapshotId, selectionFingerprint: input.source.selectionFingerprint, contentSha256: HASH,
+      capability: "partial", producerStatus: "parsed",
+      observations: [expect.objectContaining({ kind: "test-observation", observationKind: "test-modifier-only",
+        originPath: entry.path, name: "describe", provenance: { producer: "kit", factId: original.id,
+          extractionMethod: "typescript-ast", startLine: 2, startColumn: 0, endLine: 2, endColumn: 8 } })],
+    });
+    input.traversalComplete = false;
+    expect(adaptKitEvidenceToSourceFacts(options).files[0]?.kitTestObservations).toBeUndefined();
+    input.traversalComplete = true;
+    input.fileEvidence.delete(entry.path);
+    expect(adaptKitEvidenceToSourceFacts(options).files[0]?.kitTestObservations).toBeUndefined();
+  });
+
   function evidence(): KitSourceEvidence {
     const records = [record("src/a.ts"), record("tests/unknownrole.test.ts", { role: "unknown" }), record("fixtures/x.ts", { role: "unknown" })];
     return {
