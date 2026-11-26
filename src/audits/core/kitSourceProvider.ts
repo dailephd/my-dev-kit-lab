@@ -231,7 +231,26 @@ const QUALIFIED_FACTS02_A6_R1_KIT = Object.freeze({
   } as const,
 } satisfies KitCandidateExpectation & Record<string, unknown>);
 
-const QUALIFIED_FACTS02_KITS = [QUALIFIED_FACTS02_A5_R1_KIT, QUALIFIED_FACTS02_A6_KIT, QUALIFIED_FACTS02_A6_R1_KIT] as const;
+const QUALIFIED_FACTS02_STEP5_R1_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.7.0",
+  sourceSha: "1193ad1594fb5c84d2a9a6f08355257f376bd86a",
+  sourceTree: "3b0b939f17980e1cbea50393a1db4559c55da2c5",
+  archiveSha256: "1b9529ed55a4542070145884e0f9f2a35c4844643d4f76d64d3577ac87f48e79",
+  archiveIntegrity: "sha512-7hjSFIF9fySGo53bqrf1sUWAcMK9iZPWQsAbR3d0N9zouI2eBC390XG/LT4X2nNfNLXf0IzMbg1Nqo8Oqb3FJA==",
+  cliSha256: "764590dc9c53dfb61ff3236da701745117e2baa40cd1464dca1ed4f57ca7b17f",
+  receiptSha256: "10b1d8ad4204133812f7e5458f921032fe1c8d7aa8736bf38943fac32044695e",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_FACTS02_KITS = [QUALIFIED_FACTS02_A5_R1_KIT, QUALIFIED_FACTS02_A6_KIT, QUALIFIED_FACTS02_A6_R1_KIT, QUALIFIED_FACTS02_STEP5_R1_KIT] as const;
 type QualifiedFacts02Kit = (typeof QUALIFIED_FACTS02_KITS)[number];
 
 const QUALIFIED_BATCH_ARCHIVES = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT, QUALIFIED_DIRECT_MODIFIER_KIT] as const;
@@ -364,7 +383,10 @@ function authenticateFacts02Package(archivePath: string, installed: InstalledKit
     }
     return readBoundedFile(filename, maxBytes, "package-identity", label);
   };
-  const receiptBytes = read(path.join(campaign, "validation", "qualification.json"), 64 * 1024, "Kit qualification receipt");
+  // The Step 5 receipt includes retained hosted job metadata. Keep the
+  // larger bound scoped to its exact profile and verify its pinned digest.
+  const receiptLimit = profile === QUALIFIED_FACTS02_STEP5_R1_KIT ? 96 * 1024 : 64 * 1024;
+  const receiptBytes = read(path.join(campaign, "validation", "qualification.json"), receiptLimit, "Kit qualification receipt");
   if (sha256Hex(receiptBytes) !== profile.receiptSha256) {
     fail("package-identity", "Kit qualification receipt does not match the exact FACTS02 identity.");
   }
@@ -734,7 +756,7 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
 
 function configureKitBatch(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string): void {
-  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256, QUALIFIED_FACTS02_A6_KIT.cliSha256, QUALIFIED_FACTS02_A6_R1_KIT.cliSha256].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
+  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256, QUALIFIED_FACTS02_A6_KIT.cliSha256, QUALIFIED_FACTS02_A6_R1_KIT.cliSha256, QUALIFIED_FACTS02_STEP5_R1_KIT.cliSha256].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
   const batchInput = fs.mkdtempSync(path.join(ctx.workDir, "kb-"));
   let next = 0;
   ctx.query = createKitBatchTransport({
@@ -766,7 +788,7 @@ type KitStreamState = { current?: KitStreamTransport };
 
 function configureKitTransport(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string, state?: KitStreamState): void {
-  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256, QUALIFIED_FACTS02_A6_KIT.cliSha256, QUALIFIED_FACTS02_A6_R1_KIT.cliSha256].includes(ctx.pkg.cliSha256)) {
+  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256, QUALIFIED_FACTS02_A6_KIT.cliSha256, QUALIFIED_FACTS02_A6_R1_KIT.cliSha256, QUALIFIED_FACTS02_STEP5_R1_KIT.cliSha256].includes(ctx.pkg.cliSha256)) {
     configureKitBatch(ctx, deps, identity, indexDir);
     return;
   }
@@ -1138,6 +1160,7 @@ const NON_SEMANTIC_RAW_CONTENT_PROFILES: ReadonlySet<string> = new Set([
   QUALIFIED_FACTS02_A5_R1_KIT.cliSha256,
   QUALIFIED_FACTS02_A6_KIT.cliSha256,
   QUALIFIED_FACTS02_A6_R1_KIT.cliSha256,
+  QUALIFIED_FACTS02_STEP5_R1_KIT.cliSha256,
   // The exact R3 CLI also returns complete, hash-bound text occurrences
   // for selected generated and vendor source without admitting semantic facts.
   QUALIFIED_B3_P1_KIT.cliSha256,
@@ -1243,6 +1266,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     ctx.pkg.cliSha256 === QUALIFIED_FACTS02_A5_R1_KIT.cliSha256 ||
     ctx.pkg.cliSha256 === QUALIFIED_FACTS02_A6_KIT.cliSha256 ||
     ctx.pkg.cliSha256 === QUALIFIED_FACTS02_A6_R1_KIT.cliSha256 ||
+    ctx.pkg.cliSha256 === QUALIFIED_FACTS02_STEP5_R1_KIT.cliSha256 ||
     QUALIFIED_BATCH_ARCHIVES.some(profile => profile.cliSha256 === ctx.pkg.cliSha256)) &&
     evidence.artifactSchemaVersion === "1.2.0";
   const domainPromises = new Map<string, Promise<ReturnType<typeof validateKitImportDomain>>>();
@@ -1879,7 +1903,7 @@ export async function collectKitSourceFacts(
     if (expectedSnapshot !== undefined && evidence.snapshotId !== expectedSnapshot)
       fail("stale-evidence", "The acquired whole-project Kit snapshot differs from the frozen replay snapshot.");
     const snapshot = adaptKitEvidenceToSourceFacts({
-      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_FACTS02_A5_R1_KIT, QUALIFIED_FACTS02_A6_KIT, QUALIFIED_FACTS02_A6_R1_KIT].some(profile =>
+      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_FACTS02_A5_R1_KIT, QUALIFIED_FACTS02_A6_KIT, QUALIFIED_FACTS02_A6_R1_KIT, QUALIFIED_FACTS02_STEP5_R1_KIT].some(profile =>
         pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile)),
       evidence,
       inventory: request.inventory,

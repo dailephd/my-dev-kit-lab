@@ -473,8 +473,9 @@ exact("exact FACTS02: test re-exports and substituted imports qualify independen
 
 const exactCli = archive && packageRoot ? candidate().expectation?.cliSha256 : undefined;
 const a6r1Cli = "3c661671355ec6475768a6658cfd94d3c5f21184e1177af12418d7cac9999797";
-const a6 = it.skipIf(exactCli !== "8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb" && exactCli !== a6r1Cli);
-const a6r1 = it.skipIf(exactCli !== a6r1Cli);
+const step5R1Cli = "764590dc9c53dfb61ff3236da701745117e2baa40cd1464dca1ed4f57ca7b17f";
+const a6 = it.skipIf(exactCli !== "8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb" && exactCli !== a6r1Cli && exactCli !== step5R1Cli);
+const a6r1 = it.skipIf(exactCli !== a6r1Cli && exactCli !== step5R1Cli);
 const bundlerConfig = '{"compilerOptions":{"module":"esnext","moduleResolution":"bundler","resolveJsonModule":true,"baseUrl":".","paths":{"@/*":["src/*"]}}}';
 
 a6("exact A6: consumes bounded Bundler imports, alternatives, and applicable absence", async () => {
