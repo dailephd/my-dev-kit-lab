@@ -470,3 +470,124 @@ exact("exact FACTS02: test re-exports and substituted imports qualify independen
     capability: "test-observations", mandatory: true, actualStatus: "partial",
   }));
 }, 60_000);
+
+const a6 = it.skipIf(!archive || !packageRoot ||
+  candidate().expectation?.cliSha256 !== "8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb");
+const bundlerConfig = '{"compilerOptions":{"module":"esnext","moduleResolution":"bundler","resolveJsonModule":true,"baseUrl":".","paths":{"@/*":["src/*"]}}}';
+
+a6("exact A6: consumes bounded Bundler imports, alternatives, and applicable absence", async () => {
+  const origin = "tests/bundler.test.ts";
+  const fixture = subject("bundler", {
+    "tsconfig.json": bundlerConfig,
+    [origin]: [
+      'import "../src/explicit.ts";',
+      'import "../src/extensionless";',
+      'import "../src/substitution.js";',
+      'import "../src/directory";',
+      'import "@/alias";',
+      'export { value } from "../src/reexport";',
+      'import "../src/multi";',
+      'import "../src/gone.ts";',
+      'import "../src/asset.json";',
+    ].join("\n"),
+    "src/explicit.ts": "export const value = 1;",
+    "src/extensionless.ts": "export const value = 2;",
+    "src/substitution.ts": "export const value = 3;",
+    "src/directory/index.ts": "export const value = 4;",
+    "src/alias.ts": "export const value = 5;",
+    "src/reexport.ts": "export const value = 6;",
+    "src/multi.ts": "export const value = 7;",
+    "src/multi.js": "export const value = 8;",
+    "src/asset.json": '{"value":9}',
+    "unsupported/tsconfig.json": '{"extends":"../tsconfig.json","compilerOptions":{"moduleSuffixes":[".native",""]}}',
+    "unsupported/origin.ts": 'import "../src/explicit.ts";',
+  });
+  await withReader(fixture, async (reader, files) => {
+    const read = (specifier: string, file = origin) => reader.importTarget(
+      files.find(entry => entry.relativePath === file)!.imports.find(fact => fact.source === specifier)!.provenance!.factId,
+    );
+    for (const [specifier, target] of [
+      ["../src/explicit.ts", "src/explicit.ts"],
+      ["../src/extensionless", "src/extensionless.ts"],
+      ["../src/substitution.js", "src/substitution.ts"],
+      ["../src/directory", "src/directory/index.ts"],
+      ["@/alias", "src/alias.ts"],
+    ] as const) {
+      expect(await read(specifier)).toMatchObject({
+        qualifiedSourceReferencePath: target, selectedTargetUpperBound: [target],
+      });
+    }
+    const [reexport] = reader.reExportTargets!(origin);
+    expect(await reader.importTarget(reexport!.id)).toMatchObject({ qualifiedSourceReferencePath: "src/reexport.ts" });
+    const multi = await read("../src/multi");
+    expect(multi.selectedTargetUpperBound).toEqual(["src/multi.js", "src/multi.ts"]);
+    expect(multi.qualifiedSourceReferencePath).toBeUndefined();
+    expect(await read("../src/gone.ts")).toMatchObject({
+      applicableSourceReferenceAbsent: true, selectedTargetUpperBound: [],
+    });
+    for (const [specifier, file, reason] of [
+      ["../src/asset.json", origin, "UNSUPPORTED_CANDIDATE_SHAPE"],
+      ["../src/explicit.ts", "unsupported/origin.ts", "UNQUALIFIED_CONFIGURATION_OR_MAPPING"],
+    ] as const) {
+      const proof = await read(specifier, file);
+      expect(proof.ordinarySourceReferenceReason).toBe(reason);
+      expect(proof.qualifiedSourceReferencePath).toBeUndefined();
+      expect(proof.applicableSourceReferenceAbsent).toBeUndefined();
+    }
+  });
+  const audit = await nativeAudit(fixture, "bundler-audit", "none");
+  expect(audit.exit).toBe(2);
+  const unresolved = audit.coverage.filter(row => row.source.identity === origin &&
+    row.predicate === "missing-source-import" && row.status === "UNAVAILABLE");
+  expect(unresolved.map(row => row.reason)).toEqual([
+    expect.stringContaining("Import ../src/multi:"),
+    expect.stringContaining("Import ../src/asset.json:"),
+  ]);
+  expect(audit.ids.filter(id => id.startsWith("test-rot:" + origin + ":missing-source-import:")))
+    .toEqual(["test-rot:" + origin + ":missing-source-import:../src/gone.ts"]);
+}, 60_000);
+
+a6("exact A6: imported Bundler runner closes a noisy modifier domain independently", async () => {
+  const completePath = "tests/noisy.spec.ts";
+  const partialPath = "tests/unresolved.spec.ts";
+  const positive = [
+    'import { test } from "./support/fixture";',
+    'import { it } from "vitest";',
+    ...Array.from({ length: 32 }, (_, i) => 'it(process.env.CASE_' + i + ', () => {});'),
+    'it.skip("legacy observation", () => {});',
+    conditionalSkip,
+  ].join("\n");
+  const fixture = subject("bundler-noisy", {
+    "tsconfig.json": bundlerConfig,
+    "tests/support/fixture.ts": wrapper,
+    [completePath]: positive,
+    [partialPath]: positive + '\ntest["skip"](process.env.FLAG === "1");',
+  });
+  await withReader(fixture, async reader => {
+    const artifact = JSON.parse(fs.readFileSync(path.join(fixture.root, "kit/index/source-audit-evidence.json"), "utf8")) as {
+      source: { snapshotId: string };
+      files: { path: string; diagnostics: { code: string }[] }[];
+    };
+    expect(artifact.source.snapshotId).toBe(reader.snapshotId);
+    for (const origin of [completePath, partialPath]) {
+      expect(artifact.files.find(file => file.path === origin)?.diagnostics).toContainEqual(
+        expect.objectContaining({ code: "diagnostics-truncated" }),
+      );
+      expect(reader.testModifierProof!(origin)).toMatchObject({
+        coverage: origin === completePath ? "complete" : "partial",
+        reasonCodes: origin === completePath ? [] : ["UNSUPPORTED_MODIFIER_FORM"],
+        observations: [{ modifier: "skip", calleeSpan: { startLine: 36 } }],
+        runnerBinding: { kind: "imported-extended-playwright", wrapper: { path: "tests/support/fixture.ts" } },
+      });
+    }
+  });
+  const audit = await nativeAudit(fixture, "modifier-audit", "none");
+  expect(audit.exit).toBe(2);
+  expect(audit.coverage.filter(row => row.predicate === "executable test modifiers" && row.mandatory &&
+    (row.status === "UNAVAILABLE" || row.status === "UNDETERMINED")).map(row => row.source.identity))
+    .toEqual([partialPath]);
+  for (const origin of [completePath, partialPath]) {
+    expect(audit.ids.filter(id => id.startsWith("test-rot:" + origin + ":skip-usage:")).sort())
+      .toEqual(["test-rot:" + origin + ":skip-usage:35", "test-rot:" + origin + ":skip-usage:36"]);
+  }
+}, 60_000);

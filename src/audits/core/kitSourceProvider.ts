@@ -193,6 +193,28 @@ const QUALIFIED_FACTS02_A5_R1_KIT = Object.freeze({
   } as const,
 } satisfies KitCandidateExpectation & Record<string, unknown>);
 
+const QUALIFIED_FACTS02_A6_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.7.0",
+  sourceSha: "7ee4ee863302cd0117f074d9e7bdd74949072e02",
+  sourceTree: "259f266113b7b93b4ad6ce7320a03b369960ec45",
+  archiveSha256: "bb07a8561d9295caef8783997b02082368232b73a19fdc9f79b3e44456f5ca19",
+  archiveIntegrity: "sha512-qmY5ULMlB500I1myB0GYH2Y32fbwcackXIL+Glyyzv5mVr3OOXcLeBgZvz5KUZQEv7TOB/OnaIaItJ34GTSWIg==",
+  cliSha256: "8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb",
+  receiptSha256: "7a31db7a103635a26dbf7ccc65101e73c299f847a27652c80a9face373b451f1",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_FACTS02_KITS = [QUALIFIED_FACTS02_A5_R1_KIT, QUALIFIED_FACTS02_A6_KIT] as const;
+type QualifiedFacts02Kit = (typeof QUALIFIED_FACTS02_KITS)[number];
+
 const QUALIFIED_BATCH_ARCHIVES = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT, QUALIFIED_DIRECT_MODIFIER_KIT] as const;
 
 export function resolveQualifiedKitArchive(
@@ -200,12 +222,12 @@ export function resolveQualifiedKitArchive(
   installedPackageRoot: string,
 ): KitSourceProviderDependencies {
   const digest = sha256Hex(readBoundedFile(qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive"));
-  const expectation = (digest === QUALIFIED_FACTS02_A5_R1_KIT.archiveSha256 ? QUALIFIED_FACTS02_A5_R1_KIT :
-    QUALIFIED_BATCH_ARCHIVES.find(profile => profile.archiveSha256 === digest)) ??
+  const facts02 = QUALIFIED_FACTS02_KITS.find(profile => profile.archiveSha256 === digest);
+  const expectation = facts02 ?? QUALIFIED_BATCH_ARCHIVES.find(profile => profile.archiveSha256 === digest) ??
     (QUALIFIED_R3_ARCHIVES.some(profile => profile.archiveSha256 === digest) ? QUALIFIED_B3_P1_KIT : undefined);
   if (!expectation) fail("package-identity", "Kit archive SHA-256 does not match a qualified local archive.");
   const installed = resolveInstalledKitPackage({ installedPackageRoot, expectation });
-  if (expectation === QUALIFIED_FACTS02_A5_R1_KIT) authenticateFacts02Package(qualifiedArchivePath, installed);
+  if (facts02) authenticateFacts02Package(qualifiedArchivePath, installed, facts02);
   return { expectation, qualifiedArchivePath, installedPackageRoot };
 }
 
@@ -231,7 +253,7 @@ export const QUALIFIED_SW123_P6_R7_KIT = {
 const SW123_EXACT_KIT_PROFILES = [QUALIFIED_SW123_P6_R2_KIT, QUALIFIED_SW123_P6_R7_KIT] as const;
 
 function isProofProfile(expectation: KitCandidateExpectation): boolean {
-  return matchesExactKitExpectation(expectation, QUALIFIED_FACTS02_A5_R1_KIT) ||
+  return QUALIFIED_FACTS02_KITS.some(profile => matchesExactKitExpectation(expectation, profile)) ||
     matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT) ||
     matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) || QUALIFIED_BATCH_ARCHIVES.some(profile => matchesExactKitExpectation(expectation, profile));
 }
@@ -309,8 +331,7 @@ function readBoundedFile(filePath: string, maxBytes: number, category: KitEviden
   }
 }
 
-function authenticateFacts02Package(archivePath: string, installed: InstalledKitPackage): void {
-  const profile = QUALIFIED_FACTS02_A5_R1_KIT;
+function authenticateFacts02Package(archivePath: string, installed: InstalledKitPackage, profile: QualifiedFacts02Kit): void {
   const campaign = path.dirname(path.dirname(path.resolve(archivePath)));
   const read = (filename: string, maxBytes: number, label: string) => {
     try {
@@ -326,13 +347,14 @@ function authenticateFacts02Package(archivePath: string, installed: InstalledKit
   };
   const receiptBytes = read(path.join(campaign, "validation", "qualification.json"), 64 * 1024, "Kit qualification receipt");
   if (sha256Hex(receiptBytes) !== profile.receiptSha256) {
-    fail("package-identity", "Kit qualification receipt does not match the exact A5-R1 identity.");
+    fail("package-identity", "Kit qualification receipt does not match the exact FACTS02 identity.");
   }
   // The receipt and the ledgers it pins are immutable inputs to this profile.
   const receipt = JSON.parse(receiptBytes.toString("utf8")) as {
     archivePath: string;
     archiveIntegrity: string;
     sourceCommit: string;
+    sourceTree?: string;
     installedPackageRoot: string;
     installedCliSha256: string;
     archiveMemberLedgerSha256: string;
@@ -343,16 +365,17 @@ function authenticateFacts02Package(archivePath: string, installed: InstalledKit
   if (path.relative(receipt.archivePath, path.resolve(archivePath)) !== "" ||
       path.relative(receipt.installedPackageRoot, installed.packageRoot) !== "" ||
       receipt.archiveIntegrity !== profile.archiveIntegrity || receipt.sourceCommit !== profile.sourceSha ||
+      ("sourceTree" in profile && receipt.sourceTree !== profile.sourceTree) ||
       receipt.installedCliSha256 !== installed.cliSha256) {
-    fail("package-identity", "Kit archive and installation do not match the A5-R1 receipt.");
+    fail("package-identity", "Kit archive and installation do not match the FACTS02 receipt.");
   }
   const archive = read(path.resolve(archivePath), 2 * 1024 * 1024, "Qualified Kit archive");
   if (sha256Hex(archive) !== profile.archiveSha256) {
-    fail("package-identity", "Kit archive bytes differ from the exact A5-R1 identity.");
+    fail("package-identity", "Kit archive bytes differ from the exact FACTS02 identity.");
   }
   const ledgerBytes = read(path.join(campaign, "validation", "archive-members.json"), 64 * 1024, "Kit archive member ledger");
   if (sha256Hex(ledgerBytes) !== receipt.archiveMemberLedgerSha256) {
-    fail("package-identity", "Kit archive member ledger does not match the A5-R1 receipt.");
+    fail("package-identity", "Kit archive member ledger does not match the FACTS02 receipt.");
   }
   const ledger = JSON.parse(ledgerBytes.toString("utf8")) as {
     members: { path: string; size: number; sha256: string }[];
@@ -367,7 +390,7 @@ function authenticateFacts02Package(archivePath: string, installed: InstalledKit
   const lock = read(path.join(consumerRoot, "package-lock.json"), 64 * 1024, "Kit runtime lockfile");
   const manifest = read(path.join(consumerRoot, "package.json"), 64 * 1024, "Kit runtime manifest");
   if (sha256Hex(lock) !== receipt.consumerLockSha256 || sha256Hex(manifest) !== receipt.consumerManifestSha256) {
-    fail("package-identity", "Kit runtime installation does not match the A5-R1 receipt.");
+    fail("package-identity", "Kit runtime installation does not match the FACTS02 receipt.");
   }
   const resolve = createRequire(installed.cliPath);
   for (const [name, dependency] of Object.entries(receipt.runtimeDependencyIdentity)) {
@@ -380,7 +403,7 @@ function authenticateFacts02Package(archivePath: string, installed: InstalledKit
       fail("package-identity", `Kit runtime dependency ${name} cannot be resolved.`);
     }
     if (!isContained(root, entry) || sha256Hex(metadata) !== dependency.installedPackageJsonSha256) {
-      fail("package-identity", `Kit runtime dependency ${name} does not match the A5-R1 receipt.`);
+      fail("package-identity", `Kit runtime dependency ${name} does not match the FACTS02 receipt.`);
     }
   }
 }
@@ -467,7 +490,7 @@ export function resolveInstalledKitPackage(
       `installed Kit CLI SHA-256 ${cliSha256} is not the qualified candidate ${expectation.cliSha256}.`
     );
   }
-  const managed = [QUALIFIED_FACTS02_A5_R1_KIT, ...QUALIFIED_BATCH_ARCHIVES].find(candidate => candidate.cliSha256 === cliSha256);
+  const managed = [...QUALIFIED_FACTS02_KITS, ...QUALIFIED_BATCH_ARCHIVES].find(candidate => candidate.cliSha256 === cliSha256);
   if (managed && !matchesExactKitExpectation(expectation, managed)) {
     fail("package-identity", "Managed Kit requires its exact package, CLI, extractor and selection-schema profile.");
   }
@@ -692,7 +715,7 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
 
 function configureKitBatch(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string): void {
-  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
+  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256, QUALIFIED_FACTS02_A6_KIT.cliSha256].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
   const batchInput = fs.mkdtempSync(path.join(ctx.workDir, "kb-"));
   let next = 0;
   ctx.query = createKitBatchTransport({
@@ -724,7 +747,7 @@ type KitStreamState = { current?: KitStreamTransport };
 
 function configureKitTransport(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string, state?: KitStreamState): void {
-  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256].includes(ctx.pkg.cliSha256)) {
+  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256, QUALIFIED_FACTS02_A6_KIT.cliSha256].includes(ctx.pkg.cliSha256)) {
     configureKitBatch(ctx, deps, identity, indexDir);
     return;
   }
@@ -987,9 +1010,9 @@ function hasReferenceFixtureLane(deps: KitSourceProviderDependencies, schemaVers
 function playwrightModifierProfile(
   pkg: InstalledKitPackage, expectation: KitCandidateExpectation, deps: KitSourceProviderDependencies,
 ): "passive" | "negotiated" | undefined {
-  const exact = QUALIFIED_FACTS02_A5_R1_KIT;
-  if (pkg.cliSha256 === exact.cliSha256 && matchesExactKitExpectation(expectation, exact) &&
-      deps.qualifiedArchivePath && exact.capabilities.testModifierProof && exact.capabilities.testModifierProofRequest) {
+  const exact = QUALIFIED_FACTS02_KITS.find(profile =>
+    pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile));
+  if (exact && deps.qualifiedArchivePath && exact.capabilities.testModifierProof && exact.capabilities.testModifierProofRequest) {
     return "negotiated";
   }
   if (deps.testOnlyPlaywrightModifierProof !== true || !deps.runCommand || !deps.installedPackageRoot ||
@@ -1094,6 +1117,7 @@ const NON_SEMANTIC_RAW_CONTENT_PROFILES: ReadonlySet<string> = new Set([
   QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256,
   QUALIFIED_DIRECT_MODIFIER_KIT.cliSha256,
   QUALIFIED_FACTS02_A5_R1_KIT.cliSha256,
+  QUALIFIED_FACTS02_A6_KIT.cliSha256,
   // The exact R3 CLI also returns complete, hash-bound text occurrences
   // for selected generated and vendor source without admitting semantic facts.
   QUALIFIED_B3_P1_KIT.cliSha256,
@@ -1197,6 +1221,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   const r3 = (ctx.pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 ||
     ctx.pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 ||
     ctx.pkg.cliSha256 === QUALIFIED_FACTS02_A5_R1_KIT.cliSha256 ||
+    ctx.pkg.cliSha256 === QUALIFIED_FACTS02_A6_KIT.cliSha256 ||
     QUALIFIED_BATCH_ARCHIVES.some(profile => profile.cliSha256 === ctx.pkg.cliSha256)) &&
     evidence.artifactSchemaVersion === "1.2.0";
   const domainPromises = new Map<string, Promise<ReturnType<typeof validateKitImportDomain>>>();
@@ -1738,14 +1763,14 @@ export async function collectKitSourceFacts(
     archivePath: deps.qualifiedArchivePath ?? null, observedArchive: archive,
   });
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: deps.installedPackageRoot, expectation });
-  const managed = [QUALIFIED_FACTS02_A5_R1_KIT, ...QUALIFIED_BATCH_ARCHIVES].find(candidate => candidate.cliSha256 === pkg.cliSha256);
-  const facts02 = managed === QUALIFIED_FACTS02_A5_R1_KIT ? QUALIFIED_FACTS02_A5_R1_KIT.capabilities : undefined;
+  const facts02 = QUALIFIED_FACTS02_KITS.find(profile => profile.cliSha256 === pkg.cliSha256);
+  const managed = facts02 ?? QUALIFIED_BATCH_ARCHIVES.find(profile => profile.cliSha256 === pkg.cliSha256);
   if (managed) {
     if (!deps.installedPackageRoot || !deps.qualifiedArchivePath ||
         sha256Hex(readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive")) !== managed.archiveSha256) {
       fail("package-identity", "Managed Kit requires the exact qualified local archive and installed package root.");
     }
-    if (facts02) authenticateFacts02Package(deps.qualifiedArchivePath, pkg);
+    if (facts02) authenticateFacts02Package(deps.qualifiedArchivePath, pkg, facts02);
     if (!deps.workDir && !deps.receipt) fail("invalid-request", "Managed Kit requires a task-owned work directory or audit receipt.");
     deps = { ...deps, launchGuard: deps.launchGuard ?? createKitLaunchGuard() };
   }
@@ -1833,7 +1858,7 @@ export async function collectKitSourceFacts(
     if (expectedSnapshot !== undefined && evidence.snapshotId !== expectedSnapshot)
       fail("stale-evidence", "The acquired whole-project Kit snapshot differs from the frozen replay snapshot.");
     const snapshot = adaptKitEvidenceToSourceFacts({
-      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_FACTS02_A5_R1_KIT].some(profile =>
+      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_FACTS02_A5_R1_KIT, QUALIFIED_FACTS02_A6_KIT].some(profile =>
         pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile)),
       evidence,
       inventory: request.inventory,
@@ -1848,8 +1873,8 @@ export async function collectKitSourceFacts(
       const context: KitCommandContext = { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
         guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch,
-        ordinarySourceReference: facts02?.ordinarySourceReference ?? (fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined),
-        expressionReference: facts02?.expressionReference ?? (fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined) };
+        ordinarySourceReference: facts02?.capabilities.ordinarySourceReference ?? (fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined),
+        expressionReference: facts02?.capabilities.expressionReference ?? (fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined) };
       configureKitTransport(context, deps, evidence.source, path.join(workDir, "index"), streamState);
       const reader = createKitSourceReader(evidence, context, async () => {
         await close();
