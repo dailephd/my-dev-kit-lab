@@ -316,12 +316,12 @@ export async function runAudit(options: RunAuditOptions): Promise<AuditResult> {
     // Consumers can discharge this exact registry dependency after applying
     // their actual predicate premises. An undetermined applicability remains
     // undetermined; one unrelated positive predicate cannot waive it.
-    const accountedTestImports = status === "UNAVAILABLE" && actualStatus === "partial" &&
-      requirement.detectorId === "test-rot" && requirement.capability === "imports";
+    const accountedImports = status === "UNAVAILABLE" && actualStatus === "partial" && requirement.capability === "imports" &&
+      (requirement.detectorId === "test-rot" || requirement.detectorId === "dead-code-candidate");
     if (requirement.applicability !== "UNDETERMINED" && coverage.some(c => c.detectorId === requirement.detectorId &&
         c.predicate === `${requirement.capability} evidence` && c.capability === requirement.capability &&
         c.source.kind === "file" && c.source.identity === requirement.path &&
-        (c.status === "NOT_APPLICABLE" || accountedTestImports && c.status === "QUALIFIED" &&
+        (c.status === "NOT_APPLICABLE" || accountedImports && c.status === "QUALIFIED" &&
           c.actualStatus === "partial" && c.mandatory && c.proof?.kind === "import-domain" &&
           c.proof.snapshotId === sourceFacts.kitEvidence?.snapshotId &&
           c.proof.references.length > 0))) continue;

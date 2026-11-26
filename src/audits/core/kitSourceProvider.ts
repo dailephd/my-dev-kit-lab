@@ -175,6 +175,24 @@ export const QUALIFIED_CURRENT_PUBLISHED_KIT = Object.freeze({
   archiveUrl: "https://registry.npmjs.org/@dailephd/my-dev-kit/-/my-dev-kit-1.16.0.tgz",
 } satisfies KitCandidateExpectation & Record<string, string>);
 
+const QUALIFIED_FACTS02_A5_R1_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.7.0",
+  sourceSha: "a0ec1b4d2ecd28980668aed286ba6e1b72920c88",
+  archiveSha256: "a00c857131c6cc6db77a7aeb0b1c6e4cd1c621f259aa91090fa39dc5fc2acded",
+  archiveIntegrity: "sha512-D4fGOqIHuG574L8+FnOnsJpRvebaEzRWMZgSQN4K0PzPBvkOq/Kc9kfSg26ZwfrTBrNDkNL1BXYFmyhwAvXW3g==",
+  cliSha256: "614532ba59ec3f3b2c96ea8a4288bb1b398385913510d723cd83441ce4d97c34",
+  receiptSha256: "ee11bd25eff2d393dc7dee1f7ed8ef0da9f6409f6e64e8f57da07db182b0291e",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
 const QUALIFIED_BATCH_ARCHIVES = [QUALIFIED_B5_P1_R6_KIT, QUALIFIED_B5_P1_R7A_KIT, QUALIFIED_DIRECT_MODIFIER_KIT] as const;
 
 export function resolveQualifiedKitArchive(
@@ -182,10 +200,12 @@ export function resolveQualifiedKitArchive(
   installedPackageRoot: string,
 ): KitSourceProviderDependencies {
   const digest = sha256Hex(readBoundedFile(qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive"));
-  const expectation = QUALIFIED_BATCH_ARCHIVES.find(profile => profile.archiveSha256 === digest) ??
+  const expectation = (digest === QUALIFIED_FACTS02_A5_R1_KIT.archiveSha256 ? QUALIFIED_FACTS02_A5_R1_KIT :
+    QUALIFIED_BATCH_ARCHIVES.find(profile => profile.archiveSha256 === digest)) ??
     (QUALIFIED_R3_ARCHIVES.some(profile => profile.archiveSha256 === digest) ? QUALIFIED_B3_P1_KIT : undefined);
   if (!expectation) fail("package-identity", "Kit archive SHA-256 does not match a qualified local archive.");
-  resolveInstalledKitPackage({ installedPackageRoot, expectation });
+  const installed = resolveInstalledKitPackage({ installedPackageRoot, expectation });
+  if (expectation === QUALIFIED_FACTS02_A5_R1_KIT) authenticateFacts02Package(qualifiedArchivePath, installed);
   return { expectation, qualifiedArchivePath, installedPackageRoot };
 }
 
@@ -211,7 +231,8 @@ export const QUALIFIED_SW123_P6_R7_KIT = {
 const SW123_EXACT_KIT_PROFILES = [QUALIFIED_SW123_P6_R2_KIT, QUALIFIED_SW123_P6_R7_KIT] as const;
 
 function isProofProfile(expectation: KitCandidateExpectation): boolean {
-  return matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT) ||
+  return matchesExactKitExpectation(expectation, QUALIFIED_FACTS02_A5_R1_KIT) ||
+    matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT) ||
     matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) || QUALIFIED_BATCH_ARCHIVES.some(profile => matchesExactKitExpectation(expectation, profile));
 }
 
@@ -239,8 +260,8 @@ export type KitSourceProviderDependencies = {
   installedPackageRoot?: string;
   expectation?: KitCandidateExpectation;
   runCommand?: KitCommandRunner;
-  // Only the explicit installed-package and command-fixture seam can admit
-  // this profile until an exact packed producer is qualified.
+  // Independent contract fixtures use the injected command seam. Real
+  // archives receive capabilities through the exact managed profile.
   testOnlyOrdinarySourceReference?: true;
   testOnlyExpressionReference?: true;
   testOnlyPlaywrightModifierProof?: true;
@@ -285,6 +306,82 @@ function readBoundedFile(filePath: string, maxBytes: number, category: KitEviden
     return fs.readFileSync(filePath);
   } catch (error) {
     fail(category, `${label} could not be read: ${error instanceof Error ? error.message : error}`);
+  }
+}
+
+function authenticateFacts02Package(archivePath: string, installed: InstalledKitPackage): void {
+  const profile = QUALIFIED_FACTS02_A5_R1_KIT;
+  const campaign = path.dirname(path.dirname(path.resolve(archivePath)));
+  const read = (filename: string, maxBytes: number, label: string) => {
+    try {
+      const physical = fs.realpathSync.native(filename);
+      if (!isContained(campaign, physical) || path.relative(physical, filename) !== "") {
+        fail("package-identity", `${label} lies outside the qualified package layout.`);
+      }
+    } catch (error) {
+      if (error instanceof KitSourceEvidenceAcquisitionError) throw error;
+      fail("package-identity", `${label} is missing or inaccessible.`);
+    }
+    return readBoundedFile(filename, maxBytes, "package-identity", label);
+  };
+  const receiptBytes = read(path.join(campaign, "validation", "qualification.json"), 64 * 1024, "Kit qualification receipt");
+  if (sha256Hex(receiptBytes) !== profile.receiptSha256) {
+    fail("package-identity", "Kit qualification receipt does not match the exact A5-R1 identity.");
+  }
+  // The receipt and the ledgers it pins are immutable inputs to this profile.
+  const receipt = JSON.parse(receiptBytes.toString("utf8")) as {
+    archivePath: string;
+    archiveIntegrity: string;
+    sourceCommit: string;
+    installedPackageRoot: string;
+    installedCliSha256: string;
+    archiveMemberLedgerSha256: string;
+    consumerLockSha256: string;
+    consumerManifestSha256: string;
+    runtimeDependencyIdentity: Record<string, { installedPackageJsonSha256: string }>;
+  };
+  if (path.relative(receipt.archivePath, path.resolve(archivePath)) !== "" ||
+      path.relative(receipt.installedPackageRoot, installed.packageRoot) !== "" ||
+      receipt.archiveIntegrity !== profile.archiveIntegrity || receipt.sourceCommit !== profile.sourceSha ||
+      receipt.installedCliSha256 !== installed.cliSha256) {
+    fail("package-identity", "Kit archive and installation do not match the A5-R1 receipt.");
+  }
+  const archive = read(path.resolve(archivePath), 2 * 1024 * 1024, "Qualified Kit archive");
+  if (sha256Hex(archive) !== profile.archiveSha256) {
+    fail("package-identity", "Kit archive bytes differ from the exact A5-R1 identity.");
+  }
+  const ledgerBytes = read(path.join(campaign, "validation", "archive-members.json"), 64 * 1024, "Kit archive member ledger");
+  if (sha256Hex(ledgerBytes) !== receipt.archiveMemberLedgerSha256) {
+    fail("package-identity", "Kit archive member ledger does not match the A5-R1 receipt.");
+  }
+  const ledger = JSON.parse(ledgerBytes.toString("utf8")) as {
+    members: { path: string; size: number; sha256: string }[];
+  };
+  for (const member of ledger.members) {
+    const bytes = read(path.join(installed.packageRoot, member.path), member.size, `Kit package member ${member.path}`);
+    if (bytes.length !== member.size || sha256Hex(bytes) !== member.sha256) {
+      fail("package-identity", `Kit package member ${member.path} does not match the qualified archive.`);
+    }
+  }
+  const consumerRoot = path.join(campaign, "consumer");
+  const lock = read(path.join(consumerRoot, "package-lock.json"), 64 * 1024, "Kit runtime lockfile");
+  const manifest = read(path.join(consumerRoot, "package.json"), 64 * 1024, "Kit runtime manifest");
+  if (sha256Hex(lock) !== receipt.consumerLockSha256 || sha256Hex(manifest) !== receipt.consumerManifestSha256) {
+    fail("package-identity", "Kit runtime installation does not match the A5-R1 receipt.");
+  }
+  const resolve = createRequire(installed.cliPath);
+  for (const [name, dependency] of Object.entries(receipt.runtimeDependencyIdentity)) {
+    const root = path.join(consumerRoot, "node_modules", name);
+    const metadata = read(path.join(root, "package.json"), 64 * 1024, `Kit runtime dependency ${name}`);
+    let entry: string;
+    try {
+      entry = fs.realpathSync.native(resolve.resolve(name));
+    } catch {
+      fail("package-identity", `Kit runtime dependency ${name} cannot be resolved.`);
+    }
+    if (!isContained(root, entry) || sha256Hex(metadata) !== dependency.installedPackageJsonSha256) {
+      fail("package-identity", `Kit runtime dependency ${name} does not match the A5-R1 receipt.`);
+    }
   }
 }
 
@@ -370,7 +467,7 @@ export function resolveInstalledKitPackage(
       `installed Kit CLI SHA-256 ${cliSha256} is not the qualified candidate ${expectation.cliSha256}.`
     );
   }
-  const managed = QUALIFIED_BATCH_ARCHIVES.find(candidate => candidate.cliSha256 === cliSha256);
+  const managed = [QUALIFIED_FACTS02_A5_R1_KIT, ...QUALIFIED_BATCH_ARCHIVES].find(candidate => candidate.cliSha256 === cliSha256);
   if (managed && !matchesExactKitExpectation(expectation, managed)) {
     fail("package-identity", "Managed Kit requires its exact package, CLI, extractor and selection-schema profile.");
   }
@@ -595,7 +692,7 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
 
 function configureKitBatch(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string): void {
-  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
+  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
   const batchInput = fs.mkdtempSync(path.join(ctx.workDir, "kb-"));
   let next = 0;
   ctx.query = createKitBatchTransport({
@@ -627,7 +724,7 @@ type KitStreamState = { current?: KitStreamTransport };
 
 function configureKitTransport(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string, state?: KitStreamState): void {
-  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256].includes(ctx.pkg.cliSha256)) {
+  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, QUALIFIED_FACTS02_A5_R1_KIT.cliSha256].includes(ctx.pkg.cliSha256)) {
     configureKitBatch(ctx, deps, identity, indexDir);
     return;
   }
@@ -677,7 +774,7 @@ export async function acquireKitSourceEvidence(
   streamState?: KitStreamState,
 ): Promise<KitSourceEvidence> {
   const proofProfile = pkg.cliSha256 === expectation.cliSha256 && isProofProfile(expectation);
-  const modifierProfile = playwrightModifierFixtureProfile(pkg, expectation, deps);
+  const modifierProfile = playwrightModifierProfile(pkg, expectation, deps);
   const qualifiedTestModifierProof = modifierProfile !== undefined;
   if (request.predicateRequirements && !proofProfile && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
       (!["source-audit-v1.5.0", "source-audit-v1.5.1"].includes(expectation.extractorRevision) &&
@@ -887,9 +984,14 @@ function hasReferenceFixtureLane(deps: KitSourceProviderDependencies, schemaVers
     !deps.qualifiedArchivePath && schemaVersion === "1.2.0");
 }
 
-function playwrightModifierFixtureProfile(
+function playwrightModifierProfile(
   pkg: InstalledKitPackage, expectation: KitCandidateExpectation, deps: KitSourceProviderDependencies,
 ): "passive" | "negotiated" | undefined {
+  const exact = QUALIFIED_FACTS02_A5_R1_KIT;
+  if (pkg.cliSha256 === exact.cliSha256 && matchesExactKitExpectation(expectation, exact) &&
+      deps.qualifiedArchivePath && exact.capabilities.testModifierProof && exact.capabilities.testModifierProofRequest) {
+    return "negotiated";
+  }
   if (deps.testOnlyPlaywrightModifierProof !== true || !deps.runCommand || !deps.installedPackageRoot ||
       !deps.expectation || deps.qualifiedArchivePath || expectation.artifactSchemaVersion !== "1.2.0" ||
       pkg.cliSha256 !== expectation.cliSha256 || !isProofProfile(expectation)) return undefined;
@@ -943,6 +1045,8 @@ export type KitSourceReader = {
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
   ordinarySourceReference?: true;
+  /** The exact computed-reference extension is qualified for this reader. */
+  expressionReference?: true;
   testModifierProof?: (filePath: string) => KitFileEvidence["testModifierProof"];
   importTarget: (factId: string) => Promise<KitImportProof & {
     exactSelectedPath?: string;
@@ -1091,6 +1195,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   const testFileByPath = new Map(testFiles.map(file => [file.relativePath, file]));
   const r3 = (ctx.pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 ||
     ctx.pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 ||
+    ctx.pkg.cliSha256 === QUALIFIED_FACTS02_A5_R1_KIT.cliSha256 ||
     QUALIFIED_BATCH_ARCHIVES.some(profile => profile.cliSha256 === ctx.pkg.cliSha256)) &&
     evidence.artifactSchemaVersion === "1.2.0";
   const domainPromises = new Map<string, Promise<ReturnType<typeof validateKitImportDomain>>>();
@@ -1260,6 +1365,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     selectedFile,
     reExportSpecifiers: filePath => reExportTargets(filePath).map(fact => fact.sourceSpecifier),
     ordinarySourceReference: ctx.ordinarySourceReference,
+    expressionReference: ctx.expressionReference,
     testModifierProof: qualifiedTestModifierProof ? filePath => {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
       validateKitRelativePath(filePath, "test modifier proof file");
@@ -1631,12 +1737,14 @@ export async function collectKitSourceFacts(
     archivePath: deps.qualifiedArchivePath ?? null, observedArchive: archive,
   });
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: deps.installedPackageRoot, expectation });
-  const managed = QUALIFIED_BATCH_ARCHIVES.find(candidate => candidate.cliSha256 === pkg.cliSha256);
+  const managed = [QUALIFIED_FACTS02_A5_R1_KIT, ...QUALIFIED_BATCH_ARCHIVES].find(candidate => candidate.cliSha256 === pkg.cliSha256);
+  const facts02 = managed === QUALIFIED_FACTS02_A5_R1_KIT ? QUALIFIED_FACTS02_A5_R1_KIT.capabilities : undefined;
   if (managed) {
     if (!deps.installedPackageRoot || !deps.qualifiedArchivePath ||
         sha256Hex(readBoundedFile(deps.qualifiedArchivePath, 2 * 1024 * 1024, "package-identity", "Qualified Kit archive")) !== managed.archiveSha256) {
       fail("package-identity", "Managed Kit requires the exact qualified local archive and installed package root.");
     }
+    if (facts02) authenticateFacts02Package(deps.qualifiedArchivePath, pkg);
     if (!deps.workDir && !deps.receipt) fail("invalid-request", "Managed Kit requires a task-owned work directory or audit receipt.");
     deps = { ...deps, launchGuard: deps.launchGuard ?? createKitLaunchGuard() };
   }
@@ -1724,7 +1832,7 @@ export async function collectKitSourceFacts(
     if (expectedSnapshot !== undefined && evidence.snapshotId !== expectedSnapshot)
       fail("stale-evidence", "The acquired whole-project Kit snapshot differs from the frozen replay snapshot.");
     const snapshot = adaptKitEvidenceToSourceFacts({
-      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, QUALIFIED_CURRENT_PUBLISHED_KIT].some(profile =>
+      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_FACTS02_A5_R1_KIT].some(profile =>
         pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile)),
       evidence,
       inventory: request.inventory,
@@ -1739,14 +1847,14 @@ export async function collectKitSourceFacts(
       const context: KitCommandContext = { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
         guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch,
-        ordinarySourceReference: fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined,
-        expressionReference: fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined };
+        ordinarySourceReference: facts02?.ordinarySourceReference ?? (fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined),
+        expressionReference: facts02?.expressionReference ?? (fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined) };
       configureKitTransport(context, deps, evidence.source, path.join(workDir, "index"), streamState);
       const reader = createKitSourceReader(evidence, context, async () => {
         await close();
         if (ownedWorkDir) fs.rmSync(workDir, { recursive: true, force: true });
       }, request.inventory.testFiles, rawSourceFiles, request.inventory.files,
-      playwrightModifierFixtureProfile(pkg, expectation, deps) !== undefined);
+      playwrightModifierProfile(pkg, expectation, deps) !== undefined);
       request.onReader(reader);
       readerIssued = true;
     }

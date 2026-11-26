@@ -181,11 +181,21 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
 
           const staticImports = file.imports.filter(imp => !linked.has(imp.provenance?.factId));
           const reExports = reader.reExportTargets?.(entry.relativePath) ?? [];
-          const inventoriesComplete = (qualifyKitImportPredicate(file) === "QUALIFIED_NEGATIVE" ||
-            reader.explicitImportsCompleteWithExpressions?.(entry.relativePath, file.imports.length)) &&
-            file.kit?.capabilities.exports === "complete" &&
+          const accountedImports = reader.explicitImportsCompleteWithExpressions?.(entry.relativePath, file.imports.length);
+          const importsComplete = qualifyKitImportPredicate(file) === "QUALIFIED_NEGATIVE" || accountedImports;
+          const exportsComplete = file.kit?.capabilities.exports === "complete" &&
             reExports.length === file.exports.filter(fact => fact.exportOrigin === "re-export").length;
+          const inventoriesComplete = importsComplete && exportsComplete;
           const newProfile = reader.ordinarySourceReference === true;
+          if (reader.expressionReference && file.kit?.capabilities.imports === "partial" && accountedImports &&
+              domains.length && file.imports.every(imp => qualifyKitImportPredicate(file, imp) === "QUALIFIED_POSITIVE")) {
+            ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "imports evidence",
+              source: { kind: "file", identity: entry.relativePath }, capability: "imports",
+              actualStatus: "partial", status: "QUALIFIED", mandatory: true, diagnostic: "",
+              reason: "Authenticated explicit imports and complete expression inventory account for the import observations.",
+              proof: { kind: "import-domain", snapshotId: reader.snapshotId,
+                references: domains.map(({ proof }) => proof.expressionFactId) } });
+          }
           const possiblePaths = new Set(domains.flatMap(({ proof }) => proof.selectedTargetUpperBound ?? []));
           let bounded = inventoriesComplete && domains.every(({ proof }) =>
             proof.selectedTargetUpperBound !== undefined || proof.excludesSelectedDomain);
@@ -194,23 +204,13 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             staticImports.every(imp => qualifyKitImportPredicate(file, imp) === "QUALIFIED_POSITIVE" &&
               !!imp.provenance?.factId && (builtinReference(imp.source) ||
                 (imp.source.startsWith(".") && imp.importResolution === "unresolved")));
-          const blockers: string[] = [];
-          if (!inventoriesComplete) {
-            if (qualifyKitImportPredicate(file) !== "QUALIFIED_NEGATIVE" &&
-                !reader.explicitImportsCompleteWithExpressions?.(entry.relativePath, file.imports.length)) {
-              blockers.push("incomplete import inventory");
-            }
-            if (file.kit?.capabilities.exports !== "complete" ||
-                reExports.length !== file.exports.filter(fact => fact.exportOrigin === "re-export").length) {
-              blockers.push("incomplete re-export inventory");
-            }
-          }
-          for (const { proof } of domains) {
-            if (!proof.excludesSelectedDomain &&
-                (!proof.selectedTargetUpperBound || proof.selectedTargetUpperBound.some(target => !exactReferences.has(target)))) {
-              blockers.push("dynamic import [" + proof.expressionFactId + "]: " + (proof.reasonCode ?? proof.outcome));
-            }
-          }
+          const inventoryBlockers: string[] = [];
+          if (!importsComplete) inventoryBlockers.push("incomplete import inventory");
+          if (!exportsComplete) inventoryBlockers.push("incomplete re-export inventory");
+          const expressionBlockers = domains.filter(({ proof }) => !proof.excludesSelectedDomain &&
+            (!proof.selectedTargetUpperBound || proof.selectedTargetUpperBound.some(target => !exactReferences.has(target))))
+            .map(({ proof }) => "dynamic import [" + proof.expressionFactId + "]: " + (proof.reasonCode ?? proof.outcome));
+          const blockers = newProfile ? [...inventoryBlockers, ...expressionBlockers] : [];
 
           const targetProofs = new Map<string, Awaited<ReturnType<typeof reader.importTarget>>>();
           const recordEdge = async (kind: string, specifier: string, factId: string, indexedTarget?: string, request = true) => {
@@ -257,9 +257,12 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             }
             bounded = false;
             legacyExclusionProbe = false;
-            const detail = unavailableReason ? "proof unavailable (" + unavailableReason + ")" :
-              proof?.ordinarySourceReferenceReason ? "domain incomplete (" + proof.ordinarySourceReferenceReason + ")" :
-                proof ? proof.status + " (" + proof.reasonCode + "); no exhaustive target proof" : "proof not requested";
+            const status = proof ? proof.status + " (" + proof.reasonCode + ")" : undefined;
+            const detail = newProfile
+              ? unavailableReason ? "proof unavailable (" + unavailableReason + ")" :
+                proof?.ordinarySourceReferenceReason ? "domain incomplete (" + proof.ordinarySourceReferenceReason + ")" :
+                  status ? status + "; no exhaustive target proof" : "proof not requested"
+              : status ?? "no exhaustive target proof";
             blockers.push(kind + " " + JSON.stringify(specifier) + " [" + factId + "]: " + detail);
           };
 
@@ -286,6 +289,7 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             if (!unwitnessedCandidates.size) break;
             await recordEdge("re-export", fact.sourceSpecifier, fact.id, undefined, newProfile || fact.sourceSpecifier.startsWith("."));
           }
+          if (!newProfile) blockers.push(...expressionBlockers, ...inventoryBlockers);
           if (bounded) boundedScriptOrigins.set(entry.relativePath, new Set(affected));
           if (bounded && possiblePaths.size === 0) {
             for (const predicate of affected) ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate,

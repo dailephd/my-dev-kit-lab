@@ -158,7 +158,7 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         // The expression validator admits a positive witness only for a
         // singleton operand. A finite candidate bound cannot resolve a call.
         const qualified = proof.excludesSelectedDomain || proof.positivePaths.length > 0;
-        const bound = proof.selectedTargetUpperBound;
+        const bound = reader?.expressionReference ? proof.selectedTargetUpperBound : undefined;
         ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "missing-source-import",
           source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
           actualStatus: proof.outcome, status: missingRelative ? "FINDING_SUPPORTED"
