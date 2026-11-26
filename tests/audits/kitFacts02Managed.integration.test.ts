@@ -53,6 +53,54 @@ async function nativeAudit(
   };
 }
 
+exact("exact FACTS02: raw-only vendor and generated files reach readers and detectors", async () => {
+  const vendor = "vendor/library.mjs";
+  const generated = "generated/schema.mjs";
+  const rawFiles = {
+    [vendor]: 'export const vendorMarker = "vendor";\n',
+    [generated]: 'export const generatedMarker = "generated";\n' + "// raw-limit\n".repeat(205),
+  };
+  const fixture = subject("raw-only", {
+    ...rawFiles,
+    "src/peer.mjs": "export const peer = 1;\n",
+    "tests/entry.test.mjs": 'import "../src/peer.mjs";\n',
+  });
+  const inventory = scanProjectInventory(fixture.target);
+  expect(inventory.files.filter(file => file.relativePath in rawFiles).map(file => file.role).sort())
+    .toEqual(["generated", "vendor"]);
+  let reader: KitSourceReader | undefined;
+  const snapshot = await collectKitSourceFacts({
+    targetRoot: fixture.target, inventory, requiredCapabilities: [], includeScriptsRoot: false,
+    requiredPaths: [vendor, generated], capabilitiesForPath: () => [],
+    onReader: value => { reader = value; },
+  }, { ...candidate(), workDir: path.join(fixture.root, "raw-reader") });
+  try {
+    expect(snapshot.files.some(file => file.relativePath in rawFiles)).toBe(false);
+    for (const [file, anchor] of [[vendor, "vendorMarker"], [generated, "generatedMarker"]] as const) {
+      expect(reader!.selectedFile(file)).toMatchObject({
+        status: "parsed", sizeBytes: Buffer.byteLength(rawFiles[file]), lineCount: expect.any(Number),
+        contentSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      });
+      expect(await reader!.occurrences(file, anchor)).toMatchObject({ complete: true, truncated: false, matchCount: 1 });
+      expect(await reader!.authenticatedFixtureContent!(file)).toBe(rawFiles[file]);
+    }
+    expect(await reader!.occurrences(generated, "raw-limit")).toMatchObject({
+      complete: false, truncated: true, matchCount: 205, returnedMatches: 200, reasonCode: "MATCHES_TRUNCATED",
+    });
+    expect(() => reader!.selectedFile("../vendor/library.mjs")).toThrow();
+    fs.writeFileSync(path.join(fixture.target, vendor), rawFiles[vendor].replace("vendor\"", "edited\""));
+    await expect(reader!.occurrences(vendor, "vendorMarker")).rejects.toMatchObject({ category: "stale-evidence" });
+  } finally {
+    fs.writeFileSync(path.join(fixture.target, vendor), rawFiles[vendor]);
+    await reader?.dispose();
+  }
+  const native = await nativeAudit(fixture, "none", "none");
+  expect(native.exit).toBe(0);
+  const artifact = JSON.parse(fs.readFileSync(path.join(native.receipt, "kit-selection.json"), "utf8"));
+  expect(artifact.evidence.inventory.map((file: { path: string }) => file.path)).toEqual(expect.arrayContaining([vendor, generated]));
+  expect(native.coverage.some(row => row.capability === "imports" && row.mandatory && row.source.identity in rawFiles)).toBe(false);
+}, 60_000);
+
 exact("exact FACTS02: conditioned Playwright skip survives complete exit 0 and threshold exit 1", async () => {
   const fixture = subject("complete", {
     "src/peer.mjs": "export const peer = 1;\n",
