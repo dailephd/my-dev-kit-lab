@@ -8,7 +8,8 @@ const MAX_ACTIVE = 2;
 export type KitBatchFamily = "lookup" | "source";
 export type KitBatchSelector =
   | { selector: "audit-files"; page: number }
-  | { selector: "audit-file"; path: string; page: number }
+  | ({ selector: "audit-file"; path: string } & (
+      { page: number; testModifierProof?: never } | { page: 0; testModifierProof: true }))
   | { selector: "audit-import-target" | "audit-import-domain"; factId: string }
   | { selector: "line-range"; path: string; start: number; end: number; maxLines: number }
   | { selector: "exact-file-occurrence"; path: string; literal: string; context: number }

@@ -22,10 +22,11 @@ const playwrightOnly = 'test.only("focus", () => {});';
 
 function playwrightContractFixture(
   target: string, workDir: string, kind: "direct" | "local" | "imported",
-  coverage: "complete" | "partial" | "omitted", qualified: boolean, batch = false,
+  coverage: "complete" | "partial" | "omitted", qualified: boolean, batch = false, negotiated = false,
 ) {
   const factFiles: string[] = [];
   const transports = new Set<string>();
+  const requests: { file: string; page: string; proof: boolean }[] = [];
   const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
   const span = (path: string, line: number, startColumn: number, endColumn: number) =>
     ({ path, startLine: line, startColumn, endLine: line, endColumn });
@@ -37,9 +38,19 @@ function playwrightContractFixture(
     testOnlyOrdinarySourceReference: qualified ? undefined : true,
     testOnlyExpressionReference: qualified ? undefined : true,
     testOnlyPlaywrightModifierProof: qualified ? true : undefined,
+    testOnlyPlaywrightProofRequest: negotiated ? true : undefined,
     runCommand: async options => {
-      const result = await runMeasuredCommand(options);
       const args = options.args ?? [];
+      const requestProof = args.includes("--test-modifier-proof");
+      if (args.includes("--audit-file")) {
+        requests.push({ file: args[args.indexOf("--audit-file") + 1]!,
+          page: args[args.indexOf("--page") + 1]!, proof: requestProof });
+      } else {
+        expect(requestProof).toBe(false);
+      }
+      // The installed legacy CLI supplies only the original envelope.
+      const result = await runMeasuredCommand(requestProof && options.executable !== undefined
+        ? { ...options, args: args.filter(arg => arg !== "--test-modifier-proof") } : options);
       if (!result.ok || (!args.includes("--audit-file") && !args.includes("--audit-batch-file"))) return result;
       const body = JSON.parse(result.stdout);
       const attach = (page: { file?: { path: string; contentSha256: string }; pageIndex: number; facts: KitFact[]; snapshotId: string }) => {
@@ -110,7 +121,7 @@ function playwrightContractFixture(
       return { ...result, stdout: JSON.stringify(body) };
     },
   };
-  return { deps, factFiles, transports };
+  return { deps, factFiles, transports, requests };
 }
 
 function writePlaywrightContractSource(target: string, kind: "direct" | "local" | "imported", unknownImport = false) {
@@ -179,11 +190,71 @@ it("authenticates an immediate wrapper without fetching its fact page and rechec
   }
 }, 60_000);
 
+it("keeps a failed negotiated exact-file request fatal without a legacy retry", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-negotiation-failure-"));
+  try {
+    const target = path.join(workspace, "target");
+    writePlaywrightContractSource(target, "direct");
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), "direct", "omitted", true, false, true);
+    const base = fixture.deps.runCommand!;
+    fixture.deps.runCommand = async options => {
+      const result = await base(options);
+      return options.args?.includes("--test-modifier-proof")
+        ? { ...result, ok: false, exitCode: 2, stderr: "negotiation failed" } : result;
+    };
+    await expect(collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: [playwrightOrigin],
+      requiredCapabilities: [], includeScriptsRoot: false,
+    }, fixture.deps)).rejects.toMatchObject({ category: "subprocess-failed" });
+    expect(fixture.requests).toEqual([{ file: playwrightOrigin, page: "0", proof: true }]);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
+it("retains the request modifier on the real standalone fallback from a negotiated batch", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-negotiation-fallback-"));
+  try {
+    const target = path.join(workspace, "target");
+    const neighbor = "tests/standalone.ts";
+    writePlaywrightContractSource(target, "direct");
+    fs.appendFileSync(path.join(target, playwrightOrigin),
+      Array.from({ length: 132 }, (_, index) => `const marker${index} = ${index};\n`).join(""));
+    fs.writeFileSync(path.join(target, neighbor), "export {};\n");
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), "direct", "omitted", true, true, true);
+    const base = fixture.deps.runCommand!;
+    let indexResult: Awaited<ReturnType<typeof base>> | undefined;
+    let batches = 0;
+    fixture.deps.runCommand = async options => {
+      const args = options.args ?? [];
+      const batch = args.indexOf("--audit-batch-file");
+      if (batch >= 0) {
+        const { requests } = JSON.parse(fs.readFileSync(args[batch + 1]!, "utf8"));
+        expect(requests).toEqual([playwrightOrigin, neighbor].map(file => ({
+          id: expect.any(String), selector: "audit-file", path: file, page: 0, testModifierProof: true,
+        })));
+        batches++;
+        return { ...indexResult!, ok: false, exitCode: 2, stdout: "", stderr: "AUDIT_BATCH_OUTPUT_LIMIT: fixture" };
+      }
+      const result = await base(options);
+      if (args[1] === "index") indexResult = result;
+      return result;
+    };
+    await collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: [playwrightOrigin, neighbor],
+      requiredCapabilities: [], includeScriptsRoot: false,
+    }, fixture.deps);
+    expect(batches).toBe(1);
+    expect(fixture.requests.filter(request => request.proof))
+      .toEqual([playwrightOrigin, neighbor].map(file => ({ file, page: "0", proof: true })));
+    expect(fixture.requests.filter(request => !request.proof))
+      .toEqual([{ file: playwrightOrigin, page: "1", proof: false }]);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
 it.each([
-  { kind: "direct", coverage: "complete", qualified: true, threshold: "none", exit: 0 },
+  { kind: "direct", coverage: "complete", qualified: true, threshold: "none", exit: 0, negotiated: true },
   { kind: "direct", coverage: "complete", qualified: true, threshold: "high", exit: 1 },
-  { kind: "direct", coverage: "complete", qualified: false, threshold: "none", exit: 2 },
-  { kind: "direct", coverage: "omitted", qualified: true, threshold: "none", exit: 2 },
+  { kind: "direct", coverage: "complete", qualified: false, threshold: "none", exit: 2, negotiated: true },
+  { kind: "direct", coverage: "omitted", qualified: true, threshold: "none", exit: 2, negotiated: true },
   { kind: "imported", coverage: "complete", qualified: true, threshold: "none", exit: 0 },
   { kind: "local", coverage: "partial", qualified: true, threshold: "none", exit: 2 },
   { kind: "local", coverage: "partial", qualified: true, threshold: "blocker", exit: 2 },
@@ -195,12 +266,16 @@ it.each([
     const out = path.join(workspace, "reports");
     const unknownImport = "unknownImport" in scenario;
     writePlaywrightContractSource(target, scenario.kind, unknownImport);
-    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), scenario.kind, scenario.coverage, scenario.qualified);
+    const negotiated = "negotiated" in scenario;
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), scenario.kind, scenario.coverage,
+      scenario.qualified, false, negotiated);
     const code = await runAuditCommandFromArgs([
       "--target", target, "--types", "code-rot", "--include", "tests", "--fail-on", scenario.threshold,
       "--format", "json", "--out", out,
     ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: fixture.deps });
     expect(code).toBe(scenario.exit);
+    expect(fixture.requests.filter(request => request.proof)).toEqual(negotiated && scenario.qualified
+      ? [{ file: playwrightOrigin, page: "0", proof: true }] : []);
     const receipts = path.join(workspace, "lab-output/evidence");
     const [id] = fs.readdirSync(receipts);
     const result = JSON.parse(fs.readFileSync(path.join(receipts, id!, "audit-result.json"), "utf8")).evidence;
@@ -919,7 +994,8 @@ it.each([
   } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
 }, 90_000);
 
-function computedReferenceFixture(target: string, workDir: string, expression: boolean, ordinary = false) {
+function computedReferenceFixture(target: string, workDir: string, expression: boolean, ordinary = false,
+  entryPath = "src/entry.mjs", targetPath = "src/peer.mjs") {
   const fixture = ordinaryContractFixture(target, workDir, {}, ordinary);
   const runLegacy = fixture.deps.runCommand!;
   const queries: string[] = [];
@@ -928,9 +1004,9 @@ function computedReferenceFixture(target: string, workDir: string, expression: b
     const result = await runLegacy(options);
     if (!result.ok || !options.args?.includes("--audit-import-domain")) return result;
     const parent = JSON.parse(result.stdout);
-    if (parent.originFile !== "src/entry.mjs") return result;
+    if (parent.originFile !== entryPath || parent.operandAlternatives?.length !== 1 ||
+        parent.operandAlternatives[0]?.specifier !== "./peer.mjs") return result;
     queries.push(parent.importExpressionFactId);
-    const targetPath = "src/peer.mjs";
     const targetContentSha256 = createHash("sha256").update(fs.readFileSync(path.join(target, targetPath))).digest("hex");
     const expressionReferenceProof = {
       schemaVersion: "1.0.0", profile: "js-ts-computed-exact-source-reference-v1",
@@ -938,8 +1014,9 @@ function computedReferenceFixture(target: string, workDir: string, expression: b
       specifier: "./peer.mjs", targetPath, targetContentSha256, premiseIndexes: [0, 1],
       resolutionPremiseRefs: [
         { role: "candidate", path: targetPath, state: "file", contentSha256: targetContentSha256 },
-        { role: "candidate", path: "src/peer.mts", state: "absent", contentSha256: null },
-        ...["jsconfig.json", "src/jsconfig.json", "src/tsconfig.json", "tsconfig.json"].map(filePath =>
+        { role: "candidate", path: targetPath.replace(/\.mjs$/, ".mts"), state: "absent", contentSha256: null },
+        ...["jsconfig.json", path.posix.join(path.posix.dirname(entryPath), "jsconfig.json"),
+          path.posix.join(path.posix.dirname(entryPath), "tsconfig.json"), "tsconfig.json"].sort().map(filePath =>
           ({ role: "config", path: filePath, state: "absent", contentSha256: null })),
       ],
     };
@@ -947,6 +1024,103 @@ function computedReferenceFixture(target: string, workDir: string, expression: b
   };
   return { deps: fixture.deps, queries };
 }
+
+async function testImportAudit(workspace: string, target: string, deps: KitSourceProviderDependencies) {
+  const exit = await runAuditCommandFromArgs([
+    "--target", target, "--types", "code-rot", "--include", "tests", "--fail-on", "none",
+    "--format", "json", "--out", path.join(workspace, "reports"),
+  ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: deps });
+  const receipts = path.join(workspace, "lab-output/evidence");
+  const [id] = fs.readdirSync(receipts);
+  const { evidence } = JSON.parse(fs.readFileSync(path.join(receipts, id!, "audit-result.json"), "utf8"));
+  return { exit, coverage: evidence.coverage as import("../../src/audits/core/auditRegistry.js").AuditPredicateCoverage[],
+    issues: evidence.issues as { id: string }[] };
+}
+
+it("uses ordinary positives and applicable physical absence while preserving bounded ambiguity", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-test-imports-"));
+  try {
+    const target = path.join(workspace, "target");
+    const directory = path.join(target, "tests");
+    const origin = "tests/entry.test.mts";
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(path.join(target, "package.json"), '{"name":"test-imports","type":"module"}');
+    fs.writeFileSync(path.join(target, "tsconfig.json"), '{"compilerOptions":{}}');
+    for (const file of ["peer.mts", "exported.mts", "ambiguous.ts", "ambiguous.tsx", "existence.ts"]) {
+      fs.writeFileSync(path.join(directory, file), "export const witness = 1;\n");
+    }
+    fs.writeFileSync(path.join(target, origin), [
+      'import "./peer.mjs";', 'export { witness } from "./exported.mjs";',
+      'import "./ambiguous.js";', 'import "./existence.js";', 'import "./gone.mjs";', 'import "../excluded/gone.mjs";',
+      'test.only("independent", () => {});',
+    ].join("\n"));
+    const fixture = ordinaryContractFixture(target, path.join(workspace, "kit"), {
+      "./peer.mjs": { domain: ["tests/peer.mjs", "tests/peer.mts"], reference: "tests/peer.mts" },
+      "./exported.mjs": { domain: ["tests/exported.mjs", "tests/exported.mts"], reference: "tests/exported.mts" },
+      "./ambiguous.js": { domain: ["tests/ambiguous.js", "tests/ambiguous.ts", "tests/ambiguous.tsx"] },
+      "./existence.js": { domain: ["tests/existence.js", "tests/existence.ts"] },
+      "./gone.mjs": { domain: ["tests/gone.mjs", "tests/gone.mts"] },
+      "../excluded/gone.mjs": { domain: ["excluded/gone.mjs", "excluded/gone.mts"] },
+    }, true);
+    const result = await testImportAudit(workspace, target, fixture.deps);
+    expect(result.exit).toBe(2);
+    const gaps = result.coverage.filter(row => row.predicate === "missing-source-import" && row.source.identity === origin);
+    expect(gaps).toHaveLength(3);
+    expect(gaps.map(row => row.reason)).toEqual(expect.arrayContaining([
+      expect.stringContaining('./ambiguous.js has a finite selected-target bound'),
+      expect.stringContaining('./existence.js has a finite selected-target bound'),
+      expect.stringContaining('../excluded/gone.mjs has an empty selected-target bound'),
+    ]));
+    expect(result.issues.filter(issue => issue.id.includes(":missing-source-import:")).map(issue => issue.id))
+      .toEqual(["test-rot:" + origin + ":missing-source-import:./gone.mjs"]);
+    expect(result.issues.some(issue => issue.id.endsWith("only-usage:7"))).toBe(true);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
+it.each(["accounted", "runtime", "unaccounted"] as const)(
+  "separates expression destinations from partial inventory accounting (%s)", async scenario => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-test-expressions-"));
+    try {
+      const target = path.join(workspace, "target");
+      fs.mkdirSync(path.join(target, "tests"), { recursive: true });
+      const origin = "tests/entry.test.mjs";
+      const positiveOrigin = scenario === "accounted" ? origin : "tests/positive.test.mjs";
+      const positiveLines = ['const exact = "./peer.mjs";', "void import(exact);"];
+      fs.writeFileSync(path.join(target, "package.json"), '{"name":"test-expressions","type":"module"}');
+      fs.writeFileSync(path.join(target, "tests/peer.mjs"), "export {};\n");
+      if (positiveOrigin !== origin) fs.writeFileSync(path.join(target, positiveOrigin), positiveLines.join("\n"));
+      fs.writeFileSync(path.join(target, origin), [
+        ...(positiveOrigin === origin ? positiveLines : []),
+        'void import("./linked-missing.mjs");',
+        'void import("./expression-" + "only.mjs");',
+        ...(scenario === "accounted" ? [] : ['import "./ordinary-missing.mjs";', "void import(process.env.DESTINATION);",
+          'void import(process.env.MODE ? "./peer.mjs" : "./other.mjs");']),
+        ...(scenario === "unaccounted" ? ["require(process.env.DESTINATION);"] : []),
+      ].join("\n"));
+      const fixture = computedReferenceFixture(target, path.join(workspace, "kit"), true, false, positiveOrigin, "tests/peer.mjs");
+      fixture.deps.disableBatch = true; // Supply the independent witness through the fixture's ordinary command seam.
+      const result = await testImportAudit(workspace, target, fixture.deps);
+      expect(result.exit).toBe(scenario === "accounted" ? 0 : 2);
+      const rows = result.coverage.filter(row => row.source.identity === origin && row.capability === "imports");
+      expect(rows.some(row => row.predicate === "imports evidence" && row.status === "QUALIFIED")).toBe(scenario !== "unaccounted");
+      expect(result.coverage.filter(row => row.status === "QUALIFIED" && row.predicate === "missing-source-import"))
+        .toContainEqual(expect.objectContaining({ source: { kind: "file", identity: positiveOrigin },
+          proof: expect.objectContaining({ references: [
+            `audit-fact:${encodeURIComponent(positiveOrigin)}#dynamic-import-expression#2#5#0`, "tests/peer.mjs",
+          ] }) }));
+      const missing = result.issues.filter(issue => issue.id.includes(":missing-source-import:")).map(issue => issue.id).sort();
+      expect(missing).toEqual(["./linked-missing.mjs", ...(scenario === "accounted" ? [] : ["./ordinary-missing.mjs"])]
+        .map(specifier => "test-rot:" + origin + ":missing-source-import:" + specifier));
+      expect(rows).toContainEqual(expect.objectContaining({
+        actualStatus: "disjoint-selected-domain", status: "QUALIFIED", proof: expect.objectContaining({
+          references: [`audit-fact:tests%2Fentry.test.mjs#dynamic-import-expression#${scenario === "accounted" ? 4 : 2}#5#0`],
+        }),
+      }));
+      expect(rows.some(row => row.status === "UNDETERMINED" && row.reason.includes("finite selected-target bound")))
+        .toBe(scenario !== "accounted");
+    } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+  }, 60_000,
+);
 
 it.each([true, false])("qualifies only the separate expression capability and rechecks cached premises (%s)", async expression => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-expression-reader-"));

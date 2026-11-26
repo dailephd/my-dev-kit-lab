@@ -273,6 +273,7 @@ export type KitOrdinarySourceReference = {
   reasonCode: string | null;
   selectedTargetUpperBound?: readonly string[];
   qualifiedSourceReferencePath?: string;
+  applicableSourceReferenceAbsent?: true;
 };
 
 const SOURCE_REFERENCE_KEYS = [
@@ -415,7 +416,18 @@ export function validateKitOrdinarySourceReference(
     fail("artifact-invalid", "Ordinary source reference domain contradicts indexed targets.");
   }
 
-  if (r.qualifiedReference === null) return { premiseRefs, reasonCode: null, selectedTargetUpperBound };
+  if (r.qualifiedReference === null) {
+    // A complete selected bound can be empty even when the destination lies
+    // outside this predicate's roots. Physical absence also needs the live
+    // candidate premises, which the reader rechecks before exposing it.
+    const absent = selectedTargetUpperBound.length === 0 &&
+      /^\.\.?\//.test(fact.sourceSpecifier) &&
+      (proof.status === "indeterminate" || proof.status === "proven-missing") &&
+      r.candidateDomain.every(candidate => evidence.source.sourceRoots.some(root =>
+        root === "." || candidate === root || candidate.startsWith(root + "/")));
+    return { premiseRefs, reasonCode: null, selectedTargetUpperBound,
+      ...(absent && { applicableSourceReferenceAbsent: true }) };
+  }
   const positive = closedReferenceObject(r.qualifiedReference, ["targetPath", "targetContentSha256", "referenceKind"], "qualified source reference");
   const target = referencePath(positive.targetPath);
   if (positive.referenceKind !== "selected-source-reference" ||
@@ -1215,7 +1227,7 @@ export function validateFactPage(
   return { ...envelope, status, file, facts };
 }
 
-function isTestModifierSource(file: KitFileRecord): boolean {
+export function isTestModifierSource(file: KitFileRecord): boolean {
   return !!file.contentSha256 && ["parsed", "partial"].includes(file.status) &&
     ["typescript", "javascript"].includes(file.language) && file.analyzerId === "typescript-ast" &&
     /\.(?:tsx?|jsx?|mts|cts|mjs|cjs)$/i.test(file.path);

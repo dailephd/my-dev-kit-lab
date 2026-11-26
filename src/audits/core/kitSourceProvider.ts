@@ -40,6 +40,7 @@ import {
   validateKitImportProof,
   validateKitOrdinarySourceReference,
   validateKitTestModifierProof,
+  isTestModifierSource,
   type KitSourceReferencePremise,
   hasImmediateRelativeSpelling,
   validateKitImportDomain,
@@ -243,6 +244,7 @@ export type KitSourceProviderDependencies = {
   testOnlyOrdinarySourceReference?: true;
   testOnlyExpressionReference?: true;
   testOnlyPlaywrightModifierProof?: true;
+  testOnlyPlaywrightProofRequest?: true;
   launchGuard?: KitLaunchGuard;
   onKitLaunch?: (event: KitLaunchEvent) => void;
   // Exact R6 comparison lane. All other producer profiles remain standalone.
@@ -558,7 +560,11 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
   let args: string[];
   switch (item.selector) {
     case "audit-files": kind = "lookup-audit-files"; args = ["--audit-files", "--page", String(item.page)]; break;
-    case "audit-file": kind = "lookup-audit-file"; args = ["--audit-file", item.path, "--page", String(item.page)]; break;
+    case "audit-file":
+      kind = "lookup-audit-file";
+      args = ["--audit-file", item.path, "--page", String(item.page)];
+      if (item.testModifierProof) args.push("--test-modifier-proof");
+      break;
     case "audit-import-target": kind = "import-target"; args = ["--audit-import-target", item.factId]; break;
     case "audit-import-domain": kind = "import-domain"; args = ["--audit-import-domain", item.factId]; break;
     case "line-range":
@@ -671,7 +677,8 @@ export async function acquireKitSourceEvidence(
   streamState?: KitStreamState,
 ): Promise<KitSourceEvidence> {
   const proofProfile = pkg.cliSha256 === expectation.cliSha256 && isProofProfile(expectation);
-  const qualifiedTestModifierProof = qualifiesPlaywrightModifierFixture(pkg, expectation, deps);
+  const modifierProfile = playwrightModifierFixtureProfile(pkg, expectation, deps);
+  const qualifiedTestModifierProof = modifierProfile !== undefined;
   if (request.predicateRequirements && !proofProfile && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
       (!["source-audit-v1.5.0", "source-audit-v1.5.1"].includes(expectation.extractorRevision) &&
         !SW123_EXACT_KIT_PROFILES.some(profile => matchesExactKitExpectation(expectation, profile))))) {
@@ -786,16 +793,22 @@ export async function acquireKitSourceEvidence(
       if (index >= factPaths.length) return;
       const filePath = factPaths[index]!;
       try {
+        const inventoryRecord = recordByPath.get(filePath)!;
         const pages = await collectAllPages(
           async (pageIndex) => {
-            const raw = await runKitQuery(ctx, indexDir, { selector: "audit-file", path: filePath, page: pageIndex });
+            const requestProof = modifierProfile === "negotiated" && pageIndex === 0 && isTestModifierSource(inventoryRecord);
+            const item = { selector: "audit-file", path: filePath } as const;
+            const raw = await runKitQuery(ctx, indexDir, requestProof
+              ? { ...item, page: 0, testModifierProof: true } : { ...item, page: pageIndex });
             if ((raw as { schemaVersion?: unknown })?.schemaVersion !== header.schemaVersion) fail("schema-mismatch", "Fact page schema differs from the validated artifact.");
+            if (modifierProfile === "negotiated" && !requestProof && Object.hasOwn(raw as object, "testModifierProof")) {
+              fail("page-invalid", "The exact-file request did not negotiate test modifier proof.");
+            }
             return validateFactPage(raw, { snapshotId, pageIndex, path: filePath,
               qualifiedTestModifierProof: qualifiedTestModifierProof ? true : undefined });
           },
           { maxPages: KIT_MAX_FACT_PAGES_PER_FILE, label: `fact traversal of ${filePath}` }
         );
-        const inventoryRecord = recordByPath.get(filePath)!;
         crossValidateFileRecord(inventoryRecord, pages[0]!.file);
         const record = pages[0]!.file;
         if (request.predicateRequirements) {
@@ -874,11 +887,15 @@ function hasReferenceFixtureLane(deps: KitSourceProviderDependencies, schemaVers
     !deps.qualifiedArchivePath && schemaVersion === "1.2.0");
 }
 
-function qualifiesPlaywrightModifierFixture(
+function playwrightModifierFixtureProfile(
   pkg: InstalledKitPackage, expectation: KitCandidateExpectation, deps: KitSourceProviderDependencies,
-): boolean {
-  return deps.testOnlyPlaywrightModifierProof === true && hasReferenceFixtureLane(deps, expectation.artifactSchemaVersion) &&
-    pkg.cliSha256 === expectation.cliSha256 && isProofProfile(expectation);
+): "passive" | "negotiated" | undefined {
+  if (deps.testOnlyPlaywrightModifierProof !== true || !deps.runCommand || !deps.installedPackageRoot ||
+      !deps.expectation || deps.qualifiedArchivePath || expectation.artifactSchemaVersion !== "1.2.0" ||
+      pkg.cliSha256 !== expectation.cliSha256 || !isProofProfile(expectation)) return undefined;
+  if (deps.testOnlyPlaywrightProofRequest === true) return "negotiated";
+  if (deps.disableStream) return "passive";
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -932,6 +949,7 @@ export type KitSourceReader = {
     qualifiedSourceReferencePath?: string;
     selectedTargetUpperBound?: readonly string[];
     ordinarySourceReferenceReason?: string | null;
+    applicableSourceReferenceAbsent?: true;
   }>;
   dispose: () => void | Promise<void>;
 };
@@ -1426,6 +1444,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
         qualifiedSourceReferencePath: reference?.qualifiedSourceReferencePath,
         selectedTargetUpperBound: reference?.selectedTargetUpperBound,
         ordinarySourceReferenceReason: reference?.reasonCode,
+        applicableSourceReferenceAbsent: reference?.applicableSourceReferenceAbsent,
         exactSelectedPath: undefined,
       };
       if (r3 && (record.language === "javascript" || record.language === "typescript")) {
@@ -1727,7 +1746,7 @@ export async function collectKitSourceFacts(
         await close();
         if (ownedWorkDir) fs.rmSync(workDir, { recursive: true, force: true });
       }, request.inventory.testFiles, rawSourceFiles, request.inventory.files,
-      qualifiesPlaywrightModifierFixture(pkg, expectation, deps));
+      playwrightModifierFixtureProfile(pkg, expectation, deps) !== undefined);
       request.onReader(reader);
       readerIssued = true;
     }

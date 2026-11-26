@@ -24,7 +24,7 @@ const program = [
   '  const digest = createHash("sha256").update(line).digest("hex");',
   '  const ok = item.page !== 699;',
   '  if (!ok) process.exitCode = 2;',
-  '  const result = ok ? { id:item.id, selector:item.selector, status:"ok", response:{ page:item.page } } :',
+  '  const result = ok ? { id:item.id, selector:item.selector, status:"ok", response:{ page:item.page, testModifierProof:item.testModifierProof } } :',
   '    { id:item.id, selector:item.selector, status:"error", error:{ exitCode:2, code:"STALE_SOURCE_EVIDENCE" } };',
   '  process.stdout.write(JSON.stringify({schemaVersion:"1.0.0",requestId:request.requestId,',
   '    status:ok?"complete":"incomplete",batch:{',
@@ -68,6 +68,17 @@ it("settles typed item failures and restarts only after the permitted frame coun
   expect(f.events.filter(e => e.status === "started")).toHaveLength(2);
   expect(f.events.filter(e => e.status === "completed").map(e => e.exitCode)).toEqual([2, 0]);
   expect(f.streams.filter(e => e.type === "retiring").map(e => e.reason)).toEqual(["frame-limit", "dispose"]);
+});
+
+it("authenticates the negotiation member in the same stream frame as the exact selector", async () => {
+  const f = fixture();
+  const path = "tests/probe.spec.ts";
+  try {
+    expect(await f.stream.query("lookup", { selector: "audit-file", path, page: 0, testModifierProof: true }))
+      .toEqual({ page: 0, testModifierProof: true });
+    expect(await f.stream.query("lookup", { selector: "audit-file", path, page: 0 })).toEqual({ page: 0 });
+    expect(await f.stream.query("lookup", { selector: "audit-file", path, page: 1 })).toEqual({ page: 1 });
+  } finally { await f.stream.close(); }
 });
 
 it("refuses the next rollover before process start when the shared guard is exhausted", async () => {
