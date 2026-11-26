@@ -314,3 +314,66 @@ describe("collectSourceOfTruth — real self-scan smoke", () => {
     expect(snapshot.experiment.hasExperimentListScript).toBe(true);
   });
 });
+
+
+describe("collectSourceOfTruth — nested script eligibility", () => {
+  it("distinguishes valid scripts, absent scripts and invalid metadata", () => {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", '{"scripts":{"root":"node root.js"}}');
+      writeFile(root, "unit/package.json", '{"scripts":{"nested":"node nested.js"}}');
+      writeFile(root, "empty/package.json", '{"scripts":{}}');
+      writeFile(root, "none/package.json", '{"name":"none"}');
+      writeFile(root, "invalid/package.json", '{"scripts":["nested"]}');
+      writeFile(root, "null-scripts/package.json", '{"scripts":null}');
+      writeFile(root, "broken/package.json", '{');
+      writeFile(root, "array/package.json", '[]');
+      writeFile(root, "large/package.json", JSON.stringify({ description: "x".repeat(200_001) }));
+      const truth = collect(root);
+      expect(truth.package?.scripts).toEqual({ root: "node root.js" });
+      expect(truth.nestedPackageScripts).toEqual(new Map<string, unknown>([
+        ["array", { state: "malformed-manifest" }],
+        ["broken", { state: "malformed-manifest" }],
+        ["empty", { state: "valid", scripts: new Set() }],
+        ["invalid", { state: "malformed-scripts" }],
+        ["large", { state: "unreadable" }],
+        ["none", { state: "no-scripts" }],
+        ["null-scripts", { state: "malformed-scripts" }],
+        ["unit", { state: "valid", scripts: new Set(["nested"]) }],
+      ]));
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("respects selected inventory and excludes non-package file roles", () => {
+    const root = makeTempDir();
+    try {
+      for (const directory of ["unit", "node_modules/dep", "vendor/dep", "generated/demo", "build/demo", "reports/demo"]) {
+        writeFile(root, `${directory}/package.json`, '{"scripts":{"verify":"node check.js"}}');
+      }
+      const inventory = scanProjectInventory(root);
+      expect([...collectSourceOfTruth(root, inventory).nestedPackageScripts.keys()]).toEqual(["unit"]);
+      writeFile(root, "later/package.json", '{"scripts":{"verify":"node check.js"}}');
+      expect([...collectSourceOfTruth(root, inventory).nestedPackageScripts.keys()]).toEqual(["unit"]);
+    } finally {
+      cleanup(root);
+    }
+  });
+
+  it("rejects a selected package directory redirected outside the target", () => {
+    const root = makeTempDir();
+    const outside = makeTempDir();
+    try {
+      writeFile(root, "unit/package.json", '{"scripts":{"local":"node local.js"}}');
+      writeFile(outside, "package.json", '{"scripts":{"external":"node external.js"}}');
+      const inventory = scanProjectInventory(root);
+      fs.renameSync(path.join(root, "unit"), path.join(root, "original"));
+      fs.symlinkSync(outside, path.join(root, "unit"), process.platform === "win32" ? "junction" : "dir");
+      expect(collectSourceOfTruth(root, inventory).nestedPackageScripts.get("unit")).toEqual({ state: "unsafe-path" });
+      expect(collect(root).nestedPackageScripts.has("unit")).toBe(false);
+    } finally {
+      cleanup(root, outside);
+    }
+  });
+});

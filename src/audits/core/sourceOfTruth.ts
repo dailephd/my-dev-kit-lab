@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { relativeWithinRoot, resolveWithinRoot } from "../../core/pathSafety.js";
 import type { ProjectInventorySnapshot } from "./projectInventory.js";
 import { splitLines } from "./textLines.js";
 
@@ -116,9 +117,14 @@ export type ExperimentTruth = {
   hasExperimentsSourceDir: boolean;
 };
 
+type NestedPackageScripts =
+  | { state: "valid"; scripts: ReadonlySet<string> }
+  | { state: "no-scripts" | "malformed-scripts" | "malformed-manifest" | "unreadable" | "unsafe-path" };
+
 export type SourceOfTruthSnapshot = {
   targetRoot: string;
   package: PackageTruth | null;
+  nestedPackageScripts: ReadonlyMap<string, NestedPackageScripts>;
   lockfile: LockfileTruth;
   commands: CommandTruth;
   docs: DocsTruth;
@@ -150,6 +156,7 @@ export function collectSourceOfTruth(targetRoot: string, inventory: ProjectInven
   return {
     targetRoot: resolvedRoot,
     package: pkg,
+    nestedPackageScripts: readNestedPackageScripts(resolvedRoot, inventory),
     lockfile,
     commands,
     docs,
@@ -219,6 +226,87 @@ function readPackageTruth(targetRoot: string, warnings: string[]): PackageTruth 
 function isRecordOfStrings(value: unknown): value is Record<string, string> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   return Object.values(value).every((v) => typeof v === "string");
+}
+
+const MAX_NESTED_PACKAGE_BYTES = 200_000;
+
+function readNestedPackageScripts(
+  root: string,
+  inventory: ProjectInventorySnapshot
+): ReadonlyMap<string, NestedPackageScripts> {
+  const packages = new Map<string, NestedPackageScripts>();
+  let physicalRoot: string;
+  try {
+    if (!fs.lstatSync(root).isDirectory()) return packages;
+    physicalRoot = fs.realpathSync.native(root);
+  } catch {
+    return packages;
+  }
+
+  for (const entry of inventory.packageFiles) {
+    if (entry.role !== "package" || !entry.relativePath.endsWith("/package.json")) continue;
+    const directory = path.posix.dirname(entry.relativePath);
+    packages.set(directory, readNestedScriptInventory(root, physicalRoot, entry.relativePath, entry.sizeBytes));
+  }
+  return packages;
+}
+
+function readNestedScriptInventory(
+  root: string,
+  physicalRoot: string,
+  manifestPath: string,
+  selectedSize: number
+): NestedPackageScripts {
+  if (selectedSize > MAX_NESTED_PACKAGE_BYTES) return { state: "unreadable" };
+
+  let bytes: Buffer;
+  try {
+    const segments = manifestPath.split("/");
+    if (segments.some((segment) => !segment || segment === "." || segment === ".." || /[\\:]/.test(segment))) {
+      return { state: "unsafe-path" };
+    }
+
+    let current = root;
+    for (const segment of segments.slice(0, -1)) {
+      current = resolveWithinRoot(root, path.join(current, segment));
+      if (!fs.lstatSync(current).isDirectory()) return { state: "unsafe-path" };
+    }
+    const manifest = resolveWithinRoot(root, manifestPath);
+    if (!fs.lstatSync(manifest).isFile()) return { state: "unsafe-path" };
+    if (relativeWithinRoot(physicalRoot, fs.realpathSync.native(current)) !== path.posix.dirname(manifestPath) ||
+        relativeWithinRoot(physicalRoot, fs.realpathSync.native(manifest)) !== manifestPath) {
+      return { state: "unsafe-path" };
+    }
+
+    const fd = fs.openSync(manifest, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+    try {
+      const stat = fs.fstatSync(fd);
+      if (!stat.isFile() || stat.size > MAX_NESTED_PACKAGE_BYTES) return { state: "unreadable" };
+      bytes = Buffer.alloc(stat.size);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const count = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+        if (!count) return { state: "unreadable" };
+        offset += count;
+      }
+      if (fs.fstatSync(fd).size !== stat.size) return { state: "unreadable" };
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return { state: "unreadable" };
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    return { state: "malformed-manifest" };
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { state: "malformed-manifest" };
+  if (!("scripts" in raw)) return { state: "no-scripts" };
+  if (!isRecordOfStrings(raw.scripts)) return { state: "malformed-scripts" };
+  return { state: "valid", scripts: new Set(Object.keys(raw.scripts)) };
 }
 
 // ---------------------------------------------------------------------------

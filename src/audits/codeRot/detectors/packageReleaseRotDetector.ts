@@ -69,11 +69,8 @@ export const PACKAGE_RELEASE_ROT_DETECTOR: AuditDetector = {
       const changelogFile = ctx.inventory.docsFiles.find((f) => path.basename(f.relativePath).toLowerCase() === "changelog.md");
       if (changelogFile) {
         const content = readBoundedText(ctx.target.rootPath, changelogFile.relativePath, changelogFile.sizeBytes);
-        if (content !== null && pkg.version) {
-          const hasCurrentVersionSection = new RegExp(`^##\\s*\\[${escapeRegExp(pkg.version)}\\]`, "m").test(content);
-          if (!hasCurrentVersionSection) {
-            issues.push(makeMissingChangelogSectionIssue(changelogFile.relativePath, pkg.version));
-          }
+        if (content !== null && pkg.version && !hasCurrentVersionSection(content, pkg.version)) {
+          issues.push(makeMissingChangelogSectionIssue(changelogFile.relativePath, pkg.version));
         }
       }
 
@@ -235,19 +232,121 @@ function makeSelfReferenceIssue(scriptName: string, referenced: string): AuditIs
   });
 }
 
+function hasCurrentVersionSection(content: string, version: string): boolean {
+  let fence = "";
+  let htmlBoundary: RegExp | undefined;
+  let inComment = false;
+  const versionTokens = [version, "v" + version];
+
+  for (const line of splitLines(content)) {
+    if (htmlBoundary) {
+      if (htmlBoundary.test(line)) htmlBoundary = undefined;
+      continue;
+    }
+    if (!inComment) {
+      const delimiter = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+      const info = delimiter ? line.slice(delimiter[0].length) : "";
+      if (fence) {
+        if (delimiter && delimiter[1].startsWith(fence) && /^[ \t]*$/.test(info)) fence = "";
+        continue;
+      }
+      if (delimiter && (delimiter[1][0] === "~" || !info.includes("`"))) {
+        fence = delimiter[1];
+        continue;
+      }
+    }
+
+    if (!inComment && line.trimStart().startsWith("<")) {
+      const boundary = htmlBlockBoundary(line);
+      if (boundary) {
+        if (!boundary.test(line)) htmlBoundary = boundary;
+        continue;
+      }
+    }
+
+    const startedInComment = inComment;
+    inComment = endsInHtmlComment(line, inComment);
+    if (startedInComment) continue;
+
+    const heading = /^ {0,3}##[ \t]+/.exec(line);
+    if (!heading) continue;
+
+    const title = line.slice(heading[0].length).trimEnd().replace(/[ \t]#+$/, "").trimEnd();
+    for (const token of versionTokens) {
+      const bracketed = "[" + token + "]";
+      if (title.startsWith(bracketed)) {
+        const annotation = title.slice(bracketed.length);
+        if (annotation === "" || /^(?:[ \t]|:)/.test(annotation)) return true;
+      }
+      if (title.startsWith(token)) {
+        const annotation = title.slice(token.length);
+        // A space before a hyphen distinguishes an annotation from a prerelease suffix.
+        if (annotation === "" ||
+            /^(?:[ \t]*:|[ \t]*[–—]|[ \t]+-[ \t]+|[ \t]+\([^)]+\)(?:$|[ \t]))/.test(annotation)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+const RAW_HTML_TAGS = new Set(["pre", "script", "style", "textarea"]);
+const HTML_BLOCK_TAGS = new Set([
+  "address", "article", "aside", "base", "basefont", "blockquote", "body", "caption", "center", "col", "colgroup",
+  "dd", "details", "dialog", "dir", "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "frame",
+  "frameset", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html", "iframe", "legend", "li",
+  "link", "main", "menu", "menuitem", "nav", "noframes", "ol", "optgroup", "option", "p", "param", "search", "section",
+  "source", "summary", "table", "tbody", "td", "tfoot", "th", "thead", "title", "tr", "track", "ul",
+]);
+
+function htmlBlockBoundary(line: string): RegExp | undefined {
+  // Skip block delimiters only. Markup contents cannot supply release evidence.
+  if (/^ {0,3}<\?/.test(line)) return /\?>/;
+  if (/^ {0,3}<!\[CDATA\[/.test(line)) return /\]\]>/;
+  if (/^ {0,3}<![A-Z]/.test(line)) return />/;
+
+  const tag = /^ {0,3}<(\/?)([A-Za-z][A-Za-z0-9-]*)(?=[ \t/>]|$)/.exec(line);
+  if (!tag) return undefined;
+  const name = tag[2].toLowerCase();
+  if (!tag[1] && RAW_HTML_TAGS.has(name)) return new RegExp("</" + name + ">", "i");
+  // Named block tags and standalone tag lines end at a blank line.
+  const tagTail = line.slice(tag[0].length).trimEnd();
+  if (HTML_BLOCK_TAGS.has(name) || (tagTail.endsWith(">") && !/[<>]/.test(tagTail.slice(0, -1)))) {
+    return /^[ \t]*$/;
+  }
+  return undefined;
+}
+
+function endsInHtmlComment(line: string, inComment: boolean): boolean {
+  let codeSpanLength = 0;
+  for (const match of line.matchAll(/`+|<!--|-->/g)) {
+    const token = match[0];
+    if (inComment) {
+      if (token === "-->") inComment = false;
+    } else if (token[0] === "`") {
+      if (codeSpanLength === 0) codeSpanLength = token.length;
+      else if (codeSpanLength === token.length) codeSpanLength = 0;
+    } else if (token === "<!--" && codeSpanLength === 0 && line[match.index - 1] !== "\\") {
+      inComment = true;
+    }
+  }
+  return inComment;
+}
+
 function makeMissingChangelogSectionIssue(relativePath: string, currentVersion: string): AuditIssue {
   return makeCodeRotIssue({
     auditType: "code-rot",
     detectorId: DETECTOR_ID,
     idCues: [relativePath, "missing-current-version-section", currentVersion],
     title: `${relativePath} has no section for the current package version (${currentVersion})`,
-    description: `package.json version is "${currentVersion}", but ${relativePath} has no "## [${currentVersion}]" heading.`,
+    description: `package.json version is "${currentVersion}", but ${relativePath} has no supported release heading for that version.`,
     severity: "high",
     confidence: "high",
     falsePositiveRisk: "low",
     category: "package-release-rot",
-    recommendedAction: `Add a "## [${currentVersion}]" section to ${relativePath} describing this release.`,
-    suggestedFixStrategy: `Convert the top Unreleased/placeholder section in ${relativePath} into a "## [${currentVersion}]" entry.`,
+    recommendedAction: `Add a supported release section for ${currentVersion} to ${relativePath}, for example "## [${currentVersion}]".`,
+    suggestedFixStrategy: `Use a level-two heading with the exact package version for the release notes in ${relativePath}.`,
     validationCommands: ["npm run audit -- --types code-rot --include package,docs"],
     releaseBlocking: false,
     implementationBlocking: false,
@@ -255,9 +354,9 @@ function makeMissingChangelogSectionIssue(relativePath: string, currentVersion: 
     evidence: [
       {
         kind: "file",
-        message: `No "## [${currentVersion}]" heading found.`,
+        message: `No supported release heading found for ${currentVersion}.`,
         filePath: relativePath,
-        expected: `## [${currentVersion}]`,
+        expected: `Level-two release heading for ${currentVersion}`,
         source: DETECTOR_ID,
         confidence: "high",
       },
@@ -336,10 +435,6 @@ function makeUnsupportedPublishClaimIssue(relativePath: string, lineNumber: numb
     ],
     affectedFiles: [relativePath],
   });
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function readBoundedText(root: string, relativePath: string, sizeBytes: number): string | null {

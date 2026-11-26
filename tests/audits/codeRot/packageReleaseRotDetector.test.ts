@@ -85,6 +85,113 @@ describe("PACKAGE_RELEASE_ROT_DETECTOR — version/name consistency", () => {
 });
 
 describe("PACKAGE_RELEASE_ROT_DETECTOR — CHANGELOG", () => {
+
+  async function changelogIssues(version: string, content: string) {
+    const root = makeTempDir();
+    try {
+      writeFile(root, "package.json", JSON.stringify({ name: "fixture", version }));
+      writeFile(root, "CHANGELOG.md", content);
+      return (await run(root)).filter((issue) => issue.id.includes(":missing-current-version-section:"));
+    } finally {
+      cleanup(root);
+    }
+  }
+
+  it.each([
+    "## [0.4.4]",
+    "## [v0.4.4]",
+    "## 0.4.4",
+    "## v0.4.4",
+    "## [0.4.4] - 2026-11-25",
+    "## [v0.4.4] - Unreleased",
+    "## [0.4.4] Maintenance release",
+    "## [0.4.4]: Fixes",
+    "## v0.4.4—Fixes",
+    "## v0.4.4 — Maintenance and fixes — 2026-10-28",
+    "## 0.4.4 – Bug fixes",
+    "## 0.4.4 - Bug fixes",
+    "## v0.4.4: Release description",
+    "## v0.4.4 (2026-11-25)",
+    "   ##\tv0.4.4 ###\t",
+  ])("recognizes the release heading %s", async (heading) => {
+    expect(await changelogIssues("0.4.4", `# Changelog\n\n${heading}\n`)).toEqual([]);
+  });
+
+  it.each([
+    "## 0.4.40", "## v0.4.40", "## [0.4.40]", "## 10.4.4",
+    "## 0.4.4-beta.1", "## 0.4.4+other", "## v0.4.4something",
+    "## V0.4.4", "## vv0.4.4", "## 0.4.4 plain trailing prose",
+    "The current release is v0.4.4.", "- v0.4.4", "> ## v0.4.4", "`## v0.4.4`",
+    "# v0.4.4", "### v0.4.4", "## Changes since v0.4.4", "## Unreleased",
+    "##[0.4.4]", "    ## v0.4.4", "## [0.4.4", "## v0.4.4]", "## [0.4.4]]",
+    "## [0.4.4]suffix", "##\n[0.4.4]",
+  ])("retains the missing finding for %s", async (content) => {
+    expect(await changelogIssues("0.4.4", content)).toHaveLength(1);
+  });
+
+  it.each([
+    { version: "0.4.4-beta.1", matching: "## [v0.4.4-beta.1]", other: "## 0.4.4\n## 0.4.4-beta.2" },
+    { version: "0.4.4+build.1", matching: "## v0.4.4+build.1", other: "## 0.4.4\n## 0.4.4+build.2" },
+  ])("requires the exact package version $version", async ({ version, matching, other }) => {
+    expect(await changelogIssues(version, matching)).toEqual([]);
+    expect(await changelogIssues(version, other)).toHaveLength(1);
+  });
+
+  it.each([
+    ["````markdown", "```", "~~~~", "`````"],
+    ["~~~~ markdown", "~~~", "````", "~~~~"],
+  ])("ignores headings within a %s fence", async (opening, short, other, closing) => {
+    const fenced = [opening, "## [0.4.4]", short, "## v0.4.4", other, "## 0.4.4", closing].join("\n");
+    expect(await changelogIssues("0.4.4", fenced)).toHaveLength(1);
+    expect(await changelogIssues("0.4.4", fenced + "\n## v0.4.4")).toEqual([]);
+  });
+
+  it("ignores commented-out examples and recognizes a later section", async () => {
+    const commented = "<!-- ## [0.4.4] -->\n<!--\n```\n## v0.4.4\n-->\n";
+    expect(await changelogIssues("0.4.4", commented)).toHaveLength(1);
+    expect(await changelogIssues("0.4.4", commented + "## v0.4.4")).toEqual([]);
+    expect(await changelogIssues("0.4.4", "An example token is \`<!--\`.\n## v0.4.4")).toEqual([]);
+  });
+
+  it.each([
+    ["<pre>", "</pre>"],
+    ["<div>", "</div>\n"],
+    ["<![CDATA[", "]]>"],
+  ])("ignores heading-like text in the %s HTML block", async (open, close) => {
+    const block = [open, "## [0.4.4]", close].join("\n");
+    expect(await changelogIssues("0.4.4", block)).toHaveLength(1);
+    expect(await changelogIssues("0.4.4", block + "\n## v0.4.4")).toEqual([]);
+  });
+
+  it("qualifies the same heading under LF and CRLF", async () => {
+    const content = "```markdown\n## [0.4.4]\n```\n## v0.4.4 — Fixes\n";
+    expect(await changelogIssues("0.4.4", content)).toEqual([]);
+    expect(await changelogIssues("0.4.4", content.replaceAll("\n", "\r\n"))).toEqual([]);
+  });
+
+  it("preserves the missing-section identity and policy with format-neutral guidance", async () => {
+    const [issue] = await changelogIssues("0.4.4", "## [0.4.3] - 2026-10-01");
+    expect(issue).toMatchObject({
+      id: "package-release-rot:CHANGELOG.md:missing-current-version-section:0.4.4",
+      detectorId: "package-release-rot",
+      category: "package-release-rot",
+      severity: "high",
+      confidence: "high",
+      releaseBlocking: false,
+      implementationBlocking: false,
+      autoFixEligible: false,
+    });
+    expect(issue.description).toContain("no supported release heading");
+    expect(issue.recommendedAction).toContain("for example");
+    expect(issue.suggestedFixStrategy).toContain("level-two heading");
+    expect(issue.evidence[0].message).toContain("No supported release heading");
+  });
+
+  it("retains the oversized CHANGELOG policy", async () => {
+    const oversized = "## v0.4.3\n" + "x".repeat(200_000);
+    expect(await changelogIssues("0.4.4", oversized)).toEqual([]);
+  });
+
   it("flags a missing current-version section in CHANGELOG.md", async () => {
     const root = makeTempDir();
     try {
