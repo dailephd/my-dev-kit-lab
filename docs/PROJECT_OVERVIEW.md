@@ -46,6 +46,8 @@ Android validation is implemented through `security validate --profile android` 
 
 The generic audit framework provides language-aware `code-rot` detectors for TypeScript/JavaScript, Python, Java, and Kotlin. Its `security` type adapts the standalone validator's results into audit issues while preserving the original `reports/security/` output.
 
+The implemented-unreleased FACTS02 correction qualifies bounded references for each affected predicate. Complete file selection and supported positive evidence can coexist with mandatory gaps. See the [audit evidence boundary](ARCHITECTURE.md#lab-facts-02-extension-boundary).
+
 The `--android` extension maps confirmed Android findings through that same adapter and keeps `CandidateEvidence` separate. Audit remains distinct from both experiments and `security:validate`.
 
 Java/Kotlin support is conservative and static only: no compiler parsing, no type/classpath resolution, and no Gradle/Maven execution. Android validation is likewise static and read-only; see [security-validation-framework.md](security-validation-framework.md) for its full limits.

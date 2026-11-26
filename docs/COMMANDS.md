@@ -975,10 +975,14 @@ Run `my-dev-kit-lab --workspace <workspace> audit --target <project>
 --kit-archive <qualified-tarball> --kit-package-root <isolated-package-root>`.
 Supply both Kit options together. The managed provider validates the
 qualified archive and installed CLI identities and requests Kit artifact
-schema 1.2.0. The Lab v0.11.0 candidate pins Kit 1.16.0.
-That published Kit release supplies this schema and the qualified import-domain
-and exact-byte selectors through the default installed provider. The archive options remain available for the
-explicitly qualified local producers, including R3.
+schema 1.2.0. The default managed installation resolves the published Kit
+1.16.0 pin, with its qualified import-domain and exact-byte selectors.
+The paired override also admits specifically qualified local producers,
+including R3 and the FACTS02 implementation producer. The latter carries
+1.16.0 package metadata but has a distinct exact archive and installed
+runtime. Lab negotiates supplemental Playwright proof internally with admitted
+producers that implement the request. The published 1.16.0 default and
+historical providers use their own admitted capabilities.
 
 Repeat `--require-source <relative-path>` for required inventory entries.
 `--source-snapshot <git-sha>` declares the intended revision.
@@ -1003,6 +1007,14 @@ Use the actual terminal result and required coverage when certifying a
 target. The [coordinated acceptance policy](WORKFLOWS.md#coordinated-product-acceptance-and-target-certification)
 defines which evidence qualifies the product independently.
 
-## Planned LAB-FACTS-02 compatibility note
+## LAB-FACTS-02 compatibility note
 
-The [v0.11.1 roadmap](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) does not introduce implemented syntax. Use the current managed audit command and paired `--kit-archive` / `--kit-package-root` options to qualify an authorized exact local producer. Existing `--workspace`, `--target`, `--types code-rot`, `--include`, `--format` and `--fail-on` behavior remains in force. A qualified observation does not resolve every computed import. Mandatory incomplete coverage or invalid acquisition returns exit 2 even with `--fail-on none`; complete results use the existing 0/1 threshold policy. Do not supply unqualified artifacts or change scope to obtain success. Planned behavior is not a new CLI flag.
+The implemented, unreleased correction uses the same audit command surface. The paired `--kit-archive` and `--kit-package-root` options select an eligible exact local producer. See the [managed audit invocation](#managed-audit-with-the-qualified-local-kit-producer). Report schema 1.0 and the existing output options remain in use.
+
+- Exit 0 means complete applicable coverage below the failure threshold, including complete coverage with `--fail-on none`.
+- Exit 1 means complete applicable coverage meeting the configured failure threshold.
+- Exit 2 means mandatory incomplete coverage or a fatal acquisition/execution error, including with `--fail-on none`. Completed partial reports preserve independent findings and mandatory gaps. A separate release-gate disposition leaves the native exit and completeness intact.
+
+For documented npm commands, Lab checks the exact scripts in the package selected by qualified literal context or supported `npm --prefix <path> run <script>` syntax. A standalone snapshot can qualify through selected inventory, physical containment, and valid package metadata. It does not inherit Git status from an enclosing repository. Unresolved package context produces review evidence. A genuine missing script in the qualified package retains the existing finding.
+
+The package-release detector recognizes a level-two heading with the exact package version. Supported forms include `## [0.11.0]`, `## 0.11.0`, and an optional conventional `v` prefix. Supported date, dash, colon or parenthetical annotations follow the version token according to the heading form. Prerelease and build components must match exactly. Fenced or commented examples do not qualify. Existing findings and thresholds continue to apply.

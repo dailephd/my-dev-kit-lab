@@ -4,6 +4,13 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
+### LAB-FACTS-02 (target 0.11.1)
+
+- Consume exact qualified ordinary and computed source-reference evidence and evaluate exclusion against the candidate and relevant origins.
+- Request supplemental Playwright provenance from admitted producers. Preserve qualified skip and only findings when another mandatory predicate remains incomplete.
+- Qualify documented npm commands against the selected package and recognize equivalent exact-version changelog headings.
+- Admit the corrected local Kit archive and its isolated installation through the existing override. Qualify scoped raw-only input through normal authenticated acquisition. Preserve the current published Kit pin and the mandatory incomplete exit policy.
+
 ## [0.11.0] - 2026-11-25
 
 - Pin the qualified published Kit 1.16.0 provider for source-evidence audits. Preserve bounded qualified evidence and report mandatory coverage gaps with exit 2.
