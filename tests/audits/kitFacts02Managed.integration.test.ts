@@ -471,8 +471,10 @@ exact("exact FACTS02: test re-exports and substituted imports qualify independen
   }));
 }, 60_000);
 
-const a6 = it.skipIf(!archive || !packageRoot ||
-  candidate().expectation?.cliSha256 !== "8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb");
+const exactCli = archive && packageRoot ? candidate().expectation?.cliSha256 : undefined;
+const a6r1Cli = "3c661671355ec6475768a6658cfd94d3c5f21184e1177af12418d7cac9999797";
+const a6 = it.skipIf(exactCli !== "8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb" && exactCli !== a6r1Cli);
+const a6r1 = it.skipIf(exactCli !== a6r1Cli);
 const bundlerConfig = '{"compilerOptions":{"module":"esnext","moduleResolution":"bundler","resolveJsonModule":true,"baseUrl":".","paths":{"@/*":["src/*"]}}}';
 
 a6("exact A6: consumes bounded Bundler imports, alternatives, and applicable absence", async () => {
@@ -590,4 +592,30 @@ a6("exact A6: imported Bundler runner closes a noisy modifier domain independent
     expect(audit.ids.filter(id => id.startsWith("test-rot:" + origin + ":skip-usage:")).sort())
       .toEqual(["test-rot:" + origin + ":skip-usage:35", "test-rot:" + origin + ":skip-usage:36"]);
   }
+}, 60_000);
+
+a6r1("exact A6-R1: consumes a bounded Bundler reference with unrelated compiler options", async () => {
+  const origin = "tests/unit/entry.test.ts";
+  const specifier = "../../src/peer";
+  const target = "src/peer.ts";
+  const fixture = subject("bounded-options", {
+    "tsconfig.json": JSON.stringify({ compilerOptions: {
+      module: "ESNext", moduleResolution: "Bundler",
+      noUncheckedIndexedAccess: true, types: ["node", "browser-types"],
+    } }),
+    [origin]: 'import "../../src/peer";',
+    [target]: "export const peer = 1;",
+  });
+  await withReader(fixture, async (reader, files) => {
+    const entry = files.find(file => file.relativePath === origin);
+    const observation = entry?.imports.find(fact => fact.source === specifier);
+    expect(observation?.provenance?.factId).toBeTruthy();
+    expect(await reader.importTarget(observation!.provenance!.factId)).toMatchObject({
+      qualifiedSourceReferencePath: target, selectedTargetUpperBound: [target],
+    });
+  });
+  const audit = await nativeAudit(fixture, "complete", "none");
+  expect(audit.exit).toBe(0);
+  expect(audit.coverage.filter(row => row.mandatory && ["UNAVAILABLE", "UNDETERMINED"].includes(row.status))).toEqual([]);
+  expect(audit.ids).not.toContain("test-rot:" + origin + ":missing-source-import:" + specifier);
 }, 60_000);
