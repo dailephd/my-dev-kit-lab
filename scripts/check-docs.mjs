@@ -148,7 +148,11 @@ for (const pluginId of manifest.currentFacts?.implementedExperimentPlugins || []
 }
 
 const changelog = read("CHANGELOG.md");
-for (const version of manifest.changelog?.requiredPublishedReleases || []) {
+const requiredPublishedReleases = manifest.changelog?.requiredPublishedReleases || [];
+if (latestPublished && !requiredPublishedReleases.includes(latestPublished)) {
+  fail(manifestFile, `published release ${latestPublished} protection`, "listed in requiredPublishedReleases", "missing", "add the latest published version to the protected changelog history");
+}
+for (const version of requiredPublishedReleases) {
   if (!new RegExp(`^##\\s+\\[?v?${escapeRegex(version)}(?:\\]|\\s|$)`, "mi").test(changelog)) {
     fail("CHANGELOG.md", `published release ${version}`, "release heading retained", "missing", `restore the ${version} release entry from verified history`);
   }

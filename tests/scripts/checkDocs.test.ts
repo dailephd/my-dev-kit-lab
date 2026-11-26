@@ -478,9 +478,27 @@ describe("release lifecycle and plugin preservation", () => {
   it("DOC-V050-005 keeps the latest published changelog release protected", () => expectFailure(
     (root) => edit(root, "CHANGELOG.md", (body) => {
       const escaped = facts.latestPublishedVersion.replace(/\./g, "\\.");
-      return body.replace(new RegExp(`^## \\[${escaped}\\][\\s\\S]*?(?=^## )`, "m"), "");
+      const heading = new RegExp(`^##\\s+\\[?v?${escaped}(?:\\]|\\s|$)`, "mi");
+      expect(body).toMatch(heading);
+      const withoutHeading = body.replace(heading, "## Removed release");
+      expect(withoutHeading).not.toMatch(heading);
+      return withoutHeading;
     }),
     `published release ${facts.latestPublishedVersion}`,
+  ));
+
+  it.each([false, true])("protects the latest published version with final release-document state=%s", (prepared) => expectFailure(
+    (root) => {
+      if (prepared) prepareNextPatchFixture(root);
+      edit(root, "docs/documentation-preservation-manifest.json", (body) => {
+        const value = JSON.parse(body) as DocumentationManifest;
+        value.changelog.requiredPublishedReleases = value.changelog.requiredPublishedReleases.filter(
+          (version) => version !== facts.latestPublishedVersion,
+        );
+        return JSON.stringify(value);
+      });
+    },
+    `published release ${facts.latestPublishedVersion} protection`,
   ));
 
   it("DOC-V050-006 keeps future roadmap sections after the next planned version preserved", () => expectFailure(

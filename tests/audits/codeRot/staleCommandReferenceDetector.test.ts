@@ -7,6 +7,7 @@ import { scanProjectInventory } from "../../../src/audits/core/projectInventory.
 import { collectSourceOfTruth } from "../../../src/audits/core/sourceOfTruth.js";
 import { resolveAuditTarget } from "../../../src/audits/core/auditTarget.js";
 import { normalizeAuditConfig } from "../../../src/audits/core/auditConfig.js";
+import { extractDocCommandReferences } from "../../../src/audits/codeRot/utils/docCommandReferences.js";
 import { STALE_COMMAND_REFERENCE_DETECTOR } from "../../../src/audits/codeRot/detectors/staleCommandReferenceDetector.js";
 import type { AuditDetectorContext } from "../../../src/audits/core/auditRegistry.js";
 
@@ -54,6 +55,13 @@ describe("STALE_COMMAND_REFERENCE_DETECTOR", () => {
     } finally {
       cleanup(root);
     }
+  });
+
+  it("recognizes a command after a long list of ordinary npm options", () => {
+    const options = ["--silent", "-s", '--prefix "sample folder"'].join(" ");
+    const prefix = `npm ${Array(32).fill(options).join(" ")}`;
+    const refs = extractDocCommandReferences(`${prefix} run check\n${prefix} list`, "README.md");
+    expect(refs).toEqual([expect.objectContaining({ command: "check", lineNumber: 1 })]);
   });
 
   it("does not flag a planned/future command missing from package.json", async () => {

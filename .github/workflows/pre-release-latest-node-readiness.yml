@@ -20,7 +20,8 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
+          # Playwright 1.60.0 supports Ubuntu 24.04.
+          - ubuntu-24.04
           - macos-latest
           - windows-latest
 
@@ -39,6 +40,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Prepare physical project-owned public test environment
+        run: node scripts/run-verification-lane.mjs --prepare-ci
+
       - name: Print runtime versions
         run: |
           node --version
@@ -50,15 +54,15 @@ jobs:
 
       - name: Install Chromium (Ubuntu)
         if: runner.os == 'Linux'
-        run: npx playwright install --with-deps chromium
+        run: node node_modules/playwright/cli.js install --with-deps chromium
 
       - name: Install Chromium (macOS)
         if: runner.os == 'macOS'
-        run: npx playwright install chromium
+        run: node node_modules/playwright/cli.js install chromium
 
       - name: Install Chromium (Windows)
         if: runner.os == 'Windows'
-        run: npx playwright install chromium
+        run: node node_modules/playwright/cli.js install chromium
 
       - name: Run real-browser tutorial test
         run: npm run test:tutorial-browser
@@ -72,23 +76,33 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Audit tests
-        run: npx vitest run tests/audits
-
-      - name: Test
-        run: npm run test
-
       - name: Verify
+        id: verify
         run: npm run verify
 
-      - name: Code rot audit
-        run: npm run audit -- --types code-rot --format text,json --fail-on none
+      - name: Test Windows campaign execution without parallel-file contention
+        if: ${{ !cancelled() && runner.os == 'Windows' && steps.verify.outcome == 'success' }}
+        run: npm run test:public -- tests/experiments/agentSuccessRate/campaignExecution.test.ts
+
+      - name: Run public functional and audit tests
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
+        run: npm run test:public -- --exclude tests/audits/codeRot/testRotDetector.test.ts --exclude tests/audits/codeRot/duplicateImplementationDetector.test.ts ${{ runner.os == 'Windows' && '--exclude tests/experiments/agentSuccessRate/campaignExecution.test.ts' || '' }}
+
+      - name: Run complete repository-self-scan test files
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
+        run: npm run test:public -- tests/audits/codeRot/testRotDetector.test.ts tests/audits/codeRot/duplicateImplementationDetector.test.ts --maxWorkers 1
 
       - name: Security validation
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
         run: npm run security:validate -- --format text,json
 
       - name: Verify packed package
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
         run: npm run verify:packed-package
+
+      - name: Code rot audit
+        if: ${{ !cancelled() && steps.verify.outcome == 'success' }}
+        run: npm run audit -- --types code-rot --format text,json --fail-on none
 
       - name: Upload readiness reports
         if: always()

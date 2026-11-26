@@ -10,7 +10,8 @@ export type DocCommandReference = {
   packageDirectory: string | null;
 };
 
-const NPM_RUN_PATTERN = /\bnpm(?:[ \t]+--?[^ \t`;\r\n&|]+(?:[ \t]+(?!run\b|npm\b|--?)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^ \t`'";\r\n&|]+))?)*[ \t]+run[ \t]+(?:--\S+[ \t]+)*([\w:.-]+)/g;
+// Consume the first dash separately so each option token has one parse.
+const NPM_RUN_PATTERN = /\bnpm(?:[ \t]+-[^ \t`;\r\n&|]+(?:[ \t]+(?!run\b|npm\b|--?)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^ \t`'";\r\n&|]+))?)*[ \t]+run[ \t]+(?:--\S+[ \t]+)*([\w:.-]+)/g;
 const PLANNED_LABEL_PATTERN =
   /\b(planned|future|roadmap|not implemented|not yet implemented|later version|coming soon|avoid)\b/i;
 const PLANNED_LABEL_WINDOW_LINES = 15;

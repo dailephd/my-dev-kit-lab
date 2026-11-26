@@ -153,6 +153,12 @@ describe("PACKAGE_RELEASE_ROT_DETECTOR — CHANGELOG", () => {
     expect(await changelogIssues("0.4.4", "An example token is \`<!--\`.\n## v0.4.4")).toEqual([]);
   });
 
+  it("uses the Markdown comment block boundary for release headings", async () => {
+    const comment = "<!-- sample --!>\n## v0.4.4\n-->\n";
+    expect(await changelogIssues("0.4.4", comment)).toHaveLength(1);
+    expect(await changelogIssues("0.4.4", comment + "## v0.4.4")).toEqual([]);
+  });
+
   it.each([
     ["<pre>", "</pre>"],
     ["<div>", "</div>\n"],
