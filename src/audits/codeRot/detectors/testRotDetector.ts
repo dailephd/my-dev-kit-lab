@@ -654,13 +654,19 @@ function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEnt
   const positives = bound && (domain.producerStatus === "parsed" || domain.producerStatus === "partial") &&
     (domain.capability === "complete" || domain.capability === "partial") ? domain.observations : [];
   const modifierCapability = domain?.directModifierCapability ?? domain?.capability;
-  const complete = bound && modifierCapability === "complete" && domain.producerStatus === "parsed";
+  const reader = ctx.kitSourceReader;
+  const supplied = ctx.sourceFacts?.provider === "kit" && snapshot?.traversalComplete &&
+    snapshot.snapshotId === reader?.snapshotId ? reader?.testModifierProof?.(file.relativePath) : undefined;
+  const proof = supplied?.originFile === file.relativePath ? supplied : undefined;
+  const complete = proof ? proof.coverage === "complete"
+    : bound && modifierCapability === "complete" && domain.producerStatus === "parsed";
 
   if (!complete) {
     // Raw text can keep a previously checked candidate in scope. It cannot
     // establish an executable call, or qualify the unknown observation domain.
-    const mandatory = /\b(?:describe|it|test)\s*\.\s*(?:skip|only)\s*\(/.test(content);
-    const reason = "Executable modifier observations are unavailable or incomplete for the selected file.";
+    const mandatory = proof?.coverage === "partial" || /\b(?:describe|it|test)\s*\.\s*(?:skip|only)\s*\(/.test(content);
+    const reason = "Executable modifier observations are unavailable or incomplete for the selected file." +
+      (proof ? " " + proof.reasonCodes.join(", ") : "");
     if (mandatory && !ctx.reportCoverage && ctx.reportUnavailable) {
       ctx.reportUnavailable(DETECTOR_ID, "executable test modifiers", file.relativePath, reason, "test-observations");
     } else if (mandatory && !ctx.reportCoverage) {
@@ -668,27 +674,45 @@ function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEnt
     } else {
       ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "executable test modifiers",
         source: { kind: "file", identity: file.relativePath }, capability: "test-observations",
-        actualStatus: bound ? (modifierCapability ?? "unavailable") : "unavailable", status: "UNAVAILABLE", mandatory,
+        actualStatus: proof?.coverage ?? (bound ? (modifierCapability ?? "unavailable") : "unavailable"), status: "UNAVAILABLE", mandatory,
         diagnostic: "", reason });
     }
   }
 
-  const lines = splitLines(content);
-  const issues: AuditIssue[] = [];
+  const observations = new Map<string, { modifier: "skip" | "only"; name: string; line: number; playwright: boolean }>();
+  const record = (origin: string, modifier: "skip" | "only", name: string, span: {
+    startLine: number; startColumn: number | null; endLine: number | null; endColumn: number | null;
+  }, playwright: boolean) => {
+    const { startLine, startColumn, endLine, endColumn } = span;
+    const key = JSON.stringify([origin, modifier, startLine, startColumn, endLine, endColumn]);
+    observations.set(key, { modifier, name, line: startLine, playwright });
+  };
   for (const fact of positives) {
     const modifier = fact.observationKind === "test-modifier-only" ? "only"
       : fact.observationKind === "test-modifier-skip" ? "skip" : undefined;
     if (!modifier || fact.originPath !== file.relativePath) continue;
 
-    const line = fact.provenance.startLine;
+    // Modifier facts have a validated runner name.
+    record(fact.originPath, modifier, fact.name!, fact.provenance, false);
+  }
+  for (const { modifier, calleeSpan } of proof?.observations ?? []) {
+    record(calleeSpan.path, modifier, "test", calleeSpan, true);
+  }
+
+  const lines = splitLines(content);
+  const issues: AuditIssue[] = [];
+  for (const { modifier, name, line, playwright } of observations.values()) {
     const focus = modifier === "only";
-    const call = `${fact.name}.${modifier}(`;
+    const call = `${name}.${modifier}(`;
     issues.push(makeCodeRotIssue({
       auditType: "code-rot",
       detectorId: DETECTOR_ID,
       idCues: [file.relativePath, modifier + "-usage", String(line)],
       title: `Committed "${call}" in "${file.relativePath}"`,
-      description: `${file.relativePath}:${line} uses "${call}" -- ` + (focus
+      description: playwright
+        ? `${file.relativePath}:${line} contains a Playwright "${call}" call. ` +
+          (focus ? "Review the focused test modifier before merging." : "Confirm that the skip call is intentional.")
+        : `${file.relativePath}:${line} uses "${call}" -- ` + (focus
         ? "this silently excludes every other test in a CI run and is almost always accidental."
         : "confirm this is intentional and not accidentally committed."),
       severity: focus ? "high" : "medium",
@@ -696,10 +720,11 @@ function findTestModifierUsage(ctx: AuditDetectorContext, file: InventoryFileEnt
       falsePositiveRisk: "low",
       category: "test-rot",
       recommendedAction: focus ? "Remove .only before committing/merging."
+        : playwright ? "Review whether the .skip call is intentional and document when it applies."
         : "Remove .skip if the test should run, or add a comment explaining why it is skipped.",
       suggestedFixStrategy: `Remove "${call}" at ${file.relativePath}:${line}` +
-        (focus ? "." : " or document why it is intentionally skipped."),
-      validationCommands: [`npx vitest run ${file.relativePath}`],
+        (focus ? "." : playwright ? " or document when it should apply." : " or document why it is intentionally skipped."),
+      validationCommands: [playwright ? `npx playwright test ${file.relativePath}` : `npx vitest run ${file.relativePath}`],
       releaseBlocking: focus,
       implementationBlocking: false,
       autoFixEligible: false,

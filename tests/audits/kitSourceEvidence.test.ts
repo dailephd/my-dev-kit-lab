@@ -19,6 +19,7 @@ import {
   validateKitImportDomain,
   type KitFact,
   validateKitOrdinarySourceReference,
+  validateKitTestModifierProof,
   type KitSourceEvidence,
   validateInventoryPage,
   validateKitArtifact,
@@ -581,6 +582,171 @@ describe("FACTS02-ORDINARY-SOURCE-REFERENCE/1.0.0", () => {
     }
     expect(() => one.parse({ ...one.payload, candidateEnumerationComplete: false, candidateDomain: null,
       reasonCode: "x".repeat(1048576) })).toThrow(/serialized byte budget/);
+  });
+});
+
+describe("FACTS02-PLAYWRIGHT-MODIFIER-PROVENANCE/1.0.0", () => {
+  const originFile = "tests/check.test.ts";
+  const wrapperPath = "tests/support/fixture.ts";
+  const selectionFingerprint = "c".repeat(64);
+  const span = (path: string, line: number, startColumn: number, endColumn: number) =>
+    ({ path, startLine: line, startColumn, endLine: line, endColumn });
+
+  function contract(kind: "direct" | "local" | "imported") {
+    const baseImport = 'import { test as base } from "@playwright/test";';
+    const originImport = 'import { test } from "./support/fixture";';
+    const prefix = kind === "imported" ? [originImport] : kind === "local"
+      ? [baseImport, "const test = base.extend({});"] : ['import { test } from "@playwright/test";'];
+    const originText = [...prefix, 'test.skip(process.env.GUARD, "review");', 'test.only("focus", () => {});'].join("\r\n");
+    const wrapperText = [baseImport, "export const test = base.extend({});"].join("\r\n");
+    const record = (path: string, text: string) => validateKitFileRecord(fileJson(path, {
+      sizeBytes: Buffer.byteLength(text), lineCount: text.split("\n").length, contentSha256: sha256Hex(text),
+    }), path);
+    const originRecord = record(originFile, originText);
+    const wrapperRecord = record(wrapperPath, wrapperText);
+    const inventory = kind === "imported" ? [originRecord, wrapperRecord] : [originRecord];
+    const selected = new Map(inventory.map(file => [file.path, file]));
+    const selectedDomainDigest = sha256Hex(JSON.stringify([...selected.keys()].sort()));
+    const fact = validateKitFact(factJson(originFile, "audit-fact:tests%2Fcheck.test.ts#import#1#0#0", {
+      kind: "import", span: span(originFile, 1, 0, 41),
+      sourceSpecifier: "./support/fixture", importedNames: ["test"], importResolution: "resolved-local",
+      targetPaths: [wrapperPath],
+    }), "import", originFile);
+    const origin = { record: originRecord, facts: kind === "imported" ? [fact] : [], factPages: 1 };
+    const evidence: KitSourceEvidence = {
+      producer: { packageName: "@dailephd/my-dev-kit", packageVersion: "1.16.0" },
+      artifactSchemaVersion: "1.2.0", extractorRevision: "source-audit-v1.6.0",
+      source: { projectRoot: "/fixture", sourceRoots: ["tests"], excludes: [], symbolIndexSchemaVersion: "3",
+        codeGraphSchemaVersion: "1.1.0", selectionFingerprint, snapshotId: SNAPSHOT },
+      inventory, snapshotId: SNAPSHOT, coverage: { ...COVERAGE, selectedFileCount: inventory.length, recordedFileCount: inventory.length },
+      fileEvidence: new Map([[originFile, origin]]), inventoryPages: 1, factPages: 1, traversalComplete: true,
+    };
+    const identity = { schemaVersion: "1.0.0", snapshotId: SNAPSHOT, selectionFingerprint, selectedDomainDigest,
+      originFile, originContentSha256: originRecord.contentSha256 };
+    const importTargetProof = {
+      schemaVersion: "1.1.0", mode: "audit-import-target", snapshotId: SNAPSHOT, originFile,
+      importFactId: fact.id, sourceSpecifier: "./support/fixture", candidatePaths: [wrapperPath],
+      status: "present", reasonCode: "TARGET_IN_SELECTED_INVENTORY", selectionComplete: true,
+      sourceReferenceProof: {
+        ...identity, profile: "js-ts-selected-source-reference-v1", pathIdentityProfile: "selected-source-path-v1",
+        importFactId: fact.id, sourceSpecifier: "./support/fixture", resolutionPlatform: process.platform === "win32" ? "win32" : "posix",
+        candidateEnumerationComplete: true, candidateDomain: [wrapperPath], reasonCode: null,
+        qualifiedReference: { targetPath: wrapperPath, targetContentSha256: wrapperRecord.contentSha256, referenceKind: "selected-source-reference" },
+        premiseRefs: [{ path: wrapperPath, role: "candidate", state: "file", contentSha256: wrapperRecord.contentSha256 }],
+      },
+    };
+    const wrapper = { path: wrapperPath, contentSha256: wrapperRecord.contentSha256,
+      exportBindingSpan: span(wrapperPath, 2, 13, 35), importTargetProof };
+    const runnerBinding = {
+      localName: "test", kind: kind === "direct" ? "direct-playwright" : `${kind}-extended-playwright`,
+      bindingSpan: kind === "local" ? span(originFile, 2, 6, 28) : span(originFile, 1, 9, 13),
+      baseLocalName: kind === "direct" ? "test" : "base",
+      baseImportSpan: span(kind === "imported" ? wrapperPath : originFile, 1, 9, kind === "direct" ? 13 : 21),
+      extensionSpan: kind === "local" ? span(originFile, 2, 13, 28) : kind === "imported" ? span(wrapperPath, 2, 20, 35) : null,
+      wrapper: kind === "imported" ? wrapper : null,
+    };
+    const wire = {
+      ...identity, profile: "js-ts-playwright-direct-extended-modifiers-v1", coverage: "complete", runnerBinding,
+      observations: [
+        { modifier: "skip", calleeSpan: span(originFile, prefix.length + 1, 0, 9), callSpan: span(originFile, prefix.length + 1, 0, 38) },
+        { modifier: "only", calleeSpan: span(originFile, prefix.length + 2, 0, 9), callSpan: span(originFile, prefix.length + 2, 0, 28) },
+      ],
+      reasonCodes: [],
+    };
+    const parse = (raw: Record<string, unknown> = wire) => validateKitTestModifierProof(raw, origin, evidence, selected,
+      selectedDomainDigest, file => Buffer.from(file.path === originFile ? originText : wrapperText));
+    return { wire, parse, origin, wrapper, importTargetProof };
+  }
+
+  it.each(["direct", "local", "imported"] as const)("qualifies %s runner evidence and preserves exact conditional and focus spans", kind => {
+    const { parse, wire } = contract(kind);
+    expect(parse()).toMatchObject({ originFile, coverage: "complete", observations: wire.observations,
+      runnerBinding: { kind: wire.runnerBinding.kind } });
+    if (kind === "imported") expect(parse().runnerBinding.wrapper?.reference.qualifiedSourceReferencePath).toBe(wrapperPath);
+  });
+
+  it("admits the extension only in its authorized page and preserves all legacy pagination and identities", async () => {
+    const { wire } = contract("direct");
+    const file = fileJson(originFile, { capabilities: { ...capabilities(), "dynamic-import-expressions": "complete" } });
+    const total = KIT_FACT_PAGE_SIZE + 1;
+    const facts = Array.from({ length: total }, (_, index) => factJson(originFile, "audit-fact:legacy#" + index));
+    const page = (pageIndex: number, extra: Record<string, unknown> = {}) => factPageJson(originFile, pageIndex, total,
+      facts.slice(pageIndex * KIT_FACT_PAGE_SIZE, (pageIndex + 1) * KIT_FACT_PAGE_SIZE),
+      { file, schemaVersion: "1.2.0", ...extra });
+    const expected = { snapshotId: SNAPSHOT, path: originFile, qualifiedTestModifierProof: true } as const;
+    const pages = await collectAllPages(async pageIndex => validateFactPage(
+      page(pageIndex, pageIndex === 0 ? { testModifierProof: wire } : {}), { ...expected, pageIndex }),
+    { maxPages: 2, label: "modifier fixture pages" });
+    expect(pages[0]).toMatchObject({ totalItems: total, totalPages: 2, testModifierProof: wire });
+    expect(flattenFactPages(originFile, pages, new Set()).map(fact => fact.id)).toEqual(facts.map(fact => fact.id));
+    expectFailure(() => validateFactPage(page(1, { testModifierProof: wire }), { ...expected, pageIndex: 1 }), "page-invalid");
+    expectFailure(() => validateFactPage(page(0, { testModifierProof: wire, status: "unsupported" }), { ...expected, pageIndex: 0 }), "page-invalid");
+    const oldPage = page(0, { schemaVersion: "1.1.0", file: fileJson(originFile), testModifierProof: wire });
+    expectFailure(() => validateFactPage(oldPage, { ...expected, pageIndex: 0 }), "page-invalid");
+    expect(validateFactPage(oldPage, { ...expected, qualifiedTestModifierProof: undefined, pageIndex: 0 }))
+      .not.toHaveProperty("testModifierProof");
+    expectFailure(() => validateFactPage(page(0, { testModifierProof: { extra: "x".repeat(1024 * 1024) } }),
+      { ...expected, pageIndex: 0 }), "page-invalid");
+  });
+
+  it("keeps qualified partial positives without granting complete coverage", () => {
+    const { parse, wire } = contract("local");
+    const partial = { ...wire, coverage: "partial", reasonCodes: ["UNRESOLVED_BINDING_USE", "UNSUPPORTED_MODIFIER_FORM"] };
+    expect(parse(partial)).toMatchObject({ coverage: "partial", observations: wire.observations });
+    for (const reasonCodes of [[], ["UNKNOWN"], ["UNRESOLVED_BINDING_USE", "UNRESOLVED_BINDING_USE"],
+      ["UNSUPPORTED_MODIFIER_FORM", "UNRESOLVED_BINDING_USE"], Array(7).fill("PROOF_BUDGET_EXCEEDED")]) {
+      expect(() => parse({ ...partial, reasonCodes })).toThrow(KitSourceEvidenceAcquisitionError);
+    }
+    expect(() => parse({ ...wire, reasonCodes: partial.reasonCodes })).toThrow(KitSourceEvidenceAcquisitionError);
+  });
+
+  it("rejects identity, binding, observation and closed shape contradictions", () => {
+    const { parse, wire } = contract("direct");
+    const [skip, only] = wire.observations;
+    for (const change of [
+      { snapshotId: HASH }, { selectionFingerprint: HASH }, { selectedDomainDigest: HASH }, { originContentSha256: HASH },
+      { originFile: wrapperPath }, { originFile: "a".repeat(4097) }, { schemaVersion: "1.1.0" }, { profile: "unknown" },
+      { runtimeExecuted: false }, { coverage: "unknown" }, { observations: Array(1025).fill(skip) },
+      { observations: [only, skip] }, { observations: [skip, skip] },
+      { observations: [{ ...skip, condition: true }] }, { observations: [{ ...skip, modifier: "fixme" }] },
+      { observations: [{ ...skip, callSpan: skip!.calleeSpan }] },
+      { observations: [{ ...skip, calleeSpan: { ...skip!.calleeSpan, startColumn: null } }] },
+      { observations: [{ ...skip, calleeSpan: { ...skip!.calleeSpan, path: wrapperPath } }] },
+      { observations: [{ ...skip, calleeSpan: { ...skip!.calleeSpan, startLine: 0 } }] },
+      { observations: [{ ...skip, callSpan: { ...skip!.callSpan, endColumn: 40 } }] },
+      { observations: [{ ...skip, callSpan: { ...skip!.callSpan, endLine: 4 } }] },
+      ...[{ kind: "arbitrary-factory" }, { localName: "fake" }, { baseLocalName: "unrelated" },
+        { baseImportSpan: span(originFile, 1, 9, 14) }, { extensionSpan: wire.runnerBinding.bindingSpan }, { extra: true }]
+        .map(fields => ({ runnerBinding: { ...wire.runnerBinding, ...fields } })),
+    ]) {
+      expect(() => parse({ ...wire, ...change }), JSON.stringify(change).slice(0, 150)).toThrow(KitSourceEvidenceAcquisitionError);
+    }
+    const local = contract("local");
+    expect(() => local.parse({ ...local.wire,
+      runnerBinding: { ...local.wire.runnerBinding, extensionSpan: span(originFile, 1, 0, 10) } })).toThrow(/runner spans/);
+  });
+
+  it("requires the actual named origin import and a qualified ordinary target, even when the graph target agrees", () => {
+    const { parse, wire, origin, wrapper, importTargetProof } = contract("imported");
+    const withWrapper = (changed: Record<string, unknown>) => ({ ...wire,
+      runnerBinding: { ...wire.runnerBinding, wrapper: { ...wrapper, ...changed } } });
+    for (const changed of [
+      { path: originFile }, { path: "tests/unselected.ts" }, { contentSha256: HASH }, { extra: true },
+      { exportBindingSpan: span(originFile, 2, 13, 35) },
+      { importTargetProof: { ...importTargetProof, sourceReferenceProof: undefined } },
+      { importTargetProof: { ...importTargetProof, importFactId: "audit-fact:wrong" } },
+      { importTargetProof: { ...importTargetProof, sourceSpecifier: "./different" } },
+      { importTargetProof: { ...importTargetProof, sourceReferenceProof: { ...importTargetProof.sourceReferenceProof, qualifiedReference: null } } },
+      { importTargetProof: { ...importTargetProof, sourceReferenceProof: { ...importTargetProof.sourceReferenceProof,
+        qualifiedReference: { ...importTargetProof.sourceReferenceProof.qualifiedReference, targetPath: originFile } } } },
+    ]) expect(() => parse(withWrapper(changed))).toThrow(KitSourceEvidenceAcquisitionError);
+    expect(() => parse({ ...wire, runnerBinding: { ...wire.runnerBinding, bindingSpan: span(originFile, 2, 0, 4) } }))
+      .toThrow(/named import fact/);
+    const [fact] = origin.facts;
+    origin.facts[0] = { ...fact!, importedNames: ["expect"] };
+    expect(() => parse()).toThrow(/named import fact/);
+    origin.facts.length = 0;
+    expect(() => parse()).toThrow(/named import fact/);
   });
 });
 

@@ -6,12 +6,223 @@ import { expect, it } from "vitest";
 import { runAuditCommandFromArgs } from "../../src/commands/runAuditCommand.js";
 import { runMeasuredCommand } from "../../src/core/runMeasuredCommand.js";
 import { scanProjectInventory } from "../../src/audits/core/projectInventory.js";
+import type { KitFact } from "../../src/audits/core/kitSourceEvidence.js";
 import { collectKitSourceFacts, type KitSourceReader, type KitSourceProviderDependencies, QUALIFIED_CURRENT_PUBLISHED_KIT, QUALIFIED_B3_P1_KIT, QUALIFIED_B5_P1_R7A_KIT } from "../../src/audits/core/kitSourceProvider.js";
 
 const installedPackageRoot = process.env.LAB_R3_INSTALLED_KIT;
 const qualifiedArchivePath = process.env.LAB_R3_KIT_ARCHIVE;
 const currentInstalledRoot = process.env.LAB_B5_P1_R7B_KIT_ROOT;
 const currentArchive = process.env.LAB_B5_P1_R7B_KIT_ARCHIVE;
+
+const playwrightOrigin = "tests/playwright.test.ts";
+const playwrightWrapper = "tests/support/fixture.ts";
+const aliasedPlaywrightBase = 'import { test as base } from "@playwright/test";';
+const playwrightSkip = 'test.skip(process.env.GUARD, "intentional");';
+const playwrightOnly = 'test.only("focus", () => {});';
+
+function playwrightContractFixture(
+  target: string, workDir: string, kind: "direct" | "local" | "imported",
+  coverage: "complete" | "partial" | "omitted", qualified: boolean, batch = false,
+) {
+  const factFiles: string[] = [];
+  const transports = new Set<string>();
+  const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
+  const span = (path: string, line: number, startColumn: number, endColumn: number) =>
+    ({ path, startLine: line, startColumn, endLine: line, endColumn });
+  const deps: KitSourceProviderDependencies = {
+    installedPackageRoot: path.resolve("node_modules/@dailephd/my-dev-kit"),
+    expectation: QUALIFIED_CURRENT_PUBLISHED_KIT,
+    workDir, disableStream: true, disableBatch: !batch,
+    // Ordinary and computed admission alone must not admit the new extension.
+    testOnlyOrdinarySourceReference: qualified ? undefined : true,
+    testOnlyExpressionReference: qualified ? undefined : true,
+    testOnlyPlaywrightModifierProof: qualified ? true : undefined,
+    runCommand: async options => {
+      const result = await runMeasuredCommand(options);
+      const args = options.args ?? [];
+      if (!result.ok || (!args.includes("--audit-file") && !args.includes("--audit-batch-file"))) return result;
+      const body = JSON.parse(result.stdout);
+      const attach = (page: { file?: { path: string; contentSha256: string }; pageIndex: number; facts: KitFact[]; snapshotId: string }) => {
+        if (!page.file) return;
+        factFiles.push(page.file.path);
+        if (page.file.path !== playwrightOrigin || page.pageIndex !== 0 || coverage === "omitted") return;
+        const artifact = JSON.parse(fs.readFileSync(path.join(args[args.indexOf("--index") + 1]!, "source-audit-evidence.json"), "utf8"));
+        const selected = new Map<string, string>(artifact.files.map((file: { path: string; contentSha256: string }) =>
+          [file.path, file.contentSha256]));
+        const identity = { schemaVersion: "1.0.0", snapshotId: page.snapshotId,
+          selectionFingerprint: artifact.source.selectionFingerprint,
+          selectedDomainDigest: digest(JSON.stringify([...selected.keys()].sort())),
+          originFile: playwrightOrigin, originContentSha256: page.file.contentSha256 };
+        const wrapper = kind === "imported" ? (() => {
+          const fact = page.facts.find(item => item.kind === "import" && item.sourceSpecifier === "./support/fixture");
+          expect(fact?.importedNames).toContain("test");
+          const contentSha256 = selected.get(playwrightWrapper);
+          const candidateDomain = [playwrightWrapper, playwrightWrapper + "x"];
+          const importIdentity = { importFactId: fact!.id, sourceSpecifier: "./support/fixture" };
+          return { path: playwrightWrapper, contentSha256, exportBindingSpan: span(playwrightWrapper, 2, 13, 35),
+            importTargetProof: {
+              schemaVersion: "1.1.0", mode: "audit-import-target", snapshotId: page.snapshotId, originFile: playwrightOrigin,
+              ...importIdentity, candidatePaths: [playwrightWrapper], status: "present", reasonCode: "TARGET_IN_SELECTED_INVENTORY",
+              selectionComplete: true,
+              sourceReferenceProof: { ...identity, ...importIdentity, profile: "js-ts-selected-source-reference-v1",
+                pathIdentityProfile: "selected-source-path-v1", resolutionPlatform: process.platform === "win32" ? "win32" : "posix",
+                candidateEnumerationComplete: true, candidateDomain, reasonCode: null,
+                qualifiedReference: { targetPath: playwrightWrapper, targetContentSha256: contentSha256, referenceKind: "selected-source-reference" },
+                premiseRefs: [
+                  { path: playwrightWrapper, role: "candidate", state: "file", contentSha256 },
+                  { path: candidateDomain[1], role: "candidate", state: "absent", contentSha256: null },
+                  { path: "tsconfig.json", role: "config", state: "file",
+                    contentSha256: digest(fs.readFileSync(path.join(target, "tsconfig.json"))) },
+                ],
+              },
+            },
+          };
+        })() : null;
+        const basePath = wrapper?.path ?? playwrightOrigin;
+        const modifierLine = kind === "local" ? 3 : 2;
+        const proof = {
+          ...identity, profile: "js-ts-playwright-direct-extended-modifiers-v1", coverage,
+          runnerBinding: {
+            kind: kind === "direct" ? "direct-playwright" : `${kind}-extended-playwright`, localName: "test",
+            baseLocalName: kind === "direct" ? "test" : "base",
+            bindingSpan: kind === "local" ? span(playwrightOrigin, 2, 6, 28) : span(playwrightOrigin, 1, 9, 13),
+            baseImportSpan: span(basePath, 1, 9, kind === "direct" ? 13 : 21),
+            extensionSpan: kind === "direct" ? null : span(basePath, 2, wrapper ? 20 : 13, wrapper ? 35 : 28),
+            wrapper,
+          },
+          observations: [
+            ...(kind === "local" ? [] : [{ modifier: "skip", calleeSpan: span(playwrightOrigin, modifierLine, 0, 9),
+              callSpan: span(playwrightOrigin, modifierLine, 0, 43) }]),
+            { modifier: "only", calleeSpan: span(playwrightOrigin, modifierLine + 1, 0, 9),
+              callSpan: span(playwrightOrigin, modifierLine + 1, 0, 28) },
+          ],
+          reasonCodes: coverage === "partial" ? ["UNSUPPORTED_MODIFIER_FORM"] : [],
+        };
+        Object.assign(page, { testModifierProof: proof });
+      };
+      if (args.includes("--audit-batch-file")) {
+        transports.add("batch");
+        for (const item of body.results) if (item.status === "ok" && item.selector === "audit-file") attach(item.response);
+      } else {
+        transports.add("standalone");
+        attach(body);
+      }
+      return { ...result, stdout: JSON.stringify(body) };
+    },
+  };
+  return { deps, factFiles, transports };
+}
+
+function writePlaywrightContractSource(target: string, kind: "direct" | "local" | "imported", unknownImport = false) {
+  fs.mkdirSync(path.join(target, "tests/support"), { recursive: true });
+  fs.writeFileSync(path.join(target, "package.json"), '{"name":"playwright-contract","type":"module"}\n');
+  const prefix = kind === "direct" ? ['import { test } from "@playwright/test";'] : kind === "local"
+    ? [aliasedPlaywrightBase, "const test = base.extend({});"] : ['import { test } from "./support/fixture";'];
+  fs.writeFileSync(path.join(target, playwrightOrigin), [
+    ...prefix, kind === "local" ? 'test["skip"]?.("unsupported");' : playwrightSkip, playwrightOnly,
+    ...(kind === "local" ? ['test?.skip("optional");', 'test.describe.skip("chain");'] : []),
+    ...(unknownImport ? ["void import(process.env.DESTINATION);"] : []), "",
+  ].join("\n"));
+  if (kind === "imported") {
+    fs.writeFileSync(path.join(target, "tsconfig.json"), '{"compilerOptions":{}}\n');
+    fs.writeFileSync(path.join(target, playwrightWrapper), aliasedPlaywrightBase + "\nexport const test = base.extend({});\n");
+  }
+}
+
+it("authenticates an immediate wrapper without fetching its fact page and rechecks all fresh premises", async () => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-playwright-reader-"));
+  let reader: KitSourceReader | undefined;
+  try {
+    const target = path.join(workspace, "target");
+    writePlaywrightContractSource(target, "imported");
+    const neighbor = "tests/support/neighbor.ts";
+    fs.writeFileSync(path.join(target, neighbor), "export {};\n");
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), "imported", "complete", true, true);
+    const snapshot = await collectKitSourceFacts({
+      targetRoot: target, inventory: scanProjectInventory(target), requiredPaths: [playwrightOrigin, neighbor],
+      requiredCapabilities: [], includeScriptsRoot: false, onReader: value => { reader = value; },
+    }, fixture.deps);
+    const read = () => reader!.testModifierProof!(playwrightOrigin);
+    expect(read()).toMatchObject({ coverage: "complete", runnerBinding: {
+      kind: "imported-extended-playwright", wrapper: { path: playwrightWrapper },
+    }, observations: [{ modifier: "skip" }, { modifier: "only" }] });
+    expect(fixture.factFiles.sort()).toEqual([playwrightOrigin, neighbor]);
+    expect([...fixture.transports]).toEqual(["batch"]);
+    expect(snapshot.files.find(file => file.relativePath === playwrightOrigin)?.kitTestObservations?.observations)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ callSpan: expect.anything() })]));
+    for (const [name, change] of [
+      [playwrightWrapper, "export const test = 0;"], [playwrightOrigin, "export {};"],
+      ["tsconfig.json", '{"compilerOptions":{"rootDirs":["tests"]}}'],
+      [playwrightWrapper + "x", "export {};"],
+    ] as const) {
+      const file = path.join(target, name);
+      const original = fs.existsSync(file) ? fs.readFileSync(file) : null;
+      fs.writeFileSync(file, change);
+      try { expect(read).toThrow(/stale-evidence/); }
+      finally { if (original) fs.writeFileSync(file, original); else fs.unlinkSync(file); }
+      expect(read()?.coverage).toBe("complete");
+    }
+    const alternate = path.join(workspace, "outside");
+    fs.mkdirSync(alternate);
+    const wrapper = path.join(target, playwrightWrapper);
+    const support = path.dirname(wrapper);
+    fs.copyFileSync(wrapper, path.join(alternate, "fixture.ts"));
+    fs.renameSync(support, support + "-original");
+    fs.symlinkSync(alternate, support, "junction");
+    expect(read).toThrow(/stale-evidence/);
+    await reader!.dispose();
+    expect(read).toThrow(/reader is closed/);
+    reader = undefined;
+  } finally {
+    await reader?.dispose();
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+}, 60_000);
+
+it.each([
+  { kind: "direct", coverage: "complete", qualified: true, threshold: "none", exit: 0 },
+  { kind: "direct", coverage: "complete", qualified: true, threshold: "high", exit: 1 },
+  { kind: "direct", coverage: "complete", qualified: false, threshold: "none", exit: 2 },
+  { kind: "direct", coverage: "omitted", qualified: true, threshold: "none", exit: 2 },
+  { kind: "imported", coverage: "complete", qualified: true, threshold: "none", exit: 0 },
+  { kind: "local", coverage: "partial", qualified: true, threshold: "none", exit: 2 },
+  { kind: "local", coverage: "partial", qualified: true, threshold: "blocker", exit: 2 },
+  { kind: "direct", coverage: "complete", qualified: true, threshold: "none", exit: 2, unknownImport: true },
+] as const)("consumes only qualified modifier observations and leaves independent obligations intact (%j)", async scenario => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "lab-f02-playwright-audit-"));
+  try {
+    const target = path.join(workspace, "target");
+    const out = path.join(workspace, "reports");
+    const unknownImport = "unknownImport" in scenario;
+    writePlaywrightContractSource(target, scenario.kind, unknownImport);
+    const fixture = playwrightContractFixture(target, path.join(workspace, "kit"), scenario.kind, scenario.coverage, scenario.qualified);
+    const code = await runAuditCommandFromArgs([
+      "--target", target, "--types", "code-rot", "--include", "tests", "--fail-on", scenario.threshold,
+      "--format", "json", "--out", out,
+    ], { evidenceWorkspace: workspace, kitSourceProviderDependencies: fixture.deps });
+    expect(code).toBe(scenario.exit);
+    const receipts = path.join(workspace, "lab-output/evidence");
+    const [id] = fs.readdirSync(receipts);
+    const result = JSON.parse(fs.readFileSync(path.join(receipts, id!, "audit-result.json"), "utf8")).evidence;
+    const modifiers = result.issues.filter((issue: { id: string }) => /:(skip|only)-usage:/.test(issue.id));
+    const complete = scenario.qualified && scenario.coverage === "complete";
+    expect(result.coverage.some((row: { predicate: string; mandatory: boolean }) =>
+      row.predicate === "executable test modifiers" && row.mandatory)).toBe(!complete);
+    const cue = "test-rot:" + playwrightOrigin + ":";
+    if (scenario.kind === "local") {
+      expect(modifiers).toEqual([expect.objectContaining({ id: cue + "only-usage:4", severity: "high", releaseBlocking: true })]);
+    } else {
+      expect(modifiers.map((issue: { id: string }) => issue.id).sort()).toEqual([cue + "only-usage:3", cue + "skip-usage:2"]);
+      expect(modifiers.find((issue: { id: string }) => issue.id === cue + "skip-usage:2")).toMatchObject({
+        severity: "medium",
+        ...(complete && { description: expect.stringContaining("Confirm that the skip call is intentional.") }),
+      });
+    }
+    expect(result.coverage.some((row: { predicate: string; mandatory: boolean }) =>
+      row.predicate === "missing-source-import" && row.mandatory)).toBe(unknownImport);
+  } finally { fs.rmSync(workspace, { recursive: true, force: true }); }
+}, 60_000);
+
 it.skipIf(!installedPackageRoot || !qualifiedArchivePath)(
   "runs the managed R3 candidate through the audit command and retains findings at every mandatory-gap threshold",
   async () => {

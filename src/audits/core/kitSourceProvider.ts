@@ -39,6 +39,7 @@ import {
   validateKitOccurrence,
   validateKitImportProof,
   validateKitOrdinarySourceReference,
+  validateKitTestModifierProof,
   type KitSourceReferencePremise,
   hasImmediateRelativeSpelling,
   validateKitImportDomain,
@@ -241,6 +242,7 @@ export type KitSourceProviderDependencies = {
   // this profile until an exact packed producer is qualified.
   testOnlyOrdinarySourceReference?: true;
   testOnlyExpressionReference?: true;
+  testOnlyPlaywrightModifierProof?: true;
   launchGuard?: KitLaunchGuard;
   onKitLaunch?: (event: KitLaunchEvent) => void;
   // Exact R6 comparison lane. All other producer profiles remain standalone.
@@ -669,6 +671,7 @@ export async function acquireKitSourceEvidence(
   streamState?: KitStreamState,
 ): Promise<KitSourceEvidence> {
   const proofProfile = pkg.cliSha256 === expectation.cliSha256 && isProofProfile(expectation);
+  const qualifiedTestModifierProof = qualifiesPlaywrightModifierFixture(pkg, expectation, deps);
   if (request.predicateRequirements && !proofProfile && (!expectation.cliSha256 || expectation.artifactSchemaVersion !== "1.1.0" ||
       (!["source-audit-v1.5.0", "source-audit-v1.5.1"].includes(expectation.extractorRevision) &&
         !SW123_EXACT_KIT_PROFILES.some(profile => matchesExactKitExpectation(expectation, profile))))) {
@@ -751,6 +754,9 @@ export async function acquireKitSourceEvidence(
     async (pageIndex) => {
       const raw = await runKitQuery(ctx, indexDir, { selector: "audit-files", page: pageIndex });
       if ((raw as { schemaVersion?: unknown })?.schemaVersion !== header.schemaVersion) fail("schema-mismatch", "Inventory page schema differs from the validated artifact.");
+      if (qualifiedTestModifierProof && Object.hasOwn(raw as object, "testModifierProof")) {
+        fail("page-invalid", "Test modifier proof is not permitted on an inventory page.");
+      }
       return validateInventoryPage(raw, { snapshotId, pageIndex });
     },
     { maxPages: KIT_MAX_INVENTORY_PAGES, label: "inventory traversal", ...((ctx.query || ctx.stream) && { window: KIT_LOOKUP_CONCURRENCY }) }
@@ -784,7 +790,8 @@ export async function acquireKitSourceEvidence(
           async (pageIndex) => {
             const raw = await runKitQuery(ctx, indexDir, { selector: "audit-file", path: filePath, page: pageIndex });
             if ((raw as { schemaVersion?: unknown })?.schemaVersion !== header.schemaVersion) fail("schema-mismatch", "Fact page schema differs from the validated artifact.");
-            return validateFactPage(raw, { snapshotId, pageIndex, path: filePath });
+            return validateFactPage(raw, { snapshotId, pageIndex, path: filePath,
+              qualifiedTestModifierProof: qualifiedTestModifierProof ? true : undefined });
           },
           { maxPages: KIT_MAX_FACT_PAGES_PER_FILE, label: `fact traversal of ${filePath}` }
         );
@@ -831,7 +838,7 @@ export async function acquireKitSourceEvidence(
     fileEvidence.set(filePath, { record: pages[0]!.file, facts, factPages: pages.length });
   });
 
-  return {
+  const evidence: KitSourceEvidence = {
     producer: header.producer,
     artifactSchemaVersion: header.schemaVersion,
     extractorRevision: expectation.extractorRevision,
@@ -844,6 +851,34 @@ export async function acquireKitSourceEvidence(
     factPages: factPageCount,
     traversalComplete: true,
   };
+  if (qualifiedTestModifierProof) {
+    const selectedDomainDigest = sha256Hex(JSON.stringify([...recordByPath.keys()].sort()));
+    for (const [index, filePath] of factPaths.entries()) {
+      const raw = outcomes[index]!.pages![0]!.testModifierProof;
+      if (!raw) continue;
+      const root = fs.realpathSync.native(evidence.source.projectRoot);
+      const origin = fileEvidence.get(filePath)!;
+      const proof = validateKitTestModifierProof(raw, origin, evidence, recordByPath, selectedDomainDigest,
+        record => readFreshModifierSource(root, record));
+      if (proof.runnerBinding.wrapper) {
+        assertSourceReferencePremises(root, proof.runnerBinding.wrapper.reference.premiseRefs, recordByPath);
+      }
+      origin.testModifierProof = proof;
+    }
+  }
+  return evidence;
+}
+
+function hasReferenceFixtureLane(deps: KitSourceProviderDependencies, schemaVersion: string): boolean {
+  return !!(deps.disableStream && deps.runCommand && deps.installedPackageRoot && deps.expectation &&
+    !deps.qualifiedArchivePath && schemaVersion === "1.2.0");
+}
+
+function qualifiesPlaywrightModifierFixture(
+  pkg: InstalledKitPackage, expectation: KitCandidateExpectation, deps: KitSourceProviderDependencies,
+): boolean {
+  return deps.testOnlyPlaywrightModifierProof === true && hasReferenceFixtureLane(deps, expectation.artifactSchemaVersion) &&
+    pkg.cliSha256 === expectation.cliSha256 && isProofProfile(expectation);
 }
 
 // ---------------------------------------------------------------------------
@@ -891,6 +926,7 @@ export type KitSourceReader = {
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
   ordinarySourceReference?: true;
+  testModifierProof?: (filePath: string) => KitFileEvidence["testModifierProof"];
   importTarget: (factId: string) => Promise<KitImportProof & {
     exactSelectedPath?: string;
     qualifiedSourceReferencePath?: string;
@@ -959,6 +995,24 @@ function assertCanonicalReferenceOrigin(root: string, originFile: string): void 
   if (fs.realpathSync.native(origin) !== origin) fail("stale-evidence", "Source reference origin identity changed.");
 }
 
+function readFreshProofSource(root: string, file: KitFileRecord): Buffer {
+  const target = fs.realpathSync(path.resolve(root, file.path));
+  if (!isContained(root, target) || !file.contentSha256) fail("stale-evidence", "Required proof file lacks contained hashed bytes.");
+  const bytes = readBoundedFile(target, file.sizeBytes, "stale-evidence", "Proof source");
+  if (bytes.length !== file.sizeBytes || sha256Hex(bytes) !== file.contentSha256) fail("stale-evidence", "Proof source bytes changed.");
+  return bytes;
+}
+
+function readFreshModifierSource(root: string, file: KitFileRecord): Buffer {
+  try {
+    assertCanonicalReferenceOrigin(root, file.path);
+    return readFreshProofSource(root, file);
+  } catch (error) {
+    if (error instanceof KitSourceEvidenceAcquisitionError) throw error;
+    fail("stale-evidence", "Test modifier proof source cannot be inspected: " + file.path);
+  }
+}
+
 function assertSourceReferencePremises(
   root: string, premises: readonly KitSourceReferencePremise[], inventory: ReadonlyMap<string, KitFileRecord>,
 ): void {
@@ -1000,7 +1054,8 @@ function assertSourceReferencePremises(
 }
 
 function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandContext, dispose: () => void | Promise<void>,
-  testFiles: ProjectInventorySnapshot["testFiles"], rawSourceFiles: ProjectInventorySnapshot["sourceFiles"], inventoryFiles: ProjectInventorySnapshot["files"]): KitSourceReader {
+  testFiles: ProjectInventorySnapshot["testFiles"], rawSourceFiles: ProjectInventorySnapshot["sourceFiles"],
+  inventoryFiles: ProjectInventorySnapshot["files"], qualifiedTestModifierProof: boolean): KitSourceReader {
   const cache = new Map<string, Promise<KitOccurrence>>();
   // A fresh stream frame is required for repeated predicates, especially
   // import absence, which can change while the origin SHA stays identical.
@@ -1022,14 +1077,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     evidence.artifactSchemaVersion === "1.2.0";
   const domainPromises = new Map<string, Promise<ReturnType<typeof validateKitImportDomain>>>();
   const inventoryByPath = new Map(evidence.inventory.map(record => [record.path, record]));
-  const assertFresh = (file: KitFileRecord) => {
-    const root = fs.realpathSync(evidence.source.projectRoot);
-    const target = fs.realpathSync(path.resolve(root, file.path));
-    if (!isContained(root, target) || !file.contentSha256) fail("stale-evidence", "Required proof file lacks contained hashed bytes.");
-    const bytes = readBoundedFile(target, file.sizeBytes, "stale-evidence", "Proof source");
-    if (bytes.length !== file.sizeBytes || sha256Hex(bytes) !== file.contentSha256) fail("stale-evidence", "Proof source bytes changed.");
-    return bytes;
-  };
+  const assertFresh = (file: KitFileRecord) => readFreshProofSource(fs.realpathSync(evidence.source.projectRoot), file);
   const indexDir = path.join(ctx.workDir, "index");
   const jsonRawLiteralContent = r3 ? "selected-test-json-v1" : JSON_RAW_CONTENT_PROFILES[ctx.pkg.cliSha256];
   const p6R2 = ctx.pkg.cliSha256 === QUALIFIED_SW123_P6_R2_KIT.cliSha256 &&
@@ -1194,6 +1242,20 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
     selectedFile,
     reExportSpecifiers: filePath => reExportTargets(filePath).map(fact => fact.sourceSpecifier),
     ordinarySourceReference: ctx.ordinarySourceReference,
+    testModifierProof: qualifiedTestModifierProof ? filePath => {
+      if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
+      validateKitRelativePath(filePath, "test modifier proof file");
+      const origin = evidence.fileEvidence.get(filePath);
+      if (!origin?.testModifierProof) return undefined;
+      const root = fs.realpathSync.native(evidence.source.projectRoot);
+      readFreshModifierSource(root, origin.record);
+      const wrapper = origin.testModifierProof.runnerBinding.wrapper;
+      if (wrapper) {
+        readFreshModifierSource(root, inventoryByPath.get(wrapper.path)!);
+        assertSourceReferencePremises(root, wrapper.reference.premiseRefs, inventoryByPath);
+      }
+      return origin.testModifierProof;
+    } : undefined,
     reExportTargets: r3 || p6R2 ? reExportTargets : undefined,
     fixtureReferenceBasenames(filePath) {
       if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
@@ -1654,8 +1716,7 @@ export async function collectKitSourceFacts(
     });
     if (scope.widerSelection) snapshot.warnings.push("Required root-level source selected with --src .; only validated selected files provide source evidence.");
     if (request.onReader) {
-      const fixtureExtensionLane = deps.disableStream && deps.runCommand && deps.installedPackageRoot &&
-        deps.expectation && !deps.qualifiedArchivePath && evidence.artifactSchemaVersion === "1.2.0";
+      const fixtureExtensionLane = hasReferenceFixtureLane(deps, evidence.artifactSchemaVersion);
       const context: KitCommandContext = { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
         guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch,
@@ -1665,7 +1726,8 @@ export async function collectKitSourceFacts(
       const reader = createKitSourceReader(evidence, context, async () => {
         await close();
         if (ownedWorkDir) fs.rmSync(workDir, { recursive: true, force: true });
-      }, request.inventory.testFiles, rawSourceFiles, request.inventory.files);
+      }, request.inventory.testFiles, rawSourceFiles, request.inventory.files,
+      qualifiesPlaywrightModifierFixture(pkg, expectation, deps));
       request.onReader(reader);
       readerIssued = true;
     }

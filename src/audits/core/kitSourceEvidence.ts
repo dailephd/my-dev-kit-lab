@@ -477,6 +477,31 @@ export type KitSourceSpan = {
   endColumn: number | null;
 };
 
+type KitExactSpan = KitSourceSpan & { startColumn: number; endLine: number; endColumn: number };
+const TEST_MODIFIER_REASONS = [
+  "UNQUALIFIED_RUNNER_BINDING", "UNQUALIFIED_WRAPPER_REFERENCE", "UNSUPPORTED_MODIFIER_FORM",
+  "UNRESOLVED_BINDING_USE", "INCOMPLETE_SOURCE_ANALYSIS", "PROOF_BUDGET_EXCEEDED",
+] as const;
+
+export type KitTestModifierProof = {
+  originFile: string;
+  coverage: "complete" | "partial";
+  runnerBinding: {
+    kind: "direct-playwright" | "local-extended-playwright" | "imported-extended-playwright";
+    bindingSpan: KitExactSpan;
+    baseLocalName: string;
+    baseImportSpan: KitExactSpan;
+    extensionSpan: KitExactSpan | null;
+    wrapper: {
+      path: string;
+      exportBindingSpan: KitExactSpan;
+      reference: KitOrdinarySourceReference;
+    } | null;
+  };
+  observations: readonly { modifier: "skip" | "only"; calleeSpan: KitExactSpan; callSpan: KitExactSpan }[];
+  reasonCodes: readonly (typeof TEST_MODIFIER_REASONS)[number][];
+};
+
 export type KitAmbientClassification = {
   profile: "typescript-ambient-stub-v1";
   scope: "entire-file";
@@ -553,12 +578,14 @@ export type KitFactPage = {
   status: "found" | "unsupported";
   file: KitFileRecord;
   facts: KitFact[];
+  testModifierProof?: JsonObject;
 };
 
 export type KitFileEvidence = {
   record: KitFileRecord;
   facts: KitFact[];
   factPages: number;
+  testModifierProof?: KitTestModifierProof;
 };
 
 // Everything the adapter needs, already validated.
@@ -1152,7 +1179,7 @@ export function validateInventoryPage(raw: unknown, expected: { snapshotId: stri
 
 export function validateFactPage(
   raw: unknown,
-  expected: { snapshotId: string; pageIndex: number; path: string }
+  expected: { snapshotId: string; pageIndex: number; path: string; qualifiedTestModifierProof?: true }
 ): KitFactPage {
   const label = `fact page ${expected.pageIndex} of ${expected.path}`;
   const obj = asObject(raw, label, "page-invalid");
@@ -1174,7 +1201,159 @@ export function validateFactPage(
     if (fact.jvmDeclaration && (!/\.(java|kt)$/i.test(file.path) || fact.jvmDeclaration.packageName !== file.jvmPackageName)) fail("page-invalid", "Declaration package differs from its ordinary file identity.");
     if (file.capabilities.jvmDeclarations === "complete" && fact.kind === "declaration" && !fact.jvmDeclaration) fail("page-invalid", "Complete JVM declarations omit identity.");
   }
+  if (expected.qualifiedTestModifierProof && Object.hasOwn(obj, "testModifierProof")) {
+    if (expected.pageIndex !== 0 || status !== "found" || obj.schemaVersion !== KIT_SOURCE_PROOF_SCHEMA_VERSION ||
+        !isTestModifierSource(file)) {
+      fail("page-invalid", "Test modifier proof is outside its eligible first exact-file page.");
+    }
+    const testModifierProof = asObject(obj.testModifierProof, "test modifier proof", "page-invalid");
+    if (Buffer.byteLength(JSON.stringify(testModifierProof), "utf8") > 1024 * 1024) {
+      fail("page-invalid", "Test modifier proof exceeds its serialized byte budget.");
+    }
+    return { ...envelope, status, file, facts, testModifierProof };
+  }
   return { ...envelope, status, file, facts };
+}
+
+function isTestModifierSource(file: KitFileRecord): boolean {
+  return !!file.contentSha256 && ["parsed", "partial"].includes(file.status) &&
+    ["typescript", "javascript"].includes(file.language) && file.analyzerId === "typescript-ast" &&
+    /\.(?:tsx?|jsx?|mts|cts|mjs|cjs)$/i.test(file.path);
+}
+
+function compareSpanStart(a: KitSourceSpan, b: KitSourceSpan): number {
+  return comparePosition(a.startLine, a.startColumn, b.startLine, b.startColumn);
+}
+
+function compareSpanEnd(a: KitExactSpan, b: KitExactSpan): number {
+  return comparePosition(a.endLine, a.endColumn, b.endLine, b.endColumn);
+}
+
+function spanContains(outer: KitSourceSpan, inner: KitExactSpan, strictStart: boolean): boolean {
+  return outer.path === inner.path && outer.startColumn !== null && outer.endLine !== null && outer.endColumn !== null &&
+    compareSpanStart(outer, inner) <= (strictStart ? -1 : 0) &&
+    comparePosition(outer.endLine, outer.endColumn, inner.endLine, inner.endColumn) >= 0;
+}
+
+function modifierSpan(raw: unknown, file: KitFileRecord, lines: readonly string[]): KitExactSpan {
+  const label = "test modifier proof span";
+  const s = closedReferenceObject(raw, ["path", "startLine", "startColumn", "endLine", "endColumn"], label);
+  const span = {
+    path: referencePath(s.path),
+    startLine: int(s, "startLine", label, "artifact-invalid"),
+    startColumn: int(s, "startColumn", label, "artifact-invalid"),
+    endLine: int(s, "endLine", label, "artifact-invalid"),
+    endColumn: int(s, "endColumn", label, "artifact-invalid"),
+  };
+  if (span.path !== file.path || span.startLine < 1 || span.endLine > lines.length ||
+      !validExpressionSpan(span) || span.startColumn > lines[span.startLine - 1]!.length ||
+      span.endColumn > lines[span.endLine - 1]!.length) {
+    fail("artifact-invalid", "Test modifier proof span is outside its authenticated source.");
+  }
+  return span;
+}
+
+// The producer attests to binding and AST semantics. Lab checks the wire data
+// against the traversed facts, selected identities and authenticated text bounds.
+export function validateKitTestModifierProof(
+  raw: JsonObject, origin: KitFileEvidence, evidence: KitSourceEvidence,
+  selected: ReadonlyMap<string, KitFileRecord>, selectedDomainDigest: string,
+  readSource: (file: KitFileRecord) => Buffer,
+): KitTestModifierProof {
+  const r = closedReferenceObject(raw, [
+    "schemaVersion", "profile", "snapshotId", "selectionFingerprint", "selectedDomainDigest",
+    "originFile", "originContentSha256", "coverage", "runnerBinding", "observations", "reasonCodes",
+  ], "test modifier proof");
+  const originFile = referencePath(r.originFile);
+  if (r.schemaVersion !== "1.0.0" || r.profile !== "js-ts-playwright-direct-extended-modifiers-v1" ||
+      evidence.artifactSchemaVersion !== KIT_SOURCE_PROOF_SCHEMA_VERSION || !evidence.traversalComplete ||
+      !evidence.coverage.inventoryComplete ||
+      r.snapshotId !== evidence.snapshotId || r.selectionFingerprint !== evidence.source.selectionFingerprint ||
+      r.selectedDomainDigest !== selectedDomainDigest || originFile !== origin.record.path ||
+      !isTestModifierSource(origin.record) || r.originContentSha256 !== origin.record.contentSha256 ||
+      r.originContentSha256 !== selected.get(originFile)?.contentSha256) {
+    fail("artifact-invalid", "Test modifier proof differs from the authenticated origin, selection or protocol.");
+  }
+  const coverage = oneOf(r.coverage, ["complete", "partial"] as const, "test modifier coverage", "artifact-invalid");
+  if (!Array.isArray(r.reasonCodes) || r.reasonCodes.length > TEST_MODIFIER_REASONS.length ||
+      !Array.isArray(r.observations) || r.observations.length > 1024) {
+    fail("artifact-invalid", "Invalid test modifier proof array or budget.");
+  }
+  const reasonCodes = r.reasonCodes.map(code => oneOf(code, TEST_MODIFIER_REASONS, "test modifier reason", "artifact-invalid"));
+  if (reasonCodes.some((code, index) => index > 0 && reasonCodes[index - 1]! >= code) ||
+      (coverage === "complete" ? reasonCodes.length !== 0 || origin.record.status !== "parsed" : reasonCodes.length === 0)) {
+    fail("artifact-invalid", "Inconsistent test modifier proof coverage and reasons.");
+  }
+
+  const b = closedReferenceObject(r.runnerBinding, [
+    "kind", "localName", "bindingSpan", "baseLocalName", "baseImportSpan", "extensionSpan", "wrapper",
+  ], "test modifier runner binding");
+  const kind = oneOf(b.kind, ["direct-playwright", "local-extended-playwright", "imported-extended-playwright"] as const,
+    "test modifier runner kind", "artifact-invalid");
+  const baseLocalName = str(b, "baseLocalName", "test modifier runner binding", "artifact-invalid");
+  if (b.localName !== "test" || (baseLocalName === "test") !== (kind === "direct-playwright") ||
+      (b.wrapper === null) !== (kind !== "imported-extended-playwright") ||
+      (b.extensionSpan === null) !== (kind === "direct-playwright")) {
+    fail("artifact-invalid", "Contradictory test modifier runner binding.");
+  }
+
+  // Match TypeScript's one-based lines and UTF-16 columns without parsing.
+  const sourceLines = (file: KitFileRecord) => readSource(file).toString("utf8").split(/\r\n|[\n\r\u2028\u2029]/);
+  const lines = sourceLines(origin.record);
+  const bindingSpan = modifierSpan(b.bindingSpan, origin.record, lines);
+  let wrapper: KitTestModifierProof["runnerBinding"]["wrapper"] = null;
+  let declarationSpan = bindingSpan;
+  let baseFile = origin.record;
+  let baseLines = lines;
+  if (kind === "imported-extended-playwright") {
+    const w = closedReferenceObject(b.wrapper, ["path", "contentSha256", "exportBindingSpan", "importTargetProof"],
+      "test modifier wrapper");
+    const wrapperPath = referencePath(w.path);
+    const selectedWrapper = selected.get(wrapperPath);
+    if (!selectedWrapper || wrapperPath === originFile || !isTestModifierSource(selectedWrapper) ||
+        selectedWrapper.status !== "parsed" || w.contentSha256 !== selectedWrapper.contentSha256) {
+      fail("artifact-invalid", "Test modifier wrapper differs from the authenticated selected file.");
+    }
+    const embedded = asObject(w.importTargetProof, "wrapper import target proof", "artifact-invalid");
+    const fact = origin.facts.find(item => item.id === embedded.importFactId);
+    if (!fact || fact.kind !== "import" || fact.extractionMethod !== "typescript-ast" ||
+        !fact.importedNames?.includes("test") || !spanContains(fact.span, bindingSpan, true) ||
+        comparePosition(fact.span.endLine!, fact.span.endColumn, bindingSpan.endLine, bindingSpan.endColumn) <= 0) {
+      fail("artifact-invalid", "Test modifier wrapper lacks the authenticated origin named import fact.");
+    }
+    const parent = validateKitImportProof(embedded, { snapshotId: evidence.snapshotId, fact, evidence });
+    const reference = validateKitOrdinarySourceReference(embedded.sourceReferenceProof, parent, evidence, fact);
+    if (reference.qualifiedSourceReferencePath !== wrapperPath) {
+      fail("artifact-invalid", "Test modifier wrapper is not the qualified source reference target.");
+    }
+    baseFile = selectedWrapper;
+    baseLines = sourceLines(baseFile);
+    declarationSpan = modifierSpan(w.exportBindingSpan, baseFile, baseLines);
+    wrapper = { path: wrapperPath, exportBindingSpan: declarationSpan, reference };
+  }
+  const baseImportSpan = modifierSpan(b.baseImportSpan, baseFile, baseLines);
+  const extensionSpan = b.extensionSpan === null ? null : modifierSpan(b.extensionSpan, baseFile, baseLines);
+  if (extensionSpan ? !spanContains(declarationSpan, extensionSpan, true) ||
+      (comparePosition(baseImportSpan.endLine, baseImportSpan.endColumn, declarationSpan.startLine, declarationSpan.startColumn) > 0 &&
+       comparePosition(declarationSpan.endLine, declarationSpan.endColumn, baseImportSpan.startLine, baseImportSpan.startColumn) > 0)
+    : compareSpanStart(bindingSpan, baseImportSpan) !== 0 || compareSpanEnd(bindingSpan, baseImportSpan) !== 0) {
+    fail("artifact-invalid", "Contradictory test modifier runner spans.");
+  }
+  const observations: KitTestModifierProof["observations"][number][] = [];
+  for (const item of r.observations) {
+    const o = closedReferenceObject(item, ["modifier", "calleeSpan", "callSpan"], "test modifier observation");
+    const modifier = oneOf(o.modifier, ["skip", "only"] as const, "test modifier", "artifact-invalid");
+    const calleeSpan = modifierSpan(o.calleeSpan, origin.record, lines);
+    const callSpan = modifierSpan(o.callSpan, origin.record, lines);
+    const prior = observations.at(-1)?.calleeSpan;
+    if (!spanContains(callSpan, calleeSpan, false) || compareSpanEnd(callSpan, calleeSpan) <= 0 ||
+        (prior && (compareSpanStart(calleeSpan, prior) || compareSpanEnd(calleeSpan, prior)) <= 0)) {
+      fail("artifact-invalid", "Contradictory, duplicated or unordered test modifier observation.");
+    }
+    observations.push({ modifier, calleeSpan, callSpan });
+  }
+  return { originFile, coverage, runnerBinding: { kind, bindingSpan, baseLocalName, baseImportSpan, extensionSpan, wrapper },
+    observations, reasonCodes };
 }
 
 // Drives a zero-based page sequence to its declared end. The fetcher owns
