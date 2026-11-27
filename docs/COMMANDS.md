@@ -984,6 +984,13 @@ runtime. Lab negotiates supplemental Playwright proof internally with admitted
 producers that implement the request. The published 1.16.0 default and
 historical providers use their own admitted capabilities.
 
+The qualified NodeNext FACTS02 package supplies ordinary source-reference
+proofs for explicit relative imports and immediate re-exports in supported
+ESM contexts. Lab validates the applicable TypeScript configuration and
+nearest package metadata premises before consuming a positive or finite
+bound. Extensionless NodeNext references, bare package resolution and
+runtime-generated destinations remain outside this profile.
+
 Repeat `--require-source <relative-path>` for required inventory entries.
 `--source-snapshot <git-sha>` declares the intended revision.
 `--source-export <file>` records the supplied file's digest. It does not

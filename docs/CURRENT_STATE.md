@@ -520,4 +520,12 @@ The published and tracked package version is 0.11.0. Published Kit 1.16.0 remain
 
 The November 25 planning intake recorded unauthenticated external claims and partial architecture retrieval. Subsequent bounded retrieval, exact producer and consumer admission, and coordinated external regression resolved the implementation-stage obligations. Qualification recorded 18 managed exact-package tests with zero skips, 26 published-provider acceptance tests, ten installed controls, and normal raw acquisition from a fresh, unmodified index. The supported profile has no demonstrated remaining implementation defect. External targets retained native exit 2 and remain uncertified. Fifteen finite-expression cases have authenticated operands and still lack qualified destination or exclusion premises. Historical launch provenance remains **UNVERIFIED**.
 
-The workflow stage is Step 4 documentation reconciliation. The next action is separately authorized Step 5 pre-release readiness. Release preparation must later qualify the final Kit registry bytes, then advance the exact Lab dependency and prospective acceptance binding under explicit Planner authority. The v0.12.0 web security milestone and all later allocations remain intact.
+Step 5 admits the exact bounded NodeNext producer from Kit commit
+`d39d4018ffd70965ac40dd1e2b023c10d4ab66b8` through the local archive/root
+override. Lab consumes explicit relative ESM source references and
+immediate re-exports through the existing ordinary reference contract.
+Coordinated readiness depends on the installed-pair qualification and
+both native Gate K dispositions. Release preparation must later qualify
+the final Kit registry bytes, then advance the exact Lab dependency and
+prospective acceptance binding under explicit Planner authority. The
+v0.12.0 web security milestone and all later allocations remain intact.

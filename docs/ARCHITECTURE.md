@@ -1485,6 +1485,13 @@ unknown.
 
 The [0.11.1 correction](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) is implemented and unreleased. `kitSourceProvider.ts` resolves the default Kit from Lab's own installation. Its published producer expectation binds Kit 1.16.0 to the qualified archived identity and installed executable, including the established schema and extractor. The paired archive/root override selects an allowlisted local package. FACTS02 admission verifies archive, canonical installed CLI, source and receipt identity, and installed member bytes. Historical profiles retain their own narrower capabilities.
 
+The exact NodeNext producer uses the existing ordinary reference validator.
+Lab rechecks present and absent configuration, package and candidate
+premises when it consumes a proof, including cached responses. A positive
+source reference applies to the selected file. Reverse-reference coverage
+also depends on all relevant origins, and immediate re-exports establish
+only the direct target.
+
 The provider independently admits ordinary-reference, computed-positive, Playwright provenance, and Playwright request capabilities. It explicitly requests the modifier proof on schema `1.2.0` page zero only for a qualified producer that supports negotiation and eligible source. Historical and published default producers use their established unnegotiated routes. Vendor/generated raw-only admission uses authenticated inventory and exact byte or line evidence, preserving scope, freshness and limits. Raw-only inputs contribute no semantic source facts.
 
 `kitSourceEvidence.ts` validates the wire objects, premise and span identities, and selection and source bindings. The managed reader and `kitSourceAdapter.ts` keep observation completeness separate from destination and predicate qualification. `deadCodeCandidateDetector.ts` can discharge an individual candidate with independent qualified ordinary or computed positives. A file-level positive does not establish symbol-level use. A negative conclusion requires complete relevant-origin accounting and established exclusion for the candidate from every applicable origin. Complete finite domains can exclude disjoint candidates. Overlapping domains, unresolved destinations, or unaccounted partial observations can leave mandatory obligations open.

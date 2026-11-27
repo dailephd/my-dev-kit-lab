@@ -474,9 +474,109 @@ exact("exact FACTS02: test re-exports and substituted imports qualify independen
 const exactCli = archive && packageRoot ? candidate().expectation?.cliSha256 : undefined;
 const a6r1Cli = "3c661671355ec6475768a6658cfd94d3c5f21184e1177af12418d7cac9999797";
 const step5R1Cli = "764590dc9c53dfb61ff3236da701745117e2baa40cd1464dca1ed4f57ca7b17f";
-const a6 = it.skipIf(exactCli !== "8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb" && exactCli !== a6r1Cli && exactCli !== step5R1Cli);
-const a6r1 = it.skipIf(exactCli !== a6r1Cli && exactCli !== step5R1Cli);
+const nodeNextCli = "c7a67ea2bbef4314bf86dd1cc8af8c2127451fccbd5a2d1d6623690f6b7c2f85";
+const laterBundlerProfiles = [a6r1Cli, step5R1Cli, nodeNextCli];
+const a6 = it.skipIf(!exactCli || !["8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb", ...laterBundlerProfiles].includes(exactCli));
+const a6r1 = it.skipIf(!exactCli || !laterBundlerProfiles.includes(exactCli));
+const nodeNext = it.skipIf(exactCli !== nodeNextCli);
 const bundlerConfig = '{"compilerOptions":{"module":"esnext","moduleResolution":"bundler","resolveJsonModule":true,"baseUrl":".","paths":{"@/*":["src/*"]}}}';
+
+const nodeNextConfig = '{"compilerOptions":{"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","types":["node"],"resolveJsonModule":true}}';
+const nodeNextOrigin = "tests/entry.test.ts";
+const nodeNextFiles = {
+  "tsconfig.json": nodeNextConfig,
+  [nodeNextOrigin]: 'import "../src/peer.js";\nexport { value } from "../src/forward.js";\n',
+  "src/peer.ts": "export const peer = 1;",
+  "src/forward.ts": "export const value = 2;",
+};
+const mandatoryGaps = (coverage: AuditPredicateCoverage[]) => coverage.filter(
+  row => row.mandatory && (row.status === "UNAVAILABLE" || row.status === "UNDETERMINED"),
+);
+
+nodeNext("exact NodeNext: consumes authenticated relative references and immediate re-exports", async () => {
+  const fixture = subject("nodenext-complete", nodeNextFiles);
+  await withReader(fixture, async (reader, files) => {
+    const entry = files.find(file => file.relativePath === nodeNextOrigin)!;
+    const factId = entry.imports.find(fact => fact.source === "../src/peer.js")!.provenance!.factId;
+    expect(await reader.importTarget(factId)).toMatchObject({
+      qualifiedSourceReferencePath: "src/peer.ts", selectedTargetUpperBound: ["src/peer.ts"],
+    });
+    const [reexport] = reader.reExportTargets!(nodeNextOrigin);
+    expect(await reader.importTarget(reexport!.id)).toMatchObject({
+      qualifiedSourceReferencePath: "src/forward.ts", selectedTargetUpperBound: ["src/forward.ts"],
+    });
+    for (const name of ["tsconfig.json", "package.json", nodeNextOrigin, "src/peer.ts", "tests/package.json"]) {
+      const file = path.join(fixture.target, name);
+      const before = fs.existsSync(file) ? fs.readFileSync(file) : undefined;
+      fs.appendFileSync(file, before ? " " : '{"type":"commonjs"}');
+      try {
+        await expect(reader.importTarget(factId)).rejects.toThrow(/stale-evidence/);
+      } finally {
+        if (before) fs.writeFileSync(file, before);
+        else fs.unlinkSync(file);
+      }
+    }
+  }, true);
+  const audit = await nativeAudit(fixture, "complete", "none");
+  expect(audit.exit).toBe(0);
+  expect(mandatoryGaps(audit.coverage)).toEqual([]);
+  expect(audit.coverage.filter(row => row.predicate === "selected module reference" &&
+    row.source.identity === nodeNextOrigin).flatMap(row => row.proof?.references ?? []))
+    .toEqual(expect.arrayContaining(["src/peer.ts", "src/forward.ts"]));
+}, 60_000);
+
+nodeNext("exact NodeNext: finite and positive proofs retain independent origin blockers", async () => {
+  const fixture = subject("nodenext-partial", {
+    ...nodeNextFiles,
+    [nodeNextOrigin]: nodeNextFiles[nodeNextOrigin] +
+      'import "../src/peer";\nimport "../src/multiple.js";\nimport "../src/nested/peer.js";\n' +
+      'import "unqualified-external";\nimport legacy = require("../src/peer.js");\n' +
+      'import "../src/excluded.js";\nconst destination = "../src/peer.js"; void import(destination);\n',
+    "src/multiple.ts": "export {};",
+    "src/multiple.js": "export {};",
+    "src/nested/package.json": '{"type":"commonjs"}',
+    "src/nested/peer.ts": "export {};",
+    "src/excluded.ts": "export {};",
+    "src/unreferenced.ts": "export {};",
+  });
+  await withReader(fixture, async (reader, files) => {
+    const entry = files.find(file => file.relativePath === nodeNextOrigin)!;
+    const check = (specifier: string, occurrence = 0) => reader.importTarget(
+      entry.imports.filter(fact => fact.source === specifier)[occurrence]!.provenance!.factId,
+    );
+    expect(await check("../src/peer.js")).toMatchObject({ qualifiedSourceReferencePath: "src/peer.ts" });
+    const competing = await check("../src/multiple.js");
+    expect(competing.selectedTargetUpperBound).toEqual(["src/multiple.js", "src/multiple.ts"]);
+    expect(competing.qualifiedSourceReferencePath).toBeUndefined();
+    for (const [specifier, occurrence, reason] of [
+      ["../src/peer", 0, "UNSUPPORTED_NODENEXT_SPECIFIER"],
+      ["../src/nested/peer.js", 0, "UNQUALIFIED_NODENEXT_PACKAGE_BOUNDARY"],
+      ["unqualified-external", 0, "UNQUALIFIED_CONFIGURATION_OR_MAPPING"],
+      ["../src/peer.js", 1, "UNQUALIFIED_NODENEXT_ESM_REFERENCE"],
+    ] as const) {
+      const response = await check(specifier, occurrence);
+      expect(response.ordinarySourceReferenceReason).toBe(reason);
+      expect(response.selectedTargetUpperBound).toBeUndefined();
+    }
+    const added = path.join(fixture.target, "src/excluded.js");
+    fs.writeFileSync(added, "export {};", { flag: "wx" });
+    try {
+      expect(await check("../src/excluded.js")).toMatchObject({
+        ordinarySourceReferenceReason: "UNQUALIFIED_CANDIDATE_STATE", selectedTargetUpperBound: undefined,
+      });
+    } finally {
+      fs.unlinkSync(added);
+    }
+  });
+  const audit = await nativeAudit(fixture, "incomplete", "none");
+  expect(audit.exit).toBe(2);
+  expect(mandatoryGaps(audit.coverage).filter(row => row.source.identity === nodeNextOrigin)
+    .map(row => row.reason)).toEqual(expect.arrayContaining([
+    expect.stringContaining("unqualified-external"),
+    expect.stringContaining("Dynamic import evidence has no exact witness"),
+    expect.stringContaining("Import ../src/peer:"),
+  ]));
+}, 60_000);
 
 a6("exact A6: consumes bounded Bundler imports, alternatives, and applicable absence", async () => {
   const origin = "tests/bundler.test.ts";
