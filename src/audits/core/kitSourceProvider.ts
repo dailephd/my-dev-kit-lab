@@ -1125,7 +1125,8 @@ function playwrightModifierProfile(
 ): "passive" | "negotiated" | undefined {
   const exact = QUALIFIED_FACTS02_KITS.find(profile =>
     pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile));
-  const published = pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 &&
+  const published = !hasReferenceFixtureLane(deps, expectation.artifactSchemaVersion) &&
+    pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 &&
     matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT) ? QUALIFIED_CURRENT_PUBLISHED_KIT : undefined;
   const profile = published ?? (deps.qualifiedArchivePath ? exact : undefined);
   if (profile?.capabilities.testModifierProof && profile.capabilities.testModifierProofRequest) {
@@ -2030,12 +2031,14 @@ export async function collectKitSourceFacts(
     if (request.onReader) {
       const fixtureExtensionLane = hasReferenceFixtureLane(deps, evidence.artifactSchemaVersion);
       const capabilities = facts02?.capabilities ??
-        (pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 ? QUALIFIED_CURRENT_PUBLISHED_KIT.capabilities : undefined);
+        (!fixtureExtensionLane && pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256
+          ? QUALIFIED_CURRENT_PUBLISHED_KIT.capabilities : undefined);
       const context: KitCommandContext = { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
         guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch,
         ordinarySourceReference: capabilities?.ordinarySourceReference ?? (fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined),
-        directExternalReference: (facts02 === QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT || pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256) ||
+        directExternalReference: facts02 === QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT ||
+          (!fixtureExtensionLane && pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256) ||
           (fixtureExtensionLane && deps.testOnlyDirectExternalReference) ? true : undefined,
         expressionReference: capabilities?.expressionReference ?? (fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined) };
       configureKitTransport(context, deps, evidence.source, path.join(workDir, "index"), streamState);

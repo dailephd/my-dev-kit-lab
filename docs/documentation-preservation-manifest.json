@@ -462,7 +462,7 @@
     "latestPublishedVersion": "0.11.0",
     "latestPublishedVersionEvidenceContext": "Published v0.11.0 baseline. The earlier SW119 record established published v0.10.0 at tag c4b72e1e22c0babddcba752dfd605a41a21a45af on 2026-11-14.",
     "currentReleaseVersion": "0.11.1",
-    "currentImplementedUnreleasedVersion": "",
+    "currentImplementedUnreleasedVersion": null,
     "nextPlannedVersion": "0.12.0",
     "implementedExperimentPlugins": [
       "context-strategy-comparison",
