@@ -514,9 +514,9 @@ and the original private verification and readiness binding remain **NOT_PASSED*
 
 ## Next corrective planning reservation (2026-11-25)
 
-[LAB-FACTS-02 / v0.11.1](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) is **IMPLEMENTED_UNRELEASED** on `fix/v0.11.1-facts02-proofs`.
+[LAB-FACTS-02 / v0.11.1](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) qualifies for the exact-source and bounded-proof capabilities described below.
 
-The published Lab version is 0.11.0. The release preparation branch carries Lab package and CLI version 0.11.1. Published Kit 1.16.0 remains the exact default Kit dependency. The qualified unpublished Kit implementation archive also carries 1.16.0 metadata and has a separate archive and installed identity. Kit 1.16.1 is the intended future released producer dependency, pending the separate release transition.
+Lab package and CLI version 0.11.1 pin the authenticated registry Kit 1.16.1 producer. Kit 1.16.0 and the distinct local implementation archives retain their original acceptance identities.
 
 The November 25 planning intake recorded unauthenticated external claims and partial architecture retrieval. Subsequent bounded retrieval, exact producer and consumer admission, and coordinated external regression resolved the implementation-stage obligations. Qualification recorded 18 managed exact-package tests with zero skips, 26 published-provider acceptance tests, ten installed controls, and normal raw acquisition from a fresh, unmodified index. The supported profile has no demonstrated remaining implementation defect. External targets retained native exit 2 and remain uncertified. Fifteen finite-expression cases have authenticated operands and still lack qualified destination or exclusion premises. Historical launch provenance remains **UNVERIFIED**.
 
@@ -532,7 +532,5 @@ and residual obligations and kept
 `src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.ts` because
 supported external usage remains unverified. Gate N is resolved. Alert #11
 was dismissed as an authorized false positive and alert #12 was fixed.
-Target certification remains a separate determination. Release preparation must later qualify
-the final Kit registry bytes, then advance the exact Lab dependency and
-prospective acceptance binding under explicit Planner authority. The
+Target certification remains a separate determination. The prospective published-1.16.1 scope retains the historical oracle and separately records current-provider fixture coverage. The
 v0.12.0 web security milestone and all later allocations remain intact.

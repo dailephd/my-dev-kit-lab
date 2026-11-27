@@ -874,7 +874,7 @@ describe("exact installed Kit candidate", () => {
   }, 120000);
 });
 
-it("accepts the exact published 1.16.0 provider and authenticates its selected source", async () => {
+it("accepts the exact published 1.16.1 provider and authenticates its selected source", async () => {
   const published = path.join(process.cwd(), "node_modules/@dailephd/my-dev-kit");
   const pkg = resolveInstalledKitPackage({ installedPackageRoot: published });
   expect(pkg.packageVersion).toBe(QUALIFIED_CURRENT_PUBLISHED_KIT.packageVersion);
@@ -892,7 +892,7 @@ it("accepts the exact published 1.16.0 provider and authenticates its selected s
   expect(snapshot.kitEvidence?.inventoryPages).toBe(2);
   expect(snapshot.files.find(f => f.relativePath === "src/big.ts")!.declarations).toHaveLength(130);
   expect(snapshot.kitEvidence!.factPages).toBeGreaterThan(snapshot.files.length);
-  expect(snapshot.kitEvidence).toMatchObject({ packageVersion: "1.16.0", artifactSchemaVersion: "1.2.0" });
+  expect(snapshot.kitEvidence).toMatchObject({ packageVersion: "1.16.1", artifactSchemaVersion: "1.2.0" });
 }, 120000);
 describe("partial-import deferral never relaxes evidence integrity", () => {
   it.each<[string, Mutators, string]>([

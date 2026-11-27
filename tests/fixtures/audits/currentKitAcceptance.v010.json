@@ -772,6 +772,147 @@
     }
   ],
   "prospectivePublishedProvider": {
+    "authorization": "Lab v0.11.1 Step 6B prospective published-provider transition authorized by the Global Planner",
+    "provider": "published-1.16.1",
+    "fixtures": [
+      {
+        "fixtureRoot": "tests/fixtures/audits/kit-differential-v010/ambiguous",
+        "expectedExit": 2,
+        "gaps": [
+          {
+            "classification": "UNSUPPORTED_ORDINARY_PRESENT_WIRE_BOUND",
+            "record": {
+              "detectorId": "dead-code-candidate",
+              "predicate": "unreferenced-source-file",
+              "source": {
+                "kind": "file",
+                "identity": "tests/check.sample.ts"
+              },
+              "capability": "imports",
+              "actualStatus": "complete",
+              "status": "UNAVAILABLE",
+              "mandatory": true,
+              "diagnostic": "kit:fixture-text-occurrence-unavailable: Fixture references are parser-backed path literals only; raw basename text occurrences are not enumerated.; kit:capability-partial: Kit capability fixture-references is partial for tests/check.sample.ts.; kit:capability-unsupported: Kit capability api-client-calls is unsupported for tests/check.sample.ts.; kit:capability-unsupported: Kit capability jvmDeclarations is unsupported for tests/check.sample.ts.",
+              "reason": "Selected JS/TS reverse-reference domain lacks exact reference or complete exclusion evidence. Unresolved references: import \"../src/peer\" [audit-fact:tests%2Fcheck.sample.ts#import#2#0#0]: qualified domain still permits src/peer.js, src/peer.ts."
+            }
+          },
+          {
+            "classification": "UNSUPPORTED_ORDINARY_PRESENT_WIRE_BOUND",
+            "record": {
+              "detectorId": "test-rot",
+              "predicate": "missing-source-import",
+              "source": {
+                "kind": "file",
+                "identity": "tests/check.sample.ts"
+              },
+              "capability": "imports",
+              "actualStatus": "complete",
+              "status": "UNAVAILABLE",
+              "mandatory": true,
+              "diagnostic": "kit:fixture-text-occurrence-unavailable: Fixture references are parser-backed path literals only; raw basename text occurrences are not enumerated.; kit:capability-partial: Kit capability fixture-references is partial for tests/check.sample.ts.; kit:capability-unsupported: Kit capability api-client-calls is unsupported for tests/check.sample.ts.; kit:capability-unsupported: Kit capability jvmDeclarations is unsupported for tests/check.sample.ts.",
+              "reason": "Import ../src/peer: Kit source evidence unavailable (capability-insufficient): tests/check.sample.ts import ../src/peer has a finite selected-target bound without a qualified source reference."
+            }
+          }
+        ]
+      },
+      {
+        "fixtureRoot": "tests/fixtures/audits/kit-differential-v010/javascript",
+        "expectedExit": 2,
+        "gaps": [
+          {
+            "classification": "UNSUPPORTED_BARE_SPECIFIER_PROFILE",
+            "record": {
+              "detectorId": "dead-code-candidate",
+              "predicate": "unreferenced-source-file",
+              "source": {
+                "kind": "file",
+                "identity": "src/audits/inline.js"
+              },
+              "capability": "imports",
+              "actualStatus": "complete",
+              "status": "UNAVAILABLE",
+              "mandatory": true,
+              "diagnostic": "kit:unattributed-shell-option: A shell: true option appears outside a recognised child_process call.; kit:unsupported-process-import: child_process is referenced in a form outside the top-level import/require profile.; kit:capability-partial: Kit capability process-observations is partial for src/audits/inline.js.; kit:capability-unsupported: Kit capability api-client-calls is unsupported for src/audits/inline.js.; kit:capability-unsupported: Kit capability jvmDeclarations is unsupported for src/audits/inline.js.",
+              "reason": "Selected JS/TS reverse-reference domain lacks exact reference or complete exclusion evidence. Unresolved references: import \"child_process\" [audit-fact:src%2Faudits%2Finline.js#import#1#0#0]: domain incomplete (UNQUALIFIED_CONFIGURATION_OR_MAPPING)."
+            }
+          }
+        ]
+      },
+      {
+        "fixtureRoot": "tests/fixtures/audits/kit-differential-v010/mixed",
+        "expectedExit": 0,
+        "gaps": []
+      },
+      {
+        "fixtureRoot": "tests/fixtures/audits/kit-differential-v010/outside-root",
+        "expectedExit": 0,
+        "gaps": []
+      },
+      {
+        "fixtureRoot": "tests/fixtures/audits/kit-differential-v010/typescript",
+        "expectedExit": 2,
+        "gaps": [
+          {
+            "classification": "UNSUPPORTED_BARE_SPECIFIER_PROFILE",
+            "record": {
+              "detectorId": "dead-code-candidate",
+              "predicate": "unreferenced-source-file",
+              "source": {
+                "kind": "file",
+                "identity": "src/audits/inline.ts"
+              },
+              "capability": "imports",
+              "actualStatus": "complete",
+              "status": "UNAVAILABLE",
+              "mandatory": true,
+              "diagnostic": "kit:unattributed-shell-option: A shell: true option appears outside a recognised child_process call.; kit:unsupported-process-import: child_process is referenced in a form outside the top-level import/require profile.; kit:capability-partial: Kit capability process-observations is partial for src/audits/inline.ts.; kit:capability-unsupported: Kit capability api-client-calls is unsupported for src/audits/inline.ts.; kit:capability-unsupported: Kit capability jvmDeclarations is unsupported for src/audits/inline.ts.",
+              "reason": "Selected JS/TS reverse-reference domain lacks exact reference or complete exclusion evidence. Unresolved references: import \"child_process\" [audit-fact:src%2Faudits%2Finline.ts#import#2#0#0]: domain incomplete (UNQUALIFIED_CONFIGURATION_OR_MAPPING)."
+            }
+          }
+        ]
+      },
+      {
+        "fixtureRoot": "tests/fixtures/audits/mixed-language/mixed-ts-js",
+        "expectedExit": 0,
+        "gaps": []
+      }
+    ],
+    "findingDispositions": [
+      {
+        "decisionId": "tests/fixtures/audits/kit-differential-v010/javascript::dead-code-candidate",
+        "withheldFindingIds": [
+          "dead-code-candidate:unreferenced-source-file:src/audits/inline.js",
+          "dead-code-candidate:unreferenced-source-file:src/audits/negative.js",
+          "dead-code-candidate:unreferenced-source-file:src/audits/positive.js",
+          "dead-code-candidate:unreferenced-source-file:src/common.cjs",
+          "dead-code-candidate:unreferenced-source-file:src/detectors/first.ts",
+          "dead-code-candidate:unreferenced-source-file:src/detectors/imported.ts",
+          "dead-code-candidate:unreferenced-source-file:src/detectors/second.ts",
+          "dead-code-candidate:unreferenced-source-file:src/hidden.js",
+          "dead-code-candidate:unreferenced-source-file:src/module.cts",
+          "dead-code-candidate:unreferenced-source-file:src/module.mts",
+          "dead-code-candidate:unreferenced-source-file:src/reexport.js"
+        ]
+      },
+      {
+        "decisionId": "tests/fixtures/audits/kit-differential-v010/typescript::dead-code-candidate",
+        "withheldFindingIds": [
+          "dead-code-candidate:unreferenced-source-file:src/audits/inline.ts",
+          "dead-code-candidate:unreferenced-source-file:src/audits/negative.ts",
+          "dead-code-candidate:unreferenced-source-file:src/audits/positive.ts",
+          "dead-code-candidate:unreferenced-source-file:src/common.cjs",
+          "dead-code-candidate:unreferenced-source-file:src/detectors/first.ts",
+          "dead-code-candidate:unreferenced-source-file:src/detectors/imported.ts",
+          "dead-code-candidate:unreferenced-source-file:src/detectors/second.ts",
+          "dead-code-candidate:unreferenced-source-file:src/hidden.ts",
+          "dead-code-candidate:unreferenced-source-file:src/module.cts",
+          "dead-code-candidate:unreferenced-source-file:src/module.mts",
+          "dead-code-candidate:unreferenced-source-file:src/reexport.ts"
+        ]
+      }
+    ]
+  },
+  "historicalPublishedProviderV1160": {
     "authorization": "SW-121-PUBLISHED-KIT-V1160-MIGRATION/1.0.0",
     "provider": "published-1.16.0",
     "fixtures": [

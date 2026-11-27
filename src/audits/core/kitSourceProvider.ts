@@ -164,7 +164,7 @@ const QUALIFIED_DIRECT_MODIFIER_KIT = Object.freeze({
 } satisfies typeof QUALIFIED_B5_P1_R7A_KIT);
 // The registry package was authenticated against the tagged release and the
 // direct-modifier development producer. Its CLI differs by release version.
-export const QUALIFIED_CURRENT_PUBLISHED_KIT = Object.freeze({
+const QUALIFIED_PUBLISHED_KIT_1_16_0 = Object.freeze({
   packageName: KIT_PACKAGE_NAME,
   packageVersion: "1.16.0",
   artifactSchemaVersion: QUALIFIED_DIRECT_MODIFIER_KIT.artifactSchemaVersion,
@@ -175,6 +175,29 @@ export const QUALIFIED_CURRENT_PUBLISHED_KIT = Object.freeze({
   archiveIntegrity: "sha512-bbVaTCK3y8yKw3Nh9UD6ohVTAwZ1+bzP9n+rznJ+/UDi9xyplQN8X4ciutevfYFVYdtJt/w4/F5TeEGg1tB+pw==",
   archiveUrl: "https://registry.npmjs.org/@dailephd/my-dev-kit/-/my-dev-kit-1.16.0.tgz",
 } satisfies KitCandidateExpectation & Record<string, string>);
+
+export const QUALIFIED_CURRENT_PUBLISHED_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.1",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.8.0",
+  cliSha256: "eb7ee89063fb32b11d1ff79124fb339cb977d4a932c1623e546fc9451684a71c",
+  sourceSha: "636e00ac6dde4fa8100a02b23ecd00c7ccdab047",
+  sourceTree: "abe3ab3957c035a34c231e63e539575bfdef7d2a",
+  archiveSha256: "7815b246eaa12d82ba27c740796316dca99c8342f04ec2f0b9020387757392a6",
+  archiveIntegrity: "sha512-beFSr+xLGjLatJ/F4LUzFehyJ7zpS+NBZ+IU7pUb2wGnKbwODmrR+OLLAv/MibZR4LOkJchOruXNllr4V03npA==",
+  archiveUrl: "https://registry.npmjs.org/@dailephd/my-dev-kit/-/my-dev-kit-1.16.1.tgz",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+    directExternalReference: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
+const QUALIFIED_PUBLISHED_KITS = [QUALIFIED_PUBLISHED_KIT_1_16_0, QUALIFIED_CURRENT_PUBLISHED_KIT] as const;
+const QUALIFIED_PUBLISHED_CLI_DIGESTS: readonly string[] = QUALIFIED_PUBLISHED_KITS.map(profile => profile.cliSha256);
 
 const QUALIFIED_FACTS02_A5_R1_KIT = Object.freeze({
   packageName: KIT_PACKAGE_NAME,
@@ -336,7 +359,7 @@ const SW123_EXACT_KIT_PROFILES = [QUALIFIED_SW123_P6_R2_KIT, QUALIFIED_SW123_P6_
 
 function isProofProfile(expectation: KitCandidateExpectation): boolean {
   return QUALIFIED_FACTS02_KITS.some(profile => matchesExactKitExpectation(expectation, profile)) ||
-    matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT) ||
+    QUALIFIED_PUBLISHED_KITS.some(profile => matchesExactKitExpectation(expectation, profile)) ||
     matchesExactKitExpectation(expectation, QUALIFIED_B3_P1_KIT) || QUALIFIED_BATCH_ARCHIVES.some(profile => matchesExactKitExpectation(expectation, profile));
 }
 
@@ -580,13 +603,13 @@ export function resolveInstalledKitPackage(
   if (managed && !matchesExactKitExpectation(expectation, managed)) {
     fail("package-identity", "Managed Kit requires its exact package, CLI, extractor and selection-schema profile.");
   }
-  const published = cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256;
+  const published = QUALIFIED_PUBLISHED_KITS.find(profile => profile.cliSha256 === cliSha256);
   if (published) {
-    if (expectation.extractorRevision !== QUALIFIED_CURRENT_PUBLISHED_KIT.extractorRevision)
+    if (expectation.extractorRevision !== published.extractorRevision)
       fail("extractor-mismatch", "Published Kit requires its exact qualified extractor revision.");
-    if (expectation.artifactSchemaVersion !== QUALIFIED_CURRENT_PUBLISHED_KIT.artifactSchemaVersion)
+    if (expectation.artifactSchemaVersion !== published.artifactSchemaVersion)
       fail("schema-mismatch", "Published Kit requires its exact qualified selection schema.");
-    if (!matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT))
+    if (!matchesExactKitExpectation(expectation, published))
       fail("package-identity", "Published Kit requires its exact qualified producer profile.");
   }
   const proofProfile = cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256;
@@ -805,7 +828,7 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
 
 function configureKitBatch(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string): void {
-  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, ...QUALIFIED_FACTS02_CLI_DIGESTS].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
+  if (![QUALIFIED_B5_P1_R6_KIT.cliSha256, QUALIFIED_B5_P1_R7A_KIT.cliSha256, ...QUALIFIED_PUBLISHED_CLI_DIGESTS, ...QUALIFIED_FACTS02_CLI_DIGESTS].includes(ctx.pkg.cliSha256) || deps.disableBatch || !ctx.guard) return;
   const batchInput = fs.mkdtempSync(path.join(ctx.workDir, "kb-"));
   let next = 0;
   ctx.query = createKitBatchTransport({
@@ -837,7 +860,7 @@ type KitStreamState = { current?: KitStreamTransport };
 
 function configureKitTransport(ctx: KitCommandContext, deps: KitSourceProviderDependencies,
   identity: { snapshotId: string; selectionFingerprint: string }, indexDir: string, state?: KitStreamState): void {
-  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256, ...QUALIFIED_FACTS02_CLI_DIGESTS].includes(ctx.pkg.cliSha256)) {
+  if (!state || !ctx.guard || deps.disableStream || ![QUALIFIED_B5_P1_R7A_KIT.cliSha256, ...QUALIFIED_PUBLISHED_CLI_DIGESTS, ...QUALIFIED_FACTS02_CLI_DIGESTS].includes(ctx.pkg.cliSha256)) {
     configureKitBatch(ctx, deps, identity, indexDir);
     return;
   }
@@ -1102,7 +1125,10 @@ function playwrightModifierProfile(
 ): "passive" | "negotiated" | undefined {
   const exact = QUALIFIED_FACTS02_KITS.find(profile =>
     pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile));
-  if (exact && deps.qualifiedArchivePath && exact.capabilities.testModifierProof && exact.capabilities.testModifierProofRequest) {
+  const published = pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 &&
+    matchesExactKitExpectation(expectation, QUALIFIED_CURRENT_PUBLISHED_KIT) ? QUALIFIED_CURRENT_PUBLISHED_KIT : undefined;
+  const profile = published ?? (deps.qualifiedArchivePath ? exact : undefined);
+  if (profile?.capabilities.testModifierProof && profile.capabilities.testModifierProofRequest) {
     return "negotiated";
   }
   if (deps.testOnlyPlaywrightModifierProof !== true || !deps.runCommand || !deps.installedPackageRoot ||
@@ -1185,6 +1211,7 @@ export type KitSourceReader = {
 // Add future producer identities only after qualifying the same proof contract.
 const IMPORT_PROOF_PROFILES: Readonly<Record<string, "mjs-extensionless-complete-v1">> = Object.freeze({
   [QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256]: "mjs-extensionless-complete-v1",
+  [QUALIFIED_PUBLISHED_KIT_1_16_0.cliSha256]: "mjs-extensionless-complete-v1",
   [QUALIFIED_DIRECT_MODIFIER_KIT.cliSha256]: "mjs-extensionless-complete-v1",
   [QUALIFIED_SW123_P6_R2_KIT.cliSha256]: "mjs-extensionless-complete-v1",
   // SW-123 P5: exact unpublished P2 archive, metadata 1.15.1. Installed
@@ -1214,7 +1241,7 @@ const JSON_RAW_CONTENT_PROFILES: Readonly<Record<string, "selected-test-json-v1"
 // independently qualified selected generated and vendor raw occurrences without changing
 // the public role schema or admitting generated semantic source facts.
 const NON_SEMANTIC_RAW_CONTENT_PROFILES: ReadonlySet<string> = new Set([
-  QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256,
+  ...QUALIFIED_PUBLISHED_CLI_DIGESTS,
   QUALIFIED_DIRECT_MODIFIER_KIT.cliSha256,
   ...QUALIFIED_FACTS02_CLI_DIGESTS,
   // The exact R3 CLI also returns complete, hash-bound text occurrences
@@ -1319,7 +1346,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   const rawTestContents = new Map<string, string | undefined>();
   const testFileByPath = new Map(testFiles.map(file => [file.relativePath, file]));
   const r3 = (ctx.pkg.cliSha256 === QUALIFIED_B3_P1_KIT.cliSha256 ||
-    ctx.pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 ||
+    QUALIFIED_PUBLISHED_CLI_DIGESTS.includes(ctx.pkg.cliSha256) ||
     QUALIFIED_FACTS02_CLI_DIGESTS.includes(ctx.pkg.cliSha256) ||
     QUALIFIED_BATCH_ARCHIVES.some(profile => profile.cliSha256 === ctx.pkg.cliSha256)) &&
     evidence.artifactSchemaVersion === "1.2.0";
@@ -1906,7 +1933,7 @@ export async function collectKitSourceFacts(
     if (!deps.workDir && !deps.receipt) fail("invalid-request", "Managed Kit requires a task-owned work directory or audit receipt.");
     deps = { ...deps, launchGuard: deps.launchGuard ?? createKitLaunchGuard() };
   }
-  if (pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256) {
+  if (QUALIFIED_PUBLISHED_CLI_DIGESTS.includes(pkg.cliSha256)) {
     deps = { ...deps, launchGuard: deps.launchGuard ?? createKitLaunchGuard() };
   }
   let qualifiedR3Archive: (typeof QUALIFIED_R3_ARCHIVES)[number] | undefined;
@@ -1990,7 +2017,7 @@ export async function collectKitSourceFacts(
     if (expectedSnapshot !== undefined && evidence.snapshotId !== expectedSnapshot)
       fail("stale-evidence", "The acquired whole-project Kit snapshot differs from the frozen replay snapshot.");
     const snapshot = adaptKitEvidenceToSourceFacts({
-      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, QUALIFIED_CURRENT_PUBLISHED_KIT, ...QUALIFIED_FACTS02_KITS].some(profile =>
+      qualifiedDirectModifiers: [QUALIFIED_DIRECT_MODIFIER_KIT, ...QUALIFIED_PUBLISHED_KITS, ...QUALIFIED_FACTS02_KITS].some(profile =>
         pkg.cliSha256 === profile.cliSha256 && matchesExactKitExpectation(expectation, profile)),
       evidence,
       inventory: request.inventory,
@@ -2002,13 +2029,15 @@ export async function collectKitSourceFacts(
     if (scope.widerSelection) snapshot.warnings.push("Required root-level source selected with --src .; only validated selected files provide source evidence.");
     if (request.onReader) {
       const fixtureExtensionLane = hasReferenceFixtureLane(deps, evidence.artifactSchemaVersion);
+      const capabilities = facts02?.capabilities ??
+        (pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256 ? QUALIFIED_CURRENT_PUBLISHED_KIT.capabilities : undefined);
       const context: KitCommandContext = { pkg, runCommand: deps.runCommand ?? runMeasuredCommand,
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
         guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch,
-        ordinarySourceReference: facts02?.capabilities.ordinarySourceReference ?? (fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined),
-        directExternalReference: facts02 === QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT ||
+        ordinarySourceReference: capabilities?.ordinarySourceReference ?? (fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined),
+        directExternalReference: (facts02 === QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT || pkg.cliSha256 === QUALIFIED_CURRENT_PUBLISHED_KIT.cliSha256) ||
           (fixtureExtensionLane && deps.testOnlyDirectExternalReference) ? true : undefined,
-        expressionReference: facts02?.capabilities.expressionReference ?? (fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined) };
+        expressionReference: capabilities?.expressionReference ?? (fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined) };
       configureKitTransport(context, deps, evidence.source, path.join(workDir, "index"), streamState);
       const reader = createKitSourceReader(evidence, context, async () => {
         await close();

@@ -4,14 +4,14 @@ All notable changes to my-dev-kit-lab are documented here.
 
 ## [Unreleased]
 
-## [0.11.1] - Unreleased
+## [0.11.1] - 2026-11-27
 
 ### LAB-FACTS-02
 
 - Consume authenticated ordinary references for supported relative ESM imports and immediate re-exports. Compose linked-expression destinations and use bounded computed positive references for individual candidates. Evaluate direct external-reference exclusion against the selected domain and relevant origins. Arbitrary module resolution remains unsupported.
 - Explicitly negotiate supplemental Playwright modifier provenance with qualified producers. Preserve independent findings, including qualified skip and only findings, when mandatory coverage remains incomplete. Coverage bounds apply to the authenticated candidate and its relevant origins.
 - Resolve documented npm commands against the selected package and recognize equivalent exact-version release headings.
-- Authenticate scoped raw content, including qualified vendor and generated files. Integrate the exact qualified Kit implementation archive and installed runtime through the managed override. The published dependency remains Kit 1.16.0 during independent preparation. Admission of registry Kit 1.16.1 follows producer publication and qualification.
+- Authenticate scoped raw content, including qualified vendor and generated files. Pin exact registry Kit 1.16.1 and use its qualified runtime by default. Preserve separate managed producer identities and mandatory incomplete coverage.
 
 ## [0.11.0] - 2026-11-25
 

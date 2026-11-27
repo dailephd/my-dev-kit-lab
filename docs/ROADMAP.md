@@ -1828,7 +1828,7 @@ Acceptance:
 
 ### v0.11.1 — predicate-scoped audit qualification correction (LAB-FACTS-02)
 
-Status: **IMPLEMENTED_UNRELEASED**. Implemented and unreleased. The corrective-patch allocation is retained for the coordinated evidence correction with additive producer proof interfaces.
+Status: **Final release-document state.** The corrective-patch allocation is retained for the coordinated evidence correction with additive producer proof interfaces.
 
 Purpose:
 

@@ -45,7 +45,7 @@ describe("published Kit Rust reuse", () => {
     const installedKit = path.resolve("node_modules/@dailephd/my-dev-kit"), kitBefore = hashTree(installedKit);
     const facts = await collect(root);
     expect(facts.provider).toBe("kit");
-    expect(facts.kitEvidence).toMatchObject({ packageVersion: "1.16.0", artifactSchemaVersion: "1.2.0", traversalComplete: true, selectedFileCount: 6 });
+    expect(facts.kitEvidence).toMatchObject({ packageVersion: "1.16.1", artifactSchemaVersion: "1.2.0", traversalComplete: true, selectedFileCount: 6 });
     expect(facts.files).toHaveLength(6);
     expect(facts.files.filter(file => file.language === "rust")).toHaveLength(5);
     for (const file of facts.files.filter(file => file.language === "rust")) {

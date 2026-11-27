@@ -90,7 +90,7 @@
     "verify:readiness-binding": "node scripts/verify-private-provenance.mjs --check-binding"
   },
   "dependencies": {
-    "@dailephd/my-dev-kit": "1.16.0",
+    "@dailephd/my-dev-kit": "1.16.1",
     "playwright": "1.60.0"
   },
   "devDependencies": {
