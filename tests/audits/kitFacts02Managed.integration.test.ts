@@ -475,10 +475,11 @@ const exactCli = archive && packageRoot ? candidate().expectation?.cliSha256 : u
 const a6r1Cli = "3c661671355ec6475768a6658cfd94d3c5f21184e1177af12418d7cac9999797";
 const step5R1Cli = "764590dc9c53dfb61ff3236da701745117e2baa40cd1464dca1ed4f57ca7b17f";
 const nodeNextCli = "c7a67ea2bbef4314bf86dd1cc8af8c2127451fccbd5a2d1d6623690f6b7c2f85";
-const laterBundlerProfiles = [a6r1Cli, step5R1Cli, nodeNextCli];
+const externalReferenceCli = "637b7d33a9501b4666b4e2c8188a51ef527d765abec94efee6bddfbed0905623";
+const laterBundlerProfiles = [a6r1Cli, step5R1Cli, nodeNextCli, externalReferenceCli];
 const a6 = it.skipIf(!exactCli || !["8b225c4b41c0dc5799c681ccc3ad61241f1606dbefa4f21c45b3f2de105653cb", ...laterBundlerProfiles].includes(exactCli));
 const a6r1 = it.skipIf(!exactCli || !laterBundlerProfiles.includes(exactCli));
-const nodeNext = it.skipIf(exactCli !== nodeNextCli);
+const nodeNext = it.skipIf(exactCli !== nodeNextCli && exactCli !== externalReferenceCli);
 const bundlerConfig = '{"compilerOptions":{"module":"esnext","moduleResolution":"bundler","resolveJsonModule":true,"baseUrl":".","paths":{"@/*":["src/*"]}}}';
 
 const nodeNextConfig = '{"compilerOptions":{"target":"ES2022","module":"NodeNext","moduleResolution":"NodeNext","types":["node"],"resolveJsonModule":true}}';
@@ -719,4 +720,42 @@ a6r1("exact A6-R1: consumes a bounded Bundler reference with unrelated compiler 
   expect(audit.exit).toBe(0);
   expect(audit.coverage.filter(row => row.mandatory && ["UNAVAILABLE", "UNDETERMINED"].includes(row.status))).toEqual([]);
   expect(audit.ids).not.toContain("test-rot:" + origin + ":missing-source-import:" + specifier);
+}, 60_000);
+
+it.skipIf(exactCli !== externalReferenceCli)("exact FACTS02: linked ordinary evidence and external exclusion retain separate provenance", async () => {
+  const test = "tests/entry.test.ts";
+  const fixture = subject("linked-external", {
+    "package.json": JSON.stringify({ name: "facts02-subject", version: "1.0.0", type: "module", dependencies: { external: "1.0.0" } }),
+    "tsconfig.json": JSON.stringify({ compilerOptions: { module: "NodeNext", moduleResolution: "NodeNext" } }),
+    "src/peer.ts": "export const peer = 1;",
+    [test]: 'void import("../src/peer.js");\nvoid import("external");\n',
+    "node_modules/external/package.json": JSON.stringify({ name: "external", version: "1.0.0", type: "module",
+      exports: { types: "./index.d.ts", import: "./index.js" } }),
+    "node_modules/external/index.d.ts": "export declare const value: number;",
+    "node_modules/external/index.js": "export const value = 1;",
+  });
+  let reader: KitSourceReader | undefined;
+  await collectKitSourceFacts({
+    targetRoot: fixture.target, inventory: scanProjectInventory(fixture.target), requiredCapabilities: [],
+    includeScriptsRoot: false, requiredPaths: [test, "src/peer.ts"],
+    onReader: value => { reader = value; },
+  }, { ...candidate(), workDir: path.join(fixture.root, "linked-reader") });
+  try {
+    const domains = await reader!.expressionDomains!(test);
+    expect(domains).toHaveLength(2);
+    expect(domains[0]).toMatchObject({
+      linkedImportFactId: expect.any(String),
+      linkedDestination: { positivePath: "src/peer.ts", selectedTargetUpperBound: ["src/peer.ts"] },
+    });
+    expect(domains[1]).toMatchObject({
+      proof: { domainComplete: true },
+      linkedDestination: { selectedTargetUpperBound: [], directExternalReferenceExcluded: true, applicableSourceReferenceAbsent: false },
+    });
+    fs.unlinkSync(path.join(fixture.target, "node_modules/external/index.js"));
+    const refreshed = await reader!.expressionDomains!(test);
+    expect(refreshed[1].linkedDestination?.directExternalReferenceExcluded).toBeUndefined();
+    expect(refreshed[1].linkedDestination?.selectedTargetUpperBound).toBeUndefined();
+  } finally {
+    await reader?.dispose();
+  }
 }, 60_000);

@@ -39,6 +39,7 @@ import {
   validateKitOccurrence,
   validateKitImportProof,
   validateKitOrdinarySourceReference,
+  validateKitDirectExternalReference,
   validateKitTestModifierProof,
   isTestModifierSource,
   type KitSourceReferencePremise,
@@ -269,9 +270,29 @@ const QUALIFIED_FACTS02_NODENEXT_KIT = Object.freeze({
   } as const,
 } satisfies KitCandidateExpectation & Record<string, unknown>);
 
+const QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT = Object.freeze({
+  packageName: KIT_PACKAGE_NAME,
+  packageVersion: "1.16.0",
+  artifactSchemaVersion: "1.2.0",
+  extractorRevision: "source-audit-v1.8.0",
+  sourceSha: "e2709d3b2a5a53ebc01919dfaba6ba82d314e52e",
+  sourceTree: "01f08f141003db75b447602d501772dac1f311f9",
+  archiveSha256: "dc9b834a7d9ef7a04c809ee4522e282374afd5907e7622897c45a1aea68c71c3",
+  archiveIntegrity: "sha512-8pE8awN7/je7O890/7a8lYpWtG2roMGOouH7I1qIr4R64j9qIHCEsViwyjpV/XLB5LWrZnWESia1S7jAwBY5GQ==",
+  cliSha256: "637b7d33a9501b4666b4e2c8188a51ef527d765abec94efee6bddfbed0905623",
+  receiptSha256: "81a4673848803c6d3afd7701424e99e94d081f8eff8cc15c823cb3ca1e8bd8c1",
+  capabilities: {
+    ordinarySourceReference: true,
+    expressionReference: true,
+    testModifierProof: true,
+    testModifierProofRequest: true,
+    directExternalReference: true,
+  } as const,
+} satisfies KitCandidateExpectation & Record<string, unknown>);
+
 const QUALIFIED_FACTS02_KITS = [
   QUALIFIED_FACTS02_A5_R1_KIT, QUALIFIED_FACTS02_A6_KIT, QUALIFIED_FACTS02_A6_R1_KIT,
-  QUALIFIED_FACTS02_STEP5_R1_KIT, QUALIFIED_FACTS02_NODENEXT_KIT,
+  QUALIFIED_FACTS02_STEP5_R1_KIT, QUALIFIED_FACTS02_NODENEXT_KIT, QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT,
 ] as const;
 const QUALIFIED_FACTS02_CLI_DIGESTS: readonly string[] = QUALIFIED_FACTS02_KITS.map(profile => profile.cliSha256);
 type QualifiedFacts02Kit = (typeof QUALIFIED_FACTS02_KITS)[number];
@@ -346,6 +367,7 @@ export type KitSourceProviderDependencies = {
   // Independent contract fixtures use the injected command seam. Real
   // archives receive capabilities through the exact managed profile.
   testOnlyOrdinarySourceReference?: true;
+  testOnlyDirectExternalReference?: true;
   testOnlyExpressionReference?: true;
   testOnlyPlaywrightModifierProof?: true;
   testOnlyPlaywrightProofRequest?: true;
@@ -616,6 +638,7 @@ type KitCommandContext = {
   query?: ReturnType<typeof createKitBatchTransport>;
   stream?: KitStreamTransport;
   ordinarySourceReference?: true;
+  directExternalReference?: true;
   expressionReference?: true;
 };
 
@@ -749,7 +772,10 @@ function runKitQuery(ctx: KitCommandContext, indexDir: string, item: KitBatchSel
       args = ["--audit-file", item.path, "--page", String(item.page)];
       if (item.testModifierProof) args.push("--test-modifier-proof");
       break;
-    case "audit-import-target": kind = "import-target"; args = ["--audit-import-target", item.factId]; break;
+    case "audit-import-target":
+      kind = "import-target";
+      args = ["--audit-import-target", item.factId, ...(item.directExternalReferenceProof ? ["--direct-external-reference-proof"] : [])];
+      break;
     case "audit-import-domain": kind = "import-domain"; args = ["--audit-import-domain", item.factId]; break;
     case "line-range":
       family = "source"; kind = "source-range";
@@ -1128,7 +1154,16 @@ export type KitSourceReader = {
   // Exact selected bytes for text-only predicates. This supplies no semantic facts.
   authenticatedRawTestContent?: (filePath: string) => string | undefined;
   explicitImportsCompleteWithExpressions?: (filePath: string, explicitImportCount: number) => boolean;
-  expressionDomains?: (filePath: string) => Promise<readonly { linkedImportFactId?: string; proof: KitImportDomain }[]>;
+  expressionDomains?: (filePath: string) => Promise<readonly {
+    linkedImportFactId?: string;
+    proof: KitImportDomain;
+    linkedDestination?: {
+      positivePath?: string;
+      selectedTargetUpperBound?: readonly string[];
+      applicableSourceReferenceAbsent: boolean;
+      directExternalReferenceExcluded?: true;
+    };
+  }[]>;
   byteOccurrences?: (filePath: string, needleHex: string) => Promise<KitByteOccurrence>;
   ambientClassification?: (filePath: string) => KitAmbientClassification | undefined;
   ordinarySourceReference?: true;
@@ -1141,6 +1176,7 @@ export type KitSourceReader = {
     selectedTargetUpperBound?: readonly string[];
     ordinarySourceReferenceReason?: string | null;
     applicableSourceReferenceAbsent?: true;
+    directExternalReferenceExcluded?: true;
   }>;
   dispose: () => void | Promise<void>;
 };
@@ -1277,6 +1313,7 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
   const proofs = new Map<string, Promise<{
     proof: KitImportProof;
     reference?: ReturnType<typeof validateKitOrdinarySourceReference>;
+    externalPremises?: readonly KitSourceReferencePremise[];
   }>>();
   const contents = new Map<string, Promise<string>>();
   const rawTestContents = new Map<string, string | undefined>();
@@ -1555,9 +1592,9 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
         const entry = evidence.fileEvidence.get(filePath);
         if (!entry) fail("selection-incomplete", "Domain origin is outside authenticated fact pages.");
         assertFresh(entry.record);
-        const proofs = [];
+        const proofs: Awaited<ReturnType<NonNullable<KitSourceReader["expressionDomains"]>>>[number][] = [];
         for (const fact of entry.facts.filter(fact => fact.kind === "dynamic-import-expression")) {
-          const { expressionReferencePremises, ...proof } = await query(domainPromises, fact.id, () => runKitQuery(ctx, indexDir,
+          const { expressionReferencePremises, linkedOperand, ...proof } = await query(domainPromises, fact.id, () => runKitQuery(ctx, indexDir,
             { selector: "audit-import-domain", factId: fact.id }).then(raw =>
               validateKitImportDomain(raw, evidence, fact, ctx.expressionReference)));
           assertFresh(entry.record);
@@ -1570,7 +1607,31 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
           for (const target of proof.selectedTargetUpperBound ?? proof.positivePaths) {
             assertFresh(inventoryByPath.get(target)!);
           }
-          proofs.push({ linkedImportFactId: fact.dynamicImport?.literalImportFactId, proof });
+          const linkedImportFactId = fact.dynamicImport?.literalImportFactId;
+          if (!linkedImportFactId || !linkedOperand || !ctx.ordinarySourceReference) {
+            proofs.push({ linkedImportFactId, proof });
+            continue;
+          }
+          const target = await reader.importTarget(linkedImportFactId);
+          if (target.sourceSpecifier !== linkedOperand.specifier || target.snapshotId !== proof.snapshotId) {
+            fail("artifact-invalid", "Linked ordinary import proof does not match the expression operand.");
+          }
+          const positivePath = target.qualifiedSourceReferencePath;
+          const bound = target.selectedTargetUpperBound;
+          if ((positivePath && (proof.excludesSelectedDomain || linkedOperand.status === "proven-missing" ||
+                proof.positivePaths.some(path => path !== positivePath) ||
+                (proof.selectedTargetUpperBound && !proof.selectedTargetUpperBound.includes(positivePath)))) ||
+              (bound && proof.positivePaths.some(path => !bound.includes(path))) ||
+              (bound?.length === 0 && linkedOperand.status === "present") ||
+              (proof.excludesSelectedDomain && bound?.length)) {
+            fail("artifact-invalid", "Qualified linked import destination contradicts expression evidence.");
+          }
+          proofs.push({ linkedImportFactId, proof, linkedDestination: {
+            positivePath,
+            selectedTargetUpperBound: bound,
+            applicableSourceReferenceAbsent: target.applicableSourceReferenceAbsent === true,
+            directExternalReferenceExcluded: target.directExternalReferenceExcluded,
+          } });
         }
         return proofs;
       },
@@ -1617,26 +1678,35 @@ function createKitSourceReader(evidence: KitSourceEvidence, ctx: KitCommandConte
       if (!entry) fail("invalid-request", "Import fact ID is not in the validated fact pages.");
       const { fact, record } = entry;
       const fetchProof = async () => {
-        const raw = await runKitQuery(ctx, indexDir, { selector: "audit-import-target", factId });
+        const raw = await runKitQuery(ctx, indexDir, { selector: "audit-import-target", factId,
+          ...(ctx.directExternalReference ? { directExternalReferenceProof: true } : {}) });
         const proof = validateKitImportProof(raw, { snapshotId: evidence.snapshotId, fact, evidence });
         const extension = (raw as { sourceReferenceProof?: unknown }).sourceReferenceProof;
         const reference = ctx.ordinarySourceReference && extension !== undefined
           ? validateKitOrdinarySourceReference(extension, proof, evidence, fact) : undefined;
-        return { proof, reference };
+        const external = (raw as { directExternalReferenceProof?: unknown }).directExternalReferenceProof;
+        if (external !== undefined && (!ctx.directExternalReference || reference?.selectedTargetUpperBound ||
+            reference?.qualifiedSourceReferencePath || reference?.applicableSourceReferenceAbsent)) {
+          fail("artifact-invalid", "Unnegotiated or contradictory external reference proof.");
+        }
+        const externalPremises = external === undefined ? undefined : validateKitDirectExternalReference(external, proof, evidence, fact);
+        return { proof, reference, externalPremises };
       };
       // Extension premises are rechecked on every use of the memoized response.
       // The legacy stream continues to refresh its independent absence claims.
-      const { proof, reference } = await query(proofs, factId, fetchProof);
-      if (reference) {
+      const { proof, reference, externalPremises } = await query(proofs, factId, fetchProof);
+      if (reference || externalPremises) {
         if (closed) fail("invalid-request", "The per-audit Kit reader is closed.");
         const root = fs.realpathSync.native(evidence.source.projectRoot);
         assertCanonicalReferenceOrigin(root, record.path);
         assertFresh(record);
-        assertSourceReferencePremises(root, reference.premiseRefs, inventoryByPath);
+        if (reference) assertSourceReferencePremises(root, reference.premiseRefs, inventoryByPath);
+        if (externalPremises) assertSourceReferencePremises(root, externalPremises, inventoryByPath);
       }
       const projection = {
         qualifiedSourceReferencePath: reference?.qualifiedSourceReferencePath,
-        selectedTargetUpperBound: reference?.selectedTargetUpperBound,
+        selectedTargetUpperBound: externalPremises ? [] : reference?.selectedTargetUpperBound,
+        directExternalReferenceExcluded: externalPremises ? true as const : undefined,
         ordinarySourceReferenceReason: reference?.reasonCode,
         applicableSourceReferenceAbsent: reference?.applicableSourceReferenceAbsent,
         exactSelectedPath: undefined,
@@ -1936,6 +2006,8 @@ export async function collectKitSourceFacts(
         workDir, logDir: path.join(workDir, "logs"), sequence: { next: 1_000_000 }, receipt: deps.receipt,
         guard: deps.launchGuard, onKitLaunch: deps.onKitLaunch,
         ordinarySourceReference: facts02?.capabilities.ordinarySourceReference ?? (fixtureExtensionLane ? deps.testOnlyOrdinarySourceReference : undefined),
+        directExternalReference: facts02 === QUALIFIED_FACTS02_EXTERNAL_REFERENCE_KIT ||
+          (fixtureExtensionLane && deps.testOnlyDirectExternalReference) ? true : undefined,
         expressionReference: facts02?.capabilities.expressionReference ?? (fixtureExtensionLane ? deps.testOnlyExpressionReference : undefined) };
       configureKitTransport(context, deps, evidence.source, path.join(workDir, "index"), streamState);
       const reader = createKitSourceReader(evidence, context, async () => {

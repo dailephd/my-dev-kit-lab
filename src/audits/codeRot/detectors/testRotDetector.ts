@@ -150,25 +150,33 @@ export const TEST_ROT_DETECTOR: AuditDetector = {
         ? await reader.expressionDomains(testFile.relativePath) : undefined;
       const domainMissing = new Set<string>();
       const linked = new Set<string>();
-      for (const { linkedImportFactId, proof } of scopedDomains ?? []) {
+      for (const { linkedImportFactId, proof, linkedDestination } of scopedDomains ?? []) {
         if (linkedImportFactId) linked.add(linkedImportFactId);
         const imp = observed?.imports.find(i => i.provenance?.factId === linkedImportFactId);
-        const missingRelative = !!imp?.source.startsWith(".") && proof.excludesSelectedDomain;
+        const linkedBound = linkedDestination?.selectedTargetUpperBound;
+        const externalOrLocalExclusion = linkedBound?.length === 0;
+        const missingRelative = !!imp?.source.startsWith(".") && (
+          linkedDestination?.applicableSourceReferenceAbsent === true || proof.excludesSelectedDomain
+        );
         if (missingRelative && imp) domainMissing.add(imp.source);
         // The expression validator admits a positive witness only for a
         // singleton operand. A finite candidate bound cannot resolve a call.
-        const qualified = proof.excludesSelectedDomain || proof.positivePaths.length > 0;
-        const bound = reader?.expressionReference ? proof.selectedTargetUpperBound : undefined;
+        const positivePaths = linkedDestination?.positivePath ? [linkedDestination.positivePath] : proof.positivePaths;
+        const qualified = externalOrLocalExclusion || proof.excludesSelectedDomain || positivePaths.length > 0;
+        const bound = linkedBound ?? (reader?.expressionReference ? proof.selectedTargetUpperBound : undefined);
         ctx.reportCoverage?.({ detectorId: DETECTOR_ID, predicate: "missing-source-import",
           source: { kind: "file", identity: testFile.relativePath }, capability: "imports",
           actualStatus: proof.outcome, status: missingRelative ? "FINDING_SUPPORTED"
             : qualified ? "QUALIFIED" : "UNDETERMINED", mandatory: true, diagnostic: proof.reasonCode ?? "",
-          reason: qualified ? "Validated R3 expression reference or selected-domain exclusion."
+          reason: linkedDestination?.directExternalReferenceExcluded ? "Validated linked direct external package exclusion."
+            : qualified ? (linkedDestination && (externalOrLocalExclusion || linkedDestination.positivePath)
+            ? "Validated linked ordinary import destination for a complete singleton expression."
+            : "Validated R3 expression reference or selected-domain exclusion.")
             : bound ? "Dynamic import evidence has a finite selected-target bound without qualified destination coverage."
               : "Dynamic import evidence has no exact witness or complete selected-domain exclusion.",
           proof: { kind: "import-domain", snapshotId: proof.snapshotId,
             references: [proof.expressionFactId, ...(linkedImportFactId ? [linkedImportFactId] : []),
-              ...(qualified ? proof.positivePaths : bound ?? [])] },
+              ...(qualified ? positivePaths : bound ?? [])] },
         });
       }
       const partialImports = observed?.kit?.capabilities.imports === "partial";

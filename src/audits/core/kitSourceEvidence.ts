@@ -337,6 +337,98 @@ function validateSourceReferencePremises(raw: unknown, selected: ReadonlyMap<str
   return { premiseRefs, candidates };
 }
 
+const externalSelectionIdentities = new WeakMap<KitSourceEvidence, {
+  selected: ReadonlyMap<string, KitFileRecord>;
+  digest: string;
+  packagePrefixes: ReadonlySet<string>;
+}>();
+
+export function validateKitDirectExternalReference(
+  raw: unknown, proof: KitImportProof, evidence: KitSourceEvidence, fact: KitFact,
+): readonly KitSourceReferencePremise[] {
+  const r = closedReferenceObject(raw, [
+    "schemaVersion", "profile", "pathIdentityProfile", "snapshotId", "selectionFingerprint", "selectedDomainDigest",
+    "originFile", "originContentSha256", "importFactId", "sourceSpecifier", "resolutionPlatform", "resolutionMode",
+    "packageName", "packageRoot", "resolvedEntries", "selectedDomainExcluded", "premiseRefs",
+  ], "direct external reference proof");
+  const origin = evidence.fileEvidence.get(fact.span.path)?.record;
+  const fold = (value: string) => process.platform === "win32" ? value.toLowerCase() : value;
+  let selection = externalSelectionIdentities.get(evidence);
+  if (!selection) {
+    const selected = new Map(evidence.inventory.map(file => [file.path, file]));
+    const packagePrefixes = new Set<string>();
+    for (const file of selected.keys()) {
+      const segments = fold(file).split("/");
+      const start = segments.indexOf("node_modules");
+      if (start < 0) continue;
+      for (let end = start + 1; end <= segments.length; end++) packagePrefixes.add(segments.slice(0, end).join("/"));
+    }
+    selection = { selected, digest: sha256Hex(JSON.stringify([...selected.keys()].sort())), packagePrefixes };
+    externalSelectionIdentities.set(evidence, selection);
+  }
+  const packagePattern = /^(?<name>(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*)(?:\/[a-zA-Z0-9_][a-zA-Z0-9_.-]*)*$/;
+  const name = fact.sourceSpecifier && packagePattern.exec(fact.sourceSpecifier)?.groups?.name;
+  if (evidence.artifactSchemaVersion !== "1.2.0" || r.schemaVersion !== "1.0.0" ||
+      r.profile !== "js-ts-direct-external-selected-exclusion-v1" || r.pathIdentityProfile !== "selected-source-path-v1" ||
+      r.resolutionPlatform !== (process.platform === "win32" ? "win32" : "posix") ||
+      (r.resolutionMode !== "nodenext-esm" && r.resolutionMode !== "bundler-esm") ||
+      !evidence.traversalComplete || !evidence.coverage.inventoryComplete || !evidence.coverage.exclusionsAreExplicit ||
+      !proof.selectionComplete || proof.status === "present" || proof.candidatePaths.length || fact.targetPaths?.length ||
+      !origin?.contentSha256 || !["typescript", "javascript"].includes(origin.language) ||
+      !(fact.kind === "import" || fact.kind === "export" && fact.exportOrigin === "re-export") ||
+      r.snapshotId !== evidence.snapshotId || r.snapshotId !== proof.snapshotId ||
+      r.selectionFingerprint !== evidence.source.selectionFingerprint ||
+      r.selectedDomainDigest !== selection.digest ||
+      r.originFile !== fact.span.path || r.originFile !== proof.originFile || r.originContentSha256 !== origin.contentSha256 ||
+      r.importFactId !== fact.id || r.importFactId !== proof.importFactId ||
+      r.sourceSpecifier !== fact.sourceSpecifier || r.sourceSpecifier !== proof.sourceSpecifier ||
+      !name || r.packageName !== name || r.selectedDomainExcluded !== true ||
+      !Array.isArray(r.resolvedEntries) || !r.resolvedEntries.length || r.resolvedEntries.length > 2 ||
+      Buffer.byteLength(JSON.stringify(r), "utf8") > 1048576) {
+    fail("artifact-invalid", "Unqualified direct external reference scope or identity.");
+  }
+  const packageRoot = referencePath(r.packageRoot);
+  const { premiseRefs, candidates } = validateSourceReferencePremises(r.premiseRefs, selection.selected);
+  const earlierRoots: string[] = [];
+  for (let directory = path.posix.dirname(origin.path);; directory = path.posix.dirname(directory)) {
+    const candidate = path.posix.join(directory, "node_modules", name);
+    if (candidate === packageRoot) break;
+    if (directory === ".") fail("artifact-invalid", "External package does not belong to an origin ancestor.");
+    earlierRoots.push(candidate);
+  }
+  const pathStates = new Map(premiseRefs.filter(p => p.role === "path").map(p => [p.path, p.state]));
+  if (selection.packagePrefixes.has(fold(packageRoot)) ||
+      pathStates.get(packageRoot) !== "directory" || earlierRoots.some(root => pathStates.get(root) !== "absent") ||
+      !premiseRefs.some(p => p.role === "package-metadata" && p.path === packageRoot + "/package.json" && p.state === "file") ||
+      !premiseRefs.some(p => p.role === "config" && p.state === "file")) {
+    fail("artifact-invalid", "External package is missing disjointness or routing premises.");
+  }
+  let previous = "";
+  const roles = new Set<string>();
+  for (const rawEntry of r.resolvedEntries) {
+    const entry = closedReferenceObject(rawEntry, ["path", "contentSha256", "roles"], "external reference entry");
+    const file = referencePath(entry.path);
+    const candidate = candidates.get(file);
+    if (file <= previous || !file.startsWith(packageRoot + "/") || candidate?.state !== "file" ||
+        candidate.contentSha256 !== entry.contentSha256 || !Array.isArray(entry.roles) || !entry.roles.length) {
+      fail("artifact-invalid", "Invalid authenticated external entry.");
+    }
+    previous = file;
+    let previousRole = "";
+    for (const role of entry.roles) {
+      if (typeof role !== "string" || !["source", "type", "value"].includes(role) || role <= previousRole || roles.has(role) ||
+          (role === "value" && !/\.(?:mjs|cjs|js)$/.test(file)) ||
+          (role === "type" && !/\.d\.[cm]?ts$/.test(file))) fail("artifact-invalid", "Invalid external entry role.");
+      previousRole = role;
+      roles.add(role);
+    }
+  }
+  if (!roles.has("value") || Number(roles.has("source")) + Number(roles.has("type")) !== 1) {
+    fail("artifact-invalid", "External exclusion requires source/type and value routes.");
+  }
+  return premiseRefs;
+}
+
 export function validateKitOrdinarySourceReference(
   raw: unknown, proof: KitImportProof, evidence: KitSourceEvidence, fact: KitFact,
 ): KitOrdinarySourceReference {
@@ -1730,7 +1822,10 @@ export type KitImportDomain = {
 
 export function validateKitImportDomain(
   raw: unknown, evidence: KitSourceEvidence, fact: KitFact, qualifyExpressionReference?: true,
-): KitImportDomain & { expressionReferencePremises?: readonly KitSourceReferencePremise[] } {
+): KitImportDomain & {
+  expressionReferencePremises?: readonly KitSourceReferencePremise[];
+  linkedOperand?: { specifier: string; status: string };
+} {
   const r = asObject(raw, "import domain", "artifact-invalid");
   const origin = evidence.fileEvidence.get(fact.span.path);
   const sameSpan = (a: unknown, b: KitSourceSpan | undefined) => {
@@ -1809,6 +1904,8 @@ export function validateKitImportDomain(
   } else if (r.disjointProof !== null) fail("artifact-invalid", "Unexpected disjoint proof.");
 
   const link = origin.facts.find(f => f.id === fact.dynamicImport?.literalImportFactId);
+  if (fact.dynamicImport.literalImportFactId && (!link || link.kind !== "import" || link.span.path !== fact.span.path))
+    fail("artifact-invalid", "Domain links to an unauthenticated ordinary import fact.");
   if (link && finite && (candidates.length !== 1 || candidates[0]?.specifier !== link.sourceSpecifier))
     fail("artifact-invalid", "Domain operand differs from linked literal fact.");
   const positivePaths = witnesses.map(rawWitness => {
@@ -1909,6 +2006,7 @@ export function validateKitImportDomain(
   return { expressionFactId: fact.id, snapshotId: evidence.snapshotId,
     reasonCode: typeof r.reasonCode === "string" ? r.reasonCode : null, outcome, domainComplete: finite, positivePaths,
     excludesSelectedDomain: outcome === "disjoint-selected-domain", selectedTargetUpperBound,
+    ...(link && finite ? { linkedOperand: { specifier: candidates[0].specifier, status: String(candidates[0].status) } } : {}),
     ...(expressionReferencePremises ? { expressionReferencePremises } : {}) };
 }
 

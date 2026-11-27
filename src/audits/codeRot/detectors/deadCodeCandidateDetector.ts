@@ -169,12 +169,21 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
             continue;
           }
           const reader = ctx.kitSourceReader!;
-          const domains = await r3(entry.relativePath);
+          const domains = (await r3(entry.relativePath)).map(({ proof, linkedDestination, linkedImportFactId }) => {
+            const linkedBound = linkedDestination?.selectedTargetUpperBound;
+            return {
+              linkedImportFactId,
+              proof,
+              positivePaths: linkedDestination?.positivePath ? [linkedDestination.positivePath] : proof.positivePaths,
+              selectedTargetUpperBound: linkedBound ?? proof.selectedTargetUpperBound,
+              excludesSelectedDomain: linkedBound?.length === 0 || proof.excludesSelectedDomain,
+            };
+          });
           if (domains.some(({ proof }) => proof.snapshotId !== reader.snapshotId)) {
             throw new KitSourceEvidenceAcquisitionError("snapshot-mismatch", "Reverse-reference proof belongs to a different Kit snapshot.");
           }
           const linked = new Set(domains.map(d => d.linkedImportFactId));
-          for (const { proof } of domains) for (const target of proof.positivePaths) {
+          for (const { positivePaths } of domains) for (const target of positivePaths) {
             exactReferences.add(target);
             unwitnessedCandidates.delete(target);
           }
@@ -196,9 +205,9 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
               proof: { kind: "import-domain", snapshotId: reader.snapshotId,
                 references: domains.map(({ proof }) => proof.expressionFactId) } });
           }
-          const possiblePaths = new Set(domains.flatMap(({ proof }) => proof.selectedTargetUpperBound ?? []));
-          let bounded = inventoriesComplete && domains.every(({ proof }) =>
-            proof.selectedTargetUpperBound !== undefined || proof.excludesSelectedDomain);
+          const possiblePaths = new Set(domains.flatMap(({ selectedTargetUpperBound }) => selectedTargetUpperBound ?? []));
+          let bounded = inventoriesComplete && domains.every(({ selectedTargetUpperBound, excludesSelectedDomain }) =>
+            selectedTargetUpperBound !== undefined || excludesSelectedDomain);
           let legacyExclusionProbe = bounded &&
             reExports.every(fact => fact.sourceSpecifier.startsWith(".") || builtinReference(fact.sourceSpecifier)) &&
             staticImports.every(imp => qualifyKitImportPredicate(file, imp) === "QUALIFIED_POSITIVE" &&
@@ -207,8 +216,8 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
           const inventoryBlockers: string[] = [];
           if (!importsComplete) inventoryBlockers.push("incomplete import inventory");
           if (!exportsComplete) inventoryBlockers.push("incomplete re-export inventory");
-          const expressionBlockers = domains.filter(({ proof }) => !proof.excludesSelectedDomain &&
-            (!proof.selectedTargetUpperBound || proof.selectedTargetUpperBound.some(target => !exactReferences.has(target))))
+          const expressionBlockers = domains.filter(({ selectedTargetUpperBound, excludesSelectedDomain }) => !excludesSelectedDomain &&
+            (!selectedTargetUpperBound || selectedTargetUpperBound.some(target => !exactReferences.has(target))))
             .map(({ proof }) => "dynamic import [" + proof.expressionFactId + "]: " + (proof.reasonCode ?? proof.outcome));
           const blockers = newProfile ? [...inventoryBlockers, ...expressionBlockers] : [];
 
@@ -248,7 +257,8 @@ export const DEAD_CODE_CANDIDATE_DETECTOR: AuditDetector = {
                   source: { kind: "file", identity: entry.relativePath }, capability: "imports",
                   actualStatus: legacyExclusion ? "proven-missing" : "disjoint-selected-domain",
                   status: "QUALIFIED", mandatory: false, diagnostic: "",
-                  reason: "Kit exhausted the recorded module reference's candidates in the complete selection.",
+                  reason: proof?.directExternalReferenceExcluded ? "Kit qualified a direct external package outside the selected source domain."
+                    : "Kit exhausted the recorded module reference's candidates in the complete selection.",
                   proof: { kind: "import-target", snapshotId: reader.snapshotId, references: [factId, ...(legacyExclusion ? proof!.candidatePaths : [])] } });
               } else if (bound.some(target => !exactReferences.has(target))) {
                 blockers.push(kind + " " + JSON.stringify(specifier) + " [" + factId + "]: qualified domain still permits " + bound.join(", "));

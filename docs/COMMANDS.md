@@ -988,8 +988,14 @@ The qualified NodeNext FACTS02 package supplies ordinary source-reference
 proofs for explicit relative imports and immediate re-exports in supported
 ESM contexts. Lab validates the applicable TypeScript configuration and
 nearest package metadata premises before consuming a positive or finite
-bound. Extensionless NodeNext references, bare package resolution and
-runtime-generated destinations remain outside this profile.
+bound. Extensionless NodeNext references and runtime-generated destinations
+remain outside this ordinary profile. Independently qualified producers can
+supply the opt-in direct external exclusion proof for bounded ESM package
+routes. Lab uses it only to exclude selected local destinations. This does
+not support a missing-file finding. For a validated singleton expression
+with an authenticated ordinary import link, Lab may also consume the linked
+positive, finite bound, or applicable physical absence without altering the
+original expression proof. Unlinked or incomplete operands remain unknown.
 
 Repeat `--require-source <relative-path>` for required inventory entries.
 `--source-snapshot <git-sha>` declares the intended revision.
