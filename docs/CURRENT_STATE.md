@@ -47,7 +47,7 @@ Original full SW-118 audit/timeout artifacts and mandatory historical Kit reconc
 - `v0.4.7` adds generic declarative browser tutorial video automation, persistent browser sessions, synchronized runtime artifacts (WebM, screenshots, SRT/VTT subtitles, Markdown), a validated tutorial manifest, installed tutorial CLI routes, a packaged generic tutorial fixture, and packed-tarball clean-consumer acceptance while preserving product-specific demo ownership outside this repository.
 - Previous release-source baseline: `v0.9.1` (normalized provider telemetry and resumable agent-success-rate campaigns).
 - Historical v0.9.2 validated implementation SHA: `d6289600273a0d573f8d71dcdd975546c683dc6b` on `fix/v0.9.2-cross-platform-readiness-correction`; the global planner accepted its readiness report as PASS_READY_FOR_RELEASE_PREP. Earlier failed attempts remain historical and are superseded, not current blockers.
-- Historical v0.10.0 release preparation used package version `0.10.0` and its final release-document state. The current package version and latest published version are both `0.11.0`.
+- Historical v0.10.0 release preparation used package version `0.10.0` and its final release-document state. The latest published version is `0.11.0`.
 - Historical registry snapshot on 2026-11-14: package 0.9.7. For v0.10.0, LAB-KIT-01 Gates 1 through 6 complete; LAB-EVIDENCE-01 prospective functional/native acceptance passed.
 - Active corrective target: `v0.10.1` — partially implemented and unreleased; P3 source work is implemented, P4–P6 remain pending, and release preparation has not begun.
 - Latest published version at the SW-123 review: `v0.10.0`. The historical v0.10.0 implementation b0c06bc3ca933d8bda2db34ba0480da741af60f5 passed its own standardized readiness; that does not qualify the complete current corrective candidate.
@@ -516,7 +516,7 @@ and the original private verification and readiness binding remain **NOT_PASSED*
 
 [LAB-FACTS-02 / v0.11.1](ROADMAP.md#v0111--predicate-scoped-audit-qualification-correction-lab-facts-02) is **IMPLEMENTED_UNRELEASED** on `fix/v0.11.1-facts02-proofs`.
 
-The published and tracked package version is 0.11.0. Published Kit 1.16.0 remains the exact default Kit dependency. The qualified unpublished Kit implementation archive also carries 1.16.0 metadata and has a separate archive and installed identity. Kit 1.16.1 is the intended future released producer dependency, pending the separate release transition.
+The published Lab version is 0.11.0. The release preparation branch carries Lab package and CLI version 0.11.1. Published Kit 1.16.0 remains the exact default Kit dependency. The qualified unpublished Kit implementation archive also carries 1.16.0 metadata and has a separate archive and installed identity. Kit 1.16.1 is the intended future released producer dependency, pending the separate release transition.
 
 The November 25 planning intake recorded unauthenticated external claims and partial architecture retrieval. Subsequent bounded retrieval, exact producer and consumer admission, and coordinated external regression resolved the implementation-stage obligations. Qualification recorded 18 managed exact-package tests with zero skips, 26 published-provider acceptance tests, ten installed controls, and normal raw acquisition from a fresh, unmodified index. The supported profile has no demonstrated remaining implementation defect. External targets retained native exit 2 and remain uncertified. Fifteen finite-expression cases have authenticated operands and still lack qualified destination or exclusion premises. Historical launch provenance remains **UNVERIFIED**.
 
@@ -524,8 +524,15 @@ Step 5 admits the exact bounded NodeNext producer from Kit commit
 `d39d4018ffd70965ac40dd1e2b023c10d4ab66b8` through the local archive/root
 override. Lab consumes explicit relative ESM source references and
 immediate re-exports through the existing ordinary reference contract.
-Coordinated readiness depends on the installed-pair qualification and
-both native Gate K dispositions. Release preparation must later qualify
+Coordinated Step 5 readiness passed for the exact implementation pair. Lab
+Gate K returned native `INCOMPLETE` with exit 2, 134 mandatory coverage gaps,
+and one blocked candidate projection. Its effective disposition was reviewed
+as nonblocking for product readiness. The review retained the mixed-line-ending
+and residual obligations and kept
+`src/experiments/plugins/warmIndexReuse/fakeAgentEvaluation.ts` because
+supported external usage remains unverified. Gate N is resolved. Alert #11
+was dismissed as an authorized false positive and alert #12 was fixed.
+Target certification remains a separate determination. Release preparation must later qualify
 the final Kit registry bytes, then advance the exact Lab dependency and
 prospective acceptance binding under explicit Planner authority. The
 v0.12.0 web security milestone and all later allocations remain intact.
